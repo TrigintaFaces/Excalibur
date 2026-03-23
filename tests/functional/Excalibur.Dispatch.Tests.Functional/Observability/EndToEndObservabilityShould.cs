@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Tests.Functional.Observability;
 ///     Functional tests for end-to-end observability scenarios across the entire dispatch pipeline.
 /// </summary>
 [Trait("Category", "Functional")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class EndToEndObservabilityShould : FunctionalTestBase
 {
 	private readonly ObservabilityTestHarness _observabilityHarness = new();

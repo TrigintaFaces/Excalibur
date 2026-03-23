@@ -149,7 +149,7 @@ public sealed class DefaultDispatchRouterShould
 		var router = new DefaultDispatchRouter(transportSelector, endpointRouter);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await router.RouteAsync(message, context, cts.Token);
@@ -176,7 +176,7 @@ public sealed class DefaultDispatchRouterShould
 		var router = new DefaultDispatchRouter(transportSelector, endpointRouter);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await router.RouteAsync(message, context, cts.Token);

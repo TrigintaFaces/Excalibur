@@ -34,11 +34,6 @@ Excalibur.Cdc.SqlServer.CdcFatalErrorOptions
 Excalibur.Cdc.SqlServer.CdcFatalErrorOptions.CdcFatalErrorOptions() -> void
 Excalibur.Cdc.SqlServer.CdcFatalErrorOptions.OnFatalError.get -> Excalibur.Cdc.SqlServer.CdcFatalErrorHandler?
 Excalibur.Cdc.SqlServer.CdcFatalErrorOptions.OnFatalError.set -> void
-Excalibur.Cdc.SqlServer.CdcHealthCheck
-Excalibur.Cdc.SqlServer.CdcHealthCheck.CdcHealthCheck(Excalibur.Cdc.SqlServer.CdcHealthState! state, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.CdcHealthCheckOptions!>! options) -> void
-Excalibur.Cdc.SqlServer.CdcHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Cdc.SqlServer.CdcHealthCheckOptions
-Excalibur.Cdc.SqlServer.CdcHealthCheckOptions.CdcHealthCheckOptions() -> void
 Excalibur.Cdc.SqlServer.CdcHealthState
 Excalibur.Cdc.SqlServer.CdcHealthState.CdcHealthState() -> void
 Excalibur.Cdc.SqlServer.CdcHealthState.IsRunning.get -> bool
@@ -56,7 +51,6 @@ Excalibur.Cdc.SqlServer.CdcMissingTableHandlerException.CdcMissingTableHandlerEx
 Excalibur.Cdc.SqlServer.CdcMissingTableHandlerException.CdcMissingTableHandlerException(string! message, System.Exception? innerException) -> void
 Excalibur.Cdc.SqlServer.CdcMissingTableHandlerException.CdcMissingTableHandlerException(string! tableName, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Cdc.SqlServer.CdcMissingTableHandlerException.TableName.get -> string!
-Excalibur.Cdc.SqlServer.CdcMissingTableHandlerException.TableName.set -> void
 Excalibur.Cdc.SqlServer.CdcMultipleTableHandlerException
 Excalibur.Cdc.SqlServer.CdcMultipleTableHandlerException.CdcMultipleTableHandlerException() -> void
 Excalibur.Cdc.SqlServer.CdcMultipleTableHandlerException.CdcMultipleTableHandlerException(int statusCode, string? message, System.Exception? innerException) -> void
@@ -64,7 +58,6 @@ Excalibur.Cdc.SqlServer.CdcMultipleTableHandlerException.CdcMultipleTableHandler
 Excalibur.Cdc.SqlServer.CdcMultipleTableHandlerException.CdcMultipleTableHandlerException(string! message, System.Exception? innerException) -> void
 Excalibur.Cdc.SqlServer.CdcMultipleTableHandlerException.CdcMultipleTableHandlerException(string! tableName, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Cdc.SqlServer.CdcMultipleTableHandlerException.TableName.get -> string!
-Excalibur.Cdc.SqlServer.CdcMultipleTableHandlerException.TableName.set -> void
 Excalibur.Cdc.SqlServer.CdcOperationCodes
 Excalibur.Cdc.SqlServer.CdcOperationCodes.Delete = 1 -> Excalibur.Cdc.SqlServer.CdcOperationCodes
 Excalibur.Cdc.SqlServer.CdcOperationCodes.Insert = 2 -> Excalibur.Cdc.SqlServer.CdcOperationCodes
@@ -237,9 +230,9 @@ Excalibur.Cdc.SqlServer.ICdcRepositoryLsnMapping.GetLsnToTimeAsync(byte[]! lsn, 
 Excalibur.Cdc.SqlServer.ICdcRepositoryLsnMapping.GetNextLsnAsync(string! captureInstance, byte[]! lastProcessedLsn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
 Excalibur.Cdc.SqlServer.ICdcRepositoryLsnMapping.GetNextValidLsnAsync(byte[]! lastProcessedLsn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
 Excalibur.Cdc.SqlServer.ICdcRepositoryLsnMapping.GetTimeToLsnAsync(System.DateTime lsnDate, string! relationalOperator, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
-Excalibur.Cdc.SqlServer.ICdcStateStore
-Excalibur.Cdc.SqlServer.ICdcStateStore.GetLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcProcessingState!>!>!
-Excalibur.Cdc.SqlServer.ICdcStateStore.UpdateLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, string! tableName, byte[]! position, byte[]? sequenceValue, System.DateTime? commitTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore
+Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore.GetLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcProcessingState!>!>!
+Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore.UpdateLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, string! tableName, byte[]! position, byte[]? sequenceValue, System.DateTime? commitTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.SqlServer.IDatabaseConfig
 Excalibur.Cdc.SqlServer.IDatabaseConfig.BatchTimeInterval.get -> int
 Excalibur.Cdc.SqlServer.IDatabaseConfig.CaptureInstances.get -> string![]!
@@ -296,7 +289,6 @@ Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions.Validate() -> void
 Excalibur.Cdc.SqlServer.StalePositionReasonCodes
 Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException
 Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException.Lsn.get -> byte[]!
-Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException.Lsn.set -> void
 Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException.UnmatchedUpdateRecordsException() -> void
 Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException.UnmatchedUpdateRecordsException(byte[]! lsn, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException.UnmatchedUpdateRecordsException(int statusCode, string? message, System.Exception? innerException) -> void

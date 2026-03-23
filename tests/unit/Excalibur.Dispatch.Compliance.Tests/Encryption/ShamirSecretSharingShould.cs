@@ -124,13 +124,12 @@ public sealed class ShamirSecretSharingShould
 	}
 
 	[Fact]
-	public void Return_empty_shares_for_empty_secret()
+	public void Throw_on_empty_secret()
 	{
-		// Act
-		var shares = ShamirSecretSharing.Split([], totalShares: 3, threshold: 2);
-
-		// Assert
-		shares.Length.ShouldBe(3);
+		// Act & Assert
+		var ex = Should.Throw<ArgumentException>(
+			() => ShamirSecretSharing.Split([], totalShares: 3, threshold: 2));
+		ex.ParamName.ShouldBe("secret");
 	}
 
 	[Fact]

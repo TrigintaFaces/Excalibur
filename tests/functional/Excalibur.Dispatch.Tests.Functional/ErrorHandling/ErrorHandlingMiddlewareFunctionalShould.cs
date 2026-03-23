@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Functional.ErrorHandling;
 ///     Functional tests for Excalibur.Core.Messaging.ErrorHandling.ErrorHandlingMiddleware in realistic scenarios.
 /// </summary>
 [Trait("Category", "Functional")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 {
 	private readonly IHost _host;
@@ -69,11 +70,11 @@ public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 
 		static async Task<IMessageResult> Pipeline(IDispatchMessage msg, IMessageContext ctx, CancellationToken token)
 		{
-			return await SuccessfulMessageHandler.HandleAsync((TestMessage)msg, ctx, token).ConfigureAwait(true);
+			return await SuccessfulMessageHandler.HandleAsync((TestMessage)msg, ctx, token);
 		}
 
 		// Act
-		var result = await errorHandling.InvokeAsync(message, context, Pipeline, CancellationToken.None).ConfigureAwait(true);
+		var result = await errorHandling.InvokeAsync(message, context, Pipeline, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -95,11 +96,11 @@ public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 
 		static async Task<IMessageResult> Pipeline(IDispatchMessage msg, IMessageContext ctx, CancellationToken token)
 		{
-			return await FailingMessageHandler.HandleAsync((TestMessage)msg, ctx, token).ConfigureAwait(true);
+			return await FailingMessageHandler.HandleAsync((TestMessage)msg, ctx, token);
 		}
 
 		// Act
-		var result = await errorHandling.InvokeAsync(message, context, Pipeline, CancellationToken.None).ConfigureAwait(true);
+		var result = await errorHandling.InvokeAsync(message, context, Pipeline, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
@@ -126,11 +127,11 @@ public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 
 		static async Task<IMessageResult> Pipeline(IDispatchMessage msg, IMessageContext ctx, CancellationToken token)
 		{
-			return await SlowMessageHandler.HandleAsync((TestMessage)msg, ctx, token).ConfigureAwait(true);
+			return await SlowMessageHandler.HandleAsync((TestMessage)msg, ctx, token);
 		}
 
 		// Act
-		var result = await errorHandling.InvokeAsync(message, context, Pipeline, cts.Token).ConfigureAwait(true);
+		var result = await errorHandling.InvokeAsync(message, context, Pipeline, cts.Token);
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
@@ -182,7 +183,7 @@ public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 		}
 
 		// Act
-		_ = await errorHandling.InvokeAsync(message, context, Pipeline, CancellationToken.None).ConfigureAwait(true);
+		_ = await errorHandling.InvokeAsync(message, context, Pipeline, CancellationToken.None);
 
 		// Assert
 		var loggedMessages = loggerProvider.Entries;

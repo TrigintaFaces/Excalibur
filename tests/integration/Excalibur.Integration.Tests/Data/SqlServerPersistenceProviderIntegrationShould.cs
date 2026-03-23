@@ -17,7 +17,7 @@ namespace Excalibur.Integration.Tests.Data;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "SqlServer")]
-public class SqlServerPersistenceProviderIntegrationShould
+public sealed class SqlServerPersistenceProviderIntegrationShould
 {
 	private readonly SqlServerContainerFixture _fixture;
 

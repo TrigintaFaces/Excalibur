@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.Abstractions;
 using Excalibur.Data.Abstractions.Resilience;
 
 using Grpc.Core;
@@ -40,28 +39,6 @@ internal sealed class FirestoreRetryPolicy : IDataRequestRetryPolicy
 			OperationCanceledException => false,
 			_ => false
 		};
-	}
-
-	/// <inheritdoc/>
-	public async Task<TResult> ResolveAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		await Task.CompletedTask.ConfigureAwait(false);
-		throw new NotSupportedException(
-			"Use cloud-native specific methods (GetByIdAsync, CreateAsync, etc.) for Firestore operations.");
-	}
-
-	/// <inheritdoc/>
-	public async Task<TResult> ResolveDocumentAsync<TConnection, TResult>(
-		IDocumentDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		await Task.CompletedTask.ConfigureAwait(false);
-		throw new NotSupportedException(
-			"Use cloud-native specific methods (GetByIdAsync, CreateAsync, etc.) for Firestore operations.");
 	}
 
 	private static bool IsTransientStatusCode(StatusCode statusCode) =>

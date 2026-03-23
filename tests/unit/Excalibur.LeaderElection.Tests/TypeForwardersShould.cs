@@ -15,6 +15,7 @@ namespace Excalibur.LeaderElection.Tests;
 /// Tests to verify that type forwarders are correctly set up in the Excalibur.LeaderElection assembly.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class TypeForwardersShould
 {
 	private static Assembly GetExcaliburLeaderElectionAssembly()

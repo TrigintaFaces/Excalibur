@@ -23,7 +23,7 @@ public sealed class OrderingKeyOptionsShould
 		options.EnableMetrics.ShouldBeTrue();
 		options.MessageStaleTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.EnforceStrictOrdering.ShouldBeFalse();
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(1));
 	}
 
@@ -40,7 +40,7 @@ public sealed class OrderingKeyOptionsShould
 			EnableMetrics = false,
 			MessageStaleTimeout = TimeSpan.FromSeconds(60),
 			EnforceStrictOrdering = true,
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			RetryDelay = TimeSpan.FromSeconds(2),
 		};
 
@@ -52,7 +52,7 @@ public sealed class OrderingKeyOptionsShould
 		options.EnableMetrics.ShouldBeFalse();
 		options.MessageStaleTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 		options.EnforceStrictOrdering.ShouldBeTrue();
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(2));
 	}
 
@@ -104,11 +104,11 @@ public sealed class OrderingKeyOptionsShould
 	public void ValidateThrowWhenMaxRetriesNegative()
 	{
 		// Arrange
-		var options = new OrderingKeyOptions { MaxRetries = -1 };
+		var options = new OrderingKeyOptions { MaxRetryAttempts = -1 };
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(() => options.Validate())
-			.Message.ShouldContain("MaxRetries");
+			.Message.ShouldContain("MaxRetryAttempts");
 	}
 
 	[Fact]

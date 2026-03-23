@@ -7,7 +7,7 @@ namespace Excalibur.Data.Abstractions.Transactions;
 /// <summary>
 /// Exception thrown when a distributed transaction operation fails.
 /// </summary>
-public class DistributedTransactionException : Exception
+public sealed class DistributedTransactionException : ResourceException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DistributedTransactionException"/> class.

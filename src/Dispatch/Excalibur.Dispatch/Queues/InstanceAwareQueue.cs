@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Queues;
 internal sealed class InstanceAwareQueue(string instanceId, IDistributedOrderedSetQueue<string> queue) : IAsyncDisposable
 #pragma warning restore CA1711
 {
-	private readonly Channel<string> _ownedItems = Channel.CreateUnbounded<string>();
+	private readonly Channel<string> _ownedItems = Channel.CreateBounded<string>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.Wait });
 
 	/// <summary>
 	/// Adds a value to the queue prefixed with the instance identifier. The value is tracked in the owned items collection for later cleanup.
@@ -64,8 +64,9 @@ internal sealed class InstanceAwareQueue(string instanceId, IDistributedOrderedS
 			return (false, null);
 		}
 
-		var parts = item.Split(':', 2);
-		return (true, parts.Length == 2 ? parts[1] : item);
+		// Use IndexOf + Substring instead of Split to avoid string[] allocation on every pop
+		var separatorIndex = item.IndexOf(':', StringComparison.Ordinal);
+		return (true, separatorIndex >= 0 ? item[(separatorIndex + 1)..] : item);
 	}
 
 #pragma warning restore MA0038
@@ -92,7 +93,18 @@ internal sealed class InstanceAwareQueue(string instanceId, IDistributedOrderedS
 	/// <returns> A task that completes when the disposal is finished. </returns>
 	public async ValueTask DisposeAsync()
 	{
-		await CleanupAsync(CancellationToken.None).ConfigureAwait(false);
+		// Use a timeout to prevent indefinite hang during disposal
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+		try
+		{
+			await CleanupAsync(cts.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+		{
+			// Cleanup timed out -- items may remain in the distributed queue
+			// but we must not hang indefinitely during disposal
+		}
+
 		GC.SuppressFinalize(this);
 	}
 }

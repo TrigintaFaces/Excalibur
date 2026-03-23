@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 
 namespace Excalibur.Dispatch.CloudEvents;
 
@@ -9,8 +10,8 @@ namespace Excalibur.Dispatch.CloudEvents;
 /// </summary>
 public sealed class InMemorySchemaRegistry : ISchemaRegistry
 {
-	private readonly Dictionary<(string eventType, string version), string> _schemas = [];
-	private readonly Dictionary<string, List<string>> _versions = [];
+	private readonly ConcurrentDictionary<(string eventType, string version), string> _schemas = new();
+	private readonly ConcurrentDictionary<string, List<string>> _versions = new();
 
 	/// <summary>
 	/// Retrieves the schema for a specific event type and version from memory.

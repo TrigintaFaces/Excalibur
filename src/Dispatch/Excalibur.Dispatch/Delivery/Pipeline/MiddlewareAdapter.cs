@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// Adapter to use existing IDispatchMiddleware in the zero-allocation pipeline.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="MiddlewareAdapter" /> class. </remarks>
-public sealed class MiddlewareAdapter(IDispatchMiddleware middleware) : IZeroAllocationMiddleware, IDisposable
+internal sealed class MiddlewareAdapter(IDispatchMiddleware middleware) : IZeroAllocationMiddleware, IDisposable
 {
 	private readonly IDispatchMiddleware _middleware = middleware ?? throw new ArgumentNullException(nameof(middleware));
 	private readonly ThreadLocal<DispatchRequestDelegate?> _cachedDelegate = new(static () => null);

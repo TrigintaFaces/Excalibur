@@ -19,6 +19,7 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 {
     private TimeoutMiddleware? _sut;
@@ -184,10 +185,11 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
     }
 
     [Fact]
-    public void HaveProcessingStage()
+    public void HavePreProcessingStage()
     {
+        // Sprint 695 T.16: TimeoutMiddleware moved Processing→PreProcessing (pipeline-level wraps everything)
         var sut = CreateSut();
-        sut.Stage.ShouldBe(DispatchMiddlewareStage.Processing);
+        sut.Stage.ShouldBe(DispatchMiddlewareStage.PreProcessing);
     }
 
     [Fact]

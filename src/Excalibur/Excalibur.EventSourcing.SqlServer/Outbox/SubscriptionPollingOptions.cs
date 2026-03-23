@@ -40,6 +40,7 @@ public sealed class SubscriptionPollingOptions
 	/// Gets or sets the SQL Server connection string for the outbox database.
 	/// </summary>
 	/// <value>The connection string.</value>
+	[Required]
 	public string? ConnectionString { get; set; }
 
 	/// <summary>

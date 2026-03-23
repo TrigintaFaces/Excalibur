@@ -76,12 +76,11 @@ public sealed class InMemoryInboxExtensionsShould : UnitTestBase
 
 		// Act
 		_ = services.AddInMemoryInboxStore();
-		var provider = services.BuildServiceProvider();
 
-		// Assert
-		var store = provider.GetService<IInboxStore>();
-		store.ShouldNotBeNull();
-		store.ShouldBeOfType<InMemoryInboxStore>();
+		// Assert - IInboxStore is now registered as a keyed service
+		var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IInboxStore) && sd.IsKeyedService);
+		descriptor.ShouldNotBeNull();
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]

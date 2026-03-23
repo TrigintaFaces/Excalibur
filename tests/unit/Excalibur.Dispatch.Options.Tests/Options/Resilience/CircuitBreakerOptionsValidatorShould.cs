@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Resilience;
 /// Sprint 561 S561.53: IValidateOptions implementation tests.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CircuitBreakerOptionsValidatorShould
 {
 	private readonly CircuitBreakerOptionsValidator _validator = new();

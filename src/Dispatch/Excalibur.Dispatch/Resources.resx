@@ -261,6 +261,21 @@
   <data name="FixedBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
     <value>Attempt must be at least 1.</value>
   </data>
+  <data name="FibonacciBackoffCalculator_BaseDelayMustBePositive" xml:space="preserve">
+    <value>Base delay must be positive.</value>
+  </data>
+  <data name="FibonacciBackoffCalculator_MaxDelayMustBePositive" xml:space="preserve">
+    <value>Max delay must be positive.</value>
+  </data>
+  <data name="FibonacciBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
+    <value>Attempt must be at least 1.</value>
+  </data>
+  <data name="JitteredBackoffCalculator_InnerCalculatorRequired" xml:space="preserve">
+    <value>Inner backoff calculator is required.</value>
+  </data>
+  <data name="JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne" xml:space="preserve">
+    <value>Jitter factor must be between 0.0 and 1.0.</value>
+  </data>
   <data name="BackoffCalculatorFactory_UnknownBackoffStrategy" xml:space="preserve">
     <value>Unknown backoff strategy.</value>
   </data>
@@ -325,19 +340,19 @@
     <value>Pipeline profile '{0}' not found.</value>
   </data>
   <data name="Dispatcher_NotConfigured" xml:space="preserve">
-    <value>Dispatcher is not properly configured. Ensure IDispatchMiddlewareInvoker and FinalDispatchHandler are registered.</value>
+    <value>Dispatcher is not properly configured. How to fix: Call services.AddDispatch() or services.AddDispatch(configure => ...) in your Program.cs/Startup.cs to register the dispatch pipeline.</value>
   </data>
   <data name="Dispatcher_ResultTypeMismatchFormat" xml:space="preserve">
     <value>Expected IMessageResult&lt;{0}&gt;, but got {1}.</value>
   </data>
   <data name="Dispatcher_HandlerNotFoundFormat" xml:space="preserve">
-    <value>No handler of type '{0}' is registered. Ensure the handler is registered with the service provider.</value>
+    <value>No handler of type '{0}' is registered. How to fix: Register the handler with services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(YourHandler).Assembly)) or register it directly with services.AddTransient&lt;IDispatchHandler&lt;TMessage&gt;, YourHandler&gt;().</value>
   </data>
   <data name="EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented" xml:space="preserve">
     <value>Conversion from string to TAggregateKey not implemented.</value>
   </data>
   <data name="MemoryMessageOfT_CannotDeserializeWithoutSerializer" xml:space="preserve">
-    <value>Cannot deserialize content without serializer.</value>
+    <value>Cannot deserialize content without serializer. How to fix: Register a serializer via services.AddDispatch(d => d.UseSerialization()) or ensure ISerializer is available in DI.</value>
   </data>
 <data name="HistogramConfiguration_AtLeastOneBucketBoundaryIsRequired" xml:space="preserve">
     <value>At least one bucket boundary is required.</value>

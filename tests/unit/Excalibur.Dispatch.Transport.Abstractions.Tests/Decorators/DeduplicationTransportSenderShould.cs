@@ -4,7 +4,9 @@ using Excalibur.Dispatch.Transport.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Decorators;
 
-public class DeduplicationTransportSenderShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class DeduplicationTransportSenderShould
 {
     [Fact]
     public void Should_Throw_On_Null_IdSelector()

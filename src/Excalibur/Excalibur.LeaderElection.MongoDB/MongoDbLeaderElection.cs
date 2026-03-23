@@ -34,7 +34,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 	private readonly ILogger<MongoDbLeaderElection> _logger;
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _lock = new();
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
 #endif
@@ -150,7 +150,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 			{
 				await _renewalTask.WaitAsync(cancellationToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				// Expected during shutdown
 			}
@@ -226,7 +226,7 @@ public sealed partial class MongoDbLeaderElection : ILeaderElection, IAsyncDispo
 
 				await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

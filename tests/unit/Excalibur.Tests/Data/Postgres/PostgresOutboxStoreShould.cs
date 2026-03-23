@@ -13,6 +13,7 @@ namespace Excalibur.Tests.Data.Postgres;
 ///     Note: Database interaction tests are covered in integration tests.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class PostgresOutboxStoreShould : IDisposable
 {
 	private readonly IDb _db;
@@ -73,7 +74,7 @@ public sealed class PostgresOutboxStoreShould : IDisposable
 	public void ThrowArgumentNullExceptionForNullMessages() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentNullException>(async () =>
-			await _store.SaveMessagesAsync(null!, CancellationToken.None).ConfigureAwait(true));
+			await _store.SaveMessagesAsync(null!, CancellationToken.None));
 
 	[Fact]
 	public async Task SaveMessagesAsyncReturnZeroForEmptyCollection()
@@ -82,7 +83,7 @@ public sealed class PostgresOutboxStoreShould : IDisposable
 		var messages = new List<IOutboxMessage>();
 
 		// Act
-		var result = await _store.SaveMessagesAsync(messages, CancellationToken.None).ConfigureAwait(true);
+		var result = await _store.SaveMessagesAsync(messages, CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(0);
@@ -92,43 +93,43 @@ public sealed class PostgresOutboxStoreShould : IDisposable
 	public void ThrowArgumentNullOrWhiteSpaceForNullDispatcherId() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentException>(async () =>
-			await _store.UnReserveOutboxMessagesAsync(null!, CancellationToken.None).ConfigureAwait(true));
+			await _store.UnReserveOutboxMessagesAsync(null!, CancellationToken.None));
 
 	[Fact]
 	public void ThrowArgumentNullOrWhiteSpaceForEmptyDispatcherId() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentException>(async () =>
-			await _store.UnReserveOutboxMessagesAsync(string.Empty, CancellationToken.None).ConfigureAwait(true));
+			await _store.UnReserveOutboxMessagesAsync(string.Empty, CancellationToken.None));
 
 	[Fact]
 	public void ThrowArgumentNullOrWhiteSpaceForWhitespaceDispatcherId() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentException>(async () =>
-			await _store.UnReserveOutboxMessagesAsync(" ", CancellationToken.None).ConfigureAwait(true));
+			await _store.UnReserveOutboxMessagesAsync(" ", CancellationToken.None));
 
 	[Fact]
 	public void ThrowArgumentNullOrWhiteSpaceForNullMessageId() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentException>(async () =>
-			await _store.DeleteOutboxRecord(null!, CancellationToken.None).ConfigureAwait(true));
+			await _store.DeleteOutboxRecord(null!, CancellationToken.None));
 
 	[Fact]
 	public void ThrowArgumentNullOrWhiteSpaceForEmptyMessageId() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentException>(async () =>
-			await _store.DeleteOutboxRecord(string.Empty, CancellationToken.None).ConfigureAwait(true));
+			await _store.DeleteOutboxRecord(string.Empty, CancellationToken.None));
 
 	[Fact]
 	public void ThrowArgumentOutOfRangeForNegativeBatchSize() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
-			await _store.ReserveOutboxMessagesAsync("dispatcher1", -1, CancellationToken.None).ConfigureAwait(true));
+			await _store.ReserveOutboxMessagesAsync("dispatcher1", -1, CancellationToken.None));
 
 	[Fact]
 	public void ThrowArgumentOutOfRangeForZeroBatchSize() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
-			await _store.ReserveOutboxMessagesAsync("dispatcher1", 0, CancellationToken.None).ConfigureAwait(true));
+			await _store.ReserveOutboxMessagesAsync("dispatcher1", 0, CancellationToken.None));
 
 	[Fact]
 	public async Task DeleteOutboxRecordsBatchAsyncReturnZeroForEmptyCollection()
@@ -137,7 +138,7 @@ public sealed class PostgresOutboxStoreShould : IDisposable
 		var messageIds = new List<string>();
 
 		// Act
-		var result = await _store.DeleteOutboxRecordsBatchAsync(messageIds, CancellationToken.None).ConfigureAwait(true);
+		var result = await _store.DeleteOutboxRecordsBatchAsync(messageIds, CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(0);
@@ -150,7 +151,7 @@ public sealed class PostgresOutboxStoreShould : IDisposable
 		var messageIds = new List<string>();
 
 		// Act
-		var result = await _store.IncreaseAttemptsBatchAsync(messageIds, CancellationToken.None).ConfigureAwait(true);
+		var result = await _store.IncreaseAttemptsBatchAsync(messageIds, CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(0);
@@ -163,7 +164,7 @@ public sealed class PostgresOutboxStoreShould : IDisposable
 		var messageIds = new List<string>();
 
 		// Act
-		var result = await _store.MoveToDeadLetterBatchAsync(messageIds, CancellationToken.None).ConfigureAwait(true);
+		var result = await _store.MoveToDeadLetterBatchAsync(messageIds, CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(0);
@@ -173,7 +174,7 @@ public sealed class PostgresOutboxStoreShould : IDisposable
 	public void ThrowArgumentNullExceptionForNullMessageIdsBatch() =>
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentNullException>(async () =>
-			await _store.DeleteOutboxRecordsBatchAsync(null!, CancellationToken.None).ConfigureAwait(true));
+			await _store.DeleteOutboxRecordsBatchAsync(null!, CancellationToken.None));
 
 	/// <inheritdoc/>
 	public void Dispose()

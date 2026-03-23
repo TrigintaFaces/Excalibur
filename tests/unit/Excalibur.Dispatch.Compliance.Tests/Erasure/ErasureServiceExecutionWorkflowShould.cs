@@ -103,8 +103,8 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		// Act
 		var result = await sut.ExecuteAsync(requestId, CancellationToken.None);
 
-		// Assert - execution continues despite contributor failure
-		result.Success.ShouldBeTrue();
+		// Assert - execution continues but reports partial success (Sprint 672 T.2: no false compliance)
+		result.Success.ShouldBeFalse();
 		result.RecordsAffected.ShouldBe(5);
 	}
 
@@ -128,8 +128,8 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		// Act
 		var result = await sut.ExecuteAsync(requestId, CancellationToken.None);
 
-		// Assert - execution still completes despite exception
-		result.Success.ShouldBeTrue();
+		// Assert - execution completes but reports failure (Sprint 672 T.2: no false compliance)
+		result.Success.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -231,8 +231,8 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		// Act
 		var result = await sut.ExecuteAsync(requestId, CancellationToken.None);
 
-		// Assert - execution succeeds with partial deletion
-		result.Success.ShouldBeTrue();
+		// Assert - execution partially succeeds (Sprint 672 T.2: partial key deletion = not fully successful)
+		result.Success.ShouldBeFalse();
 		result.KeysDeleted.ShouldBe(1);
 	}
 

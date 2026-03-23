@@ -42,7 +42,7 @@ public sealed class PostgresLeaderElectionExtensionsShould
 		});
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(PostgresLeaderElection));
-		services.ShouldContain(sd => sd.ServiceType == typeof(ILeaderElection));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ILeaderElection) && sd.IsKeyedService);
 	}
 
 	[Fact]
@@ -90,7 +90,7 @@ public sealed class PostgresLeaderElectionExtensionsShould
 			election => election.LeaseDuration = TimeSpan.FromSeconds(30));
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(PostgresLeaderElection));
-		services.ShouldContain(sd => sd.ServiceType == typeof(ILeaderElection));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ILeaderElection) && sd.IsKeyedService);
 	}
 
 	[Fact]
@@ -109,7 +109,8 @@ public sealed class PostgresLeaderElectionExtensionsShould
 			});
 
 		await using var provider = services.BuildServiceProvider();
-		var election = provider.GetRequiredService<ILeaderElection>();
+		// ILeaderElection is now keyed, resolve via "default" key
+		var election = provider.GetRequiredKeyedService<ILeaderElection>("default");
 		var options = provider.GetRequiredService<IOptions<LeaderElectionOptions>>().Value;
 
 		election.ShouldNotBeNull();
@@ -136,7 +137,8 @@ public sealed class PostgresLeaderElectionExtensionsShould
 		services.AddPostgresLeaderElection(opts => opts.ConnectionString = "Host=localhost;Database=test;");
 
 		await using var provider = services.BuildServiceProvider();
-		var election = provider.GetRequiredService<ILeaderElection>();
+		// ILeaderElection is now keyed, resolve via "default" key
+		var election = provider.GetRequiredKeyedService<ILeaderElection>("default");
 
 		election.ShouldNotBeNull();
 		A.CallTo(() => meterFactory.Create(A<System.Diagnostics.Metrics.MeterOptions>._))

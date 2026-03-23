@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// lookup, and thread-safety behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class SerializerRegistryShould
 {
 	#region Registration Tests
@@ -542,7 +543,7 @@ public sealed class SerializerRegistryShould
 			}));
 		}
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 
 		// Assert - No exceptions thrown, test completed successfully
 		// If we got here without deadlock or exception, the test passed

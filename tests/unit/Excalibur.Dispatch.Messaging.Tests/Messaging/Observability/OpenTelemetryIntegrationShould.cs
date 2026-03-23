@@ -24,6 +24,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 /// </summary>
 [Collection("Observability Tests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class OpenTelemetryIntegrationShould : IDisposable
 {
 	private static readonly TimeSpan ObservabilityWaitTimeout = TimeSpan.FromSeconds(10);
@@ -559,7 +560,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		}
 
 		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(true);
+		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - basic result check
 		result.IsSuccess.ShouldBeTrue();
@@ -651,7 +652,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			}
 
 			// Act
-			var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(true);
+			var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 				_ = await _otelFixture.WaitForActivitiesAsync(count: 1, timeout: ObservabilityWaitTimeout).ConfigureAwait(false);
 
@@ -775,7 +776,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		}
 
 		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(true);
+		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
@@ -842,7 +843,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		IMessageResult result;
 		try
 		{
-			result = await middleware.InvokeAsync(message, context, NextDelegate, cts.Token).ConfigureAwait(true);
+			result = await middleware.InvokeAsync(message, context, NextDelegate, cts.Token);
 		}
 		catch (OperationCanceledException)
 		{

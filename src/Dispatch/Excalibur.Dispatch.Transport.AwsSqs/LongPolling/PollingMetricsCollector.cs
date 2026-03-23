@@ -13,8 +13,13 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </summary>
 internal sealed class PollingMetricsCollector : IPollingMetricsCollector, IDisposable
 {
+	/// <summary>
+	/// Maximum number of metric entries to retain. Oldest entries are dequeued when this limit is exceeded.
+	/// </summary>
+	private const int MaxMetricEntries = 10_000;
+
 	private readonly ILogger<PollingMetricsCollector> _logger;
-	private readonly ConcurrentBag<MetricData> _metrics;
+	private readonly ConcurrentQueue<MetricData> _metrics;
 	private readonly SemaphoreSlim _publishLock;
 
 	private long _totalAttempts;
@@ -22,6 +27,7 @@ internal sealed class PollingMetricsCollector : IPollingMetricsCollector, IDispo
 	private long _failedAttempts;
 	private long _totalMessagesReceived;
 	private long _totalDurationTicks;
+	private int _metricCount;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PollingMetricsCollector" /> class.
@@ -30,7 +36,7 @@ internal sealed class PollingMetricsCollector : IPollingMetricsCollector, IDispo
 	public PollingMetricsCollector(ILogger<PollingMetricsCollector> logger)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_metrics = new ConcurrentBag<MetricData>();
+		_metrics = new ConcurrentQueue<MetricData>();
 		_publishLock = new SemaphoreSlim(1, 1);
 	}
 
@@ -86,7 +92,7 @@ internal sealed class PollingMetricsCollector : IPollingMetricsCollector, IDispo
 	{
 		ArgumentNullException.ThrowIfNull(name);
 
-		_metrics.Add(new MetricData
+		EnqueueBounded(new MetricData
 		{
 			Name = name,
 			Value = value,
@@ -114,7 +120,7 @@ internal sealed class PollingMetricsCollector : IPollingMetricsCollector, IDispo
 			metricData.Dimensions[dimension.Key] = dimension.Value;
 		}
 
-		_metrics.Add(metricData);
+		EnqueueBounded(metricData);
 	}
 
 	/// <inheritdoc />
@@ -126,7 +132,13 @@ internal sealed class PollingMetricsCollector : IPollingMetricsCollector, IDispo
 	/// <inheritdoc />
 	public void Clear()
 	{
-		_metrics.Clear();
+		// Drain the queue
+		while (_metrics.TryDequeue(out _))
+		{
+			// intentionally empty
+		}
+
+		Interlocked.Exchange(ref _metricCount, 0);
 		_totalAttempts = 0;
 		_successfulAttempts = 0;
 		_failedAttempts = 0;
@@ -141,5 +153,20 @@ internal sealed class PollingMetricsCollector : IPollingMetricsCollector, IDispo
 	{
 		_publishLock?.Dispose();
 		GC.SuppressFinalize(this);
+	}
+
+	/// <summary>
+	/// Enqueues a metric entry, evicting the oldest entry if the queue exceeds <see cref="MaxMetricEntries"/>.
+	/// </summary>
+	private void EnqueueBounded(MetricData data)
+	{
+		_metrics.Enqueue(data);
+		var currentCount = Interlocked.Increment(ref _metricCount);
+
+		// Evict oldest entries when over capacity
+		while (currentCount > MaxMetricEntries && _metrics.TryDequeue(out _))
+		{
+			currentCount = Interlocked.Decrement(ref _metricCount);
+		}
 	}
 }

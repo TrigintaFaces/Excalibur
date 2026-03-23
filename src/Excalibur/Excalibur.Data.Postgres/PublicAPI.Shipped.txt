@@ -160,13 +160,6 @@ Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore.GetMessagesAsync(E
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore.MarkAsReplayedAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore.PostgresDeadLetterStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore!>! logger) -> void
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterStore.StoreAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.Postgres.Execution.PostgresDataExecutor
-Excalibur.Data.Postgres.Execution.PostgresDataExecutor.ExecuteAsync(string! commandText, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? parameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.Postgres.Execution.PostgresDataExecutor.PostgresDataExecutor(System.Func<System.Data.IDbConnection!>! connectionFactory) -> void
-Excalibur.Data.Postgres.Execution.PostgresQueryExecutor
-Excalibur.Data.Postgres.Execution.PostgresQueryExecutor.PostgresQueryExecutor(System.Func<System.Data.IDbConnection!>! connectionFactory) -> void
-Excalibur.Data.Postgres.Execution.PostgresQueryExecutor.QueryAsync<T>(string! queryText, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? parameters, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<T>!
-Excalibur.Data.Postgres.Execution.PostgresQueryExecutor.QuerySingleAsync<T>(string! queryText, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? parameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!
 Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder
 Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder.AddHealthCheck(string! name = "Postgres", params string![]! tags) -> Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder!
 Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -200,16 +193,6 @@ Excalibur.Data.Postgres.Persistence.PostgresConnectionOptions.TcpKeepAliveInterv
 Excalibur.Data.Postgres.Persistence.PostgresConnectionOptions.TcpKeepAliveInterval.set -> void
 Excalibur.Data.Postgres.Persistence.PostgresConnectionOptions.TcpKeepAliveTime.get -> int
 Excalibur.Data.Postgres.Persistence.PostgresConnectionOptions.TcpKeepAliveTime.set -> void
-Excalibur.Data.Postgres.Persistence.PostgresDataRequestRetryPolicy
-Excalibur.Data.Postgres.Persistence.PostgresDataRequestRetryPolicy.BaseRetryDelay.get -> System.TimeSpan
-Excalibur.Data.Postgres.Persistence.PostgresDataRequestRetryPolicy.MaxRetryAttempts.get -> int
-Excalibur.Data.Postgres.Persistence.PostgresDataRequestRetryPolicy.PostgresDataRequestRetryPolicy(Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
-Excalibur.Data.Postgres.Persistence.PostgresDataRequestRetryPolicy.ResolveAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.Persistence.PostgresDataRequestRetryPolicy.ResolveDocumentAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.Persistence.PostgresDataRequestRetryPolicy.ShouldRetry(System.Exception! exception) -> bool
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceHealthCheck
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceHealthCheck.PostgresPersistenceHealthCheck(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Persistence.PostgresPersistenceHealthCheck!>! logger, Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics? metrics = null) -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.Dispose() -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.GetCurrentMetrics() -> System.Collections.Generic.IDictionary<string!, object!>!
@@ -399,13 +382,6 @@ Excalibur.Data.Postgres.PostgresProviderOptions.RetryCount.get -> int
 Excalibur.Data.Postgres.PostgresProviderOptions.RetryCount.set -> void
 Excalibur.Data.Postgres.PostgresProviderOptions.UseDataSource.get -> bool
 Excalibur.Data.Postgres.PostgresProviderOptions.UseDataSource.set -> void
-Excalibur.Data.Postgres.PostgresRetryPolicy
-Excalibur.Data.Postgres.PostgresRetryPolicy.BaseRetryDelay.get -> System.TimeSpan
-Excalibur.Data.Postgres.PostgresRetryPolicy.MaxRetryAttempts.get -> int
-Excalibur.Data.Postgres.PostgresRetryPolicy.PostgresRetryPolicy(Excalibur.Data.Postgres.PostgresProviderOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
-Excalibur.Data.Postgres.PostgresRetryPolicy.ResolveAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.PostgresRetryPolicy.ResolveDocumentAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.Postgres.PostgresRetryPolicy.ShouldRetry(System.Exception! exception) -> bool
 Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>
 Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -471,7 +447,6 @@ Excalibur.Data.Postgres.Snapshots.SaveSnapshotRequest
 Excalibur.Data.Postgres.Snapshots.SaveSnapshotRequest.SaveSnapshotRequest(Excalibur.Domain.Model.ISnapshot! snapshot, string! schemaName, string! tableName, System.Threading.CancellationToken cancellationToken) -> void
 Microsoft.Extensions.DependencyInjection.A3BuilderPostgresExtensions
 Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions
-Microsoft.Extensions.DependencyInjection.PostgresDataExecutorServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PostgresServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PostgresSnapshotStoreServiceCollectionExtensions
@@ -495,7 +470,6 @@ static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.Sav
 static Microsoft.Extensions.DependencyInjection.A3BuilderPostgresExtensions.UsePostgres(this Excalibur.A3.IA3Builder! builder) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions.AddPostgresAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions.AddPostgresAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Postgres.Audit.PostgresAuditOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresDataExecutorServiceCollectionExtensions.AddPostgresDataExecutors(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.Data.IDbConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder!>! builderAction) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -508,3 +482,6 @@ virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Dispose(
 virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
+const Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants.MeterName = "Excalibur.Data.Postgres.Persistence" -> string!
+const Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants.Version = "1.0.0" -> string!
+Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants

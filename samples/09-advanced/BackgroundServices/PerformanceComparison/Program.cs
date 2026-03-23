@@ -47,7 +47,7 @@ Console.WriteLine("Configuration Example:");
 Console.WriteLine("----------------------");
 Console.WriteLine();
 Console.WriteLine("```csharp");
-Console.WriteLine("services.Configure<OutboxOptions>(options =>");
+Console.WriteLine("services.Configure<OutboxDeliveryOptions>(options =>");
 Console.WriteLine("{");
 Console.WriteLine($"    options.DeliveryGuarantee = OutboxDeliveryGuarantee.{nameof(OutboxDeliveryGuarantee.AtLeastOnce)};");
 Console.WriteLine("    options.BatchSize = 100;");

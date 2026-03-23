@@ -22,6 +22,7 @@ public partial class RetryPolicy : IRetryPolicy
 	private readonly RetryOptions _options;
 	private readonly ILogger _logger;
 	private readonly ITimeoutManager? _timeoutManager;
+	private readonly IBackoffCalculator _backoffCalculator;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RetryPolicy" /> class.
@@ -29,14 +30,17 @@ public partial class RetryPolicy : IRetryPolicy
 	/// <param name="options"> Retry options. </param>
 	/// <param name="logger"> Optional logger instance. </param>
 	/// <param name="timeoutManager"> Optional timeout manager. </param>
+	/// <param name="backoffCalculator"> Optional custom backoff calculator. When null, one is created from <paramref name="options"/>. </param>
 	public RetryPolicy(
 		RetryOptions options,
 		ILogger? logger = null,
-		ITimeoutManager? timeoutManager = null)
+		ITimeoutManager? timeoutManager = null,
+		IBackoffCalculator? backoffCalculator = null)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger.Instance;
 		_timeoutManager = timeoutManager;
+		_backoffCalculator = backoffCalculator ?? CreateBackoffCalculator(options);
 
 		LogJitterStrategyUsed(_options.JitterStrategy.ToString(), _options.JitterFactor);
 
@@ -183,15 +187,7 @@ public partial class RetryPolicy : IRetryPolicy
 	}
 
 	private TimeSpan CalculateBaseDelay(int attemptNumber) =>
-		_options.BackoffStrategy switch
-		{
-			BackoffStrategy.Fixed => _options.BaseDelay,
-			BackoffStrategy.Linear => TimeSpan.FromMilliseconds(_options.BaseDelay.TotalMilliseconds * attemptNumber),
-			BackoffStrategy.Exponential => TimeSpan.FromMilliseconds(_options.BaseDelay.TotalMilliseconds *
-																	 Math.Pow(2, attemptNumber - 1)),
-			BackoffStrategy.Fibonacci => CalculateFibonacciDelay(attemptNumber),
-			_ => _options.BaseDelay,
-		};
+		_backoffCalculator.CalculateDelay(Math.Max(1, attemptNumber));
 
 	private TimeSpan ApplyJitter(TimeSpan baseDelay, int attemptNumber) => _options.JitterStrategy switch
 	{
@@ -211,17 +207,54 @@ public partial class RetryPolicy : IRetryPolicy
 		return TimeSpan.FromMilliseconds(jitterMs);
 	}
 
-	private TimeSpan CalculateFibonacciDelay(int attemptNumber)
+	private static IBackoffCalculator CreateBackoffCalculator(RetryOptions options)
 	{
-		int fib1 = 1, fib2 = 1;
-		for (var i = 2; i < attemptNumber; i++)
+		if (options.BackoffStrategy == BackoffStrategy.Fibonacci)
 		{
-			var temp = fib1 + fib2;
-			fib1 = fib2;
-			fib2 = temp;
+			return new FibonacciAdapter(options.BaseDelay, options.MaxDelay ?? TimeSpan.FromMinutes(1));
 		}
 
-		return TimeSpan.FromMilliseconds(_options.BaseDelay.TotalMilliseconds * fib2);
+		return new PollyBackoffCalculatorAdapter(
+			options.BackoffStrategy switch
+			{
+				BackoffStrategy.Fixed => DelayBackoffType.Constant,
+				BackoffStrategy.Linear => DelayBackoffType.Linear,
+				_ => DelayBackoffType.Exponential,
+			},
+			options.BaseDelay,
+			options.MaxDelay ?? TimeSpan.FromMinutes(1),
+			useJitter: false); // Jitter is handled separately by ApplyJitter
+	}
+
+	/// <summary>
+	/// Fibonacci backoff adapter for use within the Polly package.
+	/// Consumers can inject framework's <c>FibonacciBackoffCalculator</c> via constructor for full-featured version.
+	/// </summary>
+	private sealed class FibonacciAdapter(TimeSpan baseDelay, TimeSpan maxDelay) : IBackoffCalculator
+	{
+		public TimeSpan CalculateDelay(int attempt)
+		{
+			var fib = GetFibonacci(Math.Max(1, attempt));
+			var delayMs = Math.Min(baseDelay.TotalMilliseconds * fib, maxDelay.TotalMilliseconds);
+			return TimeSpan.FromMilliseconds(delayMs);
+		}
+
+		private static long GetFibonacci(int n)
+		{
+			if (n <= 2)
+			{
+				return 1;
+			}
+
+			long prev2 = 1, prev1 = 1;
+			for (var i = 3; i <= n; i++)
+			{
+				var current = prev1 + prev2;
+				prev2 = prev1;
+				prev1 = current;
+			}
+			return prev1;
+		}
 	}
 
 	// Source-generated logging methods

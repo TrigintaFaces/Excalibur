@@ -119,7 +119,7 @@ public sealed partial class UnifiedBatchingMiddleware(
 		_ = (activity?.SetTag("batching.enabled", value: true));
 
 		// Create completion source for this message
-		var completionSource = new TaskCompletionSource<IMessageResult>();
+		var completionSource = new TaskCompletionSource<IMessageResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var batchItem = new BatchItem(message, context, completionSource, nextDelegate);
 
 		// Get or create micro-batch processor for this batch key

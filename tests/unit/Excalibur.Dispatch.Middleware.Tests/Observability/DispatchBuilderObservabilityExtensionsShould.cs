@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 /// Unit tests for <see cref="DispatchBuilderObservabilityExtensions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatchBuilderObservabilityExtensionsShould : UnitTestBase
 {
 	private static IDispatchBuilder CreateBuilder()

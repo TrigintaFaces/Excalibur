@@ -5,7 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Restriction;
 
-public class ProcessingRestrictionServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class ProcessingRestrictionServiceShould
 {
     private readonly ProcessingRestrictionService _sut;
     private readonly ProcessingRestrictionOptions _options = new();

@@ -18,7 +18,7 @@ namespace Excalibur.Data.Postgres.Persistence;
 /// <param name="options"> The persistence options. </param>
 /// <param name="logger"> The logger for diagnostic output. </param>
 /// <param name="metrics"> Optional metrics collector. </param>
-public sealed class PostgresPersistenceHealthCheck(
+internal sealed class PostgresPersistenceHealthCheck(
 	IOptions<PostgresPersistenceOptions> options,
 	ILogger<PostgresPersistenceHealthCheck> logger,
 	PostgresPersistenceMetrics? metrics = null) : IHealthCheck
@@ -126,7 +126,7 @@ public sealed class PostgresPersistenceHealthCheck(
 			data["error_code"] = ex.SqlState ?? "Unknown";
 			return HealthCheckResult.Degraded("Transient database error", ex, data);
 		}
-		catch (OperationCanceledException ex)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			_logger.LogWarning(ex, "Health check cancelled");
 			data["error"] = "Operation cancelled";

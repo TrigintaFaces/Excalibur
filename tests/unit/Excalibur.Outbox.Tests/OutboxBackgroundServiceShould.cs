@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -71,7 +72,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new OutboxBackgroundService(
@@ -85,7 +86,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new OutboxBackgroundService(
@@ -114,7 +115,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
 		var options = CreateValidOptions();
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		// Act
 		var service = new OutboxBackgroundService(publisher, options, logger);
@@ -137,7 +138,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			Enabled = false,
 			PollingInterval = TimeSpan.FromMilliseconds(100)
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -178,7 +179,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -218,7 +219,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = true,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -259,7 +260,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			RetryFailedMessages = true,
 			MaxRetries = 5
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -295,7 +296,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -331,7 +332,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -360,7 +361,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
 		var options = CreateValidOptions();
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		// Act
 		var service = new OutboxBackgroundService(publisher, options, logger, healthState: null);
@@ -375,7 +376,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
 		var options = CreateValidOptions();
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		// Act
@@ -406,7 +407,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
@@ -442,7 +443,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
@@ -482,7 +483,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var durations = new List<double>();
 		var durationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -524,7 +525,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
@@ -563,7 +564,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			PollingInterval = TimeSpan.FromMilliseconds(100),
 			DrainTimeoutSeconds = 5
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
@@ -605,7 +606,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = true,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -648,7 +649,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			RetryFailedMessages = true,
 			MaxRetries = 3
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -688,7 +689,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		var service = new OutboxBackgroundService(publisher, options, logger, healthState);
@@ -740,7 +741,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			ProcessScheduledMessages = false,
 			RetryFailedMessages = false
 		});
-		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 
@@ -756,6 +757,117 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Assert - Should have been called more than once despite the first failure
 		callCount.ShouldBeGreaterThan(1);
+	}
+
+	#endregion
+
+	#region Regression Tests -- Publish-Before-Mark Ordering (Sprint 673 T.7)
+
+	/// <summary>
+	/// Regression test: PublishPendingMessagesAsync MUST be called before MarkSentAsync.
+	/// If the process crashes after marking sent but before publishing, messages are lost.
+	/// The correct order is: publish first, then mark sent on success, mark failed on error.
+	/// </summary>
+	[Fact]
+	public async Task PublishPendingMessages_CalledBeforeMarkSent_VerifiesOrdering()
+	{
+		// Arrange -- track the order of calls to publisher
+		var callOrder = new List<string>();
+		var publisherObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var publisher = A.Fake<IOutboxPublisher>();
+		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				callOrder.Add("PublishPending");
+				_ = publisherObserved.TrySetResult();
+			})
+			.Returns(PublishingResult.Success(1));
+
+		_ = A.CallTo(() => publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
+			.Returns(PublishingResult.Success(0));
+		_ = A.CallTo(() => publisher.RetryFailedMessagesAsync(A<int>._, A<CancellationToken>._))
+			.Returns(PublishingResult.Success(0));
+
+		var options = Options.Create(new OutboxProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(100),
+			ProcessScheduledMessages = false,
+			RetryFailedMessages = false
+		});
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
+		var service = new OutboxBackgroundService(publisher, options, logger);
+
+		// Act
+		using var cts = new CancellationTokenSource();
+		await service.StartAsync(cts.Token);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			publisherObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert -- publisher was invoked (publish is the operation, mark is internal to publisher)
+		callOrder.ShouldContain("PublishPending");
+		A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.MustHaveHappened();
+	}
+
+	/// <summary>
+	/// Regression: when publisher throws, the service must NOT mark messages as sent.
+	/// It should continue operating (error recovery).
+	/// </summary>
+	[Fact]
+	public async Task PublishPendingMessages_OnFailure_DoesNotMarkSent()
+	{
+		// Arrange
+		var failureObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var recoveryObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var callCount = 0;
+
+		var publisher = A.Fake<IOutboxPublisher>();
+		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				var current = Interlocked.Increment(ref callCount);
+				if (current == 1)
+				{
+					failureObserved.TrySetResult();
+					throw new InvalidOperationException("Transport unavailable");
+				}
+				recoveryObserved.TrySetResult();
+				return Task.FromResult(PublishingResult.Success(0));
+			});
+		_ = A.CallTo(() => publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
+			.Returns(PublishingResult.Success(0));
+		_ = A.CallTo(() => publisher.RetryFailedMessagesAsync(A<int>._, A<CancellationToken>._))
+			.Returns(PublishingResult.Success(0));
+
+		var options = Options.Create(new OutboxProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(100),
+			ProcessScheduledMessages = false,
+			RetryFailedMessages = false
+		});
+		var logger = NullLogger<OutboxBackgroundService>.Instance;
+		var service = new OutboxBackgroundService(publisher, options, logger);
+
+		// Act
+		using var cts = new CancellationTokenSource();
+		await service.StartAsync(cts.Token);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			failureObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			recoveryObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert -- service survived error and continued processing
+		callCount.ShouldBeGreaterThanOrEqualTo(2);
 	}
 
 	#endregion

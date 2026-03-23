@@ -17,33 +17,47 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetUnsentMessagesRequest"/> class.
+	/// Uses UPDATE...OUTPUT with lease columns to atomically claim and fetch messages,
+	/// preventing double-processing by concurrent processors.
 	/// </summary>
 	/// <param name="tableName">The qualified outbox table name.</param>
 	/// <param name="batchSize">Maximum number of messages to retrieve.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
+	/// <param name="leaseTimeoutSeconds">Lease timeout in seconds for stale lease reclamation.</param>
+	/// <param name="processorId">Identifier of the claiming processor.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	public GetUnsentMessagesRequest(
 		string tableName,
 		int batchSize,
 		int commandTimeout,
+		int leaseTimeoutSeconds,
+		string processorId,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
 
+		// Atomic claim + fetch: UPDATE sets lease ownership, OUTPUT returns claimed rows.
+		// Stale leases (older than timeout) are automatically reclaimed.
 		var sql = $"""
-			SELECT TOP (@BatchSize)
-				Id, MessageType, Payload, Headers, Destination, CreatedAt, ScheduledAt, SentAt,
-				Status, RetryCount, LastError, LastAttemptAt, CorrelationId, CausationId,
-				TenantId, Priority, TargetTransports, IsMultiTransport
-			FROM {tableName} WITH (UPDLOCK, READPAST)
+			UPDATE TOP (@BatchSize) {tableName}
+			SET LeasedAt = GETUTCDATE(), LeasedBy = @ProcessorId
+			OUTPUT
+				INSERTED.Id, INSERTED.MessageType, INSERTED.Payload, INSERTED.Headers,
+				INSERTED.Destination, INSERTED.CreatedAt, INSERTED.ScheduledAt, INSERTED.SentAt,
+				INSERTED.Status, INSERTED.RetryCount, INSERTED.LastError, INSERTED.LastAttemptAt,
+				INSERTED.CorrelationId, INSERTED.CausationId, INSERTED.TenantId, INSERTED.Priority,
+				INSERTED.TargetTransports, INSERTED.IsMultiTransport
 			WHERE Status IN (0, 3, 4) -- Staged, Failed, PartiallyFailed
 				AND (ScheduledAt IS NULL OR ScheduledAt <= @Now)
-			ORDER BY Priority DESC, CreatedAt ASC
+				AND (LeasedAt IS NULL OR LeasedAt < DATEADD(SECOND, -@LeaseTimeoutSeconds, GETUTCDATE()))
 			""";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@BatchSize", batchSize);
 		parameters.Add("@Now", DateTimeOffset.UtcNow);
+		parameters.Add("@LeaseTimeoutSeconds", leaseTimeoutSeconds);
+		parameters.Add("@ProcessorId", processorId);
 
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 

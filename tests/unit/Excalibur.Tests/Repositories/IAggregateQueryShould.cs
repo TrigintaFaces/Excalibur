@@ -12,7 +12,8 @@ namespace Excalibur.Tests.Repositories;
 ///     Tests interface design, generic constraints, and implementation patterns for aggregate query objects used in repository patterns.
 /// </remarks>
 [Trait("Category", "Unit")]
-public class IAggregateQueryShould
+[Trait("Component", "Core")]
+public sealed class IAggregateQueryShould
 {
 	[Fact]
 	public void ShouldSupportGenericAggregateConstraint()

@@ -13,8 +13,7 @@ namespace Excalibur.Data.DataProcessing.Exceptions;
 /// This exception is designed to handle cases where a record type cannot be processed due to the absence of a corresponding data
 /// processor implementation in the system.
 /// </remarks>
-[Serializable]
-public class MissingDataProcessorException : ApiException
+public sealed class MissingDataProcessorException : ApiException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MissingDataProcessorException" /> class.
@@ -58,5 +57,5 @@ public class MissingDataProcessorException : ApiException
 	/// Gets or sets the record type for which the data processor was not found.
 	/// </summary>
 	/// <value> A string representing the record type. </value>
-	public string RecordType { get; protected set; }
+	public string RecordType { get; private set; }
 }

@@ -19,6 +19,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 ///     - DeliveryGuaranteeOptions configuration
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ProcessorResilienceIntegrationShould
 {
 	private readonly ILogger<InMemoryDeadLetterQueue> _dlqLogger;

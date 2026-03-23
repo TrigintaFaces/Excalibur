@@ -54,7 +54,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 	}
 
 	/// <inheritdoc/>
-	public CloudProviderType ProviderType => CloudProviderType.CosmosDb;
+	public CloudPersistenceProviderType ProviderType => CloudPersistenceProviderType.CosmosDb;
 
 	/// <summary>
 	/// Initializes the Cosmos DB client, database, and container.

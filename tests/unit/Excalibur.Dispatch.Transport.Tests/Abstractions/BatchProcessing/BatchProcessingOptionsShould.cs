@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.BatchProcessing;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class BatchProcessingOptionsShould
+public sealed class BatchProcessingOptionsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()
@@ -86,11 +86,11 @@ public class BatchProcessingOptionsShould
     [Fact]
     public void AllowSettingRetryPolicy()
     {
-        var retryPolicy = new RetryPolicy { MaxRetries = 5, BackoffMultiplier = 3.0 };
+        var retryPolicy = new BatchRetryOptions { MaxRetryAttempts = 5, BackoffMultiplier = 3.0 };
         var options = new BatchProcessingOptions { RetryPolicy = retryPolicy };
 
         options.RetryPolicy.ShouldBe(retryPolicy);
-        options.RetryPolicy.MaxRetries.ShouldBe(5);
+        options.RetryPolicy.MaxRetryAttempts.ShouldBe(5);
         options.RetryPolicy.BackoffMultiplier.ShouldBe(3.0);
     }
 

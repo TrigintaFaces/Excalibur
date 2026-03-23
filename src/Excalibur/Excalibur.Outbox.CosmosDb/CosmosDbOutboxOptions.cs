@@ -27,6 +27,7 @@ public sealed class CosmosDbOutboxOptions
 	/// Gets or sets the default time-to-live for published messages in seconds.
 	/// </summary>
 	/// <value>Defaults to 7 days (604800 seconds). Set to -1 to disable TTL.</value>
+	[Range(1, int.MaxValue)]
 	public int DefaultTimeToLiveSeconds { get; set; } = 604800;
 
 	/// <summary>

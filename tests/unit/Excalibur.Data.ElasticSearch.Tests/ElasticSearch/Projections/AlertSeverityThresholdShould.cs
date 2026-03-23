@@ -15,11 +15,11 @@ public sealed class AlertSeverityThresholdShould
 		var sut = new AlertSeverityThreshold
 		{
 			LagThreshold = TimeSpan.FromSeconds(30),
-			Severity = AlertSeverity.Warning,
+			Severity = ProjectionAlertSeverity.Warning,
 		};
 
 		sut.LagThreshold.ShouldBe(TimeSpan.FromSeconds(30));
-		sut.Severity.ShouldBe(AlertSeverity.Warning);
+		sut.Severity.ShouldBe(ProjectionAlertSeverity.Warning);
 	}
 
 	[Fact]
@@ -28,7 +28,7 @@ public sealed class AlertSeverityThresholdShould
 		var sut = new AlertSeverityThreshold
 		{
 			LagThreshold = TimeSpan.FromMinutes(5),
-			Severity = AlertSeverity.Critical,
+			Severity = ProjectionAlertSeverity.Critical,
 		};
 
 		sut.MessageTemplate.ShouldBeNull();
@@ -40,7 +40,7 @@ public sealed class AlertSeverityThresholdShould
 		var sut = new AlertSeverityThreshold
 		{
 			LagThreshold = TimeSpan.FromMinutes(10),
-			Severity = AlertSeverity.Critical,
+			Severity = ProjectionAlertSeverity.Critical,
 			MessageTemplate = "Projection {ProjectionType} lag exceeded {Threshold}",
 		};
 

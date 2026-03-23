@@ -21,6 +21,7 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class AuthenticationMiddlewareShould
 {
     private readonly IAuthenticationService _authService = A.Fake<IAuthenticationService>();

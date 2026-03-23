@@ -31,7 +31,7 @@ public sealed class RateLimitingOptions
 	/// </value>
 	public RateLimitConfiguration DefaultLimit { get; set; } = new()
 	{
-		Algorithm = RateLimitAlgorithm.TokenBucket,
+		Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 		TokenLimit = 100,
 		ReplenishmentPeriod = TimeSpan.FromSeconds(1),
 		TokensPerPeriod = 100,
@@ -45,7 +45,7 @@ public sealed class RateLimitingOptions
 	/// </value>
 	public RateLimitConfiguration GlobalLimit { get; set; } = new()
 	{
-		Algorithm = RateLimitAlgorithm.TokenBucket,
+		Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 		TokenLimit = 1000,
 		ReplenishmentPeriod = TimeSpan.FromSeconds(1),
 		TokensPerPeriod = 1000,

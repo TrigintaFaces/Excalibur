@@ -21,10 +21,10 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <remarks> Initializes a new instance of the <see cref="RetryPolicyManager" /> class. </remarks>
 public sealed partial class RetryPolicyManager(
 	ILogger<RetryPolicyManager> logger,
-	IOptions<RetryPolicyOptions> options) : IRetryPolicyManager
+	IOptions<PubSubRetryPolicyOptions> options) : IRetryPolicyManager
 {
 	private readonly ILogger<RetryPolicyManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly IOptions<RetryPolicyOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
+	private readonly IOptions<PubSubRetryPolicyOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
 	private readonly ConcurrentDictionary<string, IAsyncPolicy> _policyCache = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, RetryStatistics> _retryStats = new(StringComparer.Ordinal);
 
@@ -232,9 +232,8 @@ public sealed partial class RetryPolicyManager(
 		// Add jitter if enabled
 		if (strategy.JitterEnabled && strategy.BackoffType != BackoffType.DecorrelatedJitter)
 		{
-			var random = new Random();
 			delays = delays.Select(d =>
-				d + TimeSpan.FromMilliseconds(random.Next(0, (int)(d.TotalMilliseconds * 0.2))));
+				d + TimeSpan.FromMilliseconds(Random.Shared.Next(0, (int)(d.TotalMilliseconds * 0.2))));
 		}
 
 		return delays;

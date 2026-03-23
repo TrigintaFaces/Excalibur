@@ -17,10 +17,6 @@ public interface IContextFlowTracker
 	/// <param name="context"> The context being recorded. </param>
 	/// <param name="stage"> The pipeline stage identifier. </param>
 	/// <param name="metadata"> Optional metadata associated with the snapshot. </param>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
-		"Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode(
-		"Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	void RecordContextState(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata = null);
 
 	/// <summary>
@@ -30,10 +26,6 @@ public interface IContextFlowTracker
 	/// <param name="fromStage"> The originating stage. </param>
 	/// <param name="toStage"> The destination stage. </param>
 	/// <returns> A collection describing detected changes. </returns>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
-		"Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode(
-		"Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	IEnumerable<ContextChange> DetectChanges(IMessageContext context, string fromStage, string toStage);
 
 	/// <summary>

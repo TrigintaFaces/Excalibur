@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Claims;
@@ -45,7 +46,7 @@ public sealed partial class AuthenticationMiddleware : IDispatchMiddleware
 	/// <summary>
 	/// Simple in-memory cache for demonstration - production would use IMemoryCache.
 	/// </summary>
-	private readonly Dictionary<string, (ClaimsPrincipal Principal, DateTimeOffset Expiry)> _cache = [];
+	private readonly ConcurrentDictionary<string, (ClaimsPrincipal Principal, DateTimeOffset Expiry)> _cache = new();
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AuthenticationMiddleware"/> class.
@@ -345,7 +346,7 @@ public sealed partial class AuthenticationMiddleware : IDispatchMiddleware
 			}
 
 			// Remove expired entry
-			_ = _cache.Remove(token);
+			_ = _cache.TryRemove(token, out _);
 		}
 
 		// Determine authentication scheme

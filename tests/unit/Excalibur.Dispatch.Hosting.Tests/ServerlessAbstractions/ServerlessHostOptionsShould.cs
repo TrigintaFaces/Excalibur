@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Hosting.Tests.ServerlessAbstractions;
 /// Unit tests for ServerlessHostOptions.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class ServerlessHostOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -37,6 +37,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", "SagaStore")]
 [Trait("Provider", "SqlServer")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly SqlServerFixture _sqlFixture;
@@ -57,15 +59,15 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task SaveAndLoadNewSaga()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId = Guid.NewGuid();
 		var state = TestSagaState.Create(sagaId);
 		state.Status = "Started";
 
 		// Act
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -80,21 +82,21 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task UpdateExistingSaga()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId = Guid.NewGuid();
 		var state = TestSagaState.Create(sagaId);
 		state.Status = "Initial";
 		state.Counter = 1;
 
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
 
 		// Act - Update the saga
 		state.Status = "Updated";
 		state.Counter = 42;
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
 
-		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken).ConfigureAwait(true);
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -109,12 +111,12 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task ReturnNullForNonExistentSaga()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId = Guid.NewGuid();
 
 		// Act
-		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken).ConfigureAwait(true);
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
 
 		// Assert
 		loaded.ShouldBeNull();
@@ -127,7 +129,7 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task PersistCompletedFlag()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId = Guid.NewGuid();
 		var state = TestSagaState.Create(sagaId);
@@ -135,8 +137,8 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 		state.CompletedUtc = DateTime.UtcNow;
 
 		// Act
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -150,22 +152,22 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task PreserveLatestStateAfterMultipleUpdates()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId = Guid.NewGuid();
 		var state = TestSagaState.Create(sagaId);
 
 		// Act - Multiple updates
 		state.Counter = 1;
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
 
 		state.Counter = 2;
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
 
 		state.Counter = 3;
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
 
-		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken).ConfigureAwait(true);
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -179,7 +181,7 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task PreserveAllPropertiesThroughRoundTrip()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId = Guid.NewGuid();
 		var state = TestSagaState.Create(sagaId);
@@ -193,8 +195,8 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 		state.Data["key2"] = "value2";
 
 		// Act
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -215,7 +217,7 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task IsolateSagasBySagaId()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId1 = Guid.NewGuid();
 		var sagaId2 = Guid.NewGuid();
@@ -226,11 +228,11 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 		state2.Counter = 222;
 
 		// Act
-		await store.SaveAsync(state1, TestCancellationToken).ConfigureAwait(true);
-		await store.SaveAsync(state2, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state1, TestCancellationToken);
+		await store.SaveAsync(state2, TestCancellationToken);
 
-		var loaded1 = await store.LoadAsync<TestSagaState>(sagaId1, TestCancellationToken).ConfigureAwait(true);
-		var loaded2 = await store.LoadAsync<TestSagaState>(sagaId2, TestCancellationToken).ConfigureAwait(true);
+		var loaded1 = await store.LoadAsync<TestSagaState>(sagaId1, TestCancellationToken);
+		var loaded2 = await store.LoadAsync<TestSagaState>(sagaId2, TestCancellationToken);
 
 		// Assert
 		_ = loaded1.ShouldNotBeNull();
@@ -246,7 +248,7 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task NotAffectOtherSagasWhenUpdating()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId1 = Guid.NewGuid();
 		var sagaId2 = Guid.NewGuid();
@@ -256,14 +258,14 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 		var state2 = TestSagaState.Create(sagaId2);
 		state2.Status = "Second";
 
-		await store.SaveAsync(state1, TestCancellationToken).ConfigureAwait(true);
-		await store.SaveAsync(state2, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state1, TestCancellationToken);
+		await store.SaveAsync(state2, TestCancellationToken);
 
 		// Act - Update only state1
 		state1.Status = "Updated";
-		await store.SaveAsync(state1, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state1, TestCancellationToken);
 
-		var loaded2 = await store.LoadAsync<TestSagaState>(sagaId2, TestCancellationToken).ConfigureAwait(true);
+		var loaded2 = await store.LoadAsync<TestSagaState>(sagaId2, TestCancellationToken);
 
 		// Assert - state2 should be unchanged
 		_ = loaded2.ShouldNotBeNull();
@@ -277,14 +279,14 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task SaveSagaWithDefaultValues()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId = Guid.NewGuid();
 		var state = new TestSagaState { SagaId = sagaId };
 
 		// Act
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -299,7 +301,7 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	public async Task PreserveDateTimeValues()
 	{
 		// Arrange
-		await InitializeSagaTableAsync().ConfigureAwait(true);
+		await InitializeSagaTableAsync();
 		var store = CreateSagaStore();
 		var sagaId = Guid.NewGuid();
 		var state = TestSagaState.Create(sagaId);
@@ -307,8 +309,8 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 		state.CreatedUtc = createdUtc;
 
 		// Act
-		await store.SaveAsync(state, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveAsync(state, TestCancellationToken);
+		var loaded = await store.LoadAsync<TestSagaState>(sagaId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -348,9 +350,9 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 			""";
 
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
 
-		_ = await connection.ExecuteAsync(createSchemaSql).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync(createTableSql).ConfigureAwait(true);
+		_ = await connection.ExecuteAsync(createSchemaSql);
+		_ = await connection.ExecuteAsync(createTableSql);
 	}
 }

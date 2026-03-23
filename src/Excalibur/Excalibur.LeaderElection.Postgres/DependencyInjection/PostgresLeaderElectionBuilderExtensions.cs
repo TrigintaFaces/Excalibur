@@ -45,7 +45,7 @@ public static class PostgresLeaderElectionBuilderExtensions
 			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
 			return new PostgresLeaderElection(pgOptions, electionOptions, logger);
 		});
-		builder.Services.TryAddSingleton<ILeaderElection>(sp =>
+		builder.Services.AddKeyedSingleton<ILeaderElection>("postgres", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<PostgresLeaderElection>();
 			var meterFactory = sp.GetService<IMeterFactory>();
@@ -53,6 +53,8 @@ public static class PostgresLeaderElectionBuilderExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElection(inner, meter, activitySource, "Postgres");
 		});
+		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
 
 		return builder;
 	}
@@ -78,7 +80,7 @@ public static class PostgresLeaderElectionBuilderExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
-		builder.Services.TryAddSingleton<ILeaderElectionFactory>(sp =>
+		builder.Services.AddKeyedSingleton<ILeaderElectionFactory>("postgres", (sp, _) =>
 		{
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
@@ -88,6 +90,8 @@ public static class PostgresLeaderElectionBuilderExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Postgres");
 		});
+		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElectionFactory>("postgres"));
 
 		return builder;
 	}

@@ -14,6 +14,7 @@ namespace Excalibur.Saga.Tests.EventSourced;
 /// custom stream prefix behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class InMemoryEventSourcedSagaStoreFunctionalShould
 {
 	private static InMemoryEventSourcedSagaStore CreateStore(string prefix = "saga-") =>

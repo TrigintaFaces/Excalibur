@@ -38,12 +38,12 @@ public sealed class LongRunningSagaWorkflowShould
 		};
 
 		// Act - Start saga and process steps
-		await saga.StartAsync("saga-timeout", new OrderData { OrderId = "ORD-TIMEOUT" }).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-timeout", SagaStep.ReserveInventory).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-timeout", SagaStep.ProcessPayment).ConfigureAwait(true); // Will timeout
+		await saga.StartAsync("saga-timeout", new OrderData { OrderId = "ORD-TIMEOUT" });
+		await saga.ProcessStepAsync("saga-timeout", SagaStep.ReserveInventory);
+		await saga.ProcessStepAsync("saga-timeout", SagaStep.ProcessPayment); // Will timeout
 
 		// Assert - Saga timed out and compensation ran
-		var state = await store.GetAsync("saga-timeout").ConfigureAwait(true);
+		var state = await store.GetAsync("saga-timeout");
 		_ = state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.Compensated); // Final status after timeout + compensation
 
@@ -64,12 +64,12 @@ public sealed class LongRunningSagaWorkflowShould
 		var log1 = new ExecutionLog();
 		var saga1 = new AdvancedOrderSaga(store, log1);
 
-		await saga1.StartAsync("saga-crash", new OrderData { OrderId = "ORD-CRASH" }).ConfigureAwait(true);
-		await saga1.ProcessStepAsync("saga-crash", SagaStep.ReserveInventory).ConfigureAwait(true);
-		await saga1.ProcessStepAsync("saga-crash", SagaStep.ProcessPayment).ConfigureAwait(true);
+		await saga1.StartAsync("saga-crash", new OrderData { OrderId = "ORD-CRASH" });
+		await saga1.ProcessStepAsync("saga-crash", SagaStep.ReserveInventory);
+		await saga1.ProcessStepAsync("saga-crash", SagaStep.ProcessPayment);
 
 		// Simulate crash - store state is persisted
-		var stateBeforeCrash = await store.GetAsync("saga-crash").ConfigureAwait(true);
+		var stateBeforeCrash = await store.GetAsync("saga-crash");
 		_ = stateBeforeCrash.ShouldNotBeNull();
 		stateBeforeCrash.Status.ShouldBe(SagaStatus.InProgress);
 		stateBeforeCrash.CompletedSteps.Count.ShouldBe(2);
@@ -77,11 +77,11 @@ public sealed class LongRunningSagaWorkflowShould
 		// Act - New saga instance resumes from persisted state
 		var log2 = new ExecutionLog();
 		var saga2 = new AdvancedOrderSaga(store, log2);
-		await saga2.ResumeAsync("saga-crash").ConfigureAwait(true);
-		await saga2.ProcessStepAsync("saga-crash", SagaStep.ShipOrder).ConfigureAwait(true);
+		await saga2.ResumeAsync("saga-crash");
+		await saga2.ProcessStepAsync("saga-crash", SagaStep.ShipOrder);
 
 		// Assert - Saga completed from resume point
-		var stateAfterResume = await store.GetAsync("saga-crash").ConfigureAwait(true);
+		var stateAfterResume = await store.GetAsync("saga-crash");
 		_ = stateAfterResume.ShouldNotBeNull();
 		stateAfterResume.Status.ShouldBe(SagaStatus.Completed);
 
@@ -113,11 +113,11 @@ public sealed class LongRunningSagaWorkflowShould
 		};
 
 		// Act - Start and partially complete
-		await saga.StartAsync("saga-persist", orderData).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-persist", SagaStep.ReserveInventory).ConfigureAwait(true);
+		await saga.StartAsync("saga-persist", orderData);
+		await saga.ProcessStepAsync("saga-persist", SagaStep.ReserveInventory);
 
 		// Simulate restart - get state from store
-		var persistedState = await store.GetAsync("saga-persist").ConfigureAwait(true);
+		var persistedState = await store.GetAsync("saga-persist");
 
 		// Assert - State was persisted correctly
 		_ = persistedState.ShouldNotBeNull();
@@ -158,13 +158,13 @@ public sealed class LongRunningSagaWorkflowShould
 		};
 
 		// Act
-		await saga.StartAsync("saga-retry", new OrderData { OrderId = "ORD-RETRY" }).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-retry", SagaStep.ReserveInventory).ConfigureAwait(true);
-		await saga.ProcessStepWithRetryAsync("saga-retry", SagaStep.ProcessPayment).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-retry", SagaStep.ShipOrder).ConfigureAwait(true);
+		await saga.StartAsync("saga-retry", new OrderData { OrderId = "ORD-RETRY" });
+		await saga.ProcessStepAsync("saga-retry", SagaStep.ReserveInventory);
+		await saga.ProcessStepWithRetryAsync("saga-retry", SagaStep.ProcessPayment);
+		await saga.ProcessStepAsync("saga-retry", SagaStep.ShipOrder);
 
 		// Assert - Saga completed after retries
-		var state = await store.GetAsync("saga-retry").ConfigureAwait(true);
+		var state = await store.GetAsync("saga-retry");
 		_ = state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.Completed);
 
@@ -197,12 +197,12 @@ public sealed class LongRunningSagaWorkflowShould
 		};
 
 		// Act
-		await saga.StartAsync("saga-dlq", new OrderData { OrderId = "ORD-DLQ" }).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-dlq", SagaStep.ReserveInventory).ConfigureAwait(true);
-		await saga.ProcessStepWithRetryAsync("saga-dlq", SagaStep.ProcessPayment).ConfigureAwait(true);
+		await saga.StartAsync("saga-dlq", new OrderData { OrderId = "ORD-DLQ" });
+		await saga.ProcessStepAsync("saga-dlq", SagaStep.ReserveInventory);
+		await saga.ProcessStepWithRetryAsync("saga-dlq", SagaStep.ProcessPayment);
 
 		// Assert - Saga moved to dead letter
-		var state = await store.GetAsync("saga-dlq").ConfigureAwait(true);
+		var state = await store.GetAsync("saga-dlq");
 		_ = state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.DeadLettered);
 

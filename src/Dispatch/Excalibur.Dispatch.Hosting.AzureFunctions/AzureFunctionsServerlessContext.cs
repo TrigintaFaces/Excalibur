@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Hosting.AzureFunctions;
 /// <summary>
 /// Azure Functions specific implementation of serverless context.
 /// </summary>
-internal class AzureFunctionsServerlessContext : ServerlessContextBase
+internal sealed class AzureFunctionsServerlessContext : ServerlessContextBase
 {
 #if AZURE_FUNCTIONS_SUPPORT
 	private readonly FunctionContext _functionContext;

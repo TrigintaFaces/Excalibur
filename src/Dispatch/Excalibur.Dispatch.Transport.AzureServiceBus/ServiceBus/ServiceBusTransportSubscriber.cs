@@ -32,6 +32,8 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 {
 	private readonly ServiceBusProcessor _processor;
 	private readonly ILogger _logger;
+	private Func<ProcessMessageEventArgs, Task>? _messageHandler;
+	private Func<ProcessErrorEventArgs, Task>? _errorHandler;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -60,7 +62,14 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 	{
 		ArgumentNullException.ThrowIfNull(handler);
 
-		_processor.ProcessMessageAsync += async args =>
+		// Deregister previous handlers to prevent duplicate invocations on re-subscribe
+		if (_messageHandler is not null)
+		{
+			_processor.ProcessMessageAsync -= _messageHandler;
+			_processor.ProcessErrorAsync -= _errorHandler;
+		}
+
+		_messageHandler = async args =>
 		{
 			var received = ConvertToReceivedMessage(args.Message);
 			LogMessageReceived(received.Id, Source);
@@ -98,11 +107,14 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 			}
 		};
 
-		_processor.ProcessErrorAsync += args =>
+		_errorHandler = args =>
 		{
 			LogError(args.Identifier, Source, args.Exception);
 			return Task.CompletedTask;
 		};
+
+		_processor.ProcessMessageAsync += _messageHandler;
+		_processor.ProcessErrorAsync += _errorHandler;
 
 		await _processor.StartProcessingAsync(cancellationToken).ConfigureAwait(false);
 		LogSubscriptionStarted(Source);
@@ -112,7 +124,7 @@ internal sealed partial class ServiceBusTransportSubscriber : ITransportSubscrib
 			// Block until cancellation is requested
 			await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected on cancellation — fall through to stop
 		}

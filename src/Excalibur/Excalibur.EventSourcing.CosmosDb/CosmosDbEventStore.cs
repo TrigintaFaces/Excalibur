@@ -48,7 +48,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	}
 
 	/// <inheritdoc/>
-	public CloudProviderType CloudProvider => CloudProviderType.CosmosDb;
+	public CloudPersistenceProviderType CloudProvider => CloudPersistenceProviderType.CosmosDb;
 
 	/// <inheritdoc/>
 	public object? GetService(Type serviceType)

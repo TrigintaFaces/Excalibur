@@ -277,6 +277,16 @@ internal sealed partial class SqsTransportSender : ITransportSender
 			};
 		}
 
+		if (message.CausationId is not null)
+		{
+			request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);
+			request.MessageAttributes["causation-id"] = new MessageAttributeValue
+			{
+				DataType = "String",
+				StringValue = message.CausationId,
+			};
+		}
+
 		if (message.MessageType is not null)
 		{
 			request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>(StringComparer.Ordinal);

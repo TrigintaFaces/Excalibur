@@ -358,6 +358,10 @@ public sealed class ErasureServiceShould
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(status));
 
+		// T.6 TOCTOU fix: ExecuteAsync transitions to InProgress first, then re-checks legal holds
+		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
+
 		A.CallTo(() => _legalHoldService.CheckHoldsAsync(
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new LegalHoldCheckResult
@@ -591,9 +595,9 @@ public sealed class ErasureServiceShould
 		var result = await _sut.ExecuteAsync(requestId, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Assert
-		result.Success.ShouldBeTrue();
-		result.KeysDeleted.ShouldBe(0); // deletion failed but execution continued
+		// Assert -- Sprint 672 T.2: key deletion failure = not successful (no false compliance)
+		result.Success.ShouldBeFalse();
+		result.KeysDeleted.ShouldBe(0);
 	}
 
 	[Fact]

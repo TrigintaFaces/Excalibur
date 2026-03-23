@@ -254,13 +254,13 @@ public sealed class DeliveryOptionsShould
 		values.Length.ShouldBe(3);
 	}
 
-	// --- OutboxOptions ---
+	// --- OutboxDeliveryOptions ---
 
 	[Fact]
-	public void OutboxOptions_DefaultValues_AreCorrect()
+	public void OutboxDeliveryOptions_DefaultValues_AreCorrect()
 	{
 		// Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.PerRunTotal.ShouldBe(1000);
@@ -279,10 +279,10 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptions_HighThroughput_Preset()
+	public void OutboxDeliveryOptions_HighThroughput_Preset()
 	{
 		// Act
-		var options = OutboxOptions.HighThroughput();
+		var options = OutboxDeliveryOptions.HighThroughput();
 
 		// Assert
 		options.PerRunTotal.ShouldBe(10000);
@@ -294,10 +294,10 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptions_Balanced_Preset()
+	public void OutboxDeliveryOptions_Balanced_Preset()
 	{
 		// Act
-		var options = OutboxOptions.Balanced();
+		var options = OutboxDeliveryOptions.Balanced();
 
 		// Assert
 		options.PerRunTotal.ShouldBe(1000);
@@ -307,10 +307,10 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptions_HighReliability_Preset()
+	public void OutboxDeliveryOptions_HighReliability_Preset()
 	{
 		// Act
-		var options = OutboxOptions.HighReliability();
+		var options = OutboxDeliveryOptions.HighReliability();
 
 		// Assert
 		options.PerRunTotal.ShouldBe(100);
@@ -320,10 +320,10 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptions_WithBatchSize_CreatesNewInstance()
+	public void OutboxDeliveryOptions_WithBatchSize_CreatesNewInstance()
 	{
 		// Arrange
-		var original = OutboxOptions.HighThroughput();
+		var original = OutboxDeliveryOptions.HighThroughput();
 
 		// Act
 		var modified = original.WithBatchSize(500);
@@ -335,10 +335,10 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptions_WithBatchSize_SetsConsumerSeparately()
+	public void OutboxDeliveryOptions_WithBatchSize_SetsConsumerSeparately()
 	{
 		// Act
-		var options = OutboxOptions.Balanced().WithBatchSize(200, 50);
+		var options = OutboxDeliveryOptions.Balanced().WithBatchSize(200, 50);
 
 		// Assert
 		options.ProducerBatchSize.ShouldBe(200);
@@ -346,10 +346,10 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptions_WithParallelDegree_CreatesNewInstance()
+	public void OutboxDeliveryOptions_WithParallelDegree_CreatesNewInstance()
 	{
 		// Arrange
-		var original = OutboxOptions.Balanced();
+		var original = OutboxDeliveryOptions.Balanced();
 
 		// Act
 		var modified = original.WithParallelDegree(16);
@@ -360,10 +360,10 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptions_WithDeliveryGuarantee_CreatesNewInstance()
+	public void OutboxDeliveryOptions_WithDeliveryGuarantee_CreatesNewInstance()
 	{
 		// Act
-		var options = OutboxOptions.Balanced()
+		var options = OutboxDeliveryOptions.Balanced()
 			.WithDeliveryGuarantee(OutboxDeliveryGuarantee.TransactionalWhenApplicable);
 
 		// Assert
@@ -371,50 +371,50 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptions_WithMaxAttempts_CreatesNewInstance()
+	public void OutboxDeliveryOptions_WithMaxAttempts_CreatesNewInstance()
 	{
 		// Act
-		var options = OutboxOptions.Balanced().WithMaxAttempts(7);
+		var options = OutboxDeliveryOptions.Balanced().WithMaxAttempts(7);
 
 		// Assert
 		options.MaxAttempts.ShouldBe(7);
 	}
 
 	[Fact]
-	public void OutboxOptions_WithTimeout_CreatesNewInstance()
+	public void OutboxDeliveryOptions_WithTimeout_CreatesNewInstance()
 	{
 		// Act
-		var options = OutboxOptions.HighThroughput().WithTimeout(TimeSpan.FromMinutes(15));
+		var options = OutboxDeliveryOptions.HighThroughput().WithTimeout(TimeSpan.FromMinutes(15));
 
 		// Assert
 		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(15));
 	}
 
 	[Fact]
-	public void OutboxOptions_Validate_ReturnsNull_WhenValid()
+	public void OutboxDeliveryOptions_Validate_ReturnsNull_WhenValid()
 	{
 		// Act
-		var result = OutboxOptions.Validate(new OutboxOptions());
+		var result = OutboxDeliveryOptions.Validate(new OutboxDeliveryOptions());
 
 		// Assert
 		result.ShouldBeNull();
 	}
 
 	[Fact]
-	public void OutboxOptions_Validate_ThrowsOnNull()
+	public void OutboxDeliveryOptions_Validate_ThrowsOnNull()
 	{
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => OutboxOptions.Validate(null!));
+		Should.Throw<ArgumentNullException>(() => OutboxDeliveryOptions.Validate(null!));
 	}
 
 	[Fact]
-	public void OutboxOptions_Validate_DetectsZeroQueueCapacity()
+	public void OutboxDeliveryOptions_Validate_DetectsZeroQueueCapacity()
 	{
 		// Arrange
-		var options = new OutboxOptions { QueueCapacity = 0 };
+		var options = new OutboxDeliveryOptions { QueueCapacity = 0 };
 
 		// Act
-		var result = OutboxOptions.Validate(options);
+		var result = OutboxDeliveryOptions.Validate(options);
 
 		// Assert
 		result.ShouldNotBeNull();

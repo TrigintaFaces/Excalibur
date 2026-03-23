@@ -16,6 +16,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.EventSourcing.Tests.Firestore;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
@@ -26,7 +27,7 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 	public void ProviderType_ReturnFirestore()
 	{
 		var sut = CreateInitializedStore(withDatabase: false);
-		sut.CloudProvider.ShouldBe(CloudProviderType.Firestore);
+		sut.CloudProvider.ShouldBe(CloudPersistenceProviderType.Firestore);
 	}
 
 	[Fact]

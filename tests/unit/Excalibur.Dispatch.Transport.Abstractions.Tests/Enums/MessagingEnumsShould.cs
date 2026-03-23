@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Enums;
 
-public class MessagingEnumsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class MessagingEnumsShould
 {
     [Theory]
     [InlineData(AcknowledgmentMode.OnSuccess, 0)]

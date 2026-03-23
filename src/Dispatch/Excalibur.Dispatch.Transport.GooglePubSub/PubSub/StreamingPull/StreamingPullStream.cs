@@ -223,7 +223,7 @@ internal sealed partial class StreamingPullStream : IAsyncDisposable
 			{
 				await _readTask.ConfigureAwait(false);
 			}
-			catch (OperationCanceledException ex)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				// Expected during shutdown
 				LogTaskCleanupCancelled("ReadTask", StreamId, ex);
@@ -246,7 +246,7 @@ internal sealed partial class StreamingPullStream : IAsyncDisposable
 			{
 				await _writeTask.ConfigureAwait(false);
 			}
-			catch (OperationCanceledException ex)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				// Expected during shutdown
 				LogTaskCleanupCancelled("WriteTask", StreamId, ex);
@@ -338,7 +338,7 @@ internal sealed partial class StreamingPullStream : IAsyncDisposable
 				}
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}

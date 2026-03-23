@@ -7,7 +7,8 @@ namespace Excalibur.Tests.Messaging.Delivery.EventStore;
 ///     Unit tests for EventStoreMessage to verify event store message functionality.
 /// </summary>
 [Trait("Category", "Unit")]
-public class EventStoreMessageShould
+[Trait("Component", "Core")]
+public sealed class EventStoreMessageShould
 {
 	[Fact]
 	public void ConstructorShouldInitializeWithStringAggregateKey()

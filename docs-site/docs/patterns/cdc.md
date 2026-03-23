@@ -791,17 +791,20 @@ services.AddCdcProcessor(cdc =>
 ### Health Checks
 
 ```csharp
+// The built-in CdcHealthCheck is internal and registered via AddCdcHealthCheck().
+// For custom lag monitoring, create your own health check:
 services.AddHealthChecks()
-    .AddCheck<CdcHealthCheck>("cdc");
+    .AddCdcHealthCheck()  // built-in health check
+    .AddCheck<CdcLagHealthCheck>("cdc-lag");  // custom lag monitor
 
-public class CdcHealthCheck : IHealthCheck
+public class CdcLagHealthCheck : IHealthCheck
 {
     private readonly ICdcStateStore _stateStore;
     private readonly string _connectionId;
     private readonly string _databaseName;
     private readonly TimeSpan _maxLag = TimeSpan.FromMinutes(5);
 
-    public CdcHealthCheck(ICdcStateStore stateStore)
+    public CdcLagHealthCheck(ICdcStateStore stateStore)
     {
         _stateStore = stateStore;
         _connectionId = "default";  // Configure based on your setup

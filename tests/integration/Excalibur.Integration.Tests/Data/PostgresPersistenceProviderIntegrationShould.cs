@@ -13,7 +13,9 @@ namespace Excalibur.Integration.Tests.Data;
 /// Validates connection, data operations, metrics, and health checks.
 /// </summary>
 [Collection(PostgresTestCollection.CollectionName)]
-public class PostgresPersistenceProviderIntegrationShould
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class PostgresPersistenceProviderIntegrationShould
 {
 	private readonly PostgresContainerFixture _fixture;
 

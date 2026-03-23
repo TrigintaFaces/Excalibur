@@ -120,12 +120,9 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 		"Transport adapter '{TransportName}' stopped successfully via lifecycle manager")]
 	private partial void LogTransportAdapterStoppedViaLifecycleManager(string transportName);
 #if NET9_0_OR_GREATER
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 
 	/// <summary>
@@ -181,7 +178,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 
 				LogTransportAdapterStarted(name);
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				LogStartupCancelled(name);
 				throw;

@@ -46,8 +46,8 @@ public sealed class CdcErrorHandlingWorkflowShould
 		// Act & Assert - Exception should propagate
 		var exception = await Should.ThrowAsync<CdcHandlerException>(async () =>
 		{
-			await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
-		}).ConfigureAwait(true);
+			await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
+		});
 
 		exception.Message.ShouldContain("Handler failed");
 		exception.TableName.ShouldBe("Orders");
@@ -77,7 +77,7 @@ public sealed class CdcErrorHandlingWorkflowShould
 		});
 
 		// Act
-		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - Handler was retried and eventually succeeded
 		var attempts = executionLog.Steps.Count(s => s.StartsWith("Handler:Attempt:"));
@@ -111,7 +111,7 @@ public sealed class CdcErrorHandlingWorkflowShould
 		});
 
 		// Act
-		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - All retries were attempted
 		var attempts = executionLog.Steps.Count(s => s.StartsWith("Handler:Attempt:"));
@@ -150,8 +150,8 @@ public sealed class CdcErrorHandlingWorkflowShould
 		// Act & Assert
 		var exception = await Should.ThrowAsync<TransformationException>(async () =>
 		{
-			await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
-		}).ConfigureAwait(true);
+			await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
+		});
 
 		// Assert - Exception contains helpful context
 		exception.Message.ShouldContain("transform", Case.Insensitive);
@@ -186,7 +186,7 @@ public sealed class CdcErrorHandlingWorkflowShould
 		};
 
 		// Act - Process first event, then simulate connection loss, then recover
-		await pipeline.ProcessCdcEventAsync(events[0], CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(events[0], CancellationToken.None);
 
 		// Simulate connection loss after first event
 		connectionManager.SimulateDisconnect();
@@ -196,8 +196,8 @@ public sealed class CdcErrorHandlingWorkflowShould
 		connectionManager.SimulateReconnect();
 		executionLog.Log("Connection:Restored");
 
-		await pipeline.ProcessCdcEventAsync(events[1], CancellationToken.None).ConfigureAwait(true);
-		await pipeline.ProcessCdcEventAsync(events[2], CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(events[1], CancellationToken.None);
+		await pipeline.ProcessCdcEventAsync(events[2], CancellationToken.None);
 
 		// Assert - All events were eventually processed
 		var successSteps = executionLog.Steps.Where(s => s.StartsWith("Handler:Success:")).ToList();

@@ -12,7 +12,7 @@ namespace Excalibur.Saga.EventSourced;
 /// Captured when a saga transitions between states (e.g., Running to Completed,
 /// Running to Compensating).
 /// </remarks>
-public sealed class SagaStateTransitioned : ISagaEvent
+public class SagaStateTransitioned : ISagaEvent
 {
 	/// <inheritdoc />
 	public string SagaId { get; init; } = string.Empty;

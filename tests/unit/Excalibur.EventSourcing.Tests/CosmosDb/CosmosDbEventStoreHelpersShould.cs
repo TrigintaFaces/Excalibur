@@ -10,6 +10,7 @@ using Excalibur.EventSourcing.CosmosDb;
 namespace Excalibur.EventSourcing.Tests.CosmosDb;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class CosmosDbEventStoreHelpersShould : UnitTestBase
 {
 	[Fact]

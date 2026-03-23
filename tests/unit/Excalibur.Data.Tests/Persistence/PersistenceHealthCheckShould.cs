@@ -11,6 +11,8 @@ using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
 namespace Excalibur.Data.Tests.Persistence;
 
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class PersistenceHealthCheckShould
 {
 	private readonly IPersistenceProviderFactory _fakeFactory;
@@ -133,7 +135,9 @@ public sealed class PersistenceHealthCheckShould
 		A.CallTo(() => fakeHealth.TestConnectionAsync(A<CancellationToken>._))
 			.Throws(new OperationCanceledException());
 
-		var result = await _sut.CheckHealthAsync(null!, CancellationToken.None);
+		using var cts = new CancellationTokenSource();
+		await cts.CancelAsync();
+		var result = await _sut.CheckHealthAsync(null!, cts.Token);
 
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("timed out");

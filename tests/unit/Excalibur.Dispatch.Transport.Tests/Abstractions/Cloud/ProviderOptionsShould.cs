@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Cloud;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class ProviderOptionsShould
+public sealed class ProviderOptionsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()
@@ -86,7 +86,7 @@ public class ProviderOptionsShould
     [Fact]
     public void AllowSettingRetryPolicy()
     {
-        var retryPolicy = new RetryPolicyOptions
+        var retryPolicy = new TransportRetryPolicyOptions
         {
             MaxRetryAttempts = 5,
             BaseDelayMs = 500,
@@ -125,7 +125,7 @@ public class ProviderOptionsShould
             ConnectionString = "Endpoint=sb://mybus.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=xxx",
             DefaultTimeoutMs = 60000,
             EnableDetailedLogging = true,
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 MaxRetryAttempts = 3,
                 BaseDelayMs = 1000,

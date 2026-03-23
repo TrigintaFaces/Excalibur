@@ -333,6 +333,9 @@ public static class RabbitMqEventId
 	/// <summary>Transport receiver: disposed.</summary>
 	public const int TransportReceiverDisposed = 21817;
 
+	/// <summary>Transport receiver: delivery tag cache exceeded expected bounds.</summary>
+	public const int TransportReceiverDeliveryTagCacheOverflow = 21818;
+
 	// ========================================
 	// 21820-21827: ITransportSubscriber
 	// ========================================

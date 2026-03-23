@@ -3,7 +3,6 @@
 
 using Excalibur.Dispatch.Abstractions.Delivery;
 
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Excalibur.Dispatch.Delivery;
@@ -22,9 +21,10 @@ namespace Excalibur.Dispatch.Delivery;
 ///   <item><b>Unhealthy:</b> Handler resolution failed with an exception</item>
 /// </list>
 /// </remarks>
-public sealed class StreamingHandlerHealthCheck : IHealthCheck
+internal sealed class StreamingHandlerHealthCheck : IHealthCheck
 {
 	private readonly IServiceProvider _serviceProvider;
+	private volatile IReadOnlyList<Type>? _cachedHandlerTypes;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="StreamingHandlerHealthCheck"/> class.
@@ -44,25 +44,7 @@ public sealed class StreamingHandlerHealthCheck : IHealthCheck
 
 		try
 		{
-			// Discover registered streaming handler types via service descriptors
-			using var scope = _serviceProvider.CreateScope();
-			var handlerTypes = AppDomain.CurrentDomain.GetAssemblies()
-				.SelectMany(a =>
-				{
-					try
-					{
-						return a.GetTypes();
-					}
-					catch
-					{
-						return [];
-					}
-				})
-				.Where(t => !t.IsAbstract && !t.IsInterface)
-				.Where(t => t.GetInterfaces().Any(i =>
-					i.IsGenericType &&
-					i.GetGenericTypeDefinition() == typeof(IStreamingDocumentHandler<,>)))
-				.ToList();
+			var handlerTypes = _cachedHandlerTypes ??= DiscoverHandlerTypes();
 
 			data["registered_handler_count"] = handlerTypes.Count;
 
@@ -88,5 +70,31 @@ public sealed class StreamingHandlerHealthCheck : IHealthCheck
 				exception: ex,
 				data: data));
 		}
+	}
+
+	/// <summary>
+	/// Discovers streaming handler types via assembly scanning. Result is cached to avoid
+	/// repeated reflection on every health check invocation.
+	/// </summary>
+	private static IReadOnlyList<Type> DiscoverHandlerTypes()
+	{
+		return AppDomain.CurrentDomain.GetAssemblies()
+			.SelectMany(a =>
+			{
+				try
+				{
+					return a.GetTypes();
+				}
+				catch
+				{
+					return [];
+				}
+			})
+			.Where(t => !t.IsAbstract && !t.IsInterface)
+			.Where(t => t.GetInterfaces().Any(i =>
+				i.IsGenericType &&
+				i.GetGenericTypeDefinition() == typeof(IStreamingDocumentHandler<,>)))
+			.ToList()
+			.AsReadOnly();
 	}
 }

@@ -341,7 +341,7 @@ public static class CdcBuilderSqlServerExtensions
 
 		// Register SQL Server CDC state store with factory
 		// Uses state factory when WithStateStore was called, source factory otherwise (backward compat)
-		builder.Services.TryAddSingleton<ICdcStateStore>(sp =>
+		builder.Services.TryAddSingleton<ISqlServerCdcStateStore>(sp =>
 		{
 			var effectiveFactory = stateConnectionFactory ?? sourceConnectionFactory;
 			var factory = effectiveFactory(sp);

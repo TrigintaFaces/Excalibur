@@ -90,12 +90,12 @@ public sealed class SagaCoordinatorDepthShould
 }
 
 // Test types for coordinator testing
-public class TestCoordinatorSagaState : SagaState
+public sealed class TestCoordinatorSagaState : SagaState
 {
 	public string OrderId { get; set; } = string.Empty;
 }
 
-public class TestCoordinatorSaga : SagaBase<TestCoordinatorSagaState>
+public sealed class TestCoordinatorSaga : SagaBase<TestCoordinatorSagaState>
 {
 	public TestCoordinatorSaga(TestCoordinatorSagaState state, IDispatcher dispatcher, Microsoft.Extensions.Logging.ILogger logger)
 		: base(state, dispatcher, logger)

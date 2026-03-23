@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Abstractions.Transport;
 /// Service Bus, Apache Kafka, etc.). They handle the low-level details of message serialization, routing, and delivery while providing a
 /// consistent abstraction for the messaging pipeline.
 /// </remarks>
-public interface IMessageBusAdapter : IDisposable
+public interface IMessageBusAdapter
 {
 	/// <summary>
 	/// Gets the name of this message bus adapter.
@@ -32,7 +32,7 @@ public interface IMessageBusAdapter : IDisposable
 	/// <param name="options"> Configuration options for the adapter. </param>
 	/// <param name="cancellationToken"> Token to cancel the initialization operation. </param>
 	/// <returns> A task representing the initialization operation. </returns>
-	Task InitializeAsync(IMessageBusOptions options, CancellationToken cancellationToken);
+	Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Publishes a message to the specified destination.
@@ -59,7 +59,7 @@ public interface IMessageBusAdapter : IDisposable
 	Task SubscribeAsync(
 		string subscriptionName,
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> messageHandler,
-		IMessageBusOptions? options,
+		MessageBusOptions? options,
 		CancellationToken cancellationToken);
 
 	/// <summary>

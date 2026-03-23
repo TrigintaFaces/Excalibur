@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// Using a collection ensures these tests run sequentially to avoid cache interference.
 /// </summary>
 [CollectionDefinition("HandlerInvokerRegistry")]
-public class HandlerInvokerRegistryCollection;
+public sealed class HandlerInvokerRegistryCollection;
 
 /// <summary>
 /// Unit tests for <see cref="HandlerInvokerRegistry"/>.

@@ -29,7 +29,6 @@ namespace Excalibur.Dispatch.Exceptions;
 /// <see cref="Abstractions.Serialization.SerializationException"/>.
 /// </para>
 /// </remarks>
-[Serializable]
 public sealed class DispatchSerializationException : DispatchException
 {
 	/// <summary>

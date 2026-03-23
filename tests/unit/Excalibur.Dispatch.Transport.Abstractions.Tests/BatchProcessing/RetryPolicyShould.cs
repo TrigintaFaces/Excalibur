@@ -2,53 +2,39 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.BatchProcessing;
 
-public class RetryPolicyShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class RetryPolicyOptionsShould
 {
-    [Fact]
-    public void Should_Default_MaxRetries_To_3()
-    {
-        var policy = new RetryPolicy();
+	[Fact]
+	public void Default_MaxRetryAttempts_To_3()
+	{
+		var options = new TransportRetryPolicyOptions();
 
-        policy.MaxRetries.ShouldBe(3);
-    }
+		options.MaxRetryAttempts.ShouldBe(3);
+	}
 
-    [Fact]
-    public void Should_Default_InitialDelay_To_1_Second()
-    {
-        var policy = new RetryPolicy();
+	[Fact]
+	public void Default_BaseDelayMs_To_1000()
+	{
+		var options = new TransportRetryPolicyOptions();
 
-        policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(1));
-    }
+		options.BaseDelayMs.ShouldBe(1000);
+	}
 
-    [Fact]
-    public void Should_Default_MaxDelay_To_1_Minute()
-    {
-        var policy = new RetryPolicy();
+	[Fact]
+	public void Default_MaxDelayMs_To_30000()
+	{
+		var options = new TransportRetryPolicyOptions();
 
-        policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
-    }
+		options.MaxDelayMs.ShouldBe(30000);
+	}
 
-    [Fact]
-    public void Should_Default_BackoffMultiplier_To_2()
-    {
-        var policy = new RetryPolicy();
+	[Fact]
+	public void Default_UseExponentialBackoff_To_True()
+	{
+		var options = new TransportRetryPolicyOptions();
 
-        policy.BackoffMultiplier.ShouldBe(2.0);
-    }
-
-    [Fact]
-    public void Should_Default_UseExponentialBackoff_To_True()
-    {
-        var policy = new RetryPolicy();
-
-        policy.UseExponentialBackoff.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void Should_Default_UseJitter_To_True()
-    {
-        var policy = new RetryPolicy();
-
-        policy.UseJitter.ShouldBeTrue();
-    }
+		options.UseExponentialBackoff.ShouldBeTrue();
+	}
 }

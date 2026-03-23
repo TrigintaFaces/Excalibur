@@ -217,9 +217,9 @@ public sealed partial class InMemoryInboxStore(ILogger<InMemoryInboxStore> logge
 		});
 	}
 
-	public ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken = default)
+	public ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken = default)
 	{
-		var cutoff = DateTimeOffset.UtcNow - retentionPeriod;
+		var cutoff = olderThan;
 		var removed = 0;
 
 		foreach (var kvp in _entries.ToArray())

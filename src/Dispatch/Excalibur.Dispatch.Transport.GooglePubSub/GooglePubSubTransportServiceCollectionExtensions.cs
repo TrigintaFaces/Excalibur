@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
 using Excalibur.Dispatch.Transport.Google;
+using Excalibur.Dispatch.Transport.GooglePubSub;
 
 using Google.Cloud.PubSub.V1;
 
@@ -217,6 +218,9 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GooglePubSubOptions>, GooglePubSubOptionsValidator>());
 	}
 
 	/// <summary>

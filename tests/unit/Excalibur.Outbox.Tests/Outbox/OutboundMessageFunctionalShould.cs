@@ -6,7 +6,8 @@ using Excalibur.Dispatch.Abstractions;
 namespace Excalibur.Outbox.Tests.Outbox;
 
 [Trait("Category", "Unit")]
-public class OutboundMessageFunctionalShould
+[Trait("Component", "Core")]
+public sealed class OutboundMessageFunctionalShould
 {
 	private static readonly byte[] TestPayload = [0x01, 0x02, 0x03];
 

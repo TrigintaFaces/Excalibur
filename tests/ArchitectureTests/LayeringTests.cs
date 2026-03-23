@@ -10,7 +10,9 @@ namespace Excalibur.Dispatch.ArchitectureTests;
 /// Validates architectural layering boundaries per management/package-map.yaml.
 /// These tests enforce the 6-tier canonical structure to prevent coupling violations.
 /// </summary>
-public class LayeringTests
+[Trait("Category", "Unit")]
+[Trait("Component", "Architecture")]
+public sealed class LayeringTests
 {
     /// <summary>
     /// TIER 1 RULE: Abstractions packages must not reference any implementation packages.

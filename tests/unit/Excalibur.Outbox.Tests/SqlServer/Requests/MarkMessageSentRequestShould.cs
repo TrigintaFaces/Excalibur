@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests.SqlServer.Requests;
 /// Unit tests for <see cref="MarkMessageSentRequest"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class MarkMessageSentRequestShould : UnitTestBase
 {
 	private const string TestTableName = "[dbo].[OutboxMessages]";

@@ -62,7 +62,12 @@ public sealed partial class LazyReEncryptionMiddleware : IDispatchMiddleware
 	}
 
 	/// <inheritdoc />
-	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
+	/// <remarks>
+	/// LazyReEncrypt runs AFTER signature verification (Validation/200) and BEFORE
+	/// encryption/decryption (Authorization/300). On receive: verify signature → migrate
+	/// old-key encrypted data → decrypt with current key.
+	/// </remarks>
+	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Serialization;
 
 	/// <inheritdoc />
 	public async ValueTask<IMessageResult> InvokeAsync(

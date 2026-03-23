@@ -20,6 +20,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 /// Tests all IProjectionStore operations including CRUD, filtering, pagination, and sorting.
 /// </summary>
 [Collection("SqlServer Projection Store Tests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixture>, IAsyncLifetime
 {
 	private const string TableName = "TestOrderProjection";
@@ -572,4 +574,6 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 /// Ensures tests run sequentially to avoid database conflicts.
 /// </summary>
 [CollectionDefinition("SqlServer Projection Store Tests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class SqlServerProjectionStoreTestCollection : ICollectionFixture<SqlServerFixture>;

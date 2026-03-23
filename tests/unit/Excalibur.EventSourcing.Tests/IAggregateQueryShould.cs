@@ -16,6 +16,7 @@ namespace Excalibur.EventSourcing.Tests;
 /// Unit tests for <see cref="IAggregateQuery{TAggregate}"/> marker interface.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class IAggregateQueryShould
 {
 	#region Test Aggregate

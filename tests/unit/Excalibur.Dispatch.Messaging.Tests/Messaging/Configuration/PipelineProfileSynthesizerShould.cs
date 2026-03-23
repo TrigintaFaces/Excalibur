@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 ///     Tests for the <see cref="PipelineProfileSynthesizer" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PipelineProfileSynthesizerShould
 {
 	[Fact]

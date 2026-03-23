@@ -58,7 +58,7 @@ public class ComplianceMultiContainerFixture : IAsyncLifetime
 			_sqlServer.InitializeAsync(),
 			_vault.InitializeAsync(),
 			_localStack.InitializeAsync()
-		).ConfigureAwait(true);
+		);
 	}
 
 	/// <inheritdoc/>
@@ -68,7 +68,7 @@ public class ComplianceMultiContainerFixture : IAsyncLifetime
 			_sqlServer.DisposeAsync(),
 			_vault.DisposeAsync(),
 			_localStack.DisposeAsync()
-		).ConfigureAwait(true);
+		);
 	}
 }
 

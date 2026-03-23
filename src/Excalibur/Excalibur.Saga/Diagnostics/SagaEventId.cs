@@ -118,6 +118,9 @@ public static class SagaEventId
 	/// <summary>Saga correlation established.</summary>
 	public const int SagaCorrelationEstablished = 122004;
 
+	/// <summary>Duplicate saga event skipped due to idempotent replay protection.</summary>
+	public const int SagaDuplicateEventSkipped = 122005;
+
 	// ========================================
 	// 122100-122199: Saga Recovery
 	// ========================================

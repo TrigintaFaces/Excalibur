@@ -66,7 +66,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = null;
 
 		// Act
-		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None).ConfigureAwait(true);
+		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None);
 
 		// Assert
 		_ = capturedContext.ShouldNotBeNull();
@@ -95,7 +95,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = ambientContext;
 
 		// Act
-		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None).ConfigureAwait(true);
+		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None);
 
 		// Assert
 		capturedContext.ShouldBe(ambientContext);
@@ -126,7 +126,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = null;
 
 		// Act
-		var result = await _dispatcher.DispatchAsync<IDispatchAction<string>, string>(message, CancellationToken.None).ConfigureAwait(true);
+		var result = await _dispatcher.DispatchAsync<IDispatchAction<string>, string>(message, CancellationToken.None);
 
 		// Assert
 		_ = capturedContext.ShouldNotBeNull();
@@ -156,7 +156,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = ambientContext;
 
 		// Act
-		var result = await _dispatcher.DispatchAsync<IDispatchAction<int>, int>(message, CancellationToken.None).ConfigureAwait(true);
+		var result = await _dispatcher.DispatchAsync<IDispatchAction<int>, int>(message, CancellationToken.None);
 
 		// Assert
 		capturedContext.ShouldBe(ambientContext);
@@ -186,7 +186,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = ambientContext;
 
 		// Act
-		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None).ConfigureAwait(true);
+		_ = await _dispatcher.DispatchAsync(message, CancellationToken.None);
 
 		// Assert
 		capturedContext.CorrelationId.ShouldBe(existingCorrelationId);
@@ -201,7 +201,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = null;
 
 		// Act
-		var result = await dispatcher.DispatchAsync(message, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync(message, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -218,7 +218,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = null;
 
 		// Act
-		var result = await dispatcher.DispatchAsync<LocalQueryMessage, int>(message, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync<LocalQueryMessage, int>(message, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -239,7 +239,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await nullDispatcher.DispatchAsync(message, CancellationToken.None).ConfigureAwait(true));
+			async () => await nullDispatcher.DispatchAsync(message, CancellationToken.None));
 
 		exception.ParamName.ShouldBe("dispatcher");
 	}
@@ -278,7 +278,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = parentContext;
 
 		// Act
-		_ = await _dispatcher.DispatchChildAsync(message, CancellationToken.None).ConfigureAwait(true);
+		_ = await _dispatcher.DispatchChildAsync(message, CancellationToken.None);
 
 		// Assert - Child context should be different but with propagated identifiers
 		_ = capturedContext.ShouldNotBeNull();
@@ -301,7 +301,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(
-			async () => await _dispatcher.DispatchChildAsync(message, CancellationToken.None).ConfigureAwait(true));
+			async () => await _dispatcher.DispatchChildAsync(message, CancellationToken.None));
 
 		exception.Message.ShouldContain("Cannot dispatch child message without an active context");
 	}
@@ -318,7 +318,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(
-			async () => await _dispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None).ConfigureAwait(true));
+			async () => await _dispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None));
 
 		exception.Message.ShouldContain("Cannot dispatch child action without an active context");
 	}
@@ -353,7 +353,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = parentContext;
 
 		// Act
-		var result = await _dispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None).ConfigureAwait(true);
+		var result = await _dispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None);
 
 		// Assert
 		_ = capturedContext.ShouldNotBeNull();
@@ -392,7 +392,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = parentContext;
 
 		// Act.
-		_ = await _dispatcher.DispatchChildAsync(message, CancellationToken.None).ConfigureAwait(true);
+		_ = await _dispatcher.DispatchChildAsync(message, CancellationToken.None);
 
 		// Assert.
 		_ = capturedContext.ShouldNotBeNull();
@@ -439,7 +439,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = null;
 
 		// Act
-		_ = await dispatcher.DispatchAsync(message, CancellationToken.None).ConfigureAwait(true);
+		_ = await dispatcher.DispatchAsync(message, CancellationToken.None);
 
 		// Assert - context was created via factory with ServiceProvider injected
 		_ = capturedContext.ShouldNotBeNull();
@@ -471,7 +471,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = null;
 
 		// Act
-		_ = await dispatcher.DispatchAsync(message, CancellationToken.None).ConfigureAwait(true);
+		_ = await dispatcher.DispatchAsync(message, CancellationToken.None);
 
 		// Assert - context was created without factory (fallback to new MessageContext)
 		_ = capturedContext.ShouldNotBeNull();
@@ -506,7 +506,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = null;
 
 		// Act
-		var result = await dispatcher.DispatchAsync<IDispatchAction<int>, int>(message, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync<IDispatchAction<int>, int>(message, CancellationToken.None);
 
 		// Assert - context was created via factory with ServiceProvider injected
 		_ = capturedContext.ShouldNotBeNull();
@@ -527,7 +527,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await nullDispatcher.DispatchChildAsync(message, CancellationToken.None).ConfigureAwait(true));
+			async () => await nullDispatcher.DispatchChildAsync(message, CancellationToken.None));
 
 		exception.ParamName.ShouldBe("dispatcher");
 	}
@@ -545,7 +545,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await nullDispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None).ConfigureAwait(true));
+			async () => await nullDispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None));
 
 		exception.ParamName.ShouldBe("dispatcher");
 	}
@@ -575,7 +575,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = null;
 
 		// Act
-		_ = await _dispatcher.DispatchAsync(message, token).ConfigureAwait(true);
+		_ = await _dispatcher.DispatchAsync(message, token);
 
 		// Assert
 		capturedToken.ShouldBe(token);

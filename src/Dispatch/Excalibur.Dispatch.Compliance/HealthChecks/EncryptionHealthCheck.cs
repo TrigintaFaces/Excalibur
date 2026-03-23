@@ -41,7 +41,7 @@ namespace Excalibur.Dispatch.Compliance;
 ///     .AddCheck&lt;EncryptionHealthCheck&gt;("encryption");
 /// </code>
 /// </remarks>
-public sealed partial class EncryptionHealthCheck : IHealthCheck
+internal sealed partial class EncryptionHealthCheck : IHealthCheck
 {
 	private readonly IEncryptionProvider _encryptionProvider;
 	private readonly IKeyManagementProvider? _keyManagementProvider;

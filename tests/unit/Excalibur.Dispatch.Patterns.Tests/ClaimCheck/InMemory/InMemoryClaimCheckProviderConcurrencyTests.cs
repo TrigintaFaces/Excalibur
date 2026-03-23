@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck.InMemory;
 /// Unit tests for <see cref="InMemoryClaimCheckProvider"/> thread-safety and concurrency.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Patterns")]
 public sealed class InMemoryClaimCheckProviderConcurrencyTests
 {
 	[Fact]

@@ -41,6 +41,8 @@ Excalibur.Cdc.CdcDataChange.OldValue.get -> object?
 Excalibur.Cdc.CdcDataChange.OldValue.init -> void
 Excalibur.Cdc.CdcOptions
 Excalibur.Cdc.CdcOptions.CdcOptions() -> void
+Excalibur.Cdc.CdcOptions.DefaultSchema.get -> string!
+Excalibur.Cdc.CdcOptions.DefaultSchema.set -> void
 Excalibur.Cdc.CdcOptions.EnableBackgroundProcessing.get -> bool
 Excalibur.Cdc.CdcOptions.EnableBackgroundProcessing.set -> void
 Excalibur.Cdc.CdcOptions.EnableStructuredLogging.get -> bool
@@ -233,3 +235,20 @@ Excalibur.Cdc.ICdcTableBuilder.MapInsert<TEvent, TMapper>() -> Excalibur.Cdc.ICd
 Excalibur.Cdc.ICdcTableBuilder.MapUpdate<TEvent, TMapper>() -> Excalibur.Cdc.ICdcTableBuilder!
 Excalibur.Cdc.ICdcTableBuilder.MapDelete<TEvent, TMapper>() -> Excalibur.Cdc.ICdcTableBuilder!
 Excalibur.Cdc.ICdcTableBuilder.MapAll<TEvent, TMapper>() -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.Diagnostics.CdcActivities
+const Excalibur.Cdc.Diagnostics.CdcActivities.ApplyChange = "cdc.apply_change" -> string!
+const Excalibur.Cdc.Diagnostics.CdcActivities.Checkpoint = "cdc.checkpoint" -> string!
+const Excalibur.Cdc.Diagnostics.CdcActivities.Poll = "cdc.poll" -> string!
+const Excalibur.Cdc.Diagnostics.CdcActivities.ProcessBatch = "cdc.process_batch" -> string!
+Excalibur.Cdc.Diagnostics.CdcActivitySource
+const Excalibur.Cdc.Diagnostics.CdcActivitySource.Name = "Excalibur.Cdc" -> string!
+Excalibur.Cdc.Diagnostics.CdcTags
+const Excalibur.Cdc.Diagnostics.CdcTags.BatchSize = "excalibur.cdc.batch_size" -> string!
+const Excalibur.Cdc.Diagnostics.CdcTags.CaptureInstance = "excalibur.cdc.capture_instance" -> string!
+const Excalibur.Cdc.Diagnostics.CdcTags.ChangeType = "excalibur.cdc.change_type" -> string!
+const Excalibur.Cdc.Diagnostics.CdcTags.Provider = "excalibur.cdc.provider" -> string!
+static Excalibur.Cdc.Diagnostics.CdcActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
+static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartApplyChangeActivity(string! provider, string! changeType) -> System.Diagnostics.Activity?
+static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartCheckpointActivity(string! provider) -> System.Diagnostics.Activity?
+static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartPollActivity(string! provider) -> System.Diagnostics.Activity?
+static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartProcessBatchActivity(string! provider, int batchSize) -> System.Diagnostics.Activity?

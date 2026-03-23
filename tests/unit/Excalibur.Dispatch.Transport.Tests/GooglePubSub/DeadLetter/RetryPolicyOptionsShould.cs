@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Transport.Google;
 
-using PubSubRetryPolicyOptions = Excalibur.Dispatch.Transport.Google.RetryPolicyOptions;
+using PubSubRetryPolicyOptions = Excalibur.Dispatch.Transport.Google.PubSubRetryPolicyOptions;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 

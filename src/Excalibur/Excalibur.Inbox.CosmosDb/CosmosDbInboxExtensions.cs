@@ -33,7 +33,9 @@ public static class CosmosDbInboxExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<CosmosDbInboxStore>();
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<CosmosDbInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("cosmosdb"));
 
 		return services;
 	}

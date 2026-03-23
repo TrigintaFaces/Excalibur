@@ -14,6 +14,8 @@ namespace Excalibur.Saga.Orchestration;
 /// </summary>
 public static class SagaRegistry
 {
+	private const int MaxCacheEntries = 1024;
+
 	private static readonly ConcurrentDictionary<Type, SagaInfo> EventToSagaMap = new();
 
 	/// <summary>
@@ -37,7 +39,10 @@ public static class SagaRegistry
 
 		foreach (var eventType in info.GetHandledEvents())
 		{
-			EventToSagaMap[eventType] = info;
+			if (EventToSagaMap.Count < MaxCacheEntries)
+			{
+				EventToSagaMap[eventType] = info;
+			}
 		}
 	}
 

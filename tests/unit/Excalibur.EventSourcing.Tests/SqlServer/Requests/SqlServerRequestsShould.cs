@@ -680,7 +680,7 @@ public sealed class SqlServerRequestsShould
 		var request = new SaveSnapshotRequest(snapshot, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("MERGE INTO EventStoreSnapshots WITH (HOLDLOCK)");
+		request.Command.CommandText.ShouldContain("MERGE INTO EventStoreSnapshots WITH (ROWLOCK, UPDLOCK)");
 	}
 
 	[Fact]

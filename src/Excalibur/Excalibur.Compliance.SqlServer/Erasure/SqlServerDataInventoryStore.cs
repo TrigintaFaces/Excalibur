@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
+using Excalibur.Data.Abstractions.Validation;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Data.SqlClient;
@@ -42,6 +43,11 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_options.Validate();
+
+		// Defense-in-depth: validate SQL identifiers even if IValidateOptions ran at startup
+		SqlIdentifierValidator.ThrowIfInvalid(_options.SchemaName, nameof(_options.SchemaName));
+		SqlIdentifierValidator.ThrowIfInvalid(_options.RegistrationsTableName, nameof(_options.RegistrationsTableName));
+		SqlIdentifierValidator.ThrowIfInvalid(_options.DiscoveredLocationsTableName, nameof(_options.DiscoveredLocationsTableName));
 	}
 
 	/// <inheritdoc />

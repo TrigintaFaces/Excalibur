@@ -32,7 +32,7 @@ namespace Excalibur.Cdc.Processing;
 /// </code>
 /// </para>
 /// </remarks>
-public partial class CdcProcessingHostedService : BackgroundService
+internal sealed partial class CdcProcessingHostedService : BackgroundService
 {
 	private readonly ICdcBackgroundProcessor _processor;
 	private readonly IOptions<CdcProcessingOptions> _options;
@@ -142,7 +142,7 @@ public partial class CdcProcessingHostedService : BackgroundService
 			{
 				await Task.Delay(_options.Value.PollingInterval, stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

@@ -82,4 +82,20 @@ public sealed class ConfigurationExceptionShould
 		ex.Message.ShouldContain("Dispatch:Transport");
 		ex.DispatchStatusCode.ShouldBe(500);
 	}
+
+	[Fact]
+	public void InheritFromDispatchException()
+	{
+		var ex = new ConfigurationException("test");
+
+		ex.ShouldBeAssignableTo<DispatchException>();
+	}
+
+	[Fact]
+	public void InheritFromApiException()
+	{
+		var ex = new ConfigurationException("test");
+
+		ex.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
+	}
 }

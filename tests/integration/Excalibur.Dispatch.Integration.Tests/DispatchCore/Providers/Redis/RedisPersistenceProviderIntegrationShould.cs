@@ -32,6 +32,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Redis;
 [Collection(ContainerCollections.Redis)]
 [Trait("Component", "Persistence")]
 [Trait("Provider", "Redis")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class RedisPersistenceProviderIntegrationShould : IntegrationTestBase
 {
 	private readonly RedisContainerFixture _redisFixture;
@@ -55,7 +57,7 @@ public sealed class RedisPersistenceProviderIntegrationShould : IntegrationTestB
 		using var provider = CreatePersistenceProvider();
 
 		// Act
-		var result = await provider.TestConnectionAsync(TestCancellationToken).ConfigureAwait(true);
+		var result = await provider.TestConnectionAsync(TestCancellationToken);
 
 		// Assert
 		result.ShouldBeTrue();
@@ -72,7 +74,7 @@ public sealed class RedisPersistenceProviderIntegrationShould : IntegrationTestB
 		using var provider = CreatePersistenceProvider();
 
 		// Act
-		var metrics = await provider.GetMetricsAsync(TestCancellationToken).ConfigureAwait(true);
+		var metrics = await provider.GetMetricsAsync(TestCancellationToken);
 
 		// Assert
 		_ = metrics.ShouldNotBeNull();
@@ -97,15 +99,15 @@ public sealed class RedisPersistenceProviderIntegrationShould : IntegrationTestB
 		var value = "test-value";
 
 		// Act
-		_ = await database.StringSetAsync(key, value).ConfigureAwait(true);
-		var retrieved = await database.StringGetAsync(key).ConfigureAwait(true);
+		_ = await database.StringSetAsync(key, value);
+		var retrieved = await database.StringGetAsync(key);
 
 		// Assert
 		retrieved.HasValue.ShouldBeTrue();
 		retrieved.ToString().ShouldBe(value);
 
 		// Cleanup
-		_ = await database.KeyDeleteAsync(key).ConfigureAwait(true);
+		_ = await database.KeyDeleteAsync(key);
 	}
 
 	/// <summary>
@@ -118,7 +120,7 @@ public sealed class RedisPersistenceProviderIntegrationShould : IntegrationTestB
 		using var provider = CreatePersistenceProvider();
 
 		// Act
-		var stats = await provider.GetConnectionPoolStatsAsync(TestCancellationToken).ConfigureAwait(true);
+		var stats = await provider.GetConnectionPoolStatsAsync(TestCancellationToken);
 
 		// Assert
 		_ = stats.ShouldNotBeNull();

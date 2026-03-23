@@ -12,6 +12,7 @@ namespace Excalibur.Data.Tests.Redis;
 /// nested initializer syntax, and DataAnnotations validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class RedisOptionsIspSplitShould
 {
 	#region Sub-Options Initialization

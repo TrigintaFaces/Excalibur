@@ -23,10 +23,12 @@ namespace Excalibur.Dispatch.CloudEvents;
 public sealed class EnvelopeCloudEventBridge(ICloudEventEnvelopeConverter converter, IServiceProvider serviceProvider)
 	: IEnvelopeCloudEventBridge
 {
-	private static readonly Type MapperOpenGenericType = TypeResolution.TypeResolver.ResolveType(
-															 "Excalibur.Dispatch.Transport.ICloudEventMapper`1, Excalibur.Dispatch.Transport.Abstractions")
+	private const string MapperTypeName =
+		global::Microsoft.Extensions.DependencyInjection.CloudEventsServiceCollectionExtensions.CloudEventMapperTypeName;
+
+	private static readonly Type MapperOpenGenericType = TypeResolution.TypeResolver.ResolveType(MapperTypeName)
 														 ?? throw new InvalidOperationException(
-															 "Unable to locate Excalibur.Dispatch.Transport CloudEvent mapper type.");
+															 $"Unable to locate CloudEvent mapper type: {MapperTypeName}");
 
 	private readonly ICloudEventEnvelopeConverter _converter = converter ?? throw new ArgumentNullException(nameof(converter));
 	private readonly IServiceProvider _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));

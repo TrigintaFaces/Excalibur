@@ -5,7 +5,9 @@ namespace Excalibur.Dispatch.AuditLogging.Tests;
 /// <summary>
 /// Tests for multi-tenant isolation in InMemoryAuditStore.
 /// </summary>
-public class InMemoryAuditStoreMultiTenantShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class InMemoryAuditStoreMultiTenantShould
 {
     private readonly InMemoryAuditStore _sut = new();
 

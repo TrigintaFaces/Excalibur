@@ -61,7 +61,10 @@ public static class MongoDbLeaderElectionExtensions
 			var logger = sp.GetRequiredService<ILogger<MongoDbLeaderElection>>();
 			return new MongoDbLeaderElection(client, resourceName, mongoOptions, electionOptions, logger);
 		});
-		services.TryAddSingleton<ILeaderElection>(sp => sp.GetRequiredService<MongoDbLeaderElection>());
+		services.AddKeyedSingleton<ILeaderElection>("mongodb",
+			(sp, _) => sp.GetRequiredService<MongoDbLeaderElection>());
+		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("mongodb"));
 
 		return services;
 	}

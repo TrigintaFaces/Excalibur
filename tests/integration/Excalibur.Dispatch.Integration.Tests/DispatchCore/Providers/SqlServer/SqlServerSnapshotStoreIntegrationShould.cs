@@ -36,6 +36,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", "SnapshotStore")]
 [Trait("Provider", "SqlServer")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBase
 {
 	private const string TestAggregateType = "TestAggregate";
@@ -57,14 +59,14 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task SaveAndLoadSnapshot()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 		var snapshot = CreateSnapshot(aggregateId, version: 1);
 
 		// Act
-		await store.SaveSnapshotAsync(snapshot, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshot, TestCancellationToken);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -81,17 +83,17 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task UpdateExistingSnapshot()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 		var snapshot1 = CreateSnapshot(aggregateId, version: 1, data: "state-v1");
 		var snapshot2 = CreateSnapshot(aggregateId, version: 10, data: "state-v10");
 
-		await store.SaveSnapshotAsync(snapshot1, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshot1, TestCancellationToken);
 
 		// Act - Update with new version
-		await store.SaveSnapshotAsync(snapshot2, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshot2, TestCancellationToken);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -106,16 +108,16 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task DeleteSnapshot()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 		var snapshot = CreateSnapshot(aggregateId, version: 5);
 
-		await store.SaveSnapshotAsync(snapshot, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshot, TestCancellationToken);
 
 		// Act
-		await store.DeleteSnapshotsAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		await store.DeleteSnapshotsAsync(aggregateId, TestAggregateType, TestCancellationToken);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert
 		loaded.ShouldBeNull();
@@ -128,12 +130,12 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task HandleMissingSnapshot()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
 		// Act
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert
 		loaded.ShouldBeNull();
@@ -146,7 +148,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task ValidateSnapshotVersion()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
@@ -156,11 +158,11 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 		var snapshot3 = CreateSnapshot(aggregateId, version: 100);
 
 		// Act
-		await store.SaveSnapshotAsync(snapshot1, TestCancellationToken).ConfigureAwait(true);
-		await store.SaveSnapshotAsync(snapshot2, TestCancellationToken).ConfigureAwait(true);
-		await store.SaveSnapshotAsync(snapshot3, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshot1, TestCancellationToken);
+		await store.SaveSnapshotAsync(snapshot2, TestCancellationToken);
+		await store.SaveSnapshotAsync(snapshot3, TestCancellationToken);
 
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert - Should have the latest version
 		_ = loaded.ShouldNotBeNull();
@@ -180,7 +182,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task SaveAndLoadLargeSnapshot_Over1MB_Succeeds()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
@@ -191,8 +193,8 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 		var snapshot = CreateSnapshotWithData(aggregateId, version: 1, largeData);
 
 		// Act
-		await store.SaveSnapshotAsync(snapshot, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshot, TestCancellationToken);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -212,18 +214,18 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task SaveOlderVersion_WhenNewerExists_ReplacesWithLastWrite()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
 		var snapshotV10 = CreateSnapshot(aggregateId, version: 10, data: "state-v10");
 		var snapshotV5 = CreateSnapshot(aggregateId, version: 5, data: "state-v5");
 
-		await store.SaveSnapshotAsync(snapshotV10, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshotV10, TestCancellationToken);
 
 		// Act - Save older version (last-write-wins behavior)
-		await store.SaveSnapshotAsync(snapshotV5, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshotV5, TestCancellationToken);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert - Documents current MERGE behavior: last write wins
 		_ = loaded.ShouldNotBeNull();
@@ -242,7 +244,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task ConcurrentSaves_ToSameAggregate_HandleRaceCondition()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
@@ -254,8 +256,8 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 				await store.SaveSnapshotAsync(snapshot, TestCancellationToken).ConfigureAwait(false);
 			}));
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert - One version wins (no corruption), exact winner is non-deterministic
 		_ = loaded.ShouldNotBeNull("Should have a valid snapshot after concurrent saves");
@@ -274,13 +276,13 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task DeleteNonExistentSnapshot_CompletesWithoutError()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
 		// Act - Delete aggregate that was never saved (should be idempotent)
 		var act = async () => await store.DeleteSnapshotsAsync(
-			aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+			aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert - Should NOT throw (idempotent delete pattern)
 		await act.ShouldNotThrowAsync();
@@ -298,7 +300,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 	public async Task BinaryDataRoundTrip_WithSpecialBytes_PreservesExactData()
 	{
 		// Arrange
-		await InitializeSnapshotTableAsync().ConfigureAwait(true);
+		await InitializeSnapshotTableAsync();
 		var store = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
@@ -307,8 +309,8 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 		var snapshot = CreateSnapshotWithData(aggregateId, version: 1, binaryData);
 
 		// Act
-		await store.SaveSnapshotAsync(snapshot, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken).ConfigureAwait(true);
+		await store.SaveSnapshotAsync(snapshot, TestCancellationToken);
+		var loaded = await store.GetLatestSnapshotAsync(aggregateId, TestAggregateType, TestCancellationToken);
 
 		// Assert - Byte-for-byte equality
 		_ = loaded.ShouldNotBeNull();
@@ -367,7 +369,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 			""";
 
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync(createTableSql).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync(createTableSql);
 	}
 }

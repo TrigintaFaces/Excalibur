@@ -22,10 +22,12 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 	/// <inheritdoc />
 	public bool IsAvailable =>
 
-		// Check for Google Cloud Functions environment variables
-		!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_NAME")) ||
-		!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_REGION")) ||
-		!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("K_SERVICE"));
+		// Check for Google Cloud Functions environment variables.
+		// FUNCTION_NAME alone is ambiguous (OpenFaaS, Knative); require FUNCTION_TARGET (GCF-specific).
+		(!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_NAME")) &&
+		 !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_TARGET"))) ||
+		(!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("K_SERVICE")) &&
+		 !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("K_REVISION")));
 
 	/// <inheritdoc />
 	public void ConfigureServices(IServiceCollection services, ServerlessHostOptions options)
@@ -107,6 +109,10 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 
 		LogExecutingHandler(typeof(TInput).Name);
 
+		// Extract context headers (CorrelationId, TenantId) from Properties if populated
+		ServerlessContextHeaders.ExtractAndSet(context, key =>
+			context.Properties.TryGetValue(key, out var value) ? value?.ToString() : null);
+
 		try
 		{
 			// Create a timeout cancellation token based on remaining execution time
@@ -133,11 +139,13 @@ internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleClo
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
+			// External cancellation — propagate as-is
 			LogExecutionCancelled();
 			throw;
 		}
 		catch (OperationCanceledException)
 		{
+			// Internal timeout (not external cancellation) — map to TimeoutException
 			LogExecutionTimedOut();
 			throw new TimeoutException(ErrorConstants.FunctionExecutionTimedOut);
 		}

@@ -18,6 +18,12 @@ namespace Excalibur.Dispatch.Extensions;
 public static class ExceptionExtensions
 {
 	/// <summary>
+	/// Maximum number of entries allowed in the reflection property caches.
+	/// When the cap is reached, new lookups bypass the cache to prevent unbounded memory growth.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
+	/// <summary>
 	/// Constants for clarity.
 	/// </summary>
 	private const string ErrorCodeKey = "ErrorCode";
@@ -154,17 +160,44 @@ public static class ExceptionExtensions
 	private static T? GetPropertyValue<T>(Exception exception, string propertyName, ConcurrentDictionary<Type, PropertyInfo?> cache)
 	{
 		var exceptionType = exception.GetType();
-		var propertyInfo = cache.GetOrAdd(
-			exceptionType,
-			(type, state) =>
-			{
-				var property = type.GetProperty(
-					state,
-					BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
-				return property?.PropertyType == typeof(T) || property?.PropertyType == typeof(int) ? property : null;
-			},
-			propertyName);
 
+		// Bounded cache: try fast lookup first, then check capacity before adding
+		if (cache.TryGetValue(exceptionType, out var propertyInfo))
+		{
+			return ExtractPropertyValue<T>(propertyInfo, exception);
+		}
+
+		// Compute the property info (same factory logic as before)
+		if (cache.Count < MaxCacheEntries)
+		{
+			propertyInfo = cache.GetOrAdd(
+				exceptionType,
+				(type, state) =>
+				{
+					var property = type.GetProperty(
+						state,
+						BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+					return property?.PropertyType == typeof(T) || property?.PropertyType == typeof(int) ? property : null;
+				},
+				propertyName);
+		}
+		else
+		{
+			// Cache full — compute without caching to prevent unbounded growth
+			var property = exceptionType.GetProperty(
+				propertyName,
+				BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+			propertyInfo = property?.PropertyType == typeof(T) || property?.PropertyType == typeof(int) ? property : null;
+		}
+
+		return ExtractPropertyValue<T>(propertyInfo, exception);
+	}
+
+	/// <summary>
+	/// Extracts a typed value from a PropertyInfo on the given exception instance.
+	/// </summary>
+	private static T? ExtractPropertyValue<T>(PropertyInfo? propertyInfo, Exception exception)
+	{
 		if (propertyInfo != null)
 		{
 			try

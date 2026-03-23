@@ -140,7 +140,7 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 
 	/// <inheritdoc/>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public IReadOnlyList<IDomainEvent> GetUncommittedEvents() => _uncommittedEvents;
+	public IReadOnlyList<IDomainEvent> GetUncommittedEvents() => _uncommittedEvents.AsReadOnly();
 
 	/// <inheritdoc/>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -178,7 +178,8 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 	{
 		throw new NotSupportedException(
 			$"Snapshot creation is not implemented for {GetType().Name}. " +
-			"Override CreateSnapshot() to enable snapshotting.");
+			"How to fix: Override CreateSnapshot() in your aggregate class to return an ISnapshot representing current state. " +
+			"Also override RestoreFromSnapshot() to rehydrate from the snapshot.");
 	}
 
 	/// <inheritdoc/>

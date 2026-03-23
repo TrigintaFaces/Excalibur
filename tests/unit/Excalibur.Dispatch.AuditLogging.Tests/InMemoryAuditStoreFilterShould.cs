@@ -5,7 +5,9 @@ namespace Excalibur.Dispatch.AuditLogging.Tests;
 /// <summary>
 /// Tests for the InMemoryAuditStore query filter logic (resource, classification, ip).
 /// </summary>
-public class InMemoryAuditStoreFilterShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class InMemoryAuditStoreFilterShould
 {
     private readonly InMemoryAuditStore _sut = new();
 

@@ -521,11 +521,12 @@ public sealed class RetryPolicyShould : UnitTestBase
 	public async Task ExecuteAsync_WithMaxDelay_CapsDelay()
 	{
 		// Arrange
+		// Sprint 695 T.4: MaxDelay >= BaseDelay constraint enforced
 		var options = new RetryOptions
 		{
 			MaxRetries = 2,
-			BaseDelay = TimeSpan.FromSeconds(10), // Very long base delay
-			MaxDelay = TimeSpan.FromMilliseconds(100), // But capped
+			BaseDelay = TimeSpan.FromMilliseconds(10),
+			MaxDelay = TimeSpan.FromMilliseconds(100), // Caps exponential growth
 			BackoffStrategy = BackoffStrategy.Exponential
 		};
 		var policy = new RetryPolicy(options);

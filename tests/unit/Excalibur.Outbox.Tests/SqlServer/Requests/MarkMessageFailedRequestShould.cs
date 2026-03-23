@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests.SqlServer.Requests;
 /// Unit tests for <see cref="MarkMessageFailedRequest"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class MarkMessageFailedRequestShould : UnitTestBase
 {
 	private const string TestTableName = "[dbo].[OutboxMessages]";

@@ -185,10 +185,12 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 	public Task SendAsync(
 		IDispatchMessage message,
 		string destination,
+		IMessageContext context,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+		ArgumentNullException.ThrowIfNull(context);
 
 		var stopwatch = ValueStopwatch.StartNew();
 
@@ -258,7 +260,7 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 			{
 				await _processingTask.WaitAsync(cancellationToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				// Expected during cancellation
 			}
@@ -403,7 +405,7 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			await StopAsync(cts.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during cancellation
 		}

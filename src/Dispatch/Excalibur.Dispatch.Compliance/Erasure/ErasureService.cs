@@ -143,12 +143,24 @@ public sealed partial class ErasureService : IErasureService
 
 				if (holdCheck.ErasureBlocked)
 				{
-					var blockingHold = holdCheck.ActiveHolds[0];
-					LogErasureRequestBlocked(request.RequestId, blockingHold.HoldId);
 					RequestsBlockedCounter.Add(1, new TagList { { ErasureTelemetryConstants.Tags.Scope, request.Scope.ToString() } });
 					activity?.SetTag(ErasureTelemetryConstants.Tags.ResultStatus, "blocked");
 
-					return ErasureResult.Blocked(request.RequestId, blockingHold);
+					if (holdCheck.ActiveHolds.Count > 0)
+					{
+						var blockingHold = holdCheck.ActiveHolds[0];
+						LogErasureRequestBlocked(request.RequestId, blockingHold.HoldId);
+						return ErasureResult.Blocked(request.RequestId, blockingHold);
+					}
+
+					LogErasureRequestBlockedNoHold(request.RequestId);
+					return ErasureResult.Blocked(request.RequestId, new LegalHoldInfo
+					{
+						HoldId = Guid.Empty,
+						Basis = LegalHoldBasis.LegalClaims,
+						CaseReference = "unknown",
+						CreatedAt = DateTimeOffset.UtcNow
+					});
 				}
 			}
 
@@ -268,7 +280,7 @@ public sealed partial class ErasureService : IErasureService
 						 RequestNotFoundFormat,
 						 requestId));
 
-		if (!status.IsExecuted)
+		if (status.Status != ErasureRequestStatus.Completed)
 		{
 			throw new InvalidOperationException(string.Format(
 				CultureInfo.CurrentCulture,
@@ -340,7 +352,19 @@ public sealed partial class ErasureService : IErasureService
 			return ErasureExecutionResult.Failed($"Invalid status: {status.Status}");
 		}
 
-		// Re-check legal holds before execution (AD-544.9: pass hash as lookup key)
+		// Atomically transition to InProgress FIRST — if another caller already claimed this request, abort.
+		// This prevents concurrent execution and establishes exclusive ownership before any further checks.
+		var transitioned = await _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, errorMessage: null, cancellationToken: cancellationToken)
+			.ConfigureAwait(false);
+
+		if (!transitioned)
+		{
+			return ErasureExecutionResult.Failed("Request is no longer in Scheduled status (concurrent execution detected)");
+		}
+
+		// Re-check legal holds AFTER the atomic InProgress transition (TOCTOU fix: tightens the window
+		// by ensuring we own the request exclusively before checking holds, and check holds immediately
+		// before executing erasure operations)
 		if (_legalHoldService is not null)
 		{
 			var holdCheck = await _legalHoldService.CheckHoldsAsync(
@@ -353,15 +377,6 @@ public sealed partial class ErasureService : IErasureService
 					"Legal hold active", cancellationToken).ConfigureAwait(false);
 				return ErasureExecutionResult.Failed("Erasure blocked by active legal hold");
 			}
-		}
-
-		// Atomically transition to InProgress — if another caller already claimed this request, abort
-		var transitioned = await _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, errorMessage: null, cancellationToken: cancellationToken)
-			.ConfigureAwait(false);
-
-		if (!transitioned)
-		{
-			return ErasureExecutionResult.Failed("Request is no longer in Scheduled status (concurrent execution detected)");
 		}
 
 		try
@@ -440,7 +455,32 @@ public sealed partial class ErasureService : IErasureService
 				}
 			}
 
-			// Record completion
+			// Determine outcome based on errors collected during key deletion and contributor execution
+			if (errors.Count > 0)
+			{
+				// At least one contributor or key deletion failed -- do NOT mark as fully Completed.
+				// Use PartiallyCompleted if some work succeeded, Failed if nothing succeeded.
+				var hasAnySuccess = deletedCount > 0 || totalRecordsAffected > 0;
+				var partialStatus = hasAnySuccess
+					? ErasureRequestStatus.PartiallyCompleted
+					: ErasureRequestStatus.Failed;
+				var errorSummary = string.Join("; ", errors);
+
+				_ = await _store.UpdateStatusAsync(requestId, partialStatus, errorSummary, cancellationToken)
+					.ConfigureAwait(false);
+
+				LogErasurePartiallyCompleted(requestId, errors.Count, deletedCount);
+				KeysDeletedCounter.Add(deletedCount);
+				RequestsFailedCounter.Add(1, new TagList { { ErasureTelemetryConstants.Tags.ErrorType, "partial_failure" } });
+				ExecutionDurationHistogram.Record(executionStopwatch.Elapsed.TotalMilliseconds);
+				activity?.SetTag("erasure.keys_deleted", deletedCount);
+				activity?.SetTag("erasure.records_affected", totalRecordsAffected);
+				activity?.SetTag(ErasureTelemetryConstants.Tags.ResultStatus, "partial");
+
+				return ErasureExecutionResult.PartiallySucceeded(deletedCount, totalRecordsAffected, errorSummary);
+			}
+
+			// Record full completion -- all contributors and key deletions succeeded
 			var certificateId = Guid.NewGuid();
 			await _store.RecordCompletionAsync(requestId, deletedCount, totalRecordsAffected, certificateId, cancellationToken)
 				.ConfigureAwait(false);
@@ -564,6 +604,12 @@ public sealed partial class ErasureService : IErasureService
 	private partial void LogErasureRequestBlocked(Guid requestId, Guid holdId);
 
 	[LoggerMessage(
+		ComplianceEventId.ErasureBlockedNoHoldDetails,
+		LogLevel.Warning,
+		"Erasure request {RequestId} blocked by legal hold but no hold details available")]
+	private partial void LogErasureRequestBlockedNoHold(Guid requestId);
+
+	[LoggerMessage(
 		ComplianceEventId.ErasureScheduled,
 		LogLevel.Information,
 		"Erasure request {RequestId} scheduled for execution at {ScheduledTime}")]
@@ -652,4 +698,10 @@ public sealed partial class ErasureService : IErasureService
 		LogLevel.Error,
 		"Erasure contributor '{ContributorName}' threw exception for request {RequestId}")]
 	private partial void LogErasureContributorException(string contributorName, Guid requestId, Exception exception);
+
+	[LoggerMessage(
+		ComplianceEventId.ErasurePartiallyCompleted,
+		LogLevel.Warning,
+		"Erasure request {RequestId} partially completed with {ErrorCount} error(s). Keys deleted: {KeysDeleted}")]
+	private partial void LogErasurePartiallyCompleted(Guid requestId, int errorCount, int keysDeleted);
 }

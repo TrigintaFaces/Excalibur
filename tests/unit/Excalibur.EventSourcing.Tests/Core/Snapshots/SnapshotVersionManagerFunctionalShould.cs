@@ -21,6 +21,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Snapshots;
 /// multi-hop upgrades, registration validation, and edge cases.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class SnapshotVersionManagerFunctionalShould
 {
 	private sealed class TestSnapshotUpgrader : ISnapshotUpgrader

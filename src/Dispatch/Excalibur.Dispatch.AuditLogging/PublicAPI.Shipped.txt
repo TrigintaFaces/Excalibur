@@ -101,9 +101,6 @@ Excalibur.Dispatch.AuditLogging.Encryption.EncryptingAuditEventStore.GetLastEven
 Excalibur.Dispatch.AuditLogging.Encryption.EncryptingAuditEventStore.QueryAsync(Excalibur.Dispatch.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditEvent!>!>!
 Excalibur.Dispatch.AuditLogging.Encryption.EncryptingAuditEventStore.StoreAsync(Excalibur.Dispatch.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEventId>!
 Excalibur.Dispatch.AuditLogging.Encryption.EncryptingAuditEventStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditIntegrityResult!>!
-Excalibur.Dispatch.AuditLogging.HealthChecks.AuditStoreHealthCheck
-Excalibur.Dispatch.AuditLogging.HealthChecks.AuditStoreHealthCheck.AuditStoreHealthCheck(Excalibur.Dispatch.Compliance.IAuditStore! auditStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.AuditLogging.HealthChecks.AuditStoreHealthCheck!>! logger, System.TimeSpan? degradedThreshold = null) -> void
-Excalibur.Dispatch.AuditLogging.HealthChecks.AuditStoreHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
 Excalibur.Dispatch.AuditLogging.IAuditActorProvider
 Excalibur.Dispatch.AuditLogging.IAuditActorProvider.GetCurrentActorIdAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
 Excalibur.Dispatch.AuditLogging.IAuditRoleProvider

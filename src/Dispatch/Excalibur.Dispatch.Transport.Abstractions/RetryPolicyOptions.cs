@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Retry policy configuration options.
 /// </summary>
-public sealed class RetryPolicyOptions
+public sealed class TransportRetryPolicyOptions
 {
 	/// <summary>
 	/// Gets or sets the maximum number of retry attempts.

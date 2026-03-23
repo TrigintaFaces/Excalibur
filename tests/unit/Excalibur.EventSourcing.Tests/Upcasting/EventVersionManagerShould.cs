@@ -19,6 +19,7 @@ namespace Excalibur.EventSourcing.Tests.Upcasting;
 /// Unit tests for <see cref="EventVersionManager"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class EventVersionManagerShould
 {
 	private readonly EventVersionManager _manager;

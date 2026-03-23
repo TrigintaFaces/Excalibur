@@ -61,13 +61,9 @@ public sealed partial class QueueMetricsCollector(ILogger<QueueMetricsCollector>
 
 	private readonly ILogger<QueueMetricsCollector> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 
 	/// <summary>

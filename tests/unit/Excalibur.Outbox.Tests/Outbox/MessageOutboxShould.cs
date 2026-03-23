@@ -14,7 +14,7 @@ using Excalibur.Dispatch.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using DispatchOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxOptions;
+using DispatchOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Outbox.Tests.Core;
 

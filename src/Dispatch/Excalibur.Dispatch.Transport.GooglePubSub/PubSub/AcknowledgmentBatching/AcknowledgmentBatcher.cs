@@ -42,7 +42,7 @@ internal sealed class AcknowledgmentBatcher : IAcknowledgmentBatcher, IDisposabl
 		_subscriptionName = subscriptionName ?? throw new ArgumentNullException(nameof(subscriptionName));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 
-		_ackChannel = Channel.CreateUnbounded<AckRequest>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+		_ackChannel = Channel.CreateBounded<AckRequest>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.Wait, SingleReader = true, SingleWriter = false });
 
 		_shutdownCts = new CancellationTokenSource();
 		_metrics = new AcknowledgmentMetrics();
@@ -137,7 +137,7 @@ internal sealed class AcknowledgmentBatcher : IAcknowledgmentBatcher, IDisposabl
 		{
 			await _processingTask.ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected
 		}

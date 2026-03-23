@@ -32,7 +32,7 @@ public sealed class DispatcherShould
 			_busProvider,
 			NullLogger<FinalDispatchHandler>.Instance,
 			null,
-			new Dictionary<string, IMessageBusOptions>());
+			new Dictionary<string, MessageBusOptions>());
 	}
 
 	[Fact]

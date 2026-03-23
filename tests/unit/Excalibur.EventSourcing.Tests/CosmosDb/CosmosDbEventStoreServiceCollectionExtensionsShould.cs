@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.EventSourcing.Tests.CosmosDb;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class CosmosDbEventStoreServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
@@ -30,7 +31,7 @@ public sealed class CosmosDbEventStoreServiceCollectionExtensionsShould : UnitTe
 
 		result.ShouldBeSameAs(services);
 		services.ShouldContain(sd => sd.ServiceType == typeof(CosmosDbEventStore));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IEventStore));
+		services.ShouldContain(sd => sd.ServiceType == typeof(IEventStore) && sd.IsKeyedService);
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICloudNativeEventStore));
 
 		using var provider = services.BuildServiceProvider();
@@ -108,8 +109,17 @@ public sealed class CosmosDbEventStoreServiceCollectionExtensionsShould : UnitTe
 		_ = services.AddCosmosDbEventStore(static _ => { });
 		_ = services.AddCosmosDbEventStore(static _ => { });
 
+		// CosmosDbEventStore uses TryAddSingleton so only one concrete registration
 		services.Count(sd => sd.ServiceType == typeof(CosmosDbEventStore)).ShouldBe(1);
-		services.Count(sd => sd.ServiceType == typeof(IEventStore)).ShouldBe(1);
+
+		// IEventStore is registered as keyed service: AddKeyedSingleton("cosmosdb") adds each time,
+		// TryAddKeyedSingleton("default") only adds once
+		services.Count(sd => sd.ServiceType == typeof(IEventStore) && sd.IsKeyedService &&
+			Equals(sd.ServiceKey, "cosmosdb")).ShouldBe(2);
+		services.Count(sd => sd.ServiceType == typeof(IEventStore) && sd.IsKeyedService &&
+			Equals(sd.ServiceKey, "default")).ShouldBe(1);
+
+		// ICloudNativeEventStore uses TryAddSingleton so only one
 		services.Count(sd => sd.ServiceType == typeof(ICloudNativeEventStore)).ShouldBe(1);
 	}
 }

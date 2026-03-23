@@ -15,7 +15,8 @@ namespace Excalibur.Tests.Model;
 ///     non-generic entity base classes.
 /// </remarks>
 [Trait("Category", "Unit")]
-public class EntityBaseShould
+[Trait("Component", "Core")]
+public sealed class EntityBaseShould
 {
 	[Fact]
 	public void StringKeyEntityShouldImplementIEntityInterface()

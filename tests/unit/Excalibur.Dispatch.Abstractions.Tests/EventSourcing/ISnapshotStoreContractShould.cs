@@ -8,7 +8,8 @@ namespace Excalibur.Dispatch.Abstractions.Tests.EventSourcing;
 /// Verifies the interface defines all required methods for snapshot operations.
 /// </summary>
 [Trait("Category", "Unit")]
-public class ISnapshotStoreContractShould
+[Trait("Component", "Dispatch.Abstractions")]
+public sealed class ISnapshotStoreContractShould
 {
 	[Fact]
 	public void Have_GetLatestSnapshotAsync_Method()

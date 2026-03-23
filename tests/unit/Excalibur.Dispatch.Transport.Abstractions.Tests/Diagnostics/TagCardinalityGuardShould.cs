@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Diagnostics;
 
-public class TagCardinalityGuardShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class TagCardinalityGuardShould
 {
     [Fact]
     public void Guard_Should_Return_Value_Within_Limit()

@@ -248,7 +248,7 @@ public sealed class RabbitMQTransportOptionsShould : UnitTestBase
 		options.DeadLetter.Exchange = "custom-dlx";
 		options.DeadLetter.Queue = "custom-dlq";
 		options.DeadLetter.RoutingKey = "dead.#";
-		options.DeadLetter.MaxRetries = 5;
+		options.DeadLetter.MaxRetryAttempts = 5;
 		options.DeadLetter.RetryDelay = TimeSpan.FromMinutes(1);
 
 		// Assert
@@ -256,7 +256,7 @@ public sealed class RabbitMQTransportOptionsShould : UnitTestBase
 		options.DeadLetter.Exchange.ShouldBe("custom-dlx");
 		options.DeadLetter.Queue.ShouldBe("custom-dlq");
 		options.DeadLetter.RoutingKey.ShouldBe("dead.#");
-		options.DeadLetter.MaxRetries.ShouldBe(5);
+		options.DeadLetter.MaxRetryAttempts.ShouldBe(5);
 		options.DeadLetter.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
 	}
 
@@ -306,6 +306,54 @@ public sealed class RabbitMQTransportOptionsShould : UnitTestBase
 		var properties = typeof(RabbitMQTopologyOptions).GetProperties();
 		properties.Length.ShouldBeLessThanOrEqualTo(10,
 			$"RabbitMQTopologyOptions has {properties.Length} properties; ISP gate is 10");
+	}
+
+	#endregion
+
+	#region Security -- [JsonIgnore] on Credentials (Sprint 678 T.1)
+
+	[Fact]
+	public void ExcludePasswordFromJsonSerialization()
+	{
+		// Arrange
+		var options = new RabbitMQTransportOptions();
+		options.Connection.Password = "super-secret";
+
+		// Act
+		var json = System.Text.Json.JsonSerializer.Serialize(options.Connection);
+
+		// Assert -- Password must not appear in serialized output
+		json.ShouldNotContain("super-secret");
+		json.ShouldNotContain("Password", Case.Insensitive);
+	}
+
+	[Fact]
+	public void ExcludeConnectionStringFromJsonSerialization()
+	{
+		// Arrange
+		var options = new RabbitMQTransportOptions();
+		options.Connection.ConnectionString = "amqp://user:pass@host:5672/vhost";
+
+		// Act
+		var json = System.Text.Json.JsonSerializer.Serialize(options.Connection);
+
+		// Assert -- ConnectionString must not appear in serialized output
+		json.ShouldNotContain("amqp://user:pass@host:5672/vhost");
+		json.ShouldNotContain("ConnectionString", Case.Insensitive);
+	}
+
+	[Fact]
+	public void IncludeNonSensitiveConnectionPropertiesInJson()
+	{
+		// Arrange
+		var options = new RabbitMQTransportOptions();
+		options.Connection.HostName = "myhost.example.com";
+
+		// Act
+		var json = System.Text.Json.JsonSerializer.Serialize(options.Connection);
+
+		// Assert -- non-sensitive fields should still serialize
+		json.ShouldContain("myhost.example.com");
 	}
 
 	#endregion

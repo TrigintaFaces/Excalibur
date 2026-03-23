@@ -229,7 +229,7 @@ public sealed class MongoDbEventStoreConstructorShould : UnitTestBase
 		await store.DisposeAsync();
 
 		// Assert - No exception thrown indicates success
-		Assert.True(true);
+		true.ShouldBeTrue();
 	}
 
 	#endregion Dispose Tests

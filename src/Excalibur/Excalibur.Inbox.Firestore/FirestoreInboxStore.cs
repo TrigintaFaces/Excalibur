@@ -4,6 +4,7 @@
 using Excalibur.Data.Firestore;
 using Excalibur.Data.Firestore.Diagnostics;
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Inbox.Observability;
 
 using Google.Cloud.Firestore;
 
@@ -22,7 +23,7 @@ namespace Excalibur.Inbox.Firestore;
 /// Document path: {CollectionName}/{messageId}_{handlerType}
 /// Catches RpcException with StatusCode.AlreadyExists for conflict detection.
 /// </remarks>
-public sealed partial class FirestoreInboxStore : IInboxStore, IAsyncDisposable
+public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	private readonly FirestoreInboxOptions _options;
 	private readonly ILogger<FirestoreInboxStore> _logger;
@@ -86,6 +87,8 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentNullException.ThrowIfNull(payload);
 		ArgumentNullException.ThrowIfNull(metadata);
 
+		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
+
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
@@ -113,6 +116,8 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IAsyncDisposable
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
@@ -188,6 +193,8 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
+		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
+
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
@@ -231,6 +238,8 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
@@ -337,11 +346,13 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IAsyncDisposable
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
+		using var activity = InboxActivitySource.StartCleanupActivity();
+
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
-		var cutoff = DateTimeOffset.UtcNow - retentionPeriod;
+		var cutoff = olderThan;
 
 		var query = _collection
 			.WhereEqualTo("status", (int)InboxStatus.Processed)

@@ -140,7 +140,7 @@ public sealed class GooglePubSubSerializationRecordsShould
 	public void CreateRetryPolicyRecord()
 	{
 		// Act
-		var policy = new Google.RetryPolicy(3, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30), 2.0);
+		var policy = new PubSubRetryRecord(3, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30), 2.0);
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(3);
@@ -154,7 +154,7 @@ public sealed class GooglePubSubSerializationRecordsShould
 	public void CreateRetryPolicyWithLinearBackoff()
 	{
 		// Act
-		var policy = new Google.RetryPolicy(5, TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(10), 1.0, false);
+		var policy = new PubSubRetryRecord(5, TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(10), 1.0, false);
 
 		// Assert
 		policy.ExponentialBackoff.ShouldBeFalse();

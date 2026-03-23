@@ -174,7 +174,7 @@ public sealed class MultiConditionalSagaStepShould
 	{
 		// Arrange
 		var sut = CreateStep("TestStep", _ => "branch1");
-		var retryPolicy = new RetryPolicy { MaxAttempts = 5 };
+		var retryPolicy = new SagaRetryOptions { MaxAttempts = 5 };
 
 		// Act
 		sut.RetryPolicy = retryPolicy;

@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Caching;
 /// <param name="memoryCache"> Memory cache instance (null if not using Memory mode). </param>
 /// <param name="distributedCache"> Distributed cache instance (null if not using Distributed mode). </param>
 /// <param name="hybridCache"> Hybrid cache instance (null if not using Hybrid mode). </param>
-public sealed class CacheInvalidationMiddleware(
+internal sealed class CacheInvalidationMiddleware(
 	IMeterFactory meterFactory,
 	IOptions<CacheOptions> options,
 	ICacheTagTracker? tagTracker = null,
@@ -34,6 +34,12 @@ public sealed class CacheInvalidationMiddleware(
 	IDistributedCache? distributedCache = null,
 	HybridCache? hybridCache = null) : IDispatchMiddleware
 {
+	/// <summary>
+	/// Maximum number of entries allowed in the attribute cache.
+	/// When the cap is reached, new lookups compute attributes without caching to prevent unbounded memory growth.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
 	private readonly Counter<long> _invalidationCounter =
 		meterFactory.Create(DispatchCachingTelemetryConstants.MeterName)
 			.CreateCounter<long>("dispatch.cache.invalidations", "invalidations", "Number of cache invalidation operations");
@@ -104,9 +110,7 @@ public sealed class CacheInvalidationMiddleware(
 			hasKeys = invalidatorKeys?.Any() == true;
 		}
 
-		var attr = _attributeCache.GetOrAdd(message.GetType(), static type =>
-			type.GetCustomAttributes(typeof(InvalidateCacheAttribute), inherit: true)
-				.FirstOrDefault() as InvalidateCacheAttribute);
+		var attr = GetInvalidateCacheAttribute(message.GetType());
 
 		hasTags = hasTags || attr?.Tags?.Length > 0 || _defaultTags.Length > 0;
 
@@ -156,6 +160,28 @@ public sealed class CacheInvalidationMiddleware(
 		}
 
 		return result;
+	}
+
+	/// <summary>
+	/// Gets the InvalidateCacheAttribute for a type using a bounded cache.
+	/// </summary>
+	private static InvalidateCacheAttribute? GetInvalidateCacheAttribute(Type type)
+	{
+		if (_attributeCache.TryGetValue(type, out var cached))
+		{
+			return cached;
+		}
+
+		if (_attributeCache.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching to prevent unbounded growth
+			return type.GetCustomAttributes(typeof(InvalidateCacheAttribute), inherit: true)
+				.FirstOrDefault() as InvalidateCacheAttribute;
+		}
+
+		return _attributeCache.GetOrAdd(type, static t =>
+			t.GetCustomAttributes(typeof(InvalidateCacheAttribute), inherit: true)
+				.FirstOrDefault() as InvalidateCacheAttribute);
 	}
 
 	/// <summary>

@@ -24,6 +24,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.EndToEnd;
 /// Excalibur framework pipeline using the real IDispatcher.
 /// </summary>
 [Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 [Trait("Category", "EndToEnd")]
 public sealed class DispatcherEndToEndIntegrationShould : IDisposable
 {

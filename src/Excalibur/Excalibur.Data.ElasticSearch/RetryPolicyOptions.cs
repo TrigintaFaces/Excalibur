@@ -7,7 +7,7 @@ namespace Excalibur.Data.ElasticSearch;
 /// <summary>
 /// Configures retry policy behavior for transient failure handling.
 /// </summary>
-public sealed class RetryPolicyOptions
+public sealed class ElasticSearchRetryPolicyOptions
 {
 	/// <summary>
 	/// Gets a value indicating whether retry policies are enabled.

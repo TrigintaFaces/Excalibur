@@ -23,7 +23,7 @@ public sealed class EncryptedFieldResult(
 	string keyVersion,
 	string? initializationVector = null,
 	string? authenticationTag = null,
-	DataClassification classification = DataClassification.Confidential)
+	ElasticSearchDataClassification classification = ElasticSearchDataClassification.Confidential)
 {
 	/// <summary>
 	/// Gets the encrypted field value as a Base64-encoded string.
@@ -59,7 +59,7 @@ public sealed class EncryptedFieldResult(
 	/// Gets the data classification level of the original field.
 	/// </summary>
 	/// <value> The sensitivity classification of the encrypted data. </value>
-	public DataClassification Classification { get; } = classification;
+	public ElasticSearchDataClassification Classification { get; } = classification;
 
 	/// <summary>
 	/// Gets the timestamp when the field was encrypted.

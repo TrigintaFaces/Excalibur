@@ -108,8 +108,8 @@ public sealed class CdcExceptionsShould : UnitTestBase
 		var exception = new CdcStalePositionException();
 
 		// Assert
-		exception.Message.ShouldContain("CDC position");
-		exception.Message.ShouldContain("no longer valid");
+		exception.Message.ShouldContain("stale position");
+		exception.Message.ShouldContain("cannot be recovered");
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class CdcExceptionsShould : UnitTestBase
 		var eventArgs = CreateTestEventArgs();
 
 		// Act
-		var exception = new CdcStalePositionException(eventArgs);
+		var exception = new SqlServerCdcStalePositionException(eventArgs);
 
 		// Assert
 		exception.EventArgs.ShouldBe(eventArgs);
@@ -129,10 +129,14 @@ public sealed class CdcExceptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void CdcStalePositionException_WithEventArgs_ThrowException_WhenEventArgsIsNull()
+	public void CdcStalePositionException_WithEventArgs_AcceptsNullEventArgs()
 	{
-		// Act & Assert - CreateMessage is called in base ctor before null check, causing NullReferenceException
-		_ = Should.Throw<NullReferenceException>(() => new CdcStalePositionException((CdcPositionResetEventArgs)null!));
+		// Act - FormatMessage handles null gracefully, returns default message
+		var exception = new CdcStalePositionException((CdcPositionResetEventArgs)null!);
+
+		// Assert
+		exception.Message.ShouldContain("stale position");
+		exception.EventArgs.ShouldBeNull();
 	}
 
 	[Fact]
@@ -147,8 +151,23 @@ public sealed class CdcExceptionsShould : UnitTestBase
 		// Assert
 		exception.Message.ShouldContain("0x");
 		exception.Message.ShouldContain(StalePositionReasonCodes.LsnOutOfRange);
-		exception.Message.ShouldContain("dbo_TestTable");
 		exception.Message.ShouldContain("test-processor");
+	}
+
+	[Fact]
+	public void CdcStalePositionException_InheritFromResourceException()
+	{
+		// Sprint 698 T.56: CdcStalePositionException reparented to ResourceException
+		var exception = new CdcStalePositionException();
+		_ = exception.ShouldBeAssignableTo<Excalibur.Data.Abstractions.ResourceException>();
+	}
+
+	[Fact]
+	public void CdcMappingException_InheritFromResourceException()
+	{
+		// Sprint 698 T.56: CdcMappingException reparented to ResourceException
+		var exception = new CdcMappingException("test mapping error");
+		_ = exception.ShouldBeAssignableTo<Excalibur.Data.Abstractions.ResourceException>();
 	}
 
 	#endregion CdcStalePositionException Tests

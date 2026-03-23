@@ -12,8 +12,13 @@ namespace Excalibur.EventSourcing.Tests.Core.Subscriptions;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "EventSourcing")]
-public sealed class EventSubscriptionManagerShould
+public sealed class EventSubscriptionManagerShould : IAsyncDisposable
 {
+	public async ValueTask DisposeAsync()
+	{
+		await _sut.DisposeAsync().ConfigureAwait(false);
+	}
+
 	private readonly IEventStore _eventStore;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly ILoggerFactory _loggerFactory;

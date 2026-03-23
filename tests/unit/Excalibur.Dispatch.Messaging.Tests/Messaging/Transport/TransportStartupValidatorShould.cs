@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// Tests startup validation per Sprint 34 bd-4jek.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportStartupValidatorShould
 {
 	#region Constructor Tests

@@ -47,10 +47,10 @@ public sealed class FirestoreEventStoreListenerSubscription : IChangeFeedSubscri
 
 		SubscriptionId = $"firestore-eventstore-{Guid.NewGuid():N}";
 
-		_channel = Channel.CreateBounded<IChangeFeedEvent<CloudStoredEvent>>(
-			new BoundedChannelOptions(_options.MaxBatchSize * 10)
+		// Use unbounded channel to prevent silent event loss from sync callbacks
+		_channel = Channel.CreateUnbounded<IChangeFeedEvent<CloudStoredEvent>>(
+			new UnboundedChannelOptions
 			{
-				FullMode = BoundedChannelFullMode.Wait,
 				SingleReader = true,
 				SingleWriter = true
 			});
@@ -143,7 +143,7 @@ public sealed class FirestoreEventStoreListenerSubscription : IChangeFeedSubscri
 					}
 				}
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				shouldBreak = true;
 			}

@@ -6,6 +6,7 @@ namespace Excalibur.Tests.Application;
 /// Unit tests for JobResult struct.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Application")]
 public sealed class JobResultShould : UnitTestBase
 {
 	[Fact]

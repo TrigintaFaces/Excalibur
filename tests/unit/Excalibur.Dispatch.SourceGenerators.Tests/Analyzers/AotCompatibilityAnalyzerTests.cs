@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.SourceGenerators.Tests.Analyzers;
 /// Unit tests for <see cref="AotCompatibilityAnalyzer"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class AotCompatibilityAnalyzerTests
 {
 	/// <summary>

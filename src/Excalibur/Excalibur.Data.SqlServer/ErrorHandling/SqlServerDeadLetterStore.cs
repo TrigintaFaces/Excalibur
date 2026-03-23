@@ -9,6 +9,7 @@ using System.Text.Json;
 
 using Dapper;
 
+using Excalibur.Data.Abstractions.Validation;
 using Excalibur.Data.SqlServer.Diagnostics;
 using Excalibur.Dispatch.ErrorHandling;
 
@@ -48,6 +49,9 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore
 		_schema = opts.SchemaName;
 		_tableName = opts.TableName;
 		_logger = logger;
+
+		SqlIdentifierValidator.ThrowIfInvalid(_schema, nameof(opts.SchemaName));
+		SqlIdentifierValidator.ThrowIfInvalid(_tableName, nameof(opts.TableName));
 	}
 
 	/// <inheritdoc />

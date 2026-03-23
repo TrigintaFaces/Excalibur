@@ -7,6 +7,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="InboxOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class InboxOptionsShould : UnitTestBase
 {
 	#region Balanced Preset Tests

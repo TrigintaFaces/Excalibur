@@ -8,7 +8,15 @@ namespace Excalibur.Dispatch.Compliance;
 /// Specifies the encryption algorithm to use for data protection.
 /// </summary>
 /// <remarks>
-/// AES-256-GCM is the primary algorithm for field-level encryption. FIPS 140-2 compliance requires validated cryptographic modules.
+/// <para>
+/// Only AES-256 algorithms are supported. AES-128 variants are not included as they do not meet
+/// the framework's minimum security requirements. A <c>None</c> value is intentionally omitted --
+/// to disable encryption, do not register the encryption middleware rather than using a "no-op" algorithm.
+/// </para>
+/// <para>
+/// Use <see cref="Aes256Gcm"/> for all new implementations. <see cref="Aes256CbcHmac"/> is provided
+/// for legacy migration scenarios only. FIPS 140-2 compliance requires validated cryptographic modules.
+/// </para>
 /// </remarks>
 public enum EncryptionAlgorithm
 {

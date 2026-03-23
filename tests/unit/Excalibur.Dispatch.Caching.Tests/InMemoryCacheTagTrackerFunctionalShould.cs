@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Caching.Tests;
 /// tag registration, lookup, and unregistration workflows.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Caching")]
 public sealed class InMemoryCacheTagTrackerFunctionalShould
 {
 	private readonly InMemoryCacheTagTracker _sut = new();

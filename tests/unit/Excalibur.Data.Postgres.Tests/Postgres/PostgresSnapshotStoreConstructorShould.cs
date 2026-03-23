@@ -16,6 +16,7 @@ namespace Excalibur.Data.Tests.Postgres.Snapshots;
 /// Verifies both simple (connection string) and advanced (connection factory) constructors.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class PostgresSnapshotStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<PostgresSnapshotStore> _logger;

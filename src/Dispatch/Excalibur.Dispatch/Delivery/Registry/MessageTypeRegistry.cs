@@ -28,7 +28,7 @@ public static class MessageTypeRegistry
 	private static readonly object RegistryLock = new();
 
 #endif
-	private static bool _isInitialized;
+	private static volatile bool _isInitialized;
 
 	/// <summary>
 	/// Initializes static members of the <see cref="MessageTypeRegistry"/> class.

@@ -43,3 +43,4 @@ Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.SubscribeMethodPath.get -
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.SubscribeMethodPath.set -> void
 Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions.AddGrpcTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions.AddGrpcTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

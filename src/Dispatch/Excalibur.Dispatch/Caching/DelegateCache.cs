@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Caching;
 /// </remarks>
 internal static class DelegateCache
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<string, Delegate> _stringCache = new(StringComparer.Ordinal);
 	private static readonly ConcurrentDictionary<DelegateCacheKey, Delegate> _structCache = new();
 	private static long _hits;
@@ -43,7 +44,13 @@ internal static class DelegateCache
 
 		_ = Interlocked.Increment(ref _misses);
 		var newDelegate = factory();
-		_ = _stringCache.TryAdd(key, newDelegate);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (_stringCache.Count < MaxCacheEntries)
+		{
+			_ = _stringCache.TryAdd(key, newDelegate);
+		}
+
 		return newDelegate;
 	}
 
@@ -72,7 +79,13 @@ internal static class DelegateCache
 
 		_ = Interlocked.Increment(ref _misses);
 		var newDelegate = factory();
-		_ = _structCache.TryAdd(key, newDelegate);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (_structCache.Count < MaxCacheEntries)
+		{
+			_ = _structCache.TryAdd(key, newDelegate);
+		}
+
 		return newDelegate;
 	}
 

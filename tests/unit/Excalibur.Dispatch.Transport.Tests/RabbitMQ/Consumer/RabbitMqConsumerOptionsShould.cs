@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Transport.RabbitMQ;
 
-using RabbitMqRetryPolicy = Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy;
+using RabbitMqRetryPolicy = Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions;
 
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Consumer;
 

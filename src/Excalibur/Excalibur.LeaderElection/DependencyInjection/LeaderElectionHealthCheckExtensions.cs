@@ -51,7 +51,7 @@ public static class LeaderElectionHealthCheckExtensions
 		return builder.Add(new HealthCheckRegistration(
 			name,
 			sp => new LeaderElectionHealthCheck(
-				sp.GetRequiredService<ILeaderElection>()),
+				sp.GetRequiredKeyedService<ILeaderElection>("default")),
 			failureStatus,
 			tags));
 	}

@@ -107,7 +107,7 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 				{
 					await Task.Delay(_options.PollingInterval, linkedToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
 					yield break;
 				}
@@ -129,14 +129,14 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 				{
 					await Task.Delay(_options.PollingInterval, linkedToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (linkedToken.IsCancellationRequested)
 				{
 					yield break;
 				}
 
 				continue;
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				yield break;
 			}

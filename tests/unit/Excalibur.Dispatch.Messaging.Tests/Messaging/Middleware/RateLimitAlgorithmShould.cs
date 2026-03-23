@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Middleware.Resilience;
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 /// <summary>
-/// Unit tests for <see cref="RateLimitAlgorithm"/> enum.
+/// Unit tests for <see cref="MiddlewareRateLimitAlgorithm"/> enum.
 /// </summary>
 /// <remarks>
 /// Tests the rate limiting algorithm types.
@@ -23,28 +23,28 @@ public sealed class RateLimitAlgorithmShould
 	public void HaveTokenBucketAsZero()
 	{
 		// Assert
-		((int)RateLimitAlgorithm.TokenBucket).ShouldBe(0);
+		((int)MiddlewareRateLimitAlgorithm.TokenBucket).ShouldBe(0);
 	}
 
 	[Fact]
 	public void HaveSlidingWindowAsOne()
 	{
 		// Assert
-		((int)RateLimitAlgorithm.SlidingWindow).ShouldBe(1);
+		((int)MiddlewareRateLimitAlgorithm.SlidingWindow).ShouldBe(1);
 	}
 
 	[Fact]
 	public void HaveFixedWindowAsTwo()
 	{
 		// Assert
-		((int)RateLimitAlgorithm.FixedWindow).ShouldBe(2);
+		((int)MiddlewareRateLimitAlgorithm.FixedWindow).ShouldBe(2);
 	}
 
 	[Fact]
 	public void HaveConcurrencyAsThree()
 	{
 		// Assert
-		((int)RateLimitAlgorithm.Concurrency).ShouldBe(3);
+		((int)MiddlewareRateLimitAlgorithm.Concurrency).ShouldBe(3);
 	}
 
 	#endregion
@@ -55,14 +55,14 @@ public sealed class RateLimitAlgorithmShould
 	public void HaveFourDefinedValues()
 	{
 		// Assert
-		Enum.GetValues<RateLimitAlgorithm>().Length.ShouldBe(4);
+		Enum.GetValues<MiddlewareRateLimitAlgorithm>().Length.ShouldBe(4);
 	}
 
 	[Fact]
 	public void BePublicEnum()
 	{
 		// Assert
-		typeof(RateLimitAlgorithm).IsPublic.ShouldBeTrue();
+		typeof(MiddlewareRateLimitAlgorithm).IsPublic.ShouldBeTrue();
 	}
 
 	[Theory]
@@ -73,7 +73,7 @@ public sealed class RateLimitAlgorithmShould
 	public void HaveExpectedName(string expectedName)
 	{
 		// Assert
-		Enum.GetNames<RateLimitAlgorithm>().ShouldContain(expectedName);
+		Enum.GetNames<MiddlewareRateLimitAlgorithm>().ShouldContain(expectedName);
 	}
 
 	#endregion
@@ -81,14 +81,14 @@ public sealed class RateLimitAlgorithmShould
 	#region Parse Tests
 
 	[Theory]
-	[InlineData("TokenBucket", RateLimitAlgorithm.TokenBucket)]
-	[InlineData("SlidingWindow", RateLimitAlgorithm.SlidingWindow)]
-	[InlineData("FixedWindow", RateLimitAlgorithm.FixedWindow)]
-	[InlineData("Concurrency", RateLimitAlgorithm.Concurrency)]
-	public void ParseFromString(string input, RateLimitAlgorithm expected)
+	[InlineData("TokenBucket", MiddlewareRateLimitAlgorithm.TokenBucket)]
+	[InlineData("SlidingWindow", MiddlewareRateLimitAlgorithm.SlidingWindow)]
+	[InlineData("FixedWindow", MiddlewareRateLimitAlgorithm.FixedWindow)]
+	[InlineData("Concurrency", MiddlewareRateLimitAlgorithm.Concurrency)]
+	public void ParseFromString(string input, MiddlewareRateLimitAlgorithm expected)
 	{
 		// Act
-		var result = Enum.Parse<RateLimitAlgorithm>(input);
+		var result = Enum.Parse<MiddlewareRateLimitAlgorithm>(input);
 
 		// Assert
 		result.ShouldBe(expected);
@@ -98,7 +98,7 @@ public sealed class RateLimitAlgorithmShould
 	public void ThrowForInvalidParseInput()
 	{
 		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() => Enum.Parse<RateLimitAlgorithm>("InvalidAlgorithm"));
+		_ = Should.Throw<ArgumentException>(() => Enum.Parse<MiddlewareRateLimitAlgorithm>("InvalidAlgorithm"));
 	}
 
 	#endregion
@@ -106,14 +106,14 @@ public sealed class RateLimitAlgorithmShould
 	#region TryParse Tests
 
 	[Theory]
-	[InlineData("TokenBucket", RateLimitAlgorithm.TokenBucket)]
-	[InlineData("SlidingWindow", RateLimitAlgorithm.SlidingWindow)]
-	[InlineData("FixedWindow", RateLimitAlgorithm.FixedWindow)]
-	[InlineData("Concurrency", RateLimitAlgorithm.Concurrency)]
-	public void TryParseValidValues(string input, RateLimitAlgorithm expected)
+	[InlineData("TokenBucket", MiddlewareRateLimitAlgorithm.TokenBucket)]
+	[InlineData("SlidingWindow", MiddlewareRateLimitAlgorithm.SlidingWindow)]
+	[InlineData("FixedWindow", MiddlewareRateLimitAlgorithm.FixedWindow)]
+	[InlineData("Concurrency", MiddlewareRateLimitAlgorithm.Concurrency)]
+	public void TryParseValidValues(string input, MiddlewareRateLimitAlgorithm expected)
 	{
 		// Act
-		var success = Enum.TryParse<RateLimitAlgorithm>(input, out var result);
+		var success = Enum.TryParse<MiddlewareRateLimitAlgorithm>(input, out var result);
 
 		// Assert
 		success.ShouldBeTrue();
@@ -124,7 +124,7 @@ public sealed class RateLimitAlgorithmShould
 	public void TryParseReturnsFalseForInvalidInput()
 	{
 		// Act
-		var success = Enum.TryParse<RateLimitAlgorithm>("InvalidValue", out _);
+		var success = Enum.TryParse<MiddlewareRateLimitAlgorithm>("InvalidValue", out _);
 
 		// Assert
 		success.ShouldBeFalse();
@@ -135,25 +135,25 @@ public sealed class RateLimitAlgorithmShould
 	#region Conversion Tests
 
 	[Theory]
-	[InlineData(0, RateLimitAlgorithm.TokenBucket)]
-	[InlineData(1, RateLimitAlgorithm.SlidingWindow)]
-	[InlineData(2, RateLimitAlgorithm.FixedWindow)]
-	[InlineData(3, RateLimitAlgorithm.Concurrency)]
-	public void ConvertFromInt(int value, RateLimitAlgorithm expected)
+	[InlineData(0, MiddlewareRateLimitAlgorithm.TokenBucket)]
+	[InlineData(1, MiddlewareRateLimitAlgorithm.SlidingWindow)]
+	[InlineData(2, MiddlewareRateLimitAlgorithm.FixedWindow)]
+	[InlineData(3, MiddlewareRateLimitAlgorithm.Concurrency)]
+	public void ConvertFromInt(int value, MiddlewareRateLimitAlgorithm expected)
 	{
 		// Act
-		var result = (RateLimitAlgorithm)value;
+		var result = (MiddlewareRateLimitAlgorithm)value;
 
 		// Assert
 		result.ShouldBe(expected);
 	}
 
 	[Theory]
-	[InlineData(RateLimitAlgorithm.TokenBucket, 0)]
-	[InlineData(RateLimitAlgorithm.SlidingWindow, 1)]
-	[InlineData(RateLimitAlgorithm.FixedWindow, 2)]
-	[InlineData(RateLimitAlgorithm.Concurrency, 3)]
-	public void ConvertToInt(RateLimitAlgorithm algorithm, int expected)
+	[InlineData(MiddlewareRateLimitAlgorithm.TokenBucket, 0)]
+	[InlineData(MiddlewareRateLimitAlgorithm.SlidingWindow, 1)]
+	[InlineData(MiddlewareRateLimitAlgorithm.FixedWindow, 2)]
+	[InlineData(MiddlewareRateLimitAlgorithm.Concurrency, 3)]
+	public void ConvertToInt(MiddlewareRateLimitAlgorithm algorithm, int expected)
 	{
 		// Act
 		var result = (int)algorithm;
@@ -170,15 +170,15 @@ public sealed class RateLimitAlgorithmShould
 	public void CanBeUsedInSwitchExpression()
 	{
 		// Arrange
-		var algorithm = RateLimitAlgorithm.TokenBucket;
+		var algorithm = MiddlewareRateLimitAlgorithm.TokenBucket;
 
 		// Act
 		var description = algorithm switch
 		{
-			RateLimitAlgorithm.TokenBucket => "Smooth rate limiting",
-			RateLimitAlgorithm.SlidingWindow => "Accurate rate limiting",
-			RateLimitAlgorithm.FixedWindow => "Simple rate limiting",
-			RateLimitAlgorithm.Concurrency => "Parallel execution limit",
+			MiddlewareRateLimitAlgorithm.TokenBucket => "Smooth rate limiting",
+			MiddlewareRateLimitAlgorithm.SlidingWindow => "Accurate rate limiting",
+			MiddlewareRateLimitAlgorithm.FixedWindow => "Simple rate limiting",
+			MiddlewareRateLimitAlgorithm.Concurrency => "Parallel execution limit",
 			_ => "Unknown",
 		};
 
@@ -190,17 +190,17 @@ public sealed class RateLimitAlgorithmShould
 	public void DefaultValueIsTokenBucket()
 	{
 		// Act
-		RateLimitAlgorithm defaultValue = default;
+		MiddlewareRateLimitAlgorithm defaultValue = default;
 
 		// Assert
-		defaultValue.ShouldBe(RateLimitAlgorithm.TokenBucket);
+		defaultValue.ShouldBe(MiddlewareRateLimitAlgorithm.TokenBucket);
 	}
 
 	[Fact]
 	public void AllAlgorithmsAreDifferent()
 	{
 		// Arrange
-		var algorithms = Enum.GetValues<RateLimitAlgorithm>();
+		var algorithms = Enum.GetValues<MiddlewareRateLimitAlgorithm>();
 
 		// Act & Assert
 		var distinctCount = algorithms.Distinct().Count();

@@ -22,6 +22,8 @@ namespace Excalibur.Integration.Tests.Redis.Inbox;
 /// IInboxStore interface contract using Redis via TestContainers.
 /// </remarks>
 [Collection(RedisTestCollection.CollectionName)]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class RedisInboxStoreConformanceShould : InboxStoreConformanceTestBase
 {
 	private readonly RedisContainerFixture _fixture;

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.HealthChecks;
 
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class EncryptionHealthCheckShould
 {
 	private readonly IEncryptionProvider _encryptionProvider;

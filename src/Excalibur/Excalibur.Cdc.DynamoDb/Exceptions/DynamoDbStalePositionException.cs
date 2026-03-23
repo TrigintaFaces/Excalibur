@@ -20,7 +20,7 @@ namespace Excalibur.Cdc.DynamoDb;
 /// including the reason code, affected positions, and original exception.
 /// </para>
 /// </remarks>
-public sealed class DynamoDbStalePositionException : Exception
+public sealed class DynamoDbStalePositionException : Excalibur.Cdc.CdcStalePositionException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DynamoDbStalePositionException"/> class.
@@ -73,33 +73,6 @@ public sealed class DynamoDbStalePositionException : Exception
 	{
 		EventArgs = eventArgs;
 	}
-
-	/// <summary>
-	/// Gets the event arguments containing details about the stale position scenario.
-	/// </summary>
-	/// <value>
-	/// The <see cref="CdcPositionResetEventArgs"/> with detailed information,
-	/// or <see langword="null"/> if not provided.
-	/// </value>
-	public CdcPositionResetEventArgs? EventArgs { get; }
-
-	/// <summary>
-	/// Gets the processor ID that detected the stale position.
-	/// </summary>
-	/// <value>The processor ID, or <see langword="null"/> if not available.</value>
-	public string? ProcessorId => EventArgs?.ProcessorId;
-
-	/// <summary>
-	/// Gets the reason code for the stale position.
-	/// </summary>
-	/// <value>The reason code, or <see langword="null"/> if not available.</value>
-	public string? ReasonCode => EventArgs?.ReasonCode;
-
-	/// <summary>
-	/// Gets the stale sequence number position that was detected.
-	/// </summary>
-	/// <value>The stale position as bytes, or <see langword="null"/> if not available.</value>
-	public byte[]? StalePosition => EventArgs?.StalePosition;
 
 	/// <summary>
 	/// Gets the Stream ARN that was affected (from AdditionalContext).

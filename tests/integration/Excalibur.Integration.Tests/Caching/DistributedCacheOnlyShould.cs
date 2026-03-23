@@ -11,6 +11,8 @@ namespace Excalibur.Integration.Tests.Caching;
 
 // Public test types for distributed cache tests (private nested types prevent HybridCache from working)
 [CacheResult]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class DistributedTestQuery : Application.Requests.Queries.QueryBase<DistributedTestResult>, IDispatchAction<DistributedTestResult>, IDispatchAction
 {
 	public int Value { get; init; }
@@ -20,11 +22,15 @@ public sealed class DistributedTestQuery : Application.Requests.Queries.QueryBas
 	public override string ActivityDescription => "Query used for distributed cache tests";
 }
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class DistributedTestResult
 {
 	public int Value { get; init; }
 }
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class DistributedTestQueryHandler : IActionHandler<DistributedTestQuery, DistributedTestResult>
 {
 	private static int _callCount;
@@ -49,6 +55,8 @@ public sealed class DistributedTestQueryHandler : IActionHandler<DistributedTest
 /// that scan the same assembly and share static handler counters.
 /// </summary>
 [Collection("CachingIntegrationTests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class DistributedCacheOnlyShould
 {
 	[Fact]
@@ -88,11 +96,11 @@ public sealed class DistributedCacheOnlyShould
 		// Act - cache the result
 		DistributedTestQueryHandler.CallCount = 0;
 		var result1 = await dispatcher.DispatchAsync<DistributedTestQuery, DistributedTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None).ConfigureAwait(true);
+			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None);
 
 		// Distributed L2 writes can be observed asynchronously under CI load.
 		// Retry a bounded number of times until we observe a cache hit.
-		var result2 = await DispatchUntilCacheHitAsync(dispatcher, query, provider, TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+		var result2 = await DispatchUntilCacheHitAsync(dispatcher, query, provider, TimeSpan.FromSeconds(5));
 
 		// Assert - distributed cache eventually serves a hit.
 		result1.Succeeded.ShouldBeTrue();
@@ -116,14 +124,14 @@ public sealed class DistributedCacheOnlyShould
 			lastResult = await dispatcher.DispatchAsync<DistributedTestQuery, DistributedTestResult>(
 				query,
 				new MessageContext(new TestDispatchAction(), provider),
-				CancellationToken.None).ConfigureAwait(true);
+				CancellationToken.None);
 
 			if (lastResult.CacheHit)
 			{
 				return lastResult;
 			}
 
-			await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(true);
+			await Task.Delay(TimeSpan.FromMilliseconds(50));
 		}
 
 		lastResult.ShouldNotBeNull();

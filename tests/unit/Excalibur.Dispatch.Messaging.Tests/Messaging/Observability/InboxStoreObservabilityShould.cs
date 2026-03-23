@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 /// </summary>
 [Collection("Observability Tests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class InboxStoreObservabilityShould : IDisposable
 {
 	private const string TestHandlerType = "TestHandler";
@@ -120,7 +121,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false); // Wait for expiry
 
 		// Act
-		var cleaned = await store.CleanupAsync(TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
+		var cleaned = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		cleaned.ShouldBeGreaterThanOrEqualTo(1);

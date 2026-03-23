@@ -5,9 +5,14 @@
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
-/// Represents the status of a long polling receiver.
+/// Represents the status of an AWS SQS long polling receiver.
 /// </summary>
-public enum PollingStatus
+/// <remarks>
+/// Renamed from <c>PollingStatus</c> to avoid collision with
+/// <c>Excalibur.Dispatch.Transport.PollingStatus</c> which defines
+/// generic polling states (Idle, Running, Paused, Stopped, Error).
+/// </remarks>
+public enum SqsPollingStatus
 {
 	/// <summary>
 	/// The receiver is inactive and not polling.

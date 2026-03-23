@@ -17,7 +17,7 @@ namespace Excalibur.Data.MySql;
 /// <summary>
 /// MySQL-specific retry policy implementation for handling transient failures.
 /// </summary>
-public sealed partial class MySqlRetryPolicy : IDataRequestRetryPolicy
+public sealed partial class MySqlRetryPolicy : IRelationalDataRequestRetryPolicy, IDocumentDataRequestRetryPolicy
 {
 	/// <summary>
 	/// MySQL error code: Too many connections.

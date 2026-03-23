@@ -28,7 +28,7 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 		{
 			executed = true;
 			return Task.CompletedTask;
-		}).ConfigureAwait(false);
+		}, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		executed.ShouldBeTrue();
@@ -39,7 +39,7 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 	{
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(() =>
-			_processor.ProcessAsync(null!)).ConfigureAwait(false);
+			_processor.ProcessAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -50,7 +50,7 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 
 		// Act & Assert
 		await Should.ThrowAsync<ObjectDisposedException>(() =>
-			_processor.ProcessAsync(() => Task.CompletedTask)).ConfigureAwait(false);
+			_processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -68,7 +68,7 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 			{
 				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
 				order.Add(index);
-			}));
+			}, CancellationToken.None));
 		}
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -85,7 +85,7 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(() =>
-			_processor.ProcessAsync(() => throw expectedException)).ConfigureAwait(false);
+			_processor.ProcessAsync(() => throw expectedException, CancellationToken.None)).ConfigureAwait(false);
 
 		exception.ShouldBe(expectedException);
 	}
@@ -104,7 +104,7 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 			{
 				firstExecuted = true;
 				throw new InvalidOperationException();
-			}).ConfigureAwait(false);
+			}, CancellationToken.None).ConfigureAwait(false);
 		}
 		catch (InvalidOperationException)
 		{
@@ -116,7 +116,7 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 		{
 			secondExecuted = true;
 			return Task.CompletedTask;
-		}).ConfigureAwait(false);
+		}, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		firstExecuted.ShouldBeTrue();
@@ -168,7 +168,87 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 
 		// Act & Assert
 		await Should.ThrowAsync<ObjectDisposedException>(() =>
-			processor.ProcessAsync(() => Task.CompletedTask)).ConfigureAwait(false);
+			processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task ProcessAsync_ThrowsOperationCanceledException_WhenCancelled()
+	{
+		// Regression test for Sprint 677 T.1 (ag301): CancellationToken now passed to WaitAsync.
+		// Verifies that a cancelled token breaks the semaphore wait cleanly.
+		using var cts = new CancellationTokenSource();
+
+		// Hold the semaphore so the next call blocks on WaitAsync
+		var holdSemaphore = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var processingStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var holdTask = _processor.ProcessAsync(async () =>
+		{
+			processingStarted.SetResult();
+			await holdSemaphore.Task.ConfigureAwait(false);
+		}, CancellationToken.None);
+
+		await processingStarted.Task.ConfigureAwait(false);
+
+		// Schedule a second call that will block on WaitAsync
+		var blockedTask = _processor.ProcessAsync(() => Task.CompletedTask, cts.Token);
+
+		// Cancel while waiting
+		await cts.CancelAsync().ConfigureAwait(false);
+
+		// Should throw OperationCanceledException (not deadlock)
+		await Should.ThrowAsync<OperationCanceledException>(() => blockedTask).ConfigureAwait(false);
+
+		// Release the first task to clean up
+		holdSemaphore.SetResult();
+		await holdTask.ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task ProcessAsync_SucceedsWithNonCancelledToken()
+	{
+		// Regression test for Sprint 677 T.1 (ag301): Verify passing a valid CT still works.
+		using var cts = new CancellationTokenSource();
+		var executed = false;
+
+		await _processor.ProcessAsync(() =>
+		{
+			executed = true;
+			return Task.CompletedTask;
+		}, cts.Token).ConfigureAwait(false);
+
+		executed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task ProcessAsync_ThrowsObjectDisposedException_WhenSemaphoreDisposedDuringWait()
+	{
+		// Regression test for T.3 (hdfdz): OrderedEventProcessor disposal race.
+		// Verifies that calling ProcessAsync after DisposeAsync throws ObjectDisposedException
+		// cleanly, even when the semaphore has already been disposed.
+		var processor = new OrderedEventProcessor();
+
+		// Dispose first -- semaphore is now disposed
+		await processor.DisposeAsync().ConfigureAwait(false);
+
+		// Act & Assert -- ProcessAsync should throw ObjectDisposedException, not crash
+		await Should.ThrowAsync<ObjectDisposedException>(() =>
+			processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None)).ConfigureAwait(false);
+	}
+
+	[Fact]
+	public async Task ProcessAsync_ReleaseSurvivesSemaphoreDisposal()
+	{
+		// Regression test for T.3 (hdfdz): Verifies that if the semaphore is disposed
+		// after WaitAsync succeeds but before Release, the Release catch prevents crashes.
+		var processor = new OrderedEventProcessor();
+
+		// Process an event, then immediately dispose -- the Release catch should handle it
+		await processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+		await processor.DisposeAsync().ConfigureAwait(false);
+
+		// Should not throw -- already tested above that post-disposal calls are handled
+		await Should.ThrowAsync<ObjectDisposedException>(() =>
+			processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None)).ConfigureAwait(false);
 	}
 }
-

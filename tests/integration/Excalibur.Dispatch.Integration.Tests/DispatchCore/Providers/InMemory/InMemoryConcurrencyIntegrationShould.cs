@@ -32,6 +32,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.InMemory;
 [IntegrationTest]
 [Trait("Component", "Concurrency")]
 [Trait("Provider", "InMemory")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemoryConcurrencyIntegrationShould : IntegrationTestBase
 {
 	/// <summary>
@@ -63,7 +65,7 @@ public sealed class InMemoryConcurrencyIntegrationShould : IntegrationTestBase
 			}
 		}).ToArray();
 
-		await Task.WhenAll(readTasks).ConfigureAwait(true);
+		await Task.WhenAll(readTasks);
 
 		// Assert - All reads succeeded with correct data
 		successfulReads.Count.ShouldBe(readCount);
@@ -92,7 +94,7 @@ public sealed class InMemoryConcurrencyIntegrationShould : IntegrationTestBase
 			writtenKeys.Add(key);
 		}).ToArray();
 
-		await Task.WhenAll(writeTasks).ConfigureAwait(true);
+		await Task.WhenAll(writeTasks);
 
 		// Assert - All writes succeeded
 		writtenKeys.Count.ShouldBe(writeCount);
@@ -172,7 +174,7 @@ public sealed class InMemoryConcurrencyIntegrationShould : IntegrationTestBase
 			})
 		};
 
-		await Task.WhenAll(updateTasks).ConfigureAwait(true);
+		await Task.WhenAll(updateTasks);
 
 		// Assert - At least one update succeeded, potentially with conflict detected
 		var finalData = provider.Retrieve<VersionedEntity>(collectionName, key);
@@ -208,7 +210,7 @@ public sealed class InMemoryConcurrencyIntegrationShould : IntegrationTestBase
 			completedTransactions.Add(i);
 		}).ToArray();
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 
 		// Assert - All transactions completed despite lock contention
 		completedTransactions.Count.ShouldBe(transactionCount);
@@ -235,7 +237,7 @@ public sealed class InMemoryConcurrencyIntegrationShould : IntegrationTestBase
 			allKeys.Add(key);
 		}).ToArray();
 
-		await Task.WhenAll(writeTasks).ConfigureAwait(true);
+		await Task.WhenAll(writeTasks);
 
 		// Assert - No lost updates
 		allKeys.Count.ShouldBe(itemCount);
@@ -297,7 +299,7 @@ public sealed class InMemoryConcurrencyIntegrationShould : IntegrationTestBase
 			}
 		}).ToArray();
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 
 		// Assert - Both reads and writes succeeded
 		readResults.Count.ShouldBeGreaterThan(0);

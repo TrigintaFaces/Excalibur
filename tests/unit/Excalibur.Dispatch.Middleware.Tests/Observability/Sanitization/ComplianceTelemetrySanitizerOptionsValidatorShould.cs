@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Sanitization;
 /// Unit tests for <see cref="ComplianceTelemetrySanitizerOptionsValidator"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ComplianceTelemetrySanitizerOptionsValidatorShould : UnitTestBase
 {
 	private readonly ComplianceTelemetrySanitizerOptionsValidator _validator = new();

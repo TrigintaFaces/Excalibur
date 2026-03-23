@@ -36,6 +36,7 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 			CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
+		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);
 
 		var sql = $"""
                         MERGE {qualifiedTableName} AS target

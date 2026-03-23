@@ -100,12 +100,12 @@ public sealed class PostgresStalePositionExceptionShould
 
 		var ex = new PostgresStalePositionException(eventArgs);
 
-		ex.StalePosition.ShouldNotBeNull();
-		ex.StalePosition!.Value.LsnValue.ShouldBe(lsnValue);
+		ex.StaleWalPosition.ShouldNotBeNull();
+		ex.StaleWalPosition!.Value.LsnValue.ShouldBe(lsnValue);
 	}
 
 	[Fact]
-	public void ReturnNullStalePositionForShortBytes()
+	public void ReturnNullStaleWalPositionForShortBytes()
 	{
 		var eventArgs = new CdcPositionResetEventArgs
 		{
@@ -116,7 +116,7 @@ public sealed class PostgresStalePositionExceptionShould
 
 		var ex = new PostgresStalePositionException(eventArgs);
 
-		ex.StalePosition.ShouldBeNull();
+		ex.StaleWalPosition.ShouldBeNull();
 	}
 
 	[Fact]

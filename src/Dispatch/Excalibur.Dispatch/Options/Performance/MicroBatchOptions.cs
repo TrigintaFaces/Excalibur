@@ -25,4 +25,12 @@ public sealed class MicroBatchOptions
 	/// Maximum delay before flushing a batch.
 	/// </value>
 	public TimeSpan MaxBatchDelay { get; set; } = TimeSpan.FromMilliseconds(100);
+
+	/// <summary>
+	/// Gets or sets the maximum number of pending items in the input channel.
+	/// When the channel is full, producers block until space is available (backpressure).
+	/// </summary>
+	/// <value>The bounded channel capacity. Default is 10,000.</value>
+	[Range(1, int.MaxValue)]
+	public int ChannelCapacity { get; set; } = 10_000;
 }

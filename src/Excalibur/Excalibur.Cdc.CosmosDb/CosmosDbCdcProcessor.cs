@@ -5,6 +5,7 @@
 using System.Net;
 using System.Text.Json;
 
+using Excalibur.Cdc.Diagnostics;
 using Excalibur.Data.CosmosDb.Diagnostics;
 
 using Microsoft.Azure.Cosmos;
@@ -189,6 +190,8 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		Func<CosmosDbDataChangeEvent, CancellationToken, Task> eventHandler,
 		CancellationToken cancellationToken)
 	{
+		using var pollActivity = CdcActivitySource.StartPollActivity("CosmosDb");
+
 		var iterator = CreateChangeFeedIterator();
 		var processedCount = 0;
 		CosmosDbCdcPosition? lastPosition = null;
@@ -213,6 +216,8 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 				{
 					break;
 				}
+
+				using var batchActivity = CdcActivitySource.StartProcessBatchActivity("CosmosDb", response.Count);
 
 				var continuationToken = response.ContinuationToken;
 				lastPosition = CosmosDbCdcPosition.FromContinuationToken(continuationToken);

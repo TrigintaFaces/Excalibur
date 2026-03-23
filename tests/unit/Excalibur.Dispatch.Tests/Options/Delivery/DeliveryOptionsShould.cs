@@ -4,7 +4,7 @@ using Excalibur.Dispatch.Options.Delivery;
 
 using DeliveryDeduplicationOptions = Excalibur.Dispatch.Options.Delivery.DeduplicationOptions;
 using DeliveryInboxOptions = Excalibur.Dispatch.Options.Delivery.InboxOptions;
-using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxOptions;
+using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Dispatch.Tests.Options.Delivery;
 

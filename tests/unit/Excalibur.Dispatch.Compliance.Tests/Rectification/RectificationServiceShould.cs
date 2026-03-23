@@ -5,7 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Rectification;
 
-public class RectificationServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class RectificationServiceShould
 {
     private readonly RectificationService _sut;
     private readonly RectificationOptions _options = new();

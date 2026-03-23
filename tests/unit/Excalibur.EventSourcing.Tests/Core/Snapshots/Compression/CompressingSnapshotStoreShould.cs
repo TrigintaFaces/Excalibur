@@ -229,6 +229,56 @@ public sealed class CompressingSnapshotStoreShould
 	}
 
 	[Fact]
+	public async Task GetLatestSnapshotAsync_ThrowOnOversizedOriginalSize()
+	{
+		// Regression test for Sprint 677 T.3 (lb1qh): originalSize > 64MB triggers OOM prevention.
+		var oversizedData = CreateCompressedDataWithFakeSize(BrotliMagic, 65 * 1024 * 1024); // 65MB > 64MB cap
+		var snapshot = CreateSnapshot("agg-oversized", oversizedData);
+
+		A.CallTo(() => _innerStore.GetLatestSnapshotAsync("agg-oversized", "TestType", A<CancellationToken>._))
+			.Returns(new ValueTask<ISnapshot?>(snapshot));
+
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => _sut.GetLatestSnapshotAsync("agg-oversized", "TestType", CancellationToken.None).AsTask());
+
+		ex.Message.ShouldContain("exceeds maximum allowed");
+	}
+
+	[Fact]
+	public async Task GetLatestSnapshotAsync_ThrowOnNegativeOriginalSize()
+	{
+		// Regression test for Sprint 677 T.3 (lb1qh): negative originalSize from corrupted data.
+		var corruptData = CreateCompressedDataWithFakeSize(BrotliMagic, -1);
+		var snapshot = CreateSnapshot("agg-corrupt", corruptData);
+
+		A.CallTo(() => _innerStore.GetLatestSnapshotAsync("agg-corrupt", "TestType", A<CancellationToken>._))
+			.Returns(new ValueTask<ISnapshot?>(snapshot));
+
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => _sut.GetLatestSnapshotAsync("agg-corrupt", "TestType", CancellationToken.None).AsTask());
+
+		ex.Message.ShouldContain("invalid or exceeds maximum");
+	}
+
+	[Fact]
+	public async Task GetLatestSnapshotAsync_AcceptValidSize()
+	{
+		// Regression test for Sprint 677 T.3 (lb1qh): sizes within the cap should still work.
+		var originalData = new byte[100];
+		RandomNumberGenerator.Fill(originalData);
+		var compressedData = CompressWithMagic(originalData, SnapshotCompressionAlgorithm.Brotli);
+		var snapshot = CreateSnapshot("agg-valid", compressedData);
+
+		A.CallTo(() => _innerStore.GetLatestSnapshotAsync("agg-valid", "TestType", A<CancellationToken>._))
+			.Returns(new ValueTask<ISnapshot?>(snapshot));
+
+		var result = await _sut.GetLatestSnapshotAsync("agg-valid", "TestType", CancellationToken.None);
+
+		result.ShouldNotBeNull();
+		result.Data.ShouldBe(originalData);
+	}
+
+	[Fact]
 	public async Task SaveSnapshotAsync_ThrowOnNull()
 	{
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -253,6 +303,18 @@ public sealed class CompressingSnapshotStoreShould
 		A.CallTo(() => snapshot.Data).Returns(data);
 		A.CallTo(() => snapshot.Metadata).Returns(null);
 		return snapshot;
+	}
+
+	private static byte[] CreateCompressedDataWithFakeSize(byte[] magic, int fakeOriginalSize)
+	{
+		// Build a minimal "compressed" payload with the magic prefix and a crafted size header.
+		// The actual compressed payload is irrelevant -- validation occurs before decompression.
+		using var output = new MemoryStream();
+		output.Write(magic, 0, magic.Length);
+		output.Write(BitConverter.GetBytes(fakeOriginalSize), 0, 4);
+		// Write a small dummy payload so length check passes
+		output.Write(new byte[] { 0x00, 0x00 }, 0, 2);
+		return output.ToArray();
 	}
 
 	private static byte[] CompressWithMagic(byte[] data, SnapshotCompressionAlgorithm algorithm)

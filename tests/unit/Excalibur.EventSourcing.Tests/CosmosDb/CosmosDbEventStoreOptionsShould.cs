@@ -9,6 +9,7 @@ namespace Excalibur.EventSourcing.Tests.CosmosDb;
 /// Unit tests for <see cref="CosmosDbEventStoreOptions"/> configuration and validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class CosmosDbEventStoreOptionsShould : UnitTestBase
 {
 	#region Default Values Tests

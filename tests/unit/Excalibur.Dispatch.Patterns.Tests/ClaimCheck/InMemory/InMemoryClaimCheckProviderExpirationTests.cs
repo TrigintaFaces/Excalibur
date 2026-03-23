@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck.InMemory;
 /// Unit tests for <see cref="InMemoryClaimCheckProvider"/> expiration and TTL functionality.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Patterns")]
 public sealed class InMemoryClaimCheckProviderExpirationTests
 {
 	private static readonly TimeSpan ShortTtl = TimeSpan.FromMilliseconds(250);

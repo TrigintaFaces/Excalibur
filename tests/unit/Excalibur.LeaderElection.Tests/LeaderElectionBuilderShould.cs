@@ -84,10 +84,12 @@ public sealed class LeaderElectionBuilderShould
 		// Act
 		services.AddExcaliburLeaderElection(le => le.UseInMemory());
 
-		// Assert -- should register ILeaderElectionFactory
-		var provider = services.BuildServiceProvider();
-		var factory = provider.GetService<ILeaderElectionFactory>();
-		factory.ShouldNotBeNull("UseInMemory() should register ILeaderElectionFactory");
+		// Assert -- should register keyed ILeaderElectionFactory
+		services.Any(static sd =>
+			sd.ServiceType == typeof(ILeaderElectionFactory) &&
+			sd.IsKeyedService &&
+			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue(
+			"UseInMemory() should register keyed ILeaderElectionFactory");
 	}
 
 	[Fact]
@@ -149,11 +151,16 @@ public sealed class LeaderElectionBuilderShould
 		// Act
 		services.AddExcaliburLeaderElection(le => le.UseInMemory());
 
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var factory = provider.GetService<ILeaderElectionFactory>();
-		factory.ShouldNotBeNull();
-		factory.ShouldBeOfType<InMemoryLeaderElectionFactory>();
+		// Assert -- check keyed descriptor instead of resolving from provider
+		services.Any(static sd =>
+			sd.ServiceType == typeof(ILeaderElectionFactory) &&
+			sd.IsKeyedService &&
+			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
+
+		// Also verify InMemoryLeaderElectionFactory is registered as concrete
+		services.Any(static sd =>
+			sd.ServiceType == typeof(InMemoryLeaderElectionFactory) &&
+			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -318,11 +325,13 @@ public sealed class LeaderElectionBuilderShould
 			.WithFencingTokens()
 			.WithOptions(opts => opts.InstanceId = "full-chain"));
 
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var factory = provider.GetService<ILeaderElectionFactory>();
-		factory.ShouldNotBeNull();
+		// Assert -- verify keyed factory is registered
+		services.Any(static sd =>
+			sd.ServiceType == typeof(ILeaderElectionFactory) &&
+			sd.IsKeyedService &&
+			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 
+		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<LeaderElectionOptions>>().Value;
 		options.InstanceId.ShouldBe("full-chain");
 	}

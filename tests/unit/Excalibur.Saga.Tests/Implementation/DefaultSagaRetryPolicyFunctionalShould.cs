@@ -11,6 +11,7 @@ namespace Excalibur.Saga.Tests.Implementation;
 /// factory methods, backoff calculations, and exception filtering.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class DefaultSagaRetryPolicyFunctionalShould
 {
 	[Fact]

@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Performance;
 ///     Tests for the <see cref="BenchmarkResults" /> record.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class BenchmarkResultsShould
 {
 	[Fact]

@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Hosting.Tests.AwsLambda;
 /// Unit tests for AwsLambdaOptions.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class AwsLambdaOptionsShould : UnitTestBase
 {
 	[Fact]

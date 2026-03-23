@@ -11,6 +11,7 @@ namespace Excalibur.Tests.Domain.Model;
 /// Unit tests for <see cref="AggregateRoot{TKey}"/> and <see cref="AggregateRoot"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Domain")]
 public sealed class AggregateRootShould
 {
 	#region T419.1: Core AggregateRoot Tests
@@ -235,6 +236,23 @@ public sealed class AggregateRootShould
 		// Assert
 		aggregate.HasUncommittedEvents.ShouldBeFalse();
 		aggregate.GetUncommittedEvents().Count.ShouldBe(0);
+	}
+
+	[Fact]
+	public void GetUncommittedEvents_ReturnImmutableSnapshot_CannotBeCastToMutableList()
+	{
+		// Arrange
+		var aggregate = new TestStringAggregate();
+		aggregate.DoSomething("test-id", "test-value");
+
+		// Act
+		var events = aggregate.GetUncommittedEvents();
+
+		// Assert -- cannot cast back to List<T> and mutate aggregate state
+		events.ShouldNotBeNull();
+		events.Count.ShouldBe(1);
+		(events is IList<IDomainEvent> mutableList && mutableList.IsReadOnly == false)
+			.ShouldBeFalse("GetUncommittedEvents() must return an immutable collection that cannot be cast to a mutable list");
 	}
 
 	#endregion T419.4: Event Versioning Tests

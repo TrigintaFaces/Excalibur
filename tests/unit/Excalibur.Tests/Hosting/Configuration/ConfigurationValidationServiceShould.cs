@@ -11,6 +11,7 @@ using ConfigurationValidationResult = Excalibur.Hosting.Configuration.Configurat
 namespace Excalibur.Tests.Hosting.Configuration;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class ConfigurationValidationServiceShould
 {
 	private readonly IConfiguration _configuration = new ConfigurationBuilder().Build();

@@ -42,6 +42,14 @@ public sealed class EncryptionExceptionShould
 
 		ex.ErrorCode.ShouldBe(EncryptionErrorCode.KeyNotFound);
 	}
+
+	[Fact]
+	public void Inherit_from_ApiException()
+	{
+		var ex = new EncryptionException("test");
+
+		ex.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
+	}
 }
 
 [Trait("Category", "Unit")]

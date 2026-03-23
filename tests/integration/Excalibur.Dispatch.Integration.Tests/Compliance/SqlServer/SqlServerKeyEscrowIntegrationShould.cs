@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 /// </summary>
 [Collection(SqlServerTestCollection.Name)]
 [Trait("Category", TestCategories.Integration)]
+[Trait("Component", "Platform")]
 public sealed class SqlServerKeyEscrowIntegrationShould : IAsyncLifetime, IDisposable
 {
 	private readonly SqlServerContainerFixture _fixture;

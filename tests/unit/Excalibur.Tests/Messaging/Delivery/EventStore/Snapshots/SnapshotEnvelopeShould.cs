@@ -7,7 +7,8 @@ namespace Excalibur.Tests.Messaging.Delivery.EventStore.Snapshots;
 ///     Unit tests for SnapshotEnvelope to verify snapshot envelope functionality.
 /// </summary>
 [Trait("Category", "Unit")]
-public class SnapshotEnvelopeShould
+[Trait("Component", "Core")]
+public sealed class SnapshotEnvelopeShould
 {
 	[Fact]
 	public void ConstructorShouldInitializeWithStringKey()

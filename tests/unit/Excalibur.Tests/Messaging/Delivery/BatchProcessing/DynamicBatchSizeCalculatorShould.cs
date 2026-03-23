@@ -11,7 +11,8 @@ namespace Excalibur.Tests.Messaging.Delivery.BatchProcessing;
 ///     Unit tests for DynamicBatchSizeCalculator to verify adaptive batch sizing functionality.
 /// </summary>
 [Trait("Category", "Unit")]
-public class DynamicBatchSizeCalculatorShould
+[Trait("Component", "Core")]
+public sealed class DynamicBatchSizeCalculatorShould
 {
 	[Fact]
 	public void ConstructorShouldInitializeWithValidParameters()

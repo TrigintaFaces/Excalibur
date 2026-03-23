@@ -42,6 +42,9 @@ public static class DispatchSecurityServiceCollectionExtensions
 		// Add security auditing
 		_ = services.AddSecurityAuditing(configuration);
 
+		// Add security middleware (encryption, signing, rate limiting, JWT authentication)
+		_ = services.AddDispatchSecurityMiddleware(configuration);
+
 		return services;
 	}
 
@@ -105,13 +108,10 @@ public static class DispatchSecurityServiceCollectionExtensions
 		// Register validation middleware
 		_ = services.AddSingleton<IDispatchMiddleware, InputValidationMiddleware>();
 
-		// Register default validators
-		_ = services.AddSingleton<IInputValidator, SqlInjectionValidator>();
-		_ = services.AddSingleton<IInputValidator, XssValidator>();
-		_ = services.AddSingleton<IInputValidator, PathTraversalValidator>();
-		_ = services.AddSingleton<IInputValidator, CommandInjectionValidator>();
-		_ = services.AddSingleton<IInputValidator, DataSizeValidator>();
-		_ = services.AddSingleton<IInputValidator, MessageAgeValidator>();
+		// No default validators registered -- IInputValidator is a consumer extension point.
+		// Consumers register their own validators for their application's specific needs.
+		// SQL injection prevention belongs in parameterized queries, not message-level validation.
+		// XSS prevention belongs in output encoding, not message-level validation.
 
 		return services;
 	}

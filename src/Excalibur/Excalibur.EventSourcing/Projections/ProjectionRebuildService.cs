@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -25,6 +27,7 @@ namespace Excalibur.EventSourcing.Projections;
 public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 {
 	private readonly IServiceProvider _serviceProvider;
+	private readonly IEventSerializer _eventSerializer;
 	private readonly IOptions<ProjectionRebuildOptions> _options;
 	private readonly ILogger<ProjectionRebuildService> _logger;
 	private readonly ConcurrentDictionary<string, ProjectionRebuildStatus> _statuses = new();
@@ -33,19 +36,24 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 	/// Initializes a new instance of the <see cref="ProjectionRebuildService"/> class.
 	/// </summary>
 	/// <param name="serviceProvider">The service provider for resolving projections and stores.</param>
+	/// <param name="eventSerializer">The event serializer for deserializing stored events.</param>
 	/// <param name="options">The rebuild options.</param>
 	/// <param name="logger">The logger.</param>
 	public ProjectionRebuildService(
 		IServiceProvider serviceProvider,
+		IEventSerializer eventSerializer,
 		IOptions<ProjectionRebuildOptions> options,
 		ILogger<ProjectionRebuildService> logger)
 	{
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Event deserialization during rebuild may require preserved members.")]
+	[RequiresDynamicCode("Event deserialization uses dynamic code generation.")]
 	public async Task RebuildAsync<TProjection>(CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{
@@ -108,8 +116,24 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 
 				foreach (var storedEvent in events)
 				{
-					// Apply event to projection state - projection.Apply handles type matching
-					// StoredEvent is not IDomainEvent directly, so providers must handle conversion
+					cancellationToken.ThrowIfCancellationRequested();
+
+					try
+					{
+						var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
+						var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
+
+						if (domainEvent is not null)
+						{
+							projection.Apply(state, domainEvent);
+						}
+					}
+					catch (Exception ex) when (ex is not OperationCanceledException)
+					{
+						LogEventProcessingError(projectionName, storedEvent.EventId, ex);
+						// Continue processing other events
+					}
+
 					totalProcessed++;
 				}
 
@@ -133,7 +157,7 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 
 			LogRebuildCompleted(projectionName, totalProcessed);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			throw;
 		}
@@ -189,6 +213,10 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 	[LoggerMessage(EventSourcingEventId.ProjectionStopped, LogLevel.Warning,
 		"No MultiStreamProjection<{ProjectionName}> registered. Cannot rebuild")]
 	private partial void LogNoProjectionRegistered(string projectionName);
+
+	[LoggerMessage(EventSourcingEventId.ProjectionRebuildEventError, LogLevel.Error,
+		"Error processing event {EventId} during rebuild of projection {ProjectionName}")]
+	private partial void LogEventProcessingError(string projectionName, string eventId, Exception ex);
 
 	#endregion
 }

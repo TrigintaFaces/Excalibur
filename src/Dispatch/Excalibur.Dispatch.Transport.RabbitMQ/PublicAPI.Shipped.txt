@@ -87,6 +87,7 @@ const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportReceiverMes
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportReceiverMessageRejected = 21814 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportReceiverMessageRejectedRequeue = 21815 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportReceiverReceiveError = 21811 -> int
+const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportReceiverDeliveryTagCacheOverflow = 21818 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportReceiverRejectError = 21816 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportSenderBatchSent = 21802 -> int
 const Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqEventId.TransportSenderDisposed = 21803 -> int
@@ -135,9 +136,9 @@ Excalibur.Dispatch.Transport.RabbitMQ.ConsumerPriorityOptions.Enabled.get -> boo
 Excalibur.Dispatch.Transport.RabbitMQ.ConsumerPriorityOptions.Enabled.set -> void
 Excalibur.Dispatch.Transport.RabbitMQ.ConsumerPriorityOptions.Priority.get -> int
 Excalibur.Dispatch.Transport.RabbitMQ.ConsumerPriorityOptions.Priority.set -> void
-Excalibur.Dispatch.Transport.RabbitMQ.DeadLetterStrategy
-Excalibur.Dispatch.Transport.RabbitMQ.DeadLetterStrategy.AtLeastOnce = 1 -> Excalibur.Dispatch.Transport.RabbitMQ.DeadLetterStrategy
-Excalibur.Dispatch.Transport.RabbitMQ.DeadLetterStrategy.AtMostOnce = 0 -> Excalibur.Dispatch.Transport.RabbitMQ.DeadLetterStrategy
+Excalibur.Dispatch.Transport.RabbitMQ.QuorumDeadLetterStrategy
+Excalibur.Dispatch.Transport.RabbitMQ.QuorumDeadLetterStrategy.AtLeastOnce = 1 -> Excalibur.Dispatch.Transport.RabbitMQ.QuorumDeadLetterStrategy
+Excalibur.Dispatch.Transport.RabbitMQ.QuorumDeadLetterStrategy.AtMostOnce = 0 -> Excalibur.Dispatch.Transport.RabbitMQ.QuorumDeadLetterStrategy
 Excalibur.Dispatch.Transport.RabbitMQ.ExchangeInfo
 Excalibur.Dispatch.Transport.RabbitMQ.ExchangeInfo.AutoDelete.get -> bool
 Excalibur.Dispatch.Transport.RabbitMQ.ExchangeInfo.AutoDelete.init -> void
@@ -161,7 +162,7 @@ Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMqCloudEventAdapter.IsValidCloudEve
 Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMqCloudEventAdapter.TryDetectMode(RabbitMQ.Client.IBasicProperties! properties, System.ReadOnlyMemory<byte> body, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.CloudEvents.CloudEventMode?>
 Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder
 Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder.Exchange(string! exchange) -> Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder!
-Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder.MaxRetries(int maxRetries) -> Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder!
+Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder.MaxRetryAttempts(int maxRetries) -> Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder!
 Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder.Queue(string! queue) -> Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder!
 Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder.RetryDelay(System.TimeSpan delay) -> Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder!
 Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder.RoutingKey(string! routingKey) -> Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQDeadLetterBuilder!
@@ -221,7 +222,7 @@ Excalibur.Dispatch.Transport.RabbitMQ.QueueInfo.State.init -> void
 Excalibur.Dispatch.Transport.RabbitMQ.QueueInfo.Type.get -> string!
 Excalibur.Dispatch.Transport.RabbitMQ.QueueInfo.Type.init -> void
 Excalibur.Dispatch.Transport.RabbitMQ.QuorumQueueOptions
-Excalibur.Dispatch.Transport.RabbitMQ.QuorumQueueOptions.DeadLetterStrategy.get -> Excalibur.Dispatch.Transport.RabbitMQ.DeadLetterStrategy
+Excalibur.Dispatch.Transport.RabbitMQ.QuorumQueueOptions.DeadLetterStrategy.get -> Excalibur.Dispatch.Transport.RabbitMQ.QuorumDeadLetterStrategy
 Excalibur.Dispatch.Transport.RabbitMQ.QuorumQueueOptions.DeadLetterStrategy.set -> void
 Excalibur.Dispatch.Transport.RabbitMQ.QuorumQueueOptions.DeliveryLimit.get -> int?
 Excalibur.Dispatch.Transport.RabbitMQ.QuorumQueueOptions.DeliveryLimit.set -> void
@@ -342,7 +343,7 @@ Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumerOptions.PrefetchGlobal.set
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumerOptions.RabbitMqConsumerOptions() -> void
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumerOptions.RequeueOnReject.get -> bool
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumerOptions.RequeueOnReject.set -> void
-Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumerOptions.RetryPolicy.get -> Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy!
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumerOptions.RetryPolicy.get -> Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions!
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumerOptions.RetryPolicy.set -> void
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumptionOptions
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqConsumptionOptions.AutoAck.get -> bool
@@ -378,8 +379,8 @@ Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqDeadLetterOptions.IncludeStackTrac
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqDeadLetterOptions.IncludeStackTrace.set -> void
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqDeadLetterOptions.MaxBatchSize.get -> int
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqDeadLetterOptions.MaxBatchSize.set -> void
-Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQDeadLetterOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQDeadLetterOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQDeadLetterOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQDeadLetterOptions.MaxRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQDeadLetterOptions.Queue.get -> string!
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQDeadLetterOptions.Queue.set -> void
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqDeadLetterOptions.QueueName.get -> string!
@@ -541,13 +542,13 @@ Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQTransportOptions.Name.get -> strin
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQTransportOptions.Name.set -> void
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQTransportOptions.RabbitMQTransportOptions() -> void
 Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQTransportOptions.Topology.get -> Excalibur.Dispatch.Transport.RabbitMQ.RabbitMQTopologyOptions!
-Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy
-Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.BackoffMultiplier.get -> double
-Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.CalculateDelay(int attemptNumber) -> System.TimeSpan
-Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.InitialDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.MaxDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.UseExponentialBackoff.get -> bool
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.BackoffMultiplier.get -> double
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.CalculateDelay(int attemptNumber) -> System.TimeSpan
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.InitialDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.MaxDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.UseExponentialBackoff.get -> bool
 Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset
 Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset.Offset.get -> long?
 Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset.Timestamp.get -> System.DateTimeOffset?
@@ -566,9 +567,9 @@ Microsoft.Extensions.DependencyInjection.RabbitMqCloudEventsServiceCollectionExt
 Microsoft.Extensions.DependencyInjection.RabbitMqDeadLetterServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.RabbitMqStreamServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.RabbitMQTransportServiceCollectionExtensions
-static Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.Exponential(int maxRetries, System.TimeSpan? initialDelay = null, System.TimeSpan? maxDelay = null, double multiplier = 2) -> Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy!
-static Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.Fixed(int maxRetries, System.TimeSpan? delay = null) -> Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy!
-static Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy.None() -> Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy!
+static Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.Exponential(int maxRetries, System.TimeSpan? initialDelay = null, System.TimeSpan? maxDelay = null, double multiplier = 2) -> Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions!
+static Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.Fixed(int maxRetries, System.TimeSpan? delay = null) -> Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions!
+static Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions.None() -> Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions!
 static Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset.First() -> Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset!
 static Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset.FromOffset(long offset) -> Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset!
 static Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset.FromTimestamp(System.DateTimeOffset timestamp) -> Excalibur.Dispatch.Transport.RabbitMQ.StreamOffset!
@@ -584,6 +585,8 @@ static Microsoft.Extensions.DependencyInjection.RabbitMqCloudEventsServiceCollec
 static Microsoft.Extensions.DependencyInjection.RabbitMqCloudEventsServiceCollectionExtensions.UseCloudEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.RabbitMqCloudEventsServiceCollectionExtensions.UseCloudEventsForRabbitMq(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqCloudEventOptions!>? configureRabbitMq = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.RabbitMqDeadLetterServiceCollectionExtensions.AddRabbitMqDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RabbitMqDeadLetterServiceCollectionExtensions.AddRabbitMqDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! transportName, System.Action<Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.RabbitMqStreamServiceCollectionExtensions.AddRabbitMqStreamQueues(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqStreamOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.RabbitMQTransportServiceCollectionExtensions.AddRabbitMQTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.RabbitMQTransportServiceCollectionExtensions.AddRabbitMQTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.RabbitMQ.IRabbitMQTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RabbitMQTransportServiceCollectionExtensions.AddRabbitMQTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

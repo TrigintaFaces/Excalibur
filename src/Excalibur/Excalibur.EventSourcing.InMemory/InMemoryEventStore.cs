@@ -35,12 +35,9 @@ public sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 	private readonly ConcurrentDictionary<(string AggregateId, string AggregateType), List<StoredEvent>> _events = new();
 	private readonly ConcurrentDictionary<string, StoredEvent> _eventsById = new();
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
-
 #endif
 	private long _position;
 	private readonly JsonSerializerOptions _jsonOptions;

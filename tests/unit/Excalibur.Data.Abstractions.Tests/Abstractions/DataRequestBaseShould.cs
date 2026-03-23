@@ -262,7 +262,7 @@ public sealed class DataRequestBaseShould
 		var request = new TestDataRequest();
 
 		// Act
-		var result = await request.ResolveAsync(fakeConnection).ConfigureAwait(true);
+		var result = await request.ResolveAsync(fakeConnection);
 
 		// Assert
 		result.ShouldBe("TestResult");
@@ -283,7 +283,7 @@ public sealed class DataRequestBaseShould
 		});
 
 		// Act
-		_ = await request.ResolveAsync(fakeConnection).ConfigureAwait(true);
+		_ = await request.ResolveAsync(fakeConnection);
 
 		// Assert
 		receivedConnection.ShouldBeSameAs(fakeConnection);

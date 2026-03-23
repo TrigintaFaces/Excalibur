@@ -113,7 +113,7 @@ internal sealed class MessageStreamProcessor : IAsyncDisposable
 			MessageEnqueued?.Invoke(this, new MessageEnqueuedEventArgs(streamId, message.Message.MessageId));
 			return true;
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			return false;
 		}
@@ -158,7 +158,7 @@ internal sealed class MessageStreamProcessor : IAsyncDisposable
 		{
 			await _processingTask.ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected
 		}
@@ -286,7 +286,7 @@ internal sealed class MessageStreamProcessor : IAsyncDisposable
 					ackId,
 					_options.StreamAckDeadlineSeconds));
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

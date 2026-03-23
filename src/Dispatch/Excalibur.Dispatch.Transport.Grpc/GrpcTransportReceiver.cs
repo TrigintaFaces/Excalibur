@@ -87,7 +87,10 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 
 			var method = GrpcMethodDescriptors.CreateAcknowledgeMethod(
 				_options.ReceiveMethodPath.Replace("Receive", "Acknowledge", StringComparison.Ordinal));
-			var callOptions = CreateCallOptions(cancellationToken);
+			// Ack must complete even during shutdown to prevent redelivery;
+			// use dedicated timeout instead of caller's cancellation token
+			using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+			var callOptions = CreateCallOptions(ackCts.Token);
 
 			await _invoker.AsyncUnaryCall(method, null, callOptions, request)
 				.ConfigureAwait(false);
@@ -117,7 +120,10 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 
 			var method = GrpcMethodDescriptors.CreateAcknowledgeMethod(
 				_options.ReceiveMethodPath.Replace("Receive", "Acknowledge", StringComparison.Ordinal));
-			var callOptions = CreateCallOptions(cancellationToken);
+			// Reject must complete even during shutdown to prevent redelivery;
+			// use dedicated timeout instead of caller's cancellation token
+			using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+			var callOptions = CreateCallOptions(rejectCts.Token);
 
 			await _invoker.AsyncUnaryCall(method, null, callOptions, request)
 				.ConfigureAwait(false);

@@ -37,7 +37,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// See the pluggable serialization architecture documentation for details.
 /// </para>
 /// </remarks>
-public sealed partial class AwsSqsMessageBus(
+internal sealed partial class AwsSqsMessageBus(
 	IAmazonSQS client,
 	IPayloadSerializer serializer,
 	AwsSqsOptions options,

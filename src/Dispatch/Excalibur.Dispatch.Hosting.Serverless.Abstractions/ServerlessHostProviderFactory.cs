@@ -50,8 +50,8 @@ internal partial class ServerlessHostProviderFactory : IServerlessHostProviderFa
 			return provider;
 		}
 
-		// Fall back to any available provider
-		var availableProvider = AvailableProviders.FirstOrDefault();
+		// Fall back to any available provider (iterate directly to avoid double LINQ)
+		var availableProvider = _providers.Values.FirstOrDefault(static p => p.IsAvailable);
 		if (availableProvider != null)
 		{
 			LogPlatformFallback(_logger, targetPlatform, availableProvider.Platform);
@@ -96,9 +96,12 @@ internal partial class ServerlessHostProviderFactory : IServerlessHostProviderFa
 			return ServerlessPlatform.AzureFunctions;
 		}
 
-		// Google Cloud Functions detection
-		if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_NAME")) ||
-			!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("K_SERVICE")))
+		// Google Cloud Functions detection — FUNCTION_NAME alone is ambiguous (OpenFaaS, Knative also set it).
+		// Require GCF-specific companion vars: FUNCTION_TARGET (GCF entry point) or K_REVISION (Cloud Run).
+		if ((!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_NAME")) &&
+			 !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_TARGET"))) ||
+			(!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("K_SERVICE")) &&
+			 !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("K_REVISION"))))
 		{
 			return ServerlessPlatform.GoogleCloudFunctions;
 		}

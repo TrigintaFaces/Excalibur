@@ -33,7 +33,9 @@ public static class InMemorySnapshotExtensions
 			.ValidateOnStart();
 
 		services.TryAddSingleton<InMemorySnapshotStore>();
-		services.TryAddSingleton<ISnapshotStore>(sp => sp.GetRequiredService<InMemorySnapshotStore>());
+		services.AddKeyedSingleton<ISnapshotStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemorySnapshotStore>());
+		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISnapshotStore>("inmemory"));
 
 		return services;
 	}

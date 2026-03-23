@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Security.Tests.Encryption;
 /// Unit tests for <see cref="LazyReEncryptionMiddleware"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class LazyReEncryptionMiddlewareShould
 {
 	private readonly IEncryptionMigrationService _migrationService;
@@ -85,10 +86,10 @@ public sealed class LazyReEncryptionMiddlewareShould
 	#region Stage Tests
 
 	[Fact]
-	public void Stage_ReturnPreProcessing()
+	public void Stage_ReturnSerialization()
 	{
-		// Assert
-		_sut.Stage.ShouldBe(DispatchMiddlewareStage.PreProcessing);
+		// Sprint 682 T.10: LazyReEncryption moved to Serialization stage
+		_sut.Stage.ShouldBe(DispatchMiddlewareStage.Serialization);
 	}
 
 	#endregion Stage Tests

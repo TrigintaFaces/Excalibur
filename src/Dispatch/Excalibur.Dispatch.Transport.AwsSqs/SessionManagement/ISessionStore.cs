@@ -5,8 +5,12 @@
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
-/// Temporary interface to match what tests expect.
+/// Defines the contract for SQS session state persistence.
 /// </summary>
+/// <remarks>
+/// Session stores enable SQS FIFO queue message grouping and session-based processing.
+/// The default implementation uses Redis via <c>RedisSessionStore</c>.
+/// </remarks>
 public interface ISessionStore
 {
 	/// <summary>

@@ -35,7 +35,7 @@ public sealed partial class FinalDispatchHandler(
 	IMessageBusProvider busProvider,
 	ILogger<FinalDispatchHandler> logger,
 	IRetryPolicy? retryPolicy,
-	IDictionary<string, IMessageBusOptions> busOptionsMap)
+	IDictionary<string, MessageBusOptions> busOptionsMap)
 {
 	private readonly ILogger<FinalDispatchHandler> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private const string ResultContextKey = "Dispatch:Result";
@@ -43,6 +43,7 @@ public sealed partial class FinalDispatchHandler(
 	private const string ValidationResultPropertyKey = "__ValidationResult";
 	private const string AuthorizationResultPropertyKey = "__AuthorizationResult";
 	private const string LocalBusName = "local";
+	private const int MaxCacheEntries = 1024;
 	private readonly IMessageBus? _cachedLocalBus = ResolveLocalBus(busProvider);
 	private readonly bool _localRetriesEnabled = ResolveLocalRetriesEnabled(busOptionsMap, retryPolicy);
 
@@ -574,10 +575,28 @@ public sealed partial class FinalDispatchHandler(
 		{
 			cached = (single.Bus, single.UseNoOpPolicy);
 		}
-		else if (!_resolvedBusCache.TryGetValue(busName, out cached))
+		else
 		{
-			if (!busProvider.TryGet(busName, out var freshBus) || freshBus is null)
+			// Use GetOrAdd to avoid TOCTOU race between TryGetValue and TryAdd under concurrent dispatch.
+			// The factory may execute more than once for the same key (ConcurrentDictionary guarantee),
+			// but bus resolution is idempotent so this is safe.
+			cached = _resolvedBusCache.GetOrAdd(busName, key =>
 			{
+				if (!busProvider.TryGet(key, out var freshBus) || freshBus is null)
+				{
+					return default;
+				}
+
+				_ = busOptionsMap.TryGetValue(key, out var opts);
+				var isNoOp = !(opts?.EnableRetries == true && retryPolicy != null);
+				return (freshBus, isNoOp);
+			});
+
+			if (cached.Bus is null)
+			{
+				// Remove the default entry so future calls retry resolution
+				_resolvedBusCache.TryRemove(busName, out _);
+
 				LogNoMessageBusFound(_logger, busName);
 				var problemDetails = new MessageProblemDetails
 				{
@@ -595,11 +614,6 @@ public sealed partial class FinalDispatchHandler(
 					validationResult: context.ValidationResult() as IValidationResult,
 					authorizationResult: context.AuthorizationResult() as IAuthorizationResult));
 			}
-
-			_ = busOptionsMap.TryGetValue(busName, out var opts);
-			var isNoOp = !(opts?.EnableRetries == true && retryPolicy != null);
-			cached = (freshBus, isNoOp);
-			_ = _resolvedBusCache.TryAdd(busName, cached);
 		}
 
 		var resolvedBus = cached.Bus;
@@ -1032,7 +1046,7 @@ public sealed partial class FinalDispatchHandler(
 	}
 
 	private static bool ResolveLocalRetriesEnabled(
-		IDictionary<string, IMessageBusOptions> optionsMap,
+		IDictionary<string, MessageBusOptions> optionsMap,
 		IRetryPolicy? configuredRetryPolicy)
 	{
 		if (configuredRetryPolicy is null)
@@ -1049,7 +1063,7 @@ public sealed partial class FinalDispatchHandler(
 	/// </summary>
 	private static (IMessageBus Bus, bool UseNoOpPolicy, string Name)? ResolveSingleTransportBus(
 		IMessageBusProvider provider,
-		IDictionary<string, IMessageBusOptions> optionsMap,
+		IDictionary<string, MessageBusOptions> optionsMap,
 		IRetryPolicy? configuredRetryPolicy)
 	{
 		string? singleName = null;
@@ -1536,10 +1550,23 @@ public sealed partial class FinalDispatchHandler(
 
 
 	[RequiresUnreferencedCode("This method uses reflection to inspect generic interface types")]
-	private static Type? GetActionResultType(Type actionType) =>
-		ActionResultTypeCache.GetOrAdd(
-			actionType,
-			static type => ResolveActionResultType(type));
+	private static Type? GetActionResultType(Type actionType)
+	{
+		if (ActionResultTypeCache.TryGetValue(actionType, out var cached))
+		{
+			return cached;
+		}
+
+		var resultType = ResolveActionResultType(actionType);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (ActionResultTypeCache.Count < MaxCacheEntries)
+		{
+			ActionResultTypeCache.TryAdd(actionType, resultType);
+		}
+
+		return resultType;
+	}
 
 	private static Type? ResolveActionResultType(Type actionType)
 	{

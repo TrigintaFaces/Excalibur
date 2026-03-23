@@ -18,6 +18,6 @@ namespace Excalibur.Data;
 /// </remarks>
 /// <param name="connection"> The database connection to be used for operations. </param>
 /// <exception cref="ArgumentNullException"> Thrown if <paramref name="connection" /> is <c> null </c>. </exception>
-public sealed class DomainDb(IDbConnection connection) : Db(connection), IDomainDb
+public class DomainDb(IDbConnection connection) : Db(connection), IDomainDb
 {
 }

@@ -10,6 +10,8 @@ namespace Excalibur.Integration.Tests.Caching;
 
 // Public test types for Hypothesis 3 testing (private nested types may cause HybridCache issues)
 [CacheResult]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CacheTestQuery : IDispatchAction<CacheTestResult>, ICacheable<CacheTestResult>
 {
 	public int Id { get; init; }
@@ -32,11 +34,15 @@ public sealed class CacheTestQuery : IDispatchAction<CacheTestResult>, ICacheabl
 	public string[] GetCacheTags() => [];
 }
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CacheTestResult
 {
 	public int Value { get; init; }
 }
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CacheTestQueryHandler : IActionHandler<CacheTestQuery, CacheTestResult>
 {
 	public static int CallCount { get; set; }
@@ -49,6 +55,8 @@ public sealed class CacheTestQueryHandler : IActionHandler<CacheTestQuery, Cache
 }
 
 [Collection("CachingIntegrationTests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CacheResultAttributeWithICacheableIntegrationShould
 {
 	[Theory]
@@ -88,12 +96,12 @@ public sealed class CacheResultAttributeWithICacheableIntegrationShould
 		// Act - first call caches the result (fresh context)
 		var testMessage1 = new TestDispatchAction();
 		var context1 = new MessageContext(testMessage1, provider);
-		var result1 = await dispatcher.DispatchAsync<CacheTestQuery, CacheTestResult>(query, context1, CancellationToken.None).ConfigureAwait(true);
+		var result1 = await dispatcher.DispatchAsync<CacheTestQuery, CacheTestResult>(query, context1, CancellationToken.None);
 
 		// Act - second call should hit cache (fresh context to avoid state pollution)
 		var testMessage2 = new TestDispatchAction();
 		var context2 = new MessageContext(testMessage2, provider);
-		var result2 = await dispatcher.DispatchAsync<CacheTestQuery, CacheTestResult>(query, context2, CancellationToken.None).ConfigureAwait(true);
+		var result2 = await dispatcher.DispatchAsync<CacheTestQuery, CacheTestResult>(query, context2, CancellationToken.None);
 
 		// Assert
 		result1.Succeeded.ShouldBeTrue();

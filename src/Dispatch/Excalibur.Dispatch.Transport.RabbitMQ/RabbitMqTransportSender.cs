@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Transport.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 using RabbitMqBasicProperties = RabbitMQ.Client.BasicProperties;
 
@@ -90,7 +91,7 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 		catch (Exception ex)
 		{
 			LogSendFailed(message.Id, Destination, ex);
-			return SendResult.Failure(SendError.FromException(ex));
+			return SendResult.Failure(SendError.FromException(ex, isRetryable: IsTransientException(ex)));
 		}
 	}
 
@@ -181,6 +182,11 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 			properties.Type = message.MessageType;
 		}
 
+		if (message.CausationId is not null)
+		{
+			properties.Headers["causation-id"] = message.CausationId;
+		}
+
 		if (message.Subject is not null)
 		{
 			properties.Headers["subject"] = message.Subject;
@@ -220,6 +226,17 @@ internal sealed partial class RabbitMqTransportSender : ITransportSender
 
 		return _defaultRoutingKey;
 	}
+
+	/// <summary>
+	/// Classifies RabbitMQ exceptions as transient (retryable) or permanent.
+	/// </summary>
+	private static bool IsTransientException(Exception ex) => ex is
+		BrokerUnreachableException or         // Cannot reach the broker at all
+		AlreadyClosedException or              // Channel closed but connection may recover
+		OperationInterruptedException          // Channel/connection interrupted (may be recoverable)
+			{ ShutdownReason.ReplyCode: not 404 } // 404 = NOT_FOUND (queue/exchange doesn't exist) -> permanent
+		or System.IO.IOException               // Network-level I/O failure
+		or System.Net.Sockets.SocketException; // Socket-level connectivity failure
 
 	[LoggerMessage(RabbitMqEventId.TransportSenderMessageSent, LogLevel.Debug,
 		"RabbitMQ transport sender: message {MessageId} sent to {Destination}")]

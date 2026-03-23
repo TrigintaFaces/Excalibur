@@ -35,8 +35,12 @@ public static class PostgresInboxExtensions
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresInboxOptions>, PostgresInboxOptionsValidator>());
 		services.TryAddSingleton<PostgresInboxStore>();
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<PostgresInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("postgres"));
 
 		return services;
 	}
@@ -90,6 +94,8 @@ public static class PostgresInboxExtensions
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresInboxOptions>, PostgresInboxOptionsValidator>());
 		services.TryAddSingleton(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
@@ -97,7 +103,9 @@ public static class PostgresInboxExtensions
 			var logger = sp.GetRequiredService<ILogger<PostgresInboxStore>>();
 			return new PostgresInboxStore(connectionFactory, options, logger);
 		});
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<PostgresInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("postgres"));
 
 		return services;
 	}

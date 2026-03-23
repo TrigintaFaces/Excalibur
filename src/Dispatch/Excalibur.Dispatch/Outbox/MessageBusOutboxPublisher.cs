@@ -402,7 +402,18 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			var wrappedMessage = new OutboxDispatchMessage(message.Payload);
 			var destination = transport.Destination ?? message.Destination;
 
-			await adapter.SendAsync(wrappedMessage, destination, cancellationToken).ConfigureAwait(false);
+			var context = new MessageContext(wrappedMessage, _serviceProvider)
+			{
+				MessageId = message.Id,
+				CorrelationId = message.CorrelationId,
+			};
+
+			if (message.PartitionKey is not null)
+			{
+				context.GetOrCreateRoutingFeature().PartitionKey = message.PartitionKey;
+			}
+
+			await adapter.SendAsync(wrappedMessage, destination, context, cancellationToken).ConfigureAwait(false);
 
 			if (_multiTransportStore is not null)
 			{

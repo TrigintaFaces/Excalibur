@@ -7,7 +7,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Alerting;
 
-public class DefaultAuditAlertServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class DefaultAuditAlertServiceShould
 {
     private static DefaultAuditAlertService CreateSut(AuditAlertOptions? options = null)
     {

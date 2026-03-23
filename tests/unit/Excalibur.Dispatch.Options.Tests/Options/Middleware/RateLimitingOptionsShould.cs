@@ -54,7 +54,7 @@ public sealed class RateLimitingOptionsShould
 		var options = new RateLimitingOptions();
 
 		// Assert
-		options.DefaultLimit.Algorithm.ShouldBe(RateLimitAlgorithm.TokenBucket);
+		options.DefaultLimit.Algorithm.ShouldBe(MiddlewareRateLimitAlgorithm.TokenBucket);
 	}
 
 	[Fact]
@@ -175,7 +175,7 @@ public sealed class RateLimitingOptionsShould
 		var options = new RateLimitingOptions();
 		var newLimit = new RateLimitConfiguration
 		{
-			Algorithm = RateLimitAlgorithm.SlidingWindow,
+			Algorithm = MiddlewareRateLimitAlgorithm.SlidingWindow,
 			TokenLimit = 50,
 		};
 
@@ -193,7 +193,7 @@ public sealed class RateLimitingOptionsShould
 		var options = new RateLimitingOptions();
 		var newLimit = new RateLimitConfiguration
 		{
-			Algorithm = RateLimitAlgorithm.FixedWindow,
+			Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 			TokenLimit = 500,
 		};
 
@@ -275,7 +275,7 @@ public sealed class RateLimitingOptionsShould
 		{
 			DefaultLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.TokenBucket,
+				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 500,
 				ReplenishmentPeriod = TimeSpan.FromSeconds(1),
 				TokensPerPeriod = 500,

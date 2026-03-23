@@ -97,7 +97,7 @@ public static class PostgresHealthBasedLeaderElectionExtensions
 		services.TryAddSingleton<IHealthBasedLeaderElection>(sp =>
 			sp.GetRequiredService<PostgresHealthBasedLeaderElection>());
 
-		services.TryAddSingleton<ILeaderElection>(sp =>
+		services.AddKeyedSingleton<ILeaderElection>("postgres", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<PostgresHealthBasedLeaderElection>();
 			var meterFactory = sp.GetService<IMeterFactory>();
@@ -105,6 +105,8 @@ public static class PostgresHealthBasedLeaderElectionExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElection(inner, meter, activitySource, "Postgres.HealthBased");
 		});
+		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
 
 		return services;
 	}

@@ -12,17 +12,17 @@ public sealed class DataClassificationShould
 	[Fact]
 	public void DefineExpectedValues()
 	{
-		DataClassification.Public.ShouldBe((DataClassification)0);
-		DataClassification.Internal.ShouldBe((DataClassification)1);
-		DataClassification.Confidential.ShouldBe((DataClassification)2);
-		DataClassification.Restricted.ShouldBe((DataClassification)3);
-		DataClassification.PersonallyIdentifiable.ShouldBe((DataClassification)4);
-		DataClassification.HealthInformation.ShouldBe((DataClassification)5);
+		ElasticSearchDataClassification.Public.ShouldBe((ElasticSearchDataClassification)0);
+		ElasticSearchDataClassification.Internal.ShouldBe((ElasticSearchDataClassification)1);
+		ElasticSearchDataClassification.Confidential.ShouldBe((ElasticSearchDataClassification)2);
+		ElasticSearchDataClassification.Restricted.ShouldBe((ElasticSearchDataClassification)3);
+		ElasticSearchDataClassification.PersonallyIdentifiable.ShouldBe((ElasticSearchDataClassification)4);
+		ElasticSearchDataClassification.HealthInformation.ShouldBe((ElasticSearchDataClassification)5);
 	}
 
 	[Fact]
 	public void HaveExactlySixMembers()
 	{
-		Enum.GetValues<DataClassification>().Length.ShouldBe(6);
+		Enum.GetValues<ElasticSearchDataClassification>().Length.ShouldBe(6);
 	}
 }

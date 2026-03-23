@@ -12,6 +12,7 @@ namespace Excalibur.EventSourcing.Tests.DynamoDb;
 /// nested initializer syntax, backward-compatible shims, and DataAnnotations validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class DynamoDbEventStoreOptionsIspSplitShould
 {
 	#region Sub-Options Initialization

@@ -21,7 +21,7 @@ namespace Excalibur.Cdc.Firestore;
 /// including the reason code, affected positions, and original exception.
 /// </para>
 /// </remarks>
-public sealed class FirestoreStalePositionException : Exception
+public sealed class FirestoreStalePositionException : Excalibur.Cdc.CdcStalePositionException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FirestoreStalePositionException"/> class.
@@ -74,33 +74,6 @@ public sealed class FirestoreStalePositionException : Exception
 	{
 		EventArgs = eventArgs;
 	}
-
-	/// <summary>
-	/// Gets the event arguments containing details about the stale position scenario.
-	/// </summary>
-	/// <value>
-	/// The <see cref="CdcPositionResetEventArgs"/> with detailed information,
-	/// or <see langword="null"/> if not provided.
-	/// </value>
-	public CdcPositionResetEventArgs? EventArgs { get; }
-
-	/// <summary>
-	/// Gets the processor ID that detected the stale position.
-	/// </summary>
-	/// <value>The processor ID, or <see langword="null"/> if not available.</value>
-	public string? ProcessorId => EventArgs?.ProcessorId;
-
-	/// <summary>
-	/// Gets the reason code for the stale position.
-	/// </summary>
-	/// <value>The reason code, or <see langword="null"/> if not available.</value>
-	public string? ReasonCode => EventArgs?.ReasonCode;
-
-	/// <summary>
-	/// Gets the stale position bytes that were detected.
-	/// </summary>
-	/// <value>The stale position as bytes, or <see langword="null"/> if not available.</value>
-	public byte[]? StalePositionBytes => EventArgs?.StalePosition;
 
 	/// <summary>
 	/// Gets the gRPC status code that indicated the stale position.

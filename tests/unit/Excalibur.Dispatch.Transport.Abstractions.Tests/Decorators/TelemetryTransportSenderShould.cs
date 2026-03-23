@@ -7,6 +7,8 @@ using Excalibur.Dispatch.Transport.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Decorators;
 
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class TelemetryTransportSenderShould : IDisposable
 {
     private readonly Meter _meter;

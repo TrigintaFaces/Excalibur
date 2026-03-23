@@ -36,8 +36,8 @@ var app = builder.Build();
 // ============================================================================
 app.MapPost("/orders", async (CreateOrderCommand cmd, IDispatcher dispatcher, CancellationToken ct) =>
 {
-	var context = app.Services.CreateScope().ServiceProvider
-		.GetRequiredService<IMessageContext>();
+	using var scope = app.Services.CreateScope();
+	var context = scope.ServiceProvider.GetRequiredService<IMessageContext>();
 
 	var result = await dispatcher.DispatchAsync<CreateOrderCommand, Guid>(cmd, context, ct);
 
@@ -52,8 +52,8 @@ app.MapPost("/orders", async (CreateOrderCommand cmd, IDispatcher dispatcher, Ca
 // ============================================================================
 app.MapGet("/orders/{orderId:guid}", async (Guid orderId, IDispatcher dispatcher, CancellationToken ct) =>
 {
-	var context = app.Services.CreateScope().ServiceProvider
-		.GetRequiredService<IMessageContext>();
+	using var scope = app.Services.CreateScope();
+	var context = scope.ServiceProvider.GetRequiredService<IMessageContext>();
 
 	var query = new GetOrderQuery(orderId);
 	var result = await dispatcher.DispatchAsync<GetOrderQuery, OrderDetails?>(query, context, ct);
@@ -69,8 +69,8 @@ app.MapGet("/orders/{orderId:guid}", async (Guid orderId, IDispatcher dispatcher
 // ============================================================================
 app.MapPost("/orders/{orderId:guid}/ship", async (Guid orderId, IDispatcher dispatcher, CancellationToken ct) =>
 {
-	var context = app.Services.CreateScope().ServiceProvider
-		.GetRequiredService<IMessageContext>();
+	using var scope = app.Services.CreateScope();
+	var context = scope.ServiceProvider.GetRequiredService<IMessageContext>();
 
 	var evt = new OrderShippedEvent(orderId, DateTimeOffset.UtcNow);
 	var result = await dispatcher.DispatchAsync(evt, context, ct);

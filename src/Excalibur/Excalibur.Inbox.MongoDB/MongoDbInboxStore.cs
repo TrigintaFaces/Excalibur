@@ -4,6 +4,8 @@
 using Excalibur.Data.MongoDB.Diagnostics;
 using Excalibur.Dispatch.Abstractions;
 
+using Excalibur.Inbox.Observability;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -18,7 +20,7 @@ namespace Excalibur.Inbox.MongoDB;
 /// Uses InsertOneAsync with unique index on (messageId, handlerType) for atomic first-writer-wins semantics.
 /// Catches MongoWriteException with duplicate key error (11000) for conflict detection.
 /// </remarks>
-public sealed partial class MongoDbInboxStore : IInboxStore, IAsyncDisposable
+public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	private const int DuplicateKeyErrorCode = 11000;
 
@@ -85,6 +87,8 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentNullException.ThrowIfNull(payload);
 		ArgumentNullException.ThrowIfNull(metadata);
 
+		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
@@ -108,6 +112,8 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IAsyncDisposable
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -173,6 +179,8 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
+		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var id = MongoDbInboxDocument.CreateId(messageId, handlerType);
@@ -205,6 +213,8 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -297,14 +307,15 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IAsyncDisposable
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
+		using var activity = InboxActivitySource.StartCleanupActivity();
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var cutoff = DateTimeOffset.UtcNow - retentionPeriod;
 		var filter = Builders<MongoDbInboxDocument>.Filter.And(
 			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Status, (int)InboxStatus.Processed),
-			Builders<MongoDbInboxDocument>.Filter.Lt(d => d.ProcessedAt, cutoff));
+			Builders<MongoDbInboxDocument>.Filter.Lt(d => d.ProcessedAt, olderThan));
 
 		var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 

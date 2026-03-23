@@ -229,7 +229,7 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		// Zero retention removes all processed entries at or before the cleanup instant.
 		// Poll until the entry ages past the provider's cleanup cutoff to avoid same-tick flakiness.
 		var removed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			async () => await _store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false) > 0,
+			async () => await _store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false) > 0,
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
 			TimeSpan.FromMilliseconds(20));
 		removed.ShouldBeTrue();

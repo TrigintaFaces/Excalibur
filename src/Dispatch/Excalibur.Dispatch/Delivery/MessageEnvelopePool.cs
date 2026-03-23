@@ -17,6 +17,7 @@ public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 	private readonly IMessagePool _messagePool;
 	private readonly MessageEnvelopePoolOptions _options;
 	private readonly ThreadLocal<LocalPool> _threadLocalPool;
+	private readonly bool _diagnosticsEnabled;
 	private long _totalRentals;
 	private long _totalReturns;
 	private long _poolHits;
@@ -31,6 +32,7 @@ public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 	{
 		_messagePool = messagePool ?? throw new ArgumentNullException(nameof(messagePool));
 		_options = options ?? new MessageEnvelopePoolOptions();
+		_diagnosticsEnabled = _options.EnableTelemetry;
 		_threadLocalPool = new ThreadLocal<LocalPool>(() => new LocalPool(_options.ThreadLocalCacheSize), trackAllValues: true);
 	}
 
@@ -38,7 +40,10 @@ public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 	public MessageEnvelopeHandle<TMessage> Rent<TMessage>(TMessage message, in MessageMetadata metadata)
 		where TMessage : class, IDispatchMessage
 	{
-		_ = Interlocked.Increment(ref _totalRentals);
+		if (_diagnosticsEnabled)
+		{
+			_ = Interlocked.Increment(ref _totalRentals);
+		}
 
 		// Convert struct metadata to record metadata
 		var recordMetadata = metadata.ToRecordMetadata();
@@ -54,12 +59,19 @@ public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 		var localPool = _threadLocalPool.Value;
 		if (localPool.TryRent<TMessage>(out var cachedEnvelope))
 		{
-			_ = Interlocked.Increment(ref _poolHits);
+			if (_diagnosticsEnabled)
+			{
+				_ = Interlocked.Increment(ref _poolHits);
+			}
+
 			var updatedEnvelope = cachedEnvelope.WithMetadata(recordMetadata);
 			return new MessageEnvelopeHandle<TMessage>(updatedEnvelope, message, this);
 		}
 
-		_ = Interlocked.Increment(ref _poolMisses);
+		if (_diagnosticsEnabled)
+		{
+			_ = Interlocked.Increment(ref _poolMisses);
+		}
 		var newEnvelope = new MessageEnvelope<TMessage>(message, recordMetadata);
 		return new MessageEnvelopeHandle<TMessage>(newEnvelope, message, this);
 	}
@@ -72,7 +84,11 @@ public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 		var recordMetadata = metadata.ToRecordMetadata();
 		var envelope = new MessageEnvelope<TMessage>(message, recordMetadata, context);
 
-		_ = Interlocked.Increment(ref _totalRentals);
+		if (_diagnosticsEnabled)
+		{
+			_ = Interlocked.Increment(ref _totalRentals);
+		}
+
 		return new MessageEnvelopeHandle<TMessage>(envelope, typeof(TMessage).IsValueType ? default : message, this);
 	}
 
@@ -119,7 +135,10 @@ public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 			return;
 		}
 
-		_ = Interlocked.Increment(ref _totalReturns);
+		if (_diagnosticsEnabled)
+		{
+			_ = Interlocked.Increment(ref _totalReturns);
+		}
 
 		// Return to message pool
 		if (message is IPoolable poolable)

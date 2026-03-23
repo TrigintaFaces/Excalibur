@@ -166,6 +166,29 @@ if (execution.Success)
 }
 ```
 
+:::warning Partial Failure Handling
+If any contributor erasure fails, the request is marked `PartiallyCompleted` (not `Completed`). A compliance certificate is **not** generated for partially completed erasures. Monitor the `ErasurePartiallyCompleted` event (ID 92729) and retry or investigate failed contributors:
+
+```csharp
+var execution = await _erasureService.ExecuteAsync(requestId, ct);
+
+switch (execution.Status)
+{
+    case ErasureStatus.Completed:
+        // All contributors succeeded -- certificate available
+        break;
+    case ErasureStatus.PartiallyCompleted:
+        // Some contributors failed -- investigate and retry
+        _logger.LogWarning("Partial erasure: {Errors}", execution.Errors);
+        break;
+    case ErasureStatus.Failed:
+        // All contributors failed
+        _logger.LogError("Erasure failed completely for {RequestId}", requestId);
+        break;
+}
+```
+:::
+
 ### 5. Compliance Certificate
 
 Generate cryptographic proof of erasure:

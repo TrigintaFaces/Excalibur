@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Messaging;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class ChannelConsumeOptionsShould
+public sealed class ChannelConsumeOptionsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

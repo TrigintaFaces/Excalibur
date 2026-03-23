@@ -14,7 +14,7 @@ namespace Excalibur.EventSourcing.Health;
 /// Performs a lightweight probe by attempting to retrieve a snapshot for a non-existent
 /// aggregate. A successful null response proves connectivity and schema access.
 /// </remarks>
-public sealed class SnapshotStoreHealthCheck : IHealthCheck
+internal sealed class SnapshotStoreHealthCheck : IHealthCheck
 {
 	/// <summary>
 	/// Sentinel aggregate ID used for probing. Intentionally non-existent.

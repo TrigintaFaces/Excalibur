@@ -44,6 +44,8 @@ namespace Excalibur.Dispatch.Middleware.Logging;
 /// </remarks>
 public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 {
+	private const int MaxCacheEntries = 1024;
+
 	/// <summary>
 	/// OpenTelemetry Metrics.
 	/// </summary>
@@ -274,26 +276,39 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 	/// Determines the message kind for metrics categorization.
 	/// Results are cached per type name to avoid repeated string.Contains calls on the hot path.
 	/// </summary>
-	private static string DetermineMessageKind(string messageTypeName) =>
-		MessageKindCache.GetOrAdd(messageTypeName, static name =>
+	private static string DetermineMessageKind(string messageTypeName)
+	{
+		if (MessageKindCache.TryGetValue(messageTypeName, out var cached))
 		{
-			if (name.Contains("Command", StringComparison.Ordinal) || name.Contains("Query", StringComparison.Ordinal))
-			{
-				return "Action";
-			}
+			return cached;
+		}
 
-			if (name.Contains("Event", StringComparison.Ordinal))
-			{
-				return "Event";
-			}
+		string kind;
+		if (messageTypeName.Contains("Command", StringComparison.Ordinal) || messageTypeName.Contains("Query", StringComparison.Ordinal))
+		{
+			kind = "Action";
+		}
+		else if (messageTypeName.Contains("Event", StringComparison.Ordinal))
+		{
+			kind = "Event";
+		}
+		else if (messageTypeName.Contains("Document", StringComparison.Ordinal))
+		{
+			kind = "Document";
+		}
+		else
+		{
+			kind = "Unknown";
+		}
 
-			if (name.Contains("Document", StringComparison.Ordinal))
-			{
-				return "Document";
-			}
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (MessageKindCache.Count < MaxCacheEntries)
+		{
+			MessageKindCache.TryAdd(messageTypeName, kind);
+		}
 
-			return "Unknown";
-		});
+		return kind;
+	}
 
 	/// <summary>
 	/// Estimates the size of a message for metrics.

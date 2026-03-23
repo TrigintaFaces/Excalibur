@@ -6,7 +6,8 @@ using Excalibur.Domain.Model.ValueObjects;
 namespace Excalibur.Tests.Domain.Model.ValueObjects;
 
 [Trait("Category", "Unit")]
-public class MoneyFunctionalShould
+[Trait("Component", "Domain")]
+public sealed class MoneyFunctionalShould
 {
     [Fact]
     public void Arithmetic_Addition_ShouldWork()

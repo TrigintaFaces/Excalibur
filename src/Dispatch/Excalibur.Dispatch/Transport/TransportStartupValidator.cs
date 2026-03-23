@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Transport;
 /// to provide transport-specific validation logic.
 /// </para>
 /// </remarks>
-public sealed partial class TransportStartupValidator : IHostedService
+internal sealed partial class TransportStartupValidator : IHostedService
 {
 	private readonly TransportRegistry _transportRegistry;
 	private readonly TransportValidationOptions _options;
@@ -42,7 +42,7 @@ public sealed partial class TransportStartupValidator : IHostedService
 	/// <param name="options">The validation options.</param>
 	/// <param name="validators">Optional custom validators for transport options.</param>
 	/// <param name="logger">The logger.</param>
-	public TransportStartupValidator(
+	internal TransportStartupValidator(
 		TransportRegistry transportRegistry,
 		TransportValidationOptions options,
 		IEnumerable<ITransportOptionsValidator> validators,

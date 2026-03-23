@@ -55,7 +55,9 @@ public static class DynamoDbSagaExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DynamoDbSagaOptions>, DynamoDbSagaOptionsValidator>());
 
 		services.TryAddSingleton<DynamoDbSagaStore>();
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<DynamoDbSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("dynamodb"));
 
 		return services;
 	}
@@ -137,7 +139,9 @@ public static class DynamoDbSagaExtensions
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new DynamoDbSagaStore(client, options, logger, serializer);
 		});
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<DynamoDbSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("dynamodb"));
 
 		return services;
 	}

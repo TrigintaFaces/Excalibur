@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 /// Automatically provisions an Azure Service Bus emulator container for testing.
 /// </summary>
 [Trait("Category", "Integration")]
+[Trait("Component", "Transport")]
 [Trait("Transport", "AzureServiceBus")]
 // CA1001: Disposable fields are disposed via IAsyncLifetime.DisposeAsync -> DisposeTransportAsync pattern
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable", Justification = "Base class implements IAsyncLifetime which calls DisposeTransportAsync to dispose fields")]

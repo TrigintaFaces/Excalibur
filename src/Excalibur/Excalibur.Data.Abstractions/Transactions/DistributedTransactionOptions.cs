@@ -14,7 +14,7 @@ namespace Excalibur.Data.Abstractions.Transactions;
 /// Follows the <c>IOptions&lt;T&gt;</c> pattern from <c>Microsoft.Extensions.Options</c>.
 /// Property count: 4 (within the ≤10-property quality gate).
 /// </remarks>
-public class DistributedTransactionOptions
+public sealed class DistributedTransactionOptions
 {
 	/// <summary>
 	/// Gets or sets the timeout for the entire distributed transaction.

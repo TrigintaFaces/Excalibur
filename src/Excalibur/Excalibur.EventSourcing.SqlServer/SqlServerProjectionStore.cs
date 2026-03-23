@@ -4,6 +4,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 using Dapper;
 
@@ -32,9 +33,12 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed class SqlServerProjectionStore<TProjection> : IProjectionStore<TProjection>
+public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionStore<TProjection>
 	where TProjection : class
 {
+	[GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
+	private static partial Regex ValidTableNameRegex();
+
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _tableName;
 	private readonly ILogger<SqlServerProjectionStore<TProjection>> _logger;
@@ -79,7 +83,13 @@ public sealed class SqlServerProjectionStore<TProjection> : IProjectionStore<TPr
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_tableName = tableName ?? typeof(TProjection).Name;
+		var resolvedName = tableName ?? typeof(TProjection).Name;
+		if (!ValidTableNameRegex().IsMatch(resolvedName))
+		{
+			throw new ArgumentException($"Table name '{resolvedName}' contains invalid characters. Only alphanumeric characters and underscores are allowed.", nameof(tableName));
+		}
+
+		_tableName = resolvedName;
 		_jsonOptions = jsonOptions ?? new JsonSerializerOptions
 		{
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

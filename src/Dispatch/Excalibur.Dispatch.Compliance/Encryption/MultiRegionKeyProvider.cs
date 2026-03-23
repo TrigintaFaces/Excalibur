@@ -337,6 +337,8 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 			return;
 		}
 
+		_disposed = true;
+
 		_healthCheckCts.Cancel();
 
 		// Best-effort wait for background loop to observe cancellation without blocking with Task.Wait.
@@ -356,8 +358,6 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 		// Dispose providers if they are disposable
 		(_primaryProvider as IDisposable)?.Dispose();
 		(_secondaryProvider as IDisposable)?.Dispose();
-
-		_disposed = true;
 
 		LogDisposed();
 	}
@@ -409,9 +409,8 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 	private partial void LogCloudProviderNativeReplication(string providerName);
 
 	[LoggerMessage(LogLevel.Warning,
-		"InMemoryKeyManagementProvider detected. Direct key material synchronization not yet implemented. " +
-		"TODO: Future sprint will add IKeyMaterialExportable/IKeyMaterialImportable interfaces for " +
-		"providers that support key material export. Consider using cloud KMS for production.")]
+		"InMemoryKeyManagementProvider detected. Direct key material synchronization is not supported for in-memory providers. " +
+		"Use a cloud KMS provider (Azure Key Vault, AWS KMS, or Google Cloud KMS) for production multi-region key synchronization.")]
 	private partial void LogInMemoryProviderSyncDeferred();
 
 	[LoggerMessage(LogLevel.Debug,
@@ -549,7 +548,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 				// Check RPO threshold
 				await CheckRpoThresholdAsync(cancellationToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

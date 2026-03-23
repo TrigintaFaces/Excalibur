@@ -18,19 +18,21 @@ using Xunit.Abstractions;
 namespace Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch;
 
 [Collection(nameof(ElasticsearchHostTests))]
-public class HealthChecksBuilderExtensionsShould(ElasticsearchContainerFixture fixture, ITestOutputHelper output)
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class HealthChecksBuilderExtensionsShould(ElasticsearchContainerFixture fixture, ITestOutputHelper output)
 	: HostTestBase<ElasticsearchContainerFixture>(fixture, output)
 {
 	[Fact]
 	public async Task HealthCheckShouldReturnHealthyStatus()
 	{
 		// Arrange & Act
-		var result = await TestHost.Scenario(static scenario => _ = scenario.Get.Url("/health")).ConfigureAwait(true);
+		var result = await TestHost.Scenario(static scenario => _ = scenario.Get.Url("/health"));
 
 		// Assert
 		result.Context.Response.StatusCode.ShouldBe(200);
 
-		var content = await result.ReadAsTextAsync().ConfigureAwait(true);
+		var content = await result.ReadAsTextAsync();
 		content.ShouldContain("""
 			"status":"Healthy"
 			""");
@@ -57,7 +59,7 @@ public class HealthChecksBuilderExtensionsShould(ElasticsearchContainerFixture f
 						description = e.Value.Description,
 					}),
 				});
-				await context.Response.WriteAsync(json).ConfigureAwait(true);
+				await context.Response.WriteAsync(json);
 			},
 		});
 	}

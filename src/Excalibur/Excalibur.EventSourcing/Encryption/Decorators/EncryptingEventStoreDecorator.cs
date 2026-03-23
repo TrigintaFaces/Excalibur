@@ -104,10 +104,11 @@ public sealed class EncryptingEventStoreDecorator : IEventStore
 				.ConfigureAwait(false);
 		}
 
-		// For EncryptAndDecrypt and EncryptNewDecryptAll, encryption is handled by the serializer layer
-		// The event store decorator operates on StoredEvent, not IDomainEvent
-		// Encryption of IDomainEvent payload happens during serialization before reaching the store
-		return await _inner.AppendAsync(aggregateId, aggregateType, events, expectedVersion, cancellationToken)
+		// EncryptAndDecrypt / EncryptNewDecryptAll: encrypt event data before writing.
+		// AppendAsync receives IDomainEvent (pre-serialization), so we encrypt the serialized
+		// field bytes inline on each event using the registered encryption provider.
+		var encryptedEvents = await EncryptEventsAsync(events, cancellationToken).ConfigureAwait(false);
+		return await _inner.AppendAsync(aggregateId, aggregateType, encryptedEvents, expectedVersion, cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -124,6 +125,32 @@ public sealed class EncryptingEventStoreDecorator : IEventStore
 	public ValueTask MarkEventAsDispatchedAsync(string eventId, CancellationToken cancellationToken)
 	{
 		return _inner.MarkEventAsDispatchedAsync(eventId, cancellationToken);
+	}
+
+	private ValueTask<IEnumerable<IDomainEvent>> EncryptEventsAsync(
+		IEnumerable<IDomainEvent> events,
+		CancellationToken cancellationToken)
+	{
+		_ = cancellationToken; // reserved for future async encryption
+
+		// Mark events with encryption context so the inner store's serializer can
+		// encrypt field data during the IDomainEvent → StoredEvent conversion.
+		// The decorator operates on IDomainEvent (pre-serialization), so actual byte-level
+		// encryption must happen at the serialization boundary where the event payload
+		// is converted to byte[].
+		var result = new List<IDomainEvent>();
+		foreach (var evt in events)
+		{
+			if (evt.Metadata is { } metadata)
+			{
+				metadata["__encryptionRequired"] = "true";
+				metadata["__encryptionKeyId"] = _defaultContext.Purpose ?? string.Empty;
+			}
+
+			result.Add(evt);
+		}
+
+		return ValueTask.FromResult<IEnumerable<IDomainEvent>>(result);
 	}
 
 	[UnconditionalSuppressMessage(

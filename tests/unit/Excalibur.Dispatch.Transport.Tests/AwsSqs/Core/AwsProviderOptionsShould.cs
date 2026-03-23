@@ -22,7 +22,7 @@ public sealed class AwsProviderOptionsShould
 		options.Connection.UseLocalStack.ShouldBeFalse();
 		options.Connection.LocalStackUrl.ShouldNotBeNull();
 		options.Connection.LocalStackUrl!.ToString().ShouldBe("http://localhost:4566/");
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.Connection.ValidateOnStartup.ShouldBeTrue();
 		options.Consumer.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
@@ -67,12 +67,12 @@ public sealed class AwsProviderOptionsShould
 		// Arrange & Act
 		var options = new AwsProviderOptions
 		{
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			RequestTimeout = TimeSpan.FromSeconds(60),
 		};
 
 		// Assert
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 	}
 

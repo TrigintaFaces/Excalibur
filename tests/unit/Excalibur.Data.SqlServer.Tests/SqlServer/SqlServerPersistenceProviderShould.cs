@@ -88,7 +88,7 @@ public sealed class SqlServerPersistenceProviderShould : UnitTestBase
 	public async Task DisposeAsyncDoesNotThrow()
 	{
 		// Act & Assert
-		await Should.NotThrowAsync(() => _provider.DisposeAsync().AsTask()).ConfigureAwait(true);
+		await Should.NotThrowAsync(() => _provider.DisposeAsync().AsTask());
 	}
 
 	[Fact]

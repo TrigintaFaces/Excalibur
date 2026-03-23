@@ -10,6 +10,7 @@ namespace Excalibur.Saga.Tests.Faults;
 /// fault event creation from strings and exceptions, metadata capture, and validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class SagaFaultGeneratorFunctionalShould
 {
 	[Fact]

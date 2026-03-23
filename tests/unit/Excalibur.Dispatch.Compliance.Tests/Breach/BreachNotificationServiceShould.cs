@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Breach;
 
-public class BreachNotificationServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class BreachNotificationServiceShould
 {
     private readonly BreachNotificationService _sut;
     private readonly BreachNotificationOptions _options = new();

@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Task: Excalibur.Dispatch-qu9v
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class NoOpRetryPolicyShould
 {
 	#region Singleton Pattern Tests

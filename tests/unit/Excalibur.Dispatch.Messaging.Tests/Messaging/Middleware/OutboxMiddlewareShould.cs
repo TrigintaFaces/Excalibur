@@ -11,7 +11,7 @@ using Excalibur.Dispatch.Tests.TestFakes;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
-using OutboxOptions = Excalibur.Dispatch.Options.Middleware.OutboxOptions;
+using OutboxMiddlewareOptions = Excalibur.Dispatch.Options.Middleware.OutboxMiddlewareOptions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
@@ -33,11 +33,11 @@ public sealed class OutboxMiddlewareShould
 	}
 
 	private OutboxMiddleware CreateMiddleware(
-		OutboxOptions? options = null,
+		OutboxMiddlewareOptions? options = null,
 		IOutboxStore? outboxStore = null,
 		bool omitOutboxStore = false)
 	{
-		var opts = options ?? new OutboxOptions { Enabled = true };
+		var opts = options ?? new OutboxMiddlewareOptions { Enabled = true };
 		return new OutboxMiddleware(
 			MsOptions.Create(opts),
 			omitOutboxStore ? null : (outboxStore ?? _outboxStore),
@@ -73,7 +73,7 @@ public sealed class OutboxMiddlewareShould
 	public void ThrowArgumentNullException_WhenLoggerIsNull()
 	{
 		// Arrange
-		var options = MsOptions.Create(new OutboxOptions());
+		var options = MsOptions.Create(new OutboxMiddlewareOptions());
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -84,7 +84,7 @@ public sealed class OutboxMiddlewareShould
 	public void ThrowInvalidOperationException_WhenEnabledButNoOutboxStore()
 	{
 		// Arrange
-		var options = MsOptions.Create(new OutboxOptions { Enabled = true });
+		var options = MsOptions.Create(new OutboxMiddlewareOptions { Enabled = true });
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
@@ -95,7 +95,7 @@ public sealed class OutboxMiddlewareShould
 	public void ConstructSuccessfully_WhenDisabledWithoutOutboxStore()
 	{
 		// Arrange
-		var options = MsOptions.Create(new OutboxOptions { Enabled = false });
+		var options = MsOptions.Create(new OutboxMiddlewareOptions { Enabled = false });
 
 		// Act
 		var middleware = new OutboxMiddleware(options, outboxStore: null, _logger);
@@ -108,7 +108,7 @@ public sealed class OutboxMiddlewareShould
 	public void ConstructSuccessfully_WhenEnabledWithOutboxStore()
 	{
 		// Arrange
-		var options = MsOptions.Create(new OutboxOptions { Enabled = true });
+		var options = MsOptions.Create(new OutboxMiddlewareOptions { Enabled = true });
 
 		// Act
 		var middleware = new OutboxMiddleware(options, _outboxStore, _logger);
@@ -196,7 +196,7 @@ public sealed class OutboxMiddlewareShould
 	public async Task PassThroughDirectly_WhenDisabled()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new OutboxOptions { Enabled = false });
+		var middleware = CreateMiddleware(new OutboxMiddlewareOptions { Enabled = false });
 		var message = new FakeDispatchActionMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };
 		var wasCalled = new[] { false };
@@ -257,7 +257,7 @@ public sealed class OutboxMiddlewareShould
 	public async Task PassThroughDirectly_WhenMessageTypeIsInBypassList()
 	{
 		// Arrange
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			Enabled = true,
 			BypassOutboxForTypes = [nameof(FakeDispatchActionMessage)]
@@ -434,7 +434,7 @@ public sealed class OutboxMiddlewareShould
 	public async Task ApplyDefaultPriority_WhenOutboundMessageHasNoPriority()
 	{
 		// Arrange
-		var options = new OutboxOptions { Enabled = true, DefaultPriority = 5 };
+		var options = new OutboxMiddlewareOptions { Enabled = true, DefaultPriority = 5 };
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchActionMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };
@@ -461,7 +461,7 @@ public sealed class OutboxMiddlewareShould
 	public async Task NotOverridePriority_WhenOutboundMessageAlreadyHasPriority()
 	{
 		// Arrange
-		var options = new OutboxOptions { Enabled = true, DefaultPriority = 5 };
+		var options = new OutboxMiddlewareOptions { Enabled = true, DefaultPriority = 5 };
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchActionMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };
@@ -535,7 +535,7 @@ public sealed class OutboxMiddlewareShould
 	public async Task RethrowStagingError_WhenContinueOnStagingErrorIsFalse()
 	{
 		// Arrange
-		var options = new OutboxOptions { Enabled = true, ContinueOnStagingError = false };
+		var options = new OutboxMiddlewareOptions { Enabled = true, ContinueOnStagingError = false };
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchActionMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };
@@ -564,7 +564,7 @@ public sealed class OutboxMiddlewareShould
 	public async Task ContinueStaging_WhenContinueOnStagingErrorIsTrue()
 	{
 		// Arrange
-		var options = new OutboxOptions { Enabled = true, ContinueOnStagingError = true };
+		var options = new OutboxMiddlewareOptions { Enabled = true, ContinueOnStagingError = true };
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchActionMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };

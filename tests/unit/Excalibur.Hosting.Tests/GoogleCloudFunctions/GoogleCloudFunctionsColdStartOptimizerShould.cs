@@ -10,6 +10,7 @@ namespace Excalibur.Hosting.Tests.GoogleCloudFunctions;
 /// </summary>
 [Collection("EnvironmentVariableTests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 {
 	private readonly GoogleCloudFunctionsColdStartOptimizer _sut;
@@ -28,6 +29,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	{
 		// Arrange - Environment variable not set (default state)
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 
 		// Act
 		var result = _sut.IsEnabled;
@@ -39,8 +41,9 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	[Fact]
 	public void IsEnabled_ReturnsTrue_WhenInGcfEnvironment()
 	{
-		// Arrange
+		// Arrange - Both FUNCTION_NAME and FUNCTION_TARGET are required
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", "test-function");
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", "handler");
 
 		try
 		{
@@ -54,6 +57,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 		{
 			// Cleanup
 			Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+			Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 		}
 	}
 

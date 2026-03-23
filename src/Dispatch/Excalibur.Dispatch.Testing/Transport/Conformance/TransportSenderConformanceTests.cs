@@ -138,7 +138,7 @@ public abstract class TransportSenderConformanceTests
 			throw new InvalidOperationException(
 				"SendAsync should throw OperationCanceledException for cancelled token.");
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected
 		}

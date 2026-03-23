@@ -11,6 +11,7 @@ namespace Excalibur.Data.Tests.Postgres.Saga;
 /// Unit tests for <see cref="PostgresSagaOptions"/> configuration and validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class PostgresSagaOptionsShould : UnitTestBase
 {
 	#region Default Values Tests

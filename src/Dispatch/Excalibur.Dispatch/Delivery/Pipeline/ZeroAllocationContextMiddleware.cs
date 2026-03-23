@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <summary>
 /// Example zero-allocation middleware for context initialization.
 /// </summary>
-public sealed class ZeroAllocationContextMiddleware : ZeroAllocationMiddlewareBase
+internal sealed class ZeroAllocationContextMiddleware : ZeroAllocationMiddlewareBase
 {
 	/// <inheritdoc />
 	public override DispatchMiddlewareStage Stage => DispatchMiddlewareStage.PreProcessing;

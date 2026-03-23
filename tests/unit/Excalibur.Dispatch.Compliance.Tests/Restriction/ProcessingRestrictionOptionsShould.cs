@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Compliance.Restriction;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Restriction;
 
-public class ProcessingRestrictionOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class ProcessingRestrictionOptionsShould
 {
     [Fact]
     public void Have_30_day_default_restriction_duration()

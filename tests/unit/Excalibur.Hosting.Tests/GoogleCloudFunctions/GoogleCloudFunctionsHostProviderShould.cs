@@ -10,6 +10,7 @@ namespace Excalibur.Hosting.Tests.GoogleCloudFunctions;
 /// </summary>
 [Collection("EnvironmentVariableTests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 {
 	private readonly GoogleCloudFunctionsHostProvider _sut;
@@ -45,11 +46,12 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void IsAvailable_ReturnsTrue_WhenFunctionNameSet()
+	public void IsAvailable_ReturnsTrue_WhenFunctionNameAndTargetSet()
 	{
 		// Arrange
 		ClearGcfEnvironment();
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", "test-function");
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", "handler");
 
 		try
 		{
@@ -66,11 +68,12 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void IsAvailable_ReturnsTrue_WhenKServiceSet()
+	public void IsAvailable_ReturnsTrue_WhenKServiceAndKRevisionSet()
 	{
 		// Arrange
 		ClearGcfEnvironment();
 		Environment.SetEnvironmentVariable("K_SERVICE", "test-service");
+		Environment.SetEnvironmentVariable("K_REVISION", "test-revision-1");
 
 		try
 		{
@@ -178,7 +181,9 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 	private static void ClearGcfEnvironment()
 	{
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 		Environment.SetEnvironmentVariable("K_SERVICE", null);
+		Environment.SetEnvironmentVariable("K_REVISION", null);
 		Environment.SetEnvironmentVariable("GCLOUD_PROJECT", null);
 		Environment.SetEnvironmentVariable("GCP_PROJECT", null);
 	}

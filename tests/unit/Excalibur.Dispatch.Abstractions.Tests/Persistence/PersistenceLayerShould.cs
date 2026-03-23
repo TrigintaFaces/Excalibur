@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Abstractions.Tests.Persistence;
 /// Tests for persistence layer types and behaviors.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Abstractions")]
 public sealed class PersistenceLayerShould
 {
 	#region IntervalSnapshotStrategy Tests
@@ -404,7 +405,8 @@ public sealed class PersistenceLayerShould
 	public async Task InboxStoreGetsFailed()
 	{
 		// Arrange
-		var store = A.Fake<IInboxStore>();
+		// Sprint 680 T.11: GetFailedEntriesAsync moved to IInboxStoreAdmin
+		var store = A.Fake<IInboxStoreAdmin>();
 		var entry = new InboxEntry("msg-1", "FailedHandler", "FailedCommand", [1, 2, 3]);
 		entry.MarkFailed("Test error");
 		var entries = new List<InboxEntry> { entry };
@@ -422,13 +424,14 @@ public sealed class PersistenceLayerShould
 	public async Task InboxStoreCleansUp()
 	{
 		// Arrange
-		var store = A.Fake<IInboxStore>();
-		var retentionPeriod = TimeSpan.FromDays(30);
-		_ = A.CallTo(() => store.CleanupAsync(retentionPeriod, A<CancellationToken>._))
+		// Sprint 680 T.11: CleanupAsync moved to IInboxStoreAdmin
+		var store = A.Fake<IInboxStoreAdmin>();
+		var olderThan = DateTimeOffset.UtcNow.AddDays(-30);
+		_ = A.CallTo(() => store.CleanupAsync(A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new ValueTask<int>(100));
 
 		// Act
-		var removed = await store.CleanupAsync(retentionPeriod, CancellationToken.None).ConfigureAwait(false);
+		var removed = await store.CleanupAsync(olderThan, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		removed.ShouldBe(100);

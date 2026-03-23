@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for InvalidateCacheAttribute.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class InvalidateCacheAttributeShould : UnitTestBase
 {
 	[Fact]

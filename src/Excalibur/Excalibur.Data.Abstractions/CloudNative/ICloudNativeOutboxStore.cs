@@ -5,18 +5,22 @@
 namespace Excalibur.Data.Abstractions.CloudNative;
 
 /// <summary>
-/// Defines outbox operations optimized for cloud-native databases.
+/// Defines outbox operations optimized for cloud-native databases that use change-feed
+/// triggers rather than background polling.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This interface provides serverless-friendly outbox pattern implementation:
-/// <list type="bullet">
-/// <item>No background service required - uses change feed triggers</item>
-/// <item>Transactional batch support within partitions</item>
-/// <item>Idempotent message processing</item>
-/// <item>Cost-aware operations with RU tracking</item>
-/// </list>
+/// <strong>Relationship to <c>IOutboxStore</c>:</strong>
+/// This interface is intentionally separate from
+/// <c>Excalibur.Dispatch.Abstractions.IOutboxStore</c>. The two serve fundamentally
+/// different outbox patterns:
 /// </para>
+/// <list type="bullet">
+/// <item><c>IOutboxStore</c> -- traditional polling-based outbox for SQL Server, Postgres, MongoDB.
+///   Uses <c>OutboxBackgroundService</c> and SQL transactions.</item>
+/// <item><c>ICloudNativeOutboxStore</c> -- serverless outbox for Cosmos DB, DynamoDB, Firestore.
+///   Uses change-feed triggers, partition keys, and cloud-native batching.</item>
+/// </list>
 /// <para>
 /// <strong>Serverless Pattern:</strong>
 /// <code>
@@ -40,7 +44,7 @@ public interface ICloudNativeOutboxStore
 	/// <summary>
 	/// Gets the underlying cloud provider type.
 	/// </summary>
-	CloudProviderType ProviderType { get; }
+	CloudPersistenceProviderType ProviderType { get; }
 
 	/// <summary>
 	/// Adds a message to the outbox within a transactional batch.

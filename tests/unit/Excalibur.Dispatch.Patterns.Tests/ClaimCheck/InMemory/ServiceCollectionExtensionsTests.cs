@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck.InMemory;
 /// Unit tests for <see cref="ServiceCollectionExtensions"/> DI registration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Patterns")]
 public sealed class ServiceCollectionExtensionsTests
 {
 	[Fact]

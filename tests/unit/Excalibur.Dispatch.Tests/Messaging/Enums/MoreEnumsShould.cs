@@ -71,12 +71,12 @@ public sealed class MoreEnumsShould
 	// --- Middleware enums ---
 
 	[Fact]
-	public void RateLimitAlgorithm_HaveExpectedValues()
+	public void MiddlewareRateLimitAlgorithm_HaveExpectedValues()
 	{
-		RateLimitAlgorithm.TokenBucket.ShouldBe((RateLimitAlgorithm)0);
-		RateLimitAlgorithm.SlidingWindow.ShouldBe((RateLimitAlgorithm)1);
-		RateLimitAlgorithm.FixedWindow.ShouldBe((RateLimitAlgorithm)2);
-		RateLimitAlgorithm.Concurrency.ShouldBe((RateLimitAlgorithm)3);
+		MiddlewareRateLimitAlgorithm.TokenBucket.ShouldBe((MiddlewareRateLimitAlgorithm)0);
+		MiddlewareRateLimitAlgorithm.SlidingWindow.ShouldBe((MiddlewareRateLimitAlgorithm)1);
+		MiddlewareRateLimitAlgorithm.FixedWindow.ShouldBe((MiddlewareRateLimitAlgorithm)2);
+		MiddlewareRateLimitAlgorithm.Concurrency.ShouldBe((MiddlewareRateLimitAlgorithm)3);
 	}
 
 	[Fact]

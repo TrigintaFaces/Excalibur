@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="IOutboxBuilder"/> implementation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class OutboxBuilderShould : UnitTestBase
 {
 	#region WithProcessing Tests

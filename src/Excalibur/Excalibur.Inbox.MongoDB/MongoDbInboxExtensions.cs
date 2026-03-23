@@ -36,7 +36,9 @@ public static class MongoDbInboxExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<MongoDbInboxStore>();
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<MongoDbInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("mongodb"));
 
 		return services;
 	}
@@ -91,7 +93,9 @@ public static class MongoDbInboxExtensions
 			var logger = sp.GetRequiredService<ILogger<MongoDbInboxStore>>();
 			return new MongoDbInboxStore(client, options, logger);
 		});
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<MongoDbInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("mongodb"));
 
 		return services;
 	}

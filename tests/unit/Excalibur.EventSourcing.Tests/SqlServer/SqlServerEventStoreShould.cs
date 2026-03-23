@@ -12,6 +12,7 @@ namespace Excalibur.EventSourcing.Tests.SqlServer;
 /// Unit tests for the <see cref="SqlServerEventStore"/> class focusing on dual-constructor pattern.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class SqlServerEventStoreShould : UnitTestBase
 {
 	private readonly ILogger<SqlServerEventStore> _logger = NullLoggerFactory.CreateLogger<SqlServerEventStore>();

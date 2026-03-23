@@ -62,7 +62,7 @@ public static class SqlServerLeaderElectionHealthCheckExtensions
 		return builder.Add(new HealthCheckRegistration(
 			name ?? DefaultName,
 			sp => new LeaderElectionHealthCheck(
-				sp.GetRequiredService<ILeaderElection>()),
+				sp.GetRequiredKeyedService<ILeaderElection>("default")),
 			failureStatus,
 			tags ?? DefaultTags));
 	}

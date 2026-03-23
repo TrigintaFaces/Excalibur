@@ -5,6 +5,8 @@ using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Abstractions;
 
+using Excalibur.Inbox.Observability;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -23,7 +25,7 @@ namespace Excalibur.Inbox.InMemory;
 /// This store is intended for testing scenarios only. Data is lost on application restart.
 /// </para>
 /// </remarks>
-public sealed class InMemoryInboxStore : IInboxStore, IAsyncDisposable, IDisposable
+public sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, InboxEntry> _entries = new(StringComparer.Ordinal);
 	private readonly InMemoryInboxOptions _options;
@@ -62,6 +64,8 @@ public sealed class InMemoryInboxStore : IInboxStore, IAsyncDisposable, IDisposa
 		ArgumentNullException.ThrowIfNull(metadata);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
+		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
+
 		var key = GetKey(messageId, handlerType);
 
 		// Enforce capacity limits before attempting to add
@@ -91,6 +95,8 @@ public sealed class InMemoryInboxStore : IInboxStore, IAsyncDisposable, IDisposa
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
 		var key = GetKey(messageId, handlerType);
 
@@ -153,6 +159,8 @@ public sealed class InMemoryInboxStore : IInboxStore, IAsyncDisposable, IDisposa
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
+		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
+
 		var key = GetKey(messageId, handlerType);
 		var isProcessed = _entries.TryGetValue(key, out var entry) &&
 						  entry.Status == InboxStatus.Processed;
@@ -180,6 +188,8 @@ public sealed class InMemoryInboxStore : IInboxStore, IAsyncDisposable, IDisposa
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
 		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		var key = GetKey(messageId, handlerType);
 
@@ -300,25 +310,26 @@ public sealed class InMemoryInboxStore : IInboxStore, IAsyncDisposable, IDisposa
 	}
 
 	/// <inheritdoc/>
-	public ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		var cutoffDate = DateTimeOffset.UtcNow - retentionPeriod;
+		using var activity = InboxActivitySource.StartCleanupActivity();
+
 		var count = 0;
 
 		foreach (var kvp in _entries.ToArray())
 		{
 			var entry = kvp.Value;
 			if (entry is { Status: InboxStatus.Processed, ProcessedAt: not null } &&
-				entry.ProcessedAt.Value <= cutoffDate && _entries.TryRemove(kvp.Key, out _))
+				entry.ProcessedAt.Value <= olderThan && _entries.TryRemove(kvp.Key, out _))
 			{
 				count++;
 			}
 		}
 
 		_logger.LogInformation("Cleaned up {Count} processed inbox entries older than {CutoffDate}",
-			count, cutoffDate);
+			count, olderThan);
 
 		return new ValueTask<int>(count);
 	}

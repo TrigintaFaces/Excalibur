@@ -12,7 +12,8 @@ using Shouldly;
 namespace Excalibur.LeaderElection.Tests.Kubernetes;
 
 [Trait("Category", "Unit")]
-public class KubernetesLeaderElectionFactoryShould
+[Trait("Component", "Core")]
+public sealed class KubernetesLeaderElectionFactoryShould
 {
 	[Fact]
 	public void Implement_ILeaderElectionFactory()

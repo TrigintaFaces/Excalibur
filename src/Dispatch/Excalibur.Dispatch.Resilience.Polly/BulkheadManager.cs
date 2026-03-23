@@ -16,13 +16,9 @@ internal sealed class BulkheadManager(ILogger<BulkheadManager> logger)
 	private readonly Dictionary<string, IBulkheadPolicy> _bulkheads = [];
 	private readonly ILogger<BulkheadManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 
 	/// <summary>

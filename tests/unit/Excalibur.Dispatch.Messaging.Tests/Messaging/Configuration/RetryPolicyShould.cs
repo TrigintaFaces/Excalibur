@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Options.Configuration;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 
 /// <summary>
-/// Unit tests for <see cref="RetryPolicy"/>.
+/// Unit tests for <see cref="DispatchRetryOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -16,7 +16,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultMaxAttemptsOfThree()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(3);
@@ -26,7 +26,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultInitialDelayOfOneSecond()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Assert
 		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(1));
@@ -36,7 +36,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultMaxDelayOfOneMinute()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Assert
 		policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
@@ -46,7 +46,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultBackoffMultiplierOfTwo()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Assert
 		policy.BackoffMultiplier.ShouldBe(2.0);
@@ -56,7 +56,7 @@ public sealed class RetryPolicyShould
 	public void HaveUseExponentialBackoffEnabledByDefault()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Assert
 		policy.UseExponentialBackoff.ShouldBeTrue();
@@ -72,7 +72,7 @@ public sealed class RetryPolicyShould
 	public void AllowSettingMaxAttempts(int maxAttempts)
 	{
 		// Arrange
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Act
 		policy.MaxAttempts = maxAttempts;
@@ -85,7 +85,7 @@ public sealed class RetryPolicyShould
 	public void AllowSettingInitialDelay()
 	{
 		// Arrange
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 		var delay = TimeSpan.FromMilliseconds(500);
 
 		// Act
@@ -99,7 +99,7 @@ public sealed class RetryPolicyShould
 	public void AllowSettingMaxDelay()
 	{
 		// Arrange
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 		var maxDelay = TimeSpan.FromMinutes(5);
 
 		// Act
@@ -118,7 +118,7 @@ public sealed class RetryPolicyShould
 	public void AllowSettingBackoffMultiplier(double multiplier)
 	{
 		// Arrange
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Act
 		policy.BackoffMultiplier = multiplier;
@@ -131,7 +131,7 @@ public sealed class RetryPolicyShould
 	public void AllowSettingUseExponentialBackoff()
 	{
 		// Arrange
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Act
 		policy.UseExponentialBackoff = false;
@@ -144,7 +144,7 @@ public sealed class RetryPolicyShould
 	public void SupportObjectInitializer()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy
+		var policy = new DispatchRetryOptions
 		{
 			MaxAttempts = 5,
 			InitialDelay = TimeSpan.FromMilliseconds(250),
@@ -165,7 +165,7 @@ public sealed class RetryPolicyShould
 	public void AllowZeroInitialDelay()
 	{
 		// Arrange
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Act
 		policy.InitialDelay = TimeSpan.Zero;
@@ -178,7 +178,7 @@ public sealed class RetryPolicyShould
 	public void AllowZeroMaxDelay()
 	{
 		// Arrange
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Act
 		policy.MaxDelay = TimeSpan.Zero;
@@ -191,7 +191,7 @@ public sealed class RetryPolicyShould
 	public void AllowBackoffMultiplierOfOne()
 	{
 		// Arrange - Multiplier of 1 means no backoff increase
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Act
 		policy.BackoffMultiplier = 1.0;
@@ -204,7 +204,7 @@ public sealed class RetryPolicyShould
 	public void AllowBackoffMultiplierLessThanOne()
 	{
 		// Arrange - Values less than 1 would decrease delay (unusual but allowed)
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Act
 		policy.BackoffMultiplier = 0.5;
@@ -217,7 +217,7 @@ public sealed class RetryPolicyShould
 	public void SimulateTypicalAggressiveRetryPolicy()
 	{
 		// Arrange & Act - Aggressive retry for critical operations
-		var policy = new RetryPolicy
+		var policy = new DispatchRetryOptions
 		{
 			MaxAttempts = 10,
 			InitialDelay = TimeSpan.FromMilliseconds(100),
@@ -236,7 +236,7 @@ public sealed class RetryPolicyShould
 	public void SimulateTypicalConservativeRetryPolicy()
 	{
 		// Arrange & Act - Conservative retry to avoid overloading
-		var policy = new RetryPolicy
+		var policy = new DispatchRetryOptions
 		{
 			MaxAttempts = 2,
 			InitialDelay = TimeSpan.FromSeconds(5),
@@ -255,7 +255,7 @@ public sealed class RetryPolicyShould
 	public void SimulateTypicalFixedDelayRetryPolicy()
 	{
 		// Arrange & Act - Fixed delay (no exponential backoff)
-		var policy = new RetryPolicy
+		var policy = new DispatchRetryOptions
 		{
 			MaxAttempts = 5,
 			InitialDelay = TimeSpan.FromSeconds(1),
@@ -270,7 +270,7 @@ public sealed class RetryPolicyShould
 	public void SimulateTypicalNoRetryPolicy()
 	{
 		// Arrange & Act - No retries (immediate failure)
-		var policy = new RetryPolicy
+		var policy = new DispatchRetryOptions
 		{
 			MaxAttempts = 0,
 		};

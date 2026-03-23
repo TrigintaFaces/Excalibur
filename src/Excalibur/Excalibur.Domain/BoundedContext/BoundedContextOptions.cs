@@ -11,7 +11,7 @@ namespace Excalibur.Domain.BoundedContext;
 /// Follows the <c>IOptions&lt;T&gt;</c> pattern from <c>Microsoft.Extensions.Options</c>.
 /// Property count: 3 (within the ≤10-property quality gate).
 /// </remarks>
-public class BoundedContextOptions
+public sealed class BoundedContextOptions
 {
 	/// <summary>
 	/// Gets or sets the enforcement mode for boundary violations.

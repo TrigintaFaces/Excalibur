@@ -309,16 +309,10 @@ internal sealed partial class AdvancedPoisonMessageDetector : IPoisonMessageDete
 		message = MyRegex().Replace(message, "[GUID]");
 
 		// Remove numbers
-		message = Regex.Replace(
-			message,
-			@"\d+",
-			"[NUM]");
+		message = NumberRegex().Replace(message, "[NUM]");
 
 		// Remove timestamps
-		message = Regex.Replace(
-			message,
-			@"\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}",
-			"[TIMESTAMP]");
+		message = TimestampRegex().Replace(message, "[TIMESTAMP]");
 
 		return message.Length > 100 ? message.Substring(0, 100) : message;
 	}
@@ -337,6 +331,12 @@ internal sealed partial class AdvancedPoisonMessageDetector : IPoisonMessageDete
 
 	[GeneratedRegex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")]
 	private static partial Regex MyRegex();
+
+	[GeneratedRegex(@"\d+")]
+	private static partial Regex NumberRegex();
+
+	[GeneratedRegex(@"\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}")]
+	private static partial Regex TimestampRegex();
 
 	private void InitializeDefaultRules()
 	{

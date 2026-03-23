@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Observability.Sampling;
 /// </remarks>
 /// <param name="sampler">The trace sampler to use for sampling decisions.</param>
 [AppliesTo(MessageKinds.All)]
-public sealed class TraceSamplerMiddleware(ITraceSampler sampler) : IDispatchMiddleware
+internal sealed class TraceSamplerMiddleware(ITraceSampler sampler) : IDispatchMiddleware
 {
 	private readonly ITraceSampler _sampler = sampler ?? throw new ArgumentNullException(nameof(sampler));
 

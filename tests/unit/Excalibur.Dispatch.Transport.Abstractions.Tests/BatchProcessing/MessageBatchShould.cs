@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.BatchProcessing;
 
-public class MessageBatchShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class MessageBatchShould
 {
     [Fact]
     public void Should_Generate_Unique_BatchId_By_Default()

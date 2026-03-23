@@ -13,8 +13,7 @@ namespace Excalibur.Data.DataProcessing.Exceptions;
 /// This exception ensures that the system has a one-to-one mapping between record types and data processor implementations, avoiding
 /// ambiguity and conflicts during data processing.
 /// </remarks>
-[Serializable]
-public class MultipleDataProcessorException : ApiException
+public sealed class MultipleDataProcessorException : ApiException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MultipleDataProcessorException" /> class.
@@ -61,5 +60,5 @@ public class MultipleDataProcessorException : ApiException
 	/// Gets or sets the record type for which multiple processors were found.
 	/// </summary>
 	/// <value> A string representing the record type. </value>
-	public string RecordType { get; protected set; }
+	public string RecordType { get; private set; }
 }

@@ -5,7 +5,9 @@ using Tests.Shared.Fixtures;
 namespace Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
 
 [CollectionDefinition(nameof(ElasticsearchHostTests), DisableParallelization = true)]
-public class ElasticsearchHostTests : ICollectionFixture<ElasticsearchContainerFixture>
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class ElasticsearchHostTests : ICollectionFixture<ElasticsearchContainerFixture>
 {
 	// No code inside, just for xUnit to recognize the shared collection.
 }

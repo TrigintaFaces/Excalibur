@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.BatchProcessing;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class ProcessingErrorShould
+public sealed class ProcessingErrorShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()
@@ -17,7 +17,7 @@ public class ProcessingErrorShould
 
         error.Code.ShouldBe(string.Empty);
         error.Message.ShouldBe(string.Empty);
-        error.Severity.ShouldBe(default(ErrorSeverity));
+        error.Severity.ShouldBe(default(BatchErrorSeverity));
         error.OccurredAt.ShouldNotBe(default);
         error.MessageId.ShouldBeNull();
         error.Exception.ShouldBeNull();
@@ -57,11 +57,11 @@ public class ProcessingErrorShould
     }
 
     [Theory]
-    [InlineData(ErrorSeverity.Info)]
-    [InlineData(ErrorSeverity.Warning)]
-    [InlineData(ErrorSeverity.Error)]
-    [InlineData(ErrorSeverity.Critical)]
-    public void AllowSettingSeverity(ErrorSeverity severity)
+    [InlineData(BatchErrorSeverity.Info)]
+    [InlineData(BatchErrorSeverity.Warning)]
+    [InlineData(BatchErrorSeverity.Error)]
+    [InlineData(BatchErrorSeverity.Critical)]
+    public void AllowSettingSeverity(BatchErrorSeverity severity)
     {
         var error = new ProcessingError { Severity = severity };
 
@@ -102,13 +102,13 @@ public class ProcessingErrorShould
         {
             Code = "RATE_LIMIT",
             Message = "Rate limit exceeded for message processing",
-            Severity = ErrorSeverity.Warning,
+            Severity = BatchErrorSeverity.Warning,
             MessageId = "msg-456"
         };
 
         error.Code.ShouldBe("RATE_LIMIT");
         error.Message.ShouldBe("Rate limit exceeded for message processing");
-        error.Severity.ShouldBe(ErrorSeverity.Warning);
+        error.Severity.ShouldBe(BatchErrorSeverity.Warning);
         error.MessageId.ShouldBe("msg-456");
         error.Exception.ShouldBeNull();
     }
@@ -123,7 +123,7 @@ public class ProcessingErrorShould
         {
             Code = "CRITICAL_FAILURE",
             Message = "System encountered a critical error during batch processing",
-            Severity = ErrorSeverity.Critical,
+            Severity = BatchErrorSeverity.Critical,
             OccurredAt = timestamp,
             MessageId = "msg-789",
             Exception = ex
@@ -131,7 +131,7 @@ public class ProcessingErrorShould
 
         error.Code.ShouldBe("CRITICAL_FAILURE");
         error.Message.ShouldBe("System encountered a critical error during batch processing");
-        error.Severity.ShouldBe(ErrorSeverity.Critical);
+        error.Severity.ShouldBe(BatchErrorSeverity.Critical);
         error.OccurredAt.ShouldBe(timestamp);
         error.MessageId.ShouldBe("msg-789");
         error.Exception.ShouldBe(ex);
@@ -144,12 +144,12 @@ public class ProcessingErrorShould
         {
             Code = "BATCH_TIMEOUT",
             Message = "Batch processing exceeded maximum time limit",
-            Severity = ErrorSeverity.Error
+            Severity = BatchErrorSeverity.Error
         };
 
         error.Code.ShouldBe("BATCH_TIMEOUT");
         error.Message.ShouldBe("Batch processing exceeded maximum time limit");
-        error.Severity.ShouldBe(ErrorSeverity.Error);
+        error.Severity.ShouldBe(BatchErrorSeverity.Error);
         error.MessageId.ShouldBeNull();
     }
 }

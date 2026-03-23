@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests.SqlServer.Requests;
 /// Unit tests for <see cref="MarkTransportSkippedRequest"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class MarkTransportSkippedRequestShould : UnitTestBase
 {
 	private const string TestTableName = "[dbo].[OutboxMessageTransports]";

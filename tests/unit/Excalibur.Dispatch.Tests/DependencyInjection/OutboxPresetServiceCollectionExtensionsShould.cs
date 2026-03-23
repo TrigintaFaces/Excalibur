@@ -16,10 +16,10 @@ namespace Excalibur.Dispatch.Tests.DependencyInjection;
 [Trait("Component", "Core")]
 public sealed class OutboxPresetServiceCollectionExtensionsShould
 {
-	private static OutboxOptions ResolveOptions(IServiceCollection services)
+	private static OutboxDeliveryOptions ResolveOptions(IServiceCollection services)
 	{
 		var provider = services.BuildServiceProvider();
-		return provider.GetRequiredService<IOptions<OutboxOptions>>().Value;
+		return provider.GetRequiredService<IOptions<OutboxDeliveryOptions>>().Value;
 	}
 
 	// --- HighThroughput ---

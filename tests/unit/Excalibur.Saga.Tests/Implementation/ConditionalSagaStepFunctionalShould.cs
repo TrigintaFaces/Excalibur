@@ -15,6 +15,7 @@ namespace Excalibur.Saga.Tests.Implementation;
 /// context-driven branching, chained conditional steps, and compensation workflows.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class ConditionalSagaStepFunctionalShould
 {
 	[Fact]

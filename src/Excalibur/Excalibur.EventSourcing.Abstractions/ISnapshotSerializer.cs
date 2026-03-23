@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing.Abstractions;
 
 /// <summary>
@@ -21,6 +23,8 @@ public interface ISnapshotSerializer
 	/// <typeparam name="TState">The type of the aggregate state.</typeparam>
 	/// <param name="state">The aggregate state to serialize.</param>
 	/// <returns>The serialized snapshot data.</returns>
+	[RequiresDynamicCode("JSON serialization of snapshot state requires dynamic code generation for type inspection and property access")]
+	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	byte[] Serialize<TState>(TState state);
 
 	/// <summary>
@@ -29,5 +33,7 @@ public interface ISnapshotSerializer
 	/// <typeparam name="TState">The type of the aggregate state.</typeparam>
 	/// <param name="data">The snapshot data to deserialize.</param>
 	/// <returns>The deserialized aggregate state.</returns>
+	[RequiresDynamicCode("JSON deserialization of snapshot state requires dynamic code generation for type inspection and property access")]
+	[RequiresUnreferencedCode("JSON deserialization may reference types not preserved during trimming")]
 	TState Deserialize<TState>(byte[] data);
 }

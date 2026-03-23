@@ -64,19 +64,19 @@ public class SagaState
 	/// Gets or sets when the saga started.
 	/// </summary>
 	/// <value>when the saga started.</value>
-	public DateTime StartedAt { get; set; }
+	public DateTimeOffset StartedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the saga completed.
 	/// </summary>
 	/// <value>when the saga completed.</value>
-	public DateTime? CompletedAt { get; set; }
+	public DateTimeOffset? CompletedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets the last update time.
 	/// </summary>
 	/// <value>the last update time.</value>
-	public DateTime LastUpdatedAt { get; set; }
+	public DateTimeOffset LastUpdatedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets the error message.

@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Unit tests for <see cref="RotatingEncryptionProvider"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class RotatingEncryptionProviderShould : IDisposable
 {
 	private readonly InMemoryKeyManagementProvider _keyManagement;

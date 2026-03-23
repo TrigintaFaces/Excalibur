@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.Erasure;
 
-public class InMemoryLegalHoldStoreShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class InMemoryLegalHoldStoreShould
 {
     private readonly InMemoryLegalHoldStore _sut = new();
 

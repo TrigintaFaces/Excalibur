@@ -62,11 +62,13 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 		// Act — use fully-qualified call to target DispatchSecurityServiceCollectionExtensions
 		DispatchSecurityServiceCollectionExtensions.AddDispatchSecurity(services, config);
 
-		// Assert — credential management, input validation, auditing
+		// Assert — credential management, input validation middleware, auditing
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecureCredentialProvider));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecurityEventLogger));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecurityEventStore));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IInputValidator));
+		// IInputValidator is a consumer extension point -- no defaults registered
+		services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware) &&
+			sd.ImplementationType == typeof(InputValidationMiddleware));
 	}
 
 	[Fact]
@@ -127,7 +129,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 	}
 
 	[Fact]
-	public void AddInputValidation_RegistersAllSixDefaultValidators()
+	public void AddInputValidation_RegistersNoDefaultValidators()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -136,18 +138,12 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 		// Act
 		services.AddInputValidation(config);
 
-		// Assert — should register SqlInjection, Xss, PathTraversal, CommandInjection, DataSize, MessageAge
-		var validatorTypes = services
+		// Assert — IInputValidator is a consumer extension point, no default validators registered
+		var validatorRegistrations = services
 			.Where(sd => sd.ServiceType == typeof(IInputValidator))
-			.Select(sd => sd.ImplementationType)
 			.ToList();
 
-		validatorTypes.ShouldContain(typeof(SqlInjectionValidator));
-		validatorTypes.ShouldContain(typeof(XssValidator));
-		validatorTypes.ShouldContain(typeof(PathTraversalValidator));
-		validatorTypes.ShouldContain(typeof(CommandInjectionValidator));
-		validatorTypes.ShouldContain(typeof(DataSizeValidator));
-		validatorTypes.ShouldContain(typeof(MessageAgeValidator));
+		validatorRegistrations.ShouldBeEmpty();
 	}
 
 	[Fact]

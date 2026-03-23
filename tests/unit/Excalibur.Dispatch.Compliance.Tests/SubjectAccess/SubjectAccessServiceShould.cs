@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Compliance.Tests.SubjectAccess;
 
-public class SubjectAccessServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class SubjectAccessServiceShould
 {
     private readonly SubjectAccessService _sut;
     private readonly SubjectAccessOptions _options = new();

@@ -11,6 +11,7 @@ namespace Excalibur.Data.Tests.MongoDB.Saga;
 /// Unit tests for <see cref="MongoDbSagaOptions"/> configuration and validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class MongoDbSagaOptionsShould : UnitTestBase
 {
 	#region Default Values Tests

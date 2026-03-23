@@ -34,7 +34,7 @@ public sealed partial class ExceptionMappingMiddleware(
 	private readonly ILogger<ExceptionMappingMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.ErrorHandling;
+	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PostProcessing;
 
 	/// <inheritdoc />
 	public async ValueTask<IMessageResult> InvokeAsync(
@@ -51,7 +51,7 @@ public sealed partial class ExceptionMappingMiddleware(
 		{
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			// Never map cancellation - propagate up for proper cancellation handling
 			throw;

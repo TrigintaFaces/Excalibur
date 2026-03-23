@@ -39,8 +39,22 @@ public static class RabbitMqDeadLetterServiceCollectionExtensions
 	public static IServiceCollection AddRabbitMqDeadLetterQueue(
 		this IServiceCollection services,
 		Action<RabbitMqDeadLetterOptions>? configure = null)
+		=> AddRabbitMqDeadLetterQueue(services, "default", configure);
+
+	/// <summary>
+	/// Adds RabbitMQ dead letter queue support with the specified transport name and configuration.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="transportName"> The transport name used as the keyed service key. </param>
+	/// <param name="configure"> An optional action to configure the dead letter queue options. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddRabbitMqDeadLetterQueue(
+		this IServiceCollection services,
+		string transportName,
+		Action<RabbitMqDeadLetterOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 
 		if (configure is not null)
 		{
@@ -51,7 +65,9 @@ public static class RabbitMqDeadLetterServiceCollectionExtensions
 			_ = services.Configure<RabbitMqDeadLetterOptions>(_ => { });
 		}
 
-		services.TryAddSingleton<IDeadLetterQueueManager, RabbitMqDeadLetterQueueManager>();
+		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
+			(sp, _) => sp.GetRequiredService<RabbitMqDeadLetterQueueManager>());
+		services.TryAddSingleton<RabbitMqDeadLetterQueueManager>();
 
 		return services;
 	}

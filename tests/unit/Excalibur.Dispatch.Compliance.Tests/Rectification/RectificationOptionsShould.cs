@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Compliance.Rectification;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Rectification;
 
-public class RectificationOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class RectificationOptionsShould
 {
     [Fact]
     public void Have_audit_all_changes_enabled_by_default()

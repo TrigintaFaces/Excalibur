@@ -3,9 +3,7 @@
 
 using System.Net;
 
-using Excalibur.Data.Abstractions;
 using Excalibur.Data.Abstractions.Resilience;
-using Excalibur.Data.CosmosDb.Resources;
 
 using Microsoft.Azure.Cosmos;
 
@@ -46,34 +44,6 @@ internal sealed class CosmosDbRetryPolicy : IDataRequestRetryPolicy
 			OperationCanceledException => false,
 			_ => false
 		};
-	}
-
-	/// <inheritdoc/>
-	public async Task<TResult> ResolveAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		// Cosmos DB doesn't use traditional connection patterns.
-		// The SDK manages connections internally. This method throws because
-		// CosmosDbPersistenceProvider uses its own cloud-native methods.
-		await Task.CompletedTask.ConfigureAwait(false);
-		throw new NotSupportedException(
-			ErrorMessages.UseCloudNativeMethodsForCosmosDbOperations);
-	}
-
-	/// <inheritdoc/>
-	public async Task<TResult> ResolveDocumentAsync<TConnection, TResult>(
-		IDocumentDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		// Cosmos DB doesn't use traditional connection patterns.
-		// The SDK manages connections internally. This method throws because
-		// CosmosDbPersistenceProvider uses its own cloud-native methods.
-		await Task.CompletedTask.ConfigureAwait(false);
-		throw new NotSupportedException(
-			ErrorMessages.UseCloudNativeMethodsForCosmosDbOperations);
 	}
 
 	private static bool IsTransientStatusCode(HttpStatusCode statusCode) =>

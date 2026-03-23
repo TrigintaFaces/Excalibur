@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 /// <remarks>
 /// Tests the timer-based wait strategy implementation.
 /// </remarks>
+[Collection("Performance Tests")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Channels")]
 [Trait("Priority", "0")]

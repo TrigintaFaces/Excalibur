@@ -19,7 +19,7 @@ public static class OutboxExtensions
 	/// <returns> The number of messages to process in each batch (default: 100). </returns>
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter",
 		Justification = "Extension method parameter required for public API, reserved for future configuration options")]
-	public static int MessageBatchSize(this OutboxOptions options) =>
+	public static int MessageBatchSize(this OutboxDeliveryOptions options) =>
 
 		// Default batch size
 		100;

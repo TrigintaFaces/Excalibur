@@ -33,7 +33,7 @@ public sealed class ExcaliburOptions
 	/// <value>
 	/// Outbox configuration options.
 	/// </value>
-	public OutboxOptions Outbox { get; set; } = new();
+	public ExcaliburOutboxOptions Outbox { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets saga options.
@@ -107,7 +107,7 @@ public sealed class EventSourcingOptions
 /// <c>AddOutbox()</c> on <see cref="Builders.IExcaliburBuilder"/>.
 /// </para>
 /// </remarks>
-public sealed class OutboxOptions
+public sealed class ExcaliburOutboxOptions
 {
 	/// <summary>
 	/// Gets or sets a value indicating whether the outbox is enabled.

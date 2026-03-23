@@ -2,12 +2,14 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Options;
 
-public class RetryPolicyOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class RetryPolicyOptionsShould
 {
     [Fact]
     public void Should_Default_MaxRetryAttempts_To_3()
     {
-        var options = new RetryPolicyOptions();
+        var options = new TransportRetryPolicyOptions();
 
         options.MaxRetryAttempts.ShouldBe(3);
     }
@@ -15,7 +17,7 @@ public class RetryPolicyOptionsShould
     [Fact]
     public void Should_Default_BaseDelayMs_To_1000()
     {
-        var options = new RetryPolicyOptions();
+        var options = new TransportRetryPolicyOptions();
 
         options.BaseDelayMs.ShouldBe(1000);
     }
@@ -23,7 +25,7 @@ public class RetryPolicyOptionsShould
     [Fact]
     public void Should_Default_MaxDelayMs_To_30000()
     {
-        var options = new RetryPolicyOptions();
+        var options = new TransportRetryPolicyOptions();
 
         options.MaxDelayMs.ShouldBe(30000);
     }
@@ -31,7 +33,7 @@ public class RetryPolicyOptionsShould
     [Fact]
     public void Should_Default_UseExponentialBackoff_To_True()
     {
-        var options = new RetryPolicyOptions();
+        var options = new TransportRetryPolicyOptions();
 
         options.UseExponentialBackoff.ShouldBeTrue();
     }
@@ -39,7 +41,7 @@ public class RetryPolicyOptionsShould
     [Fact]
     public void Should_Allow_Setting_All_Properties()
     {
-        var options = new RetryPolicyOptions
+        var options = new TransportRetryPolicyOptions
         {
             MaxRetryAttempts = 5,
             BaseDelayMs = 500,

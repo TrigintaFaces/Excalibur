@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels.Diagnostics;
 ///     Tests for the <see cref="ChannelEventSource" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ChannelEventSourceShould
 {
 	[Fact]

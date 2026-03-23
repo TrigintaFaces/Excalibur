@@ -16,6 +16,8 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.IndexManagement;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("IDisposable", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposed via IDisposable.Dispose")]
 [Collection(nameof(ElasticsearchHostTests))]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class IndexTemplateManagerIntegrationShould : IDisposable
 {
 	private readonly ElasticsearchClient _client;

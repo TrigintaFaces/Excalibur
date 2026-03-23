@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Abstractions;
 /// Target: Increase MessageProblemDetails coverage from 41.1% to 80%.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MessageProblemDetailsShould
 {
 	#region Default Constructor Tests

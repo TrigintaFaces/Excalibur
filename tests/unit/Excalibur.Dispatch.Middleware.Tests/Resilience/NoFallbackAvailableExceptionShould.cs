@@ -71,54 +71,12 @@ public sealed class NoFallbackAvailableExceptionShould : UnitTestBase
 		exception.ShouldBeAssignableTo<Exception>();
 	}
 
+	// [Serializable] attribute-absence tests removed -- enforced by RS0030 banned API analyzer (Sprint 690)
+
 	[Fact]
-	public void HasSerializableAttribute()
+	public void BeSealed()
 	{
-		// Arrange
-		var exception = new NoFallbackAvailableException();
-
-		// Assert - The class has the [Serializable] attribute
-		var hasAttribute = exception.GetType().GetCustomAttributes(typeof(SerializableAttribute), inherit: false).Length > 0;
-		hasAttribute.ShouldBeTrue();
+		// Assert - T.31: Leaf exceptions are sealed to prevent inheritance
+		typeof(NoFallbackAvailableException).IsSealed.ShouldBeTrue();
 	}
-
-#pragma warning disable SYSLIB0050 // Type or member is obsolete (SerializationInfo, StreamingContext are obsolete but needed for testing)
-#pragma warning disable SYSLIB0051 // Type or member is obsolete (Serialization is obsolete but we need to test the constructor)
-	[Fact]
-	public void SerializationConstructor_DeserializesCorrectly()
-	{
-		// Arrange
-		const string message = "Original exception message";
-		var original = new NoFallbackAvailableException(message);
-
-		// Create a derived type to access the protected serialization constructor
-		var info = new SerializationInfo(typeof(NoFallbackAvailableException), new FormatterConverter());
-		var context = new StreamingContext(StreamingContextStates.All);
-
-		// Populate SerializationInfo with required exception data
-		original.GetObjectData(info, context);
-
-		// Act - Use the serialization constructor via derived type
-		var deserialized = new TestableNoFallbackAvailableException(info, context);
-
-		// Assert
-		deserialized.Message.ShouldBe(message);
-	}
-#pragma warning restore SYSLIB0051
-#pragma warning restore SYSLIB0050
-
-	/// <summary>
-	/// Test helper that exposes the protected serialization constructor.
-	/// </summary>
-#pragma warning disable SYSLIB0050 // Type or member is obsolete (required for testing serialization)
-#pragma warning disable SYSLIB0051 // Type or member is obsolete (required for testing serialization)
-	private sealed class TestableNoFallbackAvailableException : NoFallbackAvailableException
-	{
-		public TestableNoFallbackAvailableException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
-		{
-		}
-	}
-#pragma warning restore SYSLIB0051
-#pragma warning restore SYSLIB0050
 }

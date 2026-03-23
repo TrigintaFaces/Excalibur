@@ -1,7 +1,7 @@
 #nullable enable
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.AppendAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudAppendResult!>!
-Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.CosmosDbEventStore(Microsoft.Azure.Cosmos.CosmosClient! cosmosClient, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore!>! logger) -> void
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.GetCurrentVersionAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -41,6 +42,9 @@ internal sealed partial class RoutingPolicyFileLoader(
 		ReadCommentHandling = JsonCommentHandling.Skip,
 		AllowTrailingCommas = true,
 	};
+
+	private const int MaxRegexCacheEntries = 1024;
+	private static readonly ConcurrentDictionary<string, Regex> RegexCache = new(StringComparer.Ordinal);
 
 	private readonly RoutingPolicyOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ILogger<RoutingPolicyFileLoader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -216,20 +220,20 @@ internal sealed partial class RoutingPolicyFileLoader(
 
 		LogPolicyFileChanged(e.FullPath);
 
-		try
+		// Async reload via Task.Run to avoid blocking the ThreadPool thread
+		_ = Task.Run(async () =>
 		{
-			// Reload synchronously on file change (fire-and-forget pattern)
-			var rules = LoadRulesFromFileAsync(e.FullPath, CancellationToken.None)
-				.ConfigureAwait(false)
-				.GetAwaiter()
-				.GetResult();
-			_rules = rules;
-		}
-		catch (Exception ex)
-		{
-			LogPolicyLoadFailed(e.FullPath, ex);
-			// Keep existing rules on reload failure
-		}
+			try
+			{
+				var rules = await LoadRulesFromFileAsync(e.FullPath, CancellationToken.None).ConfigureAwait(false);
+				_rules = rules;
+			}
+			catch (Exception ex)
+			{
+				LogPolicyLoadFailed(e.FullPath, ex);
+				// Keep existing rules on reload failure
+			}
+		});
 	}
 
 	/// <summary>
@@ -244,9 +248,26 @@ internal sealed partial class RoutingPolicyFileLoader(
 
 		if (pattern.Contains('*', StringComparison.Ordinal))
 		{
-			// Convert wildcard pattern to regex
-			var regexPattern = "^" + Regex.Escape(pattern).Replace("\\*", ".*", StringComparison.Ordinal) + "$";
-			return Regex.IsMatch(messageTypeName, regexPattern, RegexOptions.IgnoreCase);
+			// Cache compiled regex per pattern to avoid per-match compilation
+			// Bounded cache: skip caching when full to prevent unbounded memory growth
+			Regex regex;
+			if (RegexCache.TryGetValue(pattern, out var cached))
+			{
+				regex = cached;
+			}
+			else
+			{
+				regex = new Regex(
+					"^" + Regex.Escape(pattern).Replace("\\*", ".*", StringComparison.Ordinal) + "$",
+					RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+				if (RegexCache.Count < MaxRegexCacheEntries)
+				{
+					RegexCache.TryAdd(pattern, regex);
+				}
+			}
+
+			return regex.IsMatch(messageTypeName);
 		}
 
 		return false;

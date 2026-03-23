@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 ///     Tests for the <see cref="TransportAdapterRouter" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportAdapterRouterShould
 {
 	[Fact]

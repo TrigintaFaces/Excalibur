@@ -4,7 +4,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Retention;
 
-public class AuditRetentionBackgroundServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditRetentionBackgroundServiceShould
 {
     private readonly IAuditRetentionService _fakeRetentionService = A.Fake<IAuditRetentionService>();
 

@@ -7,6 +7,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="InboxPreset"/> enum.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class InboxPresetShould : UnitTestBase
 {
 	[Fact]

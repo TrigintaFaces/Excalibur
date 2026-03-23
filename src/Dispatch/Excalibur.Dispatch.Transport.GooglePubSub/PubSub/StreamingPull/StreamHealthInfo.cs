@@ -11,6 +11,13 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <param name="streamId"> The stream identifier. </param>
 public sealed class StreamHealthInfo(string streamId)
 {
+	private long _messagesReceived;
+	private long _bytesReceived;
+	private long _errorCount;
+	private long _acknowledgementsSucceeded;
+	private long _acknowledgementsFailed;
+	private int _reconnectCount;
+
 	/// <summary>
 	/// Gets the stream identifier.
 	/// </summary>
@@ -73,7 +80,11 @@ public sealed class StreamHealthInfo(string streamId)
 	/// <value>
 	/// The number of messages received.
 	/// </value>
-	public long MessagesReceived { get; set; }
+	public long MessagesReceived
+	{
+		get => Interlocked.Read(ref _messagesReceived);
+		set => Interlocked.Exchange(ref _messagesReceived, value);
+	}
 
 	/// <summary>
 	/// Gets or sets the number of bytes received.
@@ -81,7 +92,11 @@ public sealed class StreamHealthInfo(string streamId)
 	/// <value>
 	/// The number of bytes received.
 	/// </value>
-	public long BytesReceived { get; set; }
+	public long BytesReceived
+	{
+		get => Interlocked.Read(ref _bytesReceived);
+		set => Interlocked.Exchange(ref _bytesReceived, value);
+	}
 
 	/// <summary>
 	/// Gets or sets the number of errors encountered.
@@ -89,7 +104,11 @@ public sealed class StreamHealthInfo(string streamId)
 	/// <value>
 	/// The number of errors encountered.
 	/// </value>
-	public long ErrorCount { get; set; }
+	public long ErrorCount
+	{
+		get => Interlocked.Read(ref _errorCount);
+		set => Interlocked.Exchange(ref _errorCount, value);
+	}
 
 	/// <summary>
 	/// Gets or sets the number of successful acknowledgments.
@@ -97,7 +116,11 @@ public sealed class StreamHealthInfo(string streamId)
 	/// <value>
 	/// The number of successful acknowledgments.
 	/// </value>
-	public long AcknowledgmentsSucceeded { get; set; }
+	public long AcknowledgmentsSucceeded
+	{
+		get => Interlocked.Read(ref _acknowledgementsSucceeded);
+		set => Interlocked.Exchange(ref _acknowledgementsSucceeded, value);
+	}
 
 	/// <summary>
 	/// Gets or sets the number of failed acknowledgments.
@@ -105,7 +128,11 @@ public sealed class StreamHealthInfo(string streamId)
 	/// <value>
 	/// The number of failed acknowledgments.
 	/// </value>
-	public long AcknowledgmentsFailed { get; set; }
+	public long AcknowledgmentsFailed
+	{
+		get => Interlocked.Read(ref _acknowledgementsFailed);
+		set => Interlocked.Exchange(ref _acknowledgementsFailed, value);
+	}
 
 	/// <summary>
 	/// Gets or sets the number of times the stream has reconnected.
@@ -113,5 +140,27 @@ public sealed class StreamHealthInfo(string streamId)
 	/// <value>
 	/// The number of times the stream has reconnected.
 	/// </value>
-	public int ReconnectCount { get; set; }
+	public int ReconnectCount
+	{
+		get => Interlocked.CompareExchange(ref _reconnectCount, 0, 0);
+		set => Interlocked.Exchange(ref _reconnectCount, value);
+	}
+
+	/// <summary>Atomically increments <see cref="MessagesReceived"/> by 1.</summary>
+	internal void IncrementMessagesReceived() => Interlocked.Increment(ref _messagesReceived);
+
+	/// <summary>Atomically adds <paramref name="bytes"/> to <see cref="BytesReceived"/>.</summary>
+	internal void AddBytesReceived(long bytes) => Interlocked.Add(ref _bytesReceived, bytes);
+
+	/// <summary>Atomically increments <see cref="ErrorCount"/> by 1.</summary>
+	internal void IncrementErrorCount() => Interlocked.Increment(ref _errorCount);
+
+	/// <summary>Atomically increments <see cref="AcknowledgmentsSucceeded"/> by 1.</summary>
+	internal void IncrementAcknowledgmentsSucceeded() => Interlocked.Increment(ref _acknowledgementsSucceeded);
+
+	/// <summary>Atomically increments <see cref="AcknowledgmentsFailed"/> by 1.</summary>
+	internal void IncrementAcknowledgmentsFailed() => Interlocked.Increment(ref _acknowledgementsFailed);
+
+	/// <summary>Atomically increments <see cref="ReconnectCount"/> by 1.</summary>
+	internal void IncrementReconnectCount() => Interlocked.Increment(ref _reconnectCount);
 }

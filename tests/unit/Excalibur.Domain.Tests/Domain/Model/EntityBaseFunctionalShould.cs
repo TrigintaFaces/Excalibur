@@ -7,28 +7,28 @@ namespace Excalibur.Tests.Domain.Model;
 
 // ── Test entity classes ──
 
-public class ProductEntity : EntityBase<int>
+public sealed class ProductEntity : EntityBase<int>
 {
     public ProductEntity(int id) => ProductId = id;
     public int ProductId { get; }
     public override int Key => ProductId;
 }
 
-public class AnotherIntEntity : EntityBase<int>
+public sealed class AnotherIntEntity : EntityBase<int>
 {
     public AnotherIntEntity(int id) => Id = id;
     private int Id { get; }
     public override int Key => Id;
 }
 
-public class StringEntity : EntityBase
+public sealed class StringEntity : EntityBase
 {
     public StringEntity(string key) => StringKey = key;
     private string StringKey { get; }
     public override string Key => StringKey;
 }
 
-public class GuidEntity : EntityBase<Guid>
+public sealed class GuidEntity : EntityBase<Guid>
 {
     public GuidEntity(Guid id) => Id = id;
     private Guid Id { get; }
@@ -36,7 +36,8 @@ public class GuidEntity : EntityBase<Guid>
 }
 
 [Trait("Category", "Unit")]
-public class EntityBaseFunctionalShould
+[Trait("Component", "Domain")]
+public sealed class EntityBaseFunctionalShould
 {
     [Fact]
     public void Equals_SameTypeAndKey_ShouldBeTrue()

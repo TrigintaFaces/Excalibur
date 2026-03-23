@@ -443,7 +443,7 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 				await PersistToDiskAsync(cts.Token).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				LogFailedToPersistOnAsyncDispose(_logger, new TimeoutException("Persist to disk timed out after 30 seconds"), Name);
 			}

@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Sprint 45 (bd-9xis): Behavioral equivalence tests.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 {
 	private readonly List<IDisposable> _disposables = [];

@@ -18,7 +18,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// <param name="decryptedAt"> The timestamp when the field was decrypted. </param>
 public sealed class FieldDecryptedEventArgs(
 	string fieldName,
-	DataClassification classification,
+	ElasticSearchDataClassification classification,
 	string algorithm,
 	string keyVersion,
 	DateTimeOffset decryptedAt) : EventArgs
@@ -33,7 +33,7 @@ public sealed class FieldDecryptedEventArgs(
 	/// Gets the data classification level of the field.
 	/// </summary>
 	/// <value> The sensitivity classification of the decrypted field. </value>
-	public DataClassification Classification { get; } = classification;
+	public ElasticSearchDataClassification Classification { get; } = classification;
 
 	/// <summary>
 	/// Gets the encryption algorithm that was used.

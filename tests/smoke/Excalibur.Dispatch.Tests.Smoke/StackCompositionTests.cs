@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Tests.Smoke;
 /// </summary>
 [Trait("Category", "Smoke")]
 [Trait("Component", "Platform")]
-public class StackCompositionTests
+public sealed class StackCompositionTests
 {
 	/// <summary>
 	/// Stack 1: Minimal Dispatch -- core dispatcher only.
@@ -171,7 +171,7 @@ public class StackCompositionTests
 		var regException = Record.Exception(() =>
 		{
 			services.AddDispatch();
-			services.AddDispatchSecurity(options =>
+			services.AddDispatchSecurityMiddleware(options =>
 			{
 				options.Encryption.EnableEncryption = true;
 				options.RateLimiting.EnableRateLimiting = true;

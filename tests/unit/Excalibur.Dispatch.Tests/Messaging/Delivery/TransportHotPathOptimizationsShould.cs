@@ -250,7 +250,7 @@ public sealed class TransportHotPathOptimizationsShould
 			busProvider,
 			NullLogger<FinalDispatchHandler>.Instance,
 			null,
-			new Dictionary<string, IMessageBusOptions>());
+			new Dictionary<string, MessageBusOptions>());
 
 		// Assert - handler constructed without error, bus was resolved at construction time
 		// The single-bus optimization is internal; we verify it works by dispatching through Dispatcher
@@ -275,7 +275,7 @@ public sealed class TransportHotPathOptimizationsShould
 			busProvider,
 			NullLogger<FinalDispatchHandler>.Instance,
 			null,
-			new Dictionary<string, IMessageBusOptions>());
+			new Dictionary<string, MessageBusOptions>());
 
 		// Assert - handler constructed without error
 		handler.ShouldNotBeNull();
@@ -302,7 +302,7 @@ public sealed class TransportHotPathOptimizationsShould
 			busProvider,
 			NullLogger<FinalDispatchHandler>.Instance,
 			null,
-			new Dictionary<string, IMessageBusOptions>());
+			new Dictionary<string, MessageBusOptions>());
 
 		// Assert - handler constructed successfully, bus resolution was attempted
 		handler.ShouldNotBeNull();
@@ -324,7 +324,7 @@ public sealed class TransportHotPathOptimizationsShould
 			busProvider,
 			NullLogger<FinalDispatchHandler>.Instance,
 			null,
-			new Dictionary<string, IMessageBusOptions>());
+			new Dictionary<string, MessageBusOptions>());
 
 		// Assert - handler constructed; TryGet called only for "local" (ResolveLocalBus),
 		// NOT for "kafka" or "rabbitmq" (multi-bus means no single-bus pre-resolution)
@@ -599,7 +599,7 @@ public sealed class TransportHotPathOptimizationsShould
 			busProvider,
 			NullLogger<FinalDispatchHandler>.Instance,
 			null,
-			new Dictionary<string, IMessageBusOptions>());
+			new Dictionary<string, MessageBusOptions>());
 	}
 
 	/// <summary>

@@ -49,7 +49,6 @@ public enum SerializationOperation
 ///   <item>Null values where not supported</item>
 /// </list>
 /// </remarks>
-[Serializable]
 public sealed class SerializationException : ApiException
 {
 	private const int SerializationStatusCode = 400;

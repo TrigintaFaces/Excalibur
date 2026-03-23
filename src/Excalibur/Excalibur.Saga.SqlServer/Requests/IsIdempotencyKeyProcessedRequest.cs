@@ -30,6 +30,7 @@ internal sealed class IsIdempotencyKeyProcessedRequest : DataRequestBase<IDbConn
 		ArgumentException.ThrowIfNullOrWhiteSpace(sagaId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
+		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);
 
 		var sql = $"""
 			SELECT CASE WHEN EXISTS (

@@ -13,7 +13,7 @@ public sealed class RateLimitConfiguration
 	/// Gets or sets the rate limiting algorithm to use.
 	/// </summary>
 	/// <value>The current <see cref="Algorithm"/> value.</value>
-	public RateLimitAlgorithm Algorithm { get; set; } = RateLimitAlgorithm.TokenBucket;
+	public MiddlewareRateLimitAlgorithm Algorithm { get; set; } = MiddlewareRateLimitAlgorithm.TokenBucket;
 
 	/// <summary>
 	/// Gets or sets the maximum number of tokens in the bucket for token bucket algorithm.

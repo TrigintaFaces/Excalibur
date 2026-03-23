@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Messaging;
 
-public class TransportReceivedMessageShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class TransportReceivedMessageShould
 {
     [Fact]
     public void Should_Default_Id_To_Empty_String()

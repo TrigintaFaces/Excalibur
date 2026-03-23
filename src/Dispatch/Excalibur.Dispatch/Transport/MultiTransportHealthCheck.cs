@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <item><description>Unhealthy: No transports registered, default transport not running, or critical failures</description></item>
 /// </list>
 /// </remarks>
-public sealed class MultiTransportHealthCheck : IHealthCheck
+internal sealed class MultiTransportHealthCheck : IHealthCheck
 {
 	private readonly TransportRegistry _registry;
 	private readonly MultiTransportHealthCheckOptions _options;

@@ -25,6 +25,8 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using Shouldly;
+
 using Xunit;
 using Xunit.Abstractions;
 
@@ -113,7 +115,7 @@ public sealed class PipelineScenarioTests
 		storedEvents.ShouldNotBeNull("Events should be loadable from event store");
 
 		var eventList = storedEvents.ToList();
-		Assert.True(eventList.Count > 0, "At least one event should be persisted");
+		(eventList.Count > 0).ShouldBeTrue("At least one event should be persisted");
 
 		_output.WriteLine($"Events persisted: {eventList.Count}");
 		foreach (var evt in eventList)
@@ -170,7 +172,7 @@ public sealed class PipelineScenarioTests
 		else
 		{
 			// If it fails, it should NOT be a DI resolution error
-			Assert.DoesNotContain("InvalidOperationException", exception.GetType().Name);
+			exception.GetType().Name.ShouldNotContain("InvalidOperationException");
 		}
 	}
 

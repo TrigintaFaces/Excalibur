@@ -70,6 +70,6 @@ public sealed class ByteArrayComparer : IComparer<byte[]>, System.Collections.IC
 			return Compare(a, b);
 		}
 
-		throw new ArgumentException("", nameof(x));
+		throw new ArgumentException("Both arguments must be byte arrays.", nameof(x));
 	}
 }

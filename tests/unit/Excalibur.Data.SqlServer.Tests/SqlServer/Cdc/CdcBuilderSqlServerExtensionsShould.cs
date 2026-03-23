@@ -69,7 +69,7 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 				_ => () => new SqlConnection(TestConnectionString),
 				sql => sql.SchemaName("cdc").StateTableName("State")));
 
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcStateStore));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ISqlServerCdcStateStore));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcRepository));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcRepositoryLsnMapping));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcProcessor));

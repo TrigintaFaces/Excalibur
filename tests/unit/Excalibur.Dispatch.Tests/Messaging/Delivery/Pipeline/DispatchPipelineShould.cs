@@ -13,6 +13,7 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatchPipelineShould
 {
     private static IDispatchMiddleware CreateMiddleware(

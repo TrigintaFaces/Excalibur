@@ -5,6 +5,8 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Bus;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Bus;
 
 [Trait("Category", "Unit")]
@@ -13,17 +15,18 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 {
 	private readonly IMessageBusAdapter _adapter1;
 	private readonly IMessageBusAdapter _adapter2;
+	private readonly NullLogger<MultiTransportMessageBusAdapter> _logger = new();
 
 	public MultiTransportMessageBusAdapterShould()
 	{
-		_adapter1 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
+		_adapter1 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>().Implements<IDisposable>());
 		A.CallTo(() => _adapter1.Name).Returns("Adapter1");
 		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter1).SupportsPublishing).Returns(true);
 		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter1).SupportsSubscription).Returns(true);
 		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter1).SupportsTransactions).Returns(false);
 		A.CallTo(() => _adapter1.IsConnected).Returns(true);
 
-		_adapter2 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
+		_adapter2 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>().Implements<IDisposable>());
 		A.CallTo(() => _adapter2.Name).Returns("Adapter2");
 		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter2).SupportsPublishing).Returns(false);
 		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter2).SupportsSubscription).Returns(false);
@@ -33,8 +36,8 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 
 	public void Dispose()
 	{
-		_adapter1.Dispose();
-		_adapter2.Dispose();
+		((IDisposable)_adapter1).Dispose();
+		((IDisposable)_adapter2).Dispose();
 	}
 
 	[Fact]
@@ -42,14 +45,14 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new MultiTransportMessageBusAdapter(null!));
+			new MultiTransportMessageBusAdapter(null!, _logger));
 	}
 
 	[Fact]
 	public void Name_ReturnsMultiTransport()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger);
 
 		// Assert
 		adapter.Name.ShouldBe("MultiTransport");
@@ -59,7 +62,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void SupportsPublishing_ReturnsTrueWhenAnyAdapterSupports()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Assert
 		adapter.SupportsPublishing.ShouldBeTrue();
@@ -69,7 +72,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void SupportsSubscription_ReturnsTrueWhenAnyAdapterSupports()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Assert
 		adapter.SupportsSubscription.ShouldBeTrue();
@@ -79,20 +82,31 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void SupportsTransactions_ReturnsTrueWhenAnyAdapterSupports()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Assert
 		adapter.SupportsTransactions.ShouldBeTrue();
 	}
 
 	[Fact]
-	public void IsConnected_ReturnsTrueWhenAnyAdapterConnected()
+	public void IsConnected_ReturnsTrueWhenAllAdaptersConnected()
 	{
-		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		// Arrange - T.16: IsConnected uses ALL semantics (all must be connected)
+		A.CallTo(() => _adapter2.IsConnected).Returns(true);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Assert
 		adapter.IsConnected.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void IsConnected_ReturnsFalseWhenAnyAdapterDisconnected()
+	{
+		// Arrange - adapter2.IsConnected defaults to false
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
+
+		// Assert - ALL semantics: one disconnected means overall disconnected
+		adapter.IsConnected.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -100,7 +114,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	{
 		// Arrange
 		A.CallTo(() => _adapter1.IsConnected).Returns(false);
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger);
 
 		// Assert
 		adapter.IsConnected.ShouldBeFalse();
@@ -110,8 +124,8 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task InitializeAsync_InitializesAllAdapters()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
-		var options = A.Fake<IMessageBusOptions>();
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
+		var options = A.Fake<MessageBusOptions>();
 
 		// Act
 		await adapter.InitializeAsync(options, CancellationToken.None);
@@ -128,7 +142,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		var expectedResult = MessageResult.Success();
 		A.CallTo(() => _adapter1.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IMessageResult>(expectedResult));
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _adapter1);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger, _adapter1);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 
@@ -144,7 +158,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task PublishAsync_WithNullMessage_Throws()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger);
 		var context = A.Fake<IMessageContext>();
 
 		// Act & Assert
@@ -156,7 +170,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task PublishAsync_WithNullContext_Throws()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		// Act & Assert
@@ -168,7 +182,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task PublishAsync_WithNoAdapters_ReturnsFailure()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter(Array.Empty<IMessageBusAdapter>());
+		using var adapter = new MultiTransportMessageBusAdapter(Array.Empty<IMessageBusAdapter>(), _logger);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 
@@ -184,7 +198,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task SubscribeAsync_WithPrefixedName_RoutesToCorrectAdapter()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(_, _, _) => Task.FromResult<IMessageResult>(MessageResult.Success());
 
@@ -200,7 +214,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task SubscribeAsync_WithoutPrefix_UsesDefaultAdapter()
 	{
 		// Arrange - use explicit default to avoid ConcurrentDictionary ordering issues
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _adapter1);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger, _adapter1);
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(_, _, _) => Task.FromResult<IMessageResult>(MessageResult.Success());
 
@@ -216,7 +230,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task SubscribeAsync_WithUnknownPrefix_Throws()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger);
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(_, _, _) => Task.FromResult<IMessageResult>(MessageResult.Success());
 
@@ -229,7 +243,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task SubscribeAsync_WithNullName_Throws()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger);
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(_, _, _) => Task.FromResult<IMessageResult>(MessageResult.Success());
 
@@ -242,7 +256,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task UnsubscribeAsync_WithPrefix_RoutesToCorrectAdapter()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Act
 		await adapter.UnsubscribeAsync("Adapter1://my-sub", CancellationToken.None);
@@ -256,7 +270,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task UnsubscribeAsync_WithUnknownPrefix_DoesNotThrow()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger);
 
 		// Act & Assert - silently ignores unknown adapters
 		await adapter.UnsubscribeAsync("Unknown://sub", CancellationToken.None);
@@ -266,7 +280,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task UnsubscribeAsync_WithoutPrefix_UsesDefault()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger);
 
 		// Act
 		await adapter.UnsubscribeAsync("my-sub", CancellationToken.None);
@@ -284,7 +298,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 			.Returns(new HealthCheckResult(true, "OK", new Dictionary<string, object>()));
 		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter2).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(true, "OK", new Dictionary<string, object>()));
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Act
 		var result = await ((IMessageBusAdapterLifecycle)adapter).CheckHealthAsync(CancellationToken.None);
@@ -302,7 +316,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 			.Returns(new HealthCheckResult(true, "OK", new Dictionary<string, object>()));
 		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter2).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(false, "Unhealthy", new Dictionary<string, object>()));
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Act
 		var result = await ((IMessageBusAdapterLifecycle)adapter).CheckHealthAsync(CancellationToken.None);
@@ -315,7 +329,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task StartAsync_StartsAllAdapters()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Act
 		await ((IMessageBusAdapterLifecycle)adapter).StartAsync(CancellationToken.None);
@@ -329,7 +343,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task StopAsync_StopsAllAdapters()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2], _logger);
 
 		// Act
 		await ((IMessageBusAdapterLifecycle)adapter).StopAsync(CancellationToken.None);
@@ -343,25 +357,25 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void Dispose_DisposesAllAdapters()
 	{
 		// Arrange
-		var a1 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>());
+		var a1 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IDisposable>());
 		A.CallTo(() => a1.Name).Returns("A1");
-		var a2 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>());
+		var a2 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IDisposable>());
 		A.CallTo(() => a2.Name).Returns("A2");
-		var adapter = new MultiTransportMessageBusAdapter([a1, a2]);
+		var adapter = new MultiTransportMessageBusAdapter([a1, a2], _logger);
 
 		// Act
 		adapter.Dispose();
 
 		// Assert
-		A.CallTo(() => a1.Dispose()).MustHaveHappenedOnceExactly();
-		A.CallTo(() => a2.Dispose()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IDisposable)a1).Dispose()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IDisposable)a2).Dispose()).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
 	public void Constructor_WithExplicitDefaultAdapter_UsesIt()
 	{
 		// Arrange & Act
-		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _adapter2);
+		using var adapter = new MultiTransportMessageBusAdapter([_adapter1], _logger, _adapter2);
 
 		// Assert
 		adapter.Name.ShouldBe("MultiTransport");

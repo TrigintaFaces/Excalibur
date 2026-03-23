@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Serialization.Tests.Protobuf;
 /// - Wire format enum values are valid
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Serialization")]
 public sealed class ProtobufSerializationOptionsShould
 {
 	[Fact]

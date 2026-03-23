@@ -7,6 +7,7 @@ namespace Excalibur.Outbox.Tests.SqlServer;
 /// Unit tests for <see cref="SqlServerOutboxOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class SqlServerOutboxOptionsShould : UnitTestBase
 {
 	[Fact]

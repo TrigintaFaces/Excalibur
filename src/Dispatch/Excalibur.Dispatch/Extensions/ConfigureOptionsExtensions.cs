@@ -19,6 +19,12 @@ namespace Excalibur.Dispatch.Extensions;
 public static class ConfigureOptionsExtensions
 {
 	/// <summary>
+	/// Maximum number of entries allowed in the property copier cache.
+	/// When the cap is reached, new copiers are compiled without caching to prevent unbounded memory growth.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
+	/// <summary>
 	/// Cache for compiled property copiers to improve performance.
 	/// </summary>
 	private static readonly ConcurrentDictionary<Type, Action<object, object>> PropertyCopiers = new();
@@ -213,43 +219,65 @@ public static class ConfigureOptionsExtensions
 	/// <typeparam name="T"> The type to create a copier for. </typeparam>
 	/// <returns> An action that copies properties from source to target. </returns>
 	[RequiresUnreferencedCode("Uses reflection and expression compilation which is not AOT compatible")]
-	private static Action<object, object> GetOrCreatePropertyCopier<T>() =>
-		PropertyCopiers.GetOrAdd(typeof(T), static type =>
+	private static Action<object, object> GetOrCreatePropertyCopier<T>()
+	{
+		var type = typeof(T);
+
+		// Bounded cache: try fast lookup first, then check capacity before adding
+		if (PropertyCopiers.TryGetValue(type, out var cached))
 		{
-			var sourceParam = Expression.Parameter(typeof(object), "source");
-			var targetParam = Expression.Parameter(typeof(object), "target");
+			return cached;
+		}
 
-			var sourceTyped = Expression.Variable(type, "sourceTyped");
-			var targetTyped = Expression.Variable(type, "targetTyped");
+		if (PropertyCopiers.Count >= MaxCacheEntries)
+		{
+			// Cache full — compile without caching to prevent unbounded growth
+			return CompilePropertyCopier(type);
+		}
 
-			var expressions = new List<Expression>
+		return PropertyCopiers.GetOrAdd(type, static t => CompilePropertyCopier(t));
+	}
+
+	/// <summary>
+	/// Compiles an expression-tree-based property copier for the specified type.
+	/// </summary>
+	[RequiresUnreferencedCode("Uses reflection and expression compilation which is not AOT compatible")]
+	private static Action<object, object> CompilePropertyCopier(Type type)
+	{
+		var sourceParam = Expression.Parameter(typeof(object), "source");
+		var targetParam = Expression.Parameter(typeof(object), "target");
+
+		var sourceTyped = Expression.Variable(type, "sourceTyped");
+		var targetTyped = Expression.Variable(type, "targetTyped");
+
+		var expressions = new List<Expression>
+		{
+			Expression.Assign(sourceTyped, Expression.Convert(sourceParam, type)),
+			Expression.Assign(targetTyped, Expression.Convert(targetParam, type)),
+		};
+
+		var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+			.Where(static p => p is { CanRead: true, CanWrite: true });
+
+		foreach (var prop in properties)
+		{
+			try
 			{
-				Expression.Assign(sourceTyped, Expression.Convert(sourceParam, type)),
-				Expression.Assign(targetTyped, Expression.Convert(targetParam, type)),
-			};
-
-			var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-				.Where(static p => p is { CanRead: true, CanWrite: true });
-
-			foreach (var prop in properties)
-			{
-				try
-				{
-					var sourceProperty = Expression.Property(sourceTyped, prop);
-					var targetProperty = Expression.Property(targetTyped, prop);
-					expressions.Add(Expression.Assign(targetProperty, sourceProperty));
-				}
-				catch
-				{
-					// Skip properties that can't be accessed
-				}
+				var sourceProperty = Expression.Property(sourceTyped, prop);
+				var targetProperty = Expression.Property(targetTyped, prop);
+				expressions.Add(Expression.Assign(targetProperty, sourceProperty));
 			}
+			catch
+			{
+				// Skip properties that can't be accessed
+			}
+		}
 
-			var body = Expression.Block([sourceTyped, targetTyped], expressions);
-			var lambda = Expression.Lambda<Action<object, object>>(body, sourceParam, targetParam);
+		var body = Expression.Block([sourceTyped, targetTyped], expressions);
+		var lambda = Expression.Lambda<Action<object, object>>(body, sourceParam, targetParam);
 
-			return lambda.Compile();
-		});
+		return lambda.Compile();
+	}
 
 	/// <summary>
 	/// Simple validation options implementation.

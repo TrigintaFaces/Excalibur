@@ -25,10 +25,18 @@ namespace Excalibur.Dispatch.Compliance;
 /// </remarks>
 public sealed class KeyCache : IKeyCache, IDisposable
 {
+	/// <summary>
+	/// Maximum number of per-key locks to retain. When exceeded, new keys skip lock-based
+	/// deduplication and fall through to the factory directly. This prevents unbounded
+	/// growth of the lock dictionary in high-cardinality key scenarios.
+	/// </summary>
+	private const int MaxKeyLocks = 1024;
+
 	private readonly MemoryCache _cache;
 	private readonly KeyCacheOptions _options;
 	private readonly IEncryptionTelemetryDetails? _telemetryDetails;
 	private readonly ConcurrentDictionary<string, byte> _trackedKeys = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<string, SemaphoreSlim> _keyLocks = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -94,16 +102,32 @@ public sealed class KeyCache : IKeyCache, IDisposable
 			return cached;
 		}
 
-		_telemetryDetails?.RecordCacheAccess(hit: false, "KeyCache");
-
-		var metadata = await factory(keyId, cancellationToken).ConfigureAwait(false);
-
-		if (metadata is not null)
+		// When the lock dictionary is at capacity, skip per-key locking to prevent unbounded growth.
+		// This may allow concurrent factory calls for the same key, but correctness is maintained
+		// because MemoryCache.Set is thread-safe.
+		if (_keyLocks.Count >= MaxKeyLocks)
 		{
-			SetInternal(cacheKey, metadata, ttl);
+			return await ExecuteFactoryAsync(keyId, cacheKey, ttl, factory, cancellationToken).ConfigureAwait(false);
 		}
 
-		return metadata;
+		// Per-key lock to prevent concurrent factory calls for the same key (TOCTOU fix)
+		var keyLock = _keyLocks.GetOrAdd(keyId, static _ => new SemaphoreSlim(1, 1));
+		await keyLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// Double-check after acquiring lock
+			if (_cache.TryGetValue(cacheKey, out cached))
+			{
+				_telemetryDetails?.RecordCacheAccess(hit: true, "KeyCache");
+				return cached;
+			}
+
+			return await ExecuteFactoryAsync(keyId, cacheKey, ttl, factory, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			keyLock.Release();
+		}
 	}
 
 	/// <inheritdoc />
@@ -193,11 +217,38 @@ public sealed class KeyCache : IKeyCache, IDisposable
 		{
 			_cache.Dispose();
 			_trackedKeys.Clear();
+
+			// Dispose all semaphores in the lock dictionary
+			foreach (var kvp in _keyLocks)
+			{
+				kvp.Value.Dispose();
+			}
+
+			_keyLocks.Clear();
 			_disposed = true;
 		}
 	}
 
 	private static string CreateCacheKey(string keyId) => $"key:{keyId}";
+
+	private async Task<KeyMetadata?> ExecuteFactoryAsync(
+		string keyId,
+		string cacheKey,
+		TimeSpan ttl,
+		Func<string, CancellationToken, Task<KeyMetadata?>> factory,
+		CancellationToken cancellationToken)
+	{
+		_telemetryDetails?.RecordCacheAccess(hit: false, "KeyCache");
+
+		var metadata = await factory(keyId, cancellationToken).ConfigureAwait(false);
+
+		if (metadata is not null)
+		{
+			SetInternal(cacheKey, metadata, ttl);
+		}
+
+		return metadata;
+	}
 
 	private void SetInternal(string cacheKey, KeyMetadata metadata, TimeSpan ttl)
 	{

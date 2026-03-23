@@ -727,6 +727,51 @@ namespace Excalibur.Dispatch {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Base delay must be positive..
+        /// </summary>
+        internal static string FibonacciBackoffCalculator_BaseDelayMustBePositive {
+            get {
+                return ResourceManager.GetString("FibonacciBackoffCalculator_BaseDelayMustBePositive", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Max delay must be positive..
+        /// </summary>
+        internal static string FibonacciBackoffCalculator_MaxDelayMustBePositive {
+            get {
+                return ResourceManager.GetString("FibonacciBackoffCalculator_MaxDelayMustBePositive", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Attempt must be at least 1..
+        /// </summary>
+        internal static string FibonacciBackoffCalculator_AttemptMustBeAtLeastOne {
+            get {
+                return ResourceManager.GetString("FibonacciBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Inner backoff calculator is required..
+        /// </summary>
+        internal static string JitteredBackoffCalculator_InnerCalculatorRequired {
+            get {
+                return ResourceManager.GetString("JitteredBackoffCalculator_InnerCalculatorRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Jitter factor must be between 0.0 and 1.0..
+        /// </summary>
+        internal static string JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne {
+            get {
+                return ResourceManager.GetString("JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Unknown backoff strategy..
         /// </summary>
         internal static string BackoffCalculatorFactory_UnknownBackoffStrategy {

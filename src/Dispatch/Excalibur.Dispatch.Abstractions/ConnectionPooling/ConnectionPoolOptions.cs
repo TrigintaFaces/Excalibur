@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Dispatch.Abstractions;
 
 /// <summary>
 /// Configuration options for connection pools. Consolidates options from all pool implementations.
 /// </summary>
-public class ConnectionPoolOptions
+public sealed class ConnectionPoolOptions
 {
 	/// <summary>
 	/// Default pool name used when none is specified.
@@ -24,6 +25,7 @@ public class ConnectionPoolOptions
 	/// Gets or sets the connection string for creating connections.
 	/// </summary>
 	/// <value>The current <see cref="ConnectionString"/> value.</value>
+	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>
@@ -48,7 +50,7 @@ public class ConnectionPoolOptions
 	/// Validates the configuration and throws exceptions for invalid settings.
 	/// </summary>
 	/// <exception cref="ArgumentException">Thrown when configuration values are invalid.</exception>
-	public virtual void Validate()
+	public void Validate()
 	{
 		if (string.IsNullOrWhiteSpace(PoolName))
 		{
@@ -63,7 +65,7 @@ public class ConnectionPoolOptions
 	/// Creates a copy of these options with the same configuration.
 	/// </summary>
 	/// <returns>A new instance with identical configuration.</returns>
-	public virtual ConnectionPoolOptions Clone() =>
+	public ConnectionPoolOptions Clone() =>
 		new()
 		{
 			PoolName = PoolName,

@@ -149,6 +149,14 @@ public sealed class AuthenticationExceptionShould
 	}
 
 	[Fact]
+	public void InheritFromDispatchException()
+	{
+		// Sprint 698 T.56: AuthenticationException reparented to DispatchException
+		var exception = new AuthenticationException("test");
+		_ = exception.ShouldBeAssignableTo<Excalibur.Dispatch.Exceptions.DispatchException>();
+	}
+
+	[Fact]
 	public void CanBeCaughtAsException()
 	{
 		// Act & Assert

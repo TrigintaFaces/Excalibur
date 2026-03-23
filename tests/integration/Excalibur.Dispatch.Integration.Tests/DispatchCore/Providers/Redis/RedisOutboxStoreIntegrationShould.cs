@@ -35,6 +35,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Redis;
 [Collection(ContainerCollections.Redis)]
 [Trait("Component", "Outbox")]
 [Trait("Provider", "Redis")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly RedisContainerFixture _redisFixture;
@@ -55,15 +57,15 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task StageMessage()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateOutboxStore();
 		var message = CreateTestOutboundMessage();
 
 		// Act
-		await store.StageMessageAsync(message, TestCancellationToken).ConfigureAwait(true);
+		await store.StageMessageAsync(message, TestCancellationToken);
 
 		// Assert
-		var stats = await store.GetStatisticsAsync(TestCancellationToken).ConfigureAwait(true);
+		var stats = await store.GetStatisticsAsync(TestCancellationToken);
 		stats.StagedMessageCount.ShouldBe(1);
 	}
 
@@ -74,17 +76,17 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task RetrieveUnsentMessages()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateOutboxStore();
 
 		// Stage 3 messages
 		for (var i = 0; i < 3; i++)
 		{
-			await store.StageMessageAsync(CreateTestOutboundMessage(), TestCancellationToken).ConfigureAwait(true);
+			await store.StageMessageAsync(CreateTestOutboundMessage(), TestCancellationToken);
 		}
 
 		// Act
-		var messages = await store.GetUnsentMessagesAsync(10, TestCancellationToken).ConfigureAwait(true);
+		var messages = await store.GetUnsentMessagesAsync(10, TestCancellationToken);
 
 		// Assert
 		messages.Count().ShouldBe(3);
@@ -97,17 +99,17 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task MarkMessageAsSent()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateOutboxStore();
 		var message = CreateTestOutboundMessage();
 
-		await store.StageMessageAsync(message, TestCancellationToken).ConfigureAwait(true);
+		await store.StageMessageAsync(message, TestCancellationToken);
 
 		// Act
-		await store.MarkSentAsync(message.Id, TestCancellationToken).ConfigureAwait(true);
+		await store.MarkSentAsync(message.Id, TestCancellationToken);
 
 		// Assert
-		var stats = await store.GetStatisticsAsync(TestCancellationToken).ConfigureAwait(true);
+		var stats = await store.GetStatisticsAsync(TestCancellationToken);
 		stats.StagedMessageCount.ShouldBe(0);
 		stats.SentMessageCount.ShouldBe(1);
 	}
@@ -119,21 +121,21 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task MarkMessageAsFailed()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateOutboxStore();
 		var message = CreateTestOutboundMessage();
 
-		await store.StageMessageAsync(message, TestCancellationToken).ConfigureAwait(true);
+		await store.StageMessageAsync(message, TestCancellationToken);
 
 		// Act
-		await store.MarkFailedAsync(message.Id, "Test failure", 1, TestCancellationToken).ConfigureAwait(true);
+		await store.MarkFailedAsync(message.Id, "Test failure", 1, TestCancellationToken);
 
 		// Assert
-		var stats = await store.GetStatisticsAsync(TestCancellationToken).ConfigureAwait(true);
+		var stats = await store.GetStatisticsAsync(TestCancellationToken);
 		stats.StagedMessageCount.ShouldBe(0);
 		stats.FailedMessageCount.ShouldBe(1);
 
-		var failedMessages = await store.GetFailedMessagesAsync(3, null, 10, TestCancellationToken).ConfigureAwait(true);
+		var failedMessages = await store.GetFailedMessagesAsync(3, null, 10, TestCancellationToken);
 		failedMessages.Count().ShouldBe(1);
 		failedMessages.First().LastError.ShouldBe("Test failure");
 		failedMessages.First().RetryCount.ShouldBe(1);
@@ -146,7 +148,7 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task RetrieveAccurateStatistics()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateOutboxStore();
 
 		// Stage some messages
@@ -154,19 +156,19 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 		for (var i = 0; i < 5; i++)
 		{
 			var msg = CreateTestOutboundMessage();
-			await store.StageMessageAsync(msg, TestCancellationToken).ConfigureAwait(true);
+			await store.StageMessageAsync(msg, TestCancellationToken);
 			stagedMessages.Add(msg);
 		}
 
 		// Send 2 messages
-		await store.MarkSentAsync(stagedMessages[0].Id, TestCancellationToken).ConfigureAwait(true);
-		await store.MarkSentAsync(stagedMessages[1].Id, TestCancellationToken).ConfigureAwait(true);
+		await store.MarkSentAsync(stagedMessages[0].Id, TestCancellationToken);
+		await store.MarkSentAsync(stagedMessages[1].Id, TestCancellationToken);
 
 		// Fail 1 message
-		await store.MarkFailedAsync(stagedMessages[2].Id, "Test error", 1, TestCancellationToken).ConfigureAwait(true);
+		await store.MarkFailedAsync(stagedMessages[2].Id, "Test error", 1, TestCancellationToken);
 
 		// Act
-		var stats = await store.GetStatisticsAsync(TestCancellationToken).ConfigureAwait(true);
+		var stats = await store.GetStatisticsAsync(TestCancellationToken);
 
 		// Assert
 		stats.StagedMessageCount.ShouldBe(2);
@@ -206,10 +208,10 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 		// Connect with AllowAdmin for FLUSHDB command
 		var options = ConfigurationOptions.Parse(_redisFixture.ConnectionString);
 		options.AllowAdmin = true;
-		var connection = await ConnectionMultiplexer.ConnectAsync(options).ConfigureAwait(true);
+		var connection = await ConnectionMultiplexer.ConnectAsync(options);
 		var server = connection.GetServers().First();
-		await server.FlushDatabaseAsync(0).ConfigureAwait(true);
-		await connection.CloseAsync().ConfigureAwait(true);
+		await server.FlushDatabaseAsync(0);
+		await connection.CloseAsync();
 		connection.Dispose();
 	}
 }

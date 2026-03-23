@@ -32,6 +32,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PayloadSerializerTransportDeserializationShould
 {
 	private readonly ILogger<PayloadSerializer> _logger = NullLogger<PayloadSerializer>.Instance;

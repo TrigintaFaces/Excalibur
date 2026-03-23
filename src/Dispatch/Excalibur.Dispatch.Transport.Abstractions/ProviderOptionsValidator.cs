@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport;
 ///   <item><description>DefaultTimeoutMs must be positive</description></item>
 /// </list>
 /// </remarks>
-public sealed class ProviderOptionsValidator : IValidateOptions<ProviderOptions>
+public class ProviderOptionsValidator : IValidateOptions<ProviderOptions>
 {
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, ProviderOptions options)
@@ -36,20 +36,20 @@ public sealed class ProviderOptionsValidator : IValidateOptions<ProviderOptions>
 			if (options.RetryPolicy.BaseDelayMs > options.RetryPolicy.MaxDelayMs)
 			{
 				failures.Add(
-					$"{nameof(RetryPolicyOptions)}.{nameof(RetryPolicyOptions.BaseDelayMs)} ({options.RetryPolicy.BaseDelayMs}) " +
-					$"must be less than or equal to {nameof(RetryPolicyOptions)}.{nameof(RetryPolicyOptions.MaxDelayMs)} ({options.RetryPolicy.MaxDelayMs}).");
+					$"{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.BaseDelayMs)} ({options.RetryPolicy.BaseDelayMs}) " +
+					$"must be less than or equal to {nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.MaxDelayMs)} ({options.RetryPolicy.MaxDelayMs}).");
 			}
 
 			if (options.RetryPolicy.BaseDelayMs <= 0)
 			{
 				failures.Add(
-					$"{nameof(RetryPolicyOptions)}.{nameof(RetryPolicyOptions.BaseDelayMs)} must be greater than 0 (was {options.RetryPolicy.BaseDelayMs}).");
+					$"{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.BaseDelayMs)} must be greater than 0 (was {options.RetryPolicy.BaseDelayMs}).");
 			}
 
 			if (options.RetryPolicy.MaxDelayMs <= 0)
 			{
 				failures.Add(
-					$"{nameof(RetryPolicyOptions)}.{nameof(RetryPolicyOptions.MaxDelayMs)} must be greater than 0 (was {options.RetryPolicy.MaxDelayMs}).");
+					$"{nameof(TransportRetryPolicyOptions)}.{nameof(TransportRetryPolicyOptions.MaxDelayMs)} must be greater than 0 (was {options.RetryPolicy.MaxDelayMs}).");
 			}
 		}
 

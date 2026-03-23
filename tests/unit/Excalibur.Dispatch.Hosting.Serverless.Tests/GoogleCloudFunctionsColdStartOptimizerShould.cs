@@ -16,6 +16,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	public void IsEnabled_ReturnFalse_WhenNotInGoogleCloudEnvironment()
 	{
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 		_sut.IsEnabled.ShouldBeFalse();
 	}
 
@@ -23,8 +24,10 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	public void IsEnabled_ReturnTrue_WhenInGoogleCloudEnvironment()
 	{
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", "orders-handler");
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", "handler");
 		_sut.IsEnabled.ShouldBeTrue();
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 	}
 
 	[Fact]

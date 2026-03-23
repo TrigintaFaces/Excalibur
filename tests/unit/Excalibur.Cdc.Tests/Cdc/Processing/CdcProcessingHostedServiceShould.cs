@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -21,7 +22,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new CdcProcessingHostedService(
@@ -35,7 +36,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	{
 		// Arrange
 		var processor = A.Fake<ICdcBackgroundProcessor>();
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new CdcProcessingHostedService(
@@ -64,7 +65,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		// Arrange
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		var options = CreateValidOptions();
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		// Act
 		var service = new CdcProcessingHostedService(processor, options, logger);
@@ -87,7 +88,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			Enabled = false,
 			PollingInterval = TimeSpan.FromMilliseconds(100)
 		});
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 
@@ -119,7 +120,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			Enabled = true,
 			PollingInterval = TimeSpan.FromMilliseconds(100)
 		});
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 
@@ -160,7 +161,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			Enabled = true,
 			PollingInterval = TimeSpan.FromMilliseconds(50)
 		});
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 
@@ -210,7 +211,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			Enabled = true,
 			PollingInterval = TimeSpan.FromMilliseconds(50)
 		});
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 
@@ -248,7 +249,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			PollingInterval = TimeSpan.FromMilliseconds(100),
 			DrainTimeoutSeconds = 5
 		});
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 
@@ -282,7 +283,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			PollingInterval = TimeSpan.FromMilliseconds(100),
 			DrainTimeoutSeconds = drainTimeoutSeconds
 		});
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 
@@ -331,7 +332,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			PollingInterval = TimeSpan.FromMilliseconds(100),
 			DrainTimeoutSeconds = 5
 		});
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 		using var cts = new CancellationTokenSource();
@@ -383,7 +384,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			PollingInterval = TimeSpan.FromMilliseconds(50),
 			DrainTimeoutSeconds = 1 // Very short drain timeout to trigger the warning
 		});
-		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 

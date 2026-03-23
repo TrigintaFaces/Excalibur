@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for <see cref="CacheResilienceOptions"/> and related options.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CacheResilienceOptionsShould : UnitTestBase
 {
 	[Fact]

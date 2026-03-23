@@ -10,6 +10,7 @@ namespace Excalibur.Tests.Cdc.Processing;
 /// Sprint 561 S561.53: IValidateOptions implementation tests.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Cdc")]
 public sealed class CdcProcessingOptionsValidatorShould
 {
 	private readonly CdcProcessingOptionsValidator _validator = new();

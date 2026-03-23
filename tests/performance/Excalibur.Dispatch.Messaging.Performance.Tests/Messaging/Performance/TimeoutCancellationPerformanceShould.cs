@@ -20,6 +20,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Performance;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Performance")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TimeoutCancellationPerformanceShould : IDisposable
 {
 	private readonly ILogger<UnifiedBatchingMiddleware> _logger;

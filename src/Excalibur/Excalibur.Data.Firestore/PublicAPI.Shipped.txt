@@ -138,9 +138,6 @@ Excalibur.Data.Firestore.FirestoreChangeEvent<TDocument>.PartitionKey.get -> Exc
 Excalibur.Data.Firestore.FirestoreChangeEvent<TDocument>.SequenceNumber.get -> long
 Excalibur.Data.Firestore.FirestoreChangeEvent<TDocument>.Timestamp.get -> System.DateTimeOffset
 Excalibur.Data.Firestore.FirestoreEmulatorHelper
-Excalibur.Data.Firestore.FirestoreHealthCheck
-Excalibur.Data.Firestore.FirestoreHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Data.Firestore.FirestoreHealthCheck.FirestoreHealthCheck(Excalibur.Data.Firestore.FirestorePersistenceProvider! provider, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.FirestoreHealthCheck!>! logger) -> void
 Excalibur.Data.Firestore.FirestoreListenerSubscription<TDocument>
 Excalibur.Data.Firestore.FirestoreListenerSubscription<TDocument>.CurrentContinuationToken.get -> string?
 Excalibur.Data.Firestore.FirestoreListenerSubscription<TDocument>.DisposeAsync() -> System.Threading.Tasks.ValueTask
@@ -170,7 +167,7 @@ Excalibur.Data.Firestore.FirestoreOptions.TimeoutInSeconds.get -> int
 Excalibur.Data.Firestore.FirestoreOptions.TimeoutInSeconds.set -> void
 Excalibur.Data.Firestore.FirestoreOptions.Validate() -> void
 Excalibur.Data.Firestore.FirestorePersistenceProvider
-Excalibur.Data.Firestore.FirestorePersistenceProvider.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.Data.Firestore.FirestorePersistenceProvider.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.Firestore.FirestorePersistenceProvider.ConnectionString.get -> string!
 Excalibur.Data.Firestore.FirestorePersistenceProvider.CreateAsync<TDocument>(TDocument! document, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<TDocument!>!>!
 Excalibur.Data.Firestore.FirestorePersistenceProvider.CreateChangeFeedSubscriptionAsync<TDocument>(string! containerName, Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<TDocument!>!>!
@@ -258,3 +255,6 @@ static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtens
 static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions.AddFirestoreWithDatabase(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.FirestoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions.AddFirestoreSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions.AddFirestoreSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Data.Firestore.Diagnostics.FirestorePersistenceTelemetryConstants.MeterName = "Excalibur.Data.Firestore.Persistence" -> string!
+const Excalibur.Data.Firestore.Diagnostics.FirestorePersistenceTelemetryConstants.Version = "1.0.0" -> string!
+Excalibur.Data.Firestore.Diagnostics.FirestorePersistenceTelemetryConstants

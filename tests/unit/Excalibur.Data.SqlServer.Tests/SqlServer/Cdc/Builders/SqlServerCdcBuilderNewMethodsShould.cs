@@ -300,7 +300,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		dbConfig.DatabaseName.ShouldBe("FactoryDb");
 		dbConfig.DatabaseConnectionIdentifier.ShouldBe("factory-conn");
 		dbConfig.StateConnectionIdentifier.ShouldBe("factory-state");
-		dbConfig.CaptureInstances.ShouldBe(new[] { "dbo_Items" });
+		dbConfig.CaptureInstances.ShouldBe(["dbo_Items"]);
 		dbConfig.StopOnMissingTableHandler.ShouldBeFalse();
 	}
 }

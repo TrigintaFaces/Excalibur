@@ -87,7 +87,7 @@ public sealed class KeyedLockShould
 	{
 		// Arrange
 		var keyedLock = new KeyedLock();
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Hold the lock
 		var handle = await keyedLock.AcquireAsync("key1", CancellationToken.None);

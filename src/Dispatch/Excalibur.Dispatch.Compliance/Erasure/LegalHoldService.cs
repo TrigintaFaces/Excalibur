@@ -210,6 +210,7 @@ public sealed partial class LegalHoldService : ILegalHoldService
 		var expiredHolds = await _queryStore.GetExpiredHoldsAsync(cancellationToken).ConfigureAwait(false);
 
 		var releasedCount = 0;
+		List<Guid>? failedHoldIds = null;
 		foreach (var hold in expiredHolds)
 		{
 			try
@@ -224,12 +225,19 @@ public sealed partial class LegalHoldService : ILegalHoldService
 			catch (Exception ex)
 			{
 				LogLegalHoldAutoReleaseFailed(hold.HoldId, ex);
+				failedHoldIds ??= [];
+				failedHoldIds.Add(hold.HoldId);
 			}
 		}
 
 		if (releasedCount > 0)
 		{
 			LogLegalHoldAutoReleaseCompleted(releasedCount);
+		}
+
+		if (failedHoldIds is { Count: > 0 })
+		{
+			LogLegalHoldAutoReleasePartialFailure(failedHoldIds.Count, string.Join(", ", failedHoldIds));
 		}
 
 		return releasedCount;
@@ -295,4 +303,10 @@ public sealed partial class LegalHoldService : ILegalHoldService
 			LogLevel.Information,
 			"Auto-released {Count} expired legal holds")]
 	private partial void LogLegalHoldAutoReleaseCompleted(int count);
+
+	[LoggerMessage(
+			ComplianceEventId.LegalHoldAutoReleasePartialFailure,
+			LogLevel.Warning,
+			"Failed to auto-release {FailedCount} expired legal holds. Hold IDs: {HoldIds}")]
+	private partial void LogLegalHoldAutoReleasePartialFailure(int failedCount, string holdIds);
 }

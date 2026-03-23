@@ -63,31 +63,31 @@ public sealed class MessageObjectPool<T> : ObjectPool<T>
 	public int MaximumPoolSize => _maxSize;
 
 	/// <inheritdoc />
-	public int TotalCreated => _totalCreated;
+	public int TotalCreated => Volatile.Read(ref _totalCreated);
 
 	/// <summary>
 	/// Gets the total number of times an object was rented from the pool.
 	/// </summary>
 	/// <value>The current <see cref="RentCount"/> value.</value>
-	public long RentCount => _rentCount;
+	public long RentCount => Interlocked.Read(ref _rentCount);
 
 	/// <summary>
 	/// Gets the total number of times an object was returned to the pool.
 	/// </summary>
 	/// <value>The current <see cref="ReturnCount"/> value.</value>
-	public long ReturnCount => _returnCount;
+	public long ReturnCount => Interlocked.Read(ref _returnCount);
 
 	/// <summary>
 	/// Gets the total number of times a new object was created.
 	/// </summary>
 	/// <value>The current <see cref="CreateCount"/> value.</value>
-	public long CreateCount => _createCount;
+	public long CreateCount => Interlocked.Read(ref _createCount);
 
 	/// <summary>
 	/// Gets the total number of times an object was discarded instead of returned to the pool.
 	/// </summary>
 	/// <value>The current <see cref="DiscardCount"/> value.</value>
-	public long DiscardCount => _discardCount;
+	public long DiscardCount => Interlocked.Read(ref _discardCount);
 
 	/// <inheritdoc />
 	public override T Get()
@@ -154,10 +154,10 @@ public sealed class MessageObjectPool<T> : ObjectPool<T>
 		new(
 			AvailableCount,
 			TotalCreated,
-			_rentCount,
-			_returnCount,
-			_createCount,
-			_discardCount);
+			Interlocked.Read(ref _rentCount),
+			Interlocked.Read(ref _returnCount),
+			Interlocked.Read(ref _createCount),
+			Interlocked.Read(ref _discardCount));
 }
 
 /// <summary>

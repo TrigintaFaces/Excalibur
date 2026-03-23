@@ -26,20 +26,20 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 [RequiresDynamicCode("Uses expression compilation which requires runtime code generation")]
 public sealed class HandlerActivator : IHandlerActivator
 {
-	private static bool _precompiledAvailable;
-	private static bool _precompiledChecked;
+	private static volatile bool _precompiledAvailable;
+	private static volatile bool _precompiledChecked;
 	private static readonly Type[] NoFactoryArgumentTypes = [];
 	private static readonly object[] NoFactoryArguments = [];
-	private static readonly Dictionary<Type, bool> _precompiledContextSupportCache = new();
+	private static readonly ConcurrentDictionary<Type, bool> _precompiledContextSupportCache = new();
 
 	/// <summary>
 	/// Cache of compiled context setters keyed by handler type.
 	/// Uses FrozenDictionary after freeze for optimal read performance.
 	/// </summary>
-	private static readonly Dictionary<Type, Action<object, IMessageContext>?> _contextSetterCache = new();
-	private static readonly Dictionary<Type, Func<IServiceProvider, IMessageContext, object>> _activationPlanCache = new();
-	private static readonly Dictionary<Type, Func<IServiceProvider, IMessageContext, object>> _registeredActivationPlanCache = new();
-	private static readonly Dictionary<Type, Func<IServiceProvider, IMessageContext, object>> _factoryActivationPlanCache = new();
+	private static readonly ConcurrentDictionary<Type, Action<object, IMessageContext>?> _contextSetterCache = new();
+	private static readonly ConcurrentDictionary<Type, Func<IServiceProvider, IMessageContext, object>> _activationPlanCache = new();
+	private static readonly ConcurrentDictionary<Type, Func<IServiceProvider, IMessageContext, object>> _registeredActivationPlanCache = new();
+	private static readonly ConcurrentDictionary<Type, Func<IServiceProvider, IMessageContext, object>> _factoryActivationPlanCache = new();
 	private static ConditionalWeakTable<IServiceProvider, ConcurrentDictionary<Type, ServiceResolutionMode>> _serviceResolutionModesByProvider = new();
 
 	private static FrozenDictionary<Type, Action<object, IMessageContext>?>? _frozenSetterCache;

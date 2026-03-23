@@ -10,6 +10,7 @@ namespace Excalibur.Hosting.Tests.AzureFunctions;
 /// </summary>
 [Collection("EnvironmentVariableTests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class AzureFunctionsColdStartOptimizerShould : UnitTestBase
 {
 	private readonly AzureFunctionsColdStartOptimizer _sut;

@@ -45,7 +45,7 @@ public sealed class CdcPipelineIntegrationWorkflowShould
 		});
 
 		// Act
-		await cdcPipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await cdcPipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - Event flowed through dispatch pipeline
 		executionLog.Steps.ShouldContain("CdcPipeline:Start:Orders");
@@ -98,9 +98,9 @@ public sealed class CdcPipelineIntegrationWorkflowShould
 		});
 
 		// Act
-		await cdcPipeline.ProcessCdcEventAsync(ordersEvent, CancellationToken.None).ConfigureAwait(true);
-		await cdcPipeline.ProcessCdcEventAsync(logsEvent, CancellationToken.None).ConfigureAwait(true);
-		await cdcPipeline.ProcessCdcEventAsync(usersEvent, CancellationToken.None).ConfigureAwait(true);
+		await cdcPipeline.ProcessCdcEventAsync(ordersEvent, CancellationToken.None);
+		await cdcPipeline.ProcessCdcEventAsync(logsEvent, CancellationToken.None);
+		await cdcPipeline.ProcessCdcEventAsync(usersEvent, CancellationToken.None);
 
 		// Assert - Only Orders event was processed through the pipeline
 		var publishSteps = executionLog.Steps.Where(s => s.Contains("DispatchPipeline:Publish")).ToList();
@@ -136,7 +136,7 @@ public sealed class CdcPipelineIntegrationWorkflowShould
 		// Act - Process sequentially (as CDC would)
 		foreach (var evt in events)
 		{
-			await cdcPipeline.ProcessCdcEventAsync(evt, CancellationToken.None).ConfigureAwait(true);
+			await cdcPipeline.ProcessCdcEventAsync(evt, CancellationToken.None);
 		}
 
 		// Assert - Events were processed in order
@@ -175,7 +175,7 @@ public sealed class CdcPipelineIntegrationWorkflowShould
 		});
 
 		// Act
-		await cdcPipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await cdcPipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - All registered handlers were invoked
 		executionLog.Steps.ShouldContain("Handler:OrderNotificationHandler:Execute:OrderCreatedDomainEvent");
@@ -209,7 +209,7 @@ public sealed class CdcPipelineIntegrationWorkflowShould
 		});
 
 		// Act
-		await cdcPipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await cdcPipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - All projections received the event
 		executionLog.Steps.ShouldContain("Projection:OrderSummaryProjection:Apply:OrderCreatedDomainEvent");

@@ -6,6 +6,7 @@ namespace Excalibur.Dispatch.Abstractions.Tests;
 /// Unit tests for CorrelationId value object.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Abstractions")]
 public sealed class CorrelationIdShould : UnitTestBase
 {
 	[Fact]

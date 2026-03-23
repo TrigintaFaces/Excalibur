@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// </summary>
 public sealed class PipelineProfile : IPipelineProfile
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindsCache = new();
 	private static readonly IReadOnlySet<DispatchFeatures> NoEnabledFeatures = new HashSet<DispatchFeatures>();
 
@@ -164,7 +165,22 @@ public sealed class PipelineProfile : IPipelineProfile
 	[RequiresUnreferencedCode("Uses reflection to check for generic action interfaces")]
 	private static MessageKinds DetermineMessageKinds(IDispatchMessage message)
 	{
-		return MessageKindsCache.GetOrAdd(message.GetType(), static type => DetermineMessageKinds(type));
+		var messageType = message.GetType();
+
+		if (MessageKindsCache.TryGetValue(messageType, out var cached))
+		{
+			return cached;
+		}
+
+		var kinds = DetermineMessageKinds(messageType);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (MessageKindsCache.Count < MaxCacheEntries)
+		{
+			MessageKindsCache.TryAdd(messageType, kinds);
+		}
+
+		return kinds;
 	}
 
 	[RequiresUnreferencedCode("Uses reflection to check for generic action interfaces")]

@@ -188,13 +188,7 @@ public sealed class ResourceExceptionShould
 		exception.ShouldBeAssignableTo<Exception>();
 	}
 
-	[Fact]
-	public void IsSerializable()
-	{
-		// Assert
-		typeof(ResourceException).GetCustomAttributes(typeof(SerializableAttribute), false)
-			.Length.ShouldBe(1);
-	}
+	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)
 
 	#endregion
 

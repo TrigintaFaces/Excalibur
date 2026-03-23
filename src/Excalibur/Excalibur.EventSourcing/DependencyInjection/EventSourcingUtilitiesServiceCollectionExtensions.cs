@@ -158,7 +158,7 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.TryAddSingleton<ITimeTravelQuery>(sp =>
-			new EventStoreTimeTravelQuery(sp.GetRequiredService<IEventStore>()));
+			new EventStoreTimeTravelQuery(sp.GetRequiredKeyedService<IEventStore>("default")));
 
 		return services;
 	}

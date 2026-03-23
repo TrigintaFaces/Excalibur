@@ -118,50 +118,22 @@ builder.Services.AddHealthChecks()
 
 ## Database Health Check
 
-Monitor SQL Server event store connectivity:
+The built-in `EventStoreHealthCheck` (internal) monitors event store connectivity. Register it via the DI extension:
 
 ```csharp
-public class EventStoreHealthCheck : IHealthCheck
-{
-    private readonly IEventStore _eventStore;
-    private readonly ILogger<EventStoreHealthCheck> _logger;
-
-    public EventStoreHealthCheck(
-        IEventStore eventStore,
-        ILogger<EventStoreHealthCheck> logger)
-    {
-        _eventStore = eventStore;
-        _logger = logger;
-    }
-
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            // Try to query event store metadata
-            // This validates connection without loading data
-            var testAggregateId = Guid.NewGuid().ToString();
-            var events = await _eventStore.LoadAsync(
-                testAggregateId,
-                "HealthCheck",
-                cancellationToken);
-
-            return HealthCheckResult.Healthy("Event store is accessible");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Event store health check failed");
-            return HealthCheckResult.Unhealthy(
-                "Event store is not accessible",
-                ex);
-        }
-    }
-}
-
-// Using AspNetCore.HealthChecks.SqlServer
 builder.Services.AddHealthChecks()
+    .AddEventStoreHealthCheck(); // Uses built-in EventStoreHealthCheck (internal)
+```
+
+The health check validates event store connectivity without loading data. It returns:
+- **Healthy**: Event store is accessible
+- **Unhealthy**: Event store connection failed (exception details included)
+
+For additional SQL Server connectivity monitoring, combine with the AspNetCore health check package:
+
+```csharp
+builder.Services.AddHealthChecks()
+    .AddEventStoreHealthCheck()
     .AddSqlServer(
         connectionString: builder.Configuration.GetConnectionString("EventStore"),
         name: "event-store-db",
@@ -678,35 +650,14 @@ See [Materialized Views](../event-sourcing/materialized-views.md) for complete d
 
 ## Leader Election Health Check
 
-Monitor leader election status:
+The built-in `LeaderElectionHealthCheck` (internal) monitors leader election status. Register it via DI:
 
 ```csharp
-public class LeaderElectionHealthCheck : IHealthCheck
-{
-    private readonly ILeaderElection _leaderElection;
-
-    public LeaderElectionHealthCheck(ILeaderElection leaderElection)
-    {
-        _leaderElection = leaderElection;
-    }
-
-    public Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken)
-    {
-        var isLeader = _leaderElection.IsLeader;
-        var leaderId = _leaderElection.LeaderId;
-
-        return Task.FromResult(HealthCheckResult.Healthy(
-            isLeader ? "This instance is the leader" : "Follower instance",
-            data: new Dictionary<string, object>
-            {
-                ["IsLeader"] = isLeader,
-                ["LeaderId"] = leaderId ?? "unknown"
-            }));
-    }
-}
+builder.Services.AddHealthChecks()
+    .AddLeaderElectionHealthCheck();
 ```
+
+The health check reports whether this instance is the current leader and includes the leader ID in the response data. It returns `Healthy` for both leader and follower instances -- the distinction is in the response data (`IsLeader`, `LeaderId`).
 
 ## Performance Metrics
 

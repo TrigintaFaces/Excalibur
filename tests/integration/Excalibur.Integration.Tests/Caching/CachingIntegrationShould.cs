@@ -14,6 +14,8 @@ namespace Excalibur.Integration.Tests.Caching;
 
 // Public test types for caching integration tests (private nested types prevent HybridCache from working)
 [CacheResult(Tags = ["test-tag"])]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CachingTestQuery : QueryBase<CachingTestResult>, IDispatchAction<CachingTestResult>
 {
 	public int Value { get; init; }
@@ -23,6 +25,8 @@ public sealed class CachingTestQuery : QueryBase<CachingTestResult>, IDispatchAc
 	public override string ActivityDescription => "A test query for caching";
 }
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CachingTestResult
 {
 	public int Value { get; init; }
@@ -30,6 +34,8 @@ public sealed class CachingTestResult
 	public string Timestamp { get; init; } = DateTimeOffset.UtcNow.ToString("O");
 }
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CachingTestQueryHandler : IActionHandler<CachingTestQuery, CachingTestResult>
 {
 	private static int _callCount;
@@ -51,6 +57,8 @@ public sealed class CachingTestQueryHandler : IActionHandler<CachingTestQuery, C
 }
 
 // Public test types for policy and middleware tests (private nested types prevent HybridCache from working)
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class TestResult
 {
 	public int Value { get; init; }
@@ -58,6 +66,8 @@ public sealed class TestResult
 
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class ConditionalCachePolicy : IResultCachePolicy<CachingTestQuery>
 {
 	public bool ShouldCache(CachingTestQuery message, object? result) =>
@@ -69,6 +79,8 @@ public sealed class ConditionalCachePolicy : IResultCachePolicy<CachingTestQuery
 
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class TestTrackingMiddleware : IDispatchMiddleware
 {
 	public int CallCount { get; private set; }
@@ -82,11 +94,13 @@ public sealed class TestTrackingMiddleware : IDispatchMiddleware
 		CancellationToken cancellationToken)
 	{
 		CallCount++;
-		return await nextDelegate(message, context, cancellationToken).ConfigureAwait(true);
+		return await nextDelegate(message, context, cancellationToken);
 	}
 }
 
 [CacheResult(OnlyIfSuccess = true)]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class OnlyIfSuccessQuery : QueryBase<TestResult>, IDispatchAction<TestResult>
 {
 	public int Value { get; init; }
@@ -97,6 +111,8 @@ public sealed class OnlyIfSuccessQuery : QueryBase<TestResult>, IDispatchAction<
 }
 
 [SuppressMessage("Performance", "CA1812", Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class OnlyIfSuccessQueryHandler : IActionHandler<OnlyIfSuccessQuery, TestResult>
 {
 	private static int _callCount;
@@ -116,6 +132,8 @@ public sealed class OnlyIfSuccessQueryHandler : IActionHandler<OnlyIfSuccessQuer
 }
 
 [CacheResult(IgnoreNullResult = true)]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class NullResultQuery : QueryBase<TestResult>, IDispatchAction<TestResult>
 {
 	public int Value { get; init; }
@@ -126,6 +144,8 @@ public sealed class NullResultQuery : QueryBase<TestResult>, IDispatchAction<Tes
 }
 
 [SuppressMessage("Performance", "CA1812", Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class NullResultQueryHandler : IActionHandler<NullResultQuery, TestResult>
 {
 	private static int _callCount;
@@ -145,6 +165,8 @@ public sealed class NullResultQueryHandler : IActionHandler<NullResultQuery, Tes
 
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InvalidateCacheCommand : ICacheInvalidator, ITestCacheInvalidator, IDispatchAction
 {
 	public Guid Id => Guid.NewGuid();
@@ -186,6 +208,8 @@ public sealed class InvalidateCacheCommand : ICacheInvalidator, ITestCacheInvali
 
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InvalidateCacheCommandHandler : IActionHandler<InvalidateCacheCommand>
 {
 	public Task HandleAsync(InvalidateCacheCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -195,6 +219,8 @@ public sealed class InvalidateCacheCommandHandler : IActionHandler<InvalidateCac
 /// Integration tests for the caching functionality.
 /// </summary>
 [Collection("CachingIntegrationTests")] // Disable parallel execution to avoid shared static CallCount issues
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CachingIntegrationShould : IntegrationTestBase
 {
 	[Fact]
@@ -242,11 +268,11 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var testMessage = new TestDispatchAction();
 		var context = new MessageContext(testMessage, provider);
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, context, CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Act - Second call should return cached result
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, context, CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Assert
 		_ = result1.ShouldNotBeNull();
@@ -300,14 +326,14 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		// Act - First call caches result
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, context, CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Reset handler call count
 		CachingTestQueryHandler.CallCount = 0;
 
 		// Act - Second call should use cache
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, context, CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Assert HybridCache returns different instances due to serialization - compare values instead of references
 		result1.ReturnValue.Value.ShouldBe(result2.ReturnValue.Value);
@@ -349,13 +375,13 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Act - Query with MessageId < 100 should not be cached
 		CachingTestQueryHandler.CallCount = 0;
 		var query1 = new CachingTestQuery { Value = 50 };
-		var result1a = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query1, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
-		var result1b = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query1, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
+		var result1a = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query1, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
+		var result1b = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query1, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Act - Query with MessageId >= 100 should be cached
 		var query2 = new CachingTestQuery { Value = 150 };
-		var result2a = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query2, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
-		var result2b = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query2, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
+		var result2a = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query2, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
+		var result2b = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query2, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Assert - handler should be called 3 times: 2 for query1 (not cached), 1 for query2 (cached on second call)
 		CachingTestQueryHandler.CallCount.ShouldBe(3);
@@ -408,9 +434,9 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Act
 		CachingTestQueryHandler.CallCount = 0;
 		_ = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 		_ = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
-			.ConfigureAwait(true); // Cached
+			; // Cached
 
 		// Assert
 		trackingMiddleware.CallCount.ShouldBe(2); // Middleware called twice
@@ -453,9 +479,9 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Act - first call caches the result
 		CachingTestQueryHandler.CallCount = 0;
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Assert cached
 		CachingTestQueryHandler.CallCount.ShouldBe(1);
@@ -467,7 +493,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 			query,
 			provider,
 			baselineCallCount: 1,
-			TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+			TimeSpan.FromSeconds(5));
 
 		// Assert
 		CachingTestQueryHandler.CallCount.ShouldBe(2);
@@ -515,8 +541,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		Excalibur.Dispatch.Abstractions.MessageContextExtensions.ValidationResult(context2, SerializableValidationResult.Failed("bad"));
 
 		OnlyIfSuccessQueryHandler.CallCount = 0;
-		_ = await dispatcher.DispatchAsync<OnlyIfSuccessQuery, TestResult>(query, context1, cancellationToken: default).ConfigureAwait(true);
-		_ = await dispatcher.DispatchAsync<OnlyIfSuccessQuery, TestResult>(query, context2, cancellationToken: default).ConfigureAwait(true);
+		_ = await dispatcher.DispatchAsync<OnlyIfSuccessQuery, TestResult>(query, context1, cancellationToken: default);
+		_ = await dispatcher.DispatchAsync<OnlyIfSuccessQuery, TestResult>(query, context2, cancellationToken: default);
 
 		// Assert
 		OnlyIfSuccessQueryHandler.CallCount.ShouldBe(2);
@@ -554,8 +580,8 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var query = new NullResultQuery { Value = 5 };
 
 		NullResultQueryHandler.CallCount = 0;
-		var result1 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
-		var result2 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
+		var result1 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
+		var result2 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Assert
 		result1.CacheHit.ShouldBeFalse();
@@ -603,7 +629,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 				query,
 				new MessageContext(new TestDispatchAction(), provider), cancellationToken: default));
 
-		var results = await Task.WhenAll(tasks).ConfigureAwait(true);
+		var results = await Task.WhenAll(tasks);
 
 		foreach (var r in results)
 		{
@@ -655,9 +681,9 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Act - first call caches the result
 		CachingTestQueryHandler.CallCount = 0;
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None).ConfigureAwait(true);
+			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None);
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None).ConfigureAwait(true);
+			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None);
 
 		// Assert cached
 		result1.Succeeded.ShouldBeTrue();
@@ -668,11 +694,11 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var invalidate = new InvalidateCacheCommand { TagsToInvalidate = ["test-tag"] };
 		_ = await dispatcher
 			.DispatchAsync(invalidate, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default)
-			.ConfigureAwait(true);
+			;
 
 		// Act - after invalidation handler should run again
 		var result3 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
+			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Assert - handler should be called twice: first call + third call after invalidation
 		CachingTestQueryHandler.CallCount.ShouldBe(2);
@@ -694,14 +720,14 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 			lastResult = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
 				query,
 				new MessageContext(new TestDispatchAction(), provider),
-				CancellationToken.None).ConfigureAwait(true);
+				CancellationToken.None);
 
 			if (CachingTestQueryHandler.CallCount > baselineCallCount)
 			{
 				return lastResult;
 			}
 
-			await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(true);
+			await Task.Delay(TimeSpan.FromMilliseconds(50));
 		}
 
 		lastResult.ShouldNotBeNull();

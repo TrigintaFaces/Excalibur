@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for CacheHealthMonitor functionality.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CacheHealthMonitorShould : UnitTestBase
 {
 	[Fact]

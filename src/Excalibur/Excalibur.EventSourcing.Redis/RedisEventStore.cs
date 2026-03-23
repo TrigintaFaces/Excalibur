@@ -35,9 +35,15 @@ public sealed partial class RedisEventStore : IEventStore
 	/// Checks that the current stream length equals the expected version before appending events.
 	/// Returns the new stream length on success, or -1 on concurrency conflict.
 	/// </summary>
+	/// <remarks>
+	/// KEYS[1] = stream key, KEYS[2] = undispatched sorted set, KEYS[3] = undispatched data hash.
+	/// The data hash stores serialized StoredEvent JSON keyed by event ID so that
+	/// <see cref="GetUndispatchedEventsAsync"/> can retrieve full event data efficiently.
+	/// </remarks>
 	private static readonly string AppendScript = """
 		local stream_key = KEYS[1]
 		local undispatched_key = KEYS[2]
+		local undispatched_data_key = KEYS[3]
 		local expected_version = tonumber(ARGV[1])
 		local event_count = tonumber(ARGV[2])
 
@@ -60,6 +66,8 @@ public sealed partial class RedisEventStore : IEventStore
 			-- Add to undispatched sorted set with current timestamp as score
 			local event_id = ARGV[base + 1]
 			redis.call('ZADD', undispatched_key, redis.call('TIME')[1], event_id)
+			-- Store full event data in hash for efficient retrieval
+			redis.call('HSET', undispatched_data_key, event_id, value)
 		end
 
 		local new_length = redis.call('XLEN', stream_key)
@@ -175,9 +183,11 @@ public sealed partial class RedisEventStore : IEventStore
 			args.Add(serialized);
 		}
 
+		var undispatchedDataKey = (RedisKey)GetUndispatchedDataKey();
+
 		var result = (RedisResult[]?)await db.ScriptEvaluateAsync(
 			AppendScript,
-			[streamKey, undispatchedKey],
+			[streamKey, undispatchedKey, undispatchedDataKey],
 			args.ToArray()).ConfigureAwait(false);
 
 		if (result == null || result.Length < 2)
@@ -207,6 +217,7 @@ public sealed partial class RedisEventStore : IEventStore
 
 		var db = GetDatabase();
 		var undispatchedKey = (RedisKey)_options.UndispatchedSetKey;
+		var undispatchedDataKey = (RedisKey)GetUndispatchedDataKey();
 
 		// Get the oldest undispatched event IDs from the sorted set
 		var eventIds = await db.SortedSetRangeByRankAsync(undispatchedKey, 0, batchSize - 1)
@@ -219,14 +230,26 @@ public sealed partial class RedisEventStore : IEventStore
 
 		LogUndispatchedEventsRetrieved(eventIds.Length);
 
-		// For each event ID, we need to find it across streams.
-		// This is an inherent limitation — we store a lookup key alongside the event ID
-		// in a separate hash for efficient retrieval.
-		// For now, return the event IDs as markers (the full implementation would
-		// need a global event index or the caller provides stream context).
-		// Simplified: we store undispatched events with full data in the sorted set value.
+		// Retrieve full event data from the companion hash
+		var hashFields = eventIds;
+		var values = await db.HashGetAsync(undispatchedDataKey, hashFields).ConfigureAwait(false);
 
-		return [];
+		var events = new List<StoredEvent>(eventIds.Length);
+		for (var i = 0; i < values.Length; i++)
+		{
+			if (values[i].IsNullOrEmpty)
+			{
+				continue;
+			}
+
+			var storedEvent = JsonSerializer.Deserialize<StoredEvent>(values[i].ToString());
+			if (storedEvent is not null)
+			{
+				events.Add(storedEvent);
+			}
+		}
+
+		return events;
 	}
 
 	/// <inheritdoc/>
@@ -238,8 +261,11 @@ public sealed partial class RedisEventStore : IEventStore
 
 		var db = GetDatabase();
 		var undispatchedKey = (RedisKey)_options.UndispatchedSetKey;
+		var undispatchedDataKey = (RedisKey)GetUndispatchedDataKey();
 
+		// Remove from both the sorted set and the companion data hash
 		await db.SortedSetRemoveAsync(undispatchedKey, eventId).ConfigureAwait(false);
+		await db.HashDeleteAsync(undispatchedDataKey, eventId).ConfigureAwait(false);
 
 		LogEventMarkedDispatched(eventId);
 	}
@@ -251,6 +277,9 @@ public sealed partial class RedisEventStore : IEventStore
 
 	private string GetStreamKey(string aggregateType, string aggregateId) =>
 		$"{_options.StreamKeyPrefix}:{aggregateType}:{aggregateId}";
+
+	private string GetUndispatchedDataKey() =>
+		$"{_options.UndispatchedSetKey}:data";
 
 	private static List<StoredEvent> ParseStreamEntries(StreamEntry[] entries)
 	{

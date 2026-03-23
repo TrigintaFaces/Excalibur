@@ -197,7 +197,7 @@ Excalibur.Hosting.Configuration.ExcaliburOptions.EventSourcing.set -> void
 Excalibur.Hosting.Configuration.ExcaliburOptions.ExcaliburOptions() -> void
 Excalibur.Hosting.Configuration.ExcaliburOptions.LeaderElection.get -> Excalibur.Hosting.Configuration.LeaderElectionOptions!
 Excalibur.Hosting.Configuration.ExcaliburOptions.LeaderElection.set -> void
-Excalibur.Hosting.Configuration.ExcaliburOptions.Outbox.get -> Excalibur.Hosting.Configuration.OutboxOptions!
+Excalibur.Hosting.Configuration.ExcaliburOptions.Outbox.get -> Excalibur.Hosting.Configuration.ExcaliburOutboxOptions!
 Excalibur.Hosting.Configuration.ExcaliburOptions.Outbox.set -> void
 Excalibur.Hosting.Configuration.ExcaliburOptions.Saga.get -> Excalibur.Hosting.Configuration.SagaOptions!
 Excalibur.Hosting.Configuration.ExcaliburOptions.Saga.set -> void
@@ -238,16 +238,16 @@ Excalibur.Hosting.Configuration.LeaderElectionOptions.LeaseDuration.get -> Syste
 Excalibur.Hosting.Configuration.LeaderElectionOptions.LeaseDuration.set -> void
 Excalibur.Hosting.Configuration.LeaderElectionOptions.RenewInterval.get -> System.TimeSpan
 Excalibur.Hosting.Configuration.LeaderElectionOptions.RenewInterval.set -> void
-Excalibur.Hosting.Configuration.OutboxOptions
-Excalibur.Hosting.Configuration.OutboxOptions.Enabled.get -> bool
-Excalibur.Hosting.Configuration.OutboxOptions.Enabled.set -> void
-Excalibur.Hosting.Configuration.OutboxOptions.MaxBatchSize.get -> int
-Excalibur.Hosting.Configuration.OutboxOptions.MaxBatchSize.set -> void
-Excalibur.Hosting.Configuration.OutboxOptions.MaxRetryAttempts.get -> int
-Excalibur.Hosting.Configuration.OutboxOptions.MaxRetryAttempts.set -> void
-Excalibur.Hosting.Configuration.OutboxOptions.OutboxOptions() -> void
-Excalibur.Hosting.Configuration.OutboxOptions.PollingInterval.get -> System.TimeSpan
-Excalibur.Hosting.Configuration.OutboxOptions.PollingInterval.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.Enabled.get -> bool
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.Enabled.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.MaxBatchSize.get -> int
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.MaxBatchSize.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.MaxRetryAttempts.get -> int
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.MaxRetryAttempts.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.ExcaliburOutboxOptions() -> void
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Hosting.Configuration.ExcaliburOutboxOptions.PollingInterval.set -> void
 Excalibur.Hosting.Configuration.SagaOptions
 Excalibur.Hosting.Configuration.SagaOptions.DefaultTimeout.get -> System.TimeSpan
 Excalibur.Hosting.Configuration.SagaOptions.DefaultTimeout.set -> void

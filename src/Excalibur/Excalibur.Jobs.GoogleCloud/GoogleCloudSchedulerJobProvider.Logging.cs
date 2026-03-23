@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Jobs.GoogleCloud;
 
-public partial class GoogleCloudSchedulerJobProvider
+public sealed partial class GoogleCloudSchedulerJobProvider
 {
 	// Source-generated logging methods
 

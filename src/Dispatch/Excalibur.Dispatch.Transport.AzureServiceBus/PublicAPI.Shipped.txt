@@ -307,8 +307,8 @@ Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.CallbackUrl.ge
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.CallbackUrl.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.LogicAppName.get -> string?
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.LogicAppName.set -> void
-Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.MaxRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.ResourceGroupName.get -> string?
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.ResourceGroupName.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.RetryDelaySeconds.get -> int
@@ -348,8 +348,8 @@ Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.Delay.get -> System.TimeSpa
 Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.Delay.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.MaxDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.MaxDelay.set -> void
-Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.MaxRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.Mode.get -> Excalibur.Dispatch.Transport.Azure.RetryMode
 Excalibur.Dispatch.Transport.Azure.AzureRetryOptions.Mode.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusCloudEventOptions
@@ -383,7 +383,7 @@ Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus.PublishAsync(Excali
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions.AzureServiceBusOptions() -> void
-Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions.CloudEventsMode.get -> Excalibur.Dispatch.Messaging.CloudEventsMode
+Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions.CloudEventsMode.get -> Excalibur.Dispatch.CloudEvents.CloudEventMode
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions.CloudEventsMode.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions.ConnectionString.get -> string?
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions.ConnectionString.set -> void
@@ -903,4 +903,5 @@ static Microsoft.Extensions.DependencyInjection.PriorityQueueServiceCollectionEx
 static Microsoft.Extensions.DependencyInjection.RequestReplyServiceCollectionExtensions.AddAzureServiceBusRequestReply(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.RequestReplyOptions!>! configure, System.Func<System.IServiceProvider!, Excalibur.Dispatch.Transport.Azure.IRequestReplyClient!>! factory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.RequestReplyServiceCollectionExtensions.AddAzureServiceBusRequestReply<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.RequestReplyOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceBusDeadLetterServiceCollectionExtensions.AddServiceBusDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.AzureServiceBus.ServiceBusDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServiceBusDeadLetterServiceCollectionExtensions.AddServiceBusDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! transportName, System.Action<Excalibur.Dispatch.Transport.AzureServiceBus.ServiceBusDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.TransactionServiceCollectionExtensions.AddAzureServiceBusTransactions<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Routing.Builder;
 /// </summary>
 public static class TransportRoutingBuilderExtensions
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MethodInfo> GenericRouteMethodCache = new();
 
 	private static readonly MethodInfo RouteMethodDefinition =
@@ -73,9 +74,21 @@ public static class TransportRoutingBuilderExtensions
 			}
 
 			// Get or create the closed generic Route<T>() method
-			var routeMethod = GenericRouteMethodCache.GetOrAdd(
-				type,
-				static t => RouteMethodDefinition.MakeGenericMethod(t));
+			MethodInfo routeMethod;
+			if (GenericRouteMethodCache.TryGetValue(type, out var cached))
+			{
+				routeMethod = cached;
+			}
+			else
+			{
+				routeMethod = RouteMethodDefinition.MakeGenericMethod(type);
+
+				// Bounded cache: skip caching when full to prevent unbounded memory growth
+				if (GenericRouteMethodCache.Count < MaxCacheEntries)
+				{
+					GenericRouteMethodCache.TryAdd(type, routeMethod);
+				}
+			}
 
 			// Call Route<T>() -> returns ITransportRuleBuilder<T>
 			var ruleBuilder = routeMethod.Invoke(builder, null)!;

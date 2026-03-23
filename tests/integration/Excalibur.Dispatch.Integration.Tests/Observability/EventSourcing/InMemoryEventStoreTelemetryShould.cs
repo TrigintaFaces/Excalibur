@@ -19,6 +19,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// NOT via exceptions - this is unique among all providers.
 /// </remarks>
 [Collection("EventStore Telemetry Tests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class InMemoryEventStoreTelemetryShould : IDisposable
 {
 	private readonly InMemoryEventStore _eventStore;

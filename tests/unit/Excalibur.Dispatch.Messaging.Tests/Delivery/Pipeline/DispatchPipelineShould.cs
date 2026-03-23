@@ -18,7 +18,8 @@ namespace Excalibur.Dispatch.Tests.Pipeline;
 /// exception handling, async middleware, context propagation, and conditional middleware.
 /// </summary>
 [Trait("Category", "Unit")]
-public class DispatchPipelineShould : UnitTestBase
+[Trait("Component", "Dispatch.Core")]
+public sealed class DispatchPipelineShould : UnitTestBase
 {
 	#region Pipeline Execution Ordering Tests
 
@@ -116,7 +117,7 @@ public class DispatchPipelineShould : UnitTestBase
 		var executionOrder = new List<string>();
 		var middleware = new IDispatchMiddleware[]
 		{
-			new TestMiddleware("Error", DispatchMiddlewareStage.Error, executionOrder),
+			new TestMiddleware("Error", DispatchMiddlewareStage.ErrorHandling, executionOrder),
 			new TestMiddleware("Start", DispatchMiddlewareStage.Start, executionOrder),
 			new TestMiddleware("Processing", DispatchMiddlewareStage.Processing, executionOrder),
 			new TestMiddleware("Validation", DispatchMiddlewareStage.Validation, executionOrder),
@@ -452,7 +453,7 @@ public class DispatchPipelineShould : UnitTestBase
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();
 		var context = CreateMessageContext();
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		cts.Cancel();
 
 		// Act & Assert

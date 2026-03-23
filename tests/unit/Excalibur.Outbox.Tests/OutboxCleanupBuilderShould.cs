@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="IOutboxCleanupBuilder"/> implementation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class OutboxCleanupBuilderShould : UnitTestBase
 {
 	#region EnableAutoCleanup Tests

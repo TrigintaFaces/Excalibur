@@ -29,7 +29,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 	public async Task MinimalApi_ConcurrentEndpoints_ShouldUseRequestScopedProviderPerDispatch()
 	{
 		// Arrange
-		await using var host = await CreateMinimalApiHostAsync().ConfigureAwait(true);
+		await using var host = await CreateMinimalApiHostAsync();
 		using var client = CreateClient(host);
 		const int requestsPerEndpoint = 32;
 
@@ -45,7 +45,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 				new EndpointRequest { RequestId = Guid.NewGuid() }));
 		}
 
-		var responses = await Task.WhenAll(requests).ConfigureAwait(true);
+		var responses = await Task.WhenAll(requests);
 
 		// Assert
 		var failures = await Task.WhenAll(
@@ -53,7 +53,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 					.Where(static response => !response.IsSuccessStatusCode)
 					.Select(async response =>
 						$"{(int)response.StatusCode}:{await response.Content.ReadAsStringAsync().ConfigureAwait(false)}"))
-			.ConfigureAwait(true);
+			;
 		failures.ShouldBeEmpty(string.Join(Environment.NewLine, failures));
 		var tracker = host.Services.GetRequiredService<RequestScopeTracker>();
 		tracker.CountFor("minimal-orders").ShouldBe(requestsPerEndpoint);
@@ -66,7 +66,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 	public async Task Controller_ConcurrentEndpoints_ShouldUseRequestScopedProviderPerDispatch()
 	{
 		// Arrange
-		await using var host = await CreateControllerHostAsync().ConfigureAwait(true);
+		await using var host = await CreateControllerHostAsync();
 		using var client = CreateClient(host);
 		const int requestsPerEndpoint = 32;
 
@@ -78,7 +78,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 			requests.Add(client.PostAsJsonAsync("/controller/payments", new EndpointRequest { RequestId = Guid.NewGuid() }));
 		}
 
-		var responses = await Task.WhenAll(requests).ConfigureAwait(true);
+		var responses = await Task.WhenAll(requests);
 
 		// Assert
 		var failures = await Task.WhenAll(
@@ -86,7 +86,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 					.Where(static response => !response.IsSuccessStatusCode)
 					.Select(async response =>
 						$"{(int)response.StatusCode}:{await response.Content.ReadAsStringAsync().ConfigureAwait(false)}"))
-			.ConfigureAwait(true);
+			;
 		failures.ShouldBeEmpty(string.Join(Environment.NewLine, failures));
 		var tracker = host.Services.GetRequiredService<RequestScopeTracker>();
 		tracker.CountFor("controller-orders").ShouldBe(requestsPerEndpoint);
@@ -99,7 +99,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 	public async Task MinimalApi_ConcurrentLocalAndRemoteEndpoints_ShouldRouteToExpectedDestination()
 	{
 		// Arrange
-		await using var host = await CreateMixedRouteMinimalApiHostAsync().ConfigureAwait(true);
+		await using var host = await CreateMixedRouteMinimalApiHostAsync();
 		using var client = CreateClient(host);
 		const int requestsPerEndpoint = 32;
 
@@ -115,7 +115,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 				new EndpointRequest { RequestId = Guid.NewGuid() }));
 		}
 
-		var responses = await Task.WhenAll(requests).ConfigureAwait(true);
+		var responses = await Task.WhenAll(requests);
 
 		// Assert
 		var failures = await Task.WhenAll(
@@ -123,7 +123,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 					.Where(static response => !response.IsSuccessStatusCode)
 					.Select(async response =>
 						$"{(int)response.StatusCode}:{await response.Content.ReadAsStringAsync().ConfigureAwait(false)}"))
-			.ConfigureAwait(true);
+			;
 		failures.ShouldBeEmpty(string.Join(Environment.NewLine, failures));
 
 		var tracker = host.Services.GetRequiredService<RequestScopeTracker>();
@@ -140,7 +140,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 	public async Task Controller_ConcurrentLocalAndRemoteEndpoints_ShouldRouteToExpectedDestination()
 	{
 		// Arrange
-		await using var host = await CreateControllerHostAsync().ConfigureAwait(true);
+		await using var host = await CreateControllerHostAsync();
 		using var client = CreateClient(host);
 		const int requestsPerEndpoint = 32;
 
@@ -156,7 +156,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 				new EndpointRequest { RequestId = Guid.NewGuid() }));
 		}
 
-		var responses = await Task.WhenAll(requests).ConfigureAwait(true);
+		var responses = await Task.WhenAll(requests);
 
 		// Assert
 		var failures = await Task.WhenAll(
@@ -164,7 +164,7 @@ public sealed class EndpointConcurrencyDispatchShould : UnitTestBase
 					.Where(static response => !response.IsSuccessStatusCode)
 					.Select(async response =>
 						$"{(int)response.StatusCode}:{await response.Content.ReadAsStringAsync().ConfigureAwait(false)}"))
-			.ConfigureAwait(true);
+			;
 		failures.ShouldBeEmpty(string.Join(Environment.NewLine, failures));
 
 		var tracker = host.Services.GetRequiredService<RequestScopeTracker>();

@@ -523,21 +523,25 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 
 	private static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
-		services.TryAddSingleton<IEventStore>(sp =>
+		services.AddKeyedSingleton<IEventStore>("postgres", (sp, _) =>
 			new TelemetryEventStore(
 				sp.GetRequiredService<PostgresEventStore>(),
 				new Meter(EventSourcingMeters.EventStore),
 				new ActivitySource(EventSourcingActivitySources.EventStore),
 				"Postgres"));
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("postgres"));
 	}
 
 	private static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)
 	{
-		services.TryAddSingleton<ISnapshotStore>(sp =>
+		services.AddKeyedSingleton<ISnapshotStore>("postgres", (sp, _) =>
 			new TelemetrySnapshotStore(
 				sp.GetRequiredService<PostgresSnapshotStore>(),
 				new Meter(EventSourcingMeters.SnapshotStore),
 				new ActivitySource(EventSourcingActivitySources.SnapshotStore),
 				"Postgres"));
+		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISnapshotStore>("postgres"));
 	}
 }

@@ -26,6 +26,9 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// </summary>
 public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDisposable
 {
+	private static readonly JsonSerializerOptions ExceptionSerializerOptions = new() { WriteIndented = true };
+	private static readonly string[] AllowedContextKeys = ["Environment", "Version", "Component", "Feature"];
+
 	private volatile bool _disposed;
 
 	private readonly IDeadLetterStore _deadLetterStore;
@@ -312,9 +315,7 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 		var properties = new Dictionary<string, string>(StringComparer.Ordinal);
 
 		// Add selected context items as properties
-		var allowedKeys = new[] { "Environment", "Version", "Component", "Feature" };
-
-		foreach (var key in allowedKeys)
+		foreach (var key in AllowedContextKeys)
 		{
 			if (context.Items.TryGetValue(key, out var value) && value != null)
 			{
@@ -349,7 +350,7 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 			Data = exception.Data.Count > 0 ? exception.Data : null,
 		};
 
-		return JsonSerializer.Serialize(exceptionData, new JsonSerializerOptions { WriteIndented = true });
+		return JsonSerializer.Serialize(exceptionData, ExceptionSerializerOptions);
 	}
 
 	/// <summary>

@@ -55,8 +55,10 @@ internal sealed class CdcBuilder : ICdcBuilder
 	/// <inheritdoc/>
 	public ICdcBuilder TrackTable<TEntity>(Action<ICdcTableBuilder>? configure = null) where TEntity : class
 	{
-		// Infer table name from entity type (simple convention: pluralize type name)
-		var tableName = $"dbo.{typeof(TEntity).Name}s";
+		// Convention: use singular type name with configurable schema (no naive pluralization).
+		// For custom table names, use the string overload: TrackTable("dbo.OrderItems", configure).
+		var schema = _options.DefaultSchema ?? "dbo";
+		var tableName = $"{schema}.{typeof(TEntity).Name}";
 
 		if (configure is null)
 		{

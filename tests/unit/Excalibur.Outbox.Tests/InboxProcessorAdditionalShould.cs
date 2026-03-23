@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -37,7 +38,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 		var deadLetterQueue = A.Fake<IDeadLetterQueue>();
 		var circuitBreakerRegistry = A.Fake<ITransportCircuitBreakerRegistry>();
 		var backoffCalculator = A.Fake<IBackoffCalculator>();
@@ -49,7 +50,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			telemetryClient: null,
+
 			internalSerializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
@@ -76,7 +77,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new InboxProcessor(
@@ -111,7 +112,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new InboxProcessor(
@@ -151,8 +152,8 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 	public async Task DispatchPendingMessagesAsync_ReturnsZero_WhenStoreReturnsEmptyEntries()
 	{
 		// Arrange
-		var inboxStore = A.Fake<IInboxStore>();
-		_ = A.CallTo(() => inboxStore.GetFailedEntriesAsync(
+		var inboxStore = A.Fake<IInboxStore>(o => o.Implements<IInboxStoreAdmin>());
+		_ = A.CallTo(() => ((IInboxStoreAdmin)inboxStore).GetFailedEntriesAsync(
 				A<int>._,
 				A<DateTimeOffset>._,
 				A<int>._,
@@ -190,7 +191,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new InboxProcessor(
@@ -221,7 +222,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new InboxProcessor(
@@ -264,7 +265,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new InboxProcessor(
@@ -304,7 +305,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new InboxProcessor(
@@ -382,8 +383,8 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			inboxStore ?? A.Fake<IInboxStore>(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			serializer ?? new DispatchJsonSerializer(),
-			logger ?? A.Fake<ILogger<InboxProcessor>>(),
-			telemetryClient: null,
+			logger ?? NullLogger<InboxProcessor>.Instance,
+
 			internalSerializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,

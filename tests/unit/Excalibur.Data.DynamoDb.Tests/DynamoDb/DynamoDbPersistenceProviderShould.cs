@@ -15,6 +15,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// property defaults, disposed guard, and GetService behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class DynamoDbPersistenceProviderShould : UnitTestBase
 {
 	private readonly ILogger<DynamoDbPersistenceProvider> _logger;

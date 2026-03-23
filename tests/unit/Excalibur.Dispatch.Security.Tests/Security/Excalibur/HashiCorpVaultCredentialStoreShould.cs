@@ -12,6 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests;
 
 [UnitTest]
 [Trait("Component", "Security")]
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
 public sealed class HashiCorpVaultCredentialStoreShould : IDisposable
 {
 	private readonly HttpClient _httpClient;

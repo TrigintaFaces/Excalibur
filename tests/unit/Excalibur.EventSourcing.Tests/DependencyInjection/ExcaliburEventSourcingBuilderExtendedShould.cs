@@ -165,13 +165,15 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 
 		// Act
 		var result = builder.UseEventStore<InMemoryEventStore>();
-		var provider = services.BuildServiceProvider();
 
-		// Assert
+		// Assert - UseEventStore now registers as keyed service with "default" key
 		result.ShouldBe(builder);
-		var store = provider.GetService<IEventStore>();
-		store.ShouldNotBeNull();
-		store.ShouldBeOfType<InMemoryEventStore>();
+		var descriptor = services.FirstOrDefault(d =>
+			d.ServiceType == typeof(IEventStore) &&
+			d.IsKeyedService &&
+			Equals(d.ServiceKey, "default"));
+		descriptor.ShouldNotBeNull();
+		descriptor.KeyedImplementationType.ShouldBe(typeof(InMemoryEventStore));
 	}
 
 	[Fact]
@@ -272,7 +274,7 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton<IEventStore, InMemoryEventStore>();
+		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
 		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
 		var builder = new ExcaliburEventSourcingBuilder(services);
 
@@ -307,7 +309,7 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton<IEventStore, InMemoryEventStore>();
+		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
 		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
 		var builder = new ExcaliburEventSourcingBuilder(services);
 
@@ -342,7 +344,7 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton<IEventStore, InMemoryEventStore>();
+		services.AddKeyedSingleton<IEventStore, InMemoryEventStore>("default");
 		services.AddSingleton<IEventSerializer, FakeEventSerializer>();
 		var builder = new ExcaliburEventSourcingBuilder(services);
 

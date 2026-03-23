@@ -135,9 +135,6 @@ Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.EnableCompre
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.EnableCompression.set -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.MinCompressionRatio.get -> double
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.MinCompressionRatio.set -> void
-Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckHealthCheck
-Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckHealthCheck.ClaimCheckHealthCheck(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! provider) -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! claimCheckProvider, Excalibur.Dispatch.Abstractions.Serialization.ISerializer! baseSerializer, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions? options = null) -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! claimCheckProvider, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions? options = null) -> void

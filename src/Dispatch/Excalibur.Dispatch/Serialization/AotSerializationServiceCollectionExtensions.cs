@@ -16,6 +16,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class AotSerializationServiceCollectionExtensions
 {
+	private static readonly JsonSerializerContext[] s_coreContexts =
+		[CoreMessageJsonContext.Default, CloudEventJsonContext.Default];
 	/// <summary>
 	/// Adds AOT-compatible JSON serialization using source generation. This method ensures zero ILLink warnings and full native AOT support.
 	/// </summary>
@@ -72,8 +74,6 @@ public static class AotSerializationServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddCoreAotSerialization(this IServiceCollection services)
 	{
-		var contexts = new JsonSerializerContext[] { CoreMessageJsonContext.Default, CloudEventJsonContext.Default };
-
-		return services.AddCompositeAotSerialization(contexts);
+		return services.AddCompositeAotSerialization(s_coreContexts);
 	}
 }

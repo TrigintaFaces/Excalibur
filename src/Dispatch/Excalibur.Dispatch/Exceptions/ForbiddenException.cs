@@ -35,8 +35,7 @@ namespace Excalibur.Dispatch.Exceptions;
 /// }
 /// </code>
 /// </example>
-[Serializable]
-public class ForbiddenException : DispatchException
+public sealed class ForbiddenException : DispatchException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ForbiddenException"/> class.

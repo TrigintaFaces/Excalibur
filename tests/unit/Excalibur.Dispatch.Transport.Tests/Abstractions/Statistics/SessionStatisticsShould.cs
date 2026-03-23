@@ -6,7 +6,9 @@ using Shouldly;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Statistics;
 
-public class SessionStatisticsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class SessionStatisticsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

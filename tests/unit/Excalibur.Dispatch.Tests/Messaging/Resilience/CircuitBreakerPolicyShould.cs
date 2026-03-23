@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CircuitBreakerPolicyShould
 {
     private static CircuitBreakerPolicy CreateSut(CircuitBreakerOptions? options = null) =>

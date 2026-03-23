@@ -21,7 +21,7 @@ namespace Excalibur.Cdc.CosmosDb;
 /// including the reason code, affected positions, and original exception.
 /// </para>
 /// </remarks>
-public sealed class CosmosDbStalePositionException : Exception
+public sealed class CosmosDbStalePositionException : Excalibur.Cdc.CdcStalePositionException
 {
 	private const string DefaultMessage = "The CosmosDB CDC processor detected a stale continuation token position that cannot be recovered.";
 
@@ -76,33 +76,6 @@ public sealed class CosmosDbStalePositionException : Exception
 	{
 		EventArgs = eventArgs;
 	}
-
-	/// <summary>
-	/// Gets the event arguments containing details about the stale position scenario.
-	/// </summary>
-	/// <value>
-	/// The <see cref="CdcPositionResetEventArgs"/> with detailed information,
-	/// or <see langword="null"/> if not provided.
-	/// </value>
-	public CdcPositionResetEventArgs? EventArgs { get; }
-
-	/// <summary>
-	/// Gets the processor ID that detected the stale position.
-	/// </summary>
-	/// <value>The processor ID, or <see langword="null"/> if not available.</value>
-	public string? ProcessorId => EventArgs?.ProcessorId;
-
-	/// <summary>
-	/// Gets the reason code for the stale position.
-	/// </summary>
-	/// <value>The reason code, or <see langword="null"/> if not available.</value>
-	public string? ReasonCode => EventArgs?.ReasonCode;
-
-	/// <summary>
-	/// Gets the stale continuation token position that was detected (as raw bytes).
-	/// </summary>
-	/// <value>The stale position bytes, or <see langword="null"/> if not available.</value>
-	public byte[]? StalePosition => EventArgs?.StalePosition;
 
 	/// <summary>
 	/// Gets the HTTP status code that indicated the stale position.

@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Consent;
 
-public class ConsentServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class ConsentServiceShould
 {
     private readonly ConsentService _sut;
     private readonly ConsentOptions _options = new();

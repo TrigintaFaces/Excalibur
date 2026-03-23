@@ -46,7 +46,11 @@ public static class InMemoryLeaderElectionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
-		services.TryAddSingleton<ILeaderElectionFactory, InMemoryLeaderElectionFactory>();
+		services.AddKeyedSingleton<ILeaderElectionFactory>("inmemory",
+			(sp, _) => sp.GetRequiredService<InMemoryLeaderElectionFactory>());
+		services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElectionFactory>("inmemory"));
+		services.TryAddSingleton<InMemoryLeaderElectionFactory>();
 
 		return services;
 	}

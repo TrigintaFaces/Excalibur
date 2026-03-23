@@ -47,7 +47,7 @@ public sealed class ProviderOptionsValidatorShould
 	{
 		var options = new ProviderOptions
 		{
-			RetryPolicy = new RetryPolicyOptions
+			RetryPolicy = new TransportRetryPolicyOptions
 			{
 				BaseDelayMs = 5000,
 				MaxDelayMs = 1000,
@@ -55,7 +55,7 @@ public sealed class ProviderOptionsValidatorShould
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(RetryPolicyOptions.BaseDelayMs));
+		result.FailureMessage.ShouldContain(nameof(TransportRetryPolicyOptions.BaseDelayMs));
 	}
 
 	[Fact]
@@ -63,11 +63,11 @@ public sealed class ProviderOptionsValidatorShould
 	{
 		var options = new ProviderOptions
 		{
-			RetryPolicy = new RetryPolicyOptions { BaseDelayMs = 0 },
+			RetryPolicy = new TransportRetryPolicyOptions { BaseDelayMs = 0 },
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(RetryPolicyOptions.BaseDelayMs));
+		result.FailureMessage.ShouldContain(nameof(TransportRetryPolicyOptions.BaseDelayMs));
 	}
 
 	[Fact]
@@ -75,11 +75,11 @@ public sealed class ProviderOptionsValidatorShould
 	{
 		var options = new ProviderOptions
 		{
-			RetryPolicy = new RetryPolicyOptions { MaxDelayMs = 0 },
+			RetryPolicy = new TransportRetryPolicyOptions { MaxDelayMs = 0 },
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(RetryPolicyOptions.MaxDelayMs));
+		result.FailureMessage.ShouldContain(nameof(TransportRetryPolicyOptions.MaxDelayMs));
 	}
 
 	[Fact]
@@ -95,7 +95,7 @@ public sealed class ProviderOptionsValidatorShould
 	{
 		var options = new ProviderOptions
 		{
-			RetryPolicy = new RetryPolicyOptions
+			RetryPolicy = new TransportRetryPolicyOptions
 			{
 				BaseDelayMs = 1000,
 				MaxDelayMs = 1000,
@@ -111,7 +111,7 @@ public sealed class ProviderOptionsValidatorShould
 		var options = new ProviderOptions
 		{
 			DefaultTimeoutMs = 0,
-			RetryPolicy = new RetryPolicyOptions
+			RetryPolicy = new TransportRetryPolicyOptions
 			{
 				BaseDelayMs = 5000,
 				MaxDelayMs = 0,
@@ -120,6 +120,6 @@ public sealed class ProviderOptionsValidatorShould
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
 		result.FailureMessage.ShouldContain(nameof(ProviderOptions.DefaultTimeoutMs));
-		result.FailureMessage.ShouldContain(nameof(RetryPolicyOptions.MaxDelayMs));
+		result.FailureMessage.ShouldContain(nameof(TransportRetryPolicyOptions.MaxDelayMs));
 	}
 }

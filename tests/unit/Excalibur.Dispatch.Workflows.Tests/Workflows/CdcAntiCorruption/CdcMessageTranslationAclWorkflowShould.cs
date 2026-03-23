@@ -51,7 +51,7 @@ public sealed class CdcMessageTranslationAclWorkflowShould
 		});
 
 		// Act
-		await pipeline.ProcessAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - CDC event was translated to command
 		translator.TranslatedCommands.Count.ShouldBe(1);
@@ -106,7 +106,7 @@ public sealed class CdcMessageTranslationAclWorkflowShould
 			});
 
 		// Act
-		await pipeline.ProcessAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - CDC event was translated to update command
 		translator.TranslatedCommands.Count.ShouldBe(1);
@@ -146,7 +146,7 @@ public sealed class CdcMessageTranslationAclWorkflowShould
 		});
 
 		// Act
-		await pipeline.ProcessAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - CDC event was translated to delete command
 		translator.TranslatedCommands.Count.ShouldBe(1);
@@ -189,7 +189,7 @@ public sealed class CdcMessageTranslationAclWorkflowShould
 		// Act - Process batch in order
 		foreach (var cdcEvent in cdcEvents)
 		{
-			await pipeline.ProcessAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+			await pipeline.ProcessAsync(cdcEvent, CancellationToken.None);
 		}
 
 		// Assert - All events were translated and dispatched
@@ -249,11 +249,11 @@ public sealed class CdcMessageTranslationAclWorkflowShould
 		// Act - Process invalid events (should be filtered/logged)
 		foreach (var invalidEvent in invalidEvents)
 		{
-			await pipeline.ProcessAsync(invalidEvent, CancellationToken.None).ConfigureAwait(true);
+			await pipeline.ProcessAsync(invalidEvent, CancellationToken.None);
 		}
 
 		// Process valid event
-		await pipeline.ProcessAsync(validEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessAsync(validEvent, CancellationToken.None);
 
 		// Assert - Only valid event was dispatched
 		dispatcher.DispatchedCommands.Count.ShouldBe(1);

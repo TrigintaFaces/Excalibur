@@ -45,7 +45,7 @@ namespace Excalibur.Dispatch.Caching;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class CachingMiddleware(
+internal sealed class CachingMiddleware(
 	IMeterFactory meterFactory,
 	HybridCache cache,
 	ICacheKeyBuilder keyBuilder,
@@ -54,6 +54,12 @@ public sealed class CachingMiddleware(
 	ILogger<CachingMiddleware> logger,
 	IResultCachePolicy? globalPolicy = null) : IDispatchMiddleware
 {
+	/// <summary>
+	/// Maximum number of entries allowed in each interface resolution cache.
+	/// When the cap is reached, new lookups compute the interface without caching to prevent unbounded memory growth.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
 	private static readonly ConcurrentDictionary<Type, Type?> _cacheableInterfaceCache = new();
 	private static readonly ConcurrentDictionary<Type, Type?> _actionInterfaceCache = new();
 
@@ -65,12 +71,7 @@ public sealed class CachingMiddleware(
 	private readonly Counter<long> _cacheTimeoutCounter = meterFactory.Create(DispatchCachingTelemetryConstants.MeterName).CreateCounter<long>("dispatch.cache.timeouts", description: "Number of cache operation timeouts");
 	private readonly Histogram<double> _cacheLatencyHistogram = meterFactory.Create(DispatchCachingTelemetryConstants.MeterName).CreateHistogram<double>("dispatch.cache.duration", unit: "ms", description: "Cache operation latency in milliseconds");
 
-	[ThreadStatic]
-	private static Random? t_jitterRandom;
-
-#pragma warning disable CA5394 // Random is not cryptographic — jitter does not need crypto-strength randomness
-	private static Random JitterRandom => t_jitterRandom ??= new Random();
-#pragma warning restore CA5394
+	// Random.Shared is thread-safe (.NET 6+) -- no need for ThreadStatic
 
 	private readonly CacheOptions _options = options.Value;
 	private readonly IResultCachePolicy? _globalPolicy = globalPolicy ?? options.Value.GlobalPolicy;
@@ -112,9 +113,7 @@ public sealed class CachingMiddleware(
 
 		// Check if message implements any ICacheable<T> interface
 		var messageType = message.GetType();
-		var cacheableInterface = _cacheableInterfaceCache.GetOrAdd(messageType, static type =>
-			type.GetInterfaces()
-				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>)));
+		var cacheableInterface = GetCacheableInterface(messageType);
 		var isInterfaceCacheable = cacheableInterface != null;
 		var isAttrCacheable = messageType.IsDefined(typeof(CacheResultAttribute), inherit: true);
 
@@ -138,6 +137,50 @@ public sealed class CachingMiddleware(
 		}
 
 		return MessageResult.Success();
+	}
+
+	/// <summary>
+	/// Resolves the ICacheable interface for a type using a bounded cache.
+	/// </summary>
+	private static Type? GetCacheableInterface(Type messageType)
+	{
+		if (_cacheableInterfaceCache.TryGetValue(messageType, out var cached))
+		{
+			return cached;
+		}
+
+		if (_cacheableInterfaceCache.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching
+			return messageType.GetInterfaces()
+				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
+		}
+
+		return _cacheableInterfaceCache.GetOrAdd(messageType, static type =>
+			type.GetInterfaces()
+				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>)));
+	}
+
+	/// <summary>
+	/// Resolves the IDispatchAction interface for a type using a bounded cache.
+	/// </summary>
+	private static Type? GetActionInterface(Type messageType)
+	{
+		if (_actionInterfaceCache.TryGetValue(messageType, out var cached))
+		{
+			return cached;
+		}
+
+		if (_actionInterfaceCache.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching
+			return messageType.GetInterfaces()
+				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>));
+		}
+
+		return _actionInterfaceCache.GetOrAdd(messageType, static type =>
+			type.GetInterfaces()
+				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>)));
 	}
 
 	/// <summary>
@@ -175,9 +218,7 @@ public sealed class CachingMiddleware(
 	private static CacheableInfo? GetCacheableInfo(IDispatchMessage message)
 	{
 		var messageType = message.GetType();
-		var cacheableInterface = _cacheableInterfaceCache.GetOrAdd(messageType, static type =>
-			type.GetInterfaces()
-				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>)));
+		var cacheableInterface = GetCacheableInterface(messageType);
 
 		if (cacheableInterface == null)
 		{
@@ -268,9 +309,7 @@ public sealed class CachingMiddleware(
 
 				// Determine the return type from the message type
 				var messageType = message.GetType();
-				var actionInterface = _actionInterfaceCache.GetOrAdd(messageType, static type =>
-					type.GetInterfaces()
-						.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>)));
+				var actionInterface = GetActionInterface(messageType);
 
 				if (actionInterface is not null)
 				{
@@ -360,9 +399,9 @@ public sealed class CachingMiddleware(
 
 			return await HandleCachedResultAsync(cachedResult, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
 		{
-			// Timeout or cancellation - execute without caching
+			// Cache timeout - execute without caching. Real caller cancellation propagates.
 			_cacheTimeoutCounter.Add(1);
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
@@ -581,8 +620,9 @@ public sealed class CachingMiddleware(
 
 			return await HandleCachedResultAsync(cachedResult, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
 		{
+			// Cache timeout - execute without caching. Real caller cancellation propagates.
 			_cacheTimeoutCounter.Add(1);
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
@@ -774,7 +814,7 @@ public sealed class CachingMiddleware(
 		}
 
 		// Generate a random factor in the range [1-ratio, 1+ratio]
-		var factor = 1.0 + ((JitterRandom.NextDouble() * 2.0 * ratio) - ratio);
+		var factor = 1.0 + ((Random.Shared.NextDouble() * 2.0 * ratio) - ratio);
 		var jitteredMs = ttl.TotalMilliseconds * factor;
 		return TimeSpan.FromMilliseconds(Math.Max(jitteredMs, 1.0));
 	}

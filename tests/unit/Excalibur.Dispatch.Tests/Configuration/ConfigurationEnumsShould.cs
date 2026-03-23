@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Configuration;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
@@ -12,20 +13,19 @@ public sealed class ConfigurationEnumsShould
 	[Fact]
 	public void EncryptionAlgorithm_HaveExpectedValues()
 	{
-		// Assert
-		EncryptionAlgorithm.None.ShouldBe((EncryptionAlgorithm)0);
-		EncryptionAlgorithm.Aes128Gcm.ShouldBe((EncryptionAlgorithm)1);
-		EncryptionAlgorithm.Aes256Gcm.ShouldBe((EncryptionAlgorithm)2);
+		// Assert -- Compliance canonical enum (Sprint 671 T.2: Dispatch enum deleted)
+		EncryptionAlgorithm.Aes256Gcm.ShouldBe((EncryptionAlgorithm)0);
+		EncryptionAlgorithm.Aes256CbcHmac.ShouldBe((EncryptionAlgorithm)1);
 	}
 
 	[Fact]
-	public void EncryptionAlgorithm_HaveThreeValues()
+	public void EncryptionAlgorithm_HaveTwoValues()
 	{
 		// Act
 		var values = Enum.GetValues<EncryptionAlgorithm>();
 
 		// Assert
-		values.Length.ShouldBe(3);
+		values.Length.ShouldBe(2);
 	}
 
 	[Fact]
@@ -50,13 +50,13 @@ public sealed class ConfigurationEnumsShould
 	}
 
 	[Fact]
-	public void EncryptionAlgorithm_DefaultToNone()
+	public void EncryptionAlgorithm_DefaultToAes256Gcm()
 	{
 		// Arrange
 		EncryptionAlgorithm algorithm = default;
 
-		// Assert
-		algorithm.ShouldBe(EncryptionAlgorithm.None);
+		// Assert -- Compliance enum default (value 0) is Aes256Gcm
+		algorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
 	}
 
 	[Fact]

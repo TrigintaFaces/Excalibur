@@ -78,7 +78,7 @@ public sealed class DeadLetterQueueBuilder
 	/// <summary>
 	/// Configures retry policies.
 	/// </summary>
-	public DeadLetterQueueBuilder WithRetryPolicies(Action<RetryPolicyOptions> configure)
+	public DeadLetterQueueBuilder WithRetryPolicies(Action<PubSubRetryPolicyOptions> configure)
 	{
 		_retryPoliciesEnabled = true;
 		_ = _services.Configure(configure);
@@ -117,8 +117,10 @@ public sealed class DeadLetterQueueBuilder
 	/// </summary>
 	internal void Build()
 	{
-		// Register core DLQ manager — shared Transport.Abstractions interface
-		_services.TryAddSingleton<IDeadLetterQueueManager, PubSubDeadLetterQueueManager>();
+		// Register core DLQ manager — shared Transport.Abstractions interface (keyed by transport name)
+		_services.TryAddSingleton<PubSubDeadLetterQueueManager>();
+		_services.AddKeyedSingleton<IDeadLetterQueueManager>("googlepubsub",
+			(sp, _) => sp.GetRequiredService<PubSubDeadLetterQueueManager>());
 
 		// Register optional components
 		if (_poisonDetectionEnabled)

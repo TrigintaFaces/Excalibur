@@ -170,6 +170,32 @@ public static class RabbitMQTransportServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds a RabbitMQ transport with just a connection string and sensible defaults.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The AMQP connection string (e.g., "amqp://guest:guest@localhost:5672").</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// This is the simplest way to register RabbitMQ transport. For advanced configuration
+	/// (exchanges, queues, bindings), use the builder overload.
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddRabbitMQTransport("amqp://guest:guest@localhost:5672");
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddRabbitMQTransport(
+		this IServiceCollection services,
+		string connectionString)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+		return services.AddRabbitMQTransport(DefaultTransportName, rmq =>
+			rmq.ConnectionString(connectionString));
+	}
+
+	/// <summary>
 	/// Registers the core RabbitMQ services with the service collection.
 	/// </summary>
 	private static void RegisterRabbitMQServices(
@@ -194,6 +220,16 @@ public static class RabbitMQTransportServiceCollectionExtensions
 				factory.VirtualHost = connection.VirtualHost;
 				factory.UserName = connection.Username;
 				factory.Password = connection.Password;
+
+				// Warn about default guest credentials -- these should not be used in production
+				if (string.Equals(connection.Username, "guest", StringComparison.OrdinalIgnoreCase) &&
+					string.Equals(connection.Password, "guest", StringComparison.OrdinalIgnoreCase))
+				{
+					var logger = sp.GetService<ILoggerFactory>()?.CreateLogger("Excalibur.Dispatch.Transport.RabbitMQ");
+					logger?.LogWarning(
+						"RabbitMQ transport is configured with default 'guest' credentials. " +
+						"Use secure credentials for production environments.");
+				}
 			}
 
 			factory.AutomaticRecoveryEnabled = true;
@@ -342,10 +378,10 @@ public static class RabbitMQTransportServiceCollectionExtensions
 	}
 
 	// RabbitMQ.Client exposes async-only connection/channel creation while DI factories are synchronous.
-	// Bridge at composition root to avoid Task.Run thread hops; runtime execution remains async in transport operations.
+	// Task.Run ensures no SynchronizationContext deadlock; constrained to DI composition root.
 #pragma warning disable RS0030 // Sync-over-async bridge is constrained to DI composition root.
 	private static T ExecuteSync<T>(Func<Task<T>> operation) =>
-		operation().Result;
+		Task.Run(operation).GetAwaiter().GetResult();
 #pragma warning restore RS0030
 
 	/// <summary>

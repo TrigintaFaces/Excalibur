@@ -34,8 +34,11 @@ public static class SqlServerOutboxExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerOutboxOptions>, SqlServerOutboxOptionsValidator>());
 		services.TryAddSingleton<SqlServerOutboxStore>();
-		services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
 		services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 
@@ -96,7 +99,9 @@ public static class SqlServerOutboxExtensions
 			var logger = sp.GetRequiredService<ILogger<SqlServerOutboxStore>>();
 			return new SqlServerOutboxStore(connectionFactory, options, payloadSerializer, logger);
 		});
-		services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
 		services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 
@@ -201,6 +206,7 @@ public static class SqlServerOutboxExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerDeadLetterQueueOptions>, SqlServerDeadLetterQueueOptionsValidator>());
 		services.TryAddSingleton<SqlServerDeadLetterQueue>();
 		services.TryAddSingleton<IDeadLetterQueue>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 

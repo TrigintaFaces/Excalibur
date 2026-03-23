@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Inbox;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 {
 	private const string TestHandler = "TestHandler";
@@ -321,7 +322,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		await store.MarkProcessedAsync("expired-message", TestHandler, CancellationToken.None).ConfigureAwait(false); // Mark as processed so cleanup can remove it
 		// Manual cleanup should work even when automatic cleanup is disabled.
 		// Use zero retention to avoid timing races from clock/scheduler variance in CI.
-		var removedCount = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+		var removedCount = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Should have cleaned up the expired entry
 		removedCount.ShouldBe(1);
@@ -346,12 +347,12 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		}
 
 		// Zero retention removes all processed entries immediately and avoids clock-edge timing races.
-		var preCleaned = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+		var preCleaned = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 		preCleaned.ShouldBeGreaterThan(0);
 
 		// Act - Run concurrent cleanup operations
 		var cleanupTasks = Enumerable.Range(0, 5)
-			.Select(_ => store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).AsTask())
+			.Select(_ => store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).AsTask())
 			.ToArray();
 
 		var results = await Task.WhenAll(cleanupTasks);
@@ -363,7 +364,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		for (var i = 0; i < 5; i++)
 		{
-			_ = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			_ = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			if (!(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any())
 			{
 				break;
@@ -541,7 +542,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				try
 				{
 					await WaitHelpers.AwaitSignalAsync(firstCreationObserved.Task, TestTimeouts.Scale(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
-					_ = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+					_ = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -670,7 +671,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		await Task.WhenAll(markProcessedTasks).ConfigureAwait(false);
 
 		// Zero retention removes all processed entries immediately and avoids expiry timing races.
-		var preCleaned = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+		var preCleaned = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 		preCleaned.ShouldBeGreaterThan(0);
 
 		// Launch many concurrent cleanup operations
@@ -678,7 +679,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var cleanupTasks = Enumerable.Range(0, cleanupConcurrency)
 			.Select(async _ =>
 			{
-				var result = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None);
+				var result = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None);
 				cleanupResults.Add(result);
 			});
 
@@ -691,7 +692,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		for (var i = 0; i < 10; i++)
 		{
-			_ = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			_ = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			if (!(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any())
 			{
 				break;
@@ -1029,7 +1030,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var cleanupTasks = Enumerable.Range(0, 10).Select(async i =>
 		{
 			await cleanupGate.Task.ConfigureAwait(false);
-			var result = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			var result = await store.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			cleanupResults.Add(result);
 		});
 

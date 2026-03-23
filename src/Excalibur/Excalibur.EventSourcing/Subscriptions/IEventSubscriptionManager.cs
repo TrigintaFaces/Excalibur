@@ -20,7 +20,7 @@ namespace Excalibur.EventSourcing.Subscriptions;
 /// </code>
 /// </para>
 /// </remarks>
-public interface IEventSubscriptionManager
+public interface IEventSubscriptionManager : IAsyncDisposable
 {
 	/// <summary>
 	/// Creates a new named event subscription with the specified options.

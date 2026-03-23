@@ -9,7 +9,6 @@ namespace Excalibur.Dispatch.Exceptions;
 /// <summary>
 /// Exception thrown when configuration-related errors occur.
 /// </summary>
-[Serializable]
 public sealed class ConfigurationException : DispatchException
 {
 	/// <summary>
@@ -83,6 +82,19 @@ public sealed class ConfigurationException : DispatchException
 			.WithContext("invalidValue", value)
 			.WithContext("reason", reason)
 			.WithSuggestedAction($"Check the value of '{configKey}' configuration. {reason}")
+			.WithStatusCode(500) as ConfigurationException ?? new ConfigurationException();
+
+	/// <summary>
+	/// Creates a pipeline misconfiguration exception.
+	/// </summary>
+	/// <param name="pipelineName">The name of the misconfigured pipeline.</param>
+	/// <param name="reason">The reason for the misconfiguration.</param>
+	/// <returns>A new ConfigurationException instance.</returns>
+	public static ConfigurationException PipelineMisconfiguration(string pipelineName, string reason) =>
+		new ConfigurationException(ErrorCodes.PipelineMisconfigured, $"Pipeline '{pipelineName}' is misconfigured: {reason}")
+			.WithContext("pipelineName", pipelineName)
+			.WithContext("reason", reason)
+			.WithSuggestedAction($"Check your pipeline configuration for '{pipelineName}'. Ensure ConfigurePipeline() is followed by builder.Build().")
 			.WithStatusCode(500) as ConfigurationException ?? new ConfigurationException();
 
 	/// <summary>

@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Hosting.Tests.AspNetCore;
 /// Unit tests for HttpContextExtensions.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class HttpContextExtensionsShould : UnitTestBase
 {
 	[Fact]

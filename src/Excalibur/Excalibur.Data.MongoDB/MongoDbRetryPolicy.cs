@@ -15,7 +15,7 @@ namespace Excalibur.Data.MongoDB;
 /// <summary>
 /// MongoDB retry policy implementation.
 /// </summary>
-internal sealed partial class MongoDbRetryPolicy(int maxRetryAttempts, ILogger logger) : IDataRequestRetryPolicy
+internal sealed partial class MongoDbRetryPolicy(int maxRetryAttempts, ILogger logger) : IRelationalDataRequestRetryPolicy, IDocumentDataRequestRetryPolicy
 {
 	/// <summary>
 	/// Gets the initial delay before the first retry attempt.

@@ -4,7 +4,8 @@
 namespace Excalibur.Tests.Domain;
 
 [Trait("Category", "Unit")]
-public class OrderedEventProcessorFunctionalShould
+[Trait("Component", "Domain")]
+public sealed class OrderedEventProcessorFunctionalShould
 {
     [Fact]
     public async Task ProcessAsync_ShouldEnforceSequentialOrdering()
@@ -22,7 +23,7 @@ public class OrderedEventProcessorFunctionalShould
             {
                 executionOrder.Add(i);
             }
-        }));
+        }, CancellationToken.None));
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
 
@@ -37,7 +38,7 @@ public class OrderedEventProcessorFunctionalShould
     {
         var processor = new OrderedEventProcessor();
         await Should.ThrowAsync<ArgumentNullException>(
-            () => processor.ProcessAsync(null!)).ConfigureAwait(false);
+            () => processor.ProcessAsync(null!, CancellationToken.None)).ConfigureAwait(false);
     }
 
     [Fact]
@@ -47,7 +48,7 @@ public class OrderedEventProcessorFunctionalShould
         await processor.DisposeAsync().ConfigureAwait(false);
 
         await Should.ThrowAsync<ObjectDisposedException>(
-            () => processor.ProcessAsync(() => Task.CompletedTask)).ConfigureAwait(false);
+            () => processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None)).ConfigureAwait(false);
     }
 
     [Fact]
@@ -79,14 +80,14 @@ public class OrderedEventProcessorFunctionalShould
 
         // Act - first task throws
         await Should.ThrowAsync<InvalidOperationException>(
-            () => processor.ProcessAsync(() => throw new InvalidOperationException("Test error"))).ConfigureAwait(false);
+            () => processor.ProcessAsync(() => throw new InvalidOperationException("Test error"), CancellationToken.None)).ConfigureAwait(false);
 
         // Second task should still be able to execute (lock released)
         await processor.ProcessAsync(() =>
         {
             secondTaskExecuted = true;
             return Task.CompletedTask;
-        }).ConfigureAwait(false);
+        }, CancellationToken.None).ConfigureAwait(false);
 
         // Assert
         secondTaskExecuted.ShouldBeTrue();
@@ -104,7 +105,7 @@ public class OrderedEventProcessorFunctionalShould
         {
             Interlocked.Increment(ref counter);
             return Task.CompletedTask;
-        }));
+        }, CancellationToken.None));
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
 
@@ -112,4 +113,3 @@ public class OrderedEventProcessorFunctionalShould
         counter.ShouldBe(50);
     }
 }
-

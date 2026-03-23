@@ -6,6 +6,7 @@ using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Inbox.Observability;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,7 +22,7 @@ namespace Excalibur.Inbox.ElasticSearch;
 /// Payloads are stored as Base64-encoded strings.
 /// </para>
 /// </remarks>
-public sealed partial class ElasticsearchInboxStore : IInboxStore
+public sealed partial class ElasticsearchInboxStore : IInboxStore, IInboxStoreAdmin
 {
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchInboxOptions _options;
@@ -58,6 +59,8 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore
 		ArgumentNullException.ThrowIfNull(payload);
 		ArgumentNullException.ThrowIfNull(metadata);
 
+		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
+
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
 		var doc = ToDocument(entry);
 		var docId = GetDocumentId(messageId, handlerType);
@@ -93,6 +96,8 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var existing = await GetDocumentAsync(docId, cancellationToken).ConfigureAwait(false)
@@ -162,6 +167,8 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
+		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
+
 		var docId = GetDocumentId(messageId, handlerType);
 		var doc = await GetDocumentAsync(docId, cancellationToken).ConfigureAwait(false);
 
@@ -186,6 +193,8 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var existing = await GetDocumentAsync(docId, cancellationToken).ConfigureAwait(false)
@@ -276,9 +285,11 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
-		var cutoff = DateTimeOffset.UtcNow - retentionPeriod;
+		using var activity = InboxActivitySource.StartCleanupActivity();
+
+		var cutoff = olderThan;
 
 		var response = await _client.DeleteByQueryAsync<ElasticsearchInboxDocument>(
 			static d => d

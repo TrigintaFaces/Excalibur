@@ -3,8 +3,6 @@
 
 using Excalibur.Dispatch.Abstractions;
 
-using TenantId = Excalibur.Dispatch.Delivery.TenantId;
-
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 
 /// <summary>

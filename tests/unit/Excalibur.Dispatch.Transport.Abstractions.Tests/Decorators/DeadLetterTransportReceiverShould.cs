@@ -5,6 +5,8 @@ using Excalibur.Dispatch.Transport.Decorators;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Decorators;
 
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DeadLetterTransportReceiverShould : IDisposable
 {
     private readonly Meter _meter;

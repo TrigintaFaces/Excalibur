@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Dispatch.Security.Tests.Security.Functional;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class SecurityEventLoggerFunctionalShould : IDisposable
 {
     private readonly ISecurityEventStore _eventStore;

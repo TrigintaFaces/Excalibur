@@ -96,33 +96,33 @@ public sealed class ExcaliburOptionsIntegrationShould : IDisposable
 
 	#endregion
 
-	#region OutboxOptions Defaults (AC-2)
+	#region ExcaliburOutboxOptions Defaults (AC-2)
 
 	[Fact]
-	public void OutboxOptions_DefaultEnabled_IsFalse()
+	public void ExcaliburOutboxOptions_DefaultEnabled_IsFalse()
 	{
-		var options = new OutboxOptions();
+		var options = new ExcaliburOutboxOptions();
 		options.Enabled.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void OutboxOptions_DefaultPollingInterval_IsFiveSeconds()
+	public void ExcaliburOutboxOptions_DefaultPollingInterval_IsFiveSeconds()
 	{
-		var options = new OutboxOptions();
+		var options = new ExcaliburOutboxOptions();
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
 	}
 
 	[Fact]
-	public void OutboxOptions_DefaultMaxBatchSize_Is100()
+	public void ExcaliburOutboxOptions_DefaultMaxBatchSize_Is100()
 	{
-		var options = new OutboxOptions();
+		var options = new ExcaliburOutboxOptions();
 		options.MaxBatchSize.ShouldBe(100);
 	}
 
 	[Fact]
-	public void OutboxOptions_DefaultMaxRetryAttempts_Is3()
+	public void ExcaliburOutboxOptions_DefaultMaxRetryAttempts_Is3()
 	{
-		var options = new OutboxOptions();
+		var options = new ExcaliburOutboxOptions();
 		options.MaxRetryAttempts.ShouldBe(3);
 	}
 
@@ -212,7 +212,7 @@ public sealed class ExcaliburOptionsIntegrationShould : IDisposable
 		_ = options.EventSourcing.ShouldNotBeNull();
 		_ = options.EventSourcing.ShouldBeOfType<EventSourcingOptions>();
 		_ = options.Outbox.ShouldNotBeNull();
-		_ = options.Outbox.ShouldBeOfType<OutboxOptions>();
+		_ = options.Outbox.ShouldBeOfType<ExcaliburOutboxOptions>();
 		_ = options.Saga.ShouldNotBeNull();
 		_ = options.Saga.ShouldBeOfType<SagaOptions>();
 		_ = options.LeaderElection.ShouldNotBeNull();
@@ -243,9 +243,9 @@ public sealed class ExcaliburOptionsIntegrationShould : IDisposable
 	}
 
 	[Fact]
-	public void OutboxOptions_CanSetProperties()
+	public void ExcaliburOutboxOptions_CanSetProperties()
 	{
-		var options = new OutboxOptions
+		var options = new ExcaliburOutboxOptions
 		{
 			Enabled = true,
 			PollingInterval = TimeSpan.FromSeconds(10),

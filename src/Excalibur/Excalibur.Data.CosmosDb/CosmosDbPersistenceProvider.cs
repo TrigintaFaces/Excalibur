@@ -85,7 +85,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	public string DocumentStoreType => "CosmosDB";
 
 	/// <inheritdoc/>
-	public CloudProviderType CloudProvider => CloudProviderType.CosmosDb;
+	public CloudPersistenceProviderType CloudProvider => CloudPersistenceProviderType.CosmosDb;
 
 	/// <inheritdoc/>
 	public bool SupportsMultiRegionWrites => true;

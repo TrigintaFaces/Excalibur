@@ -27,7 +27,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	private readonly ILogger<InMemoryLeaderElection> _logger;
 	private readonly Timer _leaseRenewalTimer;
 	private readonly CancellationTokenSource _cancellationTokenSource = new();
-	private bool _isRunning;
+	private volatile int _state; // 0 = stopped, 1 = running
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -81,12 +81,10 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		if (_isRunning)
+		if (Interlocked.CompareExchange(ref _state, 1, 0) != 0)
 		{
 			return;
 		}
-
-		_isRunning = true;
 
 		// Register this candidate
 		var candidateDict = _candidates.GetOrAdd(_resourceName, _ => new ConcurrentDictionary<string, CandidateHealth>(StringComparer.Ordinal));
@@ -122,12 +120,10 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	/// <inheritdoc />
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
-		if (!_isRunning)
+		if (Interlocked.CompareExchange(ref _state, 0, 1) != 1)
 		{
 			return;
 		}
-
-		_isRunning = false;
 
 		// Stop lease renewal
 		_ = _leaseRenewalTimer.Change(Timeout.Infinite, Timeout.Infinite);
@@ -157,7 +153,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	public Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
 	{
-		if (!_isRunning)
+		if (_state == 0)
 		{
 			return Task.CompletedTask;
 		}
@@ -195,14 +191,21 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 
 			LogHealthUpdated(CandidateId, isHealthy);
 
-			// If we're unhealthy and configured to step down, release leadership
-			if (!isHealthy && _options.StepDownWhenUnhealthy && IsLeader)
+			// If we're unhealthy and configured to step down, release leadership.
+			// Guard the IsLeader check + TryRemove with a lock to prevent TOCTOU race.
+			if (!isHealthy && _options.StepDownWhenUnhealthy)
 			{
-				_ = _leaders.TryRemove(_resourceName, out _);
-				LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
+				lock (_leaders)
+				{
+					if (IsLeader)
+					{
+						_ = _leaders.TryRemove(_resourceName, out _);
+						LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+						LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(CandidateId, newLeaderId: null, _resourceName));
 
-				LogSteppedDownUnhealthy();
+						LogSteppedDownUnhealthy();
+					}
+				}
 			}
 		}
 
@@ -251,7 +254,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 		_disposed = true;
 
 		// Release leadership synchronously (mirrors StopAsync behavior)
-		_isRunning = false;
+		Interlocked.Exchange(ref _state, 0);
 		_ = _leaseRenewalTimer.Change(Timeout.Infinite, Timeout.Infinite);
 
 		var wasLeader = IsLeader;
@@ -293,7 +296,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 
 	private void RenewLeaseCallback(object? state)
 	{
-		if (!_isRunning || _disposed)
+		if (_state == 0 || _disposed)
 		{
 			return;
 		}

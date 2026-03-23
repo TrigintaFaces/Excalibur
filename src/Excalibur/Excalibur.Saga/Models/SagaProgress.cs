@@ -35,13 +35,13 @@ public sealed class SagaProgress
 	/// Gets or sets when the saga started.
 	/// </summary>
 	/// <value>When the saga started.</value>
-	public DateTime StartedAt { get; set; }
+	public DateTimeOffset StartedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the saga completed.
 	/// </summary>
 	/// <value>When the saga completed, or <see langword="null"/> if not yet completed.</value>
-	public DateTime? CompletedAt { get; set; }
+	public DateTimeOffset? CompletedAt { get; set; }
 
 	/// <summary>
 	/// Gets the total duration.

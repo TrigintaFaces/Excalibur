@@ -9,10 +9,17 @@ namespace Excalibur.Dispatch.Abstractions.Messaging;
 /// saga store provides durable storage for long-running processes, enabling saga recovery and consistency in distributed system environments.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Saga stores are critical for maintaining business process integrity across system failures, restarts, and distributed operation
 /// scenarios. Implementations may use various storage mechanisms including relational databases, document stores, event stores, or
 /// distributed caches. The store must handle concurrent access, state versioning, and consistency requirements appropriate for the specific
 /// business process and system architecture needs.
+/// </para>
+/// <para>
+/// This is the basic saga persistence contract in the Dispatch layer. For advanced saga orchestration with
+/// CRUD operations and query capabilities, see <c>Excalibur.Saga.Abstractions.ISagaStateStore</c> and
+/// <c>Excalibur.Saga.Abstractions.ISagaStateStoreQuery</c> in the Excalibur.Saga package.
+/// </para>
 /// </remarks>
 public interface ISagaStore
 {

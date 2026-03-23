@@ -56,7 +56,7 @@ internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository, I
 				// If the grant exists and is active, return a failure result with an audit message.
 				return new AuditableResult<bool>(
 					result: false,
-					$"{request.AccessToken.FullName} failed to grant {request.FullName} on {DateTime.Now:g} because the grant was already in effect.");
+					$"{request.AccessToken.FullName} failed to grant {request.FullName} on {DateTimeOffset.UtcNow:g} because the grant was already in effect.");
 			}
 		}
 
@@ -79,6 +79,6 @@ internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository, I
 		// Return a success result with an audit message.
 		return new AuditableResult<bool>(
 			result: true,
-			$"Granted to {request.FullName} on {DateTime.Now:g} by {request.AccessToken.FullName}.");
+			$"Granted to {request.FullName} on {DateTimeOffset.UtcNow:g} by {request.AccessToken.FullName}.");
 	}
 }

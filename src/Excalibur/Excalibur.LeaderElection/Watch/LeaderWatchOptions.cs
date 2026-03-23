@@ -13,7 +13,7 @@ namespace Excalibur.LeaderElection.Watch;
 /// Follows the <c>IOptions&lt;T&gt;</c> pattern from <c>Microsoft.Extensions.Options</c>.
 /// Property count: 2 (within the ≤10-property quality gate).
 /// </remarks>
-public class LeaderWatchOptions
+public sealed class LeaderWatchOptions
 {
 	/// <summary>
 	/// Gets or sets the interval between leader state polls.

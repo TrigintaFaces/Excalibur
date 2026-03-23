@@ -36,6 +36,8 @@ public sealed partial class AuditLoggingMiddleware(IOptions<AuditLoggingOptions>
 
 	private readonly ILogger<AuditLoggingMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+	private JsonSerializerOptions? _payloadSerializerOptions;
+
 	/// <inheritdoc />
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Logging;
 
@@ -225,9 +227,8 @@ public sealed partial class AuditLoggingMiddleware(IOptions<AuditLoggingOptions>
 	{
 		try
 		{
-			var payloadJson = JsonSerializer.Serialize(
-				message,
-				new JsonSerializerOptions { WriteIndented = false, MaxDepth = _options.MaxPayloadDepth });
+			_payloadSerializerOptions ??= new JsonSerializerOptions { WriteIndented = false, MaxDepth = _options.MaxPayloadDepth };
+			var payloadJson = JsonSerializer.Serialize(message, _payloadSerializerOptions);
 
 			if (payloadJson.Length <= _options.MaxPayloadSize)
 			{

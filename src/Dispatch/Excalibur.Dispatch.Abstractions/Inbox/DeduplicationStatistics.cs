@@ -5,8 +5,12 @@
 namespace Excalibur.Dispatch.Abstractions;
 
 /// <summary>
-/// Provides statistics about the in-memory deduplicator performance and usage.
+/// Provides statistics about the in-memory volatile deduplicator performance and usage.
 /// </summary>
+/// <remarks>
+/// This type tracks volatile (in-process) deduplication metrics. For persistent deduplication
+/// entry statistics, see <c>Excalibur.Outbox.Inbox.DeduplicatorStatistics</c>.
+/// </remarks>
 public sealed class DeduplicationStatistics
 {
 	/// <summary>

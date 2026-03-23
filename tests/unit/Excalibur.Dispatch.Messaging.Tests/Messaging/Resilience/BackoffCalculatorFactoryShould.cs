@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 ///     Tests for the <see cref="BackoffCalculatorFactory" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class BackoffCalculatorFactoryShould
 {
 	private static RetryPolicyOptions CreateDefaultOptions() => new()

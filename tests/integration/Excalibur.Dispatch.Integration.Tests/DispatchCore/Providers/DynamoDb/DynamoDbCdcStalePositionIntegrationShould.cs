@@ -36,6 +36,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.DynamoDb;
 [Trait("Component", "CDC")]
 [Trait("Provider", "DynamoDB")]
 [Trait("SubComponent", "StalePositionRecovery")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class DynamoDbCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	/// <summary>
@@ -263,7 +265,7 @@ public sealed class DynamoDbCdcStalePositionIntegrationShould : IntegrationTestB
 			shardId: "shard-parent-001");
 
 		// Invoke callback
-		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken).ConfigureAwait(true);
+		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken);
 
 		// Assert: Callback was invoked with correct parameters (now using CdcPositionResetEventArgs)
 		callbackInvoked.ShouldBeTrue("Recovery callback should be invoked");

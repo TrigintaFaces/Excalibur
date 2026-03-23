@@ -11,6 +11,7 @@ namespace Excalibur.Outbox.Tests.SqlServer.Requests;
 /// Unit tests for <see cref="InsertTransportDeliveryRequest"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 {
 	private const string TestTableName = "[dbo].[OutboxMessageTransports]";

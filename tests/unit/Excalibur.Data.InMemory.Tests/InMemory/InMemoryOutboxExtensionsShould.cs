@@ -76,12 +76,11 @@ public sealed class InMemoryOutboxExtensionsShould : UnitTestBase
 
 		// Act
 		_ = services.AddInMemoryOutboxStore();
-		var provider = services.BuildServiceProvider();
 
-		// Assert
-		var store = provider.GetService<IOutboxStore>();
-		store.ShouldNotBeNull();
-		store.ShouldBeOfType<InMemoryOutboxStore>();
+		// Assert - IOutboxStore is now registered as a keyed service
+		var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
+		descriptor.ShouldNotBeNull();
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]

@@ -364,7 +364,7 @@ public sealed class EndpointRouteBuilderExtensionsShould : UnitTestBase
 		};
 
 		var endpoint = GetRouteEndpoint(app, route, method);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		var context = new DefaultHttpContext
 		{
 			RequestServices = app.Services

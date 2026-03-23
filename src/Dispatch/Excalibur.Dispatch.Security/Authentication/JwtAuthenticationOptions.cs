@@ -64,6 +64,20 @@ public sealed class JwtAuthenticationOptions
 	public int ClockSkewSeconds { get; set; } = 300; // 5 minutes
 
 	/// <summary>
+	/// Gets or sets the list of algorithms that are accepted when validating JWT tokens.
+	/// </summary>
+	/// <value>
+	/// A list of allowed signing algorithms. The default includes HS256, RS256, and RS512.
+	/// Never include "none" in this list -- doing so allows unsigned tokens to bypass authentication.
+	/// </value>
+	public IList<string> AllowedAlgorithms { get; set; } = new List<string>
+	{
+		"HS256",
+		"RS256",
+		"RS512",
+	};
+
+	/// <summary>
 	/// Gets or sets token validation behavior options (issuer, audience, lifetime, signing key checks).
 	/// </summary>
 	/// <value> The token validation sub-options. </value>

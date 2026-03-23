@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.AuditLogging.Retention;
 /// and delegates to <see cref="IAuditRetentionService"/> for the actual enforcement.
 /// </para>
 /// </remarks>
-public sealed partial class AuditRetentionBackgroundService : BackgroundService
+internal sealed partial class AuditRetentionBackgroundService : BackgroundService
 {
 	private readonly IAuditRetentionService _retentionService;
 	private readonly AuditRetentionOptions _options;

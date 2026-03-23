@@ -439,11 +439,9 @@ public sealed class RabbitMqDeadLetterQueueManagerShould : IDisposable
 
 		// Act
 		var provider = services.BuildServiceProvider();
-		var manager = provider.GetService<IDeadLetterQueueManager>();
-
-		// Assert
-		manager.ShouldNotBeNull();
-		manager.ShouldBeOfType<RabbitMqDeadLetterQueueManager>();
+		// Sprint 697: DLQ now uses keyed registration
+		services.ShouldContain(sd =>
+			sd.ServiceType == typeof(IDeadLetterQueueManager) && sd.IsKeyedService);
 	}
 
 	#endregion

@@ -42,8 +42,8 @@ public sealed class InMemorySagaStoreShould
 	{
 		// Arrange
 		var sagaId = Guid.NewGuid();
-		var state1 = new TestSagaState { SagaId = sagaId, Completed = false };
-		var state2 = new TestSagaState { SagaId = sagaId, Completed = true };
+		var state1 = new TestSagaState { SagaId = sagaId, Completed = false, Version = 0 };
+		var state2 = new TestSagaState { SagaId = sagaId, Completed = true, Version = 1 };
 
 		// Act
 		await _sut.SaveAsync(state1, CancellationToken.None);

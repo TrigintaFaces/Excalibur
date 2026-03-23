@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Jobs.Azure;
 
-public partial class AzureLogicAppsJobProvider
+public sealed partial class AzureLogicAppsJobProvider
 {
 	// Source-generated logging methods
 

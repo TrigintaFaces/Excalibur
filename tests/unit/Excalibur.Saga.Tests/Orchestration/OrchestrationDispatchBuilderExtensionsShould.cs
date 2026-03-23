@@ -54,10 +54,15 @@ public sealed class OrchestrationDispatchBuilderExtensionsShould
 		// Act
 		builder.AddDispatchOrchestration();
 
-		// Assert - verify registration exists
-		var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISagaStore));
+		// Assert - verify keyed ISagaStore registration exists
+		var descriptor = services.FirstOrDefault(d =>
+			d.ServiceType == typeof(ISagaStore) && d.IsKeyedService);
 		descriptor.ShouldNotBeNull();
-		descriptor.ImplementationType.ShouldBe(typeof(InMemorySagaStore));
+
+		// Verify the concrete InMemorySagaStore is also registered
+		services.ShouldContain(d =>
+			d.ServiceType == typeof(InMemorySagaStore) &&
+			d.Lifetime == ServiceLifetime.Singleton);
 	}
 
 	[Fact]

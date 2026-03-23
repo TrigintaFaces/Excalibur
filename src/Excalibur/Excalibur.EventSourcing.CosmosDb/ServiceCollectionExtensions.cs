@@ -88,7 +88,9 @@ public static class CosmosDbEventStoreServiceCollectionExtensions
 	private static void RegisterServices(IServiceCollection services)
 	{
 		services.TryAddSingleton<CosmosDbEventStore>();
-		services.TryAddSingleton<IEventStore>(sp => sp.GetRequiredService<CosmosDbEventStore>());
+		services.AddKeyedSingleton<IEventStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbEventStore>());
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("cosmosdb"));
 		services.TryAddSingleton<ICloudNativeEventStore>(sp => sp.GetRequiredService<CosmosDbEventStore>());
 	}
 }

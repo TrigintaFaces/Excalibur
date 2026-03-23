@@ -1,4 +1,4 @@
-using Excalibur.Data.Abstractions.Resilience;
+using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.Data.Tests.Abstractions;
 
@@ -13,22 +13,23 @@ public sealed class CircuitBreakerOpenExceptionShould
         var exception = new CircuitBreakerOpenException();
 
         // Assert
-        exception.Message.ShouldContain("circuit breaker is open");
+        exception.Message.ShouldContain("circuit breaker");
         exception.InnerException.ShouldBeNull();
         exception.RetryAfter.ShouldBeNull();
     }
 
     [Fact]
-    public void CreateWithCustomMessage()
+    public void CreateWithCircuitName()
     {
         // Arrange
-        const string message = "Custom circuit breaker message";
+        const string circuitName = "my-circuit";
 
         // Act
-        var exception = new CircuitBreakerOpenException(message);
+        var exception = new CircuitBreakerOpenException(circuitName);
 
         // Assert
-        exception.Message.ShouldBe(message);
+        exception.Message.ShouldContain(circuitName);
+        exception.CircuitName.ShouldBe(circuitName);
         exception.InnerException.ShouldBeNull();
     }
 
@@ -54,7 +55,21 @@ public sealed class CircuitBreakerOpenExceptionShould
         var retryAfter = TimeSpan.FromSeconds(30);
 
         // Act
-        var exception = new CircuitBreakerOpenException("Open") { RetryAfter = retryAfter };
+        var exception = new CircuitBreakerOpenException("test-circuit", retryAfter);
+
+        // Assert
+        exception.RetryAfter.ShouldBe(retryAfter);
+        exception.CircuitName.ShouldBe("test-circuit");
+    }
+
+    [Fact]
+    public void SupportRetryAfterViaInitializer()
+    {
+        // Arrange
+        var retryAfter = TimeSpan.FromSeconds(30);
+
+        // Act -- init accessor allows setting RetryAfter via object initializer
+        var exception = new CircuitBreakerOpenException("test-circuit") { RetryAfter = retryAfter };
 
         // Assert
         exception.RetryAfter.ShouldBe(retryAfter);
@@ -67,6 +82,7 @@ public sealed class CircuitBreakerOpenExceptionShould
         var exception = new CircuitBreakerOpenException();
 
         // Assert
-        exception.ShouldBeAssignableTo<InvalidOperationException>();
+        // Sprint 697 T.13: reparented to ApiException
+        exception.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
     }
 }

@@ -10,7 +10,9 @@ namespace Excalibur.Dispatch.ArchitectureTests;
 /// Validates Domain-Driven Design (DDD) isolation principles.
 /// The domain layer must be pure business logic with zero infrastructure coupling.
 /// </summary>
-public class DomainIsolationTests
+[Trait("Category", "Unit")]
+[Trait("Component", "Architecture")]
+public sealed class DomainIsolationTests
 {
     /// <summary>
     /// CRITICAL RULE: Domain layer must be messaging-agnostic.

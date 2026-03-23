@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Retry policy options for connection operations.
 /// </summary>
-public sealed class RetryPolicyOptions
+public sealed class AwsSqsRetryPolicyOptions
 {
 	/// <summary>
 	/// Gets or sets the maximum number of retry attempts.
@@ -15,7 +15,7 @@ public sealed class RetryPolicyOptions
 	/// <value>
 	/// The maximum number of retry attempts.
 	/// </value>
-	public int MaxRetries { get; set; } = 3;
+	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the base delay between retries.

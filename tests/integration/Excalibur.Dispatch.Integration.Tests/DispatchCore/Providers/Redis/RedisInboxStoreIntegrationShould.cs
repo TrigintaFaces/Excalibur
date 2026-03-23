@@ -31,6 +31,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Redis;
 [Collection(ContainerCollections.Redis)]
 [Trait("Component", "Inbox")]
 [Trait("Provider", "Redis")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly RedisContainerFixture _redisFixture;
@@ -51,7 +53,7 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 	public async Task CreateEntry()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateInboxStore();
 		var messageId = Guid.NewGuid().ToString();
 		var handlerType = "TestHandler";
@@ -60,7 +62,7 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 		var metadata = new Dictionary<string, object> { { "correlationId", "test-123" } };
 
 		// Act
-		var entry = await store.CreateEntryAsync(messageId, handlerType, messageType, payload, metadata, TestCancellationToken).ConfigureAwait(true);
+		var entry = await store.CreateEntryAsync(messageId, handlerType, messageType, payload, metadata, TestCancellationToken);
 
 		// Assert
 		_ = entry.ShouldNotBeNull();
@@ -77,22 +79,22 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 	public async Task MarkEntryAsProcessed()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateInboxStore();
 		var messageId = Guid.NewGuid().ToString();
 		var handlerType = "TestHandler";
 		var payload = System.Text.Encoding.UTF8.GetBytes("{\"data\": \"test\"}");
 
-		_ = await store.CreateEntryAsync(messageId, handlerType, "TestMessage", payload, new Dictionary<string, object>(), TestCancellationToken).ConfigureAwait(true);
+		_ = await store.CreateEntryAsync(messageId, handlerType, "TestMessage", payload, new Dictionary<string, object>(), TestCancellationToken);
 
 		// Act
-		await store.MarkProcessedAsync(messageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		await store.MarkProcessedAsync(messageId, handlerType, TestCancellationToken);
 
 		// Assert
-		var isProcessed = await store.IsProcessedAsync(messageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		var isProcessed = await store.IsProcessedAsync(messageId, handlerType, TestCancellationToken);
 		isProcessed.ShouldBeTrue();
 
-		var entry = await store.GetEntryAsync(messageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		var entry = await store.GetEntryAsync(messageId, handlerType, TestCancellationToken);
 		_ = entry.ShouldNotBeNull();
 		entry.Status.ShouldBe(InboxStatus.Processed);
 		_ = entry.ProcessedAt.ShouldNotBeNull();
@@ -105,23 +107,23 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 	public async Task DetectDuplicateWithTryMarkAsProcessed()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateInboxStore();
 		var messageId = Guid.NewGuid().ToString();
 		var handlerType = "TestHandler";
 
 		// Act - First call should succeed
-		var firstResult = await store.TryMarkAsProcessedAsync(messageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		var firstResult = await store.TryMarkAsProcessedAsync(messageId, handlerType, TestCancellationToken);
 
 		// Act - Second call should detect duplicate
-		var secondResult = await store.TryMarkAsProcessedAsync(messageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		var secondResult = await store.TryMarkAsProcessedAsync(messageId, handlerType, TestCancellationToken);
 
 		// Assert
 		firstResult.ShouldBeTrue();
 		secondResult.ShouldBeFalse();
 
 		// Verify entry exists and is processed
-		var isProcessed = await store.IsProcessedAsync(messageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		var isProcessed = await store.IsProcessedAsync(messageId, handlerType, TestCancellationToken);
 		isProcessed.ShouldBeTrue();
 	}
 
@@ -132,18 +134,18 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 	public async Task ReturnFalseForUnknownEntry()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateInboxStore();
 		var unknownMessageId = Guid.NewGuid().ToString();
 		var handlerType = "TestHandler";
 
 		// Act
-		var isProcessed = await store.IsProcessedAsync(unknownMessageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		var isProcessed = await store.IsProcessedAsync(unknownMessageId, handlerType, TestCancellationToken);
 
 		// Assert
 		isProcessed.ShouldBeFalse();
 
-		var entry = await store.GetEntryAsync(unknownMessageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		var entry = await store.GetEntryAsync(unknownMessageId, handlerType, TestCancellationToken);
 		entry.ShouldBeNull();
 	}
 
@@ -154,26 +156,26 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 	public async Task HandleFailedEntries()
 	{
 		// Arrange
-		await CleanupRedisAsync().ConfigureAwait(true);
+		await CleanupRedisAsync();
 		await using var store = CreateInboxStore();
 		var messageId = Guid.NewGuid().ToString();
 		var handlerType = "TestHandler";
 		var payload = System.Text.Encoding.UTF8.GetBytes("{\"data\": \"test\"}");
 
-		_ = await store.CreateEntryAsync(messageId, handlerType, "TestMessage", payload, new Dictionary<string, object>(), TestCancellationToken).ConfigureAwait(true);
+		_ = await store.CreateEntryAsync(messageId, handlerType, "TestMessage", payload, new Dictionary<string, object>(), TestCancellationToken);
 
 		// Act
-		await store.MarkFailedAsync(messageId, handlerType, "Test failure reason", TestCancellationToken).ConfigureAwait(true);
+		await store.MarkFailedAsync(messageId, handlerType, "Test failure reason", TestCancellationToken);
 
 		// Assert
-		var entry = await store.GetEntryAsync(messageId, handlerType, TestCancellationToken).ConfigureAwait(true);
+		var entry = await store.GetEntryAsync(messageId, handlerType, TestCancellationToken);
 		_ = entry.ShouldNotBeNull();
 		entry.Status.ShouldBe(InboxStatus.Failed);
 		entry.LastError.ShouldBe("Test failure reason");
 		entry.RetryCount.ShouldBe(1);
 
 		// Verify failed entries can be retrieved
-		var failedEntries = await store.GetFailedEntriesAsync(3, null, 10, TestCancellationToken).ConfigureAwait(true);
+		var failedEntries = await store.GetFailedEntriesAsync(3, null, 10, TestCancellationToken);
 		failedEntries.Count().ShouldBe(1);
 		failedEntries.First().MessageId.ShouldBe(messageId);
 	}
@@ -201,10 +203,10 @@ public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase
 		// Connect with AllowAdmin for FLUSHDB command
 		var options = ConfigurationOptions.Parse(_redisFixture.ConnectionString);
 		options.AllowAdmin = true;
-		var connection = await ConnectionMultiplexer.ConnectAsync(options).ConfigureAwait(true);
+		var connection = await ConnectionMultiplexer.ConnectAsync(options);
 		var server = connection.GetServers().First();
-		await server.FlushDatabaseAsync(0).ConfigureAwait(true);
-		await connection.CloseAsync().ConfigureAwait(true);
+		await server.FlushDatabaseAsync(0);
+		await connection.CloseAsync();
 		connection.Dispose();
 	}
 }

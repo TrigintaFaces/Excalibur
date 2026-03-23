@@ -24,10 +24,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	private readonly IElasticsearchKeyProvider _keyProvider;
 	private readonly ILogger<FieldEncryptor> _logger;
 	private readonly EncryptionOptions _settings;
-	private readonly Dictionary<DataClassification, Regex> _classificationPatterns;
+	private readonly Dictionary<ElasticSearchDataClassification, Regex> _classificationPatterns;
 	private readonly SemaphoreSlim _encryptionSemaphore;
 	private readonly Timer? _keyRotationTimer;
-	private readonly ConcurrentBag<Task> _trackedTasks = [];
+	private ConcurrentBag<Task> _trackedTasks = [];
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -177,7 +177,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	public async Task<EncryptedFieldResult> EncryptFieldAsync(
 		string fieldName,
 		object fieldValue,
-		DataClassification classification,
+		ElasticSearchDataClassification classification,
 		CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrEmpty(fieldName))
@@ -306,15 +306,15 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 		// Check classification rules to determine if field should be encrypted
 		var classification = GetFieldClassification(fieldName, fieldValue);
-		return classification != DataClassification.Public;
+		return classification != ElasticSearchDataClassification.Public;
 	}
 
 	/// <inheritdoc />
-	public DataClassification GetFieldClassification(string fieldName, object? fieldValue)
+	public ElasticSearchDataClassification GetFieldClassification(string fieldName, object? fieldValue)
 	{
 		if (string.IsNullOrEmpty(fieldName))
 		{
-			return DataClassification.Public;
+			return ElasticSearchDataClassification.Public;
 		}
 
 		// Check against configured classification rules
@@ -330,16 +330,16 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		// Check for common PII patterns in field names
 		if (IsPiiField(fieldName))
 		{
-			return DataClassification.PersonallyIdentifiable;
+			return ElasticSearchDataClassification.PersonallyIdentifiable;
 		}
 
 		// Check for health information patterns
 		if (IsHealthInformationField(fieldName))
 		{
-			return DataClassification.HealthInformation;
+			return ElasticSearchDataClassification.HealthInformation;
 		}
 
-		return DataClassification.Public;
+		return ElasticSearchDataClassification.Public;
 	}
 
 	/// <inheritdoc />
@@ -382,7 +382,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 	/// <inheritdoc />
 	public async Task<EncryptionKeyRotationResult> RotateEncryptionKeysAsync(
-		DataClassification classification,
+		ElasticSearchDataClassification classification,
 		CancellationToken cancellationToken)
 	{
 		if (!_keyProvider.SupportsKeyRotation)
@@ -457,7 +457,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		{
 			await Task.WhenAll(_trackedTasks).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -574,16 +574,16 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <summary>
 	/// Gets the key name for a specific data classification level.
 	/// </summary>
-	private static string GetKeyNameForClassification(DataClassification classification) =>
+	private static string GetKeyNameForClassification(ElasticSearchDataClassification classification) =>
 		$"elasticsearch-encryption-{classification.ToString().ToLowerInvariant()}";
 
 	/// <summary>
 	/// Processes a JSON element recursively to encrypt sensitive fields.
 	/// </summary>
 	[RequiresUnreferencedCode(
-		"Calls Excalibur.Data.ElasticSearch.Security.Encryption.FieldEncryptor.EncryptFieldAsync(String, Object, DataClassification, CancellationToken)")]
+		"Calls Excalibur.Data.ElasticSearch.Security.Encryption.FieldEncryptor.EncryptFieldAsync(String, Object, ElasticSearchDataClassification, CancellationToken)")]
 	[RequiresDynamicCode(
-		"Calls Excalibur.Data.ElasticSearch.Security.Encryption.FieldEncryptor.EncryptFieldAsync(String, Object, DataClassification, CancellationToken)")]
+		"Calls Excalibur.Data.ElasticSearch.Security.Encryption.FieldEncryptor.EncryptFieldAsync(String, Object, ElasticSearchDataClassification, CancellationToken)")]
 	private async Task ProcessJsonElementAsync(
 		JsonElement element,
 		Dictionary<string, object> result,
@@ -646,9 +646,9 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <summary>
 	/// Builds regex patterns for field classification based on configuration rules.
 	/// </summary>
-	private Dictionary<DataClassification, Regex> BuildClassificationPatterns()
+	private Dictionary<ElasticSearchDataClassification, Regex> BuildClassificationPatterns()
 	{
-		var patterns = new Dictionary<DataClassification, Regex>();
+		var patterns = new Dictionary<ElasticSearchDataClassification, Regex>();
 
 		foreach (var rule in _settings.ClassificationRules.Where(static r => r.Enabled))
 		{
@@ -682,8 +682,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		{
 			try
 			{
-				var classifications = Enum.GetValues<DataClassification>()
-					.Where(static c => c != DataClassification.Public);
+				var classifications = Enum.GetValues<ElasticSearchDataClassification>()
+					.Where(static c => c != ElasticSearchDataClassification.Public);
 
 				foreach (var classification in classifications)
 				{
@@ -696,5 +696,15 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			}
 		}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 		_trackedTasks.Add(task);
+
+		// Drain completed tasks to prevent unbounded growth
+		var snapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
+		foreach (var t in snapshot)
+		{
+			if (!t.IsCompleted)
+			{
+				_trackedTasks.Add(t);
+			}
+		}
 	}
 }

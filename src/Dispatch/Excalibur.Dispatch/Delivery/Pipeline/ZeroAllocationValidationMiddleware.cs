@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <summary>
 /// Example zero-allocation validation middleware.
 /// </summary>
-public sealed class ZeroAllocationValidationMiddleware : ZeroAllocationMiddlewareBase
+internal sealed class ZeroAllocationValidationMiddleware : ZeroAllocationMiddlewareBase
 {
 	/// <inheritdoc />
 	public override DispatchMiddlewareStage Stage => DispatchMiddlewareStage.Validation;

@@ -6,11 +6,11 @@ using Excalibur.Saga.Models;
 namespace Excalibur.Saga.Tests.Core.Models;
 
 /// <summary>
-/// Unit tests for <see cref="RetryPolicy"/>.
+/// Unit tests for <see cref="SagaRetryOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Saga")]
-public sealed class RetryPolicyShould
+public sealed class SagaRetryOptionsShould
 {
 	#region Default Values Tests
 
@@ -18,7 +18,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultMaxAttempts()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new SagaRetryOptions();
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(3);
@@ -28,7 +28,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultInitialDelay()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new SagaRetryOptions();
 
 		// Assert
 		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(1));
@@ -38,7 +38,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultMaxDelay()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new SagaRetryOptions();
 
 		// Assert
 		policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
@@ -48,7 +48,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultBackoffMultiplier()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new SagaRetryOptions();
 
 		// Assert
 		policy.BackoffMultiplier.ShouldBe(2.0);
@@ -58,7 +58,7 @@ public sealed class RetryPolicyShould
 	public void HaveDefaultUseJitterTrue()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy();
+		var policy = new SagaRetryOptions();
 
 		// Assert
 		policy.UseJitter.ShouldBeTrue();
@@ -72,7 +72,7 @@ public sealed class RetryPolicyShould
 	public void AllowMaxAttemptsToBeSet()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy { MaxAttempts = 5 };
+		var policy = new SagaRetryOptions { MaxAttempts = 5 };
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(5);
@@ -82,7 +82,7 @@ public sealed class RetryPolicyShould
 	public void AllowInitialDelayToBeSet()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy { InitialDelay = TimeSpan.FromMilliseconds(500) };
+		var policy = new SagaRetryOptions { InitialDelay = TimeSpan.FromMilliseconds(500) };
 
 		// Assert
 		policy.InitialDelay.ShouldBe(TimeSpan.FromMilliseconds(500));
@@ -92,7 +92,7 @@ public sealed class RetryPolicyShould
 	public void AllowMaxDelayToBeSet()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy { MaxDelay = TimeSpan.FromMinutes(5) };
+		var policy = new SagaRetryOptions { MaxDelay = TimeSpan.FromMinutes(5) };
 
 		// Assert
 		policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(5));
@@ -102,7 +102,7 @@ public sealed class RetryPolicyShould
 	public void AllowBackoffMultiplierToBeSet()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy { BackoffMultiplier = 1.5 };
+		var policy = new SagaRetryOptions { BackoffMultiplier = 1.5 };
 
 		// Assert
 		policy.BackoffMultiplier.ShouldBe(1.5);
@@ -112,7 +112,7 @@ public sealed class RetryPolicyShould
 	public void AllowUseJitterToBeSet()
 	{
 		// Arrange & Act
-		var policy = new RetryPolicy { UseJitter = false };
+		var policy = new SagaRetryOptions { UseJitter = false };
 
 		// Assert
 		policy.UseJitter.ShouldBeFalse();
@@ -126,7 +126,7 @@ public sealed class RetryPolicyShould
 	public void ExponentialBackoff_ReturnsPolicy_WithDefaultValues()
 	{
 		// Act
-		var policy = RetryPolicy.ExponentialBackoff();
+		var policy = SagaRetryOptions.ExponentialBackoff();
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(3);
@@ -139,7 +139,7 @@ public sealed class RetryPolicyShould
 	public void ExponentialBackoff_ReturnsPolicy_WithCustomMaxAttempts()
 	{
 		// Act
-		var policy = RetryPolicy.ExponentialBackoff(maxAttempts: 10);
+		var policy = SagaRetryOptions.ExponentialBackoff(maxAttempts: 10);
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(10);
@@ -149,7 +149,7 @@ public sealed class RetryPolicyShould
 	public void ExponentialBackoff_ReturnsPolicy_WithCustomInitialDelay()
 	{
 		// Act
-		var policy = RetryPolicy.ExponentialBackoff(initialDelay: TimeSpan.FromMilliseconds(250));
+		var policy = SagaRetryOptions.ExponentialBackoff(initialDelay: TimeSpan.FromMilliseconds(250));
 
 		// Assert
 		policy.InitialDelay.ShouldBe(TimeSpan.FromMilliseconds(250));
@@ -159,7 +159,7 @@ public sealed class RetryPolicyShould
 	public void ExponentialBackoff_ReturnsPolicy_WithAllCustomValues()
 	{
 		// Act
-		var policy = RetryPolicy.ExponentialBackoff(
+		var policy = SagaRetryOptions.ExponentialBackoff(
 			maxAttempts: 5,
 			initialDelay: TimeSpan.FromSeconds(2));
 
@@ -178,7 +178,7 @@ public sealed class RetryPolicyShould
 	public void FixedDelay_ReturnsPolicy_WithDefaultValues()
 	{
 		// Act
-		var policy = RetryPolicy.FixedDelay();
+		var policy = SagaRetryOptions.FixedDelay();
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(3);
@@ -191,7 +191,7 @@ public sealed class RetryPolicyShould
 	public void FixedDelay_ReturnsPolicy_WithCustomMaxAttempts()
 	{
 		// Act
-		var policy = RetryPolicy.FixedDelay(maxAttempts: 7);
+		var policy = SagaRetryOptions.FixedDelay(maxAttempts: 7);
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(7);
@@ -201,7 +201,7 @@ public sealed class RetryPolicyShould
 	public void FixedDelay_ReturnsPolicy_WithCustomDelay()
 	{
 		// Act
-		var policy = RetryPolicy.FixedDelay(delay: TimeSpan.FromSeconds(5));
+		var policy = SagaRetryOptions.FixedDelay(delay: TimeSpan.FromSeconds(5));
 
 		// Assert
 		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(5));
@@ -211,7 +211,7 @@ public sealed class RetryPolicyShould
 	public void FixedDelay_ReturnsPolicy_WithAllCustomValues()
 	{
 		// Act
-		var policy = RetryPolicy.FixedDelay(
+		var policy = SagaRetryOptions.FixedDelay(
 			maxAttempts: 4,
 			delay: TimeSpan.FromMilliseconds(100));
 
@@ -230,7 +230,7 @@ public sealed class RetryPolicyShould
 	public void GetDelay_ReturnsInitialDelay_ForFirstAttempt()
 	{
 		// Arrange
-		var policy = new RetryPolicy
+		var policy = new SagaRetryOptions
 		{
 			InitialDelay = TimeSpan.FromSeconds(1),
 			BackoffMultiplier = 2.0,
@@ -248,7 +248,7 @@ public sealed class RetryPolicyShould
 	public void GetDelay_AppliesBackoffMultiplier_ForSubsequentAttempts()
 	{
 		// Arrange
-		var policy = new RetryPolicy
+		var policy = new SagaRetryOptions
 		{
 			InitialDelay = TimeSpan.FromSeconds(1),
 			BackoffMultiplier = 2.0,
@@ -270,7 +270,7 @@ public sealed class RetryPolicyShould
 	public void GetDelay_RespectsMaxDelay()
 	{
 		// Arrange
-		var policy = new RetryPolicy
+		var policy = new SagaRetryOptions
 		{
 			InitialDelay = TimeSpan.FromSeconds(1),
 			BackoffMultiplier = 2.0,
@@ -289,7 +289,7 @@ public sealed class RetryPolicyShould
 	public void GetDelay_ReturnsFixedDelay_WhenBackoffMultiplierIsOne()
 	{
 		// Arrange
-		var policy = new RetryPolicy
+		var policy = new SagaRetryOptions
 		{
 			InitialDelay = TimeSpan.FromSeconds(2),
 			BackoffMultiplier = 1.0,
@@ -311,7 +311,7 @@ public sealed class RetryPolicyShould
 	public void GetDelay_AddsJitter_WhenEnabled()
 	{
 		// Arrange
-		var policy = new RetryPolicy
+		var policy = new SagaRetryOptions
 		{
 			InitialDelay = TimeSpan.FromSeconds(1),
 			BackoffMultiplier = 1.0,

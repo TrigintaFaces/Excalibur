@@ -262,22 +262,23 @@ public sealed class StringCachesShould : IDisposable
 	}
 
 	[Fact]
-	public void Utf8StringCache_GetStatistics_ReturnsValidData()
+	public void Utf8StringCache_GetStatistics_ReturnsCacheSize()
 	{
-		// Arrange
+		// Arrange -- T.9 (Sprint 688): Interlocked counters removed; hit/miss now OTel-only.
+		// GetStatistics() still returns the tuple shape but hit/miss fields are always 0.
 		_utf8Cache.GetBytes("stat1");
-		_utf8Cache.GetBytes("stat1"); // encoding hit
+		_utf8Cache.GetBytes("stat1"); // encoding hit (tracked via OTel, not Interlocked)
 		_utf8Cache.GetString(Encoding.UTF8.GetBytes("stat2"));
 		_utf8Cache.GetString(Encoding.UTF8.GetBytes("stat2")); // decoding hit
 
 		// Act
 		var (encodingHits, encodingMisses, decodingHits, decodingMisses, cacheSize) = _utf8Cache.GetStatistics();
 
-		// Assert
-		encodingHits.ShouldBeGreaterThanOrEqualTo(1);
-		encodingMisses.ShouldBeGreaterThanOrEqualTo(1);
-		decodingHits.ShouldBeGreaterThanOrEqualTo(1);
-		decodingMisses.ShouldBeGreaterThanOrEqualTo(1);
+		// Assert -- hit/miss counters return 0 after T.9 removal; only cacheSize is meaningful
+		encodingHits.ShouldBe(0);
+		encodingMisses.ShouldBe(0);
+		decodingHits.ShouldBe(0);
+		decodingMisses.ShouldBe(0);
 		cacheSize.ShouldBeGreaterThanOrEqualTo(2);
 	}
 

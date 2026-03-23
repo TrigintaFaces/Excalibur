@@ -10,6 +10,7 @@ namespace Excalibur.EventSourcing.Tests.InMemory;
 /// These tests verify that InMemoryEventStore correctly implements the IEventStore contract.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class InMemoryEventStoreConformanceShould : EventStoreConformanceTestBase
 {
 	private InMemoryEventStore? _store;

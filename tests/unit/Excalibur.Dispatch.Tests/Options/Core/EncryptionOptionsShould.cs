@@ -1,5 +1,7 @@
-using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Options.Core;
+
+using EncryptionOptions = Excalibur.Dispatch.Options.Core.EncryptionOptions;
 
 namespace Excalibur.Dispatch.Tests.Options.Core;
 
@@ -28,27 +30,27 @@ public sealed class EncryptionOptionsShould
         var options = new EncryptionOptions
         {
             Enabled = true,
-            Algorithm = EncryptionAlgorithm.Aes128Gcm,
+            Algorithm = EncryptionAlgorithm.Aes256CbcHmac,
             Key = key,
             KeyDerivation = kdOptions,
             EnableKeyRotation = true,
         };
 
         options.Enabled.ShouldBeTrue();
-        options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes128Gcm);
+        options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
         options.Key.ShouldBeSameAs(key);
         options.KeyDerivation.ShouldBeSameAs(kdOptions);
         options.EnableKeyRotation.ShouldBeTrue();
     }
 
     [Fact]
-    public void SupportNoneAlgorithm()
+    public void SupportAlternateAlgorithm()
     {
         var options = new EncryptionOptions
         {
-            Algorithm = EncryptionAlgorithm.None,
+            Algorithm = EncryptionAlgorithm.Aes256CbcHmac,
         };
 
-        options.Algorithm.ShouldBe(EncryptionAlgorithm.None);
+        options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
     }
 }

@@ -9,6 +9,11 @@ namespace Excalibur.Dispatch.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
+/// <strong>When to use:</strong> Implement this interface when messages must be delivered to multiple
+/// transports independently (e.g., publishing the same order event to both RabbitMQ for internal consumers
+/// and Kafka for analytics). If all messages go to a single transport, use <see cref="IOutboxStore"/> alone.
+/// </para>
+/// <para>
 /// This interface provides core methods for tracking message delivery to multiple transports independently.
 /// When a message needs to be published to multiple transports (e.g., RabbitMQ and Kafka), each transport
 /// delivery can be tracked and retried independently.

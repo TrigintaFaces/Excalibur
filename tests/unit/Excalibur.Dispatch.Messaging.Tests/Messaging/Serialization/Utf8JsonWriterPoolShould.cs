@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 ///     Tests for the <see cref="Utf8JsonWriterPool" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class Utf8JsonWriterPoolShould : IDisposable
 {
 	private readonly Utf8JsonWriterPool _sut = new();

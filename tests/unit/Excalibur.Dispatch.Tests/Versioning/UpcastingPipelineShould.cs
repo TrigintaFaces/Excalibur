@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Versioning;
 /// caching, thread safety, and error handling.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class UpcastingPipelineShould : IDisposable
 {
 	private readonly UpcastingPipeline _sut = new();

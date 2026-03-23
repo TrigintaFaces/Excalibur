@@ -10,6 +10,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Complements the existing DataProcessingOptionsShould tests.
 /// </summary>
 [UnitTest]
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DataProcessingOptionsValidationShould : UnitTestBase
 {
 	[Theory]

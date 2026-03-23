@@ -32,20 +32,20 @@ public sealed class ActivityGroupService(
 	IDistributedCache cache) : IActivityGroupService
 {
 	/// <inheritdoc />
-	public async Task<bool> ExistsAsync(string activityGroupName)
+	public async Task<bool> ExistsAsync(string activityGroupName, CancellationToken cancellationToken)
 	{
-		return await activityGroupStore.ActivityGroupExistsAsync(activityGroupName, CancellationToken.None).ConfigureAwait(false);
+		return await activityGroupStore.ActivityGroupExistsAsync(activityGroupName, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
-	public async Task SyncActivityGroupsAsync()
+	public async Task SyncActivityGroupsAsync(CancellationToken cancellationToken)
 	{
 		var endpoint = $"api/v1/*/applications/{ApplicationContext.ApplicationName}/activity-groups";
 		using var requestMessage = CreateMessage(endpoint);
-		using var response = await httpClient.SendAsync(requestMessage).ConfigureAwait(false);
-		var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+		using var response = await httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
+		var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
 		if (!response.IsSuccessStatusCode)
 		{
@@ -59,7 +59,7 @@ public sealed class ActivityGroupService(
 
 		var activityGroups = JsonSerializer.Deserialize<IEnumerable<ActivityGroup>>(body);
 
-		_ = await activityGroupStore.DeleteAllActivityGroupsAsync(CancellationToken.None).ConfigureAwait(false);
+		_ = await activityGroupStore.DeleteAllActivityGroupsAsync(cancellationToken).ConfigureAwait(false);
 
 		var activitiesInGroups = activityGroups
 			?.SelectMany(a => a.Activities.Select(act => new { ActivityGroupName = a.Name, act.ActivityName, a.TenantId })).ToArray() ?? [];
@@ -72,23 +72,23 @@ public sealed class ActivityGroupService(
 					activityGroup.TenantId,
 					activityGroup.ActivityGroupName,
 					activityGroup.ActivityName,
-					CancellationToken.None).ConfigureAwait(false);
+					cancellationToken).ConfigureAwait(false);
 			}
 		}
 
-		await cache.RemoveAsync(AuthorizationCacheKey.ForActivityGroups()).ConfigureAwait(false);
+		await cache.RemoveAsync(AuthorizationCacheKey.ForActivityGroups(), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
-	public async Task SyncActivityGroupGrantsAsync(string userId)
+	public async Task SyncActivityGroupGrantsAsync(string userId, CancellationToken cancellationToken)
 	{
 		var endpoint = $"api/v1/*/{userId}/grants/activity-groups";
 
 		// Make the HTTP request (implementation would need proper HTTP client)
-		var response = await httpClient.GetAsync(new Uri(endpoint, UriKind.Relative)).ConfigureAwait(false);
-		var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+		var response = await httpClient.GetAsync(new Uri(endpoint, UriKind.Relative), cancellationToken).ConfigureAwait(false);
+		var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
 		if (!response.IsSuccessStatusCode)
 		{
@@ -112,30 +112,30 @@ public sealed class ActivityGroupService(
 			GrantedBy = token.FullName,
 		}).ToArray() ?? [];
 
-		_ = await activityGroupGrantStore.DeleteActivityGroupGrantsByUserIdAsync(userId, GrantType.ActivityGroup, CancellationToken.None).ConfigureAwait(false);
+		_ = await activityGroupGrantStore.DeleteActivityGroupGrantsByUserIdAsync(userId, GrantType.ActivityGroup, cancellationToken).ConfigureAwait(false);
 
 		if (grants.Length > 0)
 		{
 			foreach (var grant in grants)
 			{
 				_ = await activityGroupGrantStore.InsertActivityGroupGrantAsync(
-					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, CancellationToken.None).ConfigureAwait(false);
+					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
-		await cache.RemoveAsync(AuthorizationCacheKey.ForGrants(userId)).ConfigureAwait(false);
+		await cache.RemoveAsync(AuthorizationCacheKey.ForGrants(userId), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
-	public async Task SyncAllActivityGroupGrantsAsync()
+	public async Task SyncAllActivityGroupGrantsAsync(CancellationToken cancellationToken)
 	{
 		const string Endpoint = "api/v1/*/grants/activity-groups";
 
 		// Make the HTTP request (implementation would need proper HTTP client)
-		var response = await httpClient.GetAsync(new Uri(Endpoint, UriKind.Relative)).ConfigureAwait(false);
-		var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+		var response = await httpClient.GetAsync(new Uri(Endpoint, UriKind.Relative), cancellationToken).ConfigureAwait(false);
+		var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
 		if (!response.IsSuccessStatusCode)
 		{
@@ -159,20 +159,20 @@ public sealed class ActivityGroupService(
 			GrantedBy = token.FullName,
 		}).ToArray() ?? [];
 
-		var userIds = await activityGroupGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(GrantType.ActivityGroup, CancellationToken.None).ConfigureAwait(false);
+		var userIds = await activityGroupGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(GrantType.ActivityGroup, cancellationToken).ConfigureAwait(false);
 
-		_ = await activityGroupGrantStore.DeleteAllActivityGroupGrantsAsync(GrantType.ActivityGroup, CancellationToken.None).ConfigureAwait(false);
+		_ = await activityGroupGrantStore.DeleteAllActivityGroupGrantsAsync(GrantType.ActivityGroup, cancellationToken).ConfigureAwait(false);
 
 		if (grants.Length > 0)
 		{
 			foreach (var grant in grants)
 			{
 				_ = await activityGroupGrantStore.InsertActivityGroupGrantAsync(
-					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, CancellationToken.None).ConfigureAwait(false);
+					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
-		await Task.WhenAll(userIds.Select(u => cache.RemoveAsync(AuthorizationCacheKey.ForGrants(u)))).ConfigureAwait(false);
+		await Task.WhenAll(userIds.Select(u => cache.RemoveAsync(AuthorizationCacheKey.ForGrants(u), cancellationToken))).ConfigureAwait(false);
 	}
 
 	private HttpRequestMessage CreateMessage(string endpoint)

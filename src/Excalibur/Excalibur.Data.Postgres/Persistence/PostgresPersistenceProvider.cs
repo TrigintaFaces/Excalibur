@@ -28,6 +28,11 @@ namespace Excalibur.Data.Postgres.Persistence;
 /// Postgres implementation of the SQL persistence provider that focuses on DataRequest execution while providing Postgres-specific
 /// optimizations and infrastructure concerns like retry policies, metrics collection, and connection management.
 /// </summary>
+/// <remarks>
+/// For the general Postgres persistence provider that handles health monitoring and transaction lifecycle, see
+/// <see cref="Data.Postgres.PostgresPersistenceProvider"/> which implements
+/// <see cref="IPersistenceProvider"/>, <c>IPersistenceProviderHealth</c>, and <c>IPersistenceProviderTransaction</c>.
+/// </remarks>
 public class PostgresPersistenceProvider : ISqlPersistenceProvider
 {
 	private readonly PostgresPersistenceOptions _options;
@@ -599,7 +604,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		ArgumentNullException.ThrowIfNull(request);
 
 		// Use the DataRequest retry policy for execution
-		return await RetryPolicy.ResolveAsync(
+		return await ((IRelationalDataRequestRetryPolicy)RetryPolicy).ResolveAsync(
 			request,
 			async () => (TConnection)await CreateConnectionAsync(cancellationToken).ConfigureAwait(false),
 			cancellationToken).ConfigureAwait(false);

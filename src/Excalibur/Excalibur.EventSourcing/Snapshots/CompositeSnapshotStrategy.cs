@@ -25,8 +25,13 @@ public sealed class CompositeSnapshotStrategy : ISnapshotStrategy
 	private static readonly CompositeFormat UnknownCompositeModeFormat =
 			CompositeFormat.Parse(Resources.CompositeSnapshotStrategy_UnknownCompositeModeFormat);
 
-	private readonly IList<ISnapshotStrategy> _strategies;
+	private volatile IReadOnlyList<ISnapshotStrategy> _strategies;
 	private readonly CompositeMode _mode;
+#if NET9_0_OR_GREATER
+	private readonly System.Threading.Lock _lock = new();
+#else
+	private readonly object _lock = new();
+#endif
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CompositeSnapshotStrategy"/> class.
@@ -96,7 +101,10 @@ public sealed class CompositeSnapshotStrategy : ISnapshotStrategy
 	public void AddStrategy(ISnapshotStrategy strategy)
 	{
 		ArgumentNullException.ThrowIfNull(strategy);
-		_strategies.Add(strategy);
+		lock (_lock)
+		{
+			_strategies = [.. _strategies, strategy];
+		}
 	}
 
 	/// <summary>
@@ -104,5 +112,18 @@ public sealed class CompositeSnapshotStrategy : ISnapshotStrategy
 	/// </summary>
 	/// <param name="strategy">The strategy to remove.</param>
 	/// <returns>True if the strategy was removed, otherwise false.</returns>
-	public bool RemoveStrategy(ISnapshotStrategy strategy) => _strategies.Remove(strategy);
+	public bool RemoveStrategy(ISnapshotStrategy strategy)
+	{
+		lock (_lock)
+		{
+			var list = new List<ISnapshotStrategy>(_strategies);
+			var removed = list.Remove(strategy);
+			if (removed)
+			{
+				_strategies = list;
+			}
+
+			return removed;
+		}
+	}
 }

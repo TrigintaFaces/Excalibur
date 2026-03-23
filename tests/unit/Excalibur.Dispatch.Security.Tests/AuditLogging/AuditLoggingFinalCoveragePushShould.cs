@@ -474,12 +474,15 @@ public sealed class AuditLoggingFinalCoveragePushShould
 			ActorId = "user-1"
 		};
 
+		using var cts = new CancellationTokenSource();
+		await cts.CancelAsync();
+
 		A.CallTo(() => store.StoreAsync(auditEvent, A<CancellationToken>._))
 			.ThrowsAsync(new OperationCanceledException());
 
-		// Act & Assert - OperationCanceledException should propagate (not be caught)
+		// Act & Assert - OperationCanceledException should propagate when token is cancelled
 		await Should.ThrowAsync<OperationCanceledException>(
-			() => sut.LogAsync(auditEvent, CancellationToken.None)).ConfigureAwait(false);
+			() => sut.LogAsync(auditEvent, cts.Token)).ConfigureAwait(false);
 	}
 
 	#endregion

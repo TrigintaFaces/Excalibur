@@ -352,7 +352,6 @@ public sealed partial class RateLimitingMiddleware : IDispatchMiddleware, IDispo
 		try
 		{
 			var keysToRemove = new List<string>();
-			var cutoffTime = DateTimeOffset.UtcNow.AddMinutes(-_options.InactivityTimeoutMinutes);
 
 			foreach (var kvp in _limiters)
 			{

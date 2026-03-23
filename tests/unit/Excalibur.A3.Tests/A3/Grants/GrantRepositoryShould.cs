@@ -85,7 +85,7 @@ public sealed class GrantRepositoryShould
 	public async Task MatchingAsync_ThrowsOnNullScope()
 	{
 		await Should.ThrowAsync<ArgumentNullException>(() =>
-			_repository.MatchingAsync(null!, "user-1"));
+			_repository.MatchingAsync(null!, "user-1", CancellationToken.None));
 	}
 
 	[Fact]
@@ -96,20 +96,20 @@ public sealed class GrantRepositoryShould
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(() =>
-			_repository.MatchingAsync(scope, null));
+			_repository.MatchingAsync(scope, null, CancellationToken.None));
 	}
 
 	[Fact]
 	public async Task ReadAllAsync_ThrowsOnNullUserId()
 	{
 		await Should.ThrowAsync<ArgumentException>(() =>
-			_repository.ReadAllAsync(null!));
+			_repository.ReadAllAsync(null!, CancellationToken.None));
 	}
 
 	[Fact]
 	public async Task ReadAllAsync_ThrowsOnEmptyUserId()
 	{
 		await Should.ThrowAsync<ArgumentException>(() =>
-			_repository.ReadAllAsync(""));
+			_repository.ReadAllAsync("", CancellationToken.None));
 	}
 }

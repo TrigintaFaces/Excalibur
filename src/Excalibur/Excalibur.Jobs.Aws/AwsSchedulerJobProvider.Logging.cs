@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Jobs.Aws;
 
-public partial class AwsSchedulerJobProvider
+public sealed partial class AwsSchedulerJobProvider
 {
 	// Source-generated logging methods
 

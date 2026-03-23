@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Compliance;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
@@ -16,24 +16,17 @@ public sealed class EncryptionAlgorithmShould
 	#region Enum Value Tests
 
 	[Fact]
-	public void None_HasExpectedValue()
-	{
-		// Assert
-		((int)EncryptionAlgorithm.None).ShouldBe(0);
-	}
-
-	[Fact]
-	public void Aes128Gcm_HasExpectedValue()
-	{
-		// Assert
-		((int)EncryptionAlgorithm.Aes128Gcm).ShouldBe(1);
-	}
-
-	[Fact]
 	public void Aes256Gcm_HasExpectedValue()
 	{
 		// Assert
-		((int)EncryptionAlgorithm.Aes256Gcm).ShouldBe(2);
+		((int)EncryptionAlgorithm.Aes256Gcm).ShouldBe(0);
+	}
+
+	[Fact]
+	public void Aes256CbcHmac_HasExpectedValue()
+	{
+		// Assert
+		((int)EncryptionAlgorithm.Aes256CbcHmac).ShouldBe(1);
 	}
 
 	#endregion
@@ -47,19 +40,18 @@ public sealed class EncryptionAlgorithmShould
 		var values = Enum.GetValues<EncryptionAlgorithm>();
 
 		// Assert
-		values.ShouldContain(EncryptionAlgorithm.None);
-		values.ShouldContain(EncryptionAlgorithm.Aes128Gcm);
 		values.ShouldContain(EncryptionAlgorithm.Aes256Gcm);
+		values.ShouldContain(EncryptionAlgorithm.Aes256CbcHmac);
 	}
 
 	[Fact]
-	public void HasExactlyThreeValues()
+	public void HasExactlyTwoValues()
 	{
 		// Arrange
 		var values = Enum.GetValues<EncryptionAlgorithm>();
 
 		// Assert
-		values.Length.ShouldBe(3);
+		values.Length.ShouldBe(2);
 	}
 
 	#endregion
@@ -67,9 +59,8 @@ public sealed class EncryptionAlgorithmShould
 	#region String Conversion Tests
 
 	[Theory]
-	[InlineData(EncryptionAlgorithm.None, "None")]
-	[InlineData(EncryptionAlgorithm.Aes128Gcm, "Aes128Gcm")]
 	[InlineData(EncryptionAlgorithm.Aes256Gcm, "Aes256Gcm")]
+	[InlineData(EncryptionAlgorithm.Aes256CbcHmac, "Aes256CbcHmac")]
 	public void ToString_ReturnsExpectedValue(EncryptionAlgorithm algorithm, string expected)
 	{
 		// Act & Assert
@@ -81,9 +72,8 @@ public sealed class EncryptionAlgorithmShould
 	#region Parsing Tests
 
 	[Theory]
-	[InlineData("None", EncryptionAlgorithm.None)]
-	[InlineData("Aes128Gcm", EncryptionAlgorithm.Aes128Gcm)]
 	[InlineData("Aes256Gcm", EncryptionAlgorithm.Aes256Gcm)]
+	[InlineData("Aes256CbcHmac", EncryptionAlgorithm.Aes256CbcHmac)]
 	public void Parse_WithValidString_ReturnsExpectedValue(string value, EncryptionAlgorithm expected)
 	{
 		// Act
@@ -98,13 +88,13 @@ public sealed class EncryptionAlgorithmShould
 	#region Default Value Tests
 
 	[Fact]
-	public void DefaultValue_IsNone()
+	public void DefaultValue_IsAes256Gcm()
 	{
 		// Arrange
 		EncryptionAlgorithm algorithm = default;
 
 		// Assert
-		algorithm.ShouldBe(EncryptionAlgorithm.None);
+		algorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
 	}
 
 	#endregion

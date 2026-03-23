@@ -83,6 +83,16 @@ public sealed class DistributedTransactionExceptionShould
     }
 
     [Fact]
+    public void InheritFromResourceException()
+    {
+        // Sprint 698 T.56: DistributedTransactionException reparented to ResourceException
+        var exception = new DistributedTransactionException("test");
+
+        // Assert
+        exception.ShouldBeAssignableTo<ResourceException>();
+    }
+
+    [Fact]
     public void DefaultFailedParticipantIdsToEmptyList()
     {
         // Arrange & Act

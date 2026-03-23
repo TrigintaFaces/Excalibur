@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Unit tests for <see cref="InMemoryMasterKeyBackupService"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class InMemoryMasterKeyBackupServiceShould
 {
 	private readonly InMemoryMasterKeyBackupService _sut;

@@ -452,12 +452,12 @@ public class TenantProcessorService : BackgroundService
 public class OutboxProcessor : BackgroundService
 {
     private readonly ILeaderElection _leaderElection;
-    private readonly IOutboxService _outbox;
+    private readonly IOutboxStore _outbox;
     private readonly ILogger<OutboxProcessor> _logger;
 
     public OutboxProcessor(
         ILeaderElection leaderElection,
-        IOutboxService outbox,
+        IOutboxStore outbox,
         ILogger<OutboxProcessor> logger)
     {
         _leaderElection = leaderElection;

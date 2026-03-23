@@ -15,7 +15,7 @@ public sealed class KafkaRetryOptions
 	/// <value>
 	/// The maximum number of retry attempts.
 	/// </value>
-	public int MaxRetries { get; set; } = 3;
+	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the base retry delay.

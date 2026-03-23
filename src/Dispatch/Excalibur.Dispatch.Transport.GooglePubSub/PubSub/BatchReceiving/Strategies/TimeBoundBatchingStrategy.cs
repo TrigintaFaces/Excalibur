@@ -14,12 +14,9 @@ public sealed class TimeBoundBatchingStrategy(BatchConfiguration configuration) 
 {
 	private readonly BatchConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
-
 #endif
 	private readonly Queue<TimestampedBatch> _recentBatches = new();
 	private DateTimeOffset _lastBatchTime = DateTimeOffset.UtcNow;

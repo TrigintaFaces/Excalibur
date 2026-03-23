@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 /// Automatically provisions a RabbitMQ container for testing.
 /// </summary>
 [Trait("Category", "Integration")]
+[Trait("Component", "Transport")]
 [Trait("Transport", "RabbitMq")]
 public sealed class RabbitMqTransportConformanceTests
 	: TransportConformanceTestBase<RabbitMqChannelSender, RabbitMqChannelReceiver>

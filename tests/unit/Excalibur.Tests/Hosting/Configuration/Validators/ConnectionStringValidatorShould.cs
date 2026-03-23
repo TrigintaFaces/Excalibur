@@ -6,6 +6,7 @@ using Excalibur.Hosting.Configuration.Validators;
 namespace Excalibur.Tests.Hosting.Configuration.Validators;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class ConnectionStringValidatorShould
 {
 	[Fact]

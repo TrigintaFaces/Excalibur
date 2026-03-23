@@ -6,7 +6,9 @@ using Shouldly;
 
 namespace Excalibur.Tests.Cdc;
 
-public class CdcReasonCodesShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class CdcReasonCodesShould
 {
     #region Constant Values
 

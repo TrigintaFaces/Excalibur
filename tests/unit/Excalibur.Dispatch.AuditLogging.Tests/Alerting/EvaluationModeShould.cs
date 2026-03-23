@@ -2,7 +2,9 @@ using Excalibur.Dispatch.AuditLogging.Alerting;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Alerting;
 
-public class EvaluationModeShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class EvaluationModeShould
 {
     [Fact]
     public void Define_real_time_as_zero()

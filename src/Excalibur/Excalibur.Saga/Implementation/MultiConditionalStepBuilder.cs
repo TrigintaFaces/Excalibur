@@ -20,7 +20,7 @@ public sealed class MultiConditionalStepBuilder<TData>(string name)
 	private Func<ISagaContext<TData>, CancellationToken, Task<string>>? _branchEvaluator;
 	private ISagaStep<TData>? _defaultStep;
 	private TimeSpan _timeout = TimeSpan.FromMinutes(5);
-	private RetryPolicy? _retryPolicy;
+	private SagaRetryOptions? _retryPolicy;
 
 	/// <summary>
 	/// Sets the branch evaluator function.
@@ -115,7 +115,7 @@ public sealed class MultiConditionalStepBuilder<TData>(string name)
 	/// </summary>
 	/// <param name="retryPolicy"> The retry policy. </param>
 	/// <returns> The builder instance. </returns>
-	public MultiConditionalStepBuilder<TData> WithRetryPolicy(RetryPolicy retryPolicy)
+	public MultiConditionalStepBuilder<TData> WithRetryPolicy(SagaRetryOptions retryPolicy)
 	{
 		_retryPolicy = retryPolicy;
 		return this;

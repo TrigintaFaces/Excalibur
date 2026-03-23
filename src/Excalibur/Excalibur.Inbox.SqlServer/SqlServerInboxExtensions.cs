@@ -31,8 +31,11 @@ public static class SqlServerInboxExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerInboxOptions>, SqlServerInboxOptionsValidator>());
 		services.TryAddSingleton<SqlServerInboxStore>();
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<SqlServerInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("sqlserver"));
 
 		return services;
 	}
@@ -90,7 +93,9 @@ public static class SqlServerInboxExtensions
 			var logger = sp.GetRequiredService<ILogger<SqlServerInboxStore>>();
 			return new SqlServerInboxStore(connectionFactory, options, logger);
 		});
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<SqlServerInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("sqlserver"));
 
 		return services;
 	}

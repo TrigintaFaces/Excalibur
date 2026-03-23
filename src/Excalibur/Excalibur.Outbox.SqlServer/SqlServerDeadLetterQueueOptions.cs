@@ -1,17 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Outbox.SqlServer;
 
 /// <summary>
 /// Configuration options for SQL Server-based dead letter queue storage.
 /// </summary>
-public class SqlServerDeadLetterQueueOptions
+public sealed class SqlServerDeadLetterQueueOptions
 {
 	/// <summary>
 	/// Gets or sets the connection string for the SQL Server database.
 	/// </summary>
+	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>

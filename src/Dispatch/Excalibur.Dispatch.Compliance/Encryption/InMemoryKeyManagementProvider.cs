@@ -77,7 +77,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		var latestVersion = keyEntry.Versions.Keys.Max();
 		var versionEntry = keyEntry.Versions[latestVersion];
 
-		return Task.FromResult<KeyMetadata?>(CreateMetadata(keyEntry, versionEntry));
+		return Task.FromResult<KeyMetadata?>(CreateMetadata(keyEntry, latestVersion, versionEntry));
 	}
 
 	/// <inheritdoc/>
@@ -96,7 +96,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 			return Task.FromResult<KeyMetadata?>(null);
 		}
 
-		return Task.FromResult<KeyMetadata?>(CreateMetadata(keyEntry, versionEntry));
+		return Task.FromResult<KeyMetadata?>(CreateMetadata(keyEntry, version, versionEntry));
 	}
 
 	/// <inheritdoc/>
@@ -127,7 +127,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 				continue;
 			}
 
-			results.Add(CreateMetadata(keyEntry, versionEntry));
+			results.Add(CreateMetadata(keyEntry, latestVersion, versionEntry));
 		}
 
 		return Task.FromResult<IReadOnlyList<KeyMetadata>>(results);
@@ -147,7 +147,36 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		return Task.FromResult(RotateKeyCore(keyId, algorithm, purpose, expiresAt));
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Schedules a key for deletion or immediately destroys it depending on the retention period.
+	/// </summary>
+	/// <param name="keyId">The key identifier.</param>
+	/// <param name="retentionDays">
+	/// Number of days to retain the key before destruction.
+	/// <list type="bullet">
+	/// <item>
+	/// <term><c>0</c></term>
+	/// <description>
+	/// <strong>Immediate destruction:</strong> All key material is securely zeroed
+	/// (<see cref="System.Security.Cryptography.CryptographicOperations.ZeroMemory"/>) and the key
+	/// is removed from the store. Data encrypted with this key becomes permanently unrecoverable.
+	/// Use this for GDPR cryptographic erasure (crypto-shredding).
+	/// </description>
+	/// </item>
+	/// <item>
+	/// <term><c>&gt; 0</c></term>
+	/// <description>
+	/// <strong>Pending destruction:</strong> All versions are moved to
+	/// <see cref="KeyStatus.PendingDestruction"/> with a scheduled deletion date. The key material
+	/// remains in memory during the retention window, allowing decrypt-only operations for data
+	/// migration. After the retention period, a cleanup process should call
+	/// <see cref="DestroyKeyImmediately"/> to complete erasure.
+	/// </description>
+	/// </item>
+	/// </list>
+	/// </param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns><see langword="true"/> if the key was found and processed; <see langword="false"/> if the key does not exist.</returns>
 	public Task<bool> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -158,7 +187,26 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 			return Task.FromResult(false);
 		}
 
-		// Mark all versions as pending destruction
+		if (retentionDays == 0)
+		{
+			// Immediate destruction: zero key material and remove from store
+			_ = _keys.TryRemove(keyId, out _);
+			foreach (var versionEntry in keyEntry.Versions.Values)
+			{
+				if (versionEntry.KeyMaterial is not null)
+				{
+					CryptographicOperations.ZeroMemory(versionEntry.KeyMaterial);
+					versionEntry.KeyMaterial = null;
+				}
+
+				versionEntry.Status = KeyStatus.Destroyed;
+			}
+
+			LogKeyDestroyed(keyId);
+			return Task.FromResult(true);
+		}
+
+		// Mark all versions as pending destruction with scheduled deletion
 		foreach (var versionEntry in keyEntry.Versions.Values)
 		{
 			versionEntry.Status = KeyStatus.PendingDestruction;
@@ -222,7 +270,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 						continue;
 					}
 
-					return Task.FromResult<KeyMetadata?>(CreateMetadata(keyEntry, versionEntry));
+					return Task.FromResult<KeyMetadata?>(CreateMetadata(keyEntry, version, versionEntry));
 				}
 			}
 		}
@@ -240,7 +288,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 				var versionEntry = defaultEntry.Versions[latestVersion];
 				if (versionEntry.Status == KeyStatus.Active)
 				{
-					return Task.FromResult<KeyMetadata?>(CreateMetadata(defaultEntry, versionEntry));
+					return Task.FromResult<KeyMetadata?>(CreateMetadata(defaultEntry, latestVersion, versionEntry));
 				}
 			}
 		}
@@ -291,7 +339,9 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 			return;
 		}
 
-		// Securely clear all key material
+		_disposed = true;
+
+		// Securely clear all key material (after setting _disposed to prevent concurrent reads)
 		foreach (var keyEntry in _keys.Values)
 		{
 			foreach (var versionEntry in keyEntry.Versions.Values)
@@ -305,7 +355,6 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		}
 
 		_keys.Clear();
-		_disposed = true;
 
 		LogProviderDisposed();
 	}
@@ -356,10 +405,8 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		};
 	}
 
-	private static KeyMetadata CreateMetadata(KeyEntry keyEntry, KeyVersionEntry versionEntry)
+	private static KeyMetadata CreateMetadata(KeyEntry keyEntry, int version, KeyVersionEntry versionEntry)
 	{
-		var version = keyEntry.Versions.FirstOrDefault(kvp => kvp.Value == versionEntry).Key;
-
 		return new KeyMetadata
 		{
 			KeyId = keyEntry.KeyId,
@@ -427,7 +474,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 
 				if (currentVersionEntry.Status == KeyStatus.Active)
 				{
-					previousKeyMetadata = CreateMetadata(existingEntry, currentVersionEntry);
+					previousKeyMetadata = CreateMetadata(existingEntry, currentVersion, currentVersionEntry);
 					currentVersionEntry.Status = KeyStatus.DecryptOnly;
 					currentVersionEntry.RotatedAt = DateTimeOffset.UtcNow;
 				}
@@ -439,7 +486,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 
 				LogKeyRotated(keyId, currentVersion, newVersion);
 
-				var newMetadata = CreateMetadata(existingEntry, newVersionEntry);
+				var newMetadata = CreateMetadata(existingEntry, newVersion, newVersionEntry);
 				return KeyRotationResult.Succeeded(newMetadata, previousKeyMetadata);
 			}
 
@@ -456,7 +503,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 
 			LogKeyCreated(keyId);
 
-			var createdMetadata = CreateMetadata(keyEntry, versionEntry);
+			var createdMetadata = CreateMetadata(keyEntry, 1, versionEntry);
 			return KeyRotationResult.Succeeded(createdMetadata);
 		}
 		catch (Exception ex)

@@ -43,7 +43,7 @@ public interface ITransportProvider
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The validation result.</returns>
 	Task<ValidationResult> ValidateAsync(
-		IMessageBusOptions options,
+		MessageBusOptions options,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -64,7 +64,7 @@ public interface ITransportProvider
 	/// <exception cref="InvalidOperationException">Thrown when the provider does not support transport adapters.</exception>
 	Task<ITransportAdapter> CreateTransportAdapterAsync(
 		string adapterName,
-		IMessageBusOptions options,
+		MessageBusOptions options,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -77,6 +77,6 @@ public interface ITransportProvider
 	/// <exception cref="InvalidOperationException">Thrown when the provider does not support message bus adapters.</exception>
 	Task<IMessageBusAdapter> CreateMessageBusAdapterAsync(
 		string busName,
-		IMessageBusOptions options,
+		MessageBusOptions options,
 		CancellationToken cancellationToken);
 }

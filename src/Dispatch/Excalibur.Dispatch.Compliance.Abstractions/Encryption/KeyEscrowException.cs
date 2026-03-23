@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.Dispatch.Compliance;
 
 /// <summary>
 /// Exception thrown when a key escrow operation fails.
 /// </summary>
-public sealed class KeyEscrowException : Exception
+public sealed class KeyEscrowException : ApiException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="KeyEscrowException"/> class.

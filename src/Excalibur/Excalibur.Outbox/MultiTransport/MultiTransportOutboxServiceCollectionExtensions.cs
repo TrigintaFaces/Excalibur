@@ -34,9 +34,9 @@ public static class MultiTransportOutboxServiceCollectionExtensions
 			.ValidateOnStart();
 
 		// Register MultiTransportOutboxStore as a decorator over the existing IOutboxStore
-		services.TryAddSingleton<Excalibur.Outbox.MultiTransport.IMultiTransportOutboxStore>(sp =>
+		services.TryAddSingleton<Excalibur.Outbox.MultiTransport.IMultiTransportOutboxRouter>(sp =>
 		{
-			var innerStore = sp.GetRequiredService<IOutboxStore>();
+			var innerStore = sp.GetRequiredKeyedService<IOutboxStore>("default");
 			var options = sp.GetRequiredService<Options.IOptions<MultiTransportOutboxOptions>>();
 			var logger = sp.GetRequiredService<Logging.ILogger<MultiTransportOutboxStore>>();
 			return new MultiTransportOutboxStore(innerStore, options, logger);

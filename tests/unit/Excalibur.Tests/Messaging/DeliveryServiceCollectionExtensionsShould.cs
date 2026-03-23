@@ -7,7 +7,8 @@ namespace Excalibur.Tests.Messaging;
 ///     Unit tests for DeliveryServiceCollectionExtensions to verify service registration functionality.
 /// </summary>
 [Trait("Category", "Unit")]
-public class DeliveryServiceCollectionExtensionsShould
+[Trait("Component", "Core")]
+public sealed class DeliveryServiceCollectionExtensionsShould
 {
 	private readonly IServiceCollection _services = new ServiceCollection();
 
@@ -21,11 +22,11 @@ public class DeliveryServiceCollectionExtensionsShould
 		// Act
 		_ = _services.AddOutbox<TestOutboxStore>();
 
-		// Assert
-		var serviceProvider = _services.BuildServiceProvider();
-		var outboxStore = serviceProvider.GetService<IOutboxStore>();
-		_ = outboxStore.ShouldNotBeNull();
-		_ = outboxStore.ShouldBeOfType<TestOutboxStore>();
+		// Assert - IOutboxStore is now registered as a keyed service
+		var descriptor = _services.FirstOrDefault(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
+		_ = descriptor.ShouldNotBeNull();
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+		descriptor.KeyedImplementationType.ShouldBe(typeof(TestOutboxStore));
 	}
 
 	[Fact]
@@ -36,7 +37,7 @@ public class DeliveryServiceCollectionExtensionsShould
 
 		// Assert
 		var serviceProvider = _services.BuildServiceProvider();
-		var options = serviceProvider.GetService<IOptions<OutboxOptions>>();
+		var options = serviceProvider.GetService<IOptions<OutboxDeliveryOptions>>();
 		_ = options.ShouldNotBeNull();
 		options.Value.PerRunTotal.ShouldBe(10000);
 		options.Value.QueueCapacity.ShouldBe(5000);
@@ -62,7 +63,7 @@ public class DeliveryServiceCollectionExtensionsShould
 
 		// Assert
 		var serviceProvider = _services.BuildServiceProvider();
-		var options = serviceProvider.GetService<IOptions<OutboxOptions>>();
+		var options = serviceProvider.GetService<IOptions<OutboxDeliveryOptions>>();
 		_ = options.ShouldNotBeNull();
 		options.Value.PerRunTotal.ShouldBe(5000);
 		options.Value.QueueCapacity.ShouldBe(2500);
@@ -118,7 +119,7 @@ public class DeliveryServiceCollectionExtensionsShould
 		_ = Should.NotThrow(() => _services.AddOutbox<TestOutboxStore>(configure: null));
 
 		var serviceProvider = _services.BuildServiceProvider();
-		var options = serviceProvider.GetService<IOptions<OutboxOptions>>();
+		var options = serviceProvider.GetService<IOptions<OutboxDeliveryOptions>>();
 		_ = options.ShouldNotBeNull();
 		options.Value.PerRunTotal.ShouldBe(10000); // Default value
 	}
@@ -130,10 +131,9 @@ public class DeliveryServiceCollectionExtensionsShould
 		_ = _services.AddOutbox<TestOutboxStore>();
 		_ = _services.AddOutbox<AnotherTestOutboxStore>(); // This should not replace the first
 
-		// Assert
-		var serviceProvider = _services.BuildServiceProvider();
-		var outboxStore = serviceProvider.GetService<IOutboxStore>();
-		_ = outboxStore.ShouldBeOfType<TestOutboxStore>(); // First registration should remain
+		// Assert - first keyed registration should be TestOutboxStore
+		var firstDescriptor = _services.First(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
+		firstDescriptor.KeyedImplementationType.ShouldBe(typeof(TestOutboxStore));
 	}
 
 	[Fact]
@@ -147,15 +147,12 @@ public class DeliveryServiceCollectionExtensionsShould
 		_ = services1.AddOutbox<TestOutboxStore>();
 		_ = services2.AddOutbox<AnotherTestOutboxStore>();
 
-		// Assert
-		var provider1 = services1.BuildServiceProvider();
-		var provider2 = services2.BuildServiceProvider();
+		// Assert - verify descriptors have correct keyed implementation types
+		var descriptor1 = services1.First(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
+		var descriptor2 = services2.First(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
 
-		var store1 = provider1.GetService<IOutboxStore>();
-		var store2 = provider2.GetService<IOutboxStore>();
-
-		_ = store1.ShouldBeOfType<TestOutboxStore>();
-		_ = store2.ShouldBeOfType<AnotherTestOutboxStore>();
+		descriptor1.KeyedImplementationType.ShouldBe(typeof(TestOutboxStore));
+		descriptor2.KeyedImplementationType.ShouldBe(typeof(AnotherTestOutboxStore));
 	}
 
 	[Fact]
@@ -168,7 +165,7 @@ public class DeliveryServiceCollectionExtensionsShould
 		var serviceProvider = _services.BuildServiceProvider();
 		_ = Should.Throw<OptionsValidationException>(() =>
 		{
-			var options = serviceProvider.GetRequiredService<IOptions<OutboxOptions>>();
+			var options = serviceProvider.GetRequiredService<IOptions<OutboxDeliveryOptions>>();
 			_ = options.Value; // This should trigger validation
 		});
 	}
@@ -185,12 +182,12 @@ public class DeliveryServiceCollectionExtensionsShould
 		// Assert
 		var serviceProvider = _services.BuildServiceProvider();
 		var testService = serviceProvider.GetService<ITestService>();
-		var outboxStore = serviceProvider.GetService<IOutboxStore>();
-
 		_ = testService.ShouldNotBeNull();
 		_ = testService.ShouldBeOfType<TestService>();
-		_ = outboxStore.ShouldNotBeNull();
-		_ = outboxStore.ShouldBeOfType<TestOutboxStore>();
+
+		// IOutboxStore is registered as a keyed service
+		var outboxDescriptor = _services.FirstOrDefault(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
+		_ = outboxDescriptor.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -205,7 +202,7 @@ public class DeliveryServiceCollectionExtensionsShould
 
 		// Assert
 		var serviceProvider = _services.BuildServiceProvider();
-		var optionsSnapshot = serviceProvider.GetService<IOptionsSnapshot<OutboxOptions>>();
+		var optionsSnapshot = serviceProvider.GetService<IOptionsSnapshot<OutboxDeliveryOptions>>();
 		_ = optionsSnapshot.ShouldNotBeNull();
 		optionsSnapshot.Value.PerRunTotal.ShouldBe(1000);
 		optionsSnapshot.Value.QueueCapacity.ShouldBe(500);
@@ -217,11 +214,11 @@ public class DeliveryServiceCollectionExtensionsShould
 		// Act
 		_ = _services.AddOutbox<TestOutboxStore>();
 
-		// Assert
-		var outboxDescriptor = _services.FirstOrDefault(static s => s.ServiceType == typeof(IOutboxStore));
+		// Assert - IOutboxStore is now registered as a keyed service
+		var outboxDescriptor = _services.FirstOrDefault(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
 		_ = outboxDescriptor.ShouldNotBeNull();
 		outboxDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
-		outboxDescriptor.ImplementationType.ShouldBe(typeof(TestOutboxStore));
+		outboxDescriptor.KeyedImplementationType.ShouldBe(typeof(TestOutboxStore));
 	}
 
 	[Fact]
@@ -240,7 +237,7 @@ public class DeliveryServiceCollectionExtensionsShould
 
 		// Assert
 		var serviceProvider = _services.BuildServiceProvider();
-		var options = serviceProvider.GetService<IOptions<OutboxOptions>>();
+		var options = serviceProvider.GetService<IOptions<OutboxDeliveryOptions>>();
 		_ = options.ShouldNotBeNull();
 
 		var value = options.Value;
@@ -273,7 +270,9 @@ public class DeliveryServiceCollectionExtensionsShould
 		result.ShouldBeSameAs(_services);
 		var serviceProvider = _services.BuildServiceProvider();
 
-		_ = serviceProvider.GetService<IOutboxStore>().ShouldNotBeNull();
+		// IOutboxStore is registered as a keyed service - verify via descriptor
+		var outboxDescriptor = _services.FirstOrDefault(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
+		_ = outboxDescriptor.ShouldNotBeNull();
 		_ = serviceProvider.GetService<ITestService>().ShouldNotBeNull();
 	}
 

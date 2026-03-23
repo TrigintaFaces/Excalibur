@@ -4,7 +4,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests;
 
-public class RbacAuditStoreMetaAuditShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class RbacAuditStoreMetaAuditShould
 {
     private readonly IAuditStore _innerStore = A.Fake<IAuditStore>();
     private readonly IAuditRoleProvider _roleProvider = A.Fake<IAuditRoleProvider>();

@@ -22,7 +22,7 @@ public sealed class DataClassificationRule
 	/// Gets the data classification level.
 	/// </summary>
 	/// <value> The sensitivity level of the data. </value>
-	public DataClassification Classification { get; init; } = DataClassification.Public;
+	public ElasticSearchDataClassification Classification { get; init; } = ElasticSearchDataClassification.Public;
 
 	/// <summary>
 	/// Gets a value indicating whether this rule is enabled.

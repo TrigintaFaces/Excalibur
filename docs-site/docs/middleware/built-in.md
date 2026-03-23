@@ -380,7 +380,7 @@ Protects the system from excessive message processing:
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.UseRateLimiting(); // Registers RateLimitingMiddleware
+    dispatch.UseThrottling(); // Registers ThrottlingMiddleware (system throughput protection)
 });
 ```
 
@@ -405,14 +405,14 @@ services.Configure<RateLimitingOptions>(options =>
 | Concurrency | Limits concurrent message processing |
 
 :::tip Pipeline Order
-Place `UseRateLimiting()` **before** `UseRetry()` to prevent retry amplification:
+Place `UseThrottling()` **before** `UseRetry()` to prevent retry amplification:
 
 ```csharp
 dispatch.UseExceptionMapping()
         .UseAuthentication()
         .UseAuthorization()
         .UseValidation()
-        .UseRateLimiting()   // Before retry
+        .UseThrottling()     // Before retry
         .UseRetry()
         .UseCircuitBreaker();
 ```
@@ -761,7 +761,7 @@ services.AddDispatch(dispatch =>
     // Development preset: logging (verbose), validation, exception mapping
     dispatch.UseDevelopmentMiddleware();
 
-    // Production preset: metrics, tracing, retry, exception mapping
+    // Production preset: retry + exception mapping (pair with AddDispatchObservability() for metrics/tracing)
     dispatch.UseProductionMiddleware();
 
     // Full preset: all middleware with sensible defaults
@@ -774,7 +774,7 @@ services.AddDispatch(dispatch =>
 | Preset | Middleware Included |
 |--------|---------------------|
 | Development | Logging (Debug level), Validation, ExceptionMapping |
-| Production | Metrics, Tracing, Retry, ExceptionMapping |
+| Production | Retry, ExceptionMapping (pair with `AddDispatchObservability()` for Metrics + Tracing) |
 | Full | Logging, Validation, Metrics, Tracing, Retry, ExceptionMapping |
 
 ### Fine-Grained Middleware Stacks
@@ -825,7 +825,7 @@ services.AddDispatch(dispatch =>
         .UseInputSanitization()    // Sanitize before validation
         .UseContractVersioning()   // Validate message version
         .UseValidation()           // Validate structure
-        .UseRateLimiting()         // Throttle before retry
+        .UseThrottling()            // Throttle before retry
         .UseRetry()                // Retry transient failures
         .UseTransaction()          // Wrap in transaction
         .UseOutbox();              // Store for reliable delivery
@@ -836,7 +836,9 @@ Not all middleware is required -- pick the ones you need for your scenario. The 
 
 ### Available Extensions Reference
 
-| Extension | Middleware | Category |
+All middleware classes listed below are **internal** -- register them using the builder extension methods shown in the first column. Do not reference the concrete class names directly.
+
+| Extension | Middleware (internal) | Category |
 |-----------|-----------|----------|
 | `UseLogging()` | `LoggingMiddleware` | Observability |
 | `UseMetrics()` | `MetricsMiddleware` | Observability |
@@ -851,7 +853,7 @@ Not all middleware is required -- pick the ones you need for your scenario. The 
 | `UseCircuitBreaker()` | `CircuitBreakerMiddleware` | Resilience |
 | `UseTimeout()` | `TimeoutMiddleware` | Resilience |
 | `UseBulkhead()` | `BulkheadMiddleware` | Resilience |
-| `UseRateLimiting()` | `RateLimitingMiddleware` | Resilience |
+| `UseThrottling()` | `ThrottlingMiddleware` | Resilience |
 | `UseExceptionMapping()` | `ExceptionMappingMiddleware` | Error Handling |
 | `UseTransaction()` | `TransactionMiddleware` | Reliability |
 | `UseOutbox()` | `OutboxMiddleware` | Reliability |

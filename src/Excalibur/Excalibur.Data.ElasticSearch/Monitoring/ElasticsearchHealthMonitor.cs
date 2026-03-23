@@ -24,7 +24,7 @@ namespace Excalibur.Data.ElasticSearch.Monitoring;
 /// <param name="metrics"> The metrics collector for health status. </param>
 /// <param name="logger"> The logger for health monitoring. </param>
 /// <param name="options"> The monitoring configuration options. </param>
-public class ElasticsearchHealthMonitor(
+public sealed class ElasticsearchHealthMonitor(
 	ElasticsearchClient client,
 	ElasticsearchMetrics metrics,
 	ILogger<ElasticsearchHealthMonitor> logger,
@@ -136,7 +136,7 @@ public class ElasticsearchHealthMonitor(
 				_ = await CheckHealthAsync(stoppingToken).ConfigureAwait(false);
 				await Task.Delay(_settings.HealthCheckInterval, stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
 				// Expected when cancellation is requested
 				break;
@@ -148,7 +148,7 @@ public class ElasticsearchHealthMonitor(
 				{
 					await Task.Delay(_settings.HealthCheckInterval, stoppingToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 				{
 					break;
 				}

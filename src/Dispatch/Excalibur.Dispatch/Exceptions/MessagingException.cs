@@ -9,7 +9,6 @@ namespace Excalibur.Dispatch.Exceptions;
 /// <summary>
 /// Exception thrown when messaging-related errors occur.
 /// </summary>
-[Serializable]
 public sealed class MessagingException : DispatchException
 {
 	/// <summary>

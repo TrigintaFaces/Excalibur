@@ -6,7 +6,9 @@ using Tests.Shared.Fixtures;
 namespace Excalibur.Dispatch.Tests.Functional.Infrastructure.TestBaseClasses;
 
 [CollectionDefinition(nameof(SqlServerPersistenceOnlyTests))]
-public class SqlServerPersistenceOnlyTests : ICollectionFixture<SqlServerContainerFixture>
+[Trait("Category", "Functional")]
+[Trait("Component", "Core")]
+public sealed class SqlServerPersistenceOnlyTests : ICollectionFixture<SqlServerContainerFixture>
 {
 	// No code inside, just for xUnit to recognize the shared collection.
 }

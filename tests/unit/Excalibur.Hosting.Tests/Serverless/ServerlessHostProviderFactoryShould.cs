@@ -8,6 +8,7 @@ namespace Excalibur.Hosting.Tests.Serverless;
 /// </summary>
 [Collection("EnvironmentVariableTests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class ServerlessHostProviderFactoryShould : UnitTestBase
 {
 	private readonly ServerlessHostProviderFactory _sut;
@@ -170,9 +171,10 @@ public sealed class ServerlessHostProviderFactoryShould : UnitTestBase
 	[Fact]
 	public void DetectPlatform_ReturnsGoogleCloudFunctions_WhenGcfEnvironmentSet()
 	{
-		// Arrange
+		// Arrange - Both FUNCTION_NAME and FUNCTION_TARGET are required for GCF detection
 		ClearAllEnvironment();
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", "test-function");
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", "handler");
 
 		try
 		{
@@ -195,7 +197,9 @@ public sealed class ServerlessHostProviderFactoryShould : UnitTestBase
 		Environment.SetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT", null);
 		Environment.SetEnvironmentVariable("WEBSITE_SITE_NAME", null);
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 		Environment.SetEnvironmentVariable("K_SERVICE", null);
+		Environment.SetEnvironmentVariable("K_REVISION", null);
 	}
 
 	private sealed class MockServerlessHostProvider(ServerlessPlatform platform, bool isAvailable) : IServerlessHostProvider

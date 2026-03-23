@@ -184,7 +184,7 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 		LogHealthMonitorStarting();
 
 		_healthCheckTimer = new Timer(
-			PerformHealthChecks,
+			_ => _ = PerformHealthChecksAsync(),
 			state: null,
 			_options.InitialDelay,
 			_options.CheckInterval);
@@ -258,7 +258,7 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 			await client.ConnectAsync(host, port, cts.Token).ConfigureAwait(false);
 			return true;
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			LogTcpHealthCheckTimeout(route.RouteId, host, port);
 			return false;
@@ -332,7 +332,7 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 		return Task.FromResult(true);
 	}
 
-	private async void PerformHealthChecks(object? state)
+	private async Task PerformHealthChecksAsync()
 	{
 		try
 		{
@@ -472,13 +472,9 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 	{
 		private const int MaxLatencyWindowSize = 100;
 #if NET9_0_OR_GREATER
-
-		private readonly Lock _lock = new();
-
+		private readonly System.Threading.Lock _lock = new();
 #else
-
 		private readonly object _lock = new();
-
 #endif
 		private readonly Queue<double> _latencyWindow = new();
 		private double _latencyWindowTotal;

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Abstractions.Outbox;
+
 namespace Excalibur.Dispatch.Options.Middleware;
 
 /// <summary>
@@ -9,6 +11,13 @@ namespace Excalibur.Dispatch.Options.Middleware;
 /// </summary>
 public sealed class OutboxStagingOptions
 {
+	/// <summary>
+	/// Gets or sets the outbox consistency mode.
+	/// </summary>
+	/// <value>Default is <see cref="OutboxConsistencyMode.EventuallyConsistent"/>.</value>
+	public OutboxConsistencyMode ConsistencyMode { get; set; }
+		= OutboxConsistencyMode.EventuallyConsistent;
+
 	/// <summary>
 	/// Gets or sets a value indicating whether outbox staging is enabled.
 	/// </summary>

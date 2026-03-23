@@ -8,7 +8,8 @@ using Shouldly;
 namespace Excalibur.LeaderElection.Tests.Consul;
 
 [Trait("Category", "Unit")]
-public class ConsulLeaderElectionOptionsShould
+[Trait("Component", "Core")]
+public sealed class ConsulLeaderElectionOptionsShould
 {
 	[Fact]
 	public void Inherit_From_LeaderElectionOptions()

@@ -289,6 +289,9 @@ public static class DataSqlServerEventId
 	/// <summary>CDC schema change detected.</summary>
 	public const int CdcSchemaChangeDetected = 100741;
 
+	/// <summary>CDC checkpoint skipped for failed event to prevent data loss.</summary>
+	public const int CdcCheckpointSkipped = 100742;
+
 	// ========================================
 	// 100750-100759: Data Change Event Processor
 	// ========================================

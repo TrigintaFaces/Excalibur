@@ -88,9 +88,9 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 
 		var snapshot = Snapshot.Create(aggregateId, 5, data, aggregateType);
 
-		await snapshotStore.SaveSnapshotAsync(snapshot, CancellationToken.None).ConfigureAwait(true);
+		await snapshotStore.SaveSnapshotAsync(snapshot, CancellationToken.None);
 
-		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, CancellationToken.None);
 
 		_ = loaded.ShouldNotBeNull();
 		loaded.AggregateId.ShouldBe(aggregateId);
@@ -113,7 +113,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 		var snapshotStore = CreateSnapshotStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
-		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, "NonExistent", CancellationToken.None).ConfigureAwait(true);
+		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, "NonExistent", CancellationToken.None);
 
 		loaded.ShouldBeNull();
 	}
@@ -135,13 +135,13 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 
 		var data1 = Encoding.UTF8.GetBytes("{\"version\": 1}");
 		var snapshot1 = Snapshot.Create(aggregateId, 5, data1, aggregateType);
-		await snapshotStore.SaveSnapshotAsync(snapshot1, CancellationToken.None).ConfigureAwait(true);
+		await snapshotStore.SaveSnapshotAsync(snapshot1, CancellationToken.None);
 
 		var data2 = Encoding.UTF8.GetBytes("{\"version\": 2}");
 		var snapshot2 = Snapshot.Create(aggregateId, 10, data2, aggregateType);
-		await snapshotStore.SaveSnapshotAsync(snapshot2, CancellationToken.None).ConfigureAwait(true);
+		await snapshotStore.SaveSnapshotAsync(snapshot2, CancellationToken.None);
 
-		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, CancellationToken.None);
 
 		_ = loaded.ShouldNotBeNull();
 		loaded.Version.ShouldBe(10);
@@ -168,12 +168,12 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 		var data2 = Encoding.UTF8.GetBytes("{\"agg\": 2}");
 
 		await snapshotStore.SaveSnapshotAsync(
-			Snapshot.Create(aggregateId1, 3, data1, aggregateType), CancellationToken.None).ConfigureAwait(true);
+			Snapshot.Create(aggregateId1, 3, data1, aggregateType), CancellationToken.None);
 		await snapshotStore.SaveSnapshotAsync(
-			Snapshot.Create(aggregateId2, 7, data2, aggregateType), CancellationToken.None).ConfigureAwait(true);
+			Snapshot.Create(aggregateId2, 7, data2, aggregateType), CancellationToken.None);
 
-		var loaded1 = await snapshotStore.GetLatestSnapshotAsync(aggregateId1, aggregateType, CancellationToken.None).ConfigureAwait(true);
-		var loaded2 = await snapshotStore.GetLatestSnapshotAsync(aggregateId2, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded1 = await snapshotStore.GetLatestSnapshotAsync(aggregateId1, aggregateType, CancellationToken.None);
+		var loaded2 = await snapshotStore.GetLatestSnapshotAsync(aggregateId2, aggregateType, CancellationToken.None);
 
 		_ = loaded1.ShouldNotBeNull();
 		_ = loaded2.ShouldNotBeNull();
@@ -200,11 +200,11 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 
 		var data = Encoding.UTF8.GetBytes("{\"state\": true}");
 		await snapshotStore.SaveSnapshotAsync(
-			Snapshot.Create(aggregateId, 5, data, aggregateType), CancellationToken.None).ConfigureAwait(true);
+			Snapshot.Create(aggregateId, 5, data, aggregateType), CancellationToken.None);
 
-		await snapshotStore.DeleteSnapshotsAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		await snapshotStore.DeleteSnapshotsAsync(aggregateId, aggregateType, CancellationToken.None);
 
-		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, CancellationToken.None);
 		loaded.ShouldBeNull();
 	}
 
@@ -226,12 +226,12 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 		var data2 = Encoding.UTF8.GetBytes("{\"type\": \"Customer\"}");
 
 		await snapshotStore.SaveSnapshotAsync(
-			Snapshot.Create(aggregateId, 2, data1, "OrderAggregate"), CancellationToken.None).ConfigureAwait(true);
+			Snapshot.Create(aggregateId, 2, data1, "OrderAggregate"), CancellationToken.None);
 		await snapshotStore.SaveSnapshotAsync(
-			Snapshot.Create(aggregateId, 4, data2, "CustomerAggregate"), CancellationToken.None).ConfigureAwait(true);
+			Snapshot.Create(aggregateId, 4, data2, "CustomerAggregate"), CancellationToken.None);
 
-		var loadedOrder = await snapshotStore.GetLatestSnapshotAsync(aggregateId, "OrderAggregate", CancellationToken.None).ConfigureAwait(true);
-		var loadedCustomer = await snapshotStore.GetLatestSnapshotAsync(aggregateId, "CustomerAggregate", CancellationToken.None).ConfigureAwait(true);
+		var loadedOrder = await snapshotStore.GetLatestSnapshotAsync(aggregateId, "OrderAggregate", CancellationToken.None);
+		var loadedCustomer = await snapshotStore.GetLatestSnapshotAsync(aggregateId, "CustomerAggregate", CancellationToken.None);
 
 		_ = loadedOrder.ShouldNotBeNull();
 		_ = loadedCustomer.ShouldNotBeNull();
@@ -258,14 +258,14 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 		var aggregateType = "TestAggregate";
 
 		await snapshotStore.SaveSnapshotAsync(
-			Snapshot.Create(aggregateId1, 3, Encoding.UTF8.GetBytes("{\"1\": true}"), aggregateType), CancellationToken.None).ConfigureAwait(true);
+			Snapshot.Create(aggregateId1, 3, Encoding.UTF8.GetBytes("{\"1\": true}"), aggregateType), CancellationToken.None);
 		await snapshotStore.SaveSnapshotAsync(
-			Snapshot.Create(aggregateId2, 5, Encoding.UTF8.GetBytes("{\"2\": true}"), aggregateType), CancellationToken.None).ConfigureAwait(true);
+			Snapshot.Create(aggregateId2, 5, Encoding.UTF8.GetBytes("{\"2\": true}"), aggregateType), CancellationToken.None);
 
-		await snapshotStore.DeleteSnapshotsAsync(aggregateId1, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		await snapshotStore.DeleteSnapshotsAsync(aggregateId1, aggregateType, CancellationToken.None);
 
-		var loaded1 = await snapshotStore.GetLatestSnapshotAsync(aggregateId1, aggregateType, CancellationToken.None).ConfigureAwait(true);
-		var loaded2 = await snapshotStore.GetLatestSnapshotAsync(aggregateId2, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded1 = await snapshotStore.GetLatestSnapshotAsync(aggregateId1, aggregateType, CancellationToken.None);
+		var loaded2 = await snapshotStore.GetLatestSnapshotAsync(aggregateId2, aggregateType, CancellationToken.None);
 
 		loaded1.ShouldBeNull();
 		_ = loaded2.ShouldNotBeNull();
@@ -291,9 +291,9 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 		var snapshot = Snapshot.Create(aggregateId, 1, data, aggregateType);
 		var originalSnapshotId = snapshot.SnapshotId;
 
-		await snapshotStore.SaveSnapshotAsync(snapshot, CancellationToken.None).ConfigureAwait(true);
+		await snapshotStore.SaveSnapshotAsync(snapshot, CancellationToken.None);
 
-		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await snapshotStore.GetLatestSnapshotAsync(aggregateId, aggregateType, CancellationToken.None);
 
 		_ = loaded.ShouldNotBeNull();
 		loaded.SnapshotId.ShouldBe(originalSnapshotId);

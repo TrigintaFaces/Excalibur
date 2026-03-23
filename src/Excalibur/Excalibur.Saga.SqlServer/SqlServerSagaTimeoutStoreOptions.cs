@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.Abstractions.Validation;
+
 namespace Excalibur.Saga.SqlServer;
 
 /// <summary>
@@ -35,9 +37,13 @@ public sealed class SqlServerSagaTimeoutStoreOptions
 			throw new InvalidOperationException("SchemaName is required.");
 		}
 
+		SqlIdentifierValidator.ThrowIfInvalid(SchemaName, nameof(SchemaName));
+
 		if (string.IsNullOrWhiteSpace(TableName))
 		{
 			throw new InvalidOperationException("TableName is required.");
 		}
+
+		SqlIdentifierValidator.ThrowIfInvalid(TableName, nameof(TableName));
 	}
 }

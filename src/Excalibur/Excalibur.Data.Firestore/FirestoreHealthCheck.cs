@@ -10,7 +10,7 @@ namespace Excalibur.Data.Firestore;
 /// <summary>
 /// Health check for Google Cloud Firestore connectivity.
 /// </summary>
-public sealed partial class FirestoreHealthCheck : IHealthCheck
+internal sealed partial class FirestoreHealthCheck : IHealthCheck
 {
 	private readonly FirestorePersistenceProvider _provider;
 	private readonly ILogger<FirestoreHealthCheck> _logger;

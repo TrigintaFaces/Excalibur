@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Polling;
 
-public class LongPollingStatisticsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class LongPollingStatisticsShould
 {
     [Fact]
     public void AverageMessagesPerReceive_Should_Calculate_Correctly()

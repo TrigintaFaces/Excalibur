@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Builders;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport")]
-public class TransportSubscriberBuilderShould
+public sealed class TransportSubscriberBuilderShould
 {
 	private readonly ITransportSubscriber _innerSubscriber = A.Fake<ITransportSubscriber>();
 

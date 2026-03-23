@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Configuration;
 namespace Excalibur.Dispatch.Tests.Configuration;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ExceptionMapperShould
 {
     private static ExceptionMapper CreateSut(

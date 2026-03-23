@@ -6,6 +6,7 @@ using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Options.CloudEvents;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Google;
+using Excalibur.Dispatch.Transport.GooglePubSub;
 
 using Google.Cloud.PubSub.V1;
 
@@ -48,6 +49,9 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 		_ = services.AddOptions<GooglePubSubCloudEventOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GooglePubSubCloudEventOptions>, GooglePubSubCloudEventOptionsValidator>());
 
 		if (configureOptions is not null)
 		{

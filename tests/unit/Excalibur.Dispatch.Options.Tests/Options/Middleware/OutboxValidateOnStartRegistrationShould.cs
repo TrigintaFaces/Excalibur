@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Tests.Options.Middleware;
 
 /// <summary>
-/// Verifies that OutboxOptionsValidator registration works correctly with
+/// Verifies that OutboxMiddlewareOptionsValidator registration works correctly with
 /// <see cref="IValidateOptions{TOptions}"/> and that ValidateOnStart is wired up.
 /// Sprint 563 S563.57: ValidateOnStart registration tests.
 /// </summary>
@@ -25,20 +25,20 @@ namespace Excalibur.Dispatch.Tests.Options.Middleware;
 public sealed class OutboxValidateOnStartRegistrationShould
 {
 	/// <summary>
-	/// Registers the OutboxOptionsValidator the same way as production code.
+	/// Registers the OutboxMiddlewareOptionsValidator the same way as production code.
 	/// </summary>
 	private static void RegisterOutboxValidation(IServiceCollection services)
 	{
-		services.AddOptions<OutboxOptions>()
+		services.AddOptions<OutboxMiddlewareOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<OutboxOptions>, OutboxOptionsValidator>());
+			ServiceDescriptor.Singleton<IValidateOptions<OutboxMiddlewareOptions>, OutboxMiddlewareOptionsValidator>());
 	}
 
 	[Fact]
-	public void RegisterOutboxOptionsValidator()
+	public void RegisterOutboxMiddlewareOptionsValidator()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -48,9 +48,9 @@ public sealed class OutboxValidateOnStartRegistrationShould
 
 		// Assert
 		using var provider = services.BuildServiceProvider();
-		var validators = provider.GetServices<IValidateOptions<OutboxOptions>>();
-		validators.ShouldNotBeEmpty("Registration should register IValidateOptions<OutboxOptions>");
-		validators.ShouldContain(v => v is OutboxOptionsValidator);
+		var validators = provider.GetServices<IValidateOptions<OutboxMiddlewareOptions>>();
+		validators.ShouldNotBeEmpty("Registration should register IValidateOptions<OutboxMiddlewareOptions>");
+		validators.ShouldContain(v => v is OutboxMiddlewareOptionsValidator);
 	}
 
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class OutboxValidateOnStartRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		RegisterOutboxValidation(services);
-		services.Configure<OutboxOptions>(options =>
+		services.Configure<OutboxMiddlewareOptions>(options =>
 		{
 			options.PublishBatchSize = 50;
 			options.PublishPollingInterval = TimeSpan.FromSeconds(5);
@@ -69,7 +69,7 @@ public sealed class OutboxValidateOnStartRegistrationShould
 
 		// Act
 		using var provider = services.BuildServiceProvider();
-		var optionsMonitor = provider.GetRequiredService<IOptionsMonitor<OutboxOptions>>();
+		var optionsMonitor = provider.GetRequiredService<IOptionsMonitor<OutboxMiddlewareOptions>>();
 		var value = optionsMonitor.CurrentValue;
 
 		// Assert
@@ -83,14 +83,14 @@ public sealed class OutboxValidateOnStartRegistrationShould
 		// Arrange
 		var services = new ServiceCollection();
 		RegisterOutboxValidation(services);
-		services.Configure<OutboxOptions>(options =>
+		services.Configure<OutboxMiddlewareOptions>(options =>
 		{
 			options.PublishBatchSize = 0; // Invalid: must be > 0
 		});
 
 		// Act
 		using var provider = services.BuildServiceProvider();
-		var optionsMonitor = provider.GetRequiredService<IOptionsMonitor<OutboxOptions>>();
+		var optionsMonitor = provider.GetRequiredService<IOptionsMonitor<OutboxMiddlewareOptions>>();
 
 		// Assert - accessing the option triggers validation and throws
 		_ = Should.Throw<OptionsValidationException>(() => optionsMonitor.CurrentValue);
@@ -108,9 +108,9 @@ public sealed class OutboxValidateOnStartRegistrationShould
 
 		// Assert - TryAddEnumerable prevents duplicate validators
 		using var provider = services.BuildServiceProvider();
-		var validators = provider.GetServices<IValidateOptions<OutboxOptions>>()
-			.Where(v => v is OutboxOptionsValidator)
+		var validators = provider.GetServices<IValidateOptions<OutboxMiddlewareOptions>>()
+			.Where(v => v is OutboxMiddlewareOptionsValidator)
 			.ToList();
-		validators.Count.ShouldBe(1, "TryAddEnumerable should prevent duplicate OutboxOptionsValidator registrations");
+		validators.Count.ShouldBe(1, "TryAddEnumerable should prevent duplicate OutboxMiddlewareOptionsValidator registrations");
 	}
 }

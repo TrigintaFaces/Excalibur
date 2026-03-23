@@ -62,7 +62,7 @@ public sealed class CdcRecoveryOptions
 	/// </value>
 	/// <remarks>
 	/// After exhausting all recovery attempts, the processor will throw a
-	/// <see cref="CdcStalePositionException"/> regardless of the configured strategy.
+	/// <see cref="SqlServerCdcStalePositionException"/> regardless of the configured strategy.
 	/// </remarks>
 	[Range(0, int.MaxValue)]
 	public int MaxRecoveryAttempts { get; set; } = 3;

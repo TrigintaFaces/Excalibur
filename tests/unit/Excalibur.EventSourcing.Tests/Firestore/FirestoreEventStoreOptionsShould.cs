@@ -9,6 +9,7 @@ namespace Excalibur.EventSourcing.Tests.Firestore;
 /// Unit tests for <see cref="FirestoreEventStoreOptions"/> configuration and validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class FirestoreEventStoreOptionsShould : UnitTestBase
 {
 	#region Default Values Tests

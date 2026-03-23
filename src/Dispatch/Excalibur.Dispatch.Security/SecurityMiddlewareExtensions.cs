@@ -23,14 +23,16 @@ namespace Excalibur.Dispatch.Security;
 public static class SecurityMiddlewareExtensions
 {
 	/// <summary>
-	/// Adds comprehensive security services to the Dispatch pipeline.
+	/// Adds security middleware services (encryption, signing, rate limiting, JWT authentication) to the Dispatch pipeline.
+	/// For complete security setup including credential management and auditing, use
+	/// <c>AddDispatchSecurity</c> from <c>DispatchSecurityServiceCollectionExtensions</c> instead.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration. </param>
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("Security middleware registration uses reflection for dependency injection and configuration binding")]
 	[RequiresDynamicCode("Security middleware registration uses reflection to instantiate and configure middleware components")]
-	public static IServiceCollection AddDispatchSecurity(
+	public static IServiceCollection AddDispatchSecurityMiddleware(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
@@ -47,12 +49,14 @@ public static class SecurityMiddlewareExtensions
 	}
 
 	/// <summary>
-	/// Adds comprehensive security services with custom configuration.
+	/// Adds security middleware services with custom configuration.
+	/// For complete security setup including credential management and auditing, use
+	/// <c>AddDispatchSecurity</c> from <c>DispatchSecurityServiceCollectionExtensions</c> instead.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure security options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddDispatchSecurity(
+	public static IServiceCollection AddDispatchSecurityMiddleware(
 		this IServiceCollection services,
 		Action<SecurityOptions> configureOptions)
 	{

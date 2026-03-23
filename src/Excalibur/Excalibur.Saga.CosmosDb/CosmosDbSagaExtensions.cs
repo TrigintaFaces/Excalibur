@@ -54,7 +54,9 @@ public static class CosmosDbSagaExtensions
 			.ValidateOnStart();
 
 		services.TryAddSingleton<CosmosDbSagaStore>();
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<CosmosDbSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("cosmosdb"));
 
 		return services;
 	}
@@ -139,7 +141,9 @@ public static class CosmosDbSagaExtensions
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new CosmosDbSagaStore(client, options, logger, serializer);
 		});
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<CosmosDbSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("cosmosdb"));
 
 		return services;
 	}

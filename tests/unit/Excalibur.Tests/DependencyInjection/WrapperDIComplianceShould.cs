@@ -27,6 +27,7 @@ namespace Excalibur.Tests.DependencyInjection;
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class WrapperDIComplianceShould
 {
 	private readonly ITestOutputHelper _output;

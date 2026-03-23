@@ -37,7 +37,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Assert -- ICdcStateStore should be registered (uses state connection)
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ICdcStateStore) &&
+			sd.ServiceType == typeof(ISqlServerCdcStateStore) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
 	}
 
@@ -129,7 +129,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ICdcStateStore) &&
+			sd.ServiceType == typeof(ISqlServerCdcStateStore) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
 	}
 
@@ -216,7 +216,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Assert -- ICdcStateStore is still registered (uses source connection)
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ICdcStateStore) &&
+			sd.ServiceType == typeof(ISqlServerCdcStateStore) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
 	}
 
@@ -322,7 +322,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 				   .BindConfiguration("Cdc:Source")));
 
 		// Assert -- verify service registrations exist
-		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcStateStore));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ISqlServerCdcStateStore));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcRepository));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcProcessor));
 

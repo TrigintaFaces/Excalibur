@@ -41,7 +41,7 @@ namespace Excalibur.EventSourcing.Postgres;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class PostgresEventStore : IEventStore
+public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 {
 	// Format markers for envelope detection (ADR-058)
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -555,5 +555,32 @@ public sealed class PostgresEventStore : IEventStore
 		result[0] = EnvelopeFormatMarker;
 		envelopeData.CopyTo(result, 1);
 		return result;
+	}
+
+	/// <inheritdoc/>
+	public async Task<int> EraseEventsAsync(
+		string aggregateId,
+		string aggregateType,
+		Guid erasureRequestId,
+		CancellationToken cancellationToken)
+	{
+		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async Task<bool> IsErasedAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+			new Requests.IsErasedRequest(aggregateId, aggregateType, cancellationToken))
+			.ConfigureAwait(false);
 	}
 }

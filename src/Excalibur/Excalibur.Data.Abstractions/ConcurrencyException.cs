@@ -32,7 +32,6 @@ namespace Excalibur.Data.Abstractions;
 /// }
 /// </code>
 /// </example>
-[Serializable]
 public class ConcurrencyException : ConflictException
 {
 	/// <summary>

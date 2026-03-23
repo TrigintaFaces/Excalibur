@@ -22,12 +22,13 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatcherShould
 {
 	private readonly IDispatchMiddlewareInvoker _middlewareInvoker = A.Fake<IDispatchMiddlewareInvoker>();
 	private readonly IMessageBusProvider _busProvider = A.Fake<IMessageBusProvider>();
 	private readonly ILogger<FinalDispatchHandler> _finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
-	private readonly IDictionary<string, IMessageBusOptions> _busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+	private readonly IDictionary<string, MessageBusOptions> _busOptionsMap = new Dictionary<string, MessageBusOptions>();
 	private readonly FinalDispatchHandler _final;
 	private readonly Dispatcher _sut;
 	private readonly IMessageContext _context;
@@ -54,7 +55,7 @@ public sealed class DispatcherShould
 				A<CancellationToken>._))
 			.Returns(expected);
 
-		var result = await _sut.DispatchAsync(message, _context, cancellationToken: default).ConfigureAwait(true);
+		var result = await _sut.DispatchAsync(message, _context, cancellationToken: default);
 
 		result.ShouldBe(expected);
 		_context.Message.ShouldBe(message);
@@ -72,7 +73,7 @@ public sealed class DispatcherShould
 			.Throws(new InvalidOperationException("boom"));
 
 		var exception = await Should.ThrowAsync<InvalidOperationException>(
-			async () => await _sut.DispatchAsync(message, _context, cancellationToken: default).ConfigureAwait(true));
+			async () => await _sut.DispatchAsync(message, _context, cancellationToken: default));
 
 		exception.Message.ShouldBe("boom");
 	}
@@ -90,7 +91,7 @@ public sealed class DispatcherShould
 			.Returns(typed);
 
 		var result = await _sut.DispatchAsync<IDispatchAction<string>, string>(msg, _context, cancellationToken: default)
-			.ConfigureAwait(true);
+			;
 
 		result.ShouldBeSameAs(typed);
 	}
@@ -118,7 +119,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, realContext, cancellationToken: default).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, realContext, cancellationToken: default);
 
 		// Assert
 		capturedContext.ShouldBe(realContext);
@@ -145,7 +146,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, newContext, cancellationToken: default).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, newContext, cancellationToken: default);
 
 		// Assert
 		MessageContextHolder.Current.ShouldBe(previousContext);
@@ -173,7 +174,7 @@ public sealed class DispatcherShould
 
 		// Act
 		var exception = await Should.ThrowAsync<InvalidOperationException>(
-			async () => await _sut.DispatchAsync(message, newContext, cancellationToken: default).ConfigureAwait(true));
+			async () => await _sut.DispatchAsync(message, newContext, cancellationToken: default));
 
 		// Assert
 		exception.Message.ShouldBe("test exception");
@@ -201,7 +202,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, context, cancellationToken: default).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, context, cancellationToken: default);
 
 		// Assert
 		capturedCorrelationId.ShouldNotBeNullOrEmpty();
@@ -227,7 +228,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, context, cancellationToken: default).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, context, cancellationToken: default);
 
 		// Assert
 		context.CorrelationId.ShouldBe(existingCorrelationId);
@@ -259,7 +260,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, context, cancellationToken: default).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, context, cancellationToken: default);
 
 		// Assert
 		capturedCausationId.ShouldNotBeNullOrEmpty();
@@ -285,7 +286,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, context, cancellationToken: default).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, context, cancellationToken: default);
 
 		// Assert
 		context.CausationId.ShouldBe(existingCausationId);
@@ -309,7 +310,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, context, cancellationToken: default).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, context, cancellationToken: default);
 
 		// Assert - MessageType should be set to the type name
 		context.GetMessageType().ShouldNotBeNullOrEmpty();
@@ -331,7 +332,7 @@ public sealed class DispatcherShould
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await _sut.DispatchAsync<IDispatchMessage>(null!, context, CancellationToken.None).ConfigureAwait(true));
+			async () => await _sut.DispatchAsync<IDispatchMessage>(null!, context, CancellationToken.None));
 	}
 
 	/// <summary>
@@ -346,7 +347,7 @@ public sealed class DispatcherShould
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await _sut.DispatchAsync(message, null!, CancellationToken.None).ConfigureAwait(true));
+			async () => await _sut.DispatchAsync(message, null!, CancellationToken.None));
 	}
 
 	/// <summary>
@@ -363,7 +364,7 @@ public sealed class DispatcherShould
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<InvalidOperationException>(
-			async () => await unconfiguredDispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true));
+			async () => await unconfiguredDispatcher.DispatchAsync(message, context, CancellationToken.None));
 	}
 
 	/// <summary>
@@ -390,7 +391,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, context, token).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, context, token);
 
 		// Assert
 		capturedToken.ShouldBe(token);
@@ -410,7 +411,7 @@ public sealed class DispatcherShould
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<InvalidOperationException>(
-			async () => await unconfiguredDispatcher.DispatchAsync<IDispatchAction<string>, string>(message, context, CancellationToken.None).ConfigureAwait(true));
+			async () => await unconfiguredDispatcher.DispatchAsync<IDispatchAction<string>, string>(message, context, CancellationToken.None));
 	}
 
 	/// <summary>
@@ -432,7 +433,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		context.Message.ShouldBeSameAs(message);
@@ -458,7 +459,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await _sut.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		_ = await _sut.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		MessageContextHolder.Current.ShouldBeNull();
@@ -487,7 +488,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		_ = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		capturedDecision.ShouldNotBeNull();
@@ -509,7 +510,7 @@ public sealed class DispatcherShould
 			.Returns(ValueTask.FromResult(failure));
 
 		// Act
-		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
@@ -542,7 +543,7 @@ public sealed class DispatcherShould
 			.Returns(MessageResult.Success());
 
 		// Act
-		_ = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		_ = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		A.CallTo(() => router.RouteAsync(message, context, A<CancellationToken>._)).MustNotHaveHappened();
@@ -557,7 +558,7 @@ public sealed class DispatcherShould
 		var message = new LocalTransportAction();
 
 		// Act
-		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -585,7 +586,7 @@ public sealed class DispatcherShould
 		try
 		{
 			// Act
-			var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+			var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 			// Assert
 			result.Succeeded.ShouldBeTrue();
@@ -616,7 +617,7 @@ public sealed class DispatcherShould
 			.Returns(Task.FromResult<object?>(null));
 
 		// Act
-		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -667,7 +668,7 @@ public sealed class DispatcherShould
 
 		// Act
 		var result = await dispatcher.DispatchAsync<LocalTransportQuery, int>(message, context, CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -686,7 +687,7 @@ public sealed class DispatcherShould
 		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
 		var busProvider = A.Fake<IMessageBusProvider>();
 		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
-		var busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
 		var handlerEntry = new HandlerRegistryEntry(
 			typeof(LocalTransportNullableQuery),
@@ -728,7 +729,7 @@ public sealed class DispatcherShould
 		var message = new LocalTransportNullableQuery();
 
 		// Act
-		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -746,7 +747,7 @@ public sealed class DispatcherShould
 		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
 		var busProvider = A.Fake<IMessageBusProvider>();
 		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
-		var busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
 		var handlerEntry = new HandlerRegistryEntry(
 			typeof(LocalTransportNullableQuery),
@@ -792,7 +793,7 @@ public sealed class DispatcherShould
 				message,
 				context,
 				CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -811,7 +812,7 @@ public sealed class DispatcherShould
 		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
 		var busProvider = A.Fake<IMessageBusProvider>();
 		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
-		var busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 		var contextFactory = A.Fake<IMessageContextFactory>();
 		var rentedContext = new MessageContext();
 		var handler = new LocalTransportContextActionHandler();
@@ -891,7 +892,7 @@ public sealed class DispatcherShould
 		var message = new LocalTransportAction();
 
 		// Act
-		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -913,8 +914,8 @@ public sealed class DispatcherShould
 
 		// Act
 		var ex = await Should.ThrowAsync<InvalidOperationException>(
-				async () => await dispatcher.DispatchLocalAsync(new MissingLocalAction(), CancellationToken.None).ConfigureAwait(true))
-			.ConfigureAwait(true);
+				async () => await dispatcher.DispatchLocalAsync(new MissingLocalAction(), CancellationToken.None))
+			;
 
 		// Assert
 		ex.Message.ShouldContain(nameof(MissingLocalAction));
@@ -936,8 +937,8 @@ public sealed class DispatcherShould
 				async () => await dispatcher.DispatchLocalAsync<MissingLocalQuery, int>(
 						new MissingLocalQuery { Value = 7 },
 						CancellationToken.None)
-					.ConfigureAwait(true))
-			.ConfigureAwait(true);
+					)
+			;
 
 		// Assert
 		ex.Message.ShouldContain(nameof(MissingLocalQuery));
@@ -955,7 +956,7 @@ public sealed class DispatcherShould
 
 		// Act
 		var result = await dispatcher.DispatchAsync<LocalTransportQuery, int>(message, context, CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -977,7 +978,7 @@ public sealed class DispatcherShould
 
 		// Act
 		var result = await dispatcher.DispatchAsync<LocalTransportQuery, int>(message, context, CancellationToken.None)
-			.ConfigureAwait(true);
+			;
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -997,7 +998,7 @@ public sealed class DispatcherShould
 		var message = new LocalTransportAction();
 
 		// Act
-		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
@@ -1019,7 +1020,7 @@ public sealed class DispatcherShould
 		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
 		var busProvider = A.Fake<IMessageBusProvider>();
 		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
-		var busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
 		var handlerEntry = new HandlerRegistryEntry(typeof(LocalTransportAction), typeof(LocalTransportActionHandler), expectsResponse: false);
 		HandlerRegistryEntry outEntry = handlerEntry;
@@ -1070,7 +1071,7 @@ public sealed class DispatcherShould
 		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
 		var busProvider = A.Fake<IMessageBusProvider>();
 		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
-		var busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
 		var handlerEntry = new HandlerRegistryEntry(typeof(LocalTransportQuery), typeof(LocalTransportQueryHandler), expectsResponse: true);
 		HandlerRegistryEntry outEntry = handlerEntry;
@@ -1120,7 +1121,7 @@ public sealed class DispatcherShould
 		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
 		var busProvider = A.Fake<IMessageBusProvider>();
 		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
-		var busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
 		HandlerRegistryEntry? missingEntry;
 		_ = A.CallTo(() => registry.TryGetHandler(A<Type>._, out missingEntry))

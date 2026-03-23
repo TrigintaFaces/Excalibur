@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Options.Core;
+using Excalibur.Dispatch.Options.Middleware;
 
 namespace Excalibur.Dispatch.Tests.Options.Core;
 
@@ -16,13 +16,13 @@ public sealed class TimeoutOptionsShould
 	#region Default Value Tests
 
 	[Fact]
-	public void Default_Enabled_IsFalse()
+	public void Default_Enabled_IsTrue()
 	{
 		// Arrange & Act
 		var options = new TimeoutOptions();
 
 		// Assert
-		options.Enabled.ShouldBeFalse();
+		options.Enabled.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -56,6 +56,36 @@ public sealed class TimeoutOptionsShould
 		options.ThrowOnTimeout.ShouldBeTrue();
 	}
 
+	[Fact]
+	public void Default_ActionTimeout_IsThirtySeconds()
+	{
+		// Arrange & Act
+		var options = new TimeoutOptions();
+
+		// Assert
+		options.ActionTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+	}
+
+	[Fact]
+	public void Default_EventTimeout_IsTenSeconds()
+	{
+		// Arrange & Act
+		var options = new TimeoutOptions();
+
+		// Assert
+		options.EventTimeout.ShouldBe(TimeSpan.FromSeconds(10));
+	}
+
+	[Fact]
+	public void Default_DocumentTimeout_IsSixtySeconds()
+	{
+		// Arrange & Act
+		var options = new TimeoutOptions();
+
+		// Assert
+		options.DocumentTimeout.ShouldBe(TimeSpan.FromSeconds(60));
+	}
+
 	#endregion
 
 	#region Property Setter Tests
@@ -67,10 +97,10 @@ public sealed class TimeoutOptionsShould
 		var options = new TimeoutOptions();
 
 		// Act
-		options.Enabled = true;
+		options.Enabled = false;
 
 		// Assert
-		options.Enabled.ShouldBeTrue();
+		options.Enabled.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -155,45 +185,49 @@ public sealed class TimeoutOptionsShould
 		// Act
 		var options = new TimeoutOptions
 		{
-			Enabled = true,
+			Enabled = false,
 			DefaultTimeout = TimeSpan.FromMinutes(1),
 			ThrowOnTimeout = false,
 		};
 
 		// Assert
-		options.Enabled.ShouldBeTrue();
+		options.Enabled.ShouldBeFalse();
 		options.DefaultTimeout.ShouldBe(TimeSpan.FromMinutes(1));
 		options.ThrowOnTimeout.ShouldBeFalse();
 	}
 
 	#endregion
 
-	#region Edge Cases
+	#region Validate Tests
 
 	[Fact]
-	public void DefaultTimeout_CanBeZero()
+	public void Validate_ThrowsWhenDefaultTimeoutIsZero()
+	{
+		// Arrange
+		var options = new TimeoutOptions { DefaultTimeout = TimeSpan.Zero };
+
+		// Act & Assert
+		Should.Throw<ArgumentException>(() => options.Validate());
+	}
+
+	[Fact]
+	public void Validate_ThrowsWhenDefaultTimeoutIsNegative()
+	{
+		// Arrange
+		var options = new TimeoutOptions { DefaultTimeout = TimeSpan.FromMilliseconds(-1) };
+
+		// Act & Assert
+		Should.Throw<ArgumentException>(() => options.Validate());
+	}
+
+	[Fact]
+	public void Validate_SucceedsWithValidDefaults()
 	{
 		// Arrange
 		var options = new TimeoutOptions();
 
-		// Act
-		options.DefaultTimeout = TimeSpan.Zero;
-
-		// Assert
-		options.DefaultTimeout.ShouldBe(TimeSpan.Zero);
-	}
-
-	[Fact]
-	public void DefaultTimeout_CanBeNegative()
-	{
-		// Note: Negative values represent infinite timeout in some contexts
-		var options = new TimeoutOptions();
-
-		// Act
-		options.DefaultTimeout = TimeSpan.FromMilliseconds(-1);
-
-		// Assert
-		options.DefaultTimeout.ShouldBe(TimeSpan.FromMilliseconds(-1));
+		// Act & Assert -- should not throw
+		options.Validate();
 	}
 
 	#endregion

@@ -29,12 +29,9 @@ internal sealed class CloudMonitoringExporter : IDisposable
 	private readonly Dictionary<string, GoogleApi.MetricDescriptor> _metricDescriptors;
 	private readonly MeterListener? _meterListener;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
-
 #endif
 
 	/// <summary>

@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// Target: Increase MessageBusProvider coverage from 44% to 70%.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MessageBusProviderShould
 {
 	#region Constructor Tests

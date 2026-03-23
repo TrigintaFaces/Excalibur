@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 ///     Tests for the <see cref="AuthenticationMiddleware" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class AuthenticationMiddlewareShould
 {
 	[Fact]

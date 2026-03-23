@@ -7,7 +7,8 @@ namespace Excalibur.Tests.Messaging.Delivery.EventStore.Snapshots;
 ///     Unit tests for SnapshotMetadata and SnapshotMetadataFactory to verify snapshot metadata functionality.
 /// </summary>
 [Trait("Category", "Unit")]
-public class SnapshotMetadataShould
+[Trait("Component", "Core")]
+public sealed class SnapshotMetadataShould
 {
 	[Fact]
 	public void ConstructorShouldInitializeAllProperties()

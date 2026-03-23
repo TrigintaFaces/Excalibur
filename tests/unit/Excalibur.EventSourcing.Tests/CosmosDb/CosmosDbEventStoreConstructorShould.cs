@@ -14,6 +14,7 @@ namespace Excalibur.EventSourcing.Tests.CosmosDb;
 /// Verifies constructor validation and initialization.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class CosmosDbEventStoreConstructorShould : UnitTestBase
 {
 	private readonly CosmosClient _cosmosClient;
@@ -71,7 +72,7 @@ public sealed class CosmosDbEventStoreConstructorShould : UnitTestBase
 		var sut = new CosmosDbEventStore(_cosmosClient, _validOptions, _logger);
 
 		// Assert
-		sut.CloudProvider.ShouldBe(Excalibur.Data.Abstractions.CloudNative.CloudProviderType.CosmosDb);
+		sut.CloudProvider.ShouldBe(Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType.CosmosDb);
 	}
 
 	#endregion CloudProviderType Tests

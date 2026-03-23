@@ -221,14 +221,27 @@ var provider = new PersistenceProviderBuilder(innerProvider)
 
 ## Resilience
 
-All providers support built-in resilience via `IDataRequestRetryPolicy`:
+All providers support built-in resilience via the `IDataRequestRetryPolicy` interface hierarchy:
 
 ```csharp
+// Core -- all providers implement this
 public interface IDataRequestRetryPolicy
 {
     int MaxRetryAttempts { get; }
     TimeSpan BaseRetryDelay { get; }
     bool ShouldRetry(Exception exception);
+}
+
+// Relational providers (SqlServer, Postgres, MySql) additionally implement:
+public interface IRelationalDataRequestRetryPolicy : IDataRequestRetryPolicy
+{
+    Task<TResult> ResolveAsync<TConnection, TResult>(...);
+}
+
+// Document providers (MongoDB, Redis, InMemory) additionally implement:
+public interface IDocumentDataRequestRetryPolicy : IDataRequestRetryPolicy
+{
+    Task<TResult> ResolveDocumentAsync<TConnection, TResult>(...);
 }
 ```
 

@@ -26,13 +26,13 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// The <see cref="ConfigureDeadLetterPolicyAsync"/> method is a PubSub-specific extension
 /// not part of the shared interface.
 /// </remarks>
-public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManager, IDisposable
+internal sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManager, IDisposable
 {
 	private readonly SubscriberServiceApiClient _subscriberClient;
 	private readonly PublisherServiceApiClient _publisherClient;
 	private readonly DeadLetterOptions _options;
 	private readonly ILogger<PubSubDeadLetterQueueManager> _logger;
-	private readonly ActivitySource _activitySource = new("Excalibur.Dispatch.Transport.GooglePubSub.DeadLetter");
+	private static readonly ActivitySource s_activitySource = new("Excalibur.Dispatch.Transport.GooglePubSub.DeadLetter");
 	private readonly SemaphoreSlim _reprocessLock = new(1, 1);
 
 	/// <summary>
@@ -61,7 +61,7 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 		int maxDeliveryAttempts,
 		CancellationToken cancellationToken)
 	{
-		using var activity = _activitySource.StartActivity("ConfigureDeadLetterPolicy");
+		using var activity = s_activitySource.StartActivity("ConfigureDeadLetterPolicy");
 		_ = activity?.SetTag("subscription", subscription.ToString());
 		_ = activity?.SetTag("dlq_topic", deadLetterTopic.ToString());
 		_ = activity?.SetTag("max_attempts", maxDeliveryAttempts);
@@ -102,7 +102,7 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 		Exception? exception,
 		CancellationToken cancellationToken)
 	{
-		using var activity = _activitySource.StartActivity("MoveToDeadLetter");
+		using var activity = s_activitySource.StartActivity("MoveToDeadLetter");
 		_ = activity?.SetTag("message_id", message.Id);
 		_ = activity?.SetTag("reason", reason);
 
@@ -154,7 +154,7 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 		var deadLetterSubscription = _options.DeadLetterSubscriptionName ??
 			throw new InvalidOperationException("Dead letter subscription not configured. Set DeadLetterSubscriptionName in DeadLetterOptions.");
 
-		using var activity = _activitySource.StartActivity("GetDeadLetterMessages");
+		using var activity = s_activitySource.StartActivity("GetDeadLetterMessages");
 		_ = activity?.SetTag("subscription", deadLetterSubscription.ToString());
 		_ = activity?.SetTag("max_messages", maxMessages);
 
@@ -187,7 +187,7 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 		ReprocessOptions options,
 		CancellationToken cancellationToken)
 	{
-		using var activity = _activitySource.StartActivity("ReprocessDeadLetterMessages");
+		using var activity = s_activitySource.StartActivity("ReprocessDeadLetterMessages");
 
 		ArgumentNullException.ThrowIfNull(messages);
 		ArgumentNullException.ThrowIfNull(options);
@@ -260,7 +260,7 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 		var deadLetterSubscription = _options.DeadLetterSubscriptionName ??
 			throw new InvalidOperationException("Dead letter subscription not configured. Set DeadLetterSubscriptionName in DeadLetterOptions.");
 
-		using var activity = _activitySource.StartActivity("GetDeadLetterStatistics");
+		using var activity = s_activitySource.StartActivity("GetDeadLetterStatistics");
 		_ = activity?.SetTag("subscription", deadLetterSubscription.ToString());
 
 		var stats = new DeadLetterStatistics();
@@ -347,7 +347,7 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 		var deadLetterSubscription = _options.DeadLetterSubscriptionName ??
 			throw new InvalidOperationException("Dead letter subscription not configured. Set DeadLetterSubscriptionName in DeadLetterOptions.");
 
-		using var activity = _activitySource.StartActivity("PurgeDeadLetterQueue");
+		using var activity = s_activitySource.StartActivity("PurgeDeadLetterQueue");
 		_ = activity?.SetTag("subscription", deadLetterSubscription.ToString());
 
 		var purgedCount = 0;
@@ -385,7 +385,7 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 	/// <inheritdoc/>
 	public void Dispose()
 	{
-		_activitySource.Dispose();
+		// Static ActivitySource is process-lifetime; no disposal needed.
 		_reprocessLock.Dispose();
 		GC.SuppressFinalize(this);
 	}

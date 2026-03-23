@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Tests configuration, options, and behavior without requiring a real database.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class SqlServerDeadLetterQueueShould
 {
 	private readonly ILogger<SqlServerDeadLetterQueue> _logger;

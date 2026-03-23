@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Splunk;
 /// Unit tests for <see cref="SplunkServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class SplunkServiceCollectionExtensionsShould
 {
 	[Fact]

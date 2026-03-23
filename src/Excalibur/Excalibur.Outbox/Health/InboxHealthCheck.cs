@@ -26,7 +26,7 @@ namespace Excalibur.Outbox.Health;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class InboxHealthCheck : IHealthCheck
+internal sealed class InboxHealthCheck : IHealthCheck
 {
 	private readonly BackgroundServiceHealthState _state;
 	private readonly InboxHealthCheckOptions _options;

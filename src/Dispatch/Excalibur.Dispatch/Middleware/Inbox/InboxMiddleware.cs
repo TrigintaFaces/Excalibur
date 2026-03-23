@@ -19,7 +19,7 @@ using Microsoft.Extensions.Options;
 // Common namespace is deprecated - using Messaging.Abstractions instead
 using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
 using IMessageResult = Excalibur.Dispatch.Abstractions.IMessageResult;
-using InboxOptions = Excalibur.Dispatch.Options.Configuration.InboxOptions;
+using InboxOptions = Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions;
 using MessageKinds = Excalibur.Dispatch.Abstractions.MessageKinds;
 
 namespace Excalibur.Dispatch.Middleware.Inbox;
@@ -46,6 +46,8 @@ namespace Excalibur.Dispatch.Middleware.Inbox;
 [RequiresFeatures(DispatchFeatures.Inbox)]
 public sealed partial class InboxMiddleware : IDispatchMiddleware
 {
+	private const int MaxCacheEntries = 1024;
+	private static readonly ActivitySource InboxActivitySource = new(DispatchTelemetryConstants.ActivitySources.Inbox, "1.0.0");
 	private static readonly ConcurrentDictionary<Type, PropertyInfo?> MessageIdPropertyCache = new();
 	private static readonly Func<ILogger, string, string, bool, string, IDisposable?> InboxLogScope =
 		LoggerMessage.DefineScope<string, string, bool, string>(
@@ -131,27 +133,45 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 		LogProcessingMessage(messageId);
 
+		// Create a tracing activity for inbox processing to enable distributed trace correlation
+		using var inboxActivity = InboxActivitySource.StartActivity("inbox.process", ActivityKind.Consumer);
+		_ = (inboxActivity?.SetTag("messaging.message_id", messageId));
+		_ = (inboxActivity?.SetTag("messaging.handler_type", message.GetType().Name));
+		_ = (inboxActivity?.SetTag("inbox.mode", _inboxStore != null ? "full" : "light"));
+
+		// Propagate W3C trace context from incoming message headers if available
+		if (context.CorrelationId is not null)
+		{
+			_ = (inboxActivity?.SetTag("messaging.correlation_id", context.CorrelationId));
+		}
+
 		try
 		{
 			// Use full inbox mode if available, otherwise fall back to light mode
+			IMessageResult result;
 			if (_inboxStore != null)
 			{
-				return await ProcessWithFullInboxAsync(messageId, message, context, nextDelegate, cancellationToken)
+				result = await ProcessWithFullInboxAsync(messageId, message, context, nextDelegate, cancellationToken)
 					.ConfigureAwait(false);
 			}
-
-			if (_deduplicator != null)
+			else if (_deduplicator != null)
 			{
-				return await ProcessWithLightModeAsync(messageId, message, context, nextDelegate, cancellationToken)
+				result = await ProcessWithLightModeAsync(messageId, message, context, nextDelegate, cancellationToken)
 					.ConfigureAwait(false);
 			}
+			else
+			{
+				// This should not happen due to constructor validation, but handle gracefully
+				LogNoInboxStoreOrDeduplicator();
+				result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+			}
 
-			// This should not happen due to constructor validation, but handle gracefully
-			LogNoInboxStoreOrDeduplicator();
-			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+			_ = (inboxActivity?.SetTag("inbox.result", result.Succeeded ? "success" : "failure"));
+			return result;
 		}
 		catch (Exception ex)
 		{
+			_ = (inboxActivity?.SetStatus(ActivityStatusCode.Error, ex.Message));
 			LogExceptionDuringInboxProcessing(messageId, ex);
 			throw;
 		}
@@ -188,9 +208,21 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 		// Reflection-based fallback for messages that expose IDs via strongly-typed properties.
 		var messageType = message.GetType();
-		var messageIdProperty = MessageIdPropertyCache.GetOrAdd(
-			messageType,
-			static type => type.GetProperty("MessageId") ?? type.GetProperty("CorrelationId"));
+
+		if (MessageIdPropertyCache.TryGetValue(messageType, out var messageIdProperty))
+		{
+			// Cache hit
+		}
+		else
+		{
+			messageIdProperty = messageType.GetProperty("MessageId") ?? messageType.GetProperty("CorrelationId");
+
+			// Bounded cache: skip caching when full to prevent unbounded memory growth
+			if (MessageIdPropertyCache.Count < MaxCacheEntries)
+			{
+				MessageIdPropertyCache.TryAdd(messageType, messageIdProperty);
+			}
+		}
 
 		if (messageIdProperty != null)
 		{
@@ -306,6 +338,10 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		"Message {MessageId} is already being processed, skipping")]
 	private partial void LogMessageBeingProcessed(string messageId);
 
+	[LoggerMessage(MiddlewareEventId.InboxMessageProcessed + 25, LogLevel.Warning,
+		"Message {MessageId} has been stuck in Processing state beyond timeout, resetting for reprocessing")]
+	private partial void LogMessageProcessingTimedOut(string messageId);
+
 	[LoggerMessage(MiddlewareEventId.InboxMessageProcessed + 21, LogLevel.Information,
 		"Message {MessageId} previously failed, will retry")]
 	private partial void LogMessagePreviouslyFailed(string messageId);
@@ -361,6 +397,14 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			switch (existingEntry.Status)
 			{
 				case InboxStatus.Processing:
+					if (existingEntry.LastAttemptAt.HasValue &&
+						existingEntry.LastAttemptAt.Value + _options.ProcessingTimeout < DateTimeOffset.UtcNow)
+					{
+						LogMessageProcessingTimedOut(messageId);
+						existingEntry.Status = InboxStatus.Received;
+						break; // Fall through to reprocess
+					}
+
 					LogMessageBeingProcessed(messageId);
 					return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: true);
 

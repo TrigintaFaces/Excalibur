@@ -175,6 +175,9 @@ public static class DeliveryEventId
 	/// <summary>Scheduled cleanup error.</summary>
 	public const int ScheduledCleanupError = 40409;
 
+	/// <summary>Deduplicator capacity reached; new messages will not be deduplicated until cleanup reclaims space.</summary>
+	public const int DeduplicatorCapacityReached = 40410;
+
 	// ========================================
 	// 40450-40499: Poison Message Handling
 	// ========================================

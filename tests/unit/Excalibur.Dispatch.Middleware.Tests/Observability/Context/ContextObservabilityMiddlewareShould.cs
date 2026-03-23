@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Observability.Context;
 
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class ContextObservabilityMiddlewareShould : IDisposable
 {
 	private readonly IContextFlowTracker _fakeTracker;

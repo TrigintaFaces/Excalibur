@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Sprint 45 (bd-5tsb): Unit tests for Polly backoff calculator adapter.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PollyBackoffCalculatorAdapterShould
 {
 	#region Constructor Tests

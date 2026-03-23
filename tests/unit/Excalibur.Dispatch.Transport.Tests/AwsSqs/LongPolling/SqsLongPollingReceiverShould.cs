@@ -10,7 +10,7 @@ using Excalibur.Dispatch.Transport.Aws;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using AwsPollingStatus = Excalibur.Dispatch.Transport.Aws.PollingStatus;
+using AwsPollingStatus = Excalibur.Dispatch.Transport.Aws.SqsPollingStatus;
 using IAwsLongPollingStrategy = Excalibur.Dispatch.Transport.ILongPollingStrategy;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;

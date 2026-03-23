@@ -41,10 +41,10 @@ public sealed class SagaVersioningWorkflowShould
 			Status = "InProgress",
 			CurrentStep = 1,
 		};
-		await store.SaveV1Async(v1State).ConfigureAwait(true);
+		await store.SaveV1Async(v1State);
 
 		// Act - Migrate to v2
-		var migratedState = await migrator.MigrateToV2Async("saga-v1").ConfigureAwait(true);
+		var migratedState = await migrator.MigrateToV2Async("saga-v1");
 
 		// Assert - V2 schema populated correctly
 		_ = migratedState.ShouldNotBeNull();
@@ -78,11 +78,11 @@ public sealed class SagaVersioningWorkflowShould
 			Status = "Pending",
 			CurrentStep = 0,
 		};
-		await store.SaveV1Async(v1State).ConfigureAwait(true);
+		await store.SaveV1Async(v1State);
 
 		// Act - V2 runtime loads state
 		var v2Loader = new V2SagaLoader(store);
-		var loadedState = await v2Loader.LoadAsync("saga-backward").ConfigureAwait(true);
+		var loadedState = await v2Loader.LoadAsync("saga-backward");
 
 		// Assert - V2 runtime can use V1 state
 		_ = loadedState.ShouldNotBeNull();
@@ -117,11 +117,11 @@ public sealed class SagaVersioningWorkflowShould
 			},
 			Priority = SagaPriority.High, // V2 field
 		};
-		await store.SaveV2Async(v2State).ConfigureAwait(true);
+		await store.SaveV2Async(v2State);
 
 		// Act - V1-compatible loader reads state
 		var v1Loader = new V1CompatibleLoader(store);
-		var loadedState = await v1Loader.LoadAsync("saga-forward").ConfigureAwait(true);
+		var loadedState = await v1Loader.LoadAsync("saga-forward");
 
 		// Assert - Known fields loaded, unknown fields ignored
 		_ = loadedState.ShouldNotBeNull();
@@ -147,13 +147,13 @@ public sealed class SagaVersioningWorkflowShould
 		var saga = new VersionedSaga(store, log, version: "2.1");
 
 		// Act - Execute full lifecycle
-		await saga.StartAsync("saga-meta", new OrderData { OrderId = "ORD-META" }).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-meta", SagaStep.ReserveInventory).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-meta", SagaStep.ProcessPayment).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-meta", SagaStep.ShipOrder).ConfigureAwait(true);
+		await saga.StartAsync("saga-meta", new OrderData { OrderId = "ORD-META" });
+		await saga.ProcessStepAsync("saga-meta", SagaStep.ReserveInventory);
+		await saga.ProcessStepAsync("saga-meta", SagaStep.ProcessPayment);
+		await saga.ProcessStepAsync("saga-meta", SagaStep.ShipOrder);
 
 		// Assert - Version metadata recorded
-		var state = await store.GetV2Async("saga-meta").ConfigureAwait(true);
+		var state = await store.GetV2Async("saga-meta");
 		_ = state.ShouldNotBeNull();
 		state.Version.ShouldBe("2.1");
 		state.Metadata.ShouldContainKey("CreatedWithVersion");
@@ -183,18 +183,18 @@ public sealed class SagaVersioningWorkflowShould
 		var saga1 = new VersionedSaga(store, log1, version: "2.0");
 		var saga2 = new VersionedSaga(store, log2, version: "2.0");
 
-		await saga1.StartAsync("saga-conflict", new OrderData { OrderId = "ORD-CONFLICT" }).ConfigureAwait(true);
-		await saga1.ProcessStepAsync("saga-conflict", SagaStep.ReserveInventory).ConfigureAwait(true);
+		await saga1.StartAsync("saga-conflict", new OrderData { OrderId = "ORD-CONFLICT" });
+		await saga1.ProcessStepAsync("saga-conflict", SagaStep.ReserveInventory);
 
 		// Act - Simulate second instance reading same saga
-		await saga2.LoadAsync("saga-conflict").ConfigureAwait(true);
+		await saga2.LoadAsync("saga-conflict");
 
 		// Both try to update - saga1 succeeds first
-		await saga1.ProcessStepAsync("saga-conflict", SagaStep.ProcessPayment).ConfigureAwait(true);
+		await saga1.ProcessStepAsync("saga-conflict", SagaStep.ProcessPayment);
 
 		// saga2 tries to update with stale etag
 		var exception = await Should.ThrowAsync<ConcurrencyException>(
-			async () => await saga2.ProcessStepWithConflictCheckAsync("saga-conflict", SagaStep.ProcessPayment).ConfigureAwait(true)).ConfigureAwait(true);
+			async () => await saga2.ProcessStepWithConflictCheckAsync("saga-conflict", SagaStep.ProcessPayment));
 
 		// Assert - Conflict detected
 		_ = exception.ShouldNotBeNull();
@@ -202,7 +202,7 @@ public sealed class SagaVersioningWorkflowShould
 		exception.ExpectedETag.ShouldNotBe(exception.ActualETag);
 
 		// Assert - Only saga1 changes persisted
-		var state = await store.GetV2Async("saga-conflict").ConfigureAwait(true);
+		var state = await store.GetV2Async("saga-conflict");
 		_ = state.ShouldNotBeNull();
 		state.CompletedSteps.Count.ShouldBe(2);
 		state.CompletedSteps.ShouldContain(SagaStep.ReserveInventory);

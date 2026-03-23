@@ -59,7 +59,7 @@ internal sealed partial class PersistenceHealthCheck(
 
 			return HealthCheckResult.Unhealthy($"Provider '{_providerName}' connection test failed");
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			return HealthCheckResult.Unhealthy($"Provider '{_providerName}' health check timed out");
 		}

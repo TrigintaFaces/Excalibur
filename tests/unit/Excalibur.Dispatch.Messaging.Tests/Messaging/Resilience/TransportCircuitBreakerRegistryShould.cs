@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Epic 6 (bd-rj9o): Integration tests for per-transport circuit breaker isolation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportCircuitBreakerRegistryShould
 {
 	private static async Task WaitForStateAsync(ICircuitBreakerPolicy policy, CircuitState expectedState, TimeSpan timeout)

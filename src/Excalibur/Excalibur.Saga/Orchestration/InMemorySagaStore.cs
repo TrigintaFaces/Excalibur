@@ -32,8 +32,7 @@ public sealed class InMemorySagaStore : ISagaStore
 		Task.FromResult(_store.TryGetValue(sagaId, out var state) ? (TSagaState?)state : null);
 
 	/// <summary>
-	/// Saves a saga state to the in-memory store, overwriting any existing state with the same ID. The operation is atomic and thread-safe
-	/// through the underlying concurrent dictionary.
+	/// Saves a saga state to the in-memory store.
 	/// </summary>
 	/// <typeparam name="TSagaState"> The type of saga state to save. </typeparam>
 	/// <param name="sagaState"> The saga state to save to the store. </param>
@@ -46,6 +45,7 @@ public sealed class InMemorySagaStore : ISagaStore
 		ArgumentNullException.ThrowIfNull(sagaState);
 
 		_store[sagaState.SagaId] = sagaState;
+
 		return Task.CompletedTask;
 	}
 }

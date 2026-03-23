@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.AuditLogging.Tests;
 
-public class AuditLogRoleShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditLogRoleShould
 {
     [Fact]
     public void Define_none_as_zero()

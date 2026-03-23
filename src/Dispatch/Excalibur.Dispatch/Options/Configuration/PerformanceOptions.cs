@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Dispatch.Options.Configuration;
 
 /// <summary>
@@ -47,6 +49,7 @@ public sealed class PerformanceOptions
 	/// Gets or sets the size of the message pool for object reuse.
 	/// </summary>
 	/// <value>The current <see cref="MessagePoolSize"/> value.</value>
+	[Range(1, int.MaxValue)]
 	public int MessagePoolSize { get; set; } = 1000;
 
 	/// <summary>

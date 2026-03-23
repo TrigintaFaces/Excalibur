@@ -62,7 +62,7 @@ public sealed class SagaTimeoutMethodsShould
 		// Act
 		var timeoutId = await saga.TestRequestTimeoutAsync<PaymentTimeout>(
 			TimeSpan.FromMinutes(5),
-			CancellationToken.None).ConfigureAwait(true);
+			CancellationToken.None);
 
 		// Assert
 		timeoutId.ShouldNotBeNullOrWhiteSpace();
@@ -71,7 +71,7 @@ public sealed class SagaTimeoutMethodsShould
 		// Verify timeout was scheduled with correct properties
 		var dueTimeouts = await _timeoutStore.GetDueTimeoutsAsync(
 			DateTime.UtcNow.AddMinutes(10),
-			CancellationToken.None).ConfigureAwait(true);
+			CancellationToken.None);
 
 		dueTimeouts.Count.ShouldBe(1);
 		dueTimeouts[0].SagaId.ShouldBe(saga.Id.ToString());
@@ -92,14 +92,14 @@ public sealed class SagaTimeoutMethodsShould
 		var timeoutId = await saga.TestRequestTimeoutAsync(
 			TimeSpan.FromMinutes(5),
 			timeoutData,
-			CancellationToken.None).ConfigureAwait(true);
+			CancellationToken.None);
 
 		// Assert
 		timeoutId.ShouldNotBeNullOrWhiteSpace();
 
 		var dueTimeouts = await _timeoutStore.GetDueTimeoutsAsync(
 			DateTime.UtcNow.AddMinutes(10),
-			CancellationToken.None).ConfigureAwait(true);
+			CancellationToken.None);
 
 		dueTimeouts.Count.ShouldBe(1);
 		_ = dueTimeouts[0].TimeoutData.ShouldNotBeNull();
@@ -116,12 +116,12 @@ public sealed class SagaTimeoutMethodsShould
 		var saga = CreateSagaWithTimeoutStore();
 		var timeoutId = await saga.TestRequestTimeoutAsync<PaymentTimeout>(
 			TimeSpan.FromMinutes(5),
-			CancellationToken.None).ConfigureAwait(true);
+			CancellationToken.None);
 
 		_timeoutStore.GetPendingCount().ShouldBe(1);
 
 		// Act
-		await saga.TestCancelTimeoutAsync(timeoutId, CancellationToken.None).ConfigureAwait(true);
+		await saga.TestCancelTimeoutAsync(timeoutId, CancellationToken.None);
 
 		// Assert
 		_timeoutStore.GetPendingCount().ShouldBe(0);
@@ -137,14 +137,14 @@ public sealed class SagaTimeoutMethodsShould
 		var saga = CreateSagaWithTimeoutStore();
 
 		// Schedule multiple timeouts
-		_ = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(true);
-		_ = await saga.TestRequestTimeoutAsync<ShippingTimeout>(TimeSpan.FromMinutes(10), CancellationToken.None).ConfigureAwait(true);
-		_ = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(15), CancellationToken.None).ConfigureAwait(true);
+		_ = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(5), CancellationToken.None);
+		_ = await saga.TestRequestTimeoutAsync<ShippingTimeout>(TimeSpan.FromMinutes(10), CancellationToken.None);
+		_ = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(15), CancellationToken.None);
 
 		_timeoutStore.GetPendingCount().ShouldBe(3);
 
 		// Act
-		await saga.TestMarkCompletedAsync(CancellationToken.None).ConfigureAwait(true);
+		await saga.TestMarkCompletedAsync(CancellationToken.None);
 
 		// Assert
 		_timeoutStore.GetPendingCount().ShouldBe(0);
@@ -161,9 +161,9 @@ public sealed class SagaTimeoutMethodsShould
 		var saga = CreateSagaWithTimeoutStore();
 
 		// Act - Schedule multiple timeouts with different delays
-		var timeout1 = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(true);
-		var timeout2 = await saga.TestRequestTimeoutAsync<ShippingTimeout>(TimeSpan.FromMinutes(10), CancellationToken.None).ConfigureAwait(true);
-		var timeout3 = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(15), CancellationToken.None).ConfigureAwait(true);
+		var timeout1 = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(5), CancellationToken.None);
+		var timeout2 = await saga.TestRequestTimeoutAsync<ShippingTimeout>(TimeSpan.FromMinutes(10), CancellationToken.None);
+		var timeout3 = await saga.TestRequestTimeoutAsync<PaymentTimeout>(TimeSpan.FromMinutes(15), CancellationToken.None);
 
 		// Assert - All timeouts have unique IDs
 		timeout1.ShouldNotBe(timeout2);
@@ -174,7 +174,7 @@ public sealed class SagaTimeoutMethodsShould
 		_timeoutStore.GetPendingCount().ShouldBe(3);
 
 		// Act - Cancel one timeout
-		await saga.TestCancelTimeoutAsync(timeout2, CancellationToken.None).ConfigureAwait(true);
+		await saga.TestCancelTimeoutAsync(timeout2, CancellationToken.None);
 
 		// Assert - Only cancelled timeout removed
 		_timeoutStore.GetPendingCount().ShouldBe(2);
@@ -196,7 +196,7 @@ public sealed class SagaTimeoutMethodsShould
 		var exception = await Should.ThrowAsync<InvalidOperationException>(
 			saga.TestRequestTimeoutAsync<PaymentTimeout>(
 				TimeSpan.FromMinutes(5),
-				CancellationToken.None)).ConfigureAwait(true);
+				CancellationToken.None));
 
 		exception.Message.ShouldContain("Timeout store not configured");
 	}

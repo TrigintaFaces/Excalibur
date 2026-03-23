@@ -16,6 +16,7 @@ namespace Excalibur.EventSourcing.Tests.Snapshots;
 /// Unit tests for <see cref="IntervalSnapshotStrategy"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class IntervalSnapshotStrategyShould
 {
 	[Fact]

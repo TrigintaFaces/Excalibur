@@ -16,6 +16,12 @@ public sealed class CdcOptions
 	public List<CdcTableTrackingOptions> TrackedTables { get; } = [];
 
 	/// <summary>
+	/// Gets or sets the default schema for table name inference in <c>TrackTable&lt;TEntity&gt;()</c>.
+	/// </summary>
+	/// <value>The default schema name. Default is <c>"dbo"</c>.</value>
+	public string DefaultSchema { get; set; } = "dbo";
+
+	/// <summary>
 	/// Gets or sets the recovery strategy for stale positions.
 	/// </summary>
 	/// <value>

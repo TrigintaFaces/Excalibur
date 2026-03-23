@@ -18,7 +18,7 @@ public sealed class OrderedEventProcessorDepthShould
 		using var processor = new OrderedEventProcessor();
 
 		// Act & Assert
-		await Should.ThrowAsync<ArgumentNullException>(() => processor.ProcessAsync(null!));
+		await Should.ThrowAsync<ArgumentNullException>(() => processor.ProcessAsync(null!, CancellationToken.None));
 	}
 
 	[Fact]
@@ -29,7 +29,7 @@ public sealed class OrderedEventProcessorDepthShould
 		await processor.DisposeAsync();
 
 		// Act & Assert
-		await Should.ThrowAsync<ObjectDisposedException>(() => processor.ProcessAsync(() => Task.CompletedTask));
+		await Should.ThrowAsync<ObjectDisposedException>(() => processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None));
 	}
 
 	[Fact]
@@ -40,7 +40,7 @@ public sealed class OrderedEventProcessorDepthShould
 		processor.Dispose();
 
 		// Act & Assert
-		await Should.ThrowAsync<ObjectDisposedException>(() => processor.ProcessAsync(() => Task.CompletedTask));
+		await Should.ThrowAsync<ObjectDisposedException>(() => processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None));
 	}
 
 	[Fact]
@@ -55,7 +55,7 @@ public sealed class OrderedEventProcessorDepthShould
 		{
 			executed = true;
 			return Task.CompletedTask;
-		});
+		}, CancellationToken.None);
 
 		// Assert
 		executed.ShouldBeTrue();
@@ -74,7 +74,7 @@ public sealed class OrderedEventProcessorDepthShould
 			{
 				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1).ConfigureAwait(false);
 				results.Add(i);
-			})).ToList();
+			}, CancellationToken.None)).ToList();
 
 		await Task.WhenAll(tasks);
 
@@ -113,16 +113,15 @@ public sealed class OrderedEventProcessorDepthShould
 
 		// Act
 		await Should.ThrowAsync<InvalidOperationException>(() =>
-			processor.ProcessAsync(() => throw new InvalidOperationException("test")));
+			processor.ProcessAsync(() => throw new InvalidOperationException("test"), CancellationToken.None));
 
 		await processor.ProcessAsync(() =>
 		{
 			secondExecuted = true;
 			return Task.CompletedTask;
-		});
+		}, CancellationToken.None);
 
 		// Assert
 		secondExecuted.ShouldBeTrue();
 	}
 }
-

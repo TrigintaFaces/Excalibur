@@ -8,7 +8,9 @@ using Xunit;
 
 namespace Excalibur.Dispatch.Tests.Conformance.Providers.AzureServiceBus;
 
-public class ProviderSurfaceConformanceShould
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class ProviderSurfaceConformanceShould
 {
 	[Fact]
 	public void Contain_TransportSender_Implementation()

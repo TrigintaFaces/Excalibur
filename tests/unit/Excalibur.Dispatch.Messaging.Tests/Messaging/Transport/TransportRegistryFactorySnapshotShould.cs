@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Transport;
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportRegistryFactorySnapshotShould
 {
 	[Fact]

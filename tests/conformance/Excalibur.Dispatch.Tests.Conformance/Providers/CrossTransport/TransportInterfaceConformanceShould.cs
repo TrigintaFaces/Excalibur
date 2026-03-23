@@ -17,7 +17,9 @@ namespace Excalibur.Dispatch.Tests.Conformance.Providers.CrossTransport;
 /// <see cref="ITransportSender"/>, <see cref="ITransportReceiver"/>,
 /// <see cref="IDeadLetterQueueManager"/>.
 /// </summary>
-public class TransportInterfaceConformanceShould
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class TransportInterfaceConformanceShould
 {
 	/// <summary>
 	/// Transport assembly anchors — one public type from each transport assembly.

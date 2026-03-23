@@ -13,10 +13,12 @@ using Excalibur.EventSourcing.Observability;
 using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
+using Excalibur.EventSourcing.SqlServer.Outbox;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -224,6 +226,9 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		}
 
 		_ = services.Configure(configure);
+
+		// Register subscription polling options validator for SQL injection prevention
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SubscriptionPollingOptions>, SubscriptionPollingOptionsValidator>());
 
 		// Register stores
 		_ = services.AddSqlServerEventStore(options.ConnectionString);
@@ -602,21 +607,33 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 
 	private static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
-		services.TryAddSingleton<IEventStore>(sp =>
-			new TelemetryEventStore(
+		services.AddKeyedSingleton<IEventStore>("sqlserver", (sp, _) =>
+		{
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(EventSourcingMeters.EventStore) ?? new Meter(EventSourcingMeters.EventStore);
+			return new TelemetryEventStore(
 				sp.GetRequiredService<SqlServerEventStore>(),
-				new Meter(EventSourcingMeters.EventStore),
+				meter,
 				new ActivitySource(EventSourcingActivitySources.EventStore),
-				"sqlserver"));
+				"sqlserver");
+		});
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("sqlserver"));
 	}
 
 	private static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)
 	{
-		services.TryAddSingleton<ISnapshotStore>(sp =>
-			new TelemetrySnapshotStore(
+		services.AddKeyedSingleton<ISnapshotStore>("sqlserver", (sp, _) =>
+		{
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(EventSourcingMeters.SnapshotStore) ?? new Meter(EventSourcingMeters.SnapshotStore);
+			return new TelemetrySnapshotStore(
 				sp.GetRequiredService<SqlServerSnapshotStore>(),
-				new Meter(EventSourcingMeters.SnapshotStore),
+				meter,
 				new ActivitySource(EventSourcingActivitySources.SnapshotStore),
-				"sqlserver"));
+				"sqlserver");
+		});
+		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISnapshotStore>("sqlserver"));
 	}
 }

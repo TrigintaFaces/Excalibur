@@ -3,8 +3,11 @@
 
 using System.Text.Json.Serialization;
 
+using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.Core;
+
+using EncryptionOptions = Excalibur.Dispatch.Options.Core.EncryptionOptions;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
@@ -93,7 +96,7 @@ public sealed class CoreOptionsDepthShould
 		var options = new EncryptionOptions
 		{
 			Enabled = true,
-			Algorithm = EncryptionAlgorithm.Aes128Gcm,
+			Algorithm = EncryptionAlgorithm.Aes256CbcHmac,
 			Key = key,
 			KeyDerivation = kdf,
 			EnableKeyRotation = true,
@@ -101,7 +104,7 @@ public sealed class CoreOptionsDepthShould
 
 		// Assert
 		options.Enabled.ShouldBeTrue();
-		options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes128Gcm);
+		options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
 		options.Key.ShouldBe(key);
 		options.KeyDerivation.ShouldBe(kdf);
 		options.EnableKeyRotation.ShouldBeTrue();
@@ -112,17 +115,16 @@ public sealed class CoreOptionsDepthShould
 	[Fact]
 	public void EncryptionAlgorithm_HasExpectedValues()
 	{
-		// Assert
-		((int)EncryptionAlgorithm.None).ShouldBe(0);
-		((int)EncryptionAlgorithm.Aes128Gcm).ShouldBe(1);
-		((int)EncryptionAlgorithm.Aes256Gcm).ShouldBe(2);
+		// Assert -- Compliance canonical enum (Sprint 671 T.2: Dispatch enum deleted)
+		((int)EncryptionAlgorithm.Aes256Gcm).ShouldBe(0);
+		((int)EncryptionAlgorithm.Aes256CbcHmac).ShouldBe(1);
 	}
 
 	[Fact]
 	public void EncryptionAlgorithm_HasExpectedCount()
 	{
-		// Assert
-		Enum.GetValues<EncryptionAlgorithm>().Length.ShouldBe(3);
+		// Assert -- Compliance canonical enum has 2 values
+		Enum.GetValues<EncryptionAlgorithm>().Length.ShouldBe(2);
 	}
 
 	// --- HealthCheckOptions ---

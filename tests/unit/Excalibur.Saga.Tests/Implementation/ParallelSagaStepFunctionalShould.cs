@@ -16,6 +16,7 @@ namespace Excalibur.Saga.Tests.Implementation;
 /// multi-strategy execution, result aggregation, failure handling, and compensation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class ParallelSagaStepFunctionalShould
 {
 	[Fact]

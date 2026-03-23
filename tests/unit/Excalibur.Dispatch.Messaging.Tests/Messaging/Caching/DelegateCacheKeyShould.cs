@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
-public class DelegateCacheKeyShould
+public sealed class DelegateCacheKeyShould
 {
 	#region Constructor Tests
 

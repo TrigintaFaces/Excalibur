@@ -2732,3 +2732,4 @@ static Excalibur.Dispatch.Compliance.VersionMigrationResult.Succeeded(byte[]! or
 static readonly Excalibur.Dispatch.Compliance.EncryptionVersion.Unknown -> Excalibur.Dispatch.Compliance.EncryptionVersion
 static readonly Excalibur.Dispatch.Compliance.EncryptionVersion.Version10 -> Excalibur.Dispatch.Compliance.EncryptionVersion
 static readonly Excalibur.Dispatch.Compliance.EncryptionVersion.Version11 -> Excalibur.Dispatch.Compliance.EncryptionVersion
+static Excalibur.Dispatch.Compliance.ErasureExecutionResult.PartiallySucceeded(int keysDeleted, int recordsAffected, string! errorMessage) -> Excalibur.Dispatch.Compliance.ErasureExecutionResult!

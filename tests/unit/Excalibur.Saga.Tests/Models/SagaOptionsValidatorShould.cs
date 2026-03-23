@@ -14,6 +14,7 @@ namespace Excalibur.Saga.Tests.Models;
 /// Sprint 561 S561.53: IValidateOptions implementation tests.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class SagaOptionsValidatorShould
 {
 	private readonly SagaOptionsValidator _validator = new();

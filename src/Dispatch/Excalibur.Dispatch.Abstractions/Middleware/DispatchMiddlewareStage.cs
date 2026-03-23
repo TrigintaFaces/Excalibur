@@ -70,6 +70,11 @@ public enum DispatchMiddlewareStage
 	Routing = 500,
 
 	/// <summary>
+	/// Deduplication and idempotency checks, executed immediately before handler processing.
+	/// </summary>
+	Deduplication = 599,
+
+	/// <summary>
 	/// Core message processing stage where handlers execute.
 	/// </summary>
 	Processing = 600,
@@ -82,12 +87,7 @@ public enum DispatchMiddlewareStage
 	/// <summary>
 	/// Error handling and compensation stage.
 	/// </summary>
-	Error = 800,
-
-	/// <summary>
-	/// Error handling and compensation stage (alias for Error).
-	/// </summary>
-	ErrorHandling = 801,
+	ErrorHandling = 800,
 
 	/// <summary>
 	/// The final stage of the middleware pipeline.

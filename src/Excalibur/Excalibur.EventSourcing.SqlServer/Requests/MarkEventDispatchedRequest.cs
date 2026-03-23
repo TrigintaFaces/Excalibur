@@ -15,7 +15,7 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// </summary>
 public sealed class MarkEventDispatchedRequest : DataRequestBase<IDbConnection, int>
 {
-	private const string Sql = "UPDATE EventStoreEvents SET IsDispatched = 1 WHERE EventId = @EventId";
+	private const string Sql = "UPDATE EventStoreEvents SET IsDispatched = 1 WHERE EventId = @EventId AND IsDispatched = 0";
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MarkEventDispatchedRequest"/> class.

@@ -2,7 +2,9 @@ using Excalibur.Dispatch.AuditLogging.Retention;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Retention;
 
-public class AuditRetentionPolicyShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditRetentionPolicyShould
 {
     [Fact]
     public void Create_policy_with_required_properties()

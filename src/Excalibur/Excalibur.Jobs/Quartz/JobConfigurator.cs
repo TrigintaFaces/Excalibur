@@ -17,7 +17,7 @@ namespace Excalibur.Jobs.Quartz;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="JobConfigurator" /> class. </remarks>
 /// <param name="services"> The service collection to configure jobs in. </param>
-public sealed class JobConfigurator(IServiceCollection services) : IJobConfigurator
+public class JobConfigurator(IServiceCollection services) : IJobConfigurator
 {
 	private readonly IServiceCollection _services = services ?? throw new ArgumentNullException(nameof(services));
 

@@ -15,52 +15,14 @@ namespace Excalibur.Dispatch.Caching;
 /// </summary>
 internal sealed class Utf8StringCache : IDisposable
 {
-	/// <summary>
-	/// Shared Meter for Utf8StringCache telemetry.
-	/// </summary>
-	private static readonly Meter CacheMeter = new("Excalibur.Dispatch.Utf8StringCache", "1.0.0");
-
-	/// <summary>
-	/// Counter tracking the number of cache evictions (full clears due to capacity pressure).
-	/// </summary>
-	private static readonly Counter<long> EvictionCounter =
-		CacheMeter.CreateCounter<long>("dispatch.utf8cache.evictions", "evictions", "Number of Utf8StringCache eviction cycles");
-
-	/// <summary>
-	/// Counter tracking the number of items removed during cleanup.
-	/// </summary>
-	private static readonly Counter<long> ItemsRemovedCounter =
-		CacheMeter.CreateCounter<long>("dispatch.utf8cache.items_removed", "items", "Number of items removed during Utf8StringCache cleanup");
-
-	/// <summary>
-	/// Histogram tracking the duration of cleanup operations.
-	/// </summary>
-	private static readonly Histogram<double> CleanupDurationHistogram =
-		CacheMeter.CreateHistogram<double>("dispatch.utf8cache.cleanup_duration", "ms", "Duration of Utf8StringCache cleanup operations in milliseconds");
-
-	/// <summary>
-	/// Counter tracking encoding cache hits.
-	/// </summary>
-	private static readonly Counter<long> EncodingHitCounter =
-		CacheMeter.CreateCounter<long>("dispatch.utf8cache.encoding.hits", "hits", "Number of encoding cache hits");
-
-	/// <summary>
-	/// Counter tracking encoding cache misses.
-	/// </summary>
-	private static readonly Counter<long> EncodingMissCounter =
-		CacheMeter.CreateCounter<long>("dispatch.utf8cache.encoding.misses", "misses", "Number of encoding cache misses");
-
-	/// <summary>
-	/// Counter tracking decoding cache hits.
-	/// </summary>
-	private static readonly Counter<long> DecodingHitCounter =
-		CacheMeter.CreateCounter<long>("dispatch.utf8cache.decoding.hits", "hits", "Number of decoding cache hits");
-
-	/// <summary>
-	/// Counter tracking decoding cache misses.
-	/// </summary>
-	private static readonly Counter<long> DecodingMissCounter =
-		CacheMeter.CreateCounter<long>("dispatch.utf8cache.decoding.misses", "misses", "Number of decoding cache misses");
+	private readonly Meter _cacheMeter;
+	private readonly Counter<long> _evictionCounter;
+	private readonly Counter<long> _itemsRemovedCounter;
+	private readonly Histogram<double> _cleanupDurationHistogram;
+	private readonly Counter<long> _encodingHitCounter;
+	private readonly Counter<long> _encodingMissCounter;
+	private readonly Counter<long> _decodingHitCounter;
+	private readonly Counter<long> _decodingMissCounter;
 
 	/// <summary>
 	/// Shared instance for common usage.
@@ -74,23 +36,24 @@ internal sealed class Utf8StringCache : IDisposable
 	private int _currentSize;
 
 	/// <summary>
-	/// Statistics counters for encoding/decoding operations.
-	/// </summary>
-	private long _encodingHits;
-
-	private long _encodingMisses;
-	private long _decodingHits;
-	private long _decodingMisses;
-
-	/// <summary>
 	/// Initializes a new instance of the <see cref="Utf8StringCache" /> class.
 	/// </summary>
 	/// <param name="maxCacheSize"> The maximum number of entries to cache. </param>
-	public Utf8StringCache(int maxCacheSize = 1000)
+	/// <param name="meterFactory"> Optional meter factory for DI-managed meter lifecycle. </param>
+	public Utf8StringCache(int maxCacheSize = 1000, IMeterFactory? meterFactory = null)
 	{
 		_maxCacheSize = maxCacheSize;
 		_stringToBytes = new ConcurrentDictionary<string, byte[]>(Environment.ProcessorCount, maxCacheSize, StringComparer.Ordinal);
 		_bytesToString = new ConcurrentDictionary<ByteArrayKey, string>(Environment.ProcessorCount, maxCacheSize);
+
+		_cacheMeter = meterFactory?.Create("Excalibur.Dispatch.Utf8StringCache") ?? new Meter("Excalibur.Dispatch.Utf8StringCache", "1.0.0");
+		_evictionCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.evictions", "evictions", "Number of Utf8StringCache eviction cycles");
+		_itemsRemovedCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.items_removed", "items", "Number of items removed during Utf8StringCache cleanup");
+		_cleanupDurationHistogram = _cacheMeter.CreateHistogram<double>("dispatch.utf8cache.cleanup_duration", "ms", "Duration of Utf8StringCache cleanup operations in milliseconds");
+		_encodingHitCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.encoding.hits", "hits", "Number of encoding cache hits");
+		_encodingMissCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.encoding.misses", "misses", "Number of encoding cache misses");
+		_decodingHitCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.decoding.hits", "hits", "Number of decoding cache hits");
+		_decodingMissCounter = _cacheMeter.CreateCounter<long>("dispatch.utf8cache.decoding.misses", "misses", "Number of decoding cache misses");
 
 		// Cleanup timer runs every 5 minutes
 		_cleanupTimer = new Timer(_ => CleanupIfNeeded(), state: null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
@@ -98,6 +61,7 @@ internal sealed class Utf8StringCache : IDisposable
 
 	/// <summary>
 	/// Gets UTF-8 bytes for the given string, using cache when possible.
+	/// Returns a defensive copy to prevent callers from corrupting the internal cache.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public byte[] GetBytes(string value)
@@ -109,13 +73,12 @@ internal sealed class Utf8StringCache : IDisposable
 
 		if (_stringToBytes.TryGetValue(value, out var cached))
 		{
-			_ = Interlocked.Increment(ref _encodingHits);
-			EncodingHitCounter.Add(1);
-			return cached;
+			_encodingHitCounter.Add(1);
+			// Return a defensive copy to prevent callers from mutating the cached array
+			return cached.AsSpan().ToArray();
 		}
 
-		_ = Interlocked.Increment(ref _encodingMisses);
-		EncodingMissCounter.Add(1);
+		_encodingMissCounter.Add(1);
 		var bytes = Encoding.UTF8.GetBytes(value);
 
 		// Only cache if under size limit and string is reasonable size
@@ -127,7 +90,8 @@ internal sealed class Utf8StringCache : IDisposable
 			_ = _bytesToString.TryAdd(new ByteArrayKey(bytes), value);
 		}
 
-		return bytes;
+		// Return a defensive copy -- the cached array must not be mutated by callers
+		return bytes.AsSpan().ToArray();
 	}
 
 	/// <summary>
@@ -143,15 +107,13 @@ internal sealed class Utf8StringCache : IDisposable
 
 		if (_stringToBytes.TryGetValue(value, out var cached))
 		{
-			_ = Interlocked.Increment(ref _encodingHits);
-			EncodingHitCounter.Add(1);
+			_encodingHitCounter.Add(1);
 			rentedBuffer = ArrayPool<byte>.Shared.Rent(cached.Length);
 			cached.CopyTo(rentedBuffer, 0);
 			return cached.Length;
 		}
 
-		_ = Interlocked.Increment(ref _encodingMisses);
-		EncodingMissCounter.Add(1);
+		_encodingMissCounter.Add(1);
 		var byteCount = Encoding.UTF8.GetByteCount(value);
 		rentedBuffer = ArrayPool<byte>.Shared.Rent(byteCount);
 		var actualBytes = Encoding.UTF8.GetBytes(value, rentedBuffer);
@@ -186,13 +148,11 @@ internal sealed class Utf8StringCache : IDisposable
 		var key = new ByteArrayKey(bytes);
 		if (_bytesToString.TryGetValue(key, out var cached))
 		{
-			_ = Interlocked.Increment(ref _decodingHits);
-			DecodingHitCounter.Add(1);
+			_decodingHitCounter.Add(1);
 			return cached;
 		}
 
-		_ = Interlocked.Increment(ref _decodingMisses);
-		DecodingMissCounter.Add(1);
+		_decodingMissCounter.Add(1);
 		var str = Encoding.UTF8.GetString(bytes);
 
 		// Only cache if under size limit and string is reasonable size
@@ -210,10 +170,13 @@ internal sealed class Utf8StringCache : IDisposable
 	}
 
 	/// <summary>
-	/// Gets cache statistics.
+	/// Gets cache statistics. Hit/miss counters are tracked only via OTel instrumentation
+	/// (no redundant Interlocked counters). Use OTel metric collection for hit/miss data.
+	/// The returned tuple preserves the original shape for backward compatibility; hit/miss
+	/// fields always return 0.
 	/// </summary>
 	public (long encodingHits, long encodingMisses, long decodingHits, long decodingMisses, int cacheSize) GetStatistics() =>
-		(_encodingHits, _encodingMisses, _decodingHits, _decodingMisses, _currentSize);
+		(0, 0, 0, 0, _currentSize);
 
 	/// <summary>
 	/// Clears the cache.
@@ -231,6 +194,7 @@ internal sealed class Utf8StringCache : IDisposable
 	public void Dispose()
 	{
 		_cleanupTimer?.Dispose();
+		_cacheMeter?.Dispose();
 		Clear();
 	}
 
@@ -242,12 +206,12 @@ internal sealed class Utf8StringCache : IDisposable
 			var itemCount = _currentSize;
 			var startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
 
-			EvictionCounter.Add(1);
+			_evictionCounter.Add(1);
 			Clear();
 
-			ItemsRemovedCounter.Add(itemCount);
+			_itemsRemovedCounter.Add(itemCount);
 			var elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
-			CleanupDurationHistogram.Record(elapsedMs);
+			_cleanupDurationHistogram.Record(elapsedMs);
 		}
 	}
 

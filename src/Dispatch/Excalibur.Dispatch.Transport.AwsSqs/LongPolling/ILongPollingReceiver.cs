@@ -14,7 +14,7 @@ public interface ILongPollingReceiver : IDisposable
 	/// <summary>
 	/// Gets the current polling status.
 	/// </summary>
-	PollingStatus Status { get; }
+	SqsPollingStatus Status { get; }
 
 	/// <summary>
 	/// Receives messages from the specified queue.

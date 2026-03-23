@@ -11,6 +11,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Jobs.Tests.Jobs;
 
+[Trait("Category", "Unit")]
+[Trait("Component", "Platform")]
 public sealed class OutboxProcessorJobShould
 {
 	private readonly IServiceScopeFactory _fakeScopeFactory;

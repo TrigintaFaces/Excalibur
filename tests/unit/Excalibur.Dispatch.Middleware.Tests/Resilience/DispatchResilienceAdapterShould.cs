@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Unit tests for <see cref="DispatchResilienceAdapter"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatchResilienceAdapterShould : UnitTestBase
 {
 	[Fact]

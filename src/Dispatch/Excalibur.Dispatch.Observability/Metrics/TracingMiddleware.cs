@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Observability.Metrics;
 /// </remarks>
 /// <param name="sanitizer">The telemetry sanitizer for PII protection.</param>
 [AppliesTo(MessageKinds.All)]
-public sealed class TracingMiddleware(ITelemetrySanitizer sanitizer) : IDispatchMiddleware
+internal sealed class TracingMiddleware(ITelemetrySanitizer sanitizer) : IDispatchMiddleware
 {
 	private readonly ITelemetrySanitizer _sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
 	/// <inheritdoc />

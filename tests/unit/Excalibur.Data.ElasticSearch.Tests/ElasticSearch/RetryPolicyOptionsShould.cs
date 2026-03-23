@@ -7,12 +7,12 @@ namespace Excalibur.Data.Tests.ElasticSearch;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Data")]
-public sealed class RetryPolicyOptionsShould
+public sealed class ElasticSearchRetryPolicyOptionsShould
 {
 	[Fact]
 	public void HaveCorrectDefaults()
 	{
-		var sut = new RetryPolicyOptions();
+		var sut = new ElasticSearchRetryPolicyOptions();
 
 		sut.Enabled.ShouldBeTrue();
 		sut.MaxAttempts.ShouldBe(3);
@@ -25,7 +25,7 @@ public sealed class RetryPolicyOptionsShould
 	[Fact]
 	public void AllowSettingAllProperties()
 	{
-		var sut = new RetryPolicyOptions
+		var sut = new ElasticSearchRetryPolicyOptions
 		{
 			Enabled = false,
 			MaxAttempts = 5,

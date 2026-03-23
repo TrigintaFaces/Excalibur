@@ -10,6 +10,7 @@ namespace Excalibur.Hosting.Tests.AwsLambda;
 /// </summary>
 [Collection("EnvironmentVariableTests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class AwsLambdaHostProviderShould : UnitTestBase
 {
 	private readonly AwsLambdaHostProvider _sut;

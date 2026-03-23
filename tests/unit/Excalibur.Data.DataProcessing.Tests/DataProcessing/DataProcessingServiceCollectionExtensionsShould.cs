@@ -15,6 +15,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Unit tests for <see cref="DataProcessingServiceCollectionExtensions"/>.
 /// </summary>
 [UnitTest]
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBase
 {
 	[DataTaskRecordType("DITestRecord")]

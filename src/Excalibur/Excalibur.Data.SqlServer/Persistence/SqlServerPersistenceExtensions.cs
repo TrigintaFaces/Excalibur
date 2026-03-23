@@ -273,7 +273,10 @@ public static class SqlServerPersistenceExtensions
 		// Register the main provider
 		services.TryAddSingleton<SqlServerPersistenceProvider>();
 		services.TryAddSingleton<ISqlPersistenceProvider>(static sp => sp.GetRequiredService<SqlServerPersistenceProvider>());
-		services.TryAddSingleton<IPersistenceProvider>(static sp => sp.GetRequiredService<SqlServerPersistenceProvider>());
+		services.AddKeyedSingleton<IPersistenceProvider>("sqlserver",
+			(sp, _) => sp.GetRequiredService<SqlServerPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("sqlserver"));
 
 		// Register transaction scope with default settings
 		_ = services.AddSqlServerTransactionScope();

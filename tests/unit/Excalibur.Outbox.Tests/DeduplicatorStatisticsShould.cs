@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="DeduplicatorStatistics"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DeduplicatorStatisticsShould : UnitTestBase
 {
 	#region Default Values Tests

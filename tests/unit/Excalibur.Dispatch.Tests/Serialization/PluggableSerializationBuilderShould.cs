@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// DI configuration and auto-registration behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PluggableSerializationBuilderShould
 {
 	#region AutoRegisterMemoryPack Tests

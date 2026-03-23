@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <see cref="TransportReceivedMessage.ProviderData"/> as <c>"sqs.receipt_handle"</c>.
 /// Rejection with requeue uses <c>ChangeMessageVisibility</c> to set visibility timeout to 0.
 /// </remarks>
-internal sealed partial class SqsTransportReceiver : ITransportReceiver
+internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVisibilityExtender
 {
 	// CA2213: DI-injected service - lifetime managed by DI container.
 	[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
@@ -114,7 +114,10 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver
 				ReceiptHandle = receiptHandle,
 			};
 
-			await _sqsClient.DeleteMessageAsync(request, cancellationToken).ConfigureAwait(false);
+			// Ack must complete even during shutdown to prevent redelivery;
+			// use dedicated timeout instead of caller's cancellation token
+			using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+			await _sqsClient.DeleteMessageAsync(request, ackCts.Token).ConfigureAwait(false);
 			LogMessageAcknowledged(message.Id, Source);
 		}
 		catch (Exception ex)
@@ -133,6 +136,9 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver
 
 		try
 		{
+			// Reject must complete even during shutdown to prevent redelivery;
+			// use dedicated timeout instead of caller's cancellation token
+			using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			if (requeue)
 			{
 				// Change visibility timeout to 0 so message becomes visible again immediately
@@ -143,7 +149,7 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver
 					VisibilityTimeout = 0,
 				};
 
-				await _sqsClient.ChangeMessageVisibilityAsync(request, cancellationToken).ConfigureAwait(false);
+				await _sqsClient.ChangeMessageVisibilityAsync(request, rejectCts.Token).ConfigureAwait(false);
 				LogMessageRejectedRequeue(message.Id, Source, reason ?? "no reason");
 			}
 			else
@@ -155,7 +161,7 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver
 					ReceiptHandle = receiptHandle,
 				};
 
-				await _sqsClient.DeleteMessageAsync(request, cancellationToken).ConfigureAwait(false);
+				await _sqsClient.DeleteMessageAsync(request, rejectCts.Token).ConfigureAwait(false);
 				LogMessageRejected(message.Id, Source, reason ?? "no reason");
 			}
 		}
@@ -167,12 +173,47 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver
 	}
 
 	/// <inheritdoc />
+	public async Task ExtendVisibilityTimeoutAsync(
+		string receiptHandle,
+		TimeSpan extension,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(receiptHandle);
+
+		var visibilityTimeoutSeconds = (int)Math.Clamp(extension.TotalSeconds, 0, 43200);
+
+		try
+		{
+			var request = new ChangeMessageVisibilityRequest
+			{
+				QueueUrl = Source,
+				ReceiptHandle = receiptHandle,
+				VisibilityTimeout = visibilityTimeoutSeconds,
+			};
+
+			await _sqsClient.ChangeMessageVisibilityAsync(request, cancellationToken)
+				.ConfigureAwait(false);
+			LogVisibilityExtended(receiptHandle[..Math.Min(receiptHandle.Length, 20)], Source, visibilityTimeoutSeconds);
+		}
+		catch (Exception ex)
+		{
+			LogVisibilityExtendError(receiptHandle[..Math.Min(receiptHandle.Length, 20)], Source, ex);
+			throw;
+		}
+	}
+
+	/// <inheritdoc />
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 		if (serviceType == typeof(IAmazonSQS))
 		{
 			return _sqsClient;
+		}
+
+		if (serviceType == typeof(ISqsVisibilityExtender))
+		{
+			return this;
 		}
 
 		return null;
@@ -290,6 +331,14 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver
 	[LoggerMessage(AwsSqsEventId.TransportReceiverRejectError, LogLevel.Error,
 		"SQS transport receiver: failed to reject message {MessageId} from {Source}")]
 	private partial void LogRejectError(string messageId, string source, Exception exception);
+
+	[LoggerMessage(AwsSqsEventId.TransportReceiverVisibilityExtended, LogLevel.Debug,
+		"SQS visibility timeout extended for receipt {ReceiptHandle} on {Source} to {TimeoutSeconds}s")]
+	private partial void LogVisibilityExtended(string receiptHandle, string source, int timeoutSeconds);
+
+	[LoggerMessage(AwsSqsEventId.TransportReceiverVisibilityExtendError, LogLevel.Error,
+		"Failed to extend visibility timeout for receipt {ReceiptHandle} on {Source}")]
+	private partial void LogVisibilityExtendError(string receiptHandle, string source, Exception exception);
 
 	[LoggerMessage(AwsSqsEventId.TransportReceiverDisposed, LogLevel.Debug,
 		"SQS transport receiver disposed for {Source}")]

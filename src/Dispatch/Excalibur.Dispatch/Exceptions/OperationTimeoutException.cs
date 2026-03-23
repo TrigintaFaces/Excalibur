@@ -34,8 +34,7 @@ namespace Excalibur.Dispatch.Exceptions;
 /// }
 /// </code>
 /// </example>
-[Serializable]
-public class OperationTimeoutException : DispatchException
+public sealed class OperationTimeoutException : DispatchException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OperationTimeoutException"/> class.

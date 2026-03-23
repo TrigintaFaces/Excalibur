@@ -55,8 +55,17 @@ public sealed class EncryptionTelemetry : IEncryptionTelemetry, IEncryptionTelem
 	/// Initializes a new instance of the <see cref="EncryptionTelemetry"/> class.
 	/// </summary>
 	public EncryptionTelemetry()
+		: this(meterFactory: null)
 	{
-		Meter = new Meter(MeterName, MeterVersion);
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="EncryptionTelemetry"/> class using an <see cref="IMeterFactory"/>.
+	/// </summary>
+	/// <param name="meterFactory"> The meter factory for DI-managed meter lifecycle, or null to create an owned meter. </param>
+	public EncryptionTelemetry(IMeterFactory? meterFactory)
+	{
+		Meter = meterFactory?.Create(MeterName) ?? new Meter(MeterName, MeterVersion);
 
 		// Operation counter
 		_operationsTotal = Meter.CreateCounter<long>(

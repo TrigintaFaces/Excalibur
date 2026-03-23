@@ -6,6 +6,7 @@ using System.Text.Json;
 
 using Dapper;
 
+using Excalibur.Data.Abstractions.Validation;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Data.SqlClient;
@@ -43,6 +44,11 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_options.Validate();
+
+		// Defense-in-depth: validate SQL identifiers even if IValidateOptions ran at startup
+		SqlIdentifierValidator.ThrowIfInvalid(_options.SchemaName, nameof(_options.SchemaName));
+		SqlIdentifierValidator.ThrowIfInvalid(_options.RequestsTableName, nameof(_options.RequestsTableName));
+		SqlIdentifierValidator.ThrowIfInvalid(_options.CertificatesTableName, nameof(_options.CertificatesTableName));
 	}
 
 	/// <inheritdoc />

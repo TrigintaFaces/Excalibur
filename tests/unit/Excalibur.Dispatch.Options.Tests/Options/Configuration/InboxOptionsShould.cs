@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Options.Configuration;
 namespace Excalibur.Dispatch.Tests.Options.Configuration;
 
 /// <summary>
-/// Unit tests for <see cref="InboxOptions"/>.
+/// Unit tests for <see cref="InboxConfigurationOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Options")]
@@ -19,7 +19,7 @@ public sealed class InboxOptionsShould
 	public void Default_Enabled_IsFalse()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.Enabled.ShouldBeFalse();
@@ -29,7 +29,7 @@ public sealed class InboxOptionsShould
 	public void Default_DeduplicationExpiryHours_IsTwentyFour()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.DeduplicationExpiryHours.ShouldBe(24);
@@ -39,7 +39,7 @@ public sealed class InboxOptionsShould
 	public void Default_AckAfterHandle_IsTrue()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.AckAfterHandle.ShouldBeTrue();
@@ -49,7 +49,7 @@ public sealed class InboxOptionsShould
 	public void Default_MaxRetries_IsThree()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.MaxRetries.ShouldBe(3);
@@ -59,7 +59,7 @@ public sealed class InboxOptionsShould
 	public void Default_RetryDelayMinutes_IsFive()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.RetryDelayMinutes.ShouldBe(5);
@@ -69,7 +69,7 @@ public sealed class InboxOptionsShould
 	public void Default_MaxRetention_IsSevenDays()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.MaxRetention.ShouldBe(TimeSpan.FromDays(7));
@@ -79,7 +79,7 @@ public sealed class InboxOptionsShould
 	public void Default_CleanupInterval_IsOneHour()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
@@ -89,7 +89,7 @@ public sealed class InboxOptionsShould
 	public void Default_CleanupIntervalSeconds_IsThirtySixHundred()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.CleanupIntervalSeconds.ShouldBe(3600);
@@ -99,7 +99,7 @@ public sealed class InboxOptionsShould
 	public void Default_RetentionDays_IsSeven()
 	{
 		// Arrange & Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.RetentionDays.ShouldBe(7);
@@ -113,7 +113,7 @@ public sealed class InboxOptionsShould
 	public void Enabled_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.Enabled = true;
@@ -126,7 +126,7 @@ public sealed class InboxOptionsShould
 	public void DeduplicationExpiryHours_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.DeduplicationExpiryHours = 48;
@@ -139,7 +139,7 @@ public sealed class InboxOptionsShould
 	public void AckAfterHandle_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.AckAfterHandle = false;
@@ -152,7 +152,7 @@ public sealed class InboxOptionsShould
 	public void MaxRetries_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.MaxRetries = 5;
@@ -165,7 +165,7 @@ public sealed class InboxOptionsShould
 	public void RetryDelayMinutes_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.RetryDelayMinutes = 10;
@@ -178,7 +178,7 @@ public sealed class InboxOptionsShould
 	public void MaxRetention_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.MaxRetention = TimeSpan.FromDays(14);
@@ -191,7 +191,7 @@ public sealed class InboxOptionsShould
 	public void CleanupInterval_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.CleanupInterval = TimeSpan.FromMinutes(30);
@@ -204,7 +204,7 @@ public sealed class InboxOptionsShould
 	public void CleanupIntervalSeconds_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.CleanupIntervalSeconds = 1800;
@@ -217,7 +217,7 @@ public sealed class InboxOptionsShould
 	public void RetentionDays_CanBeSet()
 	{
 		// Arrange
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Act
 		options.RetentionDays = 14;
@@ -234,7 +234,7 @@ public sealed class InboxOptionsShould
 	public void ObjectInitializer_SetsAllProperties()
 	{
 		// Act
-		var options = new InboxOptions
+		var options = new InboxConfigurationOptions
 		{
 			Enabled = true,
 			DeduplicationExpiryHours = 12,
@@ -267,7 +267,7 @@ public sealed class InboxOptionsShould
 	public void Options_ForProduction_HasInboxEnabled()
 	{
 		// Act
-		var options = new InboxOptions
+		var options = new InboxConfigurationOptions
 		{
 			Enabled = true,
 			MaxRetries = 5,
@@ -283,7 +283,7 @@ public sealed class InboxOptionsShould
 	public void Options_ForLightMode_HasLongerDeduplicationExpiry()
 	{
 		// Act
-		var options = new InboxOptions
+		var options = new InboxConfigurationOptions
 		{
 			Enabled = false,
 			DeduplicationExpiryHours = 48,
@@ -298,7 +298,7 @@ public sealed class InboxOptionsShould
 	public void Options_ForAggressiveCleanup_HasShortRetention()
 	{
 		// Act
-		var options = new InboxOptions
+		var options = new InboxConfigurationOptions
 		{
 			RetentionDays = 1,
 			CleanupIntervalSeconds = 600,

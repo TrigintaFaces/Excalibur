@@ -37,7 +37,7 @@ public sealed class StaticPipelineInvocationShould : IDisposable
 		_middlewareInvoker = A.Fake<IDispatchMiddlewareInvoker>();
 		_logger = A.Fake<ILogger<FinalDispatchHandler>>();
 		_busProvider = A.Fake<IMessageBusProvider>();
-		_finalHandler = new FinalDispatchHandler(_busProvider, _logger, null, new Dictionary<string, IMessageBusOptions>());
+		_finalHandler = new FinalDispatchHandler(_busProvider, _logger, null, new Dictionary<string, MessageBusOptions>());
 
 		HandlerInvoker.ClearCache();
 	}

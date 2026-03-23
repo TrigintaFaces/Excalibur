@@ -14,6 +14,8 @@ using Excalibur.EventSourcing.Implementation;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 using Shouldly;
 
 using Xunit;
@@ -512,6 +514,123 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+	}
+
+	#endregion
+
+	#region Version Gap Detection Tests (T.9)
+
+	[Fact]
+	public async Task GetByIdAsync_ShouldSucceed_WhenVersionGapExistsBetweenSnapshotAndEvents()
+	{
+		// Arrange - T.9: Version gap detection logs warning but doesn't fail
+		var aggregateId = "agg-gap-1";
+		var eventStore = A.Fake<IEventStore>();
+		var snapshotManager = A.Fake<ISnapshotManager>();
+		var serializer = CreateMockSerializer();
+
+		var snapshot = new Snapshot
+		{
+			SnapshotId = Guid.NewGuid().ToString(),
+			AggregateId = aggregateId,
+			AggregateType = "EdgeCaseAggregate",
+			Version = 5,
+			Data = JsonSerializer.SerializeToUtf8Bytes(new { Data = "snapshot-data" }),
+			CreatedAt = DateTime.UtcNow,
+		};
+
+		_ = A.CallTo(() => snapshotManager.GetLatestSnapshotAsync(aggregateId, A<CancellationToken>._))
+			.Returns(snapshot);
+
+		// Return events starting at version 10, creating a gap (versions 6-9 missing)
+		var gapEvents = new List<StoredEvent>
+		{
+			new(
+				EventId: Guid.NewGuid().ToString(),
+				AggregateId: aggregateId,
+				AggregateType: "EdgeCaseAggregate",
+				EventType: "TestDomainEvent",
+				EventData: JsonSerializer.SerializeToUtf8Bytes(new TestDomainEvent { AggregateId = aggregateId, Data = "gap-event" }),
+				Metadata: null,
+				Version: 10,
+				Timestamp: DateTimeOffset.UtcNow,
+				IsDispatched: false),
+		};
+		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
+			.Returns(gapEvents);
+		_ = A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, typeof(TestDomainEvent)))
+			.Returns(new TestDomainEvent { AggregateId = aggregateId, Data = "gap-event" });
+
+		// Use NullLogger -- version gap produces a warning but doesn't throw
+		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
+			eventStore,
+			serializer,
+			id => new EdgeCaseAggregate(id),
+			snapshotManager: snapshotManager,
+			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
+
+		// Act - Should succeed even with version gap
+		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
+
+		// Assert - Aggregate loaded successfully despite gap
+		_ = result.ShouldNotBeNull();
+		result.Data.ShouldBe("gap-event");
+	}
+
+	[Fact]
+	public async Task GetByIdAsync_ShouldSucceed_WhenNoVersionGapAfterSnapshot()
+	{
+		// Arrange - Contiguous events after snapshot (no gap)
+		var aggregateId = "agg-no-gap-1";
+		var eventStore = A.Fake<IEventStore>();
+		var snapshotManager = A.Fake<ISnapshotManager>();
+		var serializer = CreateMockSerializer();
+
+		var snapshot = new Snapshot
+		{
+			SnapshotId = Guid.NewGuid().ToString(),
+			AggregateId = aggregateId,
+			AggregateType = "EdgeCaseAggregate",
+			Version = 5,
+			Data = JsonSerializer.SerializeToUtf8Bytes(new { Data = "snapshot-data" }),
+			CreatedAt = DateTime.UtcNow,
+		};
+
+		_ = A.CallTo(() => snapshotManager.GetLatestSnapshotAsync(aggregateId, A<CancellationToken>._))
+			.Returns(snapshot);
+
+		// Return events starting at version 5 -- no gap
+		var contiguousEvents = new List<StoredEvent>
+		{
+			new(
+				EventId: Guid.NewGuid().ToString(),
+				AggregateId: aggregateId,
+				AggregateType: "EdgeCaseAggregate",
+				EventType: "TestDomainEvent",
+				EventData: JsonSerializer.SerializeToUtf8Bytes(new TestDomainEvent { AggregateId = aggregateId, Data = "contiguous" }),
+				Metadata: null,
+				Version: 5,
+				Timestamp: DateTimeOffset.UtcNow,
+				IsDispatched: false),
+		};
+		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
+			.Returns(contiguousEvents);
+		_ = A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, typeof(TestDomainEvent)))
+			.Returns(new TestDomainEvent { AggregateId = aggregateId, Data = "contiguous" });
+
+		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
+			eventStore,
+			serializer,
+			id => new EdgeCaseAggregate(id),
+			snapshotManager: snapshotManager,
+			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
+
+		// Act
+		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
+
+		// Assert - Aggregate loaded normally
+		_ = result.ShouldNotBeNull();
+		result.Data.ShouldBe("contiguous");
 	}
 
 	#endregion

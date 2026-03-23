@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
+
+using Tests.Shared.Infrastructure;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;
@@ -23,6 +25,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Performance")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class HighThroughputStressShould : IDisposable
 {
 	private readonly ILogger<UnifiedBatchingMiddleware> _logger;
@@ -87,8 +90,8 @@ public sealed class HighThroughputStressShould : IDisposable
 				}
 			});
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
-		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
+		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
 		stopwatch.Stop();
 
@@ -149,13 +152,13 @@ public sealed class HighThroughputStressShould : IDisposable
 					_ = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 				});
 
-			await Task.WhenAll(burstTasks).ConfigureAwait(true);
+			await Task.WhenAll(burstTasks);
 
 			// Small delay between bursts to simulate real-world patterns
-			await Task.Delay(50).ConfigureAwait(true);
+			await Task.Delay(50);
 		}
 
-		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(60)).ConfigureAwait(true);
+		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(60));
 		stopwatch.Stop();
 
 		// Assert
@@ -219,10 +222,20 @@ public sealed class HighThroughputStressShould : IDisposable
 			}));
 		}
 
-		await Task.WhenAll(loadTasks).ConfigureAwait(true);
+		await Task.WhenAll(loadTasks);
 
-		// Allow processing to complete
-		await Task.Delay(1000).ConfigureAwait(true);
+		// Poll until processing stabilizes (replaces bare Task.Delay(1000))
+		var lastProcessed = 0;
+		await WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				var current = processedMessages.Count;
+				var stable = current == lastProcessed && current > 0;
+				lastProcessed = current;
+				return stable;
+			},
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 
 		// Assert
 		var actualDuration = DateTime.UtcNow - startTime;
@@ -368,7 +381,7 @@ public sealed class HighThroughputStressShould : IDisposable
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 
 		// Wait for completion with extended timeout for CI environments
-		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(60)).ConfigureAwait(true);
+		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(60));
 
 		stopwatch.Stop();
 
@@ -457,7 +470,7 @@ public sealed class HighThroughputStressShould : IDisposable
 			{
 				try
 				{
-					await processor.AddAsync($"resilient-message-{i}", CancellationToken.None).ConfigureAwait(true);
+					await processor.AddAsync($"resilient-message-{i}", CancellationToken.None);
 				}
 				catch
 				{
@@ -465,10 +478,10 @@ public sealed class HighThroughputStressShould : IDisposable
 				}
 			});
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 
 		// Wait for processing to complete with timeout
-		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(true);
+		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
 		stopwatch.Stop();
 
@@ -509,16 +522,16 @@ public sealed class HighThroughputStressShould : IDisposable
 
 		// Act - Add messages then dispose during processing
 		var addTasks = Enumerable.Range(0, messageCount / 2)
-			.Select(async i => await processor.AddAsync($"message-{i}", CancellationToken.None).ConfigureAwait(true));
+			.Select(async i => await processor.AddAsync($"message-{i}", CancellationToken.None));
 
-		await Task.WhenAll(addTasks).ConfigureAwait(true);
+		await Task.WhenAll(addTasks);
 
 		// Wait for at least one message to be processed before disposal
 		// This ensures the test actually validates disposal during processing
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		try
 		{
-			_ = await firstMessageProcessed.Task.WaitAsync(cts.Token).ConfigureAwait(true);
+			_ = await firstMessageProcessed.Task.WaitAsync(cts.Token);
 		}
 		catch (OperationCanceledException)
 		{
@@ -535,7 +548,7 @@ public sealed class HighThroughputStressShould : IDisposable
 			{
 				try
 				{
-					await processor.AddAsync($"message-{i}", CancellationToken.None).ConfigureAwait(true);
+					await processor.AddAsync($"message-{i}", CancellationToken.None);
 					return true;
 				}
 				catch (ObjectDisposedException)
@@ -548,7 +561,7 @@ public sealed class HighThroughputStressShould : IDisposable
 				}
 			});
 
-		var results = await Task.WhenAll(addTasksAfterDisposal).ConfigureAwait(true);
+		var results = await Task.WhenAll(addTasksAfterDisposal);
 
 		// Assert - Some messages should have been processed before disposal
 		// In CI environments with timing variations, accept zero if the timeout was hit

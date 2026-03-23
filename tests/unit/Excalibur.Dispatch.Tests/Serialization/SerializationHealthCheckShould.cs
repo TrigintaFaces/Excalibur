@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// for various serialization configurations.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class SerializationHealthCheckShould
 {
 	private readonly ILogger<SerializationHealthCheck> _logger = NullLogger<SerializationHealthCheck>.Instance;
@@ -234,7 +235,7 @@ public sealed class SerializationHealthCheckShould
 
 		var healthCheck = new SerializationHealthCheck(registry, _logger);
 		var context = CreateHealthCheckContext();
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		cts.Cancel();
 
 		// Act & Assert - the method throws synchronously but still returns a Task,

@@ -24,16 +24,11 @@ internal sealed class AdaptiveFlowControlStrategy(
 	private readonly FlowControlMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
 	private readonly ILogger<AdaptiveFlowControlStrategy> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _adjustmentLock = new();
-
+	private readonly System.Threading.Lock _adjustmentLock = new();
 #else
-
 	private readonly object _adjustmentLock = new();
-
 #endif
 
-	private readonly Process _currentProcess = Process.GetCurrentProcess();
 	private DateTimeOffset _lastAdjustmentTime = DateTimeOffset.UtcNow;
 
 	/// <summary>
@@ -255,12 +250,18 @@ internal sealed class AdaptiveFlowControlStrategy(
 		CurrentMaxBytes = newMaxBytes;
 	}
 
-	private double GetMemoryPressurePercentage()
+	private static double GetMemoryPressurePercentage()
 	{
 		try
 		{
-			_currentProcess.Refresh();
-			var workingSet = _currentProcess.WorkingSet64;
+			// Use on-demand Process access to avoid storing a Process handle as a field (native handle leak).
+			// Process.GetCurrentProcess() returns a new handle each time; use it briefly and dispose.
+			long workingSet;
+			using (var process = Process.GetCurrentProcess())
+			{
+				workingSet = process.WorkingSet64;
+			}
+
 			var totalMemory = GC.GetTotalMemory(forceFullCollection: false);
 
 			// Get available physical memory (this is platform-specific) For now, use a simple heuristic based on GC pressure
@@ -271,9 +272,8 @@ internal sealed class AdaptiveFlowControlStrategy(
 
 			return Math.Min(pressure, 100);
 		}
-		catch (Exception ex)
+		catch
 		{
-			_logger.LogWarning(ex, "Failed to calculate memory pressure, assuming 50%");
 			return 50.0; // Conservative default
 		}
 	}

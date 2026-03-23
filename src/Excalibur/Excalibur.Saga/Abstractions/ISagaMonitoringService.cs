@@ -49,7 +49,7 @@ public interface ISagaMonitoringService
 	/// <returns>The number of completed saga instances matching the criteria.</returns>
 	Task<int> GetCompletedCountAsync(
 		string? sagaType,
-		DateTime? since,
+		DateTimeOffset? since,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -109,6 +109,6 @@ public interface ISagaMonitoringService
 	/// </remarks>
 	Task<TimeSpan?> GetAverageCompletionTimeAsync(
 		string sagaType,
-		DateTime since,
+		DateTimeOffset since,
 		CancellationToken cancellationToken);
 }

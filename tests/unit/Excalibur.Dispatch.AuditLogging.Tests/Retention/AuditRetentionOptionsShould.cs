@@ -2,7 +2,9 @@ using Excalibur.Dispatch.AuditLogging.Retention;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Retention;
 
-public class AuditRetentionOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditRetentionOptionsShould
 {
     [Fact]
     public void Default_retention_period_to_seven_years()

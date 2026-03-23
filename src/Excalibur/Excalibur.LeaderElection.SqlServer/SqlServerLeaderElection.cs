@@ -26,12 +26,9 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	private readonly LeaderElectionOptions _options;
 	private readonly ILogger<SqlServerLeaderElection> _logger;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
-
 #endif
 
 	private SqlConnection? _connection;
@@ -40,7 +37,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	private bool _isStarted;
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
-	private volatile bool _disposed;
+	private int _disposed;
 	private DateTimeOffset _lastSuccessfulRenewal;
 
 	/// <summary>
@@ -94,7 +91,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
 		lock (_lock)
 		{
@@ -118,7 +115,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// <inheritdoc/>
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
 		bool wasLeader;
 
@@ -145,7 +142,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 				{
 					await _renewalTask.ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
 					// Expected
 				}
@@ -178,12 +175,10 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
-		if (_disposed)
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
 		{
 			return;
 		}
-
-		_disposed = true;
 
 		if (_isStarted)
 		{
@@ -322,7 +317,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 					}
 				}
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

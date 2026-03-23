@@ -7,10 +7,17 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// Specifies the dead letter strategy for RabbitMQ quorum queues.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Quorum queues support two dead letter strategies that control how messages
 /// are forwarded to the dead letter exchange.
+/// </para>
+/// <para>
+/// Renamed from <c>DeadLetterStrategy</c> to avoid collision with
+/// <c>Excalibur.Dispatch.Transport.DeadLetterStrategy</c> which defines
+/// generic dead letter handling strategies (Drop, MoveToDeadLetterQueue, etc.).
+/// </para>
 /// </remarks>
-public enum DeadLetterStrategy
+public enum QuorumDeadLetterStrategy
 {
 	/// <summary>
 	/// Messages are dead-lettered at most once. If the dead letter exchange

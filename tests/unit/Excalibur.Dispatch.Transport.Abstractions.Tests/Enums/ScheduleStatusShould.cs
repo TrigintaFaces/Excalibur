@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Enums;
 
-public class ScheduleStatusShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class ScheduleStatusShould
 {
     [Theory]
     [InlineData(ScheduleStatus.Scheduled, 0)]

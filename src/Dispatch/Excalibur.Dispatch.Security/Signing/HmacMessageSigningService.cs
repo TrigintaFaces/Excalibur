@@ -44,7 +44,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 	private readonly ILogger<HmacMessageSigningService> _logger;
 	private readonly IKeyProvider _keyProvider;
 	private readonly ConcurrentDictionary<string, (byte[] Key, long ExpiresAtTimestamp)> _keyCache = new(StringComparer.Ordinal);
-	private volatile bool _disposed;
+	private volatile int _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="HmacMessageSigningService" /> class.
@@ -72,6 +72,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		SigningContext context,
 		CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed == 1, this);
 		ArgumentNullException.ThrowIfNull(content);
 		ArgumentNullException.ThrowIfNull(context);
 
@@ -103,6 +104,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		SigningContext context,
 		CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed == 1, this);
 		ArgumentNullException.ThrowIfNull(content);
 		ArgumentNullException.ThrowIfNull(context);
 
@@ -146,6 +148,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		SigningContext context,
 		CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed == 1, this);
 		ArgumentNullException.ThrowIfNull(content);
 		ArgumentNullException.ThrowIfNull(signature);
 		ArgumentNullException.ThrowIfNull(context);
@@ -179,6 +182,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		SigningContext context,
 		CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed == 1, this);
 		ArgumentNullException.ThrowIfNull(content);
 		ArgumentNullException.ThrowIfNull(signature);
 		ArgumentNullException.ThrowIfNull(context);
@@ -234,6 +238,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		SigningContext context,
 		CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed == 1, this);
 		ArgumentNullException.ThrowIfNull(content);
 		ArgumentNullException.ThrowIfNull(context);
 
@@ -256,6 +261,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		SigningContext context,
 		CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed == 1, this);
 		ArgumentNullException.ThrowIfNull(signedMessage);
 		ArgumentNullException.ThrowIfNull(context);
 
@@ -287,20 +293,18 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 	/// <inheritdoc />
 	public void Dispose()
 	{
-		if (_disposed)
+		if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
 		{
 			return;
 		}
 
-		// Clear sensitive key material
+		// Clear sensitive key material after setting _disposed to prevent concurrent re-population
 		foreach (var entry in _keyCache.Values)
 		{
-			Array.Clear(entry.Key, 0, entry.Key.Length);
+			CryptographicOperations.ZeroMemory(entry.Key);
 		}
 
 		_keyCache.Clear();
-
-		_disposed = true;
 	}
 
 	private static byte[] PrepareDataWithTimestamp(byte[] content)
@@ -340,7 +344,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 			// Expired - remove and clear sensitive data
 			if (_keyCache.TryRemove(keyId, out var expired))
 			{
-				Array.Clear(expired.Key, 0, expired.Key.Length);
+				CryptographicOperations.ZeroMemory(expired.Key);
 			}
 		}
 

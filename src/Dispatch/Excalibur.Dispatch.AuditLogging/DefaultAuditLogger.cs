@@ -51,7 +51,7 @@ public sealed partial class DefaultAuditLogger : IAuditLogger
 
 			return result;
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			throw;
 		}

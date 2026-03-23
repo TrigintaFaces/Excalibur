@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,7 @@ public sealed class SagaManager(ISagaStore sagaStore, IServiceProvider servicePr
 	/// <returns> Task representing the asynchronous saga event handling operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when event parameter is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when saga cannot be instantiated or state cannot be managed. </exception>
+	/// <exception cref="ConcurrencyException"> Thrown when the saga state was modified by another handler between load and save. </exception>
 	// MA0038: Cannot make method static - requires access to sagaStore and loggerFactory instance fields from primary constructor
 #pragma warning disable MA0038
 
@@ -50,9 +52,19 @@ public sealed class SagaManager(ISagaStore sagaStore, IServiceProvider servicePr
 	{
 		var sagaState = await sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false) ??
 						new TSagaState { SagaId = sagaId };
+
+		// Capture the version at load time for optimistic concurrency check
+		var loadedVersion = sagaState.Version;
+
 		var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
 
 		await saga.HandleAsync(@event, cancellationToken).ConfigureAwait(false);
+
+		// Increment version before save. The store implementation MUST atomically
+		// compare the expected version and throw ConcurrencyException on mismatch.
+		// Do NOT re-load to check here -- that creates a TOCTOU race.
+		sagaState.Version = loadedVersion + 1;
+
 		await sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
 	}
 

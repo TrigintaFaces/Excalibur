@@ -26,7 +26,6 @@ namespace Excalibur.Data.Abstractions;
 ///     ?? throw new ResourceNotFoundException("User", userId.ToString());
 /// </code>
 /// </example>
-[Serializable]
 public sealed class ResourceNotFoundException : ResourceException
 {
 	/// <summary>

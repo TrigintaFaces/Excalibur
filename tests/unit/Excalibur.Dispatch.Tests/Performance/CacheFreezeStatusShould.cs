@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Performance;
 ///     Tests for the <see cref="CacheFreezeStatus" /> record.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CacheFreezeStatusShould
 {
 	[Fact]

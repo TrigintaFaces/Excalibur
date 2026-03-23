@@ -182,7 +182,7 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 
 		// Assert -- key CDC services should be registered
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ICdcStateStore) &&
+			sd.ServiceType == typeof(ISqlServerCdcStateStore) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
 
 		services.ShouldContain(sd =>

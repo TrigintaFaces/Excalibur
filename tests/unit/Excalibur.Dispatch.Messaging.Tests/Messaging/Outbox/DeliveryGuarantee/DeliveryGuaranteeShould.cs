@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Outbox.DeliveryGuarantee;
 /// 5. Failure recovery behavior
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DeliveryGuaranteeShould
 {
 	#region Test 1: AtLeastOnce Batch Completion

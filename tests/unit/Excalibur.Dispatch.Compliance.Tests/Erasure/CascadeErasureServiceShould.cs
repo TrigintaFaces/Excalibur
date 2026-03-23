@@ -2,7 +2,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Erasure;
 
-public class CascadeErasureServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class CascadeErasureServiceShould
 {
     private readonly IErasureService _erasureService;
     private readonly ICascadeRelationshipResolver _resolver;

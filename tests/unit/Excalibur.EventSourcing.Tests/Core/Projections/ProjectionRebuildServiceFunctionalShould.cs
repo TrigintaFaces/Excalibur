@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Queries;
@@ -19,6 +20,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 /// Functional tests for <see cref="ProjectionRebuildService"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class ProjectionRebuildServiceFunctionalShould
 {
 	private sealed class TestProjection
@@ -36,6 +38,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 
 		var sut = new ProjectionRebuildService(
 			serviceProvider,
+			A.Fake<IEventSerializer>(),
 			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
 			NullLogger<ProjectionRebuildService>.Instance);
 
@@ -61,6 +64,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 
 		var sut = new ProjectionRebuildService(
 			serviceProvider,
+			A.Fake<IEventSerializer>(),
 			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
 			NullLogger<ProjectionRebuildService>.Instance);
 
@@ -89,6 +93,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 
 		var sut = new ProjectionRebuildService(
 			serviceProvider,
+			A.Fake<IEventSerializer>(),
 			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { BatchSize = 100 }),
 			NullLogger<ProjectionRebuildService>.Instance);
 
@@ -107,6 +112,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 		// Arrange
 		var sut = new ProjectionRebuildService(
 			A.Fake<IServiceProvider>(),
+			A.Fake<IEventSerializer>(),
 			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
 			NullLogger<ProjectionRebuildService>.Instance);
 
@@ -124,6 +130,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 		Should.Throw<ArgumentNullException>(() =>
 			new ProjectionRebuildService(
 				null!,
+				A.Fake<IEventSerializer>(),
 				Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
 				NullLogger<ProjectionRebuildService>.Instance));
 	}

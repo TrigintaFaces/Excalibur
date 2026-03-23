@@ -7,6 +7,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="IInboxOptionsBuilder"/> implementation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class InboxOptionsBuilderShould : UnitTestBase
 {
 	#region WithQueueCapacity Tests

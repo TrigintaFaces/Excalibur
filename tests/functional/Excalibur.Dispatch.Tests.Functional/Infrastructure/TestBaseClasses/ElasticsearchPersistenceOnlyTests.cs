@@ -6,6 +6,8 @@ using Tests.Shared.Fixtures;
 namespace Excalibur.Dispatch.Tests.Functional.Infrastructure.TestBaseClasses;
 
 [CollectionDefinition(nameof(ElasticsearchPersistenceOnlyTests))]
-public class ElasticsearchPersistenceOnlyTests : ICollectionFixture<ElasticsearchContainerFixture>
+[Trait("Category", "Functional")]
+[Trait("Component", "Core")]
+public sealed class ElasticsearchPersistenceOnlyTests : ICollectionFixture<ElasticsearchContainerFixture>
 {
 }

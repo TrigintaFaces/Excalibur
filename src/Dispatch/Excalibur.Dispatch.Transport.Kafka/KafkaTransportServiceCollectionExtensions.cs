@@ -199,6 +199,9 @@ public static class KafkaTransportServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KafkaOptions>, KafkaOptionsValidator>());
+
 		// Configure CloudEventOptions from transport options
 		_ = services.AddOptions<KafkaCloudEventOptions>()
 			.Configure(cloudEventOptions =>

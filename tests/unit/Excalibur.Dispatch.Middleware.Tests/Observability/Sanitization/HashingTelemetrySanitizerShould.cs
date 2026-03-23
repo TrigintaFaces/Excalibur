@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Sanitization;
 /// Unit tests for <see cref="HashingTelemetrySanitizer"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class HashingTelemetrySanitizerShould : UnitTestBase
 {
 	[Fact]

@@ -23,7 +23,6 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
 using Excalibur.Outbox.Diagnostics;
 
-using Microsoft.ApplicationInsights;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -72,9 +71,11 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	private readonly DispatchJsonSerializer _serializer;
 	private readonly ISerializer? _internalSerializer;
 	private readonly ILogger<InboxProcessor> _logger;
-	private readonly TelemetryClient? _telemetryClient;
 	private readonly BatchProcessingMetrics _batchMetrics;
 	private readonly DynamicBatchSizeCalculator? _batchSizeCalculator;
+
+	// Deduplication
+	private readonly IDeduplicationStore? _deduplicationStore;
 
 	// Resilience components
 	private readonly IDeadLetterQueue _deadLetterQueue;
@@ -104,7 +105,6 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	/// <param name="serviceProvider"> Service provider for dependency injection and handler activation. </param>
 	/// <param name="serializer"> JSON serializer for message serialization and deserialization operations. </param>
 	/// <param name="logger"> Logger for diagnostic and operational messaging. </param>
-	/// <param name="telemetryClient"> Optional Application Insights client for metrics collection. </param>
 	/// <param name="internalSerializer"> Optional internal serializer for high-performance binary envelope serialization. </param>
 	/// <param name="deadLetterQueue"> Optional dead letter queue for failed messages. Uses NullDeadLetterQueue if not provided. </param>
 	/// <param name="circuitBreakerRegistry">
@@ -112,6 +112,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	/// </param>
 	/// <param name="backoffCalculator"> Optional backoff calculator for retry delays. Uses ExponentialBackoffCalculator if not provided. </param>
 	/// <param name="deliveryGuaranteeOptions"> Optional delivery guarantee options. Uses default at-least-once semantics if not provided. </param>
+	/// <param name="deduplicationStore"> Optional deduplication store for exactly-once message processing. When provided, duplicate messages are skipped. </param>
 	/// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when configuration options are invalid or inconsistent. </exception>
 	/// <remarks>
@@ -125,12 +126,12 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		IServiceProvider serviceProvider,
 		DispatchJsonSerializer serializer,
 		ILogger<InboxProcessor> logger,
-		TelemetryClient? telemetryClient = null,
 		ISerializer? internalSerializer = null,
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
-		IOptions<DeliveryGuaranteeOptions>? deliveryGuaranteeOptions = null)
+		IOptions<DeliveryGuaranteeOptions>? deliveryGuaranteeOptions = null,
+		IDeduplicationStore? deduplicationStore = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(inboxStore);
@@ -150,13 +151,15 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		_serializer = serializer;
 		_internalSerializer = internalSerializer;
 		_logger = logger;
-		_telemetryClient = telemetryClient;
 		_queueCapacity = _options.QueueCapacity;
 		_inboxMessages = Channel.CreateBounded<IInboxMessage>(new BoundedChannelOptions(_options.QueueCapacity)
 		{
 			FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = false, AllowSynchronousContinuations = false,
 		});
-		_batchMetrics = new BatchProcessingMetrics($"InboxProcessor.{nameof(BatchProcessingMetrics)}", telemetryClient);
+		_batchMetrics = new BatchProcessingMetrics($"InboxProcessor.{nameof(BatchProcessingMetrics)}");
+
+		// Initialize deduplication (opt-in)
+		_deduplicationStore = deduplicationStore;
 
 		// Initialize resilience components with null object pattern defaults
 		_deadLetterQueue = deadLetterQueue ?? NullDeadLetterQueue.Instance;
@@ -463,10 +466,10 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 				reachedLimit = _options.PerRunTotal > 0 && totalQueued >= _options.PerRunTotal;
 
-				_telemetryClient?.GetMetric("Inbox.BatchSize").TrackValue(batch.Count);
+				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Inbox, BackgroundServiceOperations.Pending, batch.Count);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			LogProducerCanceled();
 		}
@@ -533,7 +536,13 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					// Sequential processing (backward compatibility)
 					foreach (var record in batch)
 					{
+						if (await IsDuplicateAsync(record.ExternalMessageId, cancellationToken).ConfigureAwait(false))
+						{
+							continue;
+						}
+
 						await DispatchSingleMessageAsync(record, cancellationToken).ConfigureAwait(false);
+						await MarkDeduplicatedAsync(record.ExternalMessageId, cancellationToken).ConfigureAwait(false);
 						totalProcessedCount++;
 					}
 				}
@@ -547,10 +556,10 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					duration,
 					new Dictionary<string, object?>(StringComparer.Ordinal) { ["ProcessorType"] = "Inbox" });
 
-				_telemetryClient?.TrackMetric("InboxMessagesDispatched", totalProcessedCount);
+				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Inbox, BackgroundServiceOperations.Dispatch, totalProcessedCount);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			LogConsumerCanceled();
 		}
@@ -563,19 +572,51 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 		LogProcessingComplete(totalProcessedCount);
 
-		_telemetryClient?.GetMetric("Inbox.RecordsProcessed").TrackValue(totalProcessedCount);
+		BackgroundServiceMetrics.RecordProcessingCycle(BackgroundServiceTypes.Inbox, totalProcessedCount > 0 ? BackgroundServiceResults.Success : BackgroundServiceResults.Empty);
 
 		return totalProcessedCount;
 	}
 
 	private async Task<IReadOnlyCollection<InboxEntry>> ReserveBatchRecordsAsync(int batchSize, CancellationToken cancellationToken)
 	{
-		// Get failed entries for retry processing (using available interface method)
-		var records = await _inboxStore
+		// Get failed entries for retry processing via admin interface
+		var admin = (IInboxStoreAdmin)_inboxStore;
+		var records = await admin
 			.GetFailedEntriesAsync(3, DateTimeOffset.UtcNow.AddMinutes(-5), batchSize, cancellationToken)
 			.ConfigureAwait(false);
 
 		return records.ToList().AsReadOnly();
+	}
+
+	/// <summary>
+	/// Checks if a message is a duplicate using the deduplication store (if configured).
+	/// Returns true if the message should be skipped.
+	/// </summary>
+	private async Task<bool> IsDuplicateAsync(string messageId, CancellationToken cancellationToken)
+	{
+		if (_deduplicationStore is null)
+		{
+			return false;
+		}
+
+		var isDuplicate = await _deduplicationStore.ContainsAsync(messageId, cancellationToken).ConfigureAwait(false);
+		if (isDuplicate)
+		{
+			LogDuplicateDetected(messageId);
+		}
+
+		return isDuplicate;
+	}
+
+	/// <summary>
+	/// Marks a message as processed in the deduplication store (if configured).
+	/// </summary>
+	private async Task MarkDeduplicatedAsync(string messageId, CancellationToken cancellationToken)
+	{
+		if (_deduplicationStore is not null)
+		{
+			await _deduplicationStore.AddAsync(messageId, null, cancellationToken).ConfigureAwait(false);
+		}
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
@@ -593,6 +634,13 @@ public sealed partial class InboxProcessor : IInboxProcessor
 			batch,
 			async (message, ct) =>
 			{
+				// Check deduplication before processing
+				if (await IsDuplicateAsync(message.ExternalMessageId, ct).ConfigureAwait(false))
+				{
+					successfulMessages.Add((message.ExternalMessageId, message.MessageType));
+					return;
+				}
+
 				var attempt = message.Attempts + 1;
 
 				// Get circuit breaker for the message type
@@ -618,6 +666,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 					// Record success for circuit breaker
 					circuitBreaker.RecordSuccess();
+
+					// Mark as processed in deduplication store
+					await MarkDeduplicatedAsync(message.ExternalMessageId, ct).ConfigureAwait(false);
 
 					successfulMessages.Add((message.ExternalMessageId, message.MessageType));
 				}
@@ -930,4 +981,8 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	[LoggerMessage(OutboxEventId.InboxRetryWithBackoff, LogLevel.Debug,
 		"Inbox message {MessageId} retry attempt {Attempt}, backoff delay {DelayMs}ms")]
 	private partial void LogRetryWithBackoff(string messageId, int attempt, double delayMs);
+
+	[LoggerMessage(OutboxEventId.InboxDuplicateDetected, LogLevel.Information,
+		"Duplicate inbox message {MessageId} detected by deduplication store, skipping")]
+	private partial void LogDuplicateDetected(string messageId);
 }

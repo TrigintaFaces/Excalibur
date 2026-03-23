@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience.Hedging;
 /// Unit tests for <see cref="HedgingPolicy"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class HedgingPolicyShould : UnitTestBase
 {
 	[Fact]

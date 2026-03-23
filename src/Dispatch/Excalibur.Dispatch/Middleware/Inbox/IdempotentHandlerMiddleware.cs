@@ -54,6 +54,8 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 
 	private readonly ILogger<IdempotentHandlerMiddleware> _logger;
 
+	private volatile bool _inMemoryFallbackWarned;
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="IdempotentHandlerMiddleware"/> class.
 	/// </summary>
@@ -79,9 +81,8 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 	/// <inheritdoc />
 	/// <remarks>
 	/// The middleware runs just before handler execution to check for duplicates.
-	/// Using Processing - 1 ensures it runs after routing but before the handler.
 	/// </remarks>
-	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Processing - 1;
+	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Deduplication;
 
 	/// <inheritdoc />
 	public async ValueTask<IMessageResult> InvokeAsync(
@@ -119,6 +120,7 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 		}
 
 		// 4. Check if already processed
+		LogIdempotencyExecuting(messageId, handlerType.Name);
 		var handlerTypeName = handlerType.FullName ?? handlerType.Name;
 
 		bool isDuplicate;
@@ -134,6 +136,7 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 		else
 		{
 			// No inbox store configured, fall back to in-memory
+			WarnInMemoryFallback();
 			isDuplicate = await _inMemoryDeduplicator.IsDuplicateAsync(messageId, settings.Retention, cancellationToken)
 				.ConfigureAwait(false);
 		}
@@ -161,6 +164,7 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 			else
 			{
 				// Fall back to in-memory
+				WarnInMemoryFallback();
 				await _inMemoryDeduplicator.MarkProcessedAsync(messageId, settings.Retention, cancellationToken).ConfigureAwait(false);
 			}
 
@@ -215,6 +219,10 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 	}
 
 	// Source-generated logging methods
+	[LoggerMessage(MiddlewareEventId.IdempotencyMiddlewareExecuting, LogLevel.Trace,
+		"Idempotency check executing for message {MessageId} on handler {HandlerType}")]
+	private partial void LogIdempotencyExecuting(string messageId, string handlerType);
+
 	[LoggerMessage(MiddlewareEventId.DuplicateRequestDetected, LogLevel.Information,
 		"Duplicate message {MessageId} skipped for handler {HandlerType}")]
 	private partial void LogDuplicateSkipped(string messageId, string handlerType);
@@ -226,6 +234,21 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 	[LoggerMessage(MiddlewareEventId.IdempotencyKeyGenerated, LogLevel.Debug,
 		"No message ID available for idempotency check on handler {HandlerType}")]
 	private partial void LogNoMessageId(string handlerType);
+
+	[LoggerMessage(MiddlewareEventId.IdempotencyInMemoryFallback, LogLevel.Warning,
+		"[Idempotent] handlers are using in-memory deduplication because no IInboxStore is registered. " +
+		"Deduplication state will be lost on restart, risking duplicate processing in production. " +
+		"Register a persistent IInboxStore via AddSqlServerInboxStore(), AddPostgresInboxStore(), etc.")]
+	private partial void LogInMemoryFallbackWarning();
+
+	private void WarnInMemoryFallback()
+	{
+		if (!_inMemoryFallbackWarned)
+		{
+			_inMemoryFallbackWarned = true;
+			LogInMemoryFallbackWarning();
+		}
+	}
 
 	/// <summary>
 	/// Gets idempotency settings from ConfigureInbox or [Idempotent] attribute.

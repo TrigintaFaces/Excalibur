@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 ///     Tests for the <see cref="InMemoryDeduplicator" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryDeduplicatorShould : IDisposable
 {
 	private static readonly TimeSpan ShortExpiry = TimeSpan.FromMilliseconds(100);
@@ -131,7 +132,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		await _sut.MarkProcessedAsync("msg-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
 		await _sut.MarkProcessedAsync("msg-2", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
 
-		await _sut.ClearAsync().ConfigureAwait(false);
+		await _sut.ClearAsync(CancellationToken.None).ConfigureAwait(false);
 
 		var stats = _sut.GetStatistics();
 		stats.TrackedMessageCount.ShouldBe(0);
@@ -162,4 +163,3 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 
 	public void Dispose() => _sut.Dispose();
 }
-

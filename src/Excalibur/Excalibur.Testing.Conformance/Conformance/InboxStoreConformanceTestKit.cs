@@ -54,6 +54,17 @@ public abstract class InboxStoreConformanceTestKit
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
 
 	/// <summary>
+	/// Creates the admin interface from the store. Requires the store to implement <see cref="IInboxStoreAdmin"/>.
+	/// </summary>
+	/// <param name="store">The inbox store instance.</param>
+	/// <returns>The admin interface.</returns>
+	/// <exception cref="InvalidOperationException">If the store does not implement <see cref="IInboxStoreAdmin"/>.</exception>
+	protected static IInboxStoreAdmin CreateAdminStore(IInboxStore store) =>
+		store as IInboxStoreAdmin
+		?? throw new InvalidOperationException(
+			$"Conformance test requires {store.GetType().Name} to implement IInboxStoreAdmin.");
+
+	/// <summary>
 	/// Generates a unique message ID for test isolation.
 	/// </summary>
 	/// <returns>A unique message identifier.</returns>
@@ -501,7 +512,7 @@ public abstract class InboxStoreConformanceTestKit
 		await store.MarkFailedAsync(messageId2, handlerType, "Error 3", CancellationToken.None).ConfigureAwait(false);
 
 		// Query with maxRetries=2 - should only return entry1 (1 retry <= 2)
-		var failedEntries = await store.GetFailedEntriesAsync(
+		var failedEntries = await CreateAdminStore(store).GetFailedEntriesAsync(
 			maxRetries: 2,
 			olderThan: null,
 			batchSize: 100,
@@ -605,7 +616,7 @@ public abstract class InboxStoreConformanceTestKit
 		await store.MarkFailedAsync(failedMsgId, handlerType, "Test error", CancellationToken.None)
 			.ConfigureAwait(false);
 
-		var stats = await store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await CreateAdminStore(store).GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		if (stats is null)
 		{
@@ -661,7 +672,7 @@ public abstract class InboxStoreConformanceTestKit
 		var removedOrMissing = false;
 		do
 		{
-			removedCount += await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			removedCount += await CreateAdminStore(store).CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			var currentEntry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
 			if (currentEntry is null || removedCount > 0)
 			{
@@ -700,7 +711,7 @@ public abstract class InboxStoreConformanceTestKit
 			.ConfigureAwait(false);
 
 		// Cleanup with long retention (1 hour) - should preserve recent entries
-		_ = await store.CleanupAsync(TimeSpan.FromHours(1), CancellationToken.None)
+		_ = await CreateAdminStore(store).CleanupAsync(DateTimeOffset.UtcNow.AddHours(-1), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Entry should still exist (was just created)
@@ -823,7 +834,7 @@ public abstract class InboxStoreConformanceTestKit
 				.ConfigureAwait(false);
 		}
 
-		var allEntries = await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+		var allEntries = await CreateAdminStore(store).GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 		var entriesList = allEntries.ToList();
 
 		// Should contain at least our 3 entries

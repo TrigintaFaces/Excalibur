@@ -23,7 +23,6 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
 using Excalibur.Outbox.Diagnostics;
 
-using Microsoft.ApplicationInsights;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -57,7 +56,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private static readonly CompositeFormat AttemptedToRunWithoutCallingInitFormat =
 		CompositeFormat.Parse(ErrorConstants.AttemptedToRunWithoutCallingInit);
 
-	private readonly OutboxOptions _options;
+	private readonly OutboxDeliveryOptions _options;
 	private readonly Channel<IOutboxMessage> _outboxMessages;
 	private readonly int _queueCapacity;
 
@@ -68,7 +67,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private readonly ISerializer? _internalSerializer;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<OutboxProcessor> _logger;
-	private readonly TelemetryClient? _telemetryClient;
 	private readonly BatchProcessingMetrics _batchMetrics;
 	private readonly DynamicBatchSizeCalculator? _batchSizeCalculator;
 
@@ -101,7 +99,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <param name="serializer"> JSON serializer for message and metadata serialization/deserialization. </param>
 	/// <param name="serviceProvider"> Service provider for dependency injection and message bus resolution. </param>
 	/// <param name="logger"> Logger for outbox processing activities, errors, and performance monitoring. </param>
-	/// <param name="telemetryClient"> Optional Application Insights telemetry client for advanced monitoring. </param>
 	/// <param name="internalSerializer"> Optional internal serializer for high-performance binary envelope serialization. </param>
 	/// <param name="deadLetterQueue"> Optional dead letter queue for failed messages. Uses NullDeadLetterQueue if not provided. </param>
 	/// <param name="circuitBreakerRegistry">
@@ -114,12 +111,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when configuration validation fails. </exception>
 	public OutboxProcessor(
-		IOptions<OutboxOptions> options,
+		IOptions<OutboxDeliveryOptions> options,
 		IOutboxStore outboxStore,
 		DispatchJsonSerializer serializer,
 		IServiceProvider serviceProvider,
 		ILogger<OutboxProcessor> logger,
-		TelemetryClient? telemetryClient = null,
 		ISerializer? internalSerializer = null,
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
@@ -144,13 +140,12 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		_internalSerializer = internalSerializer;
 		_serviceProvider = serviceProvider;
 		_logger = logger;
-		_telemetryClient = telemetryClient;
 		_queueCapacity = options.Value.QueueCapacity;
 		_outboxMessages = Channel.CreateBounded<IOutboxMessage>(new BoundedChannelOptions(options.Value.QueueCapacity)
 		{
 			FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = false, AllowSynchronousContinuations = false,
 		});
-		_batchMetrics = new BatchProcessingMetrics($"OutboxProcessor.{nameof(BatchProcessingMetrics)}", telemetryClient);
+		_batchMetrics = new BatchProcessingMetrics($"OutboxProcessor.{nameof(BatchProcessingMetrics)}");
 
 		// Initialize resilience components with null object pattern defaults
 		_deadLetterQueue = deadLetterQueue ?? NullDeadLetterQueue.Instance;
@@ -203,11 +198,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			throw new InvalidOperationException(string.Format(CultureInfo.InvariantCulture, AttemptedToRunWithoutCallingInitFormat,
 				nameof(DispatchPendingMessagesAsync), nameof(Init)));
 		}
-
-		// Get unsent messages for processing (using available interface method)
-		var unsentMessages = await _outboxStore
-			.GetUnsentMessagesAsync(_options.ProducerBatchSize, cancellationToken)
-			.ConfigureAwait(false);
 
 		_producerTask = Task.Factory
 			.StartNew(
@@ -431,10 +421,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 				reachedLimit = _options.PerRunTotal > 0 && totalQueued >= _options.PerRunTotal;
 
-				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(batch.Count);
+				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Pending, batch.Count);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			LogOutboxProducerCanceled();
 		}
@@ -511,10 +501,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					duration,
 					new Dictionary<string, object?>(StringComparer.Ordinal) { ["ProcessorType"] = "Outbox" });
 
-				_telemetryClient?.TrackMetric("OutboxMessagesDispatched", totalProcessedCount);
+				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, totalProcessedCount);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			LogConsumerCanceled();
 		}
@@ -527,7 +517,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 		LogOutboxProcessingCompleted(totalProcessedCount);
 
-		_telemetryClient?.GetMetric("Outbox.RecordsProcessed").TrackValue(totalProcessedCount);
+		BackgroundServiceMetrics.RecordProcessingCycle(BackgroundServiceTypes.Outbox, totalProcessedCount > 0 ? BackgroundServiceResults.Success : BackgroundServiceResults.Empty);
 
 		return totalProcessedCount;
 	}
@@ -572,15 +562,12 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			return;
 		}
 
+		using var activity = BackgroundServiceActivitySource.StartMessageDispatch(BackgroundServiceTypes.Outbox, message.MessageId);
+		_ = activity?.SetTag("excalibur.outbox.dispatcher_id", _dispatcherId);
+		_ = activity?.SetTag("messaging.message_type", message.MessageType);
+
 		try
 		{
-			_telemetryClient?.TrackEvent(
-				"Outbox.OutboxRecordDispatchStarted",
-				new Dictionary<string, string>(StringComparer.Ordinal)
-				{
-					{ "DispatcherId", _dispatcherId }, { "MessageId", message.MessageId }
-				});
-
 			LogDispatchingOutboxRecord(message.MessageId, _dispatcherId);
 
 			// Execute dispatch through circuit breaker
@@ -595,13 +582,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 			LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId);
 
-			_telemetryClient?.TrackMetric("Outbox.MessageProcessingDuration", stopwatch.Elapsed.TotalMilliseconds);
-			_telemetryClient?.TrackEvent(
-				"Outbox.OutboxRecordDispatchSucceeded",
-				new Dictionary<string, string>(StringComparer.Ordinal)
-				{
-					{ "DispatcherId", _dispatcherId }, { "MessageId", message.MessageId }
-				});
+			BackgroundServiceMetrics.RecordProcessingDuration(BackgroundServiceTypes.Outbox, stopwatch.Elapsed.TotalMilliseconds);
 
 			await _outboxStore.MarkSentAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
 
@@ -620,13 +601,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 			LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId, ex);
 
-			_telemetryClient?.TrackException(
-				ex,
-				new Dictionary<string, string>
-					(StringComparer.Ordinal)
-					{
-						{ "DispatcherId", _dispatcherId }, { "MessageId", message.MessageId }, { "ErrorType", ex.GetType().Name },
-					});
+			activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
+			BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
 
 			// Check if max retries exceeded
 			if (attempt >= _options.MaxAttempts)
@@ -703,7 +679,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	{
 		var stopwatch = ValueStopwatch.StartNew();
 		var successfulIds = new ConcurrentBag<string>();
-		var failedToRetry = new ConcurrentBag<string>();
+		var failedToRetry = new ConcurrentBag<(string MessageId, int AttemptCount)>();
 		var failedToDeadLetter =
 			new ConcurrentBag<(string MessageId, IOutboxMessage Message, Exception? Exception, DeadLetterReason Reason)>();
 
@@ -772,11 +748,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 						var backoffDelay = _backoffCalculator.CalculateDelay(attempt);
 						LogRetryWithBackoff(message.MessageId, attempt, backoffDelay.TotalMilliseconds);
 
-						failedToRetry.Add(message.MessageId);
+						failedToRetry.Add((message.MessageId, attempt));
 					}
 					else
 					{
-						failedToRetry.Add(message.MessageId);
+						failedToRetry.Add((message.MessageId, attempt));
 					}
 
 					throw; // Re-throw for Batching to track
@@ -806,7 +782,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			else if (_options.EnableBatchDatabaseOperations)
 			{
 				// AtLeastOnce with batch operations
-				await PerformBatchDatabaseOperationsAsync(successfulIdsOnly, failedToRetry.ToList(), new List<string>(), cancellationToken)
+				await PerformBatchDatabaseOperationsAsync(successfulIdsOnly, failedToRetry.ToList(), new List<(string, int)>(), cancellationToken)
 					.ConfigureAwait(false);
 			}
 			else
@@ -822,20 +798,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// Handle failed messages for retry (applies to all guarantee levels)
 		if (!failedToRetry.IsEmpty)
 		{
-			if (_options.EnableBatchDatabaseOperations && _options.DeliveryGuarantee != OutboxDeliveryGuarantee.MinimizedWindow)
+			foreach (var (id, attemptCount) in failedToRetry)
 			{
-				// Batch operations handled above for non-MinimizedWindow
-				foreach (var id in failedToRetry)
-				{
-					await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, 1, cancellationToken).ConfigureAwait(false);
-				}
-			}
-			else
-			{
-				foreach (var id in failedToRetry)
-				{
-					await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, 1, cancellationToken).ConfigureAwait(false);
-				}
+				await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, attemptCount, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -865,20 +830,34 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 	private async Task PerformBatchDatabaseOperationsAsync(
 		List<string> successfulIds,
-		List<string> failedToRetry,
-		List<string> failedToDeadLetter,
+		List<(string MessageId, int AttemptCount)> failedToRetry,
+		List<(string MessageId, int AttemptCount)> failedToDeadLetter,
 		CancellationToken cancellationToken)
 	{
 		var tasks = new List<Task>();
 
 		if (successfulIds.Count > 0)
 		{
-			// Process successful messages in parallel
+			// Process successful messages in parallel -- individual try/catch prevents
+			// a single DB failure from leaving the entire batch in inconsistent state.
 			tasks.Add(Task.Factory.StartNew(async () =>
 			{
 				foreach (var id in successfulIds)
 				{
-					await _outboxStore.MarkSentAsync(id, cancellationToken).ConfigureAwait(false);
+					try
+					{
+						await _outboxStore.MarkSentAsync(id, cancellationToken).ConfigureAwait(false);
+					}
+					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+					{
+						throw;
+					}
+#pragma warning disable CA1031 // Individual message status update failure must not prevent processing remaining messages
+					catch (Exception ex)
+					{
+						LogErrorMarkingOutboxMessage(id, "Sent", ex);
+					}
+#pragma warning restore CA1031
 				}
 			}, cancellationToken, TaskCreationOptions.None, TaskScheduler.Default).Unwrap());
 		}
@@ -888,9 +867,22 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Process retry messages in parallel
 			tasks.Add(Task.Factory.StartNew(async () =>
 			{
-				foreach (var id in failedToRetry)
+				foreach (var (id, attemptCount) in failedToRetry)
 				{
-					await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, 1, cancellationToken).ConfigureAwait(false);
+					try
+					{
+						await _outboxStore.MarkFailedAsync(id, ErrorConstants.RetryAttempt, attemptCount, cancellationToken).ConfigureAwait(false);
+					}
+					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+					{
+						throw;
+					}
+#pragma warning disable CA1031 // Individual message status update failure must not prevent processing remaining messages
+					catch (Exception ex)
+					{
+						LogErrorMarkingOutboxMessage(id, "Failed", ex);
+					}
+#pragma warning restore CA1031
 				}
 			}, cancellationToken, TaskCreationOptions.None, TaskScheduler.Default).Unwrap());
 		}
@@ -900,11 +892,24 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Process dead letter messages in parallel
 			tasks.Add(Task.Factory.StartNew(async () =>
 			{
-				foreach (var id in failedToDeadLetter)
+				foreach (var (id, attemptCount) in failedToDeadLetter)
 				{
-					await _outboxStore
-						.MarkFailedAsync(id, ErrorConstants.MaxRetriesReachedMovedToDeadLetter, _options.MaxAttempts, cancellationToken)
-						.ConfigureAwait(false);
+					try
+					{
+						await _outboxStore
+							.MarkFailedAsync(id, ErrorConstants.MaxRetriesReachedMovedToDeadLetter, attemptCount, cancellationToken)
+							.ConfigureAwait(false);
+					}
+					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+					{
+						throw;
+					}
+#pragma warning disable CA1031 // Individual message status update failure must not prevent processing remaining messages
+					catch (Exception ex)
+					{
+						LogErrorMarkingOutboxMessage(id, "DeadLettered", ex);
+					}
+#pragma warning restore CA1031
 				}
 			}, cancellationToken, TaskCreationOptions.None, TaskScheduler.Default).Unwrap());
 		}
@@ -963,25 +968,14 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		Justification = "CancellationToken parameter required for async pattern consistency and future cancellation support")]
 	private async Task DispatchSingleMessageAsync(IOutboxMessage message, CancellationToken cancellationToken)
 	{
-		_telemetryClient?.TrackEvent(
-			"Outbox.OutboxRecordDispatchStarted",
-			new Dictionary<string, string>(StringComparer.Ordinal)
-			{
-				{ "DispatcherId", _dispatcherId }, { "MessageId", message.MessageId }
-			});
+		using var activity = BackgroundServiceActivitySource.StartMessageDispatch(BackgroundServiceTypes.Outbox, message.MessageId);
+		_ = activity?.SetTag("excalibur.outbox.dispatcher_id", _dispatcherId);
 
 		LogDispatchingOutboxRecord(message.MessageId, _dispatcherId);
 
 		await DispatchAsync(message, cancellationToken).ConfigureAwait(false);
 
 		LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId);
-
-		_telemetryClient?.TrackEvent(
-			"Outbox.OutboxRecordDispatchSucceeded",
-			new Dictionary<string, string>(StringComparer.Ordinal)
-			{
-				{ "DispatcherId", _dispatcherId }, { "MessageId", message.MessageId }
-			});
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
@@ -991,7 +985,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		if (await _serializer.DeserializeAsync(outboxMessage.MessageBody, typeof(OutboxMessage)).ConfigureAwait(false) is not OutboxMessage
 		    message)
 		{
-			_telemetryClient?.TrackMetric("Outbox.EmptyOutboxMessage", 1);
+			BackgroundServiceMetrics.RecordProcessingError(BackgroundServiceTypes.Outbox, "empty_message");
 			return;
 		}
 
@@ -1000,11 +994,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			var type = MessageTypeRegistry.GetType(message.MessageType)
 			           ?? throw new TypeLoadException($"{ErrorConstants.TypeNotFoundInRegistry}: {message.MessageType}");
 
-			if (await _serializer.DeserializeAsync(message.MessageBody, type).ConfigureAwait(false) is not IIntegrationEvent
-			    integrationEvent)
+			if (await _serializer.DeserializeAsync(message.MessageBody, type).ConfigureAwait(false) is not IDispatchMessage
+			    dispatchMessage)
 			{
 				throw new InvalidOperationException(
-					$"{ErrorConstants.CouldNotDeserializeAsIntegrationEvent}: {message.MessageType}");
+					$"{ErrorConstants.CouldNotDeserializeAsDispatchMessage}: {message.MessageType}");
 			}
 
 			var deserializedMetadata =
@@ -1035,7 +1029,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			messageContext.MessageId = message.MessageId;
 
 			var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
-			var result = await scopedDispatcher.DispatchAsync(integrationEvent, messageContext, cancellationToken)
+			var result = await scopedDispatcher.DispatchAsync(dispatchMessage, messageContext, cancellationToken)
 				.ConfigureAwait(false);
 
 			// Check if the dispatch was successful
@@ -1047,10 +1041,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 		catch (Exception ex)
 		{
-			_telemetryClient?.TrackException(
-				ex,
-				new Dictionary<string, string>(StringComparer.Ordinal) { { "MessageId", message.MessageId } });
-
 			LogDispatchFailed(message.MessageId, ex);
 
 			throw;
@@ -1138,4 +1128,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	[LoggerMessage(OutboxEventId.OutboxTransactionalFallback, LogLevel.Warning,
 		"TransactionalWhenApplicable requested but store does not support transactions. Falling back to MinimizedWindow behavior for {MessageCount} messages.")]
 	private partial void LogTransactionalFallback(int messageCount);
+
+	[LoggerMessage(OutboxEventId.OutboxErrorMarkingMessage, LogLevel.Error,
+		"Error marking outbox message {MessageId} as {TargetStatus} during batch completion")]
+	private partial void LogErrorMarkingOutboxMessage(string messageId, string targetStatus, Exception ex);
 }

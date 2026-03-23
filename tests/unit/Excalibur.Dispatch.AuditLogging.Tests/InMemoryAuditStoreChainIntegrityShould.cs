@@ -5,7 +5,9 @@ namespace Excalibur.Dispatch.AuditLogging.Tests;
 /// <summary>
 /// Tests specifically for hash chain integrity verification in InMemoryAuditStore.
 /// </summary>
-public class InMemoryAuditStoreChainIntegrityShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class InMemoryAuditStoreChainIntegrityShould
 {
     private readonly InMemoryAuditStore _sut = new();
 

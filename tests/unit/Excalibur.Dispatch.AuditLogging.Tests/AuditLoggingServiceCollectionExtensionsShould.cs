@@ -8,7 +8,9 @@ using Microsoft.Extensions.Hosting;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests;
 
-public class AuditLoggingServiceCollectionExtensionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditLoggingServiceCollectionExtensionsShould
 {
     [Fact]
     public void Register_default_audit_store()

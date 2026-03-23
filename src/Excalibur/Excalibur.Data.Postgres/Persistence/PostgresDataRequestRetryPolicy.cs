@@ -20,7 +20,7 @@ namespace Excalibur.Data.Postgres.Persistence;
 /// <remarks> Initializes a new instance of the <see cref="PostgresDataRequestRetryPolicy" /> class. </remarks>
 /// <param name="options"> The Postgres persistence options. </param>
 /// <param name="logger"> The logger for diagnostic output. </param>
-public sealed class PostgresDataRequestRetryPolicy(PostgresPersistenceOptions options, ILogger logger) : IDataRequestRetryPolicy
+internal sealed class PostgresDataRequestRetryPolicy(PostgresPersistenceOptions options, ILogger logger) : IRelationalDataRequestRetryPolicy
 {
 	private readonly PostgresPersistenceOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -84,23 +84,6 @@ public sealed class PostgresDataRequestRetryPolicy(PostgresPersistenceOptions op
 
 		// This should not be reached, but just in case
 		throw lastException ?? new InvalidOperationException("DataRequest execution failed after all retry attempts");
-	}
-
-	/// <inheritdoc />
-	public async Task<TResult> ResolveDocumentAsync<TConnection, TResult>(
-		IDocumentDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		// Postgres doesn't typically use document requests, but we can delegate to the standard execute method if the request also
-		// implements IDataRequest
-		if (request is IDataRequest<TConnection, TResult> dataRequest)
-		{
-			return await ResolveAsync(dataRequest, connectionFactory, cancellationToken).ConfigureAwait(false);
-		}
-
-		throw new NotSupportedException(
-			"Postgres provider does not support document-specific DataRequests. Use regular IDataRequest<TConnection, TResult> instead.");
 	}
 
 	/// <inheritdoc />

@@ -20,7 +20,7 @@ public static class AlbaExtensions
 		this WebApplicationBuilder builder,
 		Action<WebApplication>? configure = null)
 	{
-		return await AlbaHost.For(builder, configure).ConfigureAwait(true);
+		return await AlbaHost.For(builder, configure);
 	}
 
 	/// <summary>

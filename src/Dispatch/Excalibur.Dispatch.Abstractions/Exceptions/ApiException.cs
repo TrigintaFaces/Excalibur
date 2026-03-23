@@ -7,7 +7,6 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <summary>
 /// Represents an exception specifically designed for API-related errors.
 /// </summary>
-[Serializable]
 public class ApiException : Exception
 {
 	private const int DefaultStatusCode = 500;
@@ -60,13 +59,15 @@ public class ApiException : Exception
 		StatusCode = statusCode;
 	}
 
+	private Guid? _id;
+
 	/// <summary>
 	/// Gets a unique identifier for the error instance.
 	/// </summary>
 	/// <value>
-	/// A unique identifier for the error instance.
+	/// A unique identifier for the error instance, lazily generated on first access.
 	/// </value>
-	public Guid Id { get; } = Guid.NewGuid();
+	public Guid Id => _id ??= Guid.NewGuid();
 
 	/// <summary>
 	/// Gets the HTTP status code associated with this exception.

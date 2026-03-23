@@ -9,6 +9,7 @@ namespace Excalibur.EventSourcing.Tests.DynamoDb;
 /// Unit tests for <see cref="DynamoDbEventStoreOptions"/> configuration and validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 {
 	#region Default Values Tests

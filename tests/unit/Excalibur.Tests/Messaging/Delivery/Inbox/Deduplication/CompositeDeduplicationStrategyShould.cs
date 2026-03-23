@@ -7,7 +7,8 @@ namespace Excalibur.Tests.Messaging.Delivery.Inbox.Deduplication;
 ///     Unit tests for CompositeDeduplicationStrategy to verify composite deduplication functionality.
 /// </summary>
 [Trait("Category", "Unit")]
-public class CompositeDeduplicationStrategyShould
+[Trait("Component", "Core")]
+public sealed class CompositeDeduplicationStrategyShould
 {
 	private readonly IDeduplicationStrategy _primaryStrategy;
 	private readonly IDeduplicationStrategy _secondaryStrategy;

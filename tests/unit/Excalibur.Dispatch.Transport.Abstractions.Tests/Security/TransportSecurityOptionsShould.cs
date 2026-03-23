@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Security;
 
-public class TransportSecurityOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class TransportSecurityOptionsShould
 {
     [Fact]
     public void Should_Default_RequireTls_To_True()

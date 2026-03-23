@@ -36,7 +36,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// See the pluggable serialization architecture documentation for details.
 /// </para>
 /// </remarks>
-public sealed partial class AzureEventHubMessageBus(
+internal sealed partial class AzureEventHubMessageBus(
 	EventHubProducerClient producer,
 	IPayloadSerializer serializer,
 	AzureEventHubOptions options,

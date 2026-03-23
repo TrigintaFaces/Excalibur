@@ -45,7 +45,7 @@ public sealed class InMemorySagaMonitoringService : ISagaMonitoringService
 	}
 
 	/// <inheritdoc />
-	public Task<int> GetCompletedCountAsync(string? sagaType, DateTime? since, CancellationToken cancellationToken)
+	public Task<int> GetCompletedCountAsync(string? sagaType, DateTimeOffset? since, CancellationToken cancellationToken)
 	{
 		var count = _sagas.Values
 			.Count(s => s.IsCompleted
@@ -60,7 +60,7 @@ public sealed class InMemorySagaMonitoringService : ISagaMonitoringService
 		int limit,
 		CancellationToken cancellationToken)
 	{
-		var cutoff = DateTime.UtcNow - threshold;
+		var cutoff = DateTimeOffset.UtcNow - threshold;
 		IReadOnlyList<SagaInstanceInfo> result = _sagas.Values
 			.Where(s => !s.IsCompleted && s.LastUpdatedAt < cutoff)
 			.OrderBy(static s => s.LastUpdatedAt)
@@ -85,7 +85,7 @@ public sealed class InMemorySagaMonitoringService : ISagaMonitoringService
 	/// <inheritdoc />
 	public Task<TimeSpan?> GetAverageCompletionTimeAsync(
 		string sagaType,
-		DateTime since,
+		DateTimeOffset since,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sagaType);

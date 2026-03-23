@@ -490,6 +490,9 @@ public static class KafkaEventId
 	/// <summary>Transport receiver: disposed.</summary>
 	public const int TransportReceiverDisposed = 22916;
 
+	/// <summary>Transport receiver: offset cache exceeded expected bounds.</summary>
+	public const int TransportReceiverOffsetCacheOverflow = 22917;
+
 	// ========================================
 	// 22920-22927: ITransportSubscriber
 	// ========================================

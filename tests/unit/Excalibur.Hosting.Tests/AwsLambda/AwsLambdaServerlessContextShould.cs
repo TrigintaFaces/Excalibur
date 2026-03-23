@@ -9,6 +9,7 @@ namespace Excalibur.Hosting.Tests.AwsLambda;
 /// Unit tests for <see cref="AwsLambdaServerlessContext" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class AwsLambdaServerlessContextShould : UnitTestBase
 {
 	private readonly TestLambdaContext _lambdaContext;

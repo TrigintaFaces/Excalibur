@@ -40,7 +40,7 @@ public sealed record SagaInstanceInfo(
 	Guid SagaId,
 	string SagaType,
 	bool IsCompleted,
-	DateTime CreatedAt,
-	DateTime LastUpdatedAt,
-	DateTime? CompletedAt,
+	DateTimeOffset CreatedAt,
+	DateTimeOffset LastUpdatedAt,
+	DateTimeOffset? CompletedAt,
 	string? FailureReason);

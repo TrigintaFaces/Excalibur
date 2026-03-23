@@ -17,17 +17,14 @@ namespace Excalibur.Dispatch.Channels;
 /// <summary>
 /// Memory channel message pump for processing messages.
 /// </summary>
-public partial class MessagePump<T> : IDisposable
+public partial class MessagePump<T> : IAsyncDisposable, IDisposable
 {
-	// R0.8: Remove unread private members - reserved for future memory optimization
-#pragma warning disable IDE0052
-	private readonly MemoryPool<byte> _memoryPool;
-#pragma warning restore IDE0052
 	private readonly ChannelMessagePumpOptions _options;
 	private readonly ILogger? _logger;
 	private readonly Channel<MessageEnvelope> _channel;
 	private readonly CancellationTokenSource _cancellationTokenSource;
 	private Task? _processingTask;
+	private volatile bool _disposed;
 	private int _messagesConsumed;
 	private int _messagesFailed;
 
@@ -46,7 +43,7 @@ public partial class MessagePump<T> : IDisposable
 		ILogger? logger = null)
 	{
 		Name = name ?? "DefaultPump";
-		_memoryPool = memoryPool ?? MemoryPool<byte>.Shared;
+		_ = memoryPool ?? MemoryPool<byte>.Shared; // Preserve parameter for backward compatibility
 		_options = options ?? new ChannelMessagePumpOptions();
 		_logger = logger;
 		_cancellationTokenSource = new CancellationTokenSource();
@@ -111,6 +108,37 @@ public partial class MessagePump<T> : IDisposable
 	}
 
 	/// <summary>
+	/// Asynchronously disposes the message pump, awaiting the processing task to complete.
+	/// </summary>
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		await _cancellationTokenSource.CancelAsync().ConfigureAwait(false);
+		_ = _channel.Writer.TryComplete();
+
+		if (_processingTask is not null)
+		{
+			try
+			{
+				await _processingTask.ConfigureAwait(false);
+			}
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+			{
+				// Expected when cancellation is requested
+			}
+		}
+
+		_cancellationTokenSource.Dispose();
+		GC.SuppressFinalize(this);
+	}
+
+	/// <summary>
 	/// Disposes the message pump.
 	/// </summary>
 	public void Dispose()
@@ -125,12 +153,15 @@ public partial class MessagePump<T> : IDisposable
 	/// <param name="disposing"> True if disposing managed resources. </param>
 	protected virtual void Dispose(bool disposing)
 	{
-		if (disposing)
+		if (_disposed || !disposing)
 		{
-			_cancellationTokenSource?.Cancel();
-			_cancellationTokenSource?.Dispose();
-			_processingTask?.Dispose();
+			return;
 		}
+
+		_disposed = true;
+		_cancellationTokenSource.Cancel();
+		_ = _channel.Writer.TryComplete();
+		_cancellationTokenSource.Dispose();
 	}
 
 	/// <summary>
@@ -169,7 +200,7 @@ public partial class MessagePump<T> : IDisposable
 				}
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			// Expected when cancellation is requested
 		}

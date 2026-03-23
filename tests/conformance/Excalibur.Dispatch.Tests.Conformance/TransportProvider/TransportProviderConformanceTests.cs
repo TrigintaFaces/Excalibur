@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.TransportProvider;
 ///     expected behavior and contracts defined by the ITransportProvider interface. Concrete test classes should inherit from this class
 ///     and implement the CreateProvider method to provide the specific transport provider under test.
 /// </remarks>
+[Trait("Component", "Transport")]
 public abstract class TransportProviderConformanceTests
 {
 	/// <summary>
@@ -314,5 +315,5 @@ public abstract class TransportProviderConformanceTests
 	///     Creates test message bus options for provider validation and adapter creation.
 	/// </summary>
 	/// <returns> Valid message bus options for testing. </returns>
-	protected abstract IMessageBusOptions CreateTestOptions();
+	protected abstract MessageBusOptions CreateTestOptions();
 }

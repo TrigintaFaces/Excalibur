@@ -34,6 +34,7 @@ namespace Excalibur.Data.Tests.InMemory;
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class InMemoryPersistenceProviderConformanceShould : PersistenceProviderConformanceTestBase
 {
 	private readonly ILogger<InMemoryPersistenceProvider> _logger;

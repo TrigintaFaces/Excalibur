@@ -129,6 +129,81 @@ public sealed class LockFreeBuffersShould
 		item.ShouldBeNull();
 	}
 
+	// --- T.6 Regression: concurrent stress test for cooperative tail advancement ---
+
+	[Fact]
+	public void MpscBuffer_ConcurrentEnqueues_AllItemsDequeued()
+	{
+		// Arrange - T.6 regression: verify tail doesn't lag permanently under high contention
+		var buffer = new LockFreeMpscBuffer<int>();
+		const int producerCount = 8;
+		const int itemsPerProducer = 1000;
+		const int totalExpected = producerCount * itemsPerProducer;
+
+		// Act - concurrent producers
+		Parallel.For(0, producerCount, producerIndex =>
+		{
+			var start = producerIndex * itemsPerProducer;
+			for (var i = 0; i < itemsPerProducer; i++)
+			{
+				buffer.Enqueue(start + i);
+			}
+		});
+
+		// Dequeue all items
+		var dequeued = new List<int>();
+		while (buffer.TryDequeue(out var item))
+		{
+			dequeued.Add(item);
+		}
+
+		// Assert - all items were enqueued and dequeued (no items lost to tail lag)
+		dequeued.Count.ShouldBe(totalExpected);
+		dequeued.Distinct().Count().ShouldBe(totalExpected);
+		buffer.IsEmpty.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task MpscBuffer_ConcurrentEnqueueDequeue_NoItemsLost()
+	{
+		// Arrange - T.6 regression: interleaved enqueue/dequeue under contention
+		var buffer = new LockFreeMpscBuffer<int>();
+		const int iterations = 5000;
+		var consumed = new System.Collections.Concurrent.ConcurrentBag<int>();
+		using var cts = new CancellationTokenSource();
+
+		// Act - producer + consumer running concurrently
+		var producer = Task.Run(() =>
+		{
+			for (var i = 0; i < iterations; i++)
+			{
+				buffer.Enqueue(i);
+			}
+			cts.Cancel();
+		});
+
+		var consumer = Task.Run(() =>
+		{
+			while (!cts.IsCancellationRequested || !buffer.IsEmpty)
+			{
+				if (buffer.TryDequeue(out var item))
+				{
+					consumed.Add(item);
+				}
+			}
+			// Final drain
+			while (buffer.TryDequeue(out var item))
+			{
+				consumed.Add(item);
+			}
+		});
+
+		await Task.WhenAll(producer, consumer);
+
+		// Assert - no items lost
+		consumed.Count.ShouldBe(iterations);
+	}
+
 	// --- LockFreeSpscBuffer ---
 
 	[Fact]

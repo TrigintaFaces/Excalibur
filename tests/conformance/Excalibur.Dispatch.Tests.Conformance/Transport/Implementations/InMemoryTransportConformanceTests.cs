@@ -11,6 +11,8 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 /// Conformance tests for the InMemory transport implementation.
 /// This serves as the baseline reference implementation.
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemoryTransportConformanceTests
 	: TransportConformanceTestBase<InMemoryChannelSender, InMemoryChannelReceiver>
 {
@@ -67,6 +69,8 @@ public sealed class InMemoryTransportConformanceTests
 /// <summary>
 /// In-memory implementation of IChannelSender for testing.
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemoryChannelSender : IChannelSender
 {
 	private readonly ChannelWriter<object> _writer;
@@ -90,6 +94,8 @@ public sealed class InMemoryChannelSender : IChannelSender
 /// <summary>
 /// In-memory implementation of IChannelReceiver for testing.
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemoryChannelReceiver : IChannelReceiver
 {
 	private readonly ChannelReader<object> _reader;
@@ -116,6 +122,8 @@ public sealed class InMemoryChannelReceiver : IChannelReceiver
 /// <summary>
 /// In-memory implementation of IDeadLetterQueueManager for testing.
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemoryDeadLetterQueueManager : IDeadLetterQueueManager
 {
 	private readonly List<DeadLetterMessage> _deadLetterMessages = new();

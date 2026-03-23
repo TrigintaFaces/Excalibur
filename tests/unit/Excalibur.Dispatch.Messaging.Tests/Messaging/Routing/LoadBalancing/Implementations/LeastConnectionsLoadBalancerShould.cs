@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.LoadBalancing;
 /// Unit tests for <see cref="LeastConnectionsLoadBalancer"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class LeastConnectionsLoadBalancerShould
 {
 	private readonly ILogger<LeastConnectionsLoadBalancer> _logger;

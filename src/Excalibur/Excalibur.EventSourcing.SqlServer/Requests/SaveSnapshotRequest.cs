@@ -18,7 +18,7 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 {
 	private const string Sql = """
-		MERGE INTO EventStoreSnapshots WITH (HOLDLOCK) AS target
+		MERGE INTO EventStoreSnapshots WITH (ROWLOCK, UPDLOCK) AS target
 		USING (SELECT @SnapshotId, @AggregateId, @AggregateType, @Version, @Data, @CreatedAt)
 		    AS source (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt)
 		ON target.AggregateId = source.AggregateId

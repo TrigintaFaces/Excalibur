@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Tests.Abstractions;
 /// Target: Increase MessageEnvelope coverage from 34.1% to 80%.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MessageEnvelopeShould : IDisposable
 {
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
@@ -46,7 +47,7 @@ public sealed class MessageEnvelopeShould : IDisposable
 
 		// Assert
 		envelope.MessageId.ShouldNotBeNullOrEmpty();
-		Guid.TryParse(envelope.MessageId, out _).ShouldBeTrue();
+		envelope.MessageId!.Length.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]

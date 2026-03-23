@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for CachePerformanceSnapshot functionality.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CachePerformanceSnapshotShould : UnitTestBase
 {
 	[Fact]

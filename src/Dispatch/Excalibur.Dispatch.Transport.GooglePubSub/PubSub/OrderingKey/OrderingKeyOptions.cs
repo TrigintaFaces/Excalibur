@@ -75,7 +75,7 @@ public sealed class OrderingKeyOptions
 	/// <value>
 	/// The maximum number of retries for failed messages. Only applies when EnforceStrictOrdering is false. Default is 3.
 	/// </value>
-	public int MaxRetries { get; set; } = 3;
+	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the delay between retries. Default is 1 second.
@@ -119,11 +119,11 @@ public sealed class OrderingKeyOptions
 				nameof(MessageStaleTimeout));
 		}
 
-		if (MaxRetries < 0)
+		if (MaxRetryAttempts < 0)
 		{
 			throw new ArgumentException(
-				"MaxRetries must be non-negative.",
-				nameof(MaxRetries));
+				"MaxRetryAttempts must be non-negative.",
+				nameof(MaxRetryAttempts));
 		}
 
 		if (RetryDelay < TimeSpan.Zero)

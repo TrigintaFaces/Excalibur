@@ -36,7 +36,9 @@ public static class RedisOutboxExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<RedisOutboxStore>();
-		services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<RedisOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("redis", (sp, _) => sp.GetRequiredService<RedisOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("redis"));
 
 		return services;
 	}
@@ -87,7 +89,9 @@ public static class RedisOutboxExtensions
 			var logger = sp.GetRequiredService<ILogger<RedisOutboxStore>>();
 			return new RedisOutboxStore(connection, options, logger);
 		});
-		services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<RedisOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("redis", (sp, _) => sp.GetRequiredService<RedisOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("redis"));
 
 		return services;
 	}

@@ -47,7 +47,7 @@ public sealed class CdcEventTransformationWorkflowShould
 		});
 
 		// Act
-		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - CDC event was transformed to domain event
 		handler.TransformedEvents.Count.ShouldBe(1);
@@ -84,7 +84,7 @@ public sealed class CdcEventTransformationWorkflowShould
 		});
 
 		// Act
-		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - Column names were mapped to PascalCase properties
 		handler.TransformedEvents.Count.ShouldBe(1);
@@ -123,7 +123,7 @@ public sealed class CdcEventTransformationWorkflowShould
 		});
 
 		// Act
-		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - NULL values were handled properly
 		handler.TransformedEvents.Count.ShouldBe(1);
@@ -164,7 +164,7 @@ public sealed class CdcEventTransformationWorkflowShould
 		});
 
 		// Act
-		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 
 		// Assert - Types were converted correctly
 		handler.TransformedEvents.Count.ShouldBe(1);
@@ -204,7 +204,7 @@ public sealed class CdcEventTransformationWorkflowShould
 
 		// Act
 		var beforeProcessing = DateTimeOffset.UtcNow;
-		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None).ConfigureAwait(true);
+		await pipeline.ProcessCdcEventAsync(cdcEvent, CancellationToken.None);
 		var afterProcessing = DateTimeOffset.UtcNow;
 
 		// Assert - Event was enriched with metadata

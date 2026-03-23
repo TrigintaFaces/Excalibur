@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Exceptions;
+
 namespace Excalibur.Dispatch.Middleware.Timeout;
 
 /// <summary>
 /// Exception thrown when message processing times out.
 /// </summary>
-public sealed class MessageTimeoutException : Exception
+public sealed class MessageTimeoutException : DispatchException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MessageTimeoutException" /> class.

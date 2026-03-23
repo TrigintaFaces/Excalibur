@@ -32,8 +32,12 @@ public static class ElasticsearchOutboxExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<ElasticsearchOutboxStore>();
-		services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<ElasticsearchOutboxStore>());
-		services.TryAddSingleton<IOutboxStoreAdmin>(sp => sp.GetRequiredService<ElasticsearchOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("elasticsearch", (sp, _) => sp.GetRequiredService<ElasticsearchOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("elasticsearch"));
+		services.AddKeyedSingleton<IOutboxStoreAdmin>("elasticsearch", (sp, _) => sp.GetRequiredService<ElasticsearchOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStoreAdmin>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStoreAdmin>("elasticsearch"));
 
 		return services;
 	}

@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
 /// <summary>
@@ -16,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <see cref="IRabbitMQTransportBuilder"/> and its sub-builders.
 /// </para>
 /// </remarks>
-public class RabbitMQTransportOptions
+public sealed class RabbitMQTransportOptions
 {
 	/// <summary>
 	/// Gets or sets the transport name for multi-transport routing.
@@ -69,7 +72,7 @@ public class RabbitMQTransportOptions
 /// credentials, connection string, and SSL configuration.
 /// Follows <c>Azure.Messaging.ServiceBus.ServiceBusClientOptions</c> sub-options pattern.
 /// </remarks>
-public class RabbitMQConnectionOptions
+public sealed class RabbitMQConnectionOptions
 {
 	/// <summary>
 	/// Gets or sets the RabbitMQ host name.
@@ -99,12 +102,15 @@ public class RabbitMQConnectionOptions
 	/// Gets or sets the password for authentication.
 	/// </summary>
 	/// <value>The password. Default is "guest".</value>
+	[JsonIgnore]
 	public string Password { get; set; } = "guest";
 
 	/// <summary>
 	/// Gets or sets the connection string (alternative to individual connection properties).
 	/// </summary>
 	/// <value>The AMQP connection string, or null to use individual properties.</value>
+	[Required]
+	[JsonIgnore]
 	public string? ConnectionString { get; set; }
 
 	/// <summary>
@@ -127,7 +133,7 @@ public class RabbitMQConnectionOptions
 /// Groups all topology-related settings: exchanges, queues, bindings,
 /// type-to-name mappings, and name prefixes.
 /// </remarks>
-public class RabbitMQTopologyOptions
+public sealed class RabbitMQTopologyOptions
 {
 	/// <summary>
 	/// Gets the exchange configurations.
@@ -175,7 +181,7 @@ public class RabbitMQTopologyOptions
 /// <summary>
 /// SSL/TLS configuration options for RabbitMQ connections.
 /// </summary>
-public class RabbitMQSslOptions
+public sealed class RabbitMQSslOptions
 {
 	/// <summary>
 	/// Gets or sets the server name for SSL certificate validation.
@@ -209,7 +215,7 @@ public class RabbitMQSslOptions
 /// <summary>
 /// Configuration options for a RabbitMQ exchange.
 /// </summary>
-public class RabbitMQExchangeOptions
+public sealed class RabbitMQExchangeOptions
 {
 	/// <summary>
 	/// Gets or sets the exchange name.
@@ -245,7 +251,7 @@ public class RabbitMQExchangeOptions
 /// <summary>
 /// Configuration options for a RabbitMQ queue.
 /// </summary>
-public class RabbitMQQueueOptions
+public sealed class RabbitMQQueueOptions
 {
 	/// <summary>
 	/// Gets or sets the queue name.
@@ -311,7 +317,7 @@ public class RabbitMQQueueOptions
 /// <summary>
 /// Configuration options for a RabbitMQ binding.
 /// </summary>
-public class RabbitMQBindingOptions
+public sealed class RabbitMQBindingOptions
 {
 	/// <summary>
 	/// Gets or sets the source exchange name.
@@ -341,7 +347,7 @@ public class RabbitMQBindingOptions
 /// <summary>
 /// Configuration options for RabbitMQ dead letter handling.
 /// </summary>
-public class RabbitMQDeadLetterOptions
+public sealed class RabbitMQDeadLetterOptions
 {
 	/// <summary>
 	/// Gets or sets the dead letter exchange name.
@@ -365,7 +371,7 @@ public class RabbitMQDeadLetterOptions
 	/// Gets or sets the maximum number of retry attempts before dead-lettering.
 	/// </summary>
 	/// <value>The max retries. Default is 3.</value>
-	public int MaxRetries { get; set; } = 3;
+	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the delay between retry attempts.

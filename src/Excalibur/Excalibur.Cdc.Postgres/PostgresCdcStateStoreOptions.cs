@@ -3,6 +3,8 @@
 
 using System.ComponentModel.DataAnnotations;
 
+using Excalibur.Data.Abstractions.Validation;
+
 namespace Excalibur.Cdc.Postgres;
 
 /// <summary>
@@ -29,9 +31,13 @@ public sealed class PostgresCdcStateStoreOptions
 			throw new InvalidOperationException("SchemaName is required.");
 		}
 
+		SqlIdentifierValidator.ThrowIfInvalid(SchemaName, nameof(SchemaName));
+
 		if (string.IsNullOrWhiteSpace(TableName))
 		{
 			throw new InvalidOperationException("TableName is required.");
 		}
+
+		SqlIdentifierValidator.ThrowIfInvalid(TableName, nameof(TableName));
 	}
 }

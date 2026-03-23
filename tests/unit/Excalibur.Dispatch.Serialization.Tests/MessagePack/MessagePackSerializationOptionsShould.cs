@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// Unit tests for <see cref="MessagePackSerializationOptions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Serialization")]
 public sealed class MessagePackSerializationOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -7,6 +7,7 @@ namespace Excalibur.EventSourcing.Tests.InMemory;
 /// Unit tests for <see cref="InMemoryEventSourcingServiceCollectionExtensions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class InMemoryEventSourcingServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
@@ -33,9 +34,10 @@ public sealed class InMemoryEventSourcingServiceCollectionExtensionsShould : Uni
 		// Act
 		_ = services.AddInMemoryEventStore();
 
-		// Assert
+		// Assert - IEventStore is now registered as keyed service
 		services.Any(static sd =>
 			sd.ServiceType == typeof(IEventStore) &&
+			sd.IsKeyedService &&
 			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 	}
 
@@ -61,11 +63,11 @@ public sealed class InMemoryEventSourcingServiceCollectionExtensionsShould : Uni
 
 		using var provider = services.BuildServiceProvider();
 
-		// Act
+		// Act - concrete is registered as normal singleton, abstract as keyed service
 		var concrete = provider.GetRequiredService<InMemoryEventStore>();
-		var abstraction = provider.GetRequiredService<IEventStore>();
+		var abstraction = provider.GetRequiredKeyedService<IEventStore>("default");
 
-		// Assert
+		// Assert - both should resolve to the same underlying instance
 		abstraction.ShouldBeSameAs(concrete);
 	}
 
@@ -79,7 +81,7 @@ public sealed class InMemoryEventSourcingServiceCollectionExtensionsShould : Uni
 		_ = services.AddInMemoryEventStore();
 		_ = services.AddInMemoryEventStore();
 
-		// Assert - services should be registered
+		// Assert - concrete InMemoryEventStore registered twice (AddSingleton, not TryAdd)
 		services.Count(static sd => sd.ServiceType == typeof(InMemoryEventStore)).ShouldBe(2);
 	}
 }

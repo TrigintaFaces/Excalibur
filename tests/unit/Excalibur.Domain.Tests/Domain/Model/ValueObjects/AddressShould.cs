@@ -9,6 +9,7 @@ namespace Excalibur.Tests.Domain.Model.ValueObjects;
 /// Unit tests for <see cref="Address"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Domain")]
 public sealed class AddressShould
 {
 	#region T419.9: Address Value Object Tests

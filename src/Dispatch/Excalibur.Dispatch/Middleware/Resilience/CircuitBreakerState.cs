@@ -10,16 +10,20 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// <summary>
 /// Represents the state of a circuit breaker.
 /// </summary>
+/// <remarks>
+/// State reads by callers may race with mutations. This is by design:
+/// requests admitted while the breaker is Closed are allowed to complete
+/// even if the state transitions to Open during execution. Internal
+/// mutations (RecordSuccess, RecordFailure, TransitionToHalfOpen) are
+/// atomic via lock. This matches the behavior of Polly and Resilience4j
+/// circuit breakers.
+/// </remarks>
 internal sealed class CircuitBreakerState(CircuitBreakerOptions options)
 {
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 	private int _failureCount;
 	private int _successCount;

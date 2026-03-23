@@ -36,7 +36,9 @@ public static class RedisInboxExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<RedisInboxStore>();
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<RedisInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("redis", (sp, _) => sp.GetRequiredService<RedisInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("redis"));
 
 		return services;
 	}
@@ -87,7 +89,9 @@ public static class RedisInboxExtensions
 			var logger = sp.GetRequiredService<ILogger<RedisInboxStore>>();
 			return new RedisInboxStore(connection, options, logger);
 		});
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<RedisInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("redis", (sp, _) => sp.GetRequiredService<RedisInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("redis"));
 
 		return services;
 	}

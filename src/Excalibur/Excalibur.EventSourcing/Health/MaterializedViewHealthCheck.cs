@@ -32,7 +32,7 @@ namespace Excalibur.EventSourcing.Health;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class MaterializedViewHealthCheck : IHealthCheck
+internal sealed class MaterializedViewHealthCheck : IHealthCheck
 {
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<MaterializedViewHealthCheckOptions> _options;

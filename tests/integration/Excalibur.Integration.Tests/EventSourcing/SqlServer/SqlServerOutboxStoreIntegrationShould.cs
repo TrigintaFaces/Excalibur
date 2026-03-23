@@ -94,9 +94,9 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
 
-		await outboxStore.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
+		await outboxStore.StageMessageAsync(message, CancellationToken.None);
 
-		var unsent = await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(true);
+		var unsent = await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None);
 		unsent.ShouldContain(m => m.Id == message.Id);
 	}
 
@@ -114,13 +114,13 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
 
-		await outboxStore.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
+		await outboxStore.StageMessageAsync(message, CancellationToken.None);
 
 		var duplicate = CreateTestMessage();
 		duplicate.Id = message.Id;
 
 		_ = await Assert.ThrowsAsync<Excalibur.Data.Abstractions.OperationFailedException>(async () =>
-			await outboxStore.StageMessageAsync(duplicate, CancellationToken.None).ConfigureAwait(true));
+			await outboxStore.StageMessageAsync(duplicate, CancellationToken.None));
 	}
 
 	/// <summary>
@@ -139,11 +139,11 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		// Stage 5 messages
 		for (int i = 0; i < 5; i++)
 		{
-			await outboxStore.StageMessageAsync(CreateTestMessage(), CancellationToken.None).ConfigureAwait(true);
+			await outboxStore.StageMessageAsync(CreateTestMessage(), CancellationToken.None);
 		}
 
 		// Request only 3
-		var unsent = await outboxStore.GetUnsentMessagesAsync(3, CancellationToken.None).ConfigureAwait(true);
+		var unsent = await outboxStore.GetUnsentMessagesAsync(3, CancellationToken.None);
 
 		unsent.Count().ShouldBe(3);
 	}
@@ -162,10 +162,10 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
 
-		await outboxStore.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
-		await outboxStore.MarkSentAsync(message.Id, CancellationToken.None).ConfigureAwait(true);
+		await outboxStore.StageMessageAsync(message, CancellationToken.None);
+		await outboxStore.MarkSentAsync(message.Id, CancellationToken.None);
 
-		var unsent = await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(true);
+		var unsent = await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None);
 		unsent.ShouldNotContain(m => m.Id == message.Id);
 	}
 
@@ -184,10 +184,10 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var message = CreateTestMessage();
 		var errorMessage = "Test failure reason";
 
-		await outboxStore.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
-		await outboxStore.MarkFailedAsync(message.Id, errorMessage, 1, CancellationToken.None).ConfigureAwait(true);
+		await outboxStore.StageMessageAsync(message, CancellationToken.None);
+		await outboxStore.MarkFailedAsync(message.Id, errorMessage, 1, CancellationToken.None);
 
-		var failed = await outboxStore.GetFailedMessagesAsync(5, null, 10, CancellationToken.None).ConfigureAwait(true);
+		var failed = await outboxStore.GetFailedMessagesAsync(5, null, 10, CancellationToken.None);
 		var failedMessage = failed.FirstOrDefault(m => m.Id == message.Id);
 		_ = failedMessage.ShouldNotBeNull();
 		failedMessage.LastError.ShouldBe(errorMessage);
@@ -208,11 +208,11 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
 
-		await outboxStore.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
-		await outboxStore.MarkFailedAsync(message.Id, "First failure", 1, CancellationToken.None).ConfigureAwait(true);
+		await outboxStore.StageMessageAsync(message, CancellationToken.None);
+		await outboxStore.MarkFailedAsync(message.Id, "First failure", 1, CancellationToken.None);
 
 		// Should find message with retry count < maxRetries
-		var failed = await outboxStore.GetFailedMessagesAsync(3, null, 10, CancellationToken.None).ConfigureAwait(true);
+		var failed = await outboxStore.GetFailedMessagesAsync(3, null, 10, CancellationToken.None);
 		failed.ShouldContain(m => m.Id == message.Id);
 	}
 
@@ -230,14 +230,14 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var outboxStore = CreateOutboxStore();
 		var message = CreateTestMessage();
 
-		await outboxStore.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
-		await outboxStore.MarkSentAsync(message.Id, CancellationToken.None).ConfigureAwait(true);
+		await outboxStore.StageMessageAsync(message, CancellationToken.None);
+		await outboxStore.MarkSentAsync(message.Id, CancellationToken.None);
 
 		// Cleanup messages older than tomorrow (should include all sent messages)
 		var deleted = await outboxStore.CleanupSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddDays(1),
 			100,
-			CancellationToken.None).ConfigureAwait(true);
+			CancellationToken.None);
 
 		deleted.ShouldBeGreaterThanOrEqualTo(1);
 	}
@@ -254,17 +254,17 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		}
 
 		// Clear existing data for accurate stats
-		await ClearAllMessagesAsync().ConfigureAwait(true);
+		await ClearAllMessagesAsync();
 
 		var outboxStore = CreateOutboxStore();
 
 		// Stage 3 messages
 		for (int i = 0; i < 3; i++)
 		{
-			await outboxStore.StageMessageAsync(CreateTestMessage(), CancellationToken.None).ConfigureAwait(true);
+			await outboxStore.StageMessageAsync(CreateTestMessage(), CancellationToken.None);
 		}
 
-		var stats = await outboxStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(true);
+		var stats = await outboxStore.GetStatisticsAsync(CancellationToken.None);
 
 		stats.StagedMessageCount.ShouldBe(3);
 	}
@@ -280,11 +280,11 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 			return;
 		}
 
-		await ClearAllMessagesAsync().ConfigureAwait(true);
+		await ClearAllMessagesAsync();
 
 		var outboxStore = CreateOutboxStore();
 
-		var unsent = await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(true);
+		var unsent = await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None);
 
 		_ = unsent.ShouldNotBeNull();
 		unsent.Count().ShouldBe(0);
@@ -305,7 +305,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var nonExistentId = Guid.NewGuid().ToString();
 
 		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
-			await outboxStore.MarkSentAsync(nonExistentId, CancellationToken.None).ConfigureAwait(true));
+			await outboxStore.MarkSentAsync(nonExistentId, CancellationToken.None));
 	}
 
 	/// <summary>
@@ -319,7 +319,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 			return;
 		}
 
-		await ClearAllMessagesAsync().ConfigureAwait(true);
+		await ClearAllMessagesAsync();
 
 		var outboxStore = CreateOutboxStore();
 		var messageIds = new List<string>();
@@ -329,12 +329,12 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		{
 			var message = CreateTestMessage();
 			messageIds.Add(message.Id);
-			await outboxStore.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
+			await outboxStore.StageMessageAsync(message, CancellationToken.None);
 			// Small delay to ensure different timestamps
-			await Task.Delay(10).ConfigureAwait(true);
+			await Task.Delay(10);
 		}
 
-		var unsent = (await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(true)).ToList();
+		var unsent = (await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None)).ToList();
 
 		unsent.Count.ShouldBe(5);
 		// First message should be first (FIFO)

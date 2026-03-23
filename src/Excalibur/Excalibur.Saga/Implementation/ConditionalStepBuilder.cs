@@ -20,7 +20,7 @@ public sealed class ConditionalStepBuilder<TData>(string name)
 	private ISagaStep<TData>? _thenStep;
 	private ISagaStep<TData>? _elseStep;
 	private TimeSpan _timeout = TimeSpan.FromMinutes(5);
-	private RetryPolicy? _retryPolicy;
+	private SagaRetryOptions? _retryPolicy;
 
 	/// <summary>
 	/// Sets the condition for the conditional step.
@@ -87,7 +87,7 @@ public sealed class ConditionalStepBuilder<TData>(string name)
 	/// </summary>
 	/// <param name="retryPolicy"> The retry policy. </param>
 	/// <returns> The builder instance. </returns>
-	public ConditionalStepBuilder<TData> WithRetryPolicy(RetryPolicy retryPolicy)
+	public ConditionalStepBuilder<TData> WithRetryPolicy(SagaRetryOptions retryPolicy)
 	{
 		_retryPolicy = retryPolicy;
 		return this;

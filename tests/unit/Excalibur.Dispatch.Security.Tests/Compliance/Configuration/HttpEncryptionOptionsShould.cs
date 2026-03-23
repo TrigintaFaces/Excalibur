@@ -4,6 +4,7 @@
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Configuration;
 
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class HttpEncryptionOptionsShould
 {
 	[Fact]

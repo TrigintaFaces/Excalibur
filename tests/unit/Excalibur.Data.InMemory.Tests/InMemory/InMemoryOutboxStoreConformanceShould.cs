@@ -23,6 +23,7 @@ namespace Excalibur.Data.Tests.InMemory.Outbox;
 /// and statistics tracking.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class InMemoryOutboxStoreConformanceShould : OutboxStoreConformanceTestBase
 {
 	/// <inheritdoc/>

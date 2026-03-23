@@ -121,7 +121,7 @@ public abstract class SnapshotCreationJob<TAggregate, TKey>(
 
 			SnapshotCreationJobLog.JobCompleted(_logger, typeof(TAggregate).Name, snapshotCount);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			SnapshotCreationJobLog.JobCancelled(_logger, typeof(TAggregate).Name);
 			throw;

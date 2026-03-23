@@ -49,8 +49,9 @@ public interface IConnectionPool<TConnection> : IAsyncDisposable
 	/// </summary>
 	/// <param name="connection"> The connection to return. </param>
 	/// <param name="forceDispose"> If true, forces disposal of the connection instead of pooling. </param>
+	/// <param name="cancellationToken"> Token to cancel the return operation. </param>
 	/// <returns> A task representing the asynchronous return operation. </returns>
-	ValueTask ReturnConnectionAsync(TConnection connection, bool forceDispose = false);
+	ValueTask ReturnConnectionAsync(TConnection connection, bool forceDispose, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Gets current pool statistics synchronously.

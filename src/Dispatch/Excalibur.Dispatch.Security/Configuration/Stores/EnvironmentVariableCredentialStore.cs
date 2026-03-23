@@ -13,7 +13,16 @@ namespace Excalibur.Dispatch.Security;
 /// <summary>
 /// Retrieves credentials from environment variables. Environment variables are a secure way to provide credentials in containerized environments.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="EnvironmentVariableCredentialStore" /> class. </remarks>
+/// <remarks>
+/// <para>Initializes a new instance of the <see cref="EnvironmentVariableCredentialStore" /> class.</para>
+/// <para><strong>Security limitation:</strong> Environment variable values are .NET strings
+/// and cannot be reliably cleared from managed heap memory. The returned <see cref="SecureString"/>
+/// protects the value from casual inspection but the original string from
+/// <see cref="Environment.GetEnvironmentVariable(string)"/> may remain in memory until garbage collected
+/// and the memory page is reused.</para>
+/// <para>For high-security credential retrieval, use a dedicated secret store
+/// (Azure Key Vault, HashiCorp Vault) that provides native secure memory handling.</para>
+/// </remarks>
 /// <param name="logger"> The logger instance. </param>
 /// <param name="prefix"> Optional prefix for environment variable names. </param>
 public sealed partial class EnvironmentVariableCredentialStore(
@@ -58,9 +67,6 @@ public sealed partial class EnvironmentVariableCredentialStore(
 		}
 
 		secureString.MakeReadOnly();
-
-		// Clear the original string from memory
-		GC.Collect();
 
 		return Task.FromResult<SecureString?>(secureString);
 	}

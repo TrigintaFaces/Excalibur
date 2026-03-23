@@ -3,6 +3,7 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Queries;
@@ -16,6 +17,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 public sealed class ProjectionRebuildServiceShould
 {
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
+	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
 	private readonly ProjectionRebuildOptions _options = new();
 	private readonly ProjectionRebuildService _sut;
 
@@ -24,6 +26,7 @@ public sealed class ProjectionRebuildServiceShould
 		var optionsWrapper = Microsoft.Extensions.Options.Options.Create(_options);
 		_sut = new ProjectionRebuildService(
 			_serviceProvider,
+			_eventSerializer,
 			optionsWrapper,
 			NullLogger<ProjectionRebuildService>.Instance);
 	}
@@ -139,6 +142,17 @@ public sealed class ProjectionRebuildServiceShould
 	{
 		Should.Throw<ArgumentNullException>(() => new ProjectionRebuildService(
 			null!,
+			_eventSerializer,
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
+			NullLogger<ProjectionRebuildService>.Instance));
+	}
+
+	[Fact]
+	public void ThrowWhenEventSerializerIsNull()
+	{
+		Should.Throw<ArgumentNullException>(() => new ProjectionRebuildService(
+			_serviceProvider,
+			null!,
 			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
 			NullLogger<ProjectionRebuildService>.Instance));
 	}
@@ -148,6 +162,7 @@ public sealed class ProjectionRebuildServiceShould
 	{
 		Should.Throw<ArgumentNullException>(() => new ProjectionRebuildService(
 			_serviceProvider,
+			_eventSerializer,
 			null!,
 			NullLogger<ProjectionRebuildService>.Instance));
 	}
@@ -157,6 +172,7 @@ public sealed class ProjectionRebuildServiceShould
 	{
 		Should.Throw<ArgumentNullException>(() => new ProjectionRebuildService(
 			_serviceProvider,
+			_eventSerializer,
 			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
 			null!));
 	}

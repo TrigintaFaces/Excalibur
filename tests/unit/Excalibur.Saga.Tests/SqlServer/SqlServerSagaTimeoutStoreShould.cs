@@ -13,6 +13,7 @@ namespace Excalibur.Saga.Tests.SqlServer;
 /// and ISagaTimeoutStore interface validation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class SqlServerSagaTimeoutStoreShould : UnitTestBase
 {
 	private readonly ILogger<SqlServerSagaTimeoutStore> _logger = NullLoggerFactory.CreateLogger<SqlServerSagaTimeoutStore>();

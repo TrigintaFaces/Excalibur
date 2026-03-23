@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Diagnostics;
 /// Functional tests for <see cref="TagCardinalityGuard"/> verifying cardinality limiting behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Transport")]
 public sealed class TagCardinalityGuardFunctionalShould
 {
 	[Fact]

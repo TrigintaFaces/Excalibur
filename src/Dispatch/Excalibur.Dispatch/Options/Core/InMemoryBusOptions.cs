@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Dispatch.Options.Core;
 
 /// <summary>
@@ -13,6 +15,7 @@ public sealed class InMemoryBusOptions
 	/// Gets or sets the maximum number of messages to queue per channel.
 	/// </summary>
 	/// <value> Default is 1000. </value>
+	[Range(1, int.MaxValue)]
 	public int MaxQueueLength { get; set; } = 1000;
 
 	/// <summary>

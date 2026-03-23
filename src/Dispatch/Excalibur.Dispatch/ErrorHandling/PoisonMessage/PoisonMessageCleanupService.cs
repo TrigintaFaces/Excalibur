@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// <summary>
 /// Background service that automatically cleans up old dead letter messages based on retention policy.
 /// </summary>
-public partial class PoisonMessageCleanupService : BackgroundService
+internal sealed partial class PoisonMessageCleanupService : BackgroundService
 {
 	private readonly IDeadLetterStore _deadLetterStore;
 	private readonly IPoisonMessageHandler _poisonMessageHandler;
@@ -80,7 +80,7 @@ public partial class PoisonMessageCleanupService : BackgroundService
 				await PerformCleanupAsync(stoppingToken).ConfigureAwait(false);
 				await CheckAlertThresholdAsync(stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
 				// Expected when cancellation is requested
 				break;
@@ -94,7 +94,7 @@ public partial class PoisonMessageCleanupService : BackgroundService
 				{
 					await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 				{
 					break;
 				}

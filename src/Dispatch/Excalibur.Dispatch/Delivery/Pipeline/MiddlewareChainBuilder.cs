@@ -46,7 +46,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// dispatch allocation-stable without per-dispatch closure creation.
 /// </para>
 /// </remarks>
-public sealed class MiddlewareChainBuilder
+internal sealed class MiddlewareChainBuilder
 {
 	private readonly record struct ChainCacheKey(Type MessageType, int PipelineSignature);
 
@@ -76,7 +76,7 @@ public sealed class MiddlewareChainBuilder
 	private FrozenDictionary<ChainCacheKey, ChainExecutor>? _frozenChainCache;
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _freezeLock = new();
+	private readonly System.Threading.Lock _freezeLock = new();
 #else
 	private readonly object _freezeLock = new();
 #endif

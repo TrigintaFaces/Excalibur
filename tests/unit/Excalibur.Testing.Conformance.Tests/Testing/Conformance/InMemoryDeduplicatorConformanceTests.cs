@@ -44,7 +44,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "DEDUPLICATOR")]
-public class InMemoryDeduplicatorConformanceTests : DeduplicatorConformanceTestKit
+public sealed class InMemoryDeduplicatorConformanceTests : DeduplicatorConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override IInMemoryDeduplicator CreateDeduplicator()

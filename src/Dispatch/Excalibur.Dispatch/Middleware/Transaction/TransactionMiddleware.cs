@@ -38,6 +38,7 @@ namespace Excalibur.Dispatch.Middleware.Transaction;
 [AppliesTo(MessageKinds.Action)]
 public sealed partial class TransactionMiddleware : IDispatchMiddleware
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, TransactionTypeMetadata> TransactionTypeMetadataCache = new();
 	private static readonly Func<ILogger, string, bool, string, double, IDisposable?> TransactionLogScope =
 		LoggerMessage.DefineScope<string, bool, string, double>(
@@ -285,21 +286,33 @@ public sealed partial class TransactionMiddleware : IDispatchMiddleware
 		return new TransactionConfiguration(isolationLevel, timeout, _options.EnableDistributedTransactions);
 	}
 
-	private static TransactionTypeMetadata GetTransactionTypeMetadata(Type messageType) =>
-		TransactionTypeMetadataCache.GetOrAdd(messageType, static type =>
+	private static TransactionTypeMetadata GetTransactionTypeMetadata(Type messageType)
+	{
+		if (TransactionTypeMetadataCache.TryGetValue(messageType, out var cached))
 		{
-			var hasNoTransactionAttribute = type.GetCustomAttributes(typeof(NoTransactionAttribute), inherit: true).Length != 0;
-			var hasRequireTransactionAttribute = type.GetCustomAttributes(typeof(RequireTransactionAttribute), inherit: true).Length != 0;
-			var transactionAttributes = type.GetCustomAttributes(typeof(TransactionAttribute), inherit: true);
-			var transactionAttribute = transactionAttributes.Length == 0
-				? null
-				: transactionAttributes[0] as TransactionAttribute;
+			return cached;
+		}
 
-			return new TransactionTypeMetadata(
-				hasNoTransactionAttribute,
-				hasRequireTransactionAttribute,
-				transactionAttribute);
-		});
+		var hasNoTransactionAttribute = messageType.GetCustomAttributes(typeof(NoTransactionAttribute), inherit: true).Length != 0;
+		var hasRequireTransactionAttribute = messageType.GetCustomAttributes(typeof(RequireTransactionAttribute), inherit: true).Length != 0;
+		var transactionAttributes = messageType.GetCustomAttributes(typeof(TransactionAttribute), inherit: true);
+		var transactionAttribute = transactionAttributes.Length == 0
+			? null
+			: transactionAttributes[0] as TransactionAttribute;
+
+		var metadata = new TransactionTypeMetadata(
+			hasNoTransactionAttribute,
+			hasRequireTransactionAttribute,
+			transactionAttribute);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (TransactionTypeMetadataCache.Count < MaxCacheEntries)
+		{
+			TransactionTypeMetadataCache.TryAdd(messageType, metadata);
+		}
+
+		return metadata;
+	}
 
 	/// <summary>
 	/// Creates a logging scope with transaction context.

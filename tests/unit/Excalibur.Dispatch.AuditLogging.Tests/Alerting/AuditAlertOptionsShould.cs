@@ -2,7 +2,9 @@ using Excalibur.Dispatch.AuditLogging.Alerting;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Alerting;
 
-public class AuditAlertOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditAlertOptionsShould
 {
     [Fact]
     public void Default_evaluation_mode_to_real_time()

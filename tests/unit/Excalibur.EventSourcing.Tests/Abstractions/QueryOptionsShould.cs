@@ -11,6 +11,7 @@ namespace Excalibur.EventSourcing.Tests.Abstractions;
 /// Tests for <see cref="QueryOptions"/> to verify pagination and sorting options.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class QueryOptionsShould
 {
 	[Fact]

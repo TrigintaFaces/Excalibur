@@ -389,6 +389,7 @@ public abstract class SagaStoreConformanceTestKit
 
 		// Update only state1
 		state1.Status = "Updated";
+		state1.Version++;
 		await store.SaveAsync(state1, CancellationToken.None).ConfigureAwait(false);
 
 		var loaded2 = await store.LoadAsync<TestSagaState>(sagaId2, CancellationToken.None)

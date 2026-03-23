@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Cdc.Diagnostics;
 using Excalibur.Cdc.Postgres.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -121,6 +122,8 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 		await EnsureConnectionAsync(cancellationToken).ConfigureAwait(false);
 
+		using var pollActivity = CdcActivitySource.StartPollActivity("Postgres");
+
 		var count = 0;
 		var slot = new PgOutputReplicationSlot(_options.ReplicationSlotName);
 
@@ -154,6 +157,8 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		// Save position if we processed anything
 		if (count > 0)
 		{
+			using var batchActivity = CdcActivitySource.StartProcessBatchActivity("Postgres", count);
+
 			await _stateStore
 				.SavePositionAsync(_options.ProcessorId, _options.ReplicationSlotName, _currentPosition, cancellationToken)
 				.ConfigureAwait(false);
@@ -238,7 +243,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 				ColumnName = column.ColumnName,
 				DataType = column.DataTypeId.ToString(),
 				NewValue = await GetValueAsync(value, cancellationToken).ConfigureAwait(false),
-				IsPrimaryKey = column.Flags.HasFlag(RelationMessage.Column.ColumnFlags.PartOfKey),
+				IsPrimaryKey = (column.Flags & RelationMessage.Column.ColumnFlags.PartOfKey) != 0,
 			};
 
 			columns.Add(dataChange);
@@ -346,6 +351,8 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		Func<PostgresDataChangeEvent, CancellationToken, Task> eventHandler,
 		CancellationToken cancellationToken)
 	{
+		using var pollActivity = CdcActivitySource.StartPollActivity("Postgres");
+
 		var slot = new PgOutputReplicationSlot(_options.ReplicationSlotName);
 
 		var replicationOptions = new PgOutputReplicationOptions(
@@ -355,6 +362,8 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 		// Start from confirmed position or beginning
 		var startLsn = _confirmedPosition.IsValid ? _confirmedPosition.Lsn : default;
+
+		var count = 0;
 
 		await foreach (var message in _replicationConnection
 						   .StartReplication(slot, replicationOptions, cancellationToken, startLsn)
@@ -368,6 +377,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 				if (ShouldProcessTable(changeEvent.FullTableName))
 				{
 					await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+					count++;
 
 					LogProcessed(changeEvent.ChangeType, changeEvent.FullTableName, changeEvent.Position.LsnString);
 				}
@@ -376,6 +386,11 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			// Update position and acknowledge
 			_replicationConnection.SetReplicationStatus(message.WalEnd);
 			_currentPosition = new PostgresCdcPosition(message.WalEnd);
+		}
+
+		if (count > 0)
+		{
+			using var batchActivity = CdcActivitySource.StartProcessBatchActivity("Postgres", count);
 		}
 	}
 

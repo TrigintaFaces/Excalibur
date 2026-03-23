@@ -6,6 +6,7 @@ namespace Excalibur.Hosting.Tests.Web;
 /// Unit tests for ProblemDetailsOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class ProblemDetailsOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.LoadBalancing;
 /// Unit tests for <see cref="ConsistentHashLoadBalancer"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ConsistentHashLoadBalancerShould
 {
 	private readonly ILogger<ConsistentHashLoadBalancer> _logger;

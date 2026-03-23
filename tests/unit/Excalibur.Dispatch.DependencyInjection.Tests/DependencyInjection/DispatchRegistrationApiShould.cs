@@ -339,9 +339,10 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
-		// Act
+		// Act -- disable AutoPromote so transient lifetime is preserved (Sprint 679 T.12)
 		_ = services.AddDispatch(dispatch =>
 		{
+			dispatch.WithOptions(o => o.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = false);
 			_ = dispatch.AddHandlersFromAssembly(typeof(RegistrationTestActionHandler).Assembly, ServiceLifetime.Transient);
 		});
 

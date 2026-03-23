@@ -311,6 +311,9 @@ public static class OutboxEventId
 	/// <summary>Transactional fallback.</summary>
 	public const int OutboxTransactionalFallback = 131222;
 
+	/// <summary>Error marking individual outbox message status during batch completion.</summary>
+	public const int OutboxErrorMarkingMessage = 131223;
+
 	// ========================================
 	// 132200-132399: InboxProcessor
 	// ========================================

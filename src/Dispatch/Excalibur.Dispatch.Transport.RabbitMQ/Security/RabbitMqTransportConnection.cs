@@ -39,7 +39,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// </code>
 /// </para>
 /// </remarks>
-internal class RabbitMqTransportConnection : TransportConnectionBase
+internal sealed class RabbitMqTransportConnection : TransportConnectionBase
 {
 	private readonly IConnectionFactory _connectionFactory;
 	private IConnection? _connection;

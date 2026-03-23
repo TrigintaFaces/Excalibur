@@ -4,7 +4,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Erasure;
 
-public class DataInventoryServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class DataInventoryServiceShould
 {
 	private readonly IDataInventoryStore _store;
 	private readonly IDataInventoryQueryStore _queryStore;

@@ -41,7 +41,9 @@ public static class RedisEventSourcingExtensions
 		});
 
 		services.TryAddSingleton<RedisEventStore>();
-		services.TryAddSingleton<IEventStore>(static sp => sp.GetRequiredService<RedisEventStore>());
+		services.AddKeyedSingleton<IEventStore>("redis", (sp, _) => sp.GetRequiredService<RedisEventStore>());
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("redis"));
 
 		return services;
 	}
@@ -93,7 +95,9 @@ public static class RedisEventSourcingExtensions
 
 		services.TryAddSingleton(connection);
 		services.TryAddSingleton<RedisEventStore>();
-		services.TryAddSingleton<IEventStore>(static sp => sp.GetRequiredService<RedisEventStore>());
+		services.AddKeyedSingleton<IEventStore>("redis", (sp, _) => sp.GetRequiredService<RedisEventStore>());
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("redis"));
 
 		return services;
 	}
@@ -123,7 +127,9 @@ public static class RedisEventSourcingExtensions
 		});
 
 		services.TryAddSingleton<RedisSnapshotStore>();
-		services.TryAddSingleton<ISnapshotStore>(static sp => sp.GetRequiredService<RedisSnapshotStore>());
+		services.AddKeyedSingleton<ISnapshotStore>("redis", (sp, _) => sp.GetRequiredService<RedisSnapshotStore>());
+		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISnapshotStore>("redis"));
 
 		return services;
 	}

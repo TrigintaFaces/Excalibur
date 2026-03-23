@@ -14,8 +14,8 @@ Excalibur.Saga.SqlServer.SqlServerSagaIdempotencyOptions.SqlServerSagaIdempotenc
 Excalibur.Saga.SqlServer.SqlServerSagaIdempotencyOptions.TableName.get -> string!
 Excalibur.Saga.SqlServer.SqlServerSagaIdempotencyOptions.TableName.set -> void
 Excalibur.Saga.SqlServer.SqlServerSagaMonitoringService
-Excalibur.Saga.SqlServer.SqlServerSagaMonitoringService.GetAverageCompletionTimeAsync(string! sagaType, System.DateTime since, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.TimeSpan?>!
-Excalibur.Saga.SqlServer.SqlServerSagaMonitoringService.GetCompletedCountAsync(string? sagaType, System.DateTime? since, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.SqlServer.SqlServerSagaMonitoringService.GetAverageCompletionTimeAsync(string! sagaType, System.DateTimeOffset since, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.TimeSpan?>!
+Excalibur.Saga.SqlServer.SqlServerSagaMonitoringService.GetCompletedCountAsync(string? sagaType, System.DateTimeOffset? since, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Saga.SqlServer.SqlServerSagaMonitoringService.GetFailedSagasAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaInstanceInfo!>!>!
 Excalibur.Saga.SqlServer.SqlServerSagaMonitoringService.GetRunningCountAsync(string? sagaType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Saga.SqlServer.SqlServerSagaMonitoringService.GetStuckSagasAsync(System.TimeSpan threshold, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaInstanceInfo!>!>!

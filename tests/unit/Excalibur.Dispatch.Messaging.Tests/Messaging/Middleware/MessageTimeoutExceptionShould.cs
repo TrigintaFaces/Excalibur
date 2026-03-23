@@ -354,6 +354,14 @@ public sealed class MessageTimeoutExceptionShould
 	}
 
 	[Fact]
+	public void InheritFromDispatchException()
+	{
+		// Sprint 698 T.56: MessageTimeoutException reparented to DispatchException
+		var exception = new MessageTimeoutException("test");
+		_ = exception.ShouldBeAssignableTo<Excalibur.Dispatch.Exceptions.DispatchException>();
+	}
+
+	[Fact]
 	public void CanBeCaughtAsException()
 	{
 		// Arrange & Act & Assert

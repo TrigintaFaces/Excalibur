@@ -4,9 +4,14 @@
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
-/// Error severity levels.
+/// Error severity levels for batch processing operations.
 /// </summary>
-public enum ErrorSeverity
+/// <remarks>
+/// Renamed from <c>ErrorSeverity</c> to avoid collision with
+/// <c>Excalibur.Dispatch.Exceptions.ErrorSeverity</c> which includes
+/// additional levels (Information, Fatal) for dispatch exception handling.
+/// </remarks>
+public enum BatchErrorSeverity
 {
 	/// <summary>
 	/// Informational.

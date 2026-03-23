@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Configuration;
 /// <param name="stage"> The pipeline stage where the middleware should be registered. </param>
 /// <param name="order"> The execution order within the stage. </param>
 /// <param name="configureOptions"> Optional service configuration delegate. </param>
-public sealed class MiddlewareRegistration(
+internal sealed class MiddlewareRegistration(
 	Type middlewareType,
 	DispatchMiddlewareStage stage,
 	int order = 100,

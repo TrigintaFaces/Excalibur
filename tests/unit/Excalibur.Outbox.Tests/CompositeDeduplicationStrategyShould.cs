@@ -13,6 +13,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="CompositeDeduplicationStrategy"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class CompositeDeduplicationStrategyShould : UnitTestBase
 {
 	private readonly IDeduplicationStrategy _fakePrimary;

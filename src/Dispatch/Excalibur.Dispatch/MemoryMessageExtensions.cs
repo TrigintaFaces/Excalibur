@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Messaging;
 /// </summary>
 public static class MemoryMessageExtensions
 {
+	private const int MaxCacheEntries = 1024;
 	private const int DefaultSerializedBufferSize = 1024;
 	private const int MaxSerializedBufferHint = 256 * 1024;
 	private static readonly ConcurrentDictionary<Type, int> s_serializedBufferSizeHints = new();
@@ -221,6 +222,12 @@ public static class MemoryMessageExtensions
 		{
 			if (!s_serializedBufferSizeHints.TryGetValue(type, out var current))
 			{
+				// Bounded cache: skip caching when full to prevent unbounded memory growth
+				if (s_serializedBufferSizeHints.Count >= MaxCacheEntries)
+				{
+					return;
+				}
+
 				if (s_serializedBufferSizeHints.TryAdd(type, suggested))
 				{
 					return;

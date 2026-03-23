@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// Tests for <see cref="AuditLogRole"/> enum values and ordering.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 [UnitTest]
 public sealed class AuditLogRoleShould
 {

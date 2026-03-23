@@ -16,6 +16,7 @@ namespace Excalibur.Data.Tests.Firestore;
 /// <see cref="FirestorePersistenceProvider"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class FirestoreRetryPolicyShould : UnitTestBase
 {
 	private readonly IDataRequestRetryPolicy _retryPolicy;

@@ -5,6 +5,8 @@ using Tests.Shared.Fixtures;
 namespace Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
 
 [CollectionDefinition(nameof(ElasticsearchPersistenceOnlyTests), DisableParallelization = true)]
-public class ElasticsearchPersistenceOnlyTests : ICollectionFixture<ElasticsearchContainerFixture>
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class ElasticsearchPersistenceOnlyTests : ICollectionFixture<ElasticsearchContainerFixture>
 {
 }

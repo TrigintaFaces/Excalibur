@@ -45,7 +45,7 @@ internal sealed class RevokeGrantCommandHandler(IGrantRepository grantRepository
 		{
 			return new AuditableResult<bool>(
 				result: false,
-				$"{request.AccessToken.FullName} failed to revoke grant {key.Scope} on {DateTime.Now:g} because the grant was not found and may have already been revoked.");
+				$"{request.AccessToken.FullName} failed to revoke grant {key.Scope} on {DateTimeOffset.UtcNow:g} because the grant was not found and may have already been revoked.");
 		}
 
 		// Revoke the grant and delete it from the repository
@@ -58,6 +58,6 @@ internal sealed class RevokeGrantCommandHandler(IGrantRepository grantRepository
 		// Return an auditable result confirming the revocation
 		return new AuditableResult<bool>(
 			result: true,
-			$"Revoked from {grant.FullName} on {DateTime.Now:g} by {request.AccessToken.FullName}.");
+			$"Revoked from {grant.FullName} on {DateTimeOffset.UtcNow:g} by {request.AccessToken.FullName}.");
 	}
 }

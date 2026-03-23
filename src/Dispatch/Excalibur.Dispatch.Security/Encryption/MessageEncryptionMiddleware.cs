@@ -48,7 +48,11 @@ public sealed partial class MessageEncryptionMiddleware : IDispatchMiddleware
 	}
 
 	/// <inheritdoc />
-	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Serialization;
+	/// <remarks>
+	/// Encryption runs at PreProcessing so that other middleware in later stages
+	/// (authentication, authorization, serialization) never see plaintext payloads.
+	/// </remarks>
+	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
 
 	/// <inheritdoc />
 	public MessageKinds ApplicableMessageKinds => MessageKinds.All;

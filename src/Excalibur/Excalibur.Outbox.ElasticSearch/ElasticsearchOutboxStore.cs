@@ -24,7 +24,7 @@ namespace Excalibur.Outbox.ElasticSearch;
 /// Messages are sorted by priority and creation time for ordered retrieval.
 /// </para>
 /// </remarks>
-public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStoreAdmin
+public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStoreAdmin, IAsyncDisposable
 {
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchOutboxOptions _options;
@@ -393,4 +393,13 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	[LoggerMessage(DataElasticsearchEventId.BulkOperationCompleted, LogLevel.Information,
 		"Cleaned up {Count} sent outbox messages older than {OlderThan}")]
 	private partial void LogMessagesCleanedUp(int count, DateTimeOffset olderThan);
+
+	/// <inheritdoc/>
+	public ValueTask DisposeAsync()
+	{
+		// ElasticsearchClient does not require disposal.
+		// This implementation satisfies the IAsyncDisposable contract for consistency
+		// with other outbox store implementations and allows future resource cleanup.
+		return ValueTask.CompletedTask;
+	}
 }

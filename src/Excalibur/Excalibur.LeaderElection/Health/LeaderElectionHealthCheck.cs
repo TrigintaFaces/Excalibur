@@ -24,7 +24,7 @@ namespace Excalibur.LeaderElection.Health;
 /// it works with SQL Server, Redis, Consul, Kubernetes, or any other <see cref="ILeaderElection"/> implementation.
 /// </para>
 /// </remarks>
-public sealed class LeaderElectionHealthCheck : IHealthCheck
+internal sealed class LeaderElectionHealthCheck : IHealthCheck
 {
 	private readonly ILeaderElection _leaderElection;
 

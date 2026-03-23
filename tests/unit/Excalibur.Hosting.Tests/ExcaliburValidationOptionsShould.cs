@@ -6,6 +6,7 @@ namespace Excalibur.Hosting.Tests;
 /// Unit tests for ExcaliburValidationOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class ExcaliburValidationOptionsShould : UnitTestBase
 {
 	[Fact]

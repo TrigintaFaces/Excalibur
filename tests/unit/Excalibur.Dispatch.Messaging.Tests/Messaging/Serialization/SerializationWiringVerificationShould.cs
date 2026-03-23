@@ -14,7 +14,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 /// when configured, and that fallback to JSON works when serializer is null.
 /// </summary>
 [Trait("Category", "Unit")]
-public class SerializationWiringVerificationShould
+[Trait("Component", "Dispatch.Core")]
+public sealed class SerializationWiringVerificationShould
 {
 	private const byte EnvelopeFormatMarker = 0x01;
 	private const byte JsonFormatMarker = 0x7B; // '{' character

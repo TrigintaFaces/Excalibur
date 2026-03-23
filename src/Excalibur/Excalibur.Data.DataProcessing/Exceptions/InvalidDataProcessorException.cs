@@ -9,7 +9,6 @@ namespace Excalibur.Data.DataProcessing.Exceptions;
 /// <summary>
 /// Represents an exception that occurs when an invalid <see cref="IDataProcessor" /> implementation is detected.
 /// </summary>
-[Serializable]
 public sealed class InvalidDataProcessorException : ApiException
 {
 	/// <summary>

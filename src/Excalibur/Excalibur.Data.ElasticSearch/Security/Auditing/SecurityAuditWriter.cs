@@ -90,7 +90,7 @@ internal sealed class SecurityAuditWriter
 			{
 				EventId = Guid.NewGuid().ToString(),
 				Timestamp = activityEvent.Timestamp,
-				EventType = SecurityEventType.DataAccess,
+				EventType = SecurityAuditEventType.DataAccess,
 				Severity = SecurityEventSeverity.Low,
 				Source = "ElasticsearchSecurityAuditor",
 				UserId = activityEvent.UserId,
@@ -135,7 +135,7 @@ internal sealed class SecurityAuditWriter
 			{
 				EventId = authenticationEvent.EventId,
 				Timestamp = authenticationEvent.Timestamp,
-				EventType = SecurityEventType.Authentication,
+				EventType = SecurityAuditEventType.Authentication,
 				Severity = severity,
 				Source = "ElasticsearchSecurityAuditor",
 				UserId = authenticationEvent.UserId,
@@ -200,7 +200,7 @@ internal sealed class SecurityAuditWriter
 			{
 				EventId = dataAccessEvent.EventId,
 				Timestamp = dataAccessEvent.Timestamp,
-				EventType = SecurityEventType.DataAccess,
+				EventType = SecurityAuditEventType.DataAccess,
 				Severity = severity,
 				Source = "ElasticsearchSecurityAuditor",
 				UserId = dataAccessEvent.UserId,
@@ -266,7 +266,7 @@ internal sealed class SecurityAuditWriter
 			{
 				EventId = configurationEvent.EventId.ToString(),
 				Timestamp = configurationEvent.Timestamp,
-				EventType = SecurityEventType.ConfigurationChange,
+				EventType = SecurityAuditEventType.ConfigurationChange,
 				Severity = severity,
 				Source = "ElasticsearchSecurityAuditor",
 				UserId = configurationEvent.ChangedBy,
@@ -326,7 +326,7 @@ internal sealed class SecurityAuditWriter
 			{
 				EventId = securityEvent.EventId.ToString(),
 				Timestamp = securityEvent.Timestamp,
-				EventType = MapToSecurityEventType(securityEvent.EventType),
+				EventType = MapToSecurityAuditEventType(securityEvent.EventType),
 				Severity = MapToSecurityEventSeverity(securityEvent.Severity),
 				Source = securityEvent.Source ?? "ElasticsearchSecurityAuditor",
 				UserId = securityEvent.UserId,
@@ -378,7 +378,7 @@ internal sealed class SecurityAuditWriter
 			{
 				EventId = securityIncident.IncidentId.ToString(),
 				Timestamp = securityIncident.Timestamp,
-				EventType = SecurityEventType.SecurityIncident,
+				EventType = SecurityAuditEventType.SecurityIncident,
 				Severity = MapToSecurityEventSeverity(securityIncident.Severity),
 				Source = "SecurityIncidentHandler",
 				UserId = securityIncident.AffectedUserId,
@@ -482,17 +482,17 @@ internal sealed class SecurityAuditWriter
 		};
 
 	/// <summary>
-	/// Maps external security event type to internal event type.
+	/// Maps external security event type to internal audit event type.
 	/// </summary>
-	internal static SecurityEventType MapToSecurityEventType(string eventType) =>
+	internal static SecurityAuditEventType MapToSecurityAuditEventType(string eventType) =>
 		eventType.ToUpperInvariant() switch
 		{
-			"AUTHENTICATION" => SecurityEventType.Authentication,
-			"DATAACCESS" => SecurityEventType.DataAccess,
-			"CONFIGURATIONCHANGE" => SecurityEventType.ConfigurationChange,
-			"SECURITYINCIDENT" => SecurityEventType.SecurityIncident,
-			"ACCESSCONTROL" => SecurityEventType.AccessControl,
-			_ => SecurityEventType.Other,
+			"AUTHENTICATION" => SecurityAuditEventType.Authentication,
+			"DATAACCESS" => SecurityAuditEventType.DataAccess,
+			"CONFIGURATIONCHANGE" => SecurityAuditEventType.ConfigurationChange,
+			"SECURITYINCIDENT" => SecurityAuditEventType.SecurityIncident,
+			"ACCESSCONTROL" => SecurityAuditEventType.AccessControl,
+			_ => SecurityAuditEventType.Other,
 		};
 
 	/// <summary>

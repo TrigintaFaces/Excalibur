@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 ///     Tests for the <see cref="NullTransportCircuitBreakerRegistry" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class NullTransportCircuitBreakerRegistryShould
 {
 	[Fact]

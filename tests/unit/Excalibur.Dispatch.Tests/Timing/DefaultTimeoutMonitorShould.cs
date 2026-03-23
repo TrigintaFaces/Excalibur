@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Timing;
 ///     Tests for the <see cref="DefaultTimeoutMonitor" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DefaultTimeoutMonitorShould
 {
 	private readonly DefaultTimeoutMonitor _sut = new();

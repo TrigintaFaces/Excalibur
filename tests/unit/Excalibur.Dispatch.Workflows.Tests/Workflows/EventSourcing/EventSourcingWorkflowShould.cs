@@ -44,12 +44,12 @@ public sealed class EventSourcingWorkflowShould
 
 		// Act - Save events to store
 		var uncommittedEvents = aggregate.GetUncommittedEvents().ToList();
-		_ = await eventStore.AppendAsync(aggregateId, uncommittedEvents, 0).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, uncommittedEvents, 0);
 		aggregate.ClearUncommittedEvents();
 
 		// Act - Load and replay aggregate from events
 		var reloadedAggregate = new OrderAggregate(aggregateId);
-		var storedEvents = await eventStore.GetEventsAsync(aggregateId).ConfigureAwait(true);
+		var storedEvents = await eventStore.GetEventsAsync(aggregateId);
 		reloadedAggregate.LoadFromHistory(storedEvents);
 
 		// Assert - Replayed aggregate has same state
@@ -87,11 +87,11 @@ public sealed class EventSourcingWorkflowShould
 			new OrderSubmitted("order-2")
 		};
 
-		_ = await eventStore.AppendAsync("order-1", order1Events, 0).ConfigureAwait(true);
-		_ = await eventStore.AppendAsync("order-2", order2Events, 0).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync("order-1", order1Events, 0);
+		_ = await eventStore.AppendAsync("order-2", order2Events, 0);
 
 		// Act - Build projection from events
-		var allEvents = await eventStore.GetAllEventsAsync().ConfigureAwait(true);
+		var allEvents = await eventStore.GetAllEventsAsync();
 		projection.ApplyEvents(allEvents);
 
 		// Assert - Projection reflects all events
@@ -103,7 +103,7 @@ public sealed class EventSourcingWorkflowShould
 		projection.Clear();
 		projection.OrderCount.ShouldBe(0);
 
-		var rebuiltEvents = await eventStore.GetAllEventsAsync().ConfigureAwait(true);
+		var rebuiltEvents = await eventStore.GetAllEventsAsync();
 		projection.ApplyEvents(rebuiltEvents);
 
 		// Assert - Rebuilt projection matches original
@@ -133,15 +133,15 @@ public sealed class EventSourcingWorkflowShould
 
 		// Save events
 		var events = aggregate.GetUncommittedEvents().ToList();
-		_ = await eventStore.AppendAsync(aggregateId, events, 0).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, events, 0);
 		aggregate.ClearUncommittedEvents();
 
 		// Act - Save snapshot
 		var snapshot = aggregate.CreateSnapshot();
-		await snapshotStore.SaveAsync(aggregateId, snapshot, aggregate.Version).ConfigureAwait(true);
+		await snapshotStore.SaveAsync(aggregateId, snapshot, aggregate.Version);
 
 		// Act - Load aggregate from snapshot + any new events
-		var loadedSnapshot = await snapshotStore.GetAsync<CounterSnapshot>(aggregateId).ConfigureAwait(true);
+		var loadedSnapshot = await snapshotStore.GetAsync<CounterSnapshot>(aggregateId);
 		var restoredAggregate = new CounterAggregate(aggregateId);
 		restoredAggregate.RestoreFromSnapshot(loadedSnapshot);
 
@@ -166,7 +166,7 @@ public sealed class EventSourcingWorkflowShould
 		{
 			new OrderCreated(aggregateId, "ORD-001", "customer-1")
 		};
-		_ = await eventStore.AppendAsync(aggregateId, events, 0).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, events, 0);
 
 		// Act - Two concurrent writes with same expected version
 		var write1Events = new List<IDomainEvent>
@@ -179,15 +179,15 @@ public sealed class EventSourcingWorkflowShould
 		};
 
 		// First write should succeed
-		var result1 = await eventStore.AppendAsync(aggregateId, write1Events, 1).ConfigureAwait(true);
+		var result1 = await eventStore.AppendAsync(aggregateId, write1Events, 1);
 		result1.ShouldBeTrue();
 
 		// Second write with same expected version should fail (conflict)
-		var result2 = await eventStore.AppendAsync(aggregateId, write2Events, 1).ConfigureAwait(true);
+		var result2 = await eventStore.AppendAsync(aggregateId, write2Events, 1);
 		result2.ShouldBeFalse(); // Concurrency conflict
 
 		// Assert - Only first write was persisted
-		var storedEvents = await eventStore.GetEventsAsync(aggregateId).ConfigureAwait(true);
+		var storedEvents = await eventStore.GetEventsAsync(aggregateId);
 		storedEvents.Count.ShouldBe(2); // Initial + first write
 	}
 
@@ -205,10 +205,10 @@ public sealed class EventSourcingWorkflowShould
 
 		// Store V1 event (old format)
 		var v1Event = new ProductPriceChangedV1(aggregateId, "PROD-001", 10.00m);
-		_ = await eventStore.AppendAsync(aggregateId, new List<IDomainEvent> { v1Event }, 0).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, new List<IDomainEvent> { v1Event }, 0);
 
 		// Act - Load events and apply upcasters
-		var storedEvents = await eventStore.GetEventsAsync(aggregateId).ConfigureAwait(true);
+		var storedEvents = await eventStore.GetEventsAsync(aggregateId);
 		var upcastedEvents = upcasterChain.Upcast(storedEvents).ToList();
 
 		// Assert - Event was upcasted to V3

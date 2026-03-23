@@ -83,8 +83,6 @@ const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TracePar
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceSampled = 80405 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceStarted = 80400 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TrackedFieldModified = 80110 -> int
-const Excalibur.Dispatch.Observability.Http.W3CTraceContextMiddleware.TraceparentKey = "traceparent" -> string!
-const Excalibur.Dispatch.Observability.Http.W3CTraceContextMiddleware.TracestateKey = "tracestate" -> string!
 const Excalibur.Dispatch.Observability.Http.W3CTraceContextTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Observability.W3CTraceContext" -> string!
 const Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.MeterName = "Excalibur.Dispatch.CircuitBreaker" -> string!
 const Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.MeterName = "Excalibur.Dispatch.DeadLetterQueue" -> string!
@@ -407,10 +405,6 @@ Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.TraceParent.g
 Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.TraceParent.set -> void
 Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants
 Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId
-Excalibur.Dispatch.Observability.Http.W3CTraceContextMiddleware
-Excalibur.Dispatch.Observability.Http.W3CTraceContextMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-Excalibur.Dispatch.Observability.Http.W3CTraceContextMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
-Excalibur.Dispatch.Observability.Http.W3CTraceContextMiddleware.W3CTraceContextMiddleware() -> void
 Excalibur.Dispatch.Observability.Http.W3CTraceContextTelemetryConstants
 Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics
 Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.CircuitBreakerMetrics() -> void
@@ -465,10 +459,6 @@ Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordMessagePublished
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordProcessingDuration(double duration, string! messageType, bool success) -> void
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.UpdateActiveSessions(int delta) -> void
 Excalibur.Dispatch.Observability.Metrics.MetricsDispatchBuilderExtensions
-Excalibur.Dispatch.Observability.Metrics.MetricsMiddleware
-Excalibur.Dispatch.Observability.Metrics.MetricsMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-Excalibur.Dispatch.Observability.Metrics.MetricsMiddleware.MetricsMiddleware(Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics! metrics) -> void
-Excalibur.Dispatch.Observability.Metrics.MetricsMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
 Excalibur.Dispatch.Observability.Metrics.MetricsWarningLogger
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ActivitySourceName.get -> string!
@@ -491,10 +481,6 @@ Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceName.set ->
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceVersion.get -> string!
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceVersion.set -> void
 Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions
-Excalibur.Dispatch.Observability.Metrics.TracingMiddleware
-Excalibur.Dispatch.Observability.Metrics.TracingMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-Excalibur.Dispatch.Observability.Metrics.TracingMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
-Excalibur.Dispatch.Observability.Metrics.TracingMiddleware.TracingMiddleware(Excalibur.Dispatch.Abstractions.Telemetry.ITelemetrySanitizer! sanitizer) -> void
 Excalibur.Dispatch.Observability.ObservabilityJsonSerializerContext
 Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator
 Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator.B3TracingContextPropagator() -> void
@@ -520,10 +506,6 @@ Excalibur.Dispatch.Observability.Sampling.SamplingStrategy.RatioBased = 2 -> Exc
 Excalibur.Dispatch.Observability.Sampling.TraceSampler
 Excalibur.Dispatch.Observability.Sampling.TraceSampler.ShouldSample(System.Diagnostics.ActivityContext context, string! name) -> bool
 Excalibur.Dispatch.Observability.Sampling.TraceSampler.TraceSampler(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Observability.Sampling.TraceSamplerOptions!>! options) -> void
-Excalibur.Dispatch.Observability.Sampling.TraceSamplerMiddleware
-Excalibur.Dispatch.Observability.Sampling.TraceSamplerMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-Excalibur.Dispatch.Observability.Sampling.TraceSamplerMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
-Excalibur.Dispatch.Observability.Sampling.TraceSamplerMiddleware.TraceSamplerMiddleware(Excalibur.Dispatch.Observability.Sampling.ITraceSampler! sampler) -> void
 Excalibur.Dispatch.Observability.Sampling.TraceSamplerOptions
 Excalibur.Dispatch.Observability.Sampling.TraceSamplerOptions.SamplingRatio.get -> double
 Excalibur.Dispatch.Observability.Sampling.TraceSamplerOptions.SamplingRatio.set -> void

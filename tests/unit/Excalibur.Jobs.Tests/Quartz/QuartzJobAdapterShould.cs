@@ -14,6 +14,8 @@ using Quartz.Impl;
 
 namespace Excalibur.Jobs.Tests.Quartz;
 
+[Trait("Category", "Unit")]
+[Trait("Component", "Platform")]
 public sealed class QuartzJobAdapterShould
 {
 	private readonly IServiceScopeFactory _fakeScopeFactory;
@@ -166,6 +168,8 @@ public sealed class QuartzJobAdapterShould
 /// <summary>
 /// Test stub for job type resolution. Not executed directly.
 /// </summary>
+[Trait("Category", "Unit")]
+[Trait("Component", "Platform")]
 public sealed class FakeTestJob : IBackgroundJob
 {
 	public Task ExecuteAsync(CancellationToken cancellationToken) => Task.CompletedTask;

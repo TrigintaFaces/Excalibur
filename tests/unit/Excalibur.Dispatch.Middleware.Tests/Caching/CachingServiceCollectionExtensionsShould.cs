@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for CachingServiceCollectionExtensions.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CachingServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

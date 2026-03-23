@@ -51,6 +51,6 @@ public sealed class MinHeapComparer : IComparer<(byte[] Lsn, string TableName)>,
 			return Compare(a, b);
 		}
 
-		throw new ArgumentException("", nameof(x));
+		throw new ArgumentException("Expected byte[] argument for CDC LSN min-heap comparison.", nameof(x));
 	}
 }

@@ -192,7 +192,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		using var activity = Activity.Current?.Source.StartActivity("SqlServer.ExecuteDataRequest");
 		_ = (activity?.SetTag("request.type", request.GetType().Name));
 
-		return await RetryPolicy.ResolveAsync(
+		return await ((IRelationalDataRequestRetryPolicy)RetryPolicy).ResolveAsync(
 			(IDataRequest<IDbConnection, TResult>)request,
 			async () => await CreateConnectionAsync(cancellationToken).ConfigureAwait(false),
 			cancellationToken).ConfigureAwait(false);
@@ -397,7 +397,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		using var activity = Activity.Current?.Source.StartActivity("SqlServer.ExecuteBulk");
 		_ = (activity?.SetTag("request.type", bulkRequest.GetType().Name));
 
-		return await RetryPolicy.ResolveAsync(
+		return await ((IRelationalDataRequestRetryPolicy)RetryPolicy).ResolveAsync(
 			bulkRequest,
 			async () => await CreateConnectionAsync(cancellationToken).ConfigureAwait(false),
 			cancellationToken).ConfigureAwait(false);
@@ -413,7 +413,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		using var activity = Activity.Current?.Source.StartActivity("SqlServer.ExecuteStoredProcedure");
 		_ = (activity?.SetTag("request.type", storedProcedureRequest.GetType().Name));
 
-		return await RetryPolicy.ResolveAsync(
+		return await ((IRelationalDataRequestRetryPolicy)RetryPolicy).ResolveAsync(
 			storedProcedureRequest,
 			async () => await CreateConnectionAsync(cancellationToken).ConfigureAwait(false),
 			cancellationToken).ConfigureAwait(false);

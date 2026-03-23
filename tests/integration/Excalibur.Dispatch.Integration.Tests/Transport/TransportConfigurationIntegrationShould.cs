@@ -11,6 +11,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport;
 /// Integration tests for transport configuration and message routing.
 /// These tests verify transport options, serialization, and connection management.
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class TransportConfigurationIntegrationShould : IntegrationTestBase
 {
 	#region Transport Options Tests

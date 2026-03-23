@@ -16,7 +16,7 @@ namespace Excalibur.LeaderElection.Kubernetes;
 /// <summary>
 /// Hosted service for managing Kubernetes leader election lifecycle.
 /// </summary>
-public sealed partial class KubernetesLeaderElectionHostedService : IHostedService, IDisposable
+internal sealed partial class KubernetesLeaderElectionHostedService : IHostedService, IDisposable
 {
 	private readonly ILeaderElection _leaderElection;
 	private readonly ILogger<KubernetesLeaderElectionHostedService> _logger;

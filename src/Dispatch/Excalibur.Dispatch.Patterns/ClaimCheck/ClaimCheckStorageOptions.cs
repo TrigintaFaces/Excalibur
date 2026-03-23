@@ -14,6 +14,7 @@ public sealed class ClaimCheckStorageOptions
 	/// Gets or sets the connection string for the storage provider.
 	/// </summary>
 	/// <value>The connection string for the storage provider.</value>
+	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>

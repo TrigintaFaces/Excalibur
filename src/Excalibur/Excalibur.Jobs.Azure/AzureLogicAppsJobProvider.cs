@@ -21,7 +21,7 @@ namespace Excalibur.Jobs.Azure;
 /// <param name="armClient"> The Azure Resource Manager client. </param>
 /// <param name="options"> Configuration options for Azure Logic Apps. </param>
 /// <param name="logger"> Logger for this provider. </param>
-public partial class AzureLogicAppsJobProvider(
+public sealed partial class AzureLogicAppsJobProvider(
 	ArmClient armClient,
 	AzureLogicAppsOptions options,
 	ILogger<AzureLogicAppsJobProvider> logger)

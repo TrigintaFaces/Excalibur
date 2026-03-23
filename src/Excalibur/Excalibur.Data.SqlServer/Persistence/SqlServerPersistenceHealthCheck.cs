@@ -23,7 +23,7 @@ namespace Excalibur.Data.SqlServer.Persistence;
 /// <param name="options"> The persistence options. </param>
 /// <param name="logger"> The logger instance. </param>
 /// <param name="metrics"> The metrics collector. </param>
-public partial class SqlServerPersistenceHealthCheck(
+internal sealed partial class SqlServerPersistenceHealthCheck(
 	IOptions<SqlServerPersistenceOptions> options,
 	ILogger<SqlServerPersistenceHealthCheck> logger,
 	SqlServerPersistenceMetrics metrics) : IHealthCheck

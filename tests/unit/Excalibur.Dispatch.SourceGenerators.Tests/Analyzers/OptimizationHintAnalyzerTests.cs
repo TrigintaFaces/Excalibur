@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.SourceGenerators.Tests.Analyzers;
 /// Unit tests for <see cref="OptimizationHintAnalyzer"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class OptimizationHintAnalyzerTests
 {
 	// Interface stubs file (separate from test code to avoid using statement issues)

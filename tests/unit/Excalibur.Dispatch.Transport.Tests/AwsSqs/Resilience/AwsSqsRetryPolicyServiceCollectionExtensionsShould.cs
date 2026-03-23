@@ -35,9 +35,9 @@ public sealed class AwsSqsRetryPolicyServiceCollectionExtensionsShould
 		// Act
 		var result = services.AddAwsSqsRetryPolicy(opts =>
 		{
-			opts.MaxRetries = 5;
+			opts.MaxRetryAttempts = 5;
 			opts.BaseDelay = TimeSpan.FromMilliseconds(200);
-			opts.RetryStrategy = RetryStrategy.Exponential;
+			opts.RetryStrategy = SqsRetryStrategy.Exponential;
 		});
 
 		// Assert

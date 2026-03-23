@@ -19,10 +19,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <code>
 /// services.AddAwsSqsRetryPolicy(options =>
 /// {
-///     options.MaxRetries = 5;
+///     options.MaxRetryAttempts = 5;
 ///     options.BaseDelay = TimeSpan.FromMilliseconds(200);
 ///     options.MaxDelay = TimeSpan.FromSeconds(30);
-///     options.RetryStrategy = RetryStrategy.Exponential;
+///     options.RetryStrategy = SqsRetryStrategy.Exponential;
 /// });
 /// </code>
 /// </example>

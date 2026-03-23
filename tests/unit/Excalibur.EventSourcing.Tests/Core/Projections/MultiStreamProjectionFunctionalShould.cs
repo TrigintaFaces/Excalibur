@@ -16,6 +16,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 /// handler registration, and projection state updates.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class MultiStreamProjectionFunctionalShould
 {
 	#region Test Types

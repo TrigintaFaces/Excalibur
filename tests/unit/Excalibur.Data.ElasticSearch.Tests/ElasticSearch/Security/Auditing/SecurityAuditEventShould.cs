@@ -16,7 +16,7 @@ public sealed class SecurityAuditEventShould
 
 		sut.EventId.ShouldBe(string.Empty);
 		sut.Timestamp.ShouldBe(default);
-		sut.EventType.ShouldBe(SecurityEventType.Authentication);
+		sut.EventType.ShouldBe(SecurityAuditEventType.Authentication);
 		sut.Severity.ShouldBe(SecurityEventSeverity.Low);
 		sut.Source.ShouldBe(string.Empty);
 		sut.UserId.ShouldBeNull();
@@ -37,7 +37,7 @@ public sealed class SecurityAuditEventShould
 		{
 			EventId = "evt-001",
 			Timestamp = now,
-			EventType = SecurityEventType.DataAccess,
+			EventType = SecurityAuditEventType.DataAccess,
 			Severity = SecurityEventSeverity.High,
 			Source = "IndexManager",
 			UserId = "user-42",
@@ -49,7 +49,7 @@ public sealed class SecurityAuditEventShould
 
 		sut.EventId.ShouldBe("evt-001");
 		sut.Timestamp.ShouldBe(now);
-		sut.EventType.ShouldBe(SecurityEventType.DataAccess);
+		sut.EventType.ShouldBe(SecurityAuditEventType.DataAccess);
 		sut.Severity.ShouldBe(SecurityEventSeverity.High);
 		sut.Source.ShouldBe("IndexManager");
 		sut.UserId.ShouldBe("user-42");

@@ -58,12 +58,4 @@ public sealed class CloudNativeAndCoreModelsShould
 		stats.TotalDuration.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
-	[Fact]
-	public void CloudWatchMetricsCollector_Dispose_IsSafeAndIdempotent()
-	{
-		var collector = new CloudWatchMetricsCollector();
-
-		collector.Dispose();
-		collector.Dispose();
-	}
 }

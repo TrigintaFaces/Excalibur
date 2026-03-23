@@ -89,7 +89,10 @@ public sealed class LeaderElectionHealthCheckExtensionsShould : UnitTestBase
 		A.CallTo(() => innerFake.CandidateId).Returns("node-1");
 		A.CallTo(() => innerFake.IsLeader).Returns(true);
 		A.CallTo(() => innerFake.CurrentLeaderId).Returns("node-1");
-		services.AddSingleton(innerFake);
+
+		// Register as keyed service since health check resolves via GetRequiredKeyedService("default")
+		services.AddKeyedSingleton<ILeaderElection>("default", innerFake);
+
 		services.AddHealthChecks().AddLeaderElectionHealthCheck();
 
 		var sp = services.BuildServiceProvider();

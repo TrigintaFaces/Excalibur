@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 ///     Dead Letter Queue, Circuit Breaker, and Exponential Backoff components.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ResilienceIntegrationShould
 {
 	private readonly ILogger<InMemoryDeadLetterQueue> _dlqLogger;

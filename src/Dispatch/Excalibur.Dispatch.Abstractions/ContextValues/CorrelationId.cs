@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Messaging;
+
 
 namespace Excalibur.Dispatch.Abstractions;
 
@@ -30,7 +32,7 @@ public sealed class CorrelationId : ICorrelationId, IEquatable<CorrelationId>
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CorrelationId" /> class with a new GUID value.
 	/// </summary>
-	public CorrelationId() => Value = Guid.NewGuid();
+	public CorrelationId() => Value = Uuid7Extensions.GenerateGuid();
 
 	/// <inheritdoc />
 	public Guid Value { get; set; }

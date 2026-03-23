@@ -66,7 +66,7 @@ public abstract class HostTestBase<TFixture> : IClassFixture<TFixture>, IAsyncLi
 		_sink.Dispose(); // TestOutputSink only implements IDisposable, not IAsyncDisposable
 		_scope?.Dispose();
 		TestHost?.Dispose();
-		await Task.CompletedTask.ConfigureAwait(true);
+		await Task.CompletedTask;
 	}
 
 	/// <inheritdoc/>
@@ -123,7 +123,7 @@ public abstract class HostTestBase<TFixture> : IClassFixture<TFixture>, IAsyncLi
 
 		runner?.MigrateUp();
 
-		await OnDatabaseInitialized(connection).ConfigureAwait(true);
+		await OnDatabaseInitialized(connection);
 	}
 
 	protected virtual void Dispose(bool disposing)

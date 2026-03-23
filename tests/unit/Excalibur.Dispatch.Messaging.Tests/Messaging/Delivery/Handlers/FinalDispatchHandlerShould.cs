@@ -31,20 +31,20 @@ public sealed class FinalDispatchHandlerShould
 	private readonly IMessageBusProvider _busProvider;
 	private readonly ILogger<FinalDispatchHandler> _logger;
 	private readonly IRetryPolicy _retryPolicy;
-	private readonly IDictionary<string, IMessageBusOptions> _busOptionsMap;
+	private readonly IDictionary<string, MessageBusOptions> _busOptionsMap;
 
 	public FinalDispatchHandlerShould()
 	{
 		_busProvider = A.Fake<IMessageBusProvider>();
 		_logger = NullLoggerFactory.Instance.CreateLogger<FinalDispatchHandler>();
 		_retryPolicy = A.Fake<IRetryPolicy>();
-		_busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+		_busOptionsMap = new Dictionary<string, MessageBusOptions>();
 	}
 
 	private FinalDispatchHandler CreateHandler(
 		IMessageBusProvider? busProvider = null,
 		IRetryPolicy? retryPolicy = null,
-		IDictionary<string, IMessageBusOptions>? busOptionsMap = null)
+		IDictionary<string, MessageBusOptions>? busOptionsMap = null)
 	{
 		return new FinalDispatchHandler(
 			busProvider ?? _busProvider,
@@ -720,9 +720,9 @@ public sealed class FinalDispatchHandlerShould
 
 	#region Test Fixtures
 
-	private sealed class TestMessageBusOptions : IMessageBusOptions
+	private sealed class TestMessageBusOptions : MessageBusOptions
 	{
-		// IMessageBusOptions is an abstract class with init properties.
+		// MessageBusOptions is an abstract class with init properties.
 		// This concrete implementation allows us to set values for testing.
 	}
 

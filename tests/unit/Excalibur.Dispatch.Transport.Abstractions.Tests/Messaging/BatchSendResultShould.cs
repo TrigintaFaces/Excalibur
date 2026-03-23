@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Messaging;
 
-public class BatchSendResultShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class BatchSendResultShould
 {
     [Fact]
     public void Should_Default_Results_To_Empty()

@@ -25,13 +25,13 @@ public sealed class StepExecutionRecord
 	/// Gets or sets when the step started.
 	/// </summary>
 	/// <value>when the step started.</value>
-	public DateTime StartedAt { get; set; }
+	public DateTimeOffset StartedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the step completed.
 	/// </summary>
 	/// <value>when the step completed.</value>
-	public DateTime? CompletedAt { get; set; }
+	public DateTimeOffset? CompletedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether the step succeeded.

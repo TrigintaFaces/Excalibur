@@ -129,7 +129,7 @@ internal sealed partial class CdcChangeApplier
 
 				totalProcessedCount += batch.Length;
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				LogConsumerCanceled();
 			}
@@ -164,14 +164,17 @@ internal sealed partial class CdcChangeApplier
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
+			var eventSucceeded = false;
 			try
 			{
 				await _orderedEventProcessor.ProcessAsync(async () =>
 						await _policyFactory.GetComprehensivePolicy().ExecuteAsync(async () =>
 								await eventHandler(changeEvent, cancellationToken)
 									.ConfigureAwait(false))
-							.ConfigureAwait(false))
+							.ConfigureAwait(false), cancellationToken)
 					.ConfigureAwait(false);
+
+				eventSucceeded = true;
 
 				EventsProcessedCounter.Add(1, new TagList
 				{
@@ -199,13 +202,25 @@ internal sealed partial class CdcChangeApplier
 				}
 			}
 
-			var updateTablePolicy = _policyFactory.GetComprehensivePolicy();
-			await updateTablePolicy.ExecuteAsync(() => _checkpointManager.UpdateTableLastProcessedAsync(
-				changeEvent.TableName,
-				changeEvent.Lsn,
-				changeEvent.SeqVal,
-				changeEvent.CommitTime,
-				cancellationToken)).ConfigureAwait(false);
+			// Only advance checkpoint after successful processing.
+			// When onFatalError swallows an exception, the checkpoint must NOT advance
+			// past the failed event -- otherwise that event is permanently skipped.
+			if (eventSucceeded)
+			{
+				var updateTablePolicy = _policyFactory.GetComprehensivePolicy();
+				await updateTablePolicy.ExecuteAsync(() => _checkpointManager.UpdateTableLastProcessedAsync(
+					changeEvent.TableName,
+					changeEvent.Lsn,
+					changeEvent.SeqVal,
+					changeEvent.CommitTime,
+					cancellationToken)).ConfigureAwait(false);
+			}
+			else
+			{
+				LogCheckpointSkippedForFailedEvent(changeEvent.TableName,
+					CdcChangeDetector.ByteArrayToHex(changeEvent.Lsn),
+					CdcChangeDetector.ByteArrayToHex(changeEvent.SeqVal));
+			}
 		}
 		BatchDurationHistogram.Record(batchStopwatch.Elapsed.TotalMilliseconds);
 	}
@@ -258,4 +273,8 @@ internal sealed partial class CdcChangeApplier
 	[LoggerMessage(DataSqlServerEventId.CdcMaxRetriesExceeded, LogLevel.Critical,
 		"Unhandled exception occurred while processing change event for table '{TableName}', LSN {Lsn}, SeqVal {SeqVal}.")]
 	private partial void LogUnhandledException(string tableName, string lsn, string seqVal, Exception ex);
+
+	[LoggerMessage(DataSqlServerEventId.CdcCheckpointSkipped, LogLevel.Warning,
+		"Checkpoint NOT advanced for failed event on table '{TableName}', LSN {Lsn}, SeqVal {SeqVal}. Event will be reprocessed on next cycle.")]
+	private partial void LogCheckpointSkippedForFailedEvent(string tableName, string lsn, string seqVal);
 }

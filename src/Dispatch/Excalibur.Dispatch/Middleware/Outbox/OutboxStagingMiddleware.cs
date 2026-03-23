@@ -21,20 +21,30 @@ using MessageKinds = Excalibur.Dispatch.Abstractions.MessageKinds;
 namespace Excalibur.Dispatch.Middleware.Outbox;
 
 /// <summary>
-/// Middleware responsible for staging outbound messages in an outbox for reliable, transactional message publishing using the Transactional
-/// Outbox pattern.
+/// Middleware responsible for staging outbound messages in an outbox for reliable,
+/// eventually-consistent message publishing.
 /// </summary>
 /// <remarks>
-/// This middleware intercepts messages that need to be published as side effects of message processing and stages them in a persistent
-/// outbox within the same transaction as the main processing. This ensures:
-/// <list type="bullet">
-/// <item> Atomic operations - messages are published only if processing succeeds </item>
-/// <item> Reliability - messages are not lost due to transport failures </item>
-/// <item> Consistency - outbound messages reflect the actual state changes </item>
-/// <item> Idempotency - duplicate processing doesn't create duplicate messages </item>
-/// <item> Ordering - messages are published in the correct sequence </item>
-/// </list>
-/// The staged messages are later published by a background service that polls the outbox and marks messages as sent after successful delivery.
+/// <para>
+/// <strong>Important:</strong> This middleware runs at <see cref="DispatchMiddlewareStage.PostProcessing"/>
+/// which executes <em>after</em> the handler and any wrapping transaction have completed.
+/// Outbox messages are therefore staged in a <strong>separate operation</strong> from the
+/// business state change. If the process crashes between the transaction commit and
+/// outbox staging, messages may be lost. This is an <strong>eventually-consistent</strong>
+/// outbox, not a transactional outbox.
+/// </para>
+/// <para>
+/// For true <strong>Transactional Outbox</strong> guarantees (atomic commit of business
+/// data + outbox messages), the handler must stage messages directly within its own
+/// transaction scope -- for example via <c>IEventSourcedOutboxStore.AddAsync</c> or
+/// by writing outbox entries within the same <c>IUnitOfWork</c>. The middleware approach
+/// is suitable when eventual consistency is acceptable or when the transport itself
+/// provides delivery guarantees.
+/// </para>
+/// <para>
+/// Staged messages are published by a background service that polls the outbox and marks
+/// messages as sent after successful delivery.
+/// </para>
 /// </remarks>
 public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 {
@@ -45,25 +55,17 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 	private readonly OutboxStagingOptions _options;
 	private readonly IOutboxStore? _outboxStore;
 
-	/// <summary>
-	/// Keep for backward compatibility.
-	/// </summary>
-	private readonly IOutboxService? _outboxService;
-
 	private readonly ILogger<OutboxStagingMiddleware> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OutboxStagingMiddleware"/> class.
-	/// Creates a new outbox staging middleware instance.
 	/// </summary>
 	/// <param name="options"> Configuration options for outbox staging. </param>
-	/// <param name="outboxStore"> Store for managing outbox operations (preferred). </param>
-	/// <param name="outboxService"> Legacy service for managing outbox operations. </param>
+	/// <param name="outboxStore"> Store for managing outbox operations. </param>
 	/// <param name="logger"> Logger for diagnostic information. </param>
 	public OutboxStagingMiddleware(
 		IOptions<OutboxStagingOptions> options,
 		IOutboxStore? outboxStore,
-		IOutboxService? outboxService,
 		ILogger<OutboxStagingMiddleware> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
@@ -71,11 +73,10 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 
 		_options = options.Value;
 		_outboxStore = outboxStore;
-		_outboxService = outboxService;
 		_logger = logger;
 
-		// Validate that at least one outbox implementation is available
-		if (_options.Enabled && _outboxStore == null && _outboxService == null)
+		// Validate that outbox store is available when enabled
+		if (_options.Enabled && _outboxStore == null)
 		{
 			throw new InvalidOperationException(
 				Resources.OutboxStagingMiddleware_NoOutboxServices);
@@ -134,10 +135,6 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 			if (_outboxStore != null)
 			{
 				await StageOutboundMessagesWithStoreAsync(outboxContext, context, cancellationToken).ConfigureAwait(false);
-			}
-			else if (_outboxService != null)
-			{
-				await StageOutboundMessagesAsync(outboxContext, context, cancellationToken).ConfigureAwait(false);
 			}
 
 			LogOutboxStagingCompleted(message.GetType().Name, outboxContext.OutboundMessages.Count);
@@ -284,60 +281,6 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 			catch (Exception ex)
 			{
 				LogFailedToStageWithStore(outboundMessage.Message.GetType().Name, ex);
-				throw;
-			}
-		}
-	}
-
-	/// <summary>
-	/// Stages all outbound messages that were added during message processing (legacy method).
-	/// </summary>
-	[RequiresUnreferencedCode(
-		"Calls Excalibur.Dispatch.Middleware.OutboxStagingMiddleware.SerializeMessageAsync(IDispatchMessage, CancellationToken)")]
-	[RequiresDynamicCode(
-		"Calls Excalibur.Dispatch.Middleware.OutboxStagingMiddleware.SerializeMessageAsync(IDispatchMessage, CancellationToken)")]
-	private async Task StageOutboundMessagesAsync(
-		OutboxContext outboxContext,
-		IMessageContext context,
-		CancellationToken cancellationToken)
-	{
-		if (outboxContext.OutboundMessages.Count == 0)
-		{
-			LogNoOutboundMessagesToStage();
-			return;
-		}
-
-		LogStagingOutboundMessages(outboxContext.OutboundMessages.Count);
-
-		// Get transaction context if available (for transactional consistency)
-		var transaction = GetTransactionFromContext(context);
-
-		foreach (var outboundMessage in outboxContext.OutboundMessages)
-		{
-			try
-			{
-				// Create outbox entry with correlation and causation context
-				var outboxEntry = new OutboxEntry(
-					id: Guid.NewGuid().ToString(),
-					messageType: outboundMessage.Message.GetType().Name,
-					messageData: await SerializeMessageAsync(
-						outboundMessage.Message,
-						cancellationToken).ConfigureAwait(false),
-					correlationId: outboxContext.CorrelationId,
-					causationId: outboxContext.CausationId,
-					tenantId: outboxContext.TenantId,
-					destination: outboundMessage.Destination,
-					scheduledAt: outboundMessage.ScheduledAt ?? DateTimeOffset.UtcNow,
-					createdAt: DateTimeOffset.UtcNow);
-
-				// Stage message in outbox
-				await _outboxService.StageMessageAsync(outboxEntry, transaction, cancellationToken).ConfigureAwait(false);
-
-				LogStagedOutboundMessage(outboundMessage.Message.GetType().Name, outboxEntry.Id);
-			}
-			catch (Exception ex)
-			{
-				LogFailedToStageMessage(outboundMessage.Message.GetType().Name, ex);
 				throw;
 			}
 		}

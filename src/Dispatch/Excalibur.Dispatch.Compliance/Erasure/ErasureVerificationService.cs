@@ -114,7 +114,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 
 			// Verify via KMS if enabled
 			var options = _options.Value;
-			if (options.VerificationMethods.HasFlag(VerificationMethod.KeyManagementSystem))
+			if ((options.VerificationMethods & VerificationMethod.KeyManagementSystem) != 0)
 			{
 				var kmsResult = await VerifyKeyDeletionsAsync(
 					keyIdsToVerify,
@@ -132,7 +132,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 			}
 
 			// Verify via audit log if enabled
-			if (options.VerificationMethods.HasFlag(VerificationMethod.AuditLog))
+			if ((options.VerificationMethods & VerificationMethod.AuditLog) != 0)
 			{
 				var auditResult = await VerifyAuditTrailAsync(
 					status,
@@ -151,7 +151,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 			}
 
 			// Verify via decryption failure test if enabled
-			if (options.VerificationMethods.HasFlag(VerificationMethod.DecryptionFailure))
+			if ((options.VerificationMethods & VerificationMethod.DecryptionFailure) != 0)
 			{
 				var decryptResult = await VerifyDecryptionFailsAsync(
 					status,
@@ -269,7 +269,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 
 		// Step 3: KMS verification
 		var options = _options.Value;
-		if (options.VerificationMethods.HasFlag(VerificationMethod.KeyManagementSystem))
+		if ((options.VerificationMethods & VerificationMethod.KeyManagementSystem) != 0)
 		{
 			stepStart = ValueStopwatch.StartNew();
 			var kmsResult = await VerifyKeyDeletionsAsync(keyIdsToVerify, cancellationToken)
@@ -288,7 +288,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		}
 
 		// Step 4: Audit log verification
-		if (options.VerificationMethods.HasFlag(VerificationMethod.AuditLog))
+		if ((options.VerificationMethods & VerificationMethod.AuditLog) != 0)
 		{
 			stepStart = ValueStopwatch.StartNew();
 			var auditResult = await VerifyAuditTrailAsync(status, certificate, cancellationToken)
@@ -307,7 +307,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		}
 
 		// Step 5: Decryption failure verification
-		if (options.VerificationMethods.HasFlag(VerificationMethod.DecryptionFailure))
+		if ((options.VerificationMethods & VerificationMethod.DecryptionFailure) != 0)
 		{
 			stepStart = ValueStopwatch.StartNew();
 			var decryptResult = await VerifyDecryptionFailsAsync(

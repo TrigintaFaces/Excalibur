@@ -24,7 +24,7 @@ public sealed class ProcessingError
 	/// Gets or sets the error severity.
 	/// </summary>
 	/// <value>The current <see cref="Severity"/> value.</value>
-	public ErrorSeverity Severity { get; set; }
+	public BatchErrorSeverity Severity { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the error occurred.

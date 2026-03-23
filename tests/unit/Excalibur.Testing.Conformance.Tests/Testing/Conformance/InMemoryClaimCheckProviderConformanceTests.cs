@@ -41,7 +41,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "PROVIDER")]
-public class InMemoryClaimCheckProviderConformanceTests : ClaimCheckProviderConformanceTestKit
+public sealed class InMemoryClaimCheckProviderConformanceTests : ClaimCheckProviderConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override IClaimCheckProvider CreateProvider()

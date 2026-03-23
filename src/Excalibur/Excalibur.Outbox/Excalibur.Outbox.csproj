@@ -51,6 +51,7 @@
   <!-- Enable testing of internal types -->
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Outbox.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

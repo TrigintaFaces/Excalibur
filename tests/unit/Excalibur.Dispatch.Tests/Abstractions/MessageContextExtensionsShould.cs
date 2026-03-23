@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Abstractions;
 /// Target: Increase MessageContextExtensions coverage from 45.4% to 80%.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MessageContextExtensionsShould : IDisposable
 {
 	private readonly MessageEnvelope _context;

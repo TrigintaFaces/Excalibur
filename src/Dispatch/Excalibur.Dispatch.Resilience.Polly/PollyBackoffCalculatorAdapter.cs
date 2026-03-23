@@ -39,13 +39,9 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 	// Track previous delay for decorrelated jitter
 	private TimeSpan _previousDelay;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 
 	/// <summary>
@@ -230,8 +226,7 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 	private static TimeSpan ApplySimpleJitter(TimeSpan delay)
 	{
 		// Apply full jitter (0.5 to 1.0 of delay) - AWS recommended approach
-		var random = new Random();
-		var jitterFactor = 0.5 + (random.NextDouble() * 0.5);
+		var jitterFactor = 0.5 + (Random.Shared.NextDouble() * 0.5);
 		return TimeSpan.FromTicks((long)(delay.Ticks * jitterFactor));
 	}
 

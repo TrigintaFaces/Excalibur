@@ -21,7 +21,7 @@ namespace Excalibur.EventSourcing.Bulk;
 /// database operations for better performance.
 /// </para>
 /// </remarks>
-public class AggregateBulkOperations<TAggregate, TKey> : IAggregateBulkOperations<TAggregate, TKey>
+public sealed class AggregateBulkOperations<TAggregate, TKey> : IAggregateBulkOperations<TAggregate, TKey>
 	where TAggregate : class, IAggregateRoot<TKey>, IAggregateSnapshotSupport
 	where TKey : notnull
 {

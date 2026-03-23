@@ -52,8 +52,17 @@ public sealed class ComplianceMetrics : IComplianceMetrics, IDisposable
 	/// Initializes a new instance of the <see cref="ComplianceMetrics"/> class.
 	/// </summary>
 	public ComplianceMetrics()
+		: this(meterFactory: null)
 	{
-		Meter = new Meter(MeterName, "1.0.0");
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ComplianceMetrics"/> class using an <see cref="IMeterFactory"/>.
+	/// </summary>
+	/// <param name="meterFactory"> The meter factory for DI-managed meter lifecycle, or null to create an owned meter. </param>
+	public ComplianceMetrics(IMeterFactory? meterFactory)
+	{
+		Meter = meterFactory?.Create(MeterName) ?? new Meter(MeterName, "1.0.0");
 
 		// Key rotation metrics
 		_keyRotations = Meter.CreateCounter<long>(

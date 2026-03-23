@@ -14,6 +14,7 @@ namespace Excalibur.EventSourcing.Tests.InMemory;
 /// These tests cover InMemoryEventStore-specific methods not part of IEventStore.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class InMemoryEventStoreShould : UnitTestBase
 {
 	private readonly InMemoryEventStore _store;

@@ -38,6 +38,7 @@ namespace Excalibur.Dispatch.Middleware.Versioning;
 /// </remarks>
 public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, ContractTypeMetadata> ContractTypeMetadataCache = new();
 	private static readonly Func<ILogger, string, string, string, string, IDisposable?> VersionLogScope =
 		LoggerMessage.DefineScope<string, string, string, string>(
@@ -170,20 +171,32 @@ public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 		return null;
 	}
 
-	private static ContractTypeMetadata GetContractTypeMetadata(Type messageType) =>
-		ContractTypeMetadataCache.GetOrAdd(messageType, static type =>
+	private static ContractTypeMetadata GetContractTypeMetadata(Type messageType)
+	{
+		if (ContractTypeMetadataCache.TryGetValue(messageType, out var cached))
 		{
-			var versionProperty = type.GetProperty("Version") ?? type.GetProperty("ContractVersion");
-			if (versionProperty is { CanRead: false })
-			{
-				versionProperty = null;
-			}
+			return cached;
+		}
 
-			return new ContractTypeMetadata(
-				type.GetCustomAttribute<ContractVersionAttribute>()?.Version,
-				type.GetCustomAttribute<SchemaIdAttribute>()?.SchemaId,
-				versionProperty);
-		});
+		var versionProperty = messageType.GetProperty("Version") ?? messageType.GetProperty("ContractVersion");
+		if (versionProperty is { CanRead: false })
+		{
+			versionProperty = null;
+		}
+
+		var metadata = new ContractTypeMetadata(
+			messageType.GetCustomAttribute<ContractVersionAttribute>()?.Version,
+			messageType.GetCustomAttribute<SchemaIdAttribute>()?.SchemaId,
+			versionProperty);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (ContractTypeMetadataCache.Count < MaxCacheEntries)
+		{
+			ContractTypeMetadataCache.TryAdd(messageType, metadata);
+		}
+
+		return metadata;
+	}
 
 	/// <summary>
 	/// Sets OpenTelemetry activity tags for version tracing.

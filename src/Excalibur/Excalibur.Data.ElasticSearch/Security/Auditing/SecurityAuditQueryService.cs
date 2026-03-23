@@ -59,14 +59,14 @@ internal sealed class SecurityAuditQueryService
 
 		// Analyze authentication failures
 		var authFailures =
-			events.Count(static e => e is { EventType: SecurityEventType.Authentication, Severity: >= SecurityEventSeverity.Medium });
+			events.Count(static e => e is { EventType: SecurityAuditEventType.Authentication, Severity: >= SecurityEventSeverity.Medium });
 		if (authFailures > 10)
 		{
 			recommendations.Add("High number of authentication failures detected. Consider implementing account lockout policies.");
 		}
 
 		// Analyze data access patterns
-		var dataAccessCount = events.Count(static e => e.EventType == SecurityEventType.DataAccess);
+		var dataAccessCount = events.Count(static e => e.EventType == SecurityAuditEventType.DataAccess);
 		if (dataAccessCount > 1000)
 		{
 			recommendations.Add("High volume of data access events. Consider implementing data access monitoring and alerting.");
@@ -130,10 +130,10 @@ internal sealed class SecurityAuditQueryService
 			var events = searchResponse.Documents.ToList();
 
 			// Calculate report statistics
-			var authenticationEvents = events.Count(static e => e.EventType == SecurityEventType.Authentication);
-			var dataAccessEvents = events.Count(static e => e.EventType == SecurityEventType.DataAccess);
-			var configurationEvents = events.Count(static e => e.EventType == SecurityEventType.ConfigurationChange);
-			var securityIncidents = events.Count(static e => e.EventType == SecurityEventType.SecurityIncident);
+			var authenticationEvents = events.Count(static e => e.EventType == SecurityAuditEventType.Authentication);
+			var dataAccessEvents = events.Count(static e => e.EventType == SecurityAuditEventType.DataAccess);
+			var configurationEvents = events.Count(static e => e.EventType == SecurityAuditEventType.ConfigurationChange);
+			var securityIncidents = events.Count(static e => e.EventType == SecurityAuditEventType.SecurityIncident);
 
 			var criticalEvents = events.Count(static e => e.Severity == SecurityEventSeverity.Critical);
 			var highSeverityEvents = events.Count(static e => e.Severity == SecurityEventSeverity.High);

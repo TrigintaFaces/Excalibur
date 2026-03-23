@@ -7,6 +7,7 @@ using ExcaliburConfigurationValidationResult = Excalibur.Hosting.Configuration.C
 namespace Excalibur.Tests.Hosting.Configuration;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class ExcaliburConfigurationValidationResultShould
 {
 	[Fact]

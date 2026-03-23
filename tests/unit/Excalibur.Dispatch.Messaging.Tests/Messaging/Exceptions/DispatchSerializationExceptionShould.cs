@@ -201,14 +201,7 @@ public sealed class DispatchSerializationExceptionShould
 		exception.StatusCode.ShouldBe(400);
 	}
 
-	[Fact]
-	public void HaveSerializableAttribute()
-	{
-		// Assert
-		typeof(DispatchSerializationException)
-			.GetCustomAttributes(typeof(SerializableAttribute), false)
-			.ShouldNotBeEmpty();
-	}
+	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)
 
 	[Fact]
 	public void BeCatchableAsDispatchException()

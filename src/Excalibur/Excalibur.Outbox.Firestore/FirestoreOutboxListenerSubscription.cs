@@ -55,10 +55,10 @@ public sealed partial class FirestoreOutboxListenerSubscription : IChangeFeedSub
 
 		SubscriptionId = $"firestore-outbox-{Guid.NewGuid():N}";
 
-		_channel = Channel.CreateBounded<IChangeFeedEvent<CloudOutboxMessage>>(
-			new BoundedChannelOptions(_options.MaxBatchSize * 10)
+		// Use unbounded channel to prevent silent event loss from sync callbacks
+		_channel = Channel.CreateUnbounded<IChangeFeedEvent<CloudOutboxMessage>>(
+			new UnboundedChannelOptions
 			{
-				FullMode = BoundedChannelFullMode.Wait,
 				SingleReader = true,
 				SingleWriter = true
 			});
@@ -152,7 +152,7 @@ public sealed partial class FirestoreOutboxListenerSubscription : IChangeFeedSub
 					}
 				}
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				shouldBreak = true;
 			}

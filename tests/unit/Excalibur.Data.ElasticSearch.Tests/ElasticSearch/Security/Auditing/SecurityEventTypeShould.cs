@@ -12,17 +12,17 @@ public sealed class SecurityEventTypeShould
 	[Fact]
 	public void DefineExpectedValues()
 	{
-		SecurityEventType.Authentication.ShouldBe((SecurityEventType)0);
-		SecurityEventType.DataAccess.ShouldBe((SecurityEventType)1);
-		SecurityEventType.ConfigurationChange.ShouldBe((SecurityEventType)2);
-		SecurityEventType.SecurityIncident.ShouldBe((SecurityEventType)3);
-		SecurityEventType.AccessControl.ShouldBe((SecurityEventType)4);
-		SecurityEventType.Other.ShouldBe((SecurityEventType)5);
+		SecurityAuditEventType.Authentication.ShouldBe((SecurityAuditEventType)0);
+		SecurityAuditEventType.DataAccess.ShouldBe((SecurityAuditEventType)1);
+		SecurityAuditEventType.ConfigurationChange.ShouldBe((SecurityAuditEventType)2);
+		SecurityAuditEventType.SecurityIncident.ShouldBe((SecurityAuditEventType)3);
+		SecurityAuditEventType.AccessControl.ShouldBe((SecurityAuditEventType)4);
+		SecurityAuditEventType.Other.ShouldBe((SecurityAuditEventType)5);
 	}
 
 	[Fact]
 	public void HaveExactlySixMembers()
 	{
-		Enum.GetValues<SecurityEventType>().Length.ShouldBe(6);
+		Enum.GetValues<SecurityAuditEventType>().Length.ShouldBe(6);
 	}
 }

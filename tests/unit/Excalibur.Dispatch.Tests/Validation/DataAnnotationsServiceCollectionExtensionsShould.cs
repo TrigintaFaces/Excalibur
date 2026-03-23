@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Validation.DataAnnotations;
 namespace Excalibur.Dispatch.Tests.Validation;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DataAnnotationsServiceCollectionExtensionsShould
 {
 	#region Registration Tests

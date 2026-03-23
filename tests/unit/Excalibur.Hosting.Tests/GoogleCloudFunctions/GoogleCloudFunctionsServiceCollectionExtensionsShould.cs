@@ -9,6 +9,7 @@ namespace Excalibur.Hosting.Tests.GoogleCloudFunctions;
 /// Unit tests for <see cref="ExcaliburGoogleCloudFunctionsServiceCollectionExtensions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class GoogleCloudFunctionsServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

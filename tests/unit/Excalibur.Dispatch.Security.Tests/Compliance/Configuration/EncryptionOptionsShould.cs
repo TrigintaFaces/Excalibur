@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Configuration;
 /// Unit tests for <see cref="EncryptionOptions"/> and related options classes.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class EncryptionOptionsShould
 {
 	#region EncryptionOptions Default Values Tests

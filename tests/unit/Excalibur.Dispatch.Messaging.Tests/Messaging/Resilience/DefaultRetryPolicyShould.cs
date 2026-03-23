@@ -13,7 +13,9 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Sprint 44: Unit tests for IRetryPolicy implementations.
 /// Task: Excalibur.Dispatch-qu9v
 /// </summary>
+[Collection("Performance Tests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DefaultRetryPolicyShould
 {
 	private readonly ILogger<DefaultRetryPolicy> _logger;

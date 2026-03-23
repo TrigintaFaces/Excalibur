@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.BatchProcessing;
 
-public class BatchProcessingOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class BatchProcessingOptionsShould
 {
     [Fact]
     public void Should_Default_MaxBatchSize_To_100()

@@ -21,6 +21,7 @@ using DynamoRecord = Amazon.DynamoDBStreams.Model.Record;
 namespace Excalibur.EventSourcing.Tests.DynamoDb;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
@@ -183,6 +184,10 @@ public sealed class DynamoDbEventStoreStreamsSubscriptionShould : UnitTestBase
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
 		var streamsClient = A.Fake<IAmazonDynamoDBStreams>();
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cancelledCts = new CancellationTokenSource();
+		cancelledCts.Cancel();
+
 		_ = A.CallTo(() => streamsClient.DescribeStreamAsync(A<DescribeStreamRequest>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new DescribeStreamResponse
 			{
@@ -210,9 +215,7 @@ public sealed class DynamoDbEventStoreStreamsSubscriptionShould : UnitTestBase
 					],
 					NextShardIterator = "iterator-2"
 				}),
-				Task.FromException<GetRecordsResponse>(new OperationCanceledException()));
-
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+				Task.FromException<GetRecordsResponse>(new OperationCanceledException(cancelledCts.Token)));
 
 		var sut = CreateSubscription(client, streamsClient);
 		SetPrivateField(sut, "_isActive", true);

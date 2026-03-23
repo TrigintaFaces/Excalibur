@@ -1,6 +1,9 @@
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.Core;
+
+using EncryptionOptions = Excalibur.Dispatch.Options.Core.EncryptionOptions;
 
 namespace Excalibur.Dispatch.Tests.Options.Core;
 
@@ -89,14 +92,14 @@ public sealed class CoreOptionsShould
 		var opts = new EncryptionOptions
 		{
 			Enabled = true,
-			Algorithm = EncryptionAlgorithm.Aes128Gcm,
+			Algorithm = EncryptionAlgorithm.Aes256CbcHmac,
 			Key = key,
 			KeyDerivation = new KeyDerivationOptions(),
 			EnableKeyRotation = true,
 		};
 
 		opts.Enabled.ShouldBeTrue();
-		opts.Algorithm.ShouldBe(EncryptionAlgorithm.Aes128Gcm);
+		opts.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
 		opts.Key.ShouldBe(key);
 		opts.KeyDerivation.ShouldNotBeNull();
 		opts.EnableKeyRotation.ShouldBeTrue();
@@ -219,34 +222,6 @@ public sealed class CoreOptionsShould
 		opts.Enabled.ShouldBeTrue();
 		opts.ExportInterval.ShouldBe(TimeSpan.FromSeconds(10));
 		opts.CustomTags["env"].ShouldBe("test");
-	}
-
-	[Fact]
-	public void TimeoutOptions_HaveDefaults()
-	{
-		var opts = new TimeoutOptions();
-
-		opts.Enabled.ShouldBeFalse();
-		opts.DefaultTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		opts.MessageTypeTimeouts.ShouldBeEmpty();
-		opts.ThrowOnTimeout.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void TimeoutOptions_AllowSettingProperties()
-	{
-		var opts = new TimeoutOptions
-		{
-			Enabled = true,
-			DefaultTimeout = TimeSpan.FromSeconds(60),
-			ThrowOnTimeout = false,
-		};
-		opts.MessageTypeTimeouts["OrderCommand"] = TimeSpan.FromSeconds(120);
-
-		opts.Enabled.ShouldBeTrue();
-		opts.DefaultTimeout.ShouldBe(TimeSpan.FromSeconds(60));
-		opts.ThrowOnTimeout.ShouldBeFalse();
-		opts.MessageTypeTimeouts["OrderCommand"].ShouldBe(TimeSpan.FromSeconds(120));
 	}
 
 	[Fact]

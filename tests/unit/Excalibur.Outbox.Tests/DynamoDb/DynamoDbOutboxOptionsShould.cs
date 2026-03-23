@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests.DynamoDb;
 /// Unit tests for <see cref="DynamoDbOutboxOptions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 {
 	[Fact]

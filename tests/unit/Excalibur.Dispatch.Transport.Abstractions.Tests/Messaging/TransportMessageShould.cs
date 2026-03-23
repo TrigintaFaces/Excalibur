@@ -4,7 +4,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Messaging;
 
-public class TransportMessageShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class TransportMessageShould
 {
     [Fact]
     public void Should_Generate_Unique_Id_By_Default()

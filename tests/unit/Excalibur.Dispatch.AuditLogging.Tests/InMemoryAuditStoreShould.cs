@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Compliance;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests;
 
-public class InMemoryAuditStoreShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class InMemoryAuditStoreShould
 {
     private readonly InMemoryAuditStore _sut = new();
 

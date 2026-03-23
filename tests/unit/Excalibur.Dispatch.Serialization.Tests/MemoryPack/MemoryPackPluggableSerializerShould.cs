@@ -557,7 +557,7 @@ public sealed class MemoryPackPluggableSerializerShould
 /// A type that is NOT decorated with [MemoryPackable], used to trigger serialization errors
 /// in MemoryPack when no formatter is registered.
 /// </summary>
-public class UnregisteredType
+public sealed class UnregisteredType
 {
 	public string? Value { get; set; }
 }

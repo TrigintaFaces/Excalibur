@@ -420,9 +420,22 @@ services.AddExcaliburSaga(saga =>
 
 The SQL Server implementation requires the `02-SagaCorrelationIndex.sql` migration for optimal performance. Property names in `FindByPropertyAsync` are validated against a `[GeneratedRegex]` whitelist to prevent JSON path injection.
 
+### Idempotent Event Replay
+
+`SagaState` automatically tracks processed event IDs to prevent duplicate command dispatch. When a saga event is delivered (including crash replays or concurrent duplicates), the `SagaCoordinator` calls `SagaState.TryMarkEventProcessed(eventId)` before executing the handler:
+
+- Returns `true` → event is new, process it normally
+- Returns `false` → event already processed, skip silently
+
+The processed event set is bounded to 1,000 entries (oldest trimmed when exceeded) and persisted with the saga state. If a crash occurs between `HandleAsync` and `SaveAsync`, the event ID is lost from the set, and the event replays correctly on next delivery -- the correct behavior since side-effects were also lost.
+
+:::info NServiceBus Pattern
+This follows the same idempotent replay pattern used by NServiceBus sagas, where saga state includes a list of handled message IDs.
+:::
+
 ### Compensation Idempotency
 
-The saga engine checks `ISagaIdempotencyProvider` before executing compensation steps to prevent duplicate compensation during retries or event redelivery. This is wired automatically when using `AdvancedSagaMiddleware`.
+The saga engine also checks `ISagaIdempotencyProvider` before executing compensation steps to prevent duplicate compensation during retries or event redelivery. This provides cross-process deduplication (complementing the in-process `ProcessedEventIds` check). This is wired automatically when using `AdvancedSagaMiddleware`.
 
 For SQL Server persistence, register the idempotency provider:
 

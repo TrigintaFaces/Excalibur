@@ -8,8 +8,10 @@ namespace Excalibur.Tests.Messaging.Delivery.EventStore;
 /// <summary>
 ///     Unit tests for InMemoryEventStoreDispatcher to verify in-memory event store dispatcher functionality.
 /// </summary>
+[Collection("Performance Tests")]
 [Trait("Category", "Unit")]
-public class InMemoryEventStoreDispatcherShould
+[Trait("Component", "Core")]
+public sealed class InMemoryEventStoreDispatcherShould
 {
 	private readonly ILogger<InMemoryEventStoreDispatcher> _logger;
 	private readonly InMemoryEventStoreDispatcher _dispatcher;

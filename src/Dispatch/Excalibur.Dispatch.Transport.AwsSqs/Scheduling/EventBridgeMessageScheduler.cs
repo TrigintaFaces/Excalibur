@@ -293,7 +293,7 @@ internal class EventBridgeMessageScheduler(
 			Arn = _options.TargetArn,
 			RoleArn = _options.RoleArn,
 			Input = input,
-			RetryPolicy = new Amazon.Scheduler.Model.RetryPolicy { MaximumRetryAttempts = _options.MaxRetries, },
+			RetryPolicy = new Amazon.Scheduler.Model.RetryPolicy { MaximumRetryAttempts = _options.MaxRetryAttempts, },
 		};
 
 		if (!string.IsNullOrWhiteSpace(_options.DeadLetterQueueArn))

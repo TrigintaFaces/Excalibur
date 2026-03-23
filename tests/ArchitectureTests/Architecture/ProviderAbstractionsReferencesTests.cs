@@ -1,5 +1,8 @@
 using NetArchTest.Rules;
 using System;
+
+using Shouldly;
+
 using Xunit;
 
 namespace ArchitectureTests.Architecture;
@@ -7,6 +10,8 @@ namespace ArchitectureTests.Architecture;
 /// <summary>
 /// Report-only checks around provider packages referencing A3 abstractions and avoiding A3 implementation.
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Component", "Architecture")]
 public sealed class ProviderAbstractionsReferencesTests
 {
     private static readonly string[] ProviderNamespaces = new[]
@@ -29,7 +34,7 @@ public sealed class ProviderAbstractionsReferencesTests
                 .GetResult()
                 .IsSuccessful;
 
-            Assert.True(hasAbstractions, $"Provider '{ns}' must reference Excalibur.A3.Abstractions.");
+            hasAbstractions.ShouldBeTrue($"Provider '{ns}' must reference Excalibur.A3.Abstractions.");
         }
     }
 
@@ -52,7 +57,7 @@ public sealed class ProviderAbstractionsReferencesTests
                     .Where(a => a.Name != null && a.Name.Equals("Excalibur.A3", StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
-                Assert.False(a3References.Any(),
+                a3References.Any().ShouldBeFalse(
                     $"Provider '{ns}' assembly '{assembly.GetName().Name}' references Excalibur.A3 implementation assembly. Only Excalibur.A3.Abstractions is allowed.");
             }
         }

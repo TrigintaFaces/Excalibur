@@ -232,18 +232,18 @@ public class MultiTenantHandler : IEventHandler<TenantEvent> { }
 
 ### Manual Cleanup
 
-The `IInboxStore.CleanupAsync` method removes processed entries older than the specified retention period:
+The `IInboxStoreAdmin.CleanupAsync` method removes processed entries older than the specified cutoff timestamp. Administrative operations (cleanup, statistics, failed entry queries) are on the separate `IInboxStoreAdmin` interface:
 
 ```csharp
 public class InboxCleanupJob
 {
-    private readonly IInboxStore _store;
+    private readonly IInboxStoreAdmin _adminStore;
     private readonly ILogger<InboxCleanupJob> _logger;
 
     public async Task CleanupAsync(CancellationToken ct)
     {
-        var retentionPeriod = TimeSpan.FromDays(7);
-        var deleted = await _store.CleanupAsync(retentionPeriod, ct);
+        var olderThan = DateTimeOffset.UtcNow.AddDays(-7);
+        var deleted = await _adminStore.CleanupAsync(olderThan, ct);
         _logger.LogInformation("Cleaned up {Count} expired inbox entries", deleted);
     }
 }

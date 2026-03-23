@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Enums;
 
-public class MessageActionShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class MessageActionShould
 {
     [Fact]
     public void Should_Have_Acknowledge_Value()

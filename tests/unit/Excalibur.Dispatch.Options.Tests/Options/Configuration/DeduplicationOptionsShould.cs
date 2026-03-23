@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Options.Delivery;
 
 namespace Excalibur.Dispatch.Tests.Options.Configuration;
 
@@ -16,23 +17,23 @@ public sealed class DeduplicationOptionsShould
 	#region Default Value Tests
 
 	[Fact]
-	public void Default_Enabled_IsFalse()
+	public void Default_Enabled_IsTrue()
 	{
 		// Arrange & Act
 		var options = new DeduplicationOptions();
 
 		// Assert
-		options.Enabled.ShouldBeFalse();
+		options.Enabled.ShouldBeTrue();
 	}
 
 	[Fact]
-	public void Default_ExpiryHours_IsTwentyFour()
+	public void Default_DefaultExpiry_IsTwentyFourHours()
 	{
 		// Arrange & Act
 		var options = new DeduplicationOptions();
 
 		// Assert
-		options.ExpiryHours.ShouldBe(24);
+		options.DefaultExpiry.ShouldBe(TimeSpan.FromHours(24));
 	}
 
 	[Fact]
@@ -46,23 +47,33 @@ public sealed class DeduplicationOptionsShould
 	}
 
 	[Fact]
-	public void Default_WindowSeconds_IsThreeHundred()
+	public void Default_DeduplicationWindow_IsFiveMinutes()
 	{
 		// Arrange & Act
 		var options = new DeduplicationOptions();
 
 		// Assert
-		options.WindowSeconds.ShouldBe(300);
+		options.DeduplicationWindow.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
-	public void Default_MaxCacheSize_IsTenThousand()
+	public void Default_MaxMemoryEntries_IsTenThousand()
 	{
 		// Arrange & Act
 		var options = new DeduplicationOptions();
 
 		// Assert
-		options.MaxCacheSize.ShouldBe(10000);
+		options.MaxMemoryEntries.ShouldBe(10000);
+	}
+
+	[Fact]
+	public void Default_Strategy_IsMessageId()
+	{
+		// Arrange & Act
+		var options = new DeduplicationOptions();
+
+		// Assert
+		options.Strategy.ShouldBe(DeduplicationStrategy.MessageId);
 	}
 
 	#endregion
@@ -76,23 +87,23 @@ public sealed class DeduplicationOptionsShould
 		var options = new DeduplicationOptions();
 
 		// Act
-		options.Enabled = true;
+		options.Enabled = false;
 
 		// Assert
-		options.Enabled.ShouldBeTrue();
+		options.Enabled.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void ExpiryHours_CanBeSet()
+	public void DefaultExpiry_CanBeSet()
 	{
 		// Arrange
 		var options = new DeduplicationOptions();
 
 		// Act
-		options.ExpiryHours = 48;
+		options.DefaultExpiry = TimeSpan.FromHours(48);
 
 		// Assert
-		options.ExpiryHours.ShouldBe(48);
+		options.DefaultExpiry.ShouldBe(TimeSpan.FromHours(48));
 	}
 
 	[Fact]
@@ -109,29 +120,29 @@ public sealed class DeduplicationOptionsShould
 	}
 
 	[Fact]
-	public void WindowSeconds_CanBeSet()
+	public void DeduplicationWindow_CanBeSet()
 	{
 		// Arrange
 		var options = new DeduplicationOptions();
 
 		// Act
-		options.WindowSeconds = 600;
+		options.DeduplicationWindow = TimeSpan.FromMinutes(10);
 
 		// Assert
-		options.WindowSeconds.ShouldBe(600);
+		options.DeduplicationWindow.ShouldBe(TimeSpan.FromMinutes(10));
 	}
 
 	[Fact]
-	public void MaxCacheSize_CanBeSet()
+	public void MaxMemoryEntries_CanBeSet()
 	{
 		// Arrange
 		var options = new DeduplicationOptions();
 
 		// Act
-		options.MaxCacheSize = 50000;
+		options.MaxMemoryEntries = 50000;
 
 		// Assert
-		options.MaxCacheSize.ShouldBe(50000);
+		options.MaxMemoryEntries.ShouldBe(50000);
 	}
 
 	#endregion
@@ -144,19 +155,21 @@ public sealed class DeduplicationOptionsShould
 		// Act
 		var options = new DeduplicationOptions
 		{
-			Enabled = true,
-			ExpiryHours = 12,
+			Enabled = false,
+			DefaultExpiry = TimeSpan.FromHours(12),
 			CleanupInterval = TimeSpan.FromMinutes(10),
-			WindowSeconds = 120,
-			MaxCacheSize = 5000,
+			DeduplicationWindow = TimeSpan.FromMinutes(2),
+			MaxMemoryEntries = 5000,
+			Strategy = DeduplicationStrategy.ContentHash,
 		};
 
 		// Assert
-		options.Enabled.ShouldBeTrue();
-		options.ExpiryHours.ShouldBe(12);
+		options.Enabled.ShouldBeFalse();
+		options.DefaultExpiry.ShouldBe(TimeSpan.FromHours(12));
 		options.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(10));
-		options.WindowSeconds.ShouldBe(120);
-		options.MaxCacheSize.ShouldBe(5000);
+		options.DeduplicationWindow.ShouldBe(TimeSpan.FromMinutes(2));
+		options.MaxMemoryEntries.ShouldBe(5000);
+		options.Strategy.ShouldBe(DeduplicationStrategy.ContentHash);
 	}
 
 	#endregion
@@ -164,19 +177,19 @@ public sealed class DeduplicationOptionsShould
 	#region Real-World Scenario Tests
 
 	[Fact]
-	public void Options_ForHighVolumeScenario_HasLargeCacheSize()
+	public void Options_ForHighVolumeScenario_HasLargeMemoryEntries()
 	{
 		// Act
 		var options = new DeduplicationOptions
 		{
 			Enabled = true,
-			MaxCacheSize = 100000,
-			WindowSeconds = 60,
+			MaxMemoryEntries = 100000,
+			DeduplicationWindow = TimeSpan.FromMinutes(1),
 		};
 
 		// Assert
-		options.MaxCacheSize.ShouldBeGreaterThan(10000);
-		options.WindowSeconds.ShouldBeLessThan(300);
+		options.MaxMemoryEntries.ShouldBeGreaterThan(10000);
+		options.DeduplicationWindow.ShouldBeLessThan(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -186,13 +199,13 @@ public sealed class DeduplicationOptionsShould
 		var options = new DeduplicationOptions
 		{
 			Enabled = true,
-			ExpiryHours = 72,
-			WindowSeconds = 600,
+			DefaultExpiry = TimeSpan.FromHours(72),
+			DeduplicationWindow = TimeSpan.FromMinutes(10),
 		};
 
 		// Assert
-		options.ExpiryHours.ShouldBeGreaterThan(24);
-		options.WindowSeconds.ShouldBeGreaterThan(300);
+		options.DefaultExpiry.ShouldBeGreaterThan(TimeSpan.FromHours(24));
+		options.DeduplicationWindow.ShouldBeGreaterThan(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]

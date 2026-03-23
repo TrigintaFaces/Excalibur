@@ -18,6 +18,8 @@ namespace Excalibur.Dispatch.Tests.Conformance.Snapshot;
 /// 2. An example for how to implement conformance tests for other snapshot stores
 /// </remarks>
 #pragma warning disable CA1001 // Disposable field managed by DisposeSnapshotStoreAsync
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemorySnapshotStoreConformanceTests : SnapshotConformanceTestBase
 #pragma warning restore CA1001
 {

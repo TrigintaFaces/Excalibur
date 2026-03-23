@@ -115,14 +115,14 @@ public sealed class DispatchMiddlewareStageShould
 	public void Error_HasExpectedValue()
 	{
 		// Assert
-		((int)DispatchMiddlewareStage.Error).ShouldBe(800);
+		((int)DispatchMiddlewareStage.ErrorHandling).ShouldBe(800);
 	}
 
 	[Fact]
 	public void ErrorHandling_HasExpectedValue()
 	{
-		// Assert
-		((int)DispatchMiddlewareStage.ErrorHandling).ShouldBe(801);
+		// Assert - After T.25 merge, ErrorHandling is the sole error stage at 800
+		((int)DispatchMiddlewareStage.ErrorHandling).ShouldBe(800);
 	}
 
 	[Fact]
@@ -157,9 +157,16 @@ public sealed class DispatchMiddlewareStageShould
 		values.ShouldContain(DispatchMiddlewareStage.Routing);
 		values.ShouldContain(DispatchMiddlewareStage.Processing);
 		values.ShouldContain(DispatchMiddlewareStage.PostProcessing);
-		values.ShouldContain(DispatchMiddlewareStage.Error);
 		values.ShouldContain(DispatchMiddlewareStage.ErrorHandling);
 		values.ShouldContain(DispatchMiddlewareStage.End);
+		values.ShouldContain(DispatchMiddlewareStage.Deduplication); // Sprint 697 T.17
+	}
+
+	[Fact]
+	public void DeduplicationStageHasCorrectValue()
+	{
+		// Assert -- Sprint 697 T.17: Deduplication = Processing - 1 = 599
+		((int)DispatchMiddlewareStage.Deduplication).ShouldBe(599);
 	}
 
 	[Fact]
@@ -168,7 +175,7 @@ public sealed class DispatchMiddlewareStageShould
 		// Arrange
 		var values = Enum.GetValues<DispatchMiddlewareStage>();
 
-		// Assert
+		// Assert -- T.17 added Deduplication stage (Sprint 697)
 		values.Length.ShouldBe(17);
 	}
 
@@ -191,7 +198,6 @@ public sealed class DispatchMiddlewareStageShould
 	[InlineData(DispatchMiddlewareStage.Routing, "Routing")]
 	[InlineData(DispatchMiddlewareStage.Processing, "Processing")]
 	[InlineData(DispatchMiddlewareStage.PostProcessing, "PostProcessing")]
-	[InlineData(DispatchMiddlewareStage.Error, "Error")]
 	[InlineData(DispatchMiddlewareStage.ErrorHandling, "ErrorHandling")]
 	[InlineData(DispatchMiddlewareStage.End, "End")]
 	public void ToString_ReturnsExpectedValue(DispatchMiddlewareStage stage, string expected)
@@ -298,15 +304,15 @@ public sealed class DispatchMiddlewareStageShould
 		((int)DispatchMiddlewareStage.Cache).ShouldBeLessThan((int)DispatchMiddlewareStage.Routing);
 		((int)DispatchMiddlewareStage.Routing).ShouldBeLessThan((int)DispatchMiddlewareStage.Processing);
 		((int)DispatchMiddlewareStage.Processing).ShouldBeLessThan((int)DispatchMiddlewareStage.PostProcessing);
-		((int)DispatchMiddlewareStage.PostProcessing).ShouldBeLessThan((int)DispatchMiddlewareStage.Error);
-		((int)DispatchMiddlewareStage.Error).ShouldBeLessThan((int)DispatchMiddlewareStage.End);
+		((int)DispatchMiddlewareStage.PostProcessing).ShouldBeLessThan((int)DispatchMiddlewareStage.ErrorHandling);
+		((int)DispatchMiddlewareStage.ErrorHandling).ShouldBeLessThan((int)DispatchMiddlewareStage.End);
 	}
 
 	[Fact]
-	public void ErrorHandling_IsAfterError()
+	public void ErrorHandling_IsAfterPostProcessing()
 	{
-		// Assert - ErrorHandling is an alias that comes right after Error
-		((int)DispatchMiddlewareStage.ErrorHandling).ShouldBe((int)DispatchMiddlewareStage.Error + 1);
+		// Assert - ErrorHandling comes after PostProcessing
+		((int)DispatchMiddlewareStage.ErrorHandling).ShouldBeGreaterThan((int)DispatchMiddlewareStage.PostProcessing);
 	}
 
 	#endregion

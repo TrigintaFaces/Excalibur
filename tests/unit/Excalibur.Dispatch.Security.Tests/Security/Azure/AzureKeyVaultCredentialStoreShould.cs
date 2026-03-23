@@ -20,6 +20,7 @@ namespace Excalibur.Dispatch.Security.Tests.Azure;
 /// Verifies Sprint 390 implementation: Azure credential store moved to dedicated package.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class AzureKeyVaultCredentialStoreShould : UnitTestBase
 {
 	[Fact]

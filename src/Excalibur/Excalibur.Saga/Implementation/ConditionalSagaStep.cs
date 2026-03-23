@@ -44,7 +44,7 @@ public partial class ConditionalSagaStep<TData>(
 	public TimeSpan Timeout { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <inheritdoc />
-	public RetryPolicy? RetryPolicy { get; set; }
+	public SagaRetryOptions? RetryPolicy { get; set; }
 
 	/// <inheritdoc />
 	public bool CanCompensate =>

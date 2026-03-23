@@ -36,6 +36,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.CosmosDb;
 [Trait("Component", "CDC")]
 [Trait("Provider", "CosmosDB")]
 [Trait("SubComponent", "StalePositionRecovery")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CosmosDbCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	/// <summary>
@@ -254,7 +256,7 @@ public sealed class CosmosDbCdcStalePositionIntegrationShould : IntegrationTestB
 			containerName: "callback-test-container");
 
 		// Invoke callback
-		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken).ConfigureAwait(true);
+		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken);
 
 		// Assert: Callback was invoked with correct parameters (now using CdcPositionResetEventArgs)
 		callbackInvoked.ShouldBeTrue("Recovery callback should be invoked");

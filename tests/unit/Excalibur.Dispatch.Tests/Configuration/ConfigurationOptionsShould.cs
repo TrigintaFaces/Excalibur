@@ -4,7 +4,7 @@
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.Configuration;
 
-using ConfigOutboxOptions = Excalibur.Dispatch.Options.Configuration.OutboxOptions;
+using ConfigOutboxOptions = Excalibur.Dispatch.Options.Configuration.OutboxConfigurationOptions;
 using ConfigResilienceOptions = Excalibur.Dispatch.Options.Configuration.ResilienceOptions;
 using ConfigSecurityOptions = Excalibur.Dispatch.Options.Configuration.SecurityOptions;
 
@@ -128,7 +128,7 @@ public sealed class ConfigurationOptionsShould
 	public void RetryPolicy_DefaultValues_AreCorrect()
 	{
 		// Act
-		var policy = new RetryPolicy();
+		var policy = new DispatchRetryOptions();
 
 		// Assert
 		policy.MaxAttempts.ShouldBe(3);
@@ -142,7 +142,7 @@ public sealed class ConfigurationOptionsShould
 	public void RetryPolicy_AllProperties_AreSettable()
 	{
 		// Act
-		var policy = new RetryPolicy
+		var policy = new DispatchRetryOptions
 		{
 			MaxAttempts = 5,
 			InitialDelay = TimeSpan.FromSeconds(2),
@@ -222,50 +222,13 @@ public sealed class ConfigurationOptionsShould
 		options.MaxRetries.ShouldBe(5);
 	}
 
-	// --- DeduplicationOptions ---
-
-	[Fact]
-	public void DeduplicationOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new DeduplicationOptions();
-
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.ExpiryHours.ShouldBe(24);
-		options.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(5));
-		options.WindowSeconds.ShouldBe(300);
-		options.MaxCacheSize.ShouldBe(10000);
-	}
-
-	[Fact]
-	public void DeduplicationOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new DeduplicationOptions
-		{
-			Enabled = true,
-			ExpiryHours = 48,
-			CleanupInterval = TimeSpan.FromMinutes(10),
-			WindowSeconds = 600,
-			MaxCacheSize = 50000,
-		};
-
-		// Assert
-		options.Enabled.ShouldBeTrue();
-		options.ExpiryHours.ShouldBe(48);
-		options.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(10));
-		options.WindowSeconds.ShouldBe(600);
-		options.MaxCacheSize.ShouldBe(50000);
-	}
-
 	// --- InboxOptions ---
 
 	[Fact]
 	public void InboxOptions_DefaultValues_AreCorrect()
 	{
 		// Act
-		var options = new InboxOptions();
+		var options = new InboxConfigurationOptions();
 
 		// Assert
 		options.Enabled.ShouldBeFalse();
@@ -283,7 +246,7 @@ public sealed class ConfigurationOptionsShould
 	public void InboxOptions_AllProperties_AreSettable()
 	{
 		// Act
-		var options = new InboxOptions
+		var options = new InboxConfigurationOptions
 		{
 			Enabled = true,
 			DeduplicationExpiryHours = 48,
@@ -351,7 +314,7 @@ public sealed class ConfigurationOptionsShould
 		var options = new ConfigOutboxOptions();
 
 		// Assert
-		options.Enabled.ShouldBeTrue();
+		options.Enabled.ShouldBeFalse();
 		options.BatchSize.ShouldBe(100);
 		options.PublishIntervalMs.ShouldBe(1000);
 		options.MaxRetries.ShouldBe(3);

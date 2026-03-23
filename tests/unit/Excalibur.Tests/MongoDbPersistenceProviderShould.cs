@@ -16,6 +16,7 @@ namespace Excalibur.Tests;
 ///     pipelines, and MongoDB-specific features.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class MongoDbPersistenceProviderShould : IDisposable
 {
 	private readonly ILogger<MongoDbPersistenceProvider> _logger;

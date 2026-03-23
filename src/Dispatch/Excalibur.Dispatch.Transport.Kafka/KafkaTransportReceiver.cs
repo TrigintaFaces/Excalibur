@@ -27,6 +27,13 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	private readonly IConsumer<string, byte[]> _consumer;
 	private readonly ILogger _logger;
 	private readonly ConcurrentDictionary<string, TopicPartitionOffset> _offsetCache = new(StringComparer.Ordinal);
+
+	/// <summary>
+	/// Maximum unsettled messages tracked in the offset cache.
+	/// Prevents unbounded memory growth if messages are received but never settled.
+	/// </summary>
+	private const int MaxUnsettledMessages = 10_000;
+
 	private volatile bool _disposed;
 	private readonly int _maxBatchSize;
 
@@ -94,9 +101,12 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 		var receiptHandle = GetReceiptHandle(message);
 		try
 		{
-			if (_offsetCache.TryRemove(receiptHandle, out var tpo))
+			// Commit THEN TryRemove: if Commit throws, the offset stays in cache for retry.
+			// Previous order (TryRemove then Commit) lost the offset on Commit failure.
+			if (_offsetCache.TryGetValue(receiptHandle, out var tpo))
 			{
 				_consumer.Commit([new TopicPartitionOffset(tpo.Topic, tpo.Partition, tpo.Offset + 1)]);
+				_offsetCache.TryRemove(receiptHandle, out _);
 				LogMessageAcknowledged(message.Id, Source);
 			}
 			else
@@ -133,10 +143,11 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 		}
 		else
 		{
-			// Commit to skip this message (DLQ routing handled by decorator)
-			if (_offsetCache.TryRemove(receiptHandle, out var tpo))
+			// Commit THEN TryRemove to skip this message (DLQ routing handled by decorator)
+			if (_offsetCache.TryGetValue(receiptHandle, out var tpo))
 			{
 				_consumer.Commit([new TopicPartitionOffset(tpo.Topic, tpo.Partition, tpo.Offset + 1)]);
+				_offsetCache.TryRemove(receiptHandle, out _);
 			}
 
 			LogMessageRejected(message.Id, Source, reason ?? "no reason");
@@ -175,6 +186,12 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	{
 		var receiptHandle = $"{consumeResult.Topic}:{consumeResult.Partition.Value}:{consumeResult.Offset.Value}";
 		_offsetCache[receiptHandle] = consumeResult.TopicPartitionOffset;
+
+		// Warn if unsettled message count is growing beyond expected bounds.
+		if (_offsetCache.Count > MaxUnsettledMessages)
+		{
+			LogOffsetCacheOverflow(Source, _offsetCache.Count);
+		}
 
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 		if (consumeResult.Message.Headers is not null)
@@ -250,4 +267,8 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	[LoggerMessage(KafkaEventId.TransportReceiverDisposed, LogLevel.Debug,
 		"Kafka transport receiver disposed for {Source}")]
 	private partial void LogDisposed(string source);
+
+	[LoggerMessage(KafkaEventId.TransportReceiverOffsetCacheOverflow, LogLevel.Warning,
+		"Kafka transport receiver: offset cache for {Source} has {Count} unsettled entries exceeding expected bounds. Messages may not be getting acknowledged.")]
+	private partial void LogOffsetCacheOverflow(string source, int count);
 }

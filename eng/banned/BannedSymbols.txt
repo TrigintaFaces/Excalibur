@@ -66,4 +66,8 @@ M:System.Console.Write(System.Object)
 P:System.Environment.TickCount
 P:System.Environment.TickCount64
 
+# [Serializable] banned - BinaryFormatter is obsolete (SYSLIB0051), removed from .NET 9+
+# Use System.Text.Json or MemoryPack for serialization instead
+T:System.SerializableAttribute
+
 # IntPtr/UIntPtr are intentionally allowed for interop and high-performance adapters.

@@ -31,13 +31,13 @@ public sealed class SagaInstanceFilter
 	/// Gets or sets the minimum creation date.
 	/// </summary>
 	/// <value>the minimum creation date.</value>
-	public DateTime? CreatedAfter { get; set; }
+	public DateTimeOffset? CreatedAfter { get; set; }
 
 	/// <summary>
 	/// Gets or sets the maximum creation date.
 	/// </summary>
 	/// <value>the maximum creation date.</value>
-	public DateTime? CreatedBefore { get; set; }
+	public DateTimeOffset? CreatedBefore { get; set; }
 
 	/// <summary>
 	/// Gets or sets the maximum number of results.

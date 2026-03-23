@@ -106,7 +106,7 @@ public sealed class AotFluentValidatorResolverShould
 		var sut = new AotFluentValidatorResolver(provider);
 
 		// Assert
-		Assert.NotNull(sut);
+		sut.ShouldNotBeNull();
 	}
 
 	#endregion Constructor Tests
@@ -458,7 +458,7 @@ public sealed class AotFluentValidatorResolverShould
 
 		// Assert
 		Assert.NotNull(result);
-		Assert.IsType<SerializableValidationResult>(result);
+		result.ShouldBeOfType<SerializableValidationResult>();
 	}
 
 	[Fact]
@@ -477,7 +477,7 @@ public sealed class AotFluentValidatorResolverShould
 
 		// Assert
 		Assert.NotNull(result);
-		Assert.IsType<SerializableValidationResult>(result);
+		result.ShouldBeOfType<SerializableValidationResult>();
 	}
 
 	#endregion ValidateTyped Tests - Result Type

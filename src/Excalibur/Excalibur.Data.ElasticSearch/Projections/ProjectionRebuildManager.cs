@@ -433,7 +433,7 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 
 			await StoreOperationAsync(completed, cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			var cancelled = CreateOperationDocument(
 				operationId,

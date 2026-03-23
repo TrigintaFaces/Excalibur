@@ -15,6 +15,7 @@ namespace Excalibur.EventSourcing.Tests;
 /// Unit tests for <see cref="AggregateRoot{TKey}"/> with various key types.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class AggregateRootGenericKeyShould
 {
 	#region Test Events

@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 ///     Tests for the <see cref="CircuitStateChangedEventArgs" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CircuitStateChangedEventArgsShould
 {
 	[Fact]

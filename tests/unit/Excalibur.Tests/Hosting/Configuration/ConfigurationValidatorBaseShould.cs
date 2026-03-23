@@ -9,6 +9,7 @@ using ConfigValidationResult = Excalibur.Hosting.Configuration.ConfigurationVali
 namespace Excalibur.Tests.Hosting.Configuration;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class ConfigurationValidatorBaseShould
 {
 	[Fact]

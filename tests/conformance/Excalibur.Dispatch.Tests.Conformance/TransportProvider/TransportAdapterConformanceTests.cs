@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.TransportProvider;
 ///     expected behavior and contracts defined by the ITransportAdapter interface. Concrete test classes should inherit from this class and
 ///     implement the factory methods to provide the specific transport adapter under test.
 /// </remarks>
+[Trait("Component", "Transport")]
 public abstract class TransportAdapterConformanceTests
 {
 	/// <summary>
@@ -119,9 +120,10 @@ public abstract class TransportAdapterConformanceTests
 		var adapter = CreateAdapter();
 		var message = CreateTestMessage();
 		var destination = TestDestination;
+		var context = FakeItEasy.A.Fake<IMessageContext>();
 
 		// Act & Assert
-		await adapter.SendAsync(message, destination, CancellationToken.None).ConfigureAwait(false);
+		await adapter.SendAsync(message, destination, context, CancellationToken.None).ConfigureAwait(false);
 		// Should not throw
 	}
 
@@ -131,9 +133,10 @@ public abstract class TransportAdapterConformanceTests
 		// Arrange
 		var adapter = CreateAdapter();
 		var destination = TestDestination;
+		var context = FakeItEasy.A.Fake<IMessageContext>();
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentNullException>(() => adapter.SendAsync(null!, destination, CancellationToken.None)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<ArgumentNullException>(() => adapter.SendAsync(null!, destination, context, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -142,9 +145,10 @@ public abstract class TransportAdapterConformanceTests
 		// Arrange
 		var adapter = CreateAdapter();
 		var message = CreateTestMessage();
+		var context = FakeItEasy.A.Fake<IMessageContext>();
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentException>(() => adapter.SendAsync(message, null!, CancellationToken.None)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<ArgumentException>(() => adapter.SendAsync(message, null!, context, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -153,9 +157,10 @@ public abstract class TransportAdapterConformanceTests
 		// Arrange
 		var adapter = CreateAdapter();
 		var message = CreateTestMessage();
+		var context = FakeItEasy.A.Fake<IMessageContext>();
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentException>(() => adapter.SendAsync(message, "", CancellationToken.None)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<ArgumentException>(() => adapter.SendAsync(message, "", context, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -165,11 +170,12 @@ public abstract class TransportAdapterConformanceTests
 		var adapter = CreateAdapter();
 		var message = CreateTestMessage();
 		var destination = TestDestination;
+		var context = FakeItEasy.A.Fake<IMessageContext>();
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(() => adapter.SendAsync(message, destination, cts.Token)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<OperationCanceledException>(() => adapter.SendAsync(message, destination, context, cts.Token)).ConfigureAwait(false);
 	}
 
 	[Fact]

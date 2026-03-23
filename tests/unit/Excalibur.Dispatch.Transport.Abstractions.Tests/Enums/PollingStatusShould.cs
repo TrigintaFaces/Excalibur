@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Enums;
 
-public class PollingStatusShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class PollingStatusShould
 {
     [Theory]
     [InlineData(PollingStatus.Idle, 0)]

@@ -19,6 +19,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Migration;
 /// validation, error handling, and cancellation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class MigrationRunnerFunctionalShould
 {
 	private readonly IEventBatchMigrator _migrator = A.Fake<IEventBatchMigrator>();

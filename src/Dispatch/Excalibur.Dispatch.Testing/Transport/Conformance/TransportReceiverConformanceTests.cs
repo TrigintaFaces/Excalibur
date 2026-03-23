@@ -138,7 +138,7 @@ public abstract class TransportReceiverConformanceTests
 			throw new InvalidOperationException(
 				"ReceiveAsync should throw OperationCanceledException for cancelled token.");
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected
 		}

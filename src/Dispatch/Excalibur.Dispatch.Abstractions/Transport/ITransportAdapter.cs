@@ -45,11 +45,13 @@ public interface ITransportAdapter
 	/// </summary>
 	/// <param name="message"> The message to send. </param>
 	/// <param name="destination"> The destination endpoint. </param>
+	/// <param name="context"> The message context containing correlation, tenant, and other propagation data. </param>
 	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns> Task representing the send operation. </returns>
 	Task SendAsync(
 		IDispatchMessage message,
 		string destination,
+		IMessageContext context,
 		CancellationToken cancellationToken);
 
 	/// <summary>

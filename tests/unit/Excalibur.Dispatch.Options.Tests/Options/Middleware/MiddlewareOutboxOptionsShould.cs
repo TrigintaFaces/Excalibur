@@ -6,12 +6,12 @@ using Excalibur.Dispatch.Options.Middleware;
 namespace Excalibur.Dispatch.Tests.Options.Middleware;
 
 /// <summary>
-/// Unit tests for <see cref="OutboxOptions"/> in the Middleware namespace.
+/// Unit tests for <see cref="OutboxMiddlewareOptions"/> in the Middleware namespace.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Options")]
 [Trait("Priority", "0")]
-public sealed class MiddlewareOutboxOptionsShould
+public sealed class MiddlewareOutboxMiddlewareOptionsShould
 {
 	#region Default Value Tests
 
@@ -19,7 +19,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_Enabled_IsFalse()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.Enabled.ShouldBeFalse();
@@ -29,7 +29,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_DefaultPriority_IsZero()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.DefaultPriority.ShouldBe(0);
@@ -39,7 +39,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_ContinueOnStagingError_IsFalse()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.ContinueOnStagingError.ShouldBeFalse();
@@ -49,7 +49,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_BypassOutboxForTypes_IsNull()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.BypassOutboxForTypes.ShouldBeNull();
@@ -59,7 +59,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_PublishBatchSize_Is100()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.PublishBatchSize.ShouldBe(100);
@@ -69,7 +69,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_PublishPollingInterval_Is5Seconds()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.PublishPollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
@@ -79,7 +79,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_MaxRetries_Is3()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.Retry.MaxRetries.ShouldBe(3);
@@ -89,7 +89,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_RetryDelay_Is5Minutes()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
@@ -99,7 +99,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_CleanupAge_Is7Days()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.CleanupAge.ShouldBe(TimeSpan.FromDays(7));
@@ -109,7 +109,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Default_CleanupInterval_Is1Hour()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Assert
 		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
@@ -123,7 +123,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Enabled_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.Enabled = true;
@@ -136,7 +136,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void DefaultPriority_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.DefaultPriority = 5;
@@ -149,7 +149,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void ContinueOnStagingError_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.ContinueOnStagingError = true;
@@ -162,7 +162,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void BypassOutboxForTypes_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.BypassOutboxForTypes = ["MyNamespace.MyMessage"];
@@ -177,7 +177,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void PublishBatchSize_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.PublishBatchSize = 500;
@@ -190,7 +190,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void PublishPollingInterval_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.PublishPollingInterval = TimeSpan.FromSeconds(10);
@@ -203,7 +203,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void MaxRetries_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.Retry.MaxRetries = 5;
@@ -216,7 +216,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void RetryDelay_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.Retry.RetryDelay = TimeSpan.FromMinutes(10);
@@ -229,7 +229,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void CleanupAge_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.CleanupAge = TimeSpan.FromDays(30);
@@ -242,7 +242,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void CleanupInterval_CanBeSet()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		options.CleanupInterval = TimeSpan.FromHours(6);
@@ -259,7 +259,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void ObjectInitializer_SetsAllProperties()
 	{
 		// Act
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			Enabled = true,
 			DefaultPriority = 10,
@@ -298,7 +298,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Options_ForHighThroughput_HasLargeBatchSize()
 	{
 		// Act
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			Enabled = true,
 			PublishBatchSize = 1000,
@@ -314,7 +314,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Options_ForReliability_EnablesRetries()
 	{
 		// Act
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			Enabled = true,
 			Retry = { MaxRetries = 10, RetryDelay = TimeSpan.FromMinutes(1) },
@@ -330,7 +330,7 @@ public sealed class MiddlewareOutboxOptionsShould
 	public void Options_ForLongRetention_HasExtendedCleanupAge()
 	{
 		// Act
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			Enabled = true,
 			CleanupAge = TimeSpan.FromDays(30),

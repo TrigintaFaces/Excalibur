@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// Unit tests for MessageContextFactory and IMessageContextFactory DI resolution (Sprint 70 - Task av82).
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MessageContextFactoryShould
 {
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();

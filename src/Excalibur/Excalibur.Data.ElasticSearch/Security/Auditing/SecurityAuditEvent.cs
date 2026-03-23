@@ -16,7 +16,7 @@ public sealed class SecurityAuditEvent
 	public DateTimeOffset Timestamp { get; set; }
 
 	/// <inheritdoc/>
-	public SecurityEventType EventType { get; set; }
+	public SecurityAuditEventType EventType { get; set; }
 
 	/// <inheritdoc/>
 	public SecurityEventSeverity Severity { get; set; }

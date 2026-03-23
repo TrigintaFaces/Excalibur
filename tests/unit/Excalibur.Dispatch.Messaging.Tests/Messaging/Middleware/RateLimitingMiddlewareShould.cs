@@ -17,25 +17,25 @@ using MsOptions = Microsoft.Extensions.Options.Options;
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 /// <summary>
-/// Unit tests for the <see cref="RateLimitingMiddleware"/> class.
+/// Unit tests for the <see cref="ThrottlingMiddleware"/> class.
 /// </summary>
 /// <remarks>
-/// Sprint 414 - Task T414.4: RateLimitingMiddleware tests (0% → 50%+).
+/// Sprint 414 - Task T414.4: ThrottlingMiddleware tests (0% → 50%+).
 /// Tests rate limiting pattern implementation for resilience.
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Middleware")]
-public sealed class RateLimitingMiddlewareShould : IDisposable
+public sealed class ThrottlingMiddlewareShould : IDisposable
 {
-	private readonly ILogger<RateLimitingMiddleware> _logger;
+	private readonly ILogger<ThrottlingMiddleware> _logger;
 	private readonly IDispatchMessage _message;
 	private readonly IMessageContext _context;
 	private readonly DispatchRequestDelegate _successDelegate;
-	private readonly List<RateLimitingMiddleware> _middlewaresToDispose = [];
+	private readonly List<ThrottlingMiddleware> _middlewaresToDispose = [];
 
-	public RateLimitingMiddlewareShould()
+	public ThrottlingMiddlewareShould()
 	{
-		_logger = A.Fake<ILogger<RateLimitingMiddleware>>();
+		_logger = A.Fake<ILogger<ThrottlingMiddleware>>();
 		_message = A.Fake<IDispatchMessage>();
 		_context = A.Fake<IMessageContext>();
 
@@ -55,9 +55,9 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 		}
 	}
 
-	private RateLimitingMiddleware CreateMiddleware(RateLimitingOptions options)
+	private ThrottlingMiddleware CreateMiddleware(RateLimitingOptions options)
 	{
-		var middleware = new RateLimitingMiddleware(MsOptions.Create(options), _logger);
+		var middleware = new ThrottlingMiddleware(MsOptions.Create(options), _logger);
 		_middlewaresToDispose.Add(middleware);
 		return middleware;
 	}
@@ -69,7 +69,7 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RateLimitingMiddleware(null!, _logger));
+			new ThrottlingMiddleware(null!, _logger));
 	}
 
 	[Fact]
@@ -80,7 +80,7 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RateLimitingMiddleware(options, null!));
+			new ThrottlingMiddleware(options, null!));
 	}
 
 	#endregion
@@ -175,7 +175,7 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 			BypassRateLimitingForTypes = [_message.GetType().Name],
 			DefaultLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.TokenBucket,
+				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 1,
 				TokensPerPeriod = 0, // No replenishment
 				ReplenishmentPeriod = TimeSpan.FromHours(1)
@@ -207,14 +207,14 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 			Enabled = true,
 			DefaultLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.TokenBucket,
+				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 100,
 				TokensPerPeriod = 100,
 				ReplenishmentPeriod = TimeSpan.FromSeconds(1)
 			},
 			GlobalLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.TokenBucket,
+				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 1000,
 				TokensPerPeriod = 1000,
 				ReplenishmentPeriod = TimeSpan.FromSeconds(1)
@@ -238,13 +238,13 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 			Enabled = true,
 			DefaultLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.FixedWindow,
+				Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 				PermitLimit = 1,
 				Window = TimeSpan.FromHours(1) // Long window so permits won't replenish
 			},
 			GlobalLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.FixedWindow,
+				Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 				PermitLimit = 1000,
 				Window = TimeSpan.FromSeconds(1)
 			}
@@ -276,13 +276,13 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 			EnablePerTenantLimiting = true,
 			DefaultLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.FixedWindow,
+				Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 				PermitLimit = 1,
 				Window = TimeSpan.FromHours(1)
 			},
 			GlobalLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.FixedWindow,
+				Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 				PermitLimit = 1000,
 				Window = TimeSpan.FromSeconds(1)
 			}
@@ -318,10 +318,10 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 	#region Rate Limit Algorithm Tests
 
 	[Theory]
-	[InlineData(RateLimitAlgorithm.TokenBucket)]
-	[InlineData(RateLimitAlgorithm.SlidingWindow)]
-	[InlineData(RateLimitAlgorithm.FixedWindow)]
-	public async Task SupportDifferentAlgorithms(RateLimitAlgorithm algorithm)
+	[InlineData(MiddlewareRateLimitAlgorithm.TokenBucket)]
+	[InlineData(MiddlewareRateLimitAlgorithm.SlidingWindow)]
+	[InlineData(MiddlewareRateLimitAlgorithm.FixedWindow)]
+	public async Task SupportDifferentAlgorithms(MiddlewareRateLimitAlgorithm algorithm)
 	{
 		// Arrange
 		var options = new RateLimitingOptions
@@ -370,13 +370,13 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 			Enabled = true,
 			DefaultLimit = new RateLimitConfiguration
 			{
-				Algorithm = RateLimitAlgorithm.TokenBucket,
+				Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 				TokenLimit = 100,
 				TokensPerPeriod = 100,
 				ReplenishmentPeriod = TimeSpan.FromSeconds(1)
 			}
 		};
-		var middleware = new RateLimitingMiddleware(MsOptions.Create(options), _logger);
+		var middleware = new ThrottlingMiddleware(MsOptions.Create(options), _logger);
 
 		// Act & Assert - Should not throw
 		Should.NotThrow(() => middleware.Dispose());

@@ -21,6 +21,7 @@ namespace Excalibur.Data.Tests.MongoDB.Transactions;
 /// - Thread-safe via double-checked locking pattern
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class MongoDbTransactionScopeLazyInitShould : IDisposable
 {
 	private readonly ILogger<MongoDbPersistenceProvider> _logger;

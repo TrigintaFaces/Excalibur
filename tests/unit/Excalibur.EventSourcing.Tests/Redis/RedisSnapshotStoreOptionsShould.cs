@@ -6,6 +6,7 @@ using Excalibur.EventSourcing.Redis;
 namespace Excalibur.EventSourcing.Tests.Redis;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class RedisSnapshotStoreOptionsShould : UnitTestBase
 {
 	[Fact]

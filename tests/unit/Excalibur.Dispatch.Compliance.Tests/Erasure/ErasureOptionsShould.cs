@@ -5,7 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Erasure;
 
-public class ErasureOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class ErasureOptionsShould
 {
     private static readonly ErasureOptionsValidator Validator = new();
 

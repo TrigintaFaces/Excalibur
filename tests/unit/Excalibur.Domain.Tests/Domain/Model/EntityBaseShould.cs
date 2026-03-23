@@ -9,6 +9,7 @@ namespace Excalibur.Tests.Domain.Model;
 /// Unit tests for <see cref="EntityBase{TKey}"/> and <see cref="EntityBase"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Domain")]
 public sealed class EntityBaseShould
 {
 	#region T419.5: Core EntityBase Tests

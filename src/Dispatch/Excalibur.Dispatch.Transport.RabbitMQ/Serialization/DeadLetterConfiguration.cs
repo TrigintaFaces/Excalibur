@@ -10,5 +10,5 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 internal sealed record DeadLetterConfiguration(
 	string Exchange,
 	string RoutingKey,
-	int MaxRetries,
+	int MaxRetryAttempts,
 	TimeSpan RetryInterval);

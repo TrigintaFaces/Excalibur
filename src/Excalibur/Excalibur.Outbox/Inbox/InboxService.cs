@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// returns <see langword="false"/>.
 /// </para>
 /// </remarks>
-public partial class InboxService : BackgroundService
+internal sealed partial class InboxService : BackgroundService
 {
 	private readonly IInbox _inbox;
 	private readonly IProcessingGate? _gate;

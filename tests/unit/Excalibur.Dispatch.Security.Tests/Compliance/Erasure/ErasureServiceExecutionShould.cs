@@ -291,6 +291,53 @@ public sealed class ErasureServiceExecutionShould
 			.MustHaveHappenedOnceExactly();
 	}
 
+	/// <summary>
+	/// Regression test for Sprint 672 B.1: GenerateCertificateAsync must reject
+	/// PartiallyCompleted status. Previously, code used IsExecuted (which includes
+	/// PartiallyCompleted) as the gate, allowing compliance certificates for
+	/// partially completed erasures. The fix checks for Completed explicitly.
+	/// </summary>
+	[Fact]
+	public async Task GenerateCertificateAsync_ThrowsInvalidOperationException_WhenPartiallyCompleted()
+	{
+		// Arrange -- PartiallyCompleted is NOT eligible for certificate generation
+		var requestId = Guid.NewGuid();
+		var status = CreateErasureStatus(requestId, ErasureRequestStatus.PartiallyCompleted);
+		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
+			.Returns(Task.FromResult<ErasureStatus?>(status));
+
+		// Act & Assert -- must throw, not silently generate a cert for partial erasure
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => _sut.GenerateCertificateAsync(requestId, CancellationToken.None)).ConfigureAwait(false);
+
+		ex.Message.ShouldContain(requestId.ToString());
+		ex.Message.ShouldContain("PartiallyCompleted");
+	}
+
+	/// <summary>
+	/// Verify that all non-Completed statuses are rejected, not just a few.
+	/// </summary>
+	[Theory]
+	[InlineData(ErasureRequestStatus.Pending)]
+	[InlineData(ErasureRequestStatus.Scheduled)]
+	[InlineData(ErasureRequestStatus.InProgress)]
+	[InlineData(ErasureRequestStatus.BlockedByLegalHold)]
+	[InlineData(ErasureRequestStatus.Cancelled)]
+	[InlineData(ErasureRequestStatus.Failed)]
+	[InlineData(ErasureRequestStatus.PartiallyCompleted)]
+	public async Task GenerateCertificateAsync_ThrowsForAllNonCompletedStatuses(ErasureRequestStatus nonCompletedStatus)
+	{
+		// Arrange
+		var requestId = Guid.NewGuid();
+		var status = CreateErasureStatus(requestId, nonCompletedStatus);
+		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
+			.Returns(Task.FromResult<ErasureStatus?>(status));
+
+		// Act & Assert
+		await Should.ThrowAsync<InvalidOperationException>(
+			() => _sut.GenerateCertificateAsync(requestId, CancellationToken.None)).ConfigureAwait(false);
+	}
+
 	#endregion
 
 	#region RequestErasureAsync - Grace Period Tests

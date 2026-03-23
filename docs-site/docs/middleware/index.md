@@ -51,7 +51,7 @@ builder.Services.AddDispatch(dispatch =>
             .UseAuthentication()
             .UseAuthorization()
             .UseValidation()
-            .UseRateLimiting()
+            .UseThrottling()
             .UseRetry()
             .UseCircuitBreaker();
 });

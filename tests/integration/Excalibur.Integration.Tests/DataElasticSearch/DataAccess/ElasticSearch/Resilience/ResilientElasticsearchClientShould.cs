@@ -20,6 +20,8 @@ using Tests.Shared.Fixtures;
 namespace Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch.Resilience;
 
 [Collection(nameof(ElasticsearchHostTests))]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class ResilientElasticsearchClientShould : IDisposable
 {
 	private readonly ElasticsearchContainerFixture _fixture;
@@ -314,7 +316,7 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 			{
 				Enabled = true,
 				Retry =
-					new RetryPolicyOptions
+					new ElasticSearchRetryPolicyOptions
 					{
 						Enabled = true,
 						MaxAttempts = retryMaxAttempts,

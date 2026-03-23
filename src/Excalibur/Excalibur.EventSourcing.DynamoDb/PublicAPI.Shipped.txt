@@ -1,7 +1,7 @@
 #nullable enable
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.AppendAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudAppendResult!>!
-Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.DynamoDbEventStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore!>! logger) -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.GetCurrentVersionAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!

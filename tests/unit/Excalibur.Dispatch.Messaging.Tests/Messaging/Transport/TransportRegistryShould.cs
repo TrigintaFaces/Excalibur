@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// Tests DI merging fix per Sprint 34 bd-790j, bd-4zd4, bd-4jek.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportRegistryShould
 {
 	#region RegisterTransport Tests

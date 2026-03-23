@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Threading;
 ///     Tests for the <see cref="KeyedLock" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class KeyedLockShould
 {
 	[Fact]

@@ -35,7 +35,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// See the pluggable serialization architecture documentation for details.
 /// </para>
 /// </remarks>
-public sealed partial class AzureServiceBusMessageBus(
+internal sealed partial class AzureServiceBusMessageBus(
 	ServiceBusClient client,
 	IPayloadSerializer serializer,
 	AzureServiceBusOptions serviceBusOptions,

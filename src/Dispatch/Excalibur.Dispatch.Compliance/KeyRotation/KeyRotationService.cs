@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
+
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
 using Microsoft.Extensions.Hosting;
@@ -21,14 +23,19 @@ namespace Excalibur.Dispatch.Compliance;
 /// - Rotation success/failure metrics
 /// </para>
 /// </remarks>
-public partial class KeyRotationService : BackgroundService, IKeyRotationScheduler
+internal sealed partial class KeyRotationService : BackgroundService, IKeyRotationScheduler
 {
+	private const int StateIdle = 0;
+	private const int StateRotating = 1;
+
 	private readonly IKeyManagementProvider _keyProvider;
 	private readonly IKeyManagementAdmin _keyAdmin;
+	private readonly IKeyCache? _keyCache;
 	private readonly IOptions<KeyRotationOptions> _options;
 	private readonly ILogger<KeyRotationService> _logger;
 	private readonly SemaphoreSlim _rotationSemaphore;
-	private readonly Dictionary<string, DateTimeOffset> _failedRotations = new();
+	private readonly ConcurrentDictionary<string, DateTimeOffset> _failedRotations = new(StringComparer.Ordinal);
+	private volatile int _rotationState;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="KeyRotationService"/> class.
@@ -37,21 +44,43 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 	/// <param name="keyAdmin">The key management admin provider for listing keys.</param>
 	/// <param name="options">The rotation options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="keyCache">Optional key cache to invalidate after rotation.</param>
 	public KeyRotationService(
 		IKeyManagementProvider keyProvider,
 		IKeyManagementAdmin keyAdmin,
 		IOptions<KeyRotationOptions> options,
-		ILogger<KeyRotationService> logger)
+		ILogger<KeyRotationService> logger,
+		IKeyCache? keyCache = null)
 	{
 		_keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
 		_keyAdmin = keyAdmin ?? throw new ArgumentNullException(nameof(keyAdmin));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_keyCache = keyCache;
 		_rotationSemaphore = new SemaphoreSlim(options.Value.MaxConcurrentRotations);
 	}
 
 	/// <inheritdoc />
 	public async Task<KeyRotationBatchResult> CheckAndRotateAsync(CancellationToken cancellationToken)
+	{
+		// Prevent concurrent rotation runs via atomic state transition
+		if (Interlocked.CompareExchange(ref _rotationState, StateRotating, StateIdle) != StateIdle)
+		{
+			LogRotationAlreadyInProgress();
+			return new KeyRotationBatchResult();
+		}
+
+		try
+		{
+			return await CheckAndRotateCoreAsync(cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			Interlocked.Exchange(ref _rotationState, StateIdle);
+		}
+	}
+
+	private async Task<KeyRotationBatchResult> CheckAndRotateCoreAsync(CancellationToken cancellationToken)
 	{
 		var config = _options.Value;
 		var startedAt = DateTimeOffset.UtcNow;
@@ -121,7 +150,8 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 
 				if (result.Success)
 				{
-					_ = _failedRotations.Remove(key.KeyId);
+					_ = _failedRotations.TryRemove(key.KeyId, out _);
+					_keyCache?.Invalidate(key.KeyId);
 					LogKeyRotationSucceeded(key.KeyId, result.NewKey?.Version);
 				}
 				else
@@ -212,7 +242,8 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 
 		if (result.Success)
 		{
-			_ = _failedRotations.Remove(keyId);
+			_ = _failedRotations.TryRemove(keyId, out _);
+			_keyCache?.Invalidate(keyId);
 			LogKeyRotationForceSucceeded(keyId, result.NewKey?.Version);
 		}
 		else
@@ -288,7 +319,7 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 					LogKeyRotationCheckNoKeys(result.KeysChecked);
 				}
 			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -301,7 +332,7 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 			{
 				await Task.Delay(config.CheckInterval, stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -405,4 +436,10 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 		LogLevel.Error,
 		"Force rotation of key {KeyId} failed: {Error}")]
 	private partial void LogKeyRotationForceFailed(string keyId, string? error);
+
+	[LoggerMessage(
+		ComplianceEventId.KeyRotationAlreadyInProgress,
+		LogLevel.Information,
+		"Key rotation skipped: rotation is already in progress")]
+	private partial void LogRotationAlreadyInProgress();
 }

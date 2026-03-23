@@ -33,7 +33,9 @@ public static class InMemoryOutboxExtensions
 			.ValidateOnStart();
 
 		services.TryAddSingleton<InMemoryOutboxStore>();
-		services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<InMemoryOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemoryOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("inmemory"));
 
 		return services;
 	}

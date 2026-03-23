@@ -6,7 +6,9 @@ namespace Excalibur.Dispatch.Tests.Functional;
 /// <summary>
 ///     Tests that verify the canonical architecture requirements are met.
 /// </summary>
-public class CanonicalArchitectureTests
+[Trait("Category", "Functional")]
+[Trait("Component", "Architecture")]
+public sealed class CanonicalArchitectureTests
 {
 	/// <summary>
 	///     R1.1: Verify all message execution flows through IDispatcher.

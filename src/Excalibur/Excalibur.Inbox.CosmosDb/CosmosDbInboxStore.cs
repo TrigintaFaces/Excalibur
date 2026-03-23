@@ -4,6 +4,7 @@
 using System.Net;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Inbox.Observability;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,7 @@ namespace Excalibur.Inbox.CosmosDb;
 /// are typically queried by handler type.
 /// </para>
 /// </remarks>
-public sealed partial class CosmosDbInboxStore : IInboxStore, IAsyncDisposable, IDisposable
+public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly CosmosDbInboxOptions _options;
 	private readonly ILogger<CosmosDbInboxStore> _logger;
@@ -102,6 +103,8 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IAsyncDisposable, 
 		ArgumentNullException.ThrowIfNull(payload);
 		ArgumentNullException.ThrowIfNull(metadata);
 
+		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
@@ -130,6 +133,8 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IAsyncDisposable, 
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -216,6 +221,8 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IAsyncDisposable, 
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
+		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
@@ -266,6 +273,8 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IAsyncDisposable, 
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -416,17 +425,17 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IAsyncDisposable, 
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+		using var activity = InboxActivitySource.StartCleanupActivity();
 
-		var cutoffDate = DateTimeOffset.UtcNow - retentionPeriod;
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		const string queryText = "SELECT c.id, c.handler_type FROM c WHERE c.status = @status AND c.processed_at < @cutoff";
 
 		var queryDefinition = new QueryDefinition(queryText)
 			.WithParameter("@status", (int)InboxStatus.Processed)
-			.WithParameter("@cutoff", cutoffDate.ToString("O"));
+			.WithParameter("@cutoff", olderThan.ToString("O"));
 
 		var documentsToDelete = new List<(string Id, string HandlerType)>();
 
@@ -455,7 +464,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IAsyncDisposable, 
 			}
 		}
 
-		LogCleanedUp(deletedCount, cutoffDate);
+		LogCleanedUp(deletedCount, olderThan);
 		return deletedCount;
 	}
 

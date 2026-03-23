@@ -37,7 +37,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Compliance")]
 [Trait("Pattern", "STORE")]
-public class InMemoryLegalHoldStoreConformanceTests : LegalHoldStoreConformanceTestKit
+public sealed class InMemoryLegalHoldStoreConformanceTests : LegalHoldStoreConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override ILegalHoldStore CreateStore() => new InMemoryLegalHoldStore();

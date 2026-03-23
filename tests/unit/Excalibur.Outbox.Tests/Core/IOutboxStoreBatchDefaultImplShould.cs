@@ -81,7 +81,7 @@ public sealed class IOutboxStoreBatchDefaultImplShould : UnitTestBase
 		var ids = new List<string> { "msg-1", "msg-2" };
 
 		// Act
-		await ((IOutboxStore)_store).MarkBatchFailedAsync(ids, "Transport timeout", CancellationToken.None);
+		await ((IOutboxStore)_store).MarkBatchFailedAsync(ids, "Transport timeout", 1, CancellationToken.None);
 
 		// Assert
 		_store.FailedEntries.Count.ShouldBe(2);
@@ -96,7 +96,7 @@ public sealed class IOutboxStoreBatchDefaultImplShould : UnitTestBase
 		var ids = new List<string>();
 
 		// Act
-		await ((IOutboxStore)_store).MarkBatchFailedAsync(ids, "Error", CancellationToken.None);
+		await ((IOutboxStore)_store).MarkBatchFailedAsync(ids, "Error", 1, CancellationToken.None);
 
 		// Assert — no individual calls made
 		_store.FailedEntries.ShouldBeEmpty();
@@ -109,7 +109,7 @@ public sealed class IOutboxStoreBatchDefaultImplShould : UnitTestBase
 		var ids = new List<string> { "msg-fail" };
 
 		// Act
-		await ((IOutboxStore)_store).MarkBatchFailedAsync(ids, "Connection reset", CancellationToken.None);
+		await ((IOutboxStore)_store).MarkBatchFailedAsync(ids, "Connection reset", 1, CancellationToken.None);
 
 		// Assert
 		_store.FailedEntries.Count.ShouldBe(1);
@@ -124,7 +124,7 @@ public sealed class IOutboxStoreBatchDefaultImplShould : UnitTestBase
 		const string reason = "Kafka broker unavailable";
 
 		// Act
-		await ((IOutboxStore)_store).MarkBatchFailedAsync(ids, reason, CancellationToken.None);
+		await ((IOutboxStore)_store).MarkBatchFailedAsync(ids, reason, 1, CancellationToken.None);
 
 		// Assert — all calls use the same reason string
 		_store.FailedEntries.Count.ShouldBe(4);

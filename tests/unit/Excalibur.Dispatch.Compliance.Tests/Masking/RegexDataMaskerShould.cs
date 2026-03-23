@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.Masking;
 
-public class RegexDataMaskerShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class RegexDataMaskerShould
 {
     private readonly RegexDataMasker _sut = new();
 

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Outbox;
 /// Context for tracking outbound messages during processing.
 /// </summary>
 /// <remarks> Creates a new outbox context. </remarks>
-public sealed class OutboxContext(
+internal sealed class OutboxContext(
 	string? correlationId,
 	string? causationId,
 	string? tenantId,

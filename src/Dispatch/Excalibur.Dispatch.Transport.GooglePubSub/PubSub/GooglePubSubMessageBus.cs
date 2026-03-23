@@ -36,7 +36,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// See the pluggable serialization architecture documentation for details.
 /// </para>
 /// </remarks>
-public sealed partial class GooglePubSubMessageBus(
+internal sealed partial class GooglePubSubMessageBus(
 	PublisherClient client,
 	IPayloadSerializer serializer,
 	GooglePubSubOptions options,

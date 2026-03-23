@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Middleware")]
-public class MiddlewarePipelineShould : UnitTestBase
+public sealed class MiddlewarePipelineShould : UnitTestBase
 {
 	#region Pipeline Composition Tests (10 tests)
 
@@ -329,7 +329,7 @@ public class MiddlewarePipelineShould : UnitTestBase
 		var invocations = new List<string>();
 		var middleware = new IDispatchMiddleware[]
 		{
-			new TrackingMiddleware("Error", DispatchMiddlewareStage.Error, invocations),
+			new TrackingMiddleware("Error", DispatchMiddlewareStage.ErrorHandling, invocations),
 			new TrackingMiddleware("Start", DispatchMiddlewareStage.Start, invocations),
 			new TrackingMiddleware("Processing", DispatchMiddlewareStage.Processing, invocations),
 			new TrackingMiddleware("Validation", DispatchMiddlewareStage.Validation, invocations),
@@ -548,7 +548,7 @@ public class MiddlewarePipelineShould : UnitTestBase
 		var invocations = new List<string>();
 		var middleware = new IDispatchMiddleware[]
 		{
-			new ErrorLoggingMiddleware("ErrorLogger", DispatchMiddlewareStage.Error, invocations),
+			new ErrorLoggingMiddleware("ErrorLogger", DispatchMiddlewareStage.ErrorHandling, invocations),
 		};
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();
@@ -590,7 +590,7 @@ public class MiddlewarePipelineShould : UnitTestBase
 		var invocations = new List<string>();
 		var middleware = new IDispatchMiddleware[]
 		{
-			new ErrorLoggingMiddleware("Logger", DispatchMiddlewareStage.Error, invocations),
+			new ErrorLoggingMiddleware("Logger", DispatchMiddlewareStage.ErrorHandling, invocations),
 		};
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();

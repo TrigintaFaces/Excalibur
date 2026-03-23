@@ -17,6 +17,7 @@ using Excalibur.Dispatch.Transport;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using CoreDispatcher = Excalibur.Dispatch.Delivery.Dispatcher;
 
@@ -201,7 +202,11 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		_disposed = true;
 	}
 
-	private void RegisterOptions() =>
+	private void RegisterOptions()
+	{
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
+
 		_ = Services.AddOptions<DispatchOptions>()
 			.Configure(opt =>
 			{
@@ -229,7 +234,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 				opt.Outbox.UseInMemoryStorage = _options.Outbox.UseInMemoryStorage;
 
 				opt.Consumer.Dedupe.Enabled = _options.Consumer.Dedupe.Enabled;
-				opt.Consumer.Dedupe.ExpiryHours = _options.Consumer.Dedupe.ExpiryHours;
+				opt.Consumer.Dedupe.DefaultExpiry = _options.Consumer.Dedupe.DefaultExpiry;
 				opt.Consumer.Dedupe.CleanupInterval = _options.Consumer.Dedupe.CleanupInterval;
 				opt.Consumer.AckAfterHandle = _options.Consumer.AckAfterHandle;
 				opt.Consumer.MaxConcurrentMessages = _options.Consumer.MaxConcurrentMessages;
@@ -238,6 +243,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+	}
 
 	private DispatchRuntimeState BuildRuntimeState(IServiceProvider serviceProvider)
 	{

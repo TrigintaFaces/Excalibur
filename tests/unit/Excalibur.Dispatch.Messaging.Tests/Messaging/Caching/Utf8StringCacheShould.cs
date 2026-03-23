@@ -107,7 +107,7 @@ public sealed class Utf8StringCacheShould : IDisposable
 	}
 
 	[Fact]
-	public void GetBytes_SameStringTwice_ReturnsCachedBytes()
+	public void GetBytes_SameStringTwice_ReturnsSameContent()
 	{
 		// Arrange
 		const string testString = "CachedString";
@@ -116,8 +116,9 @@ public sealed class Utf8StringCacheShould : IDisposable
 		var bytes1 = _cache.GetBytes(testString);
 		var bytes2 = _cache.GetBytes(testString);
 
-		// Assert - Should return the same array instance (cached)
-		bytes1.ShouldBeSameAs(bytes2);
+		// Assert - S688: defensive copy returns different instances but same content
+		bytes1.ShouldBe(bytes2);
+		bytes1.ShouldNotBeSameAs(bytes2); // Defensive copy guarantees distinct instances
 	}
 
 	[Theory]
@@ -268,39 +269,36 @@ public sealed class Utf8StringCacheShould : IDisposable
 	}
 
 	[Fact]
-	public void GetStatistics_AfterEncoding_ShowsMissThenHit()
+	public void GetStatistics_AfterEncoding_ShowsCacheSize()
 	{
 		// Arrange
 		using var cache = new Utf8StringCache(100);
-		const string testString = "StatTest";
 
 		// Act
-		_ = cache.GetBytes(testString); // Miss
-		_ = cache.GetBytes(testString); // Hit
+		_ = cache.GetBytes("StatTest1");
+		_ = cache.GetBytes("StatTest2");
+		_ = cache.GetBytes("StatTest1"); // Cached hit -- no size increase
 
-		var (encodingHits, encodingMisses, _, _, _) = cache.GetStatistics();
+		var (_, _, _, _, cacheSize) = cache.GetStatistics();
 
-		// Assert
-		encodingMisses.ShouldBe(1);
-		encodingHits.ShouldBe(1);
+		// Assert -- S688: hit/miss counters use OTel Counters (no read API), but cacheSize is tracked
+		cacheSize.ShouldBe(2);
 	}
 
 	[Fact]
-	public void GetStatistics_AfterDecoding_ShowsMissThenHit()
+	public void GetStatistics_AfterDecoding_ShowsCacheSize()
 	{
 		// Arrange
 		using var cache = new Utf8StringCache(100);
-		var bytes = System.Text.Encoding.UTF8.GetBytes("DecodeTest");
 
 		// Act
-		_ = cache.GetString(bytes); // Miss
-		_ = cache.GetString(bytes); // Hit
+		_ = cache.GetString(System.Text.Encoding.UTF8.GetBytes("DecodeTest1"));
+		_ = cache.GetString(System.Text.Encoding.UTF8.GetBytes("DecodeTest2"));
 
-		var (_, _, decodingHits, decodingMisses, _) = cache.GetStatistics();
+		var (_, _, _, _, cacheSize) = cache.GetStatistics();
 
-		// Assert
-		decodingMisses.ShouldBe(1);
-		decodingHits.ShouldBe(1);
+		// Assert -- S688: hit/miss counters use OTel Counters (no read API), but cacheSize is tracked
+		cacheSize.ShouldBeGreaterThanOrEqualTo(2);
 	}
 
 	[Fact]
@@ -341,21 +339,26 @@ public sealed class Utf8StringCacheShould : IDisposable
 	}
 
 	[Fact]
-	public void Clear_NewLookups_AreMisses()
+	public void Clear_NewLookups_ReAddToCache()
 	{
 		// Arrange
 		using var cache = new Utf8StringCache(100);
 		_ = cache.GetBytes("cleartest");
-		cache.Clear();
 
-		// Act - This should be a miss after clear
+		var (_, _, _, _, sizeBefore) = cache.GetStatistics();
+		sizeBefore.ShouldBe(1);
+
+		cache.Clear();
+		var (_, _, _, _, sizeAfterClear) = cache.GetStatistics();
+		sizeAfterClear.ShouldBe(0);
+
+		// Act - This should re-add after clear
 		_ = cache.GetBytes("cleartest");
 
-		var (hits, misses, _, _, _) = cache.GetStatistics();
+		var (_, _, _, _, sizeAfterReLookup) = cache.GetStatistics();
 
 		// Assert
-		misses.ShouldBe(2); // Once before clear, once after
-		hits.ShouldBe(0);
+		sizeAfterReLookup.ShouldBe(1); // Re-added to cache
 	}
 
 	#endregion
@@ -472,11 +475,10 @@ public sealed class Utf8StringCacheShould : IDisposable
 			_ = _cache.GetBytes(field);
 		}
 
-		var (hits, misses, _, _, _) = _cache.GetStatistics();
+		var (_, _, _, _, cacheSize) = _cache.GetStatistics();
 
-		// Assert - 5 misses (first time) + 10 hits (subsequent)
-		misses.ShouldBe(5);
-		hits.ShouldBe(10);
+		// Assert - 5 unique strings cached; hits/misses tracked via OTel Counters (no read API)
+		cacheSize.ShouldBe(5);
 	}
 
 	[Fact]
@@ -492,11 +494,10 @@ public sealed class Utf8StringCacheShould : IDisposable
 			result.ShouldBe("messageId");
 		}
 
-		var (_, _, decodingHits, decodingMisses, _) = _cache.GetStatistics();
+		var (_, _, _, _, cacheSize) = _cache.GetStatistics();
 
-		// Assert - 1 miss, 9 hits
-		decodingMisses.ShouldBe(1);
-		decodingHits.ShouldBe(9);
+		// Assert - 1 unique entry cached; all 10 calls return correct result
+		cacheSize.ShouldBeGreaterThanOrEqualTo(1);
 	}
 
 	#endregion

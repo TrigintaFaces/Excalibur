@@ -8,6 +8,7 @@ namespace Excalibur.Tests.Data.DynamoDb;
 /// Unit tests for DynamoDB CDC service collection extensions.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DynamoDbCdcServiceCollectionExtensionsShould
 {
 	[Fact]

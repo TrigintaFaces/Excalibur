@@ -36,6 +36,8 @@ public sealed partial class ProjectionCacheInvalidator(
 	ILogger<ProjectionCacheInvalidator> logger)
 	: IProjectionCacheInvalidator
 {
+	private const int MaxCacheEntries = 1024;
+
 	/// <summary>
 	/// Convention suffix for update event types (e.g., "OrderUpdated").
 	/// </summary>
@@ -121,19 +123,32 @@ public sealed partial class ProjectionCacheInvalidator(
 		}
 
 		// 2. Check IProjectionTagResolver<T>
-		var (resolverType, getTagsMethod) = ResolverTypeCache.GetOrAdd(type, static t =>
+		(Type ResolverType, MethodInfo? GetTagsMethod) resolverInfo;
+		if (ResolverTypeCache.TryGetValue(type, out var cached))
 		{
-			var rt = typeof(IProjectionTagResolver<>).MakeGenericType(t);
-			return (rt, rt.GetMethod(GetTagsMethodName));
-		});
+			resolverInfo = cached;
+		}
+		else if (ResolverTypeCache.Count >= MaxCacheEntries)
+		{
+			var rt = typeof(IProjectionTagResolver<>).MakeGenericType(type);
+			resolverInfo = (rt, rt.GetMethod(GetTagsMethodName));
+		}
+		else
+		{
+			resolverInfo = ResolverTypeCache.GetOrAdd(type, static t =>
+			{
+				var rt = typeof(IProjectionTagResolver<>).MakeGenericType(t);
+				return (rt, rt.GetMethod(GetTagsMethodName));
+			});
+		}
 
-		var resolver = services.GetService(resolverType);
+		var resolver = services.GetService(resolverInfo.ResolverType);
 
-		if (resolver != null && getTagsMethod != null)
+		if (resolver != null && resolverInfo.GetTagsMethod != null)
 		{
 			try
 			{
-				var result = getTagsMethod.Invoke(resolver, [message]);
+				var result = resolverInfo.GetTagsMethod.Invoke(resolver, [message]);
 				if (result is IEnumerable<string> tags)
 				{
 					return [.. tags.Where(t => !string.IsNullOrWhiteSpace(t))];
@@ -153,8 +168,20 @@ public sealed partial class ProjectionCacheInvalidator(
 		var fallbackTags = new List<string>();
 		if (type.Name.EndsWith(UpdatedSuffix, StringComparison.Ordinal) || type.Name.EndsWith(DeletedSuffix, StringComparison.Ordinal))
 		{
-			var property = ConventionPropertyCache.GetOrAdd(type,
-				static t => t.GetProperty(MessageIdPropertyName) ?? t.GetProperty(EntityIdPropertyName));
+			PropertyInfo? property;
+			if (ConventionPropertyCache.TryGetValue(type, out var cachedProp))
+			{
+				property = cachedProp;
+			}
+			else if (ConventionPropertyCache.Count >= MaxCacheEntries)
+			{
+				property = type.GetProperty(MessageIdPropertyName) ?? type.GetProperty(EntityIdPropertyName);
+			}
+			else
+			{
+				property = ConventionPropertyCache.GetOrAdd(type,
+					static t => t.GetProperty(MessageIdPropertyName) ?? t.GetProperty(EntityIdPropertyName));
+			}
 
 			if (property != null)
 			{

@@ -60,6 +60,9 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		// Build the runtime configuration
 		_ = builder.Build();
 
+		// Register pipeline validation at startup (T.15)
+		services.AddHostedService<PipelineValidationHostedService>();
+
 		return services;
 	}
 
@@ -242,8 +245,17 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		// Register Outbox middleware and its dependencies (R5)
 		services.TryAddScoped<OutboxStagingMiddleware>();
 		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<Excalibur.Dispatch.Options.Middleware.OutboxOptions>,
-				Excalibur.Dispatch.Options.Middleware.OutboxOptionsValidator>());
+			ServiceDescriptor.Singleton<IValidateOptions<Excalibur.Dispatch.Options.Middleware.OutboxMiddlewareOptions>,
+				Excalibur.Dispatch.Options.Middleware.OutboxMiddlewareOptionsValidator>());
+
+		// Register IOutboxWriter -- default is DeferredOutboxWriter (eventually-consistent mode).
+		// TransactionalOutboxWriter is registered by Excalibur.Outbox provider extensions
+		// when ConsistencyMode == Transactional.
+		services.TryAddScoped<Excalibur.Dispatch.Abstractions.Outbox.IOutboxWriter,
+			Excalibur.Dispatch.Middleware.Outbox.DeferredOutboxWriter>();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions>,
+				Excalibur.Dispatch.Options.Middleware.OutboxStagingOptionsValidator>());
 
 		// Configure default pipeline synthesizer to include middleware in proper order
 		services.TryAddSingleton<IDefaultPipelineSynthesizer>(static sp =>

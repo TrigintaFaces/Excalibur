@@ -217,7 +217,7 @@ public sealed class RabbitMQDeadLetterBuilderShould : UnitTestBase
 
 	#endregion
 
-	#region MaxRetries Tests
+	#region MaxRetryAttempts Tests
 
 	[Fact]
 	public void MaxRetries_ThrowWhenNegative()
@@ -227,7 +227,7 @@ public sealed class RabbitMQDeadLetterBuilderShould : UnitTestBase
 		var builder = new RabbitMQDeadLetterBuilder(options);
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentOutOfRangeException>(() => builder.MaxRetries(-1));
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => builder.MaxRetryAttempts(-1));
 	}
 
 	[Fact]
@@ -238,10 +238,10 @@ public sealed class RabbitMQDeadLetterBuilderShould : UnitTestBase
 		var builder = new RabbitMQDeadLetterBuilder(options);
 
 		// Act - Should not throw (0 retries means immediate DLQ)
-		_ = builder.MaxRetries(0);
+		_ = builder.MaxRetryAttempts(0);
 
 		// Assert
-		options.MaxRetries.ShouldBe(0);
+		options.MaxRetryAttempts.ShouldBe(0);
 	}
 
 	[Fact]
@@ -252,10 +252,10 @@ public sealed class RabbitMQDeadLetterBuilderShould : UnitTestBase
 		var builder = new RabbitMQDeadLetterBuilder(options);
 
 		// Act
-		_ = builder.MaxRetries(3);
+		_ = builder.MaxRetryAttempts(3);
 
 		// Assert
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -266,7 +266,7 @@ public sealed class RabbitMQDeadLetterBuilderShould : UnitTestBase
 		var builder = new RabbitMQDeadLetterBuilder(options);
 
 		// Act
-		var result = builder.MaxRetries(5);
+		var result = builder.MaxRetryAttempts(5);
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -346,7 +346,7 @@ public sealed class RabbitMQDeadLetterBuilderShould : UnitTestBase
 			_ = builder.Exchange("dead-letters")
 				   .Queue("dead-letter-queue")
 				   .RoutingKey("#")
-				   .MaxRetries(3)
+				   .MaxRetryAttempts(3)
 				   .RetryDelay(TimeSpan.FromSeconds(30));
 		});
 
@@ -354,7 +354,7 @@ public sealed class RabbitMQDeadLetterBuilderShould : UnitTestBase
 		options.Exchange.ShouldBe("dead-letters");
 		options.Queue.ShouldBe("dead-letter-queue");
 		options.RoutingKey.ShouldBe("#");
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 

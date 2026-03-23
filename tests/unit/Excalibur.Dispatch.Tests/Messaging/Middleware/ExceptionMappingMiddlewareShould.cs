@@ -16,6 +16,7 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ExceptionMappingMiddlewareShould
 {
     private readonly IExceptionMapper _mapper = A.Fake<IExceptionMapper>();
@@ -74,12 +75,14 @@ public sealed class ExceptionMappingMiddlewareShould
         var sut = CreateSut();
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
 
         await Should.ThrowAsync<OperationCanceledException>(
             () => sut.InvokeAsync(
                 message, context,
                 (_, _, _) => throw new OperationCanceledException(),
-                CancellationToken.None).AsTask());
+                cts.Token).AsTask());
     }
 
     [Fact]
@@ -104,10 +107,11 @@ public sealed class ExceptionMappingMiddlewareShould
     }
 
     [Fact]
-    public void HaveErrorHandlingStage()
+    public void HavePostProcessingStage()
     {
+        // Sprint 695 T.15: ExceptionMappingMiddleware moved ErrorHandling→PostProcessing
         var sut = CreateSut();
-        sut.Stage.ShouldBe(DispatchMiddlewareStage.ErrorHandling);
+        sut.Stage.ShouldBe(DispatchMiddlewareStage.PostProcessing);
     }
 
     [Fact]

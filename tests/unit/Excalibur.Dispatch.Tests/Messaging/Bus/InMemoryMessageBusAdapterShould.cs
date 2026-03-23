@@ -59,7 +59,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task InitializeAsync_SetsIsConnected()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 
 		// Act
 		await _adapter.InitializeAsync(options, CancellationToken.None);
@@ -87,7 +87,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task PublishAsync_WhenConnected_ReturnsSuccess()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
 		var message = A.Fake<IDispatchMessage>();
@@ -105,7 +105,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task PublishAsync_WithNullMessage_Throws()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
 		// Act & Assert
@@ -117,7 +117,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task PublishAsync_WithNullContext_Throws()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
 		// Act & Assert
@@ -141,7 +141,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task SubscribeAsync_WhenConnected_Succeeds()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
@@ -155,7 +155,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task SubscribeAsync_WithNullName_Throws()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
@@ -170,7 +170,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task SubscribeAsync_WithNullHandler_Throws()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
 		// Act & Assert
@@ -182,7 +182,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task UnsubscribeAsync_Succeeds()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
@@ -222,7 +222,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public async Task CheckHealthAsync_WhenConnected_ReturnsHealthy()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _adapter.InitializeAsync(options, CancellationToken.None);
 
 		// Act

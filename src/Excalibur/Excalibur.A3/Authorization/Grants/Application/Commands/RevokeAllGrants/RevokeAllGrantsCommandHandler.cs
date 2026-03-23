@@ -39,7 +39,7 @@ internal sealed class RevokeAllGrantsCommandHandler(IGrantRepository grantReposi
 		var actor = request.AccessToken.FullName ?? request.AccessToken.UserId ?? "Unknown";
 
 		// Retrieve all applicable grants for the user
-		var applicationGrants = (await grantRepository.ReadAllAsync(request.UserId).ConfigureAwait(false))
+		var applicationGrants = (await grantRepository.ReadAllAsync(request.UserId, cancellationToken).ConfigureAwait(false))
 			.Where(g => g.Scope != null && !string.Equals(g.Scope.GrantType, GrantType.ActivityGroup, StringComparison.Ordinal)).ToArray();
 
 		// Revoke and delete each grant
@@ -58,7 +58,7 @@ internal sealed class RevokeAllGrantsCommandHandler(IGrantRepository grantReposi
 
 		// Return an audit result
 		return applicationGrants.Length > 0
-			? new AuditableResult<bool>(result: true, $"Revoked from {request.FullName} on {DateTime.Now:g} by {actor}.")
+			? new AuditableResult<bool>(result: true, $"Revoked from {request.FullName} on {DateTimeOffset.UtcNow:g} by {actor}.")
 			: new AuditableResult<bool>(result: true, $"No grants were found to revoke from {request.FullName}.");
 	}
 }

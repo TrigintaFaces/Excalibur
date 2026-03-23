@@ -302,6 +302,9 @@ public static class MiddlewareEventId
 	/// <summary>Cached response returned.</summary>
 	public const int CachedResponseReturned = 30904;
 
+	/// <summary>Idempotent handler middleware falling back to in-memory deduplication because no IInboxStore is registered.</summary>
+	public const int IdempotencyInMemoryFallback = 30905;
+
 	// ========================================
 	// 31000-31099: Validation Middleware
 	// ========================================

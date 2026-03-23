@@ -5,6 +5,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
+using Excalibur.Cdc.Diagnostics;
+
 using Google.Cloud.Firestore;
 
 using Microsoft.Extensions.Logging;
@@ -38,13 +40,9 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 	private readonly ILogger<FirestoreCdcProcessor> _logger;
 	private readonly Channel<FirestoreDataChangeEvent> _channel;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _positionLock = new();
-
+	private readonly System.Threading.Lock _positionLock = new();
 #else
-
 	private readonly object _positionLock = new();
-
 #endif
 
 	private FirestoreChangeListener? _listener;
@@ -125,6 +123,8 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
+		using var pollActivity = CdcActivitySource.StartPollActivity("Firestore");
+
 		await InitializePositionAsync(cancellationToken).ConfigureAwait(false);
 
 		// For batch processing, we perform a one-time query instead of using listeners.
@@ -181,6 +181,11 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 				LogProcessingError(_options.ProcessorName, docId, ex);
 				throw;
 			}
+		}
+
+		if (processedCount > 0)
+		{
+			using var batchActivity = CdcActivitySource.StartProcessBatchActivity("Firestore", processedCount);
 		}
 
 		return processedCount;
@@ -422,6 +427,8 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 		Func<FirestoreDataChangeEvent, CancellationToken, Task> eventHandler,
 		CancellationToken cancellationToken)
 	{
+		using var pollActivity = CdcActivitySource.StartPollActivity("Firestore");
+
 		while (!cancellationToken.IsCancellationRequested && _isRunning)
 		{
 			try
@@ -432,6 +439,8 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 					break;
 				}
 
+				var batchCount = 0;
+
 				while (_channel.Reader.TryRead(out var changeEvent))
 				{
 					LogProcessingChange(changeEvent.ChangeType.ToString(), changeEvent.DocumentId);
@@ -439,6 +448,7 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 					try
 					{
 						await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+						batchCount++;
 
 						// Update position
 						lock (_positionLock)
@@ -455,8 +465,13 @@ public sealed partial class FirestoreCdcProcessor : IFirestoreCdcProcessor
 						throw;
 					}
 				}
+
+				if (batchCount > 0)
+				{
+					using var batchActivity = CdcActivitySource.StartProcessBatchActivity("Firestore", batchCount);
+				}
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

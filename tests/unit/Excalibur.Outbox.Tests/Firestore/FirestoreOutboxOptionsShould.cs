@@ -7,6 +7,7 @@ namespace Excalibur.Outbox.Tests.Firestore;
 /// Unit tests for <see cref="FirestoreOutboxOptions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class FirestoreOutboxOptionsShould : UnitTestBase
 {
 	[Fact]

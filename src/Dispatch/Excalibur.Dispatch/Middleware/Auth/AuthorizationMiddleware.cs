@@ -51,6 +51,7 @@ public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 		new ClaimLookup("Aud", "claim:Aud"),
 		new ClaimLookup("Iss", "claim:Iss"),
 	];
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, bool> AllowAnonymousAttributeCache = new();
 	private static readonly Func<ILogger, string, string, string, IDisposable?> AuthorizationLogScope =
 		LoggerMessage.DefineScope<string, string, string>(
@@ -368,9 +369,15 @@ public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 	private bool RequiresAuthorization(Type messageType, string messageTypeName)
 	{
 		// Check for explicit bypass attributes
-		var hasAllowAnonymousAttribute = AllowAnonymousAttributeCache.GetOrAdd(
-			messageType,
-			static type => type.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length != 0);
+		if (!AllowAnonymousAttributeCache.TryGetValue(messageType, out var hasAllowAnonymousAttribute))
+		{
+			hasAllowAnonymousAttribute = messageType.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length != 0;
+			if (AllowAnonymousAttributeCache.Count < MaxCacheEntries)
+			{
+				_ = AllowAnonymousAttributeCache.TryAdd(messageType, hasAllowAnonymousAttribute);
+			}
+		}
+
 		if (hasAllowAnonymousAttribute)
 		{
 			return false;

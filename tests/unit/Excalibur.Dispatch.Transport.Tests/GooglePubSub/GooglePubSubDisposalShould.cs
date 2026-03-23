@@ -11,7 +11,7 @@ using OptionsFactory = Microsoft.Extensions.Options.Options;
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub;
 
 [Trait("Category", "Unit")]
-public class GooglePubSubDisposalShould
+public sealed class GooglePubSubDisposalShould
 {
 	[Fact]
 	[UnitTest]

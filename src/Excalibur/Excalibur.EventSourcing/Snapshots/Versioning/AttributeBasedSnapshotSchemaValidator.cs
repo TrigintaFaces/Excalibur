@@ -16,7 +16,7 @@ namespace Excalibur.EventSourcing.Snapshots.Versioning;
 /// bounded to prevent unbounded growth.
 /// </para>
 /// </remarks>
-public sealed class AttributeBasedSnapshotSchemaValidator : ISnapshotSchemaValidator
+public class AttributeBasedSnapshotSchemaValidator : ISnapshotSchemaValidator
 {
 	private readonly ConcurrentDictionary<string, int> _versionCache = new();
 

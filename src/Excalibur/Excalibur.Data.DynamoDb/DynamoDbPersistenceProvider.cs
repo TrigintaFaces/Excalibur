@@ -119,7 +119,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 
-	public CloudProviderType CloudProvider => CloudProviderType.DynamoDb;
+	public CloudPersistenceProviderType CloudProvider => CloudPersistenceProviderType.DynamoDb;
 
 	/// <inheritdoc />
 
@@ -875,8 +875,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		_disposed = true;
 		LogDisposing(Name);
 
-		// Acquire lock before disposing to ensure no concurrent init is in progress
-		_initLock.Wait();
+		// Do not block on _initLock.Wait() in sync Dispose -- use DisposeAsync for graceful cleanup.
+		// Direct disposal is safe because _disposed flag prevents concurrent init.
 		_client?.Dispose();
 		_streamsClient?.Dispose();
 		_initLock.Dispose();
@@ -894,7 +894,17 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		LogDisposing(Name);
 
 		// Acquire lock before disposing to ensure no concurrent init is in progress
-		await _initLock.WaitAsync().ConfigureAwait(false);
+		// Use timeout to prevent indefinite hang during disposal
+		using var disposeCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+		try
+		{
+			await _initLock.WaitAsync(disposeCts.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+		{
+			// Proceed with disposal even if lock acquisition times out
+		}
+
 		_client?.Dispose();
 		_streamsClient?.Dispose();
 		_initLock.Dispose();

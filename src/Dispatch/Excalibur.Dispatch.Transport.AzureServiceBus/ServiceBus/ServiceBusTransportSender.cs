@@ -205,6 +205,11 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 			CorrelationId = message.CorrelationId,
 		};
 
+		if (message.CausationId is not null)
+		{
+			sbMessage.ApplicationProperties["causation-id"] = message.CausationId;
+		}
+
 		if (message.TimeToLive.HasValue)
 		{
 			sbMessage.TimeToLive = message.TimeToLive.Value;

@@ -13,6 +13,7 @@ namespace Excalibur.EventSourcing.Tests.Upcasting;
 /// Unit tests for <see cref="EventUpgrader{TFrom, TTo}"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class EventUpgraderShould
 {
 	#region Test Events

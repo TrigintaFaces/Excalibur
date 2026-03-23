@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 internal abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector metricsCollector) : IBatchProcessor, IDisposable
 {
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly ActivitySource _activitySource = new("Excalibur.Dispatch.Extensions.Google.BatchProcessing");
+	private static readonly ActivitySource s_activitySource = new("Excalibur.Dispatch.Extensions.Google.BatchProcessing");
 	private readonly BatchMetricsCollector _metricsCollector = metricsCollector ?? throw new ArgumentNullException(nameof(metricsCollector));
 	private volatile bool _disposed;
 
@@ -31,7 +31,7 @@ internal abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector
 	/// <summary>
 	/// Gets the activity source for tracing.
 	/// </summary>
-	protected ActivitySource ActivitySource => _activitySource;
+	protected ActivitySource ActivitySource => s_activitySource;
 
 	/// <summary>
 	/// Gets the metrics collector.
@@ -98,7 +98,7 @@ internal abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector
 		int maxConcurrency,
 		[EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
-		var channel = Channel.CreateUnbounded<MessageBatch>();
+		var channel = Channel.CreateBounded<MessageBatch>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.Wait });
 		var semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
 
 		try
@@ -177,7 +177,7 @@ internal abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector
 
 		if (disposing)
 		{
-			_activitySource.Dispose();
+			// Static ActivitySource is process-lifetime; no disposal needed.
 			_metricsCollector.Dispose();
 		}
 

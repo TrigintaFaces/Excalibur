@@ -24,7 +24,10 @@ public static class DispatchOrchestrationExtensions
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="services" /> is null. </exception>
 	public static IServiceCollection AddDispatchOrchestration(this IServiceCollection services)
 	{
-		services.TryAddSingleton<ISagaStore, InMemorySagaStore>();
+		services.TryAddSingleton<InMemorySagaStore>();
+		services.AddKeyedSingleton<ISagaStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemorySagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("inmemory"));
 		services.TryAddSingleton<ISagaCoordinator, SagaCoordinator>();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, SagaHandlingMiddleware>());
 

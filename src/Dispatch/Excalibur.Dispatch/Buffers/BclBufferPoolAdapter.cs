@@ -49,7 +49,7 @@ public sealed class BclBufferPoolAdapter(
 	/// Gets the number of buffers currently rented from the pool.
 	/// </summary>
 	/// <value> The count of buffers that have been rented but not returned. </value>
-	public int RentedBuffers => _buffersInUse;
+	public int RentedBuffers => Volatile.Read(ref _buffersInUse);
 
 	/// <summary>
 	/// Gets the total number of buffer rent operations performed.
@@ -67,7 +67,7 @@ public sealed class BclBufferPoolAdapter(
 	/// Gets the largest buffer size that has been requested.
 	/// </summary>
 	/// <value> The maximum requested buffer length. </value>
-	public int LargestBufferRequested => _largestBufferRequested;
+	public int LargestBufferRequested => Volatile.Read(ref _largestBufferRequested);
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -140,7 +140,7 @@ public sealed class BclBufferPoolAdapter(
 			TotalDeallocations = Interlocked.Read(ref _totalDeallocations),
 			TotalBytesRented = Interlocked.Read(ref _totalBytesRented),
 			TotalBytesReturned = Interlocked.Read(ref _totalBytesReturned),
-			BuffersInUse = _buffersInUse,
+			BuffersInUse = Volatile.Read(ref _buffersInUse),
 			PeakBuffersInUse = Interlocked.Read(ref _peakBuffersInUse),
 
 			// BCL ArrayPool doesn't expose bucket statistics - this is acceptable trade-off for better performance

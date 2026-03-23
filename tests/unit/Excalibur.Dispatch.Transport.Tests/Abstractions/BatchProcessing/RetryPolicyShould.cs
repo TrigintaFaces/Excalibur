@@ -8,14 +8,14 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.BatchProcessing;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class RetryPolicyShould
+public sealed class RetryPolicyShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()
     {
-        var policy = new RetryPolicy();
+        var policy = new BatchRetryOptions();
 
-        policy.MaxRetries.ShouldBe(3);
+        policy.MaxRetryAttempts.ShouldBe(3);
         policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(1));
         policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
         policy.BackoffMultiplier.ShouldBe(2.0);
@@ -30,16 +30,16 @@ public class RetryPolicyShould
     [InlineData(10)]
     public void AllowSettingMaxRetries(int maxRetries)
     {
-        var policy = new RetryPolicy { MaxRetries = maxRetries };
+        var policy = new BatchRetryOptions { MaxRetryAttempts = maxRetries };
 
-        policy.MaxRetries.ShouldBe(maxRetries);
+        policy.MaxRetryAttempts.ShouldBe(maxRetries);
     }
 
     [Fact]
     public void AllowSettingInitialDelay()
     {
         var delay = TimeSpan.FromMilliseconds(500);
-        var policy = new RetryPolicy { InitialDelay = delay };
+        var policy = new BatchRetryOptions { InitialDelay = delay };
 
         policy.InitialDelay.ShouldBe(delay);
     }
@@ -48,7 +48,7 @@ public class RetryPolicyShould
     public void AllowSettingMaxDelay()
     {
         var delay = TimeSpan.FromMinutes(5);
-        var policy = new RetryPolicy { MaxDelay = delay };
+        var policy = new BatchRetryOptions { MaxDelay = delay };
 
         policy.MaxDelay.ShouldBe(delay);
     }
@@ -60,7 +60,7 @@ public class RetryPolicyShould
     [InlineData(1.0)]
     public void AllowSettingBackoffMultiplier(double multiplier)
     {
-        var policy = new RetryPolicy { BackoffMultiplier = multiplier };
+        var policy = new BatchRetryOptions { BackoffMultiplier = multiplier };
 
         policy.BackoffMultiplier.ShouldBe(multiplier);
     }
@@ -70,7 +70,7 @@ public class RetryPolicyShould
     [InlineData(false)]
     public void AllowSettingUseExponentialBackoff(bool useExponential)
     {
-        var policy = new RetryPolicy { UseExponentialBackoff = useExponential };
+        var policy = new BatchRetryOptions { UseExponentialBackoff = useExponential };
 
         policy.UseExponentialBackoff.ShouldBe(useExponential);
     }
@@ -80,7 +80,7 @@ public class RetryPolicyShould
     [InlineData(false)]
     public void AllowSettingUseJitter(bool useJitter)
     {
-        var policy = new RetryPolicy { UseJitter = useJitter };
+        var policy = new BatchRetryOptions { UseJitter = useJitter };
 
         policy.UseJitter.ShouldBe(useJitter);
     }
@@ -88,9 +88,9 @@ public class RetryPolicyShould
     [Fact]
     public void AllowAggressiveRetryConfiguration()
     {
-        var policy = new RetryPolicy
+        var policy = new BatchRetryOptions
         {
-            MaxRetries = 10,
+            MaxRetryAttempts = 10,
             InitialDelay = TimeSpan.FromMilliseconds(100),
             MaxDelay = TimeSpan.FromSeconds(30),
             BackoffMultiplier = 1.5,
@@ -98,7 +98,7 @@ public class RetryPolicyShould
             UseJitter = true
         };
 
-        policy.MaxRetries.ShouldBe(10);
+        policy.MaxRetryAttempts.ShouldBe(10);
         policy.InitialDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
         policy.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
         policy.BackoffMultiplier.ShouldBe(1.5);
@@ -109,9 +109,9 @@ public class RetryPolicyShould
     [Fact]
     public void AllowConservativeRetryConfiguration()
     {
-        var policy = new RetryPolicy
+        var policy = new BatchRetryOptions
         {
-            MaxRetries = 2,
+            MaxRetryAttempts = 2,
             InitialDelay = TimeSpan.FromSeconds(5),
             MaxDelay = TimeSpan.FromMinutes(2),
             BackoffMultiplier = 3.0,
@@ -119,7 +119,7 @@ public class RetryPolicyShould
             UseJitter = false
         };
 
-        policy.MaxRetries.ShouldBe(2);
+        policy.MaxRetryAttempts.ShouldBe(2);
         policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(5));
         policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(2));
         policy.BackoffMultiplier.ShouldBe(3.0);
@@ -130,16 +130,16 @@ public class RetryPolicyShould
     [Fact]
     public void AllowLinearRetryConfiguration()
     {
-        var policy = new RetryPolicy
+        var policy = new BatchRetryOptions
         {
-            MaxRetries = 5,
+            MaxRetryAttempts = 5,
             InitialDelay = TimeSpan.FromSeconds(2),
             MaxDelay = TimeSpan.FromSeconds(2),
             UseExponentialBackoff = false,
             UseJitter = false
         };
 
-        policy.MaxRetries.ShouldBe(5);
+        policy.MaxRetryAttempts.ShouldBe(5);
         policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(2));
         policy.MaxDelay.ShouldBe(TimeSpan.FromSeconds(2));
         policy.UseExponentialBackoff.ShouldBeFalse();
@@ -149,11 +149,11 @@ public class RetryPolicyShould
     [Fact]
     public void AllowNoRetryConfiguration()
     {
-        var policy = new RetryPolicy
+        var policy = new BatchRetryOptions
         {
-            MaxRetries = 0
+            MaxRetryAttempts = 0
         };
 
-        policy.MaxRetries.ShouldBe(0);
+        policy.MaxRetryAttempts.ShouldBe(0);
     }
 }

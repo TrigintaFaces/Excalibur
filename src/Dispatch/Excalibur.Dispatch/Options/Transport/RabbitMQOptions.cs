@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Options.Transport;
 /// <summary>
 /// Options for RabbitMQ transport.
 /// </summary>
-public class RabbitMQOptions
+public sealed class RabbitMQOptions
 {
 	/// <summary>
 	/// Gets or sets the virtual host.

@@ -46,7 +46,7 @@ public sealed class ResultFactoryCacheShould
 			_busProvider,
 			NullLoggerFactory.Instance.CreateLogger<FinalDispatchHandler>(),
 			null,
-			new Dictionary<string, IMessageBusOptions>());
+			new Dictionary<string, MessageBusOptions>());
 	}
 
 	#region Typed Result Creation Tests

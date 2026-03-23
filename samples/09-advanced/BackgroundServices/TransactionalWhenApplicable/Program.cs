@@ -31,7 +31,7 @@ builder.Services.Configure<SqlServerInboxOptions>(options =>
 	options.TableName = "InboxMessages";
 });
 
-builder.Services.Configure<OutboxOptions>(options =>
+builder.Services.Configure<OutboxDeliveryOptions>(options =>
 {
 	// TransactionalWhenApplicable: Uses atomic transaction when same database detected
 	// Falls back to MinimizedWindow when not applicable

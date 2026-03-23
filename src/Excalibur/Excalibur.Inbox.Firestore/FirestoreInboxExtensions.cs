@@ -34,7 +34,9 @@ public static class FirestoreInboxExtensions
 
 		_ = services.Configure(configure);
 		services.TryAddSingleton<FirestoreInboxStore>();
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<FirestoreInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("firestore"));
 
 		return services;
 	}
@@ -82,7 +84,9 @@ public static class FirestoreInboxExtensions
 			var logger = sp.GetRequiredService<ILogger<FirestoreInboxStore>>();
 			return new FirestoreInboxStore(db, options, logger);
 		});
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<FirestoreInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("firestore"));
 
 		return services;
 	}

@@ -17,7 +17,7 @@ namespace Excalibur.Outbox.Outbox;
 /// <summary>
 /// Configuration options for the outbox background service.
 /// </summary>
-public class OutboxProcessingOptions
+public sealed class OutboxProcessingOptions
 {
 	/// <summary>
 	/// Gets or sets the interval between polling cycles.
@@ -63,6 +63,7 @@ public class OutboxProcessingOptions
 
 /// <summary>
 /// Background service that processes outbox messages for reliable delivery.
+/// This is the <b>Excalibur-level</b> (full-featured) outbox background service.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -76,8 +77,13 @@ public class OutboxProcessingOptions
 /// processing cycle and skips if <see cref="IProcessingGate.ShouldProcess"/>
 /// returns <see langword="false"/>.
 /// </para>
+/// <para>
+/// For a lightweight Dispatch-level outbox service without leader election or health
+/// state, see <c>Excalibur.Dispatch.BackgroundServices.OutboxBackgroundService</c>.
+/// <b>Do not register both</b> — this Excalibur.Outbox version supersedes the Dispatch version.
+/// </para>
 /// </remarks>
-public partial class OutboxBackgroundService : BackgroundService
+internal sealed partial class OutboxBackgroundService : BackgroundService
 {
 	private readonly IOutboxPublisher _publisher;
 	private readonly IOptions<OutboxProcessingOptions> _options;
@@ -111,6 +117,8 @@ public partial class OutboxBackgroundService : BackgroundService
 	public override async Task StopAsync(CancellationToken cancellationToken)
 	{
 		_healthState?.MarkStopped();
+
+		using var drainActivity = BackgroundServiceActivitySource.StartDrain("outbox");
 
 		var drainTimeout = _options.Value.DrainTimeout;
 		using var drainCts = new CancellationTokenSource(drainTimeout);
@@ -150,6 +158,7 @@ public partial class OutboxBackgroundService : BackgroundService
 				}
 				else
 				{
+					using var cycleActivity = BackgroundServiceActivitySource.StartProcessingCycle("outbox", "pending");
 					await ProcessOutboxAsync(stoppingToken).ConfigureAwait(false);
 				}
 			}
@@ -170,7 +179,7 @@ public partial class OutboxBackgroundService : BackgroundService
 			{
 				await Task.Delay(_options.Value.PollingInterval, stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

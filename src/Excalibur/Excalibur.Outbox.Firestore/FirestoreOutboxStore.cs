@@ -53,7 +53,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 	}
 
 	/// <inheritdoc/>
-	public CloudProviderType ProviderType => CloudProviderType.Firestore;
+	public CloudPersistenceProviderType ProviderType => CloudPersistenceProviderType.Firestore;
 
 	/// <summary>
 	/// Initializes the Firestore client.

@@ -194,7 +194,7 @@ public sealed class LocalMessageBusShould
 		_ = A.CallTo(() => _activator.ActivateHandler(handlerType, context, _serviceProvider))
 			.Returns(handler);
 
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		var token = cts.Token;
 
 		_ = A.CallTo(() => _invoker.InvokeAsync(handler, action, token))
@@ -459,7 +459,7 @@ public sealed class LocalMessageBusShould
 
 		// Act
 		var invoked = bus.TryInvokeUltraLocal(action, CancellationToken.None, out var invocation);
-		_ = await invocation.ConfigureAwait(true);
+		_ = await invocation;
 
 		// Assert
 		invoked.ShouldBeTrue();
@@ -495,7 +495,7 @@ public sealed class LocalMessageBusShould
 		noResponseInvoker.ShouldNotBeNull();
 		withResponseInvoker.ShouldBeNull();
 
-		await noResponseInvoker!(new FastInvokerNoResponseAction(), CancellationToken.None).ConfigureAwait(true);
+		await noResponseInvoker!(new FastInvokerNoResponseAction(), CancellationToken.None);
 		provider.GetRequiredService<FastInvokerNoResponseHandler>().CallCount.ShouldBe(1);
 	}
 
@@ -526,7 +526,7 @@ public sealed class LocalMessageBusShould
 		noResponseInvoker.ShouldBeNull();
 		withResponseInvoker.ShouldNotBeNull();
 
-		var result = await withResponseInvoker!(action, CancellationToken.None).ConfigureAwait(true);
+		var result = await withResponseInvoker!(action, CancellationToken.None);
 		result.ShouldBe(42);
 		provider.GetRequiredService<FastInvokerResponseHandler>().CallCount.ShouldBe(1);
 	}
@@ -681,7 +681,7 @@ public sealed class LocalMessageBusShould
 		var action = new RequestServicesFallbackAction();
 
 		// Act
-		await bus.SendAsync(action, context, CancellationToken.None).ConfigureAwait(true);
+		await bus.SendAsync(action, context, CancellationToken.None);
 
 		// Assert
 		capturedCorrelationId.ShouldBe(context.CorrelationId);

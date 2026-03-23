@@ -292,40 +292,40 @@ public sealed class PipelineExtensionsShould : IDisposable
 
 	#endregion
 
-	#region UseRateLimiting Tests
+	#region UseThrottling Tests
 
 	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseRateLimiting()
+	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseThrottling()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).UseRateLimiting());
+			((IDispatchBuilder)null!).UseThrottling());
 	}
 
 	[Fact]
-	public void ReturnSameBuilder_ForFluentChaining_UseRateLimiting()
+	public void ReturnSameBuilder_ForFluentChaining_UseThrottling()
 	{
 		// Arrange
 		var builder = CreateBuilder();
 
 		// Act
-		var result = builder.UseRateLimiting();
+		var result = builder.UseThrottling();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void RegisterRateLimitingMiddleware_WhenUseRateLimitingCalled()
+	public void RegisterThrottlingMiddleware_WhenUseThrottlingCalled()
 	{
 		// Arrange
 		var builder = CreateBuilder();
 
 		// Act
-		builder.UseRateLimiting();
+		builder.UseThrottling();
 
 		// Assert
-		_services.ShouldContain(sd => sd.ServiceType == typeof(RateLimitingMiddleware));
+		_services.ShouldContain(sd => sd.ServiceType == typeof(ThrottlingMiddleware));
 	}
 
 	#endregion
@@ -939,7 +939,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 			.UseInputSanitization()
 			.UseValidation()
 			.UseContractVersioning()
-			.UseRateLimiting()
+			.UseThrottling()
 			.UseInbox()
 			.UseCircuitBreaker()
 			.UseRetry()
@@ -972,7 +972,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 			.UseInputSanitization()
 			.UseValidation()
 			.UseContractVersioning()
-			.UseRateLimiting()
+			.UseThrottling()
 			.UseInbox()
 			.UseCircuitBreaker()
 			.UseRetry()
@@ -988,7 +988,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 		_services.ShouldContain(sd => sd.ServiceType == typeof(ValidationMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(AuthenticationMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(AuthorizationMiddleware));
-		_services.ShouldContain(sd => sd.ServiceType == typeof(RateLimitingMiddleware));
+		_services.ShouldContain(sd => sd.ServiceType == typeof(ThrottlingMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(CircuitBreakerMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(RetryMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(TimeoutMiddleware));

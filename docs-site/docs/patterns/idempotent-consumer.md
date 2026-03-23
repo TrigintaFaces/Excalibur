@@ -555,7 +555,7 @@ The result:
 | Atomic side effects | First-writer-wins check | `TryMarkAsProcessedAsync` |
 | External API duplicates | Idempotency keys or stored intent | `IMessageIdProvider` + Outbox |
 | Cross-outbox/inbox atomicity | Shared-database transaction | `TryMarkSentAndReceivedAsync` |
-| Cleanup | Configurable retention | `IInboxStore.CleanupAsync` + hosted service |
+| Cleanup | Configurable retention | `IInboxStoreAdmin.CleanupAsync` + hosted service |
 | Monitoring | Health checks + OpenTelemetry | `InboxHealthCheck` + activity tags |
 
 Build your consumers to tolerate retries, and your distributed system will be that much more reliable.

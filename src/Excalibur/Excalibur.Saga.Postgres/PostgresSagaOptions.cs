@@ -19,7 +19,7 @@ namespace Excalibur.Saga.Postgres;
 /// following Postgres naming conventions with snake_case column names.
 /// </para>
 /// </remarks>
-public class PostgresSagaOptions
+public sealed class PostgresSagaOptions
 {
 	/// <summary>
 	/// Gets or sets the Postgres connection string.

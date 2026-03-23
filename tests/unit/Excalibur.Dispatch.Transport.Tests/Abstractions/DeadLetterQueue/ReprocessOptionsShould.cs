@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.DeadLetterQueue;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class ReprocessOptionsShould
+public sealed class ReprocessOptionsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

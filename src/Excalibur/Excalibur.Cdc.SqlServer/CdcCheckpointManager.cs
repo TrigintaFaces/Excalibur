@@ -21,7 +21,7 @@ internal sealed partial class CdcCheckpointManager
 {
 	private readonly IDatabaseConfig _dbConfig;
 	private readonly ICdcRepository _cdcRepository;
-	private readonly ICdcStateStore _stateStore;
+	private readonly ISqlServerCdcStateStore _stateStore;
 	private readonly ILogger _logger;
 
 	private readonly ConcurrentDictionary<string, CdcPosition> _tracking = new(StringComparer.Ordinal);
@@ -29,7 +29,7 @@ internal sealed partial class CdcCheckpointManager
 	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _minHeapLock = new();
+	private readonly System.Threading.Lock _minHeapLock = new();
 #else
 	private readonly object _minHeapLock = new();
 #endif
@@ -37,7 +37,7 @@ internal sealed partial class CdcCheckpointManager
 	internal CdcCheckpointManager(
 		IDatabaseConfig dbConfig,
 		ICdcRepository cdcRepository,
-		ICdcStateStore stateStore,
+		ISqlServerCdcStateStore stateStore,
 		ILogger logger)
 	{
 		_dbConfig = dbConfig;

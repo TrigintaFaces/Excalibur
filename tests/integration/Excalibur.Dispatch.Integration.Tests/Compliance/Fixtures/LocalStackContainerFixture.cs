@@ -48,7 +48,7 @@ public class LocalStackContainerFixture : ContainerFixtureBase
 			.WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(4566))
 			.Build();
 
-		await _container.StartAsync(cancellationToken).ConfigureAwait(true);
+		await _container.StartAsync(cancellationToken);
 	}
 
 	/// <inheritdoc/>
@@ -56,7 +56,7 @@ public class LocalStackContainerFixture : ContainerFixtureBase
 	{
 		if (_container is not null)
 		{
-			await _container.DisposeAsync().ConfigureAwait(true);
+			await _container.DisposeAsync();
 		}
 	}
 }

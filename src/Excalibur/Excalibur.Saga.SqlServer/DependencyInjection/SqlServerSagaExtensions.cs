@@ -44,7 +44,9 @@ public static class SqlServerSagaExtensions
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new SqlServerSagaStore(connectionString, options, logger, serializer);
 		});
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<SqlServerSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("sqlserver"));
 
 		return services;
 	}
@@ -85,7 +87,9 @@ public static class SqlServerSagaExtensions
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new SqlServerSagaStore(connectionFactory, options, logger, serializer);
 		});
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<SqlServerSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("sqlserver"));
 
 		return services;
 	}

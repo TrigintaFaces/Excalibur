@@ -11,6 +11,7 @@ namespace Excalibur.EventSourcing.Tests.Abstractions;
 /// Tests for <see cref="AppendResult"/> to verify success, failure, and concurrency conflict behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class AppendResultShould
 {
 	[Fact]

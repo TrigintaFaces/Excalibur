@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.AuditLogging.HealthChecks;
 ///   <item><b>Unhealthy:</b> Store query failed with an exception</item>
 /// </list>
 /// </remarks>
-public sealed partial class AuditStoreHealthCheck : IHealthCheck
+internal sealed partial class AuditStoreHealthCheck : IHealthCheck
 {
 	private readonly IAuditStore _auditStore;
 	private readonly ILogger<AuditStoreHealthCheck> _logger;

@@ -39,6 +39,11 @@ public static class ErrorCodes
 	/// </summary>
 	public const string ConfigurationLoadFailed = "CFG004";
 
+	/// <summary>
+	/// Pipeline is misconfigured (e.g., ConfigurePipeline without Build).
+	/// </summary>
+	public const string PipelineMisconfigured = "CFG005";
+
 	// Validation errors (VAL)
 
 	/// <summary>

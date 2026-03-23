@@ -12,7 +12,8 @@ namespace Excalibur.Dispatch.Tests.Functional;
 ///     Functional tests for message flow scenarios.
 /// </summary>
 [Trait("Category", "Functional")]
-public class MessageFlowScenarioShould
+[Trait("Component", "Dispatch.Core")]
+public sealed class MessageFlowScenarioShould
 {
 	[Fact]
 	public void ProcessMessage_ShouldCompleteSuccessfully() =>
@@ -23,7 +24,7 @@ public class MessageFlowScenarioShould
 /// <summary>
 ///     XUnit logger provider for test output.
 /// </summary>
-public class XUnitLoggerProvider(ITestOutputHelper output) : ILoggerProvider
+public sealed class XUnitLoggerProvider(ITestOutputHelper output) : ILoggerProvider
 {
 	/// <inheritdoc/>
 	public ILogger CreateLogger(string categoryName) => new XUnitLogger(output, categoryName);
@@ -38,7 +39,7 @@ public class XUnitLoggerProvider(ITestOutputHelper output) : ILoggerProvider
 /// <summary>
 ///     XUnit logger implementation.
 /// </summary>
-public class XUnitLogger(ITestOutputHelper output, string categoryName) : ILogger
+public sealed class XUnitLogger(ITestOutputHelper output, string categoryName) : ILogger
 {
 	/// <inheritdoc/>
 	public IDisposable BeginScope<TState>(TState state) => null!;
@@ -59,7 +60,7 @@ public class XUnitLogger(ITestOutputHelper output, string categoryName) : ILogge
 /// IDispatchMessage is now a marker interface with no members.
 /// Message properties are managed through IMessageContext and IMessageMetadata.
 /// </remarks>
-public class TestMessage : IDispatchMessage
+public sealed class TestMessage : IDispatchMessage
 {
 	public string MessageId { get; set; } = Guid.NewGuid().ToString();
 }

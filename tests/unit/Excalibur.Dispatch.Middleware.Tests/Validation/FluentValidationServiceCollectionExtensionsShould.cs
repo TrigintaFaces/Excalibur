@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Validation.FluentValidation;
 namespace Excalibur.Dispatch.Middleware.Tests.Validation;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class FluentValidationServiceCollectionExtensionsShould
 {
 	#region WithFluentValidation Tests

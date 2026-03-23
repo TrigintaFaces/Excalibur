@@ -11,6 +11,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="OutboxServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class OutboxServiceCollectionExtensionsShould : UnitTestBase
 {
 	#region Null Argument Tests

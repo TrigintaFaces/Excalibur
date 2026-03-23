@@ -25,13 +25,13 @@ public sealed class SagaStepState
 	/// Gets or sets when the step started.
 	/// </summary>
 	/// <value>when the step started.</value>
-	public DateTime? StartedAt { get; set; }
+	public DateTimeOffset? StartedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets when the step completed.
 	/// </summary>
 	/// <value>when the step completed.</value>
-	public DateTime? CompletedAt { get; set; }
+	public DateTimeOffset? CompletedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets the number of attempts.
@@ -55,13 +55,13 @@ public sealed class SagaStepState
 	/// Gets or sets when compensation started.
 	/// </summary>
 	/// <value>when compensation started.</value>
-	public DateTime? CompensationStartedAt { get; set; }
+	public DateTimeOffset? CompensationStartedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets when compensation completed.
 	/// </summary>
 	/// <value>when compensation completed.</value>
-	public DateTime? CompensationCompletedAt { get; set; }
+	public DateTimeOffset? CompensationCompletedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets the compensation error if failed.

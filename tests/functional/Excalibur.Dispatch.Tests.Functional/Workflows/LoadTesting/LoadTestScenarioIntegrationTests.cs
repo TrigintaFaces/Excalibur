@@ -13,6 +13,8 @@ namespace Excalibur.Dispatch.Tests.Functional.Workflows.LoadTesting;
 /// Sprint 198 - NBomber Load Testing Integration.
 /// Validates all scenario integration patterns work correctly.
 /// </remarks>
+[Trait("Category", "Functional")]
+[Trait("Component", "Core")]
 public sealed class LoadTestScenarioIntegrationTests
 {
 	#region Throughput Scenarios (bd-1v3v4)

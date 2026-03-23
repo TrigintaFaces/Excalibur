@@ -12,15 +12,10 @@ namespace Excalibur.Dispatch.Transport.Google;
 public sealed class WorkStealingDistributionStrategy : IWorkDistributionStrategy
 {
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
-	private readonly Random _random;
 	private readonly Dictionary<int, int> _workerQueueDepths;
 
 	/// <summary>
@@ -28,7 +23,6 @@ public sealed class WorkStealingDistributionStrategy : IWorkDistributionStrategy
 	/// </summary>
 	public WorkStealingDistributionStrategy()
 	{
-		_random = new Random();
 		_workerQueueDepths = [];
 	}
 
@@ -60,7 +54,7 @@ public sealed class WorkStealingDistributionStrategy : IWorkDistributionStrategy
 			}
 
 			// Select based on probability
-			var randomValue = _random.NextDouble() * totalInverseLoad;
+			var randomValue = Random.Shared.NextDouble() * totalInverseLoad;
 			var cumulative = 0.0;
 
 			for (var i = 0; i < context.TotalWorkers; i++)

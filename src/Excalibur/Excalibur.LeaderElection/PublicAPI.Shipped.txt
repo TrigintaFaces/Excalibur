@@ -165,9 +165,6 @@ Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory.CreateElecti
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory.Dispose() -> void
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory.TelemetryLeaderElectionFactory(Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory! inner, System.Diagnostics.Metrics.Meter! meter, System.Diagnostics.ActivitySource! activitySource, string! providerName) -> void
-Excalibur.LeaderElection.Health.LeaderElectionHealthCheck
-Excalibur.LeaderElection.Health.LeaderElectionHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.LeaderElection.Health.LeaderElectionHealthCheck.LeaderElectionHealthCheck(Excalibur.Dispatch.LeaderElection.ILeaderElection! leaderElection) -> void
 Excalibur.LeaderElection.Watch.DefaultLeaderElectionWatcher
 Excalibur.LeaderElection.Watch.DefaultLeaderElectionWatcher.DefaultLeaderElectionWatcher(Excalibur.Dispatch.LeaderElection.ILeaderElection! leaderElection, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Watch.LeaderWatchOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Watch.DefaultLeaderElectionWatcher!>! logger) -> void
 Excalibur.LeaderElection.Watch.DefaultLeaderElectionWatcher.WatchAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.LeaderElection.Watch.LeaderChangeEvent!>!

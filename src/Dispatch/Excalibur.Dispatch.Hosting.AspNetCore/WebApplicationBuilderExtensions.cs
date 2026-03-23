@@ -3,8 +3,11 @@
 
 
 using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Hosting.AspNetCore;
 
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -24,6 +27,10 @@ public static class WebApplicationBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 
 		_ = builder.Services.AddDispatch(configure);
+
+		// Register startup filter for early validation during Build()
+		builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupFilter, DispatchStartupFilter>());
+
 		return builder;
 	}
 }

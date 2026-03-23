@@ -106,7 +106,8 @@ public sealed class InputValidationExceptionShould
 	public void InheritFromException()
 	{
 		// Assert
-		typeof(InputValidationException).BaseType.ShouldBe(typeof(Exception));
+		// Sprint 697 T.13: reparented to ApiException
+		typeof(InputValidationException).BaseType.ShouldBe(typeof(global::Excalibur.Dispatch.Abstractions.ApiException));
 	}
 
 	[Fact]

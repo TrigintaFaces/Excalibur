@@ -151,15 +151,21 @@ services.AddExcaliburOutbox(OutboxOptions.Custom()
 
 ### Usage in Handlers
 
-The `OutboxStagingMiddleware` automatically stages outbound messages added during handler execution. Use the `AddOutboundMessage<T>()` extension method on the message context:
+Inject `IOutboxWriter` into your handler and call `WriteAsync` to stage outbound messages. The consistency guarantee (eventually-consistent vs. transactional) is determined by configuration -- your handler code stays the same regardless of mode:
 
 ```csharp
-// Use IDispatchHandler for direct access to IMessageContext (needed for outbox staging)
+using Excalibur.Dispatch.Abstractions.Outbox;
+
 public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
 {
     private readonly IDbConnection _db;
+    private readonly IOutboxWriter _outboxWriter;
 
-    public CreateOrderHandler(IDbConnection db) => _db = db;
+    public CreateOrderHandler(IDbConnection db, IOutboxWriter outboxWriter)
+    {
+        _db = db;
+        _outboxWriter = outboxWriter;
+    }
 
     public async Task<IMessageResult> HandleAsync(
         CreateOrderAction action,
@@ -167,7 +173,7 @@ public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
         CancellationToken ct)
     {
         using var transaction = _db.BeginTransaction();
-        context.SetItem("Transaction", transaction); // Share transaction with outbox middleware
+        context.SetItem("Transaction", transaction);
 
         // Save domain changes
         var orderId = Guid.NewGuid();
@@ -176,10 +182,11 @@ public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
             new { Id = orderId, action.CustomerId },
             transaction);
 
-        // Add to outbox (staged automatically by OutboxStagingMiddleware)
-        context.AddOutboundMessage(
+        // Write to outbox -- behavior depends on configured ConsistencyMode
+        await _outboxWriter.WriteAsync(
             new OrderCreatedEvent(orderId, action.CustomerId),
-            destination: "orders");
+            destination: "orders",
+            ct);
 
         transaction.Commit();
         return MessageResult.Success();
@@ -187,7 +194,39 @@ public class CreateOrderHandler : IDispatchHandler<CreateOrderAction>
 }
 ```
 
-The `AddOutboundMessage<T>()` extension method is in the `Excalibur.Dispatch.Middleware` namespace.
+For scheduled delivery, use the `WriteScheduledAsync` extension method:
+
+```csharp
+await _outboxWriter.WriteScheduledAsync(
+    new ReminderEvent(orderId),
+    destination: "reminders",
+    scheduledAt: DateTimeOffset.UtcNow.AddHours(24),
+    ct);
+```
+
+### Consistency Modes
+
+Configure the outbox consistency mode via `OutboxStagingOptions`:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseOutbox(outbox =>
+    {
+        // Default: messages buffered and staged after handler completes
+        outbox.ConsistencyMode = OutboxConsistencyMode.EventuallyConsistent;
+
+        // OR: messages written within the ambient transaction (requires IOutboxStore)
+        outbox.ConsistencyMode = OutboxConsistencyMode.Transactional;
+    });
+});
+```
+
+| Mode | Behavior | Risk | Requires |
+|------|----------|------|----------|
+| **EventuallyConsistent** (default) | Messages buffered during handler execution, flushed to outbox after handler + transaction complete | Messages lost if process crashes between commit and flush | Nothing extra |
+| **Transactional** | Messages written to `IOutboxStore` within the ambient transaction | None (atomic with business data) | `IOutboxStore` registration + `TransactionMiddleware` |
+
 
 ## Outbox Stores
 

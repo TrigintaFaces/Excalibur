@@ -13,7 +13,6 @@ namespace Excalibur.Data.ElasticSearch.Exceptions;
 /// This exception provides detailed information about the failed search operation, including the index name, document type, and API
 /// call details.
 /// </remarks>
-[Serializable]
 public sealed class ElasticsearchSearchException : ApiException
 {
 	/// <summary>

@@ -33,7 +33,7 @@ public abstract class TransactionScopeBase : ITransactionScope, ITransactionScop
 	private readonly List<Func<TransactionStatus, Task>> _onCompleteCallbacks = [];
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _syncLock = new();
+	private readonly System.Threading.Lock _syncLock = new();
 #else
 	private readonly object _syncLock = new();
 #endif

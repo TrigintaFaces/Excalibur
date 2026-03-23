@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Hosting.Tests.GoogleCloudFunctions;
 /// Unit tests for GoogleCloudFunctionsOptions.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class GoogleCloudFunctionsOptionsShould : UnitTestBase
 {
 	[Fact]

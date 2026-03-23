@@ -38,16 +38,16 @@ public sealed class SagaCoordinationWorkflowShould
 		{
 			OrderId = "ORD-PARALLEL",
 			Items = ["ITEM-A", "ITEM-B", "ITEM-C"],
-		}).ConfigureAwait(true);
+		});
 
 		// Execute parallel inventory checks (all items at once)
-		await saga.ExecuteParallelGroupAsync("saga-parallel", "CheckInventory").ConfigureAwait(true);
+		await saga.ExecuteParallelGroupAsync("saga-parallel", "CheckInventory");
 
 		// Execute final step after parallel group completes
-		await saga.ProcessStepAsync("saga-parallel", "FinalizeOrder").ConfigureAwait(true);
+		await saga.ProcessStepAsync("saga-parallel", "FinalizeOrder");
 
 		// Assert - All parallel steps completed
-		var state = await store.GetAsync("saga-parallel").ConfigureAwait(true);
+		var state = await store.GetAsync("saga-parallel");
 		_ = state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.Completed);
 
@@ -76,26 +76,26 @@ public sealed class SagaCoordinationWorkflowShould
 		var parentSaga = new NestedSaga(store, log, isParent: true);
 
 		// Act - Start parent saga
-		await parentSaga.StartAsync("parent-saga", new OrderData { OrderId = "ORD-PARENT" }).ConfigureAwait(true);
-		await parentSaga.ProcessStepAsync("parent-saga", "ValidateOrder").ConfigureAwait(true);
+		await parentSaga.StartAsync("parent-saga", new OrderData { OrderId = "ORD-PARENT" });
+		await parentSaga.ProcessStepAsync("parent-saga", "ValidateOrder");
 
 		// Parent starts child saga for payment processing
-		var childSagaId = await parentSaga.StartChildSagaAsync("parent-saga", "child-payment").ConfigureAwait(true);
+		var childSagaId = await parentSaga.StartChildSagaAsync("parent-saga", "child-payment");
 
 		// Simulate child saga execution
 		var childSaga = new NestedSaga(store, log, isParent: false);
-		await childSaga.ProcessStepAsync(childSagaId, "ProcessPayment").ConfigureAwait(true);
-		await childSaga.ProcessStepAsync(childSagaId, "ConfirmPayment").ConfigureAwait(true);
-		await childSaga.CompleteAsync(childSagaId).ConfigureAwait(true);
+		await childSaga.ProcessStepAsync(childSagaId, "ProcessPayment");
+		await childSaga.ProcessStepAsync(childSagaId, "ConfirmPayment");
+		await childSaga.CompleteAsync(childSagaId);
 
 		// Parent waits for child and continues
-		await parentSaga.WaitForChildAndContinueAsync("parent-saga", childSagaId).ConfigureAwait(true);
-		await parentSaga.ProcessStepAsync("parent-saga", "ShipOrder").ConfigureAwait(true);
-		await parentSaga.CompleteAsync("parent-saga").ConfigureAwait(true);
+		await parentSaga.WaitForChildAndContinueAsync("parent-saga", childSagaId);
+		await parentSaga.ProcessStepAsync("parent-saga", "ShipOrder");
+		await parentSaga.CompleteAsync("parent-saga");
 
 		// Assert - Both sagas completed
-		var parentState = await store.GetAsync("parent-saga").ConfigureAwait(true);
-		var childState = await store.GetAsync(childSagaId).ConfigureAwait(true);
+		var parentState = await store.GetAsync("parent-saga");
+		var childState = await store.GetAsync(childSagaId);
 
 		_ = parentState.ShouldNotBeNull();
 		parentState.Status.ShouldBe(SagaStatus.Completed);
@@ -126,11 +126,11 @@ public sealed class SagaCoordinationWorkflowShould
 		var saga2 = new CorrelatedSaga(store, log);
 
 		// Start two sagas waiting for payment confirmation
-		await saga1.StartAsync("saga-corr-1", new OrderData { OrderId = "ORD-1" }).ConfigureAwait(true);
-		await saga1.StartWaitingForEventAsync("saga-corr-1", "PaymentConfirmed").ConfigureAwait(true);
+		await saga1.StartAsync("saga-corr-1", new OrderData { OrderId = "ORD-1" });
+		await saga1.StartWaitingForEventAsync("saga-corr-1", "PaymentConfirmed");
 
-		await saga2.StartAsync("saga-corr-2", new OrderData { OrderId = "ORD-2" }).ConfigureAwait(true);
-		await saga2.StartWaitingForEventAsync("saga-corr-2", "PaymentConfirmed").ConfigureAwait(true);
+		await saga2.StartAsync("saga-corr-2", new OrderData { OrderId = "ORD-2" });
+		await saga2.StartWaitingForEventAsync("saga-corr-2", "PaymentConfirmed");
 
 		// Act - External events arrive with CorrelationIds
 		var event1 = new ExternalEvent
@@ -147,12 +147,12 @@ public sealed class SagaCoordinationWorkflowShould
 			Payload = new Dictionary<string, object> { ["TransactionId"] = "TXN-002" },
 		};
 
-		await correlator.HandleEventAsync(event1).ConfigureAwait(true);
-		await correlator.HandleEventAsync(event2).ConfigureAwait(true);
+		await correlator.HandleEventAsync(event1);
+		await correlator.HandleEventAsync(event2);
 
 		// Assert - Correct sagas resumed
-		var state1 = await store.GetAsync("saga-corr-1").ConfigureAwait(true);
-		var state2 = await store.GetAsync("saga-corr-2").ConfigureAwait(true);
+		var state1 = await store.GetAsync("saga-corr-1");
+		var state2 = await store.GetAsync("saga-corr-2");
 
 		_ = state1.ShouldNotBeNull();
 		state1.ReceivedEvents.Count.ShouldBe(1);
@@ -184,7 +184,7 @@ public sealed class SagaCoordinationWorkflowShould
 		{
 			OrderId = "ORD-PREMIUM",
 			Amount = 10000m,
-		}).ConfigureAwait(true);
+		});
 
 		// Saga with low-value order (takes standard branch)
 		var standardSaga = new ConditionalSaga(store, log);
@@ -192,15 +192,15 @@ public sealed class SagaCoordinationWorkflowShould
 		{
 			OrderId = "ORD-STANDARD",
 			Amount = 50m,
-		}).ConfigureAwait(true);
+		});
 
 		// Act - Execute conditional step
-		await premiumSaga.ProcessConditionalStepAsync("saga-premium").ConfigureAwait(true);
-		await standardSaga.ProcessConditionalStepAsync("saga-standard").ConfigureAwait(true);
+		await premiumSaga.ProcessConditionalStepAsync("saga-premium");
+		await standardSaga.ProcessConditionalStepAsync("saga-standard");
 
 		// Assert - Different branches taken
-		var premiumState = await store.GetAsync("saga-premium").ConfigureAwait(true);
-		var standardState = await store.GetAsync("saga-standard").ConfigureAwait(true);
+		var premiumState = await store.GetAsync("saga-premium");
+		var standardState = await store.GetAsync("saga-standard");
 
 		_ = premiumState.ShouldNotBeNull();
 		premiumState.CompletedSteps.ShouldContain("PremiumProcessing");
@@ -234,12 +234,12 @@ public sealed class SagaCoordinationWorkflowShould
 		var saga = new ExternalServiceSaga(store, log, externalService);
 
 		// Act
-		await saga.StartAsync("saga-external", new OrderData { OrderId = "ORD-EXT" }).ConfigureAwait(true);
-		await saga.CallExternalServiceWithRetryAsync("saga-external", "InventoryService", maxRetries: 3).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-external", "CompleteOrder").ConfigureAwait(true);
+		await saga.StartAsync("saga-external", new OrderData { OrderId = "ORD-EXT" });
+		await saga.CallExternalServiceWithRetryAsync("saga-external", "InventoryService", maxRetries: 3);
+		await saga.ProcessStepAsync("saga-external", "CompleteOrder");
 
 		// Assert - Service eventually succeeded
-		var state = await store.GetAsync("saga-external").ConfigureAwait(true);
+		var state = await store.GetAsync("saga-external");
 		_ = state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.Completed);
 		state.ExternalServiceCalls["InventoryService"].Success.ShouldBeTrue();

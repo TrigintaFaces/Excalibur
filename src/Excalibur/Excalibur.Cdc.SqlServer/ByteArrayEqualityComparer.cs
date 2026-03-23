@@ -49,7 +49,7 @@ public sealed class ByteArrayEqualityComparer : IEqualityComparer<byte[]>, Syste
 			return Equals(a, b);
 		}
 
-		throw new ArgumentException("", nameof(x));
+		throw new ArgumentException("Expected byte[] argument for CDC LSN comparison.", nameof(x));
 	}
 	public int GetHashCode(object obj)
 	{
@@ -63,6 +63,6 @@ public sealed class ByteArrayEqualityComparer : IEqualityComparer<byte[]>, Syste
 			return GetHashCode(x);
 		}
 
-		throw new ArgumentException("", nameof(obj));
+		throw new ArgumentException("Expected byte[] argument for CDC LSN hashing.", nameof(obj));
 	}
 }

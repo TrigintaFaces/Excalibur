@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// Tests mappers working together with <see cref="MessageMapperRegistry"/> per Sprint 395 T395.7.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CrossTransportMapperIntegrationShould
 {
 	#region Registry Registration Tests

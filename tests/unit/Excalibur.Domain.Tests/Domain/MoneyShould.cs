@@ -6,6 +6,7 @@ namespace Excalibur.Tests.Domain;
 /// Unit tests for Money value object.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Domain")]
 public sealed class MoneyShould : UnitTestBase
 {
 	[Fact]

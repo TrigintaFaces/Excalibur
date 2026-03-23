@@ -16,7 +16,7 @@ public sealed class OrderedEventProcessorCoverageShould
         {
             executed = true;
             return Task.CompletedTask;
-        });
+        }, CancellationToken.None);
 
         // Assert
         executed.ShouldBeTrue();
@@ -29,7 +29,7 @@ public sealed class OrderedEventProcessorCoverageShould
         await using var processor = new OrderedEventProcessor();
 
         // Act & Assert
-        await Should.ThrowAsync<ArgumentNullException>(() => processor.ProcessAsync(null!));
+        await Should.ThrowAsync<ArgumentNullException>(() => processor.ProcessAsync(null!, CancellationToken.None));
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class OrderedEventProcessorCoverageShould
 
         // Act & Assert
         await Should.ThrowAsync<ObjectDisposedException>(() =>
-            processor.ProcessAsync(() => Task.CompletedTask));
+            processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None));
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class OrderedEventProcessorCoverageShould
             order.Add(1);
             await barrier.Task;
             order.Add(2);
-        });
+        }, CancellationToken.None);
 
         // Give task1 a chance to acquire the semaphore
         await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
@@ -67,7 +67,7 @@ public sealed class OrderedEventProcessorCoverageShould
         {
             order.Add(3);
             return Task.CompletedTask;
-        }));
+        }, CancellationToken.None));
 
         // Complete barrier so task1 finishes
         barrier.SetResult();
@@ -121,7 +121,7 @@ public sealed class OrderedEventProcessorCoverageShould
 
         // Act & Assert
         await Should.ThrowAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(() => throw new InvalidOperationException("test error")));
+            processor.ProcessAsync(() => throw new InvalidOperationException("test error"), CancellationToken.None));
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class OrderedEventProcessorCoverageShould
 
         // Act - first call throws
         await Should.ThrowAsync<InvalidOperationException>(() =>
-            processor.ProcessAsync(() => throw new InvalidOperationException("fail")));
+            processor.ProcessAsync(() => throw new InvalidOperationException("fail"), CancellationToken.None));
 
         // Second call should succeed (semaphore was released)
         var succeeded = false;
@@ -140,10 +140,9 @@ public sealed class OrderedEventProcessorCoverageShould
         {
             succeeded = true;
             return Task.CompletedTask;
-        });
+        }, CancellationToken.None);
 
         // Assert
         succeeded.ShouldBeTrue();
     }
 }
-

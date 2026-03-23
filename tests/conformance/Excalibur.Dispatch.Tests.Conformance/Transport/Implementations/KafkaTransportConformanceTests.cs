@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 /// Automatically provisions a Kafka container for testing.
 /// </summary>
 [Trait("Category", "Integration")]
+[Trait("Component", "Transport")]
 [Trait("Transport", "Kafka")]
 public sealed class KafkaTransportConformanceTests
 	: TransportConformanceTestBase<KafkaChannelSender, KafkaChannelReceiver>

@@ -42,7 +42,7 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
+public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ExcaliburEventSourcingBuilder" /> class.
@@ -81,7 +81,7 @@ public sealed class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 
 		Services.TryAddSingleton<IEventSourcedRepository<TAggregate>>(sp =>
 			new EventSourcedRepository<TAggregate>(
-				sp.GetRequiredService<IEventStore>(),
+				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<IEventSerializer>(),
 				aggregateFactory,
 				sp.GetService<IUpcastingPipeline>(),
@@ -115,7 +115,7 @@ public sealed class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 
 		Services.TryAddSingleton<IEventSourcedRepository<TAggregate, TKey>>(sp =>
 			new EventSourcedRepository<TAggregate, TKey>(
-				sp.GetRequiredService<IEventStore>(),
+				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<IEventSerializer>(),
 				aggregateFactory,
 				sp.GetService<IUpcastingPipeline>(),
@@ -254,7 +254,7 @@ public sealed class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	TEventStore>()
 		where TEventStore : class, IEventStore
 	{
-		_ = Services.AddSingleton<IEventStore, TEventStore>();
+		_ = Services.AddKeyedSingleton<IEventStore, TEventStore>("default");
 		return this;
 	}
 
@@ -330,7 +330,7 @@ public sealed class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 		// The contributor resolves IEventStoreErasure from the IEventStore at runtime.
 		_ = Services.AddSingleton<Dispatch.Compliance.IErasureContributor>(sp =>
 		{
-			var eventStore = sp.GetRequiredService<IEventStore>();
+			var eventStore = sp.GetRequiredKeyedService<IEventStore>("default");
 			var erasure = eventStore as IEventStoreErasure
 						  ?? throw new InvalidOperationException(
 							  $"The registered IEventStore ({eventStore.GetType().Name}) does not implement IEventStoreErasure. " +
@@ -340,7 +340,7 @@ public sealed class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				erasure,
 				sp.GetRequiredService<Erasure.IAggregateDataSubjectMapping>(),
 				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Erasure.EventStoreErasureContributor>>(),
-				sp.GetService<ISnapshotStore>());
+				sp.GetKeyedService<ISnapshotStore>("default"));
 		});
 
 		return this;

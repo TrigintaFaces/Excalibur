@@ -8,8 +8,6 @@ using Excalibur.Dispatch.Abstractions.Transport;
 
 using Microsoft.Extensions.Logging;
 
-using MessageContext = Excalibur.Dispatch.Messaging.MessageContext;
-
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
 /// <summary>
@@ -125,12 +123,7 @@ internal sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITra
 
 		try
 		{
-			var context = new MessageContext(message, _serviceProvider)
-			{
-				MessageId = messageId,
-			};
-			context.SetMessageType(message.GetType().FullName);
-			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+			var context = TransportContextFactory.CreateForReceive(message, _serviceProvider, messageId);
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 
@@ -162,10 +155,12 @@ internal sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITra
 	public async Task SendAsync(
 		IDispatchMessage message,
 		string destination,
+		IMessageContext context,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+		ArgumentNullException.ThrowIfNull(context);
 
 		var stopwatch = ValueStopwatch.StartNew();
 
@@ -181,13 +176,6 @@ internal sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITra
 
 		try
 		{
-			// Create a basic message context for the underlying message bus
-			var context = new MessageContext(message, _serviceProvider)
-			{
-				MessageId = messageId,
-				CorrelationId = messageId,
-			};
-
 			// Route to appropriate RabbitMqMessageBus.PublishAsync overload based on message type
 			switch (message)
 			{
@@ -385,7 +373,7 @@ internal sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITra
 			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			await StopAsync(cts.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during cancellation
 		}

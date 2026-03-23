@@ -8,6 +8,11 @@ namespace Excalibur.Dispatch.Abstractions;
 /// Defines a middleware component that can intercept and process messages in the dispatch pipeline.
 /// </summary>
 /// <remarks>
+/// <para>
+/// This is the dispatch-specific middleware contract. It is distinct from the generic
+/// <see cref="IMiddleware{TContext}"/> building block, which provides a general-purpose typed
+/// middleware pattern for other pipeline compositions.
+/// </para>
 /// Middleware components form a pipeline where each component can:
 /// <list type="bullet">
 /// <item> Inspect and modify the message or context before processing </item>

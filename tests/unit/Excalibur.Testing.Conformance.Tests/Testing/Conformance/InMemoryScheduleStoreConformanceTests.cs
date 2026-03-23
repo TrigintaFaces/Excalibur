@@ -25,7 +25,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "STORE")]
-public class InMemoryScheduleStoreConformanceTests : ScheduleStoreConformanceTestKit
+public sealed class InMemoryScheduleStoreConformanceTests : ScheduleStoreConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override IScheduleStore CreateStore() =>

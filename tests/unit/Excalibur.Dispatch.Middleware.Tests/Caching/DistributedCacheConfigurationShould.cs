@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for DistributedCacheConfiguration POCO.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DistributedCacheConfigurationShould : UnitTestBase
 {
 	[Fact]

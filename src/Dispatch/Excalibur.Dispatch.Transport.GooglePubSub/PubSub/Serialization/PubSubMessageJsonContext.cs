@@ -50,7 +50,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 [JsonSerializable(typeof(DeadLetterMessage))]
 [JsonSerializable(typeof(List<DeadLetterMessage>))]
 [JsonSerializable(typeof(DeadLetterMetadata))]
-[JsonSerializable(typeof(RetryPolicy))]
+[JsonSerializable(typeof(PubSubRetryRecord))]
 
 // Ordering and flow control
 [JsonSerializable(typeof(OrderingKeyState))]

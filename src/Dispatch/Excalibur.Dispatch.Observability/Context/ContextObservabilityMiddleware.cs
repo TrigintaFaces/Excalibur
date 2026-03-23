@@ -45,7 +45,7 @@ public sealed partial class ContextObservabilityMiddleware(
 	private readonly IContextFlowMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
 	private readonly IContextTraceEnricher _traceEnricher = traceEnricher ?? throw new ArgumentNullException(nameof(traceEnricher));
 	private readonly ContextObservabilityOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-	private readonly ActivitySource _activitySource = new(ContextObservabilityTelemetryConstants.MiddlewareActivitySourceName, "1.0.0");
+	private static readonly ActivitySource s_activitySource = new(ContextObservabilityTelemetryConstants.MiddlewareActivitySourceName, "1.0.0");
 
 	/// <summary>
 	/// Gets the stage in the dispatch pipeline where this middleware executes.
@@ -85,7 +85,7 @@ public sealed partial class ContextObservabilityMiddleware(
 		}
 
 		var stageName = GetCurrentStageName(context);
-		using var activity = _activitySource.StartActivity($"ContextObservability.{stageName}");
+		using var activity = s_activitySource.StartActivity($"ContextObservability.{stageName}");
 
 		// Enrich the activity with context information
 		_traceEnricher.EnrichActivity(activity, context);
@@ -123,12 +123,15 @@ public sealed partial class ContextObservabilityMiddleware(
 	}
 
 	/// <summary> Releases all resources used by the <see cref="ContextObservabilityMiddleware"/>. </summary>
-	public void Dispose() => _activitySource?.Dispose();
+	public void Dispose()
+	{
+		// Static ActivitySource is process-lifetime; no instance resources to dispose.
+	}
 
 	/// <inheritdoc />
 	public ValueTask DisposeAsync()
 	{
-		_activitySource?.Dispose();
+		// Static ActivitySource is process-lifetime; no disposal needed.
 		return default;
 	}
 
@@ -180,7 +183,6 @@ public sealed partial class ContextObservabilityMiddleware(
 		new(StringComparer.Ordinal)
 		{
 			["thread_id"] = Environment.CurrentManagedThreadId,
-			["machine_name"] = Environment.MachineName,
 			["process_id"] = Environment.ProcessId,
 			["timestamp_utc"] = DateTimeOffset.UtcNow.ToString("O"),
 		};

@@ -21,7 +21,7 @@ namespace Excalibur.Jobs.Aws;
 /// <param name="schedulerClient"> The AWS EventBridge Scheduler client. </param>
 /// <param name="options"> Configuration options for the AWS scheduler. </param>
 /// <param name="logger"> Logger for this provider. </param>
-public partial class AwsSchedulerJobProvider(
+public sealed partial class AwsSchedulerJobProvider(
 	AmazonSchedulerClient schedulerClient,
 	AwsSchedulerOptions options,
 	ILogger<AwsSchedulerJobProvider> logger) : IDisposable
@@ -114,7 +114,7 @@ public partial class AwsSchedulerJobProvider(
 	/// Releases the unmanaged resources used by the <see cref="AwsSchedulerJobProvider"/> and optionally releases the managed resources.
 	/// </summary>
 	/// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
-	protected virtual void Dispose(bool disposing)
+	private void Dispose(bool disposing)
 	{
 		if (!_disposed)
 		{

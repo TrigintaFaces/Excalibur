@@ -355,11 +355,10 @@ public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 			opts.DeadLetterTopicName = new TopicName("p", "t");
 		});
 
-		// Assert — the shared Transport.Abstractions IDeadLetterQueueManager is registered
+		// Assert — Sprint 697: DLQ now uses keyed registration by transport name
 		var descriptor = services.FirstOrDefault(d =>
-			d.ServiceType == typeof(IDeadLetterQueueManager));
-		descriptor.ShouldNotBeNull("AddOptimizedDeadLetterQueue should register IDeadLetterQueueManager");
-		descriptor.ImplementationType.ShouldBe(typeof(PubSubDeadLetterQueueManager));
+			d.ServiceType == typeof(IDeadLetterQueueManager) && d.IsKeyedService);
+		descriptor.ShouldNotBeNull("AddOptimizedDeadLetterQueue should register keyed IDeadLetterQueueManager");
 	}
 
 	[Fact]

@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Messaging;
 namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatchBuilderSmokeTests
 {
 	[Fact]
@@ -31,11 +32,11 @@ public sealed class DispatchBuilderSmokeTests
 		var context = DispatchContextInitializer.CreateDefaultContext(provider);
 		var message = new TestMessage();
 
-		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
-		Assert.True(result.Succeeded);
-		Assert.True(state.WasExecuted);
-		Assert.Same(message, context.Message);
+		result.Succeeded.ShouldBeTrue();
+		state.WasExecuted.ShouldBeTrue();
+		context.Message.ShouldBeSameAs(message);
 	}
 
 	private sealed class TestMessage : IDispatchMessage

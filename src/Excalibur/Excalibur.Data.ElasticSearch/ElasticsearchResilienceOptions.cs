@@ -19,7 +19,7 @@ public sealed class ElasticsearchResilienceOptions
 	/// Gets the retry policy configuration.
 	/// </summary>
 	/// <value> The retry policy settings for handling transient failures. </value>
-	public RetryPolicyOptions Retry { get; init; } = new();
+	public ElasticSearchRetryPolicyOptions Retry { get; init; } = new();
 
 	/// <summary>
 	/// Gets the circuit breaker configuration.

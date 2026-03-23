@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.BatchProcessing;
 
-public class BatchProcessingMetricsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class BatchProcessingMetricsShould
 {
     [Fact]
     public void Uptime_Should_Calculate_From_StartedAt()

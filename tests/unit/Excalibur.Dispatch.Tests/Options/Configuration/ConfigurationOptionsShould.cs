@@ -1,9 +1,8 @@
 using Excalibur.Dispatch.Options.Configuration;
 
 using ConfigCachingOptions = Excalibur.Dispatch.Options.Configuration.CachingOptions;
-using ConfigDeduplicationOptions = Excalibur.Dispatch.Options.Configuration.DeduplicationOptions;
-using ConfigInboxOptions = Excalibur.Dispatch.Options.Configuration.InboxOptions;
-using ConfigOutboxOptions = Excalibur.Dispatch.Options.Configuration.OutboxOptions;
+using ConfigInboxOptions = Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions;
+using ConfigOutboxOptions = Excalibur.Dispatch.Options.Configuration.OutboxConfigurationOptions;
 
 namespace Excalibur.Dispatch.Tests.Options.Configuration;
 
@@ -54,16 +53,6 @@ public sealed class ConfigurationOptionsShould
 
 		opts.AckAfterHandle.ShouldBeFalse();
 		opts.MaxConcurrentMessages.ShouldBe(50);
-	}
-
-	[Fact]
-	public void DeduplicationOptions_HaveDefaults()
-	{
-		var opts = new ConfigDeduplicationOptions();
-
-		opts.Enabled.ShouldBeFalse();
-		opts.ExpiryHours.ShouldBe(24);
-		opts.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -135,7 +124,7 @@ public sealed class ConfigurationOptionsShould
 	{
 		var opts = new ConfigOutboxOptions();
 
-		opts.Enabled.ShouldBeTrue();
+		opts.Enabled.ShouldBeFalse();
 		opts.BatchSize.ShouldBe(100);
 		opts.PublishIntervalMs.ShouldBe(1000);
 		opts.MaxRetries.ShouldBe(3);

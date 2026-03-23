@@ -81,7 +81,7 @@ public static class DefaultPipelineProfiles
 
 		// Order matters - security checks first
 		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
-		profile.AddMiddleware<RateLimitingMiddleware>(1);
+		profile.AddMiddleware<ThrottlingMiddleware>(1);
 		profile.AddMiddleware<AuthenticationMiddleware>(2);
 		profile.AddMiddleware<TenantIdentityMiddleware>(3);
 		profile.AddMiddleware<InputSanitizationMiddleware>(4);

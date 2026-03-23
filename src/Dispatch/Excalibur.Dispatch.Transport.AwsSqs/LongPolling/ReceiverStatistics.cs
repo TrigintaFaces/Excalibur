@@ -37,5 +37,5 @@ public sealed class ReceiverStatistics
 	/// <summary>
 	/// Gets or sets the current polling status.
 	/// </summary>
-	public required PollingStatus PollingStatus { get; init; }
+	public required SqsPollingStatus PollingStatus { get; init; }
 }

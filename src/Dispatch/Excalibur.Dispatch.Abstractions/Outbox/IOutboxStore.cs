@@ -10,18 +10,22 @@ namespace Excalibur.Dispatch.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The outbox store ensures reliable message publishing by storing outbound messages within the same transaction as business data changes.
-/// This guarantees:
+/// <strong>Traditional (polling) outbox</strong> for relational and document databases
+/// (SQL Server, Postgres, MongoDB, etc.). Messages are staged within a database
+/// transaction alongside business data, then published by a background polling service
+/// (<c>OutboxBackgroundService</c>).
+/// </para>
+/// <para>
+/// For cloud-native databases that use change-feed triggers instead of polling
+/// (Cosmos DB, DynamoDB, Firestore), see
+/// <c>Excalibur.Data.Abstractions.CloudNative.ICloudNativeOutboxStore</c>.
+/// The two interfaces serve fundamentally different outbox patterns and are
+/// intentionally separate:
 /// </para>
 /// <list type="bullet">
-/// <item> Atomicity - messages are published only if business operations succeed </item>
-/// <item> Reliability - messages are not lost due to transport failures </item>
-/// <item> Consistency - outbound messages reflect actual state changes </item>
-/// <item> Order preservation - messages are published in the correct sequence </item>
+/// <item><c>IOutboxStore</c> -- polling-based, SQL transactions, background service</item>
+/// <item><c>ICloudNativeOutboxStore</c> -- change-feed triggers, partition keys, serverless</item>
 /// </list>
-/// <para>
-/// Messages are later published by a background service that polls the outbox.
-/// </para>
 /// <para>
 /// This interface contains 5 core methods following the Microsoft IDistributedCache pattern.
 /// For batch operations, implement <see cref="IOutboxStoreBatch"/>.
@@ -116,6 +120,7 @@ public interface IOutboxStore
 	/// </summary>
 	/// <param name="messageIds"> The unique identifiers of the messages that failed. </param>
 	/// <param name="reason"> The error description applied to all messages in the batch. </param>
+	/// <param name="retryCount"> The current retry attempt count for all messages in the batch. </param>
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> A task representing the asynchronous batch mark-failed operation. </returns>
 	/// <remarks>
@@ -124,11 +129,11 @@ public interface IOutboxStore
 	/// Override in stores that support efficient batch updates (e.g., SQL <c>WHERE Id IN (...)</c>).
 	/// </para>
 	/// </remarks>
-	async ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, CancellationToken cancellationToken)
+	async ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, int retryCount, CancellationToken cancellationToken)
 	{
 		foreach (var messageId in messageIds)
 		{
-			await MarkFailedAsync(messageId, reason, 1, cancellationToken).ConfigureAwait(false);
+			await MarkFailedAsync(messageId, reason, retryCount, cancellationToken).ConfigureAwait(false);
 		}
 	}
 

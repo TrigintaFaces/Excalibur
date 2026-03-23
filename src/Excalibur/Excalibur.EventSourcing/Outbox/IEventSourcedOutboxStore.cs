@@ -12,6 +12,12 @@ namespace Excalibur.EventSourcing.Outbox;
 /// </summary>
 /// <remarks>
 /// <para>
+/// <strong>When to use:</strong> Implement this interface in event sourcing scenarios where domain
+/// events must be persisted to an outbox table within the same database transaction as the aggregate
+/// state. This ensures atomic consistency between the event store and outbox. For messaging-level
+/// outbox without event sourcing, use <c>IOutboxStore</c> from <c>Excalibur.Dispatch.Abstractions</c>.
+/// </para>
+/// <para>
 /// This interface is specifically designed for event sourcing scenarios where domain events
 /// must be published reliably using the outbox pattern. It differs from the messaging outbox
 /// (<c>Excalibur.Dispatch.Abstractions.Outbox.IOutboxStore</c>) in that it:

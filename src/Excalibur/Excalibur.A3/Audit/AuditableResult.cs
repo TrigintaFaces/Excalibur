@@ -10,7 +10,7 @@ namespace Excalibur.A3.Audit;
 /// <typeparam name="TResult"> The type of the result value. </typeparam>
 /// <param name="result"> The result value. </param>
 /// <param name="auditMessage"> An optional audit message associated with the result. </param>
-public class AuditableResult<TResult>(TResult result, string? auditMessage = null)
+public sealed class AuditableResult<TResult>(TResult result, string? auditMessage = null)
 {
 	/// <summary>
 	/// Gets or sets the optional audit message.

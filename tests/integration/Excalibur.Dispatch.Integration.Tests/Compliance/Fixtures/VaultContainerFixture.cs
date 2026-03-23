@@ -36,7 +36,7 @@ public class VaultContainerFixture : ContainerFixtureBase
 	{
 		var result = await _container.ExecAsync(
 			new[] { "vault", "write", "-f", $"transit/keys/{keyName}" },
-			cancellationToken).ConfigureAwait(true);
+			cancellationToken);
 
 		if (result.ExitCode != 0)
 		{
@@ -62,10 +62,10 @@ public class VaultContainerFixture : ContainerFixtureBase
 					.ForPort(VaultPort)))
 			.Build();
 
-		await _container.StartAsync(cancellationToken).ConfigureAwait(true);
+		await _container.StartAsync(cancellationToken);
 
 		// Enable transit secrets engine for encryption
-		await EnableTransitEngineAsync(cancellationToken).ConfigureAwait(true);
+		await EnableTransitEngineAsync(cancellationToken);
 	}
 
 	/// <inheritdoc/>
@@ -73,7 +73,7 @@ public class VaultContainerFixture : ContainerFixtureBase
 	{
 		if (_container is not null)
 		{
-			await _container.DisposeAsync().ConfigureAwait(true);
+			await _container.DisposeAsync();
 		}
 	}
 
@@ -82,7 +82,7 @@ public class VaultContainerFixture : ContainerFixtureBase
 		// Use exec to enable the transit engine
 		var result = await _container.ExecAsync(
 			new[] { "vault", "secrets", "enable", "transit" },
-			cancellationToken).ConfigureAwait(true);
+			cancellationToken);
 
 		if (result.ExitCode != 0 && !result.Stderr.Contains("already in use"))
 		{

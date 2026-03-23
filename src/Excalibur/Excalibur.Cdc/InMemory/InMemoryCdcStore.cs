@@ -22,7 +22,7 @@ public sealed class InMemoryCdcStore : IInMemoryCdcStore
 	private readonly InMemoryCdcOptions _options;
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _lock = new();
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
 #endif

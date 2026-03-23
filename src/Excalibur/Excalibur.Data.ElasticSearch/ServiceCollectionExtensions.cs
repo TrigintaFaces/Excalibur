@@ -77,6 +77,15 @@ public static class ServiceCollectionExtensions
 		services.TryAddSingleton(sp =>
 		{
 			var elasticConfig = sp.GetRequiredService<IOptions<ElasticsearchConfigurationOptions>>().Value;
+
+			if (elasticConfig.Connection.DisableCertificateValidation)
+			{
+				var logger = sp.GetService<ILogger<ElasticsearchConnectionOptions>>();
+				logger?.LogWarning(
+					"Elasticsearch SSL certificate validation is disabled (DisableCertificateValidation=true). " +
+					"This is a security risk and should only be used in development environments.");
+			}
+
 			var settings = CreateElasticsearchClientSettings(elasticConfig);
 
 			configureSettings?.Invoke(settings);

@@ -291,7 +291,6 @@ Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException
 Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException.NoFallbackAvailableException() -> void
 Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException.NoFallbackAvailableException(string! message) -> void
 Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException.NoFallbackAvailableException(string! message, System.Exception! innerException) -> void
-Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException.NoFallbackAvailableException(System.Runtime.Serialization.SerializationInfo! info, System.Runtime.Serialization.StreamingContext context) -> void
 Excalibur.Dispatch.Resilience.Polly.OperationStatistics
 Excalibur.Dispatch.Resilience.Polly.OperationStatistics.Clone() -> Excalibur.Dispatch.Resilience.Polly.OperationStatistics!
 Excalibur.Dispatch.Resilience.Polly.OperationStatistics.Failures.get -> long
@@ -353,8 +352,8 @@ Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.ExecuteAsync(System.
 Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
 Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.PollyRetryPolicyAdapter(Excalibur.Dispatch.Resilience.Polly.RetryOptions! options, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory
-Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.Create(Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions! busOptions) -> Polly.IAsyncPolicy!
-Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.CreateRetryPolicyAdapter(Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions! busOptions) -> Excalibur.Dispatch.Resilience.IRetryPolicy!
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.Create(Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions! busOptions) -> Polly.IAsyncPolicy!
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.CreateRetryPolicyAdapter(Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions! busOptions) -> Excalibur.Dispatch.Resilience.IRetryPolicy!
 Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.PollyRetryPolicyFactory(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory!>! logger) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.PollyRetryPolicyFactory(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Resilience.RetryPolicyOptions!>! options) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry

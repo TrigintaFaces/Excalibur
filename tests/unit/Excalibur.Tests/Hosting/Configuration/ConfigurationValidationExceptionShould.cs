@@ -4,6 +4,7 @@ using ExcaliburConfigurationValidationException = Excalibur.Hosting.Configuratio
 namespace Excalibur.Tests.Hosting.Configuration;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class ExcaliburConfigurationValidationExceptionShould
 {
 	[Fact]

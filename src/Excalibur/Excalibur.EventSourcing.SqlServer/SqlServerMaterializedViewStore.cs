@@ -7,6 +7,7 @@ using System.Text.Json;
 
 using Dapper;
 
+using Excalibur.Data.Abstractions.Validation;
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Data.SqlClient;
@@ -78,6 +79,8 @@ public sealed partial class SqlServerMaterializedViewStore : IMaterializedViewSt
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_viewTableName = viewTableName ?? DefaultViewTableName;
 		_positionTableName = positionTableName ?? DefaultPositionTableName;
+		SqlIdentifierValidator.ThrowIfInvalid(_viewTableName, nameof(viewTableName));
+		SqlIdentifierValidator.ThrowIfInvalid(_positionTableName, nameof(positionTableName));
 		_jsonOptions = jsonOptions ?? new JsonSerializerOptions
 		{
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

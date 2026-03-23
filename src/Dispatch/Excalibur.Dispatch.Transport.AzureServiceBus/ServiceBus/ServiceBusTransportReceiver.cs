@@ -23,6 +23,7 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 {
 	private readonly ServiceBusReceiver _receiver;
 	private readonly ILogger _logger;
+	private const int MaxCacheSize = 10_000;
 	private readonly ConcurrentDictionary<string, ServiceBusReceivedMessage> _messageCache = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
 
@@ -57,7 +58,15 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 			foreach (var sbMessage in messages)
 			{
 				var received = ConvertToReceivedMessage(sbMessage);
-				_ = _messageCache.TryAdd(sbMessage.LockToken, sbMessage);
+				if (_messageCache.Count < MaxCacheSize)
+				{
+					_ = _messageCache.TryAdd(sbMessage.LockToken, sbMessage);
+				}
+				else
+				{
+					LogCacheFull(Source, MaxCacheSize);
+				}
+
 				result.Add(received);
 				LogMessageReceived(received.Id, Source);
 			}
@@ -82,7 +91,10 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 		{
 			if (_messageCache.TryRemove(lockToken, out var sbMessage))
 			{
-				await _receiver.CompleteMessageAsync(sbMessage, cancellationToken).ConfigureAwait(false);
+				// Ack must complete even during shutdown to prevent redelivery;
+				// use dedicated timeout instead of caller's cancellation token
+				using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _receiver.CompleteMessageAsync(sbMessage, ackCts.Token).ConfigureAwait(false);
 				LogMessageAcknowledged(message.Id, Source);
 			}
 			else
@@ -113,15 +125,18 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 		{
 			if (_messageCache.TryRemove(lockToken, out var sbMessage))
 			{
+				// Reject must complete even during shutdown to prevent redelivery;
+				// use dedicated timeout instead of caller's cancellation token
+				using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 				if (requeue)
 				{
-					await _receiver.AbandonMessageAsync(sbMessage, cancellationToken: cancellationToken)
+					await _receiver.AbandonMessageAsync(sbMessage, cancellationToken: rejectCts.Token)
 						.ConfigureAwait(false);
 					LogMessageRejectedRequeue(message.Id, Source, reason ?? "no reason");
 				}
 				else
 				{
-					await _receiver.DeadLetterMessageAsync(sbMessage, reason ?? "Rejected", cancellationToken: cancellationToken)
+					await _receiver.DeadLetterMessageAsync(sbMessage, reason ?? "Rejected", cancellationToken: rejectCts.Token)
 						.ConfigureAwait(false);
 					LogMessageRejected(message.Id, Source, reason ?? "no reason");
 				}
@@ -244,4 +259,10 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	[LoggerMessage(AzureServiceBusEventId.TransportReceiverDisposed, LogLevel.Debug,
 		"Service Bus transport receiver disposed for {Source}")]
 	private partial void LogDisposed(string source);
+
+	[LoggerMessage(AzureServiceBusEventId.TransportReceiverCacheFull, LogLevel.Warning,
+		"Service Bus transport receiver: message cache full ({MaxSize} entries) for {Source}. " +
+		"Messages received beyond this limit cannot be acknowledged/rejected. " +
+		"This indicates messages are not being settled.")]
+	private partial void LogCacheFull(string source, int maxSize);
 }

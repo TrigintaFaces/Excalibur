@@ -32,7 +32,7 @@ public sealed class DispatcherOptimizationShould
 		A.Fake<IMessageBusProvider>(),
 		NullLogger<FinalDispatchHandler>.Instance,
 		retryPolicy: null,
-		new Dictionary<string, IMessageBusOptions>(StringComparer.Ordinal));
+		new Dictionary<string, MessageBusOptions>(StringComparer.Ordinal));
 
 	private Dispatcher CreateSut(
 		IDispatchMiddlewareInvoker? invoker = null,

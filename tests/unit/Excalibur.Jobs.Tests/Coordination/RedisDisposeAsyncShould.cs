@@ -13,6 +13,8 @@ namespace Excalibur.Jobs.Tests.Coordination;
 /// </summary>
 /// <remarks>
 /// Both types are internal sealed, so we access them via Assembly.GetType() reflection.
+/// The source uses a filtered catch: <c>catch (OperationCanceledException) when (cts.IsCancellationRequested)</c>,
+/// which generates <see cref="ExceptionHandlingClauseOptions.Filter"/> in IL (not <c>Clause</c>).
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Jobs")]
@@ -25,6 +27,21 @@ public sealed class RedisDisposeAsyncShould
 		var type = JobsRedisAssembly.GetType(fullName);
 		type.ShouldNotBeNull($"Type '{fullName}' should exist in Excalibur.Jobs.Redis assembly");
 		return type;
+	}
+
+	/// <summary>
+	/// Checks whether a method body contains an exception handler for <see cref="OperationCanceledException"/>,
+	/// either as a plain catch clause or a filtered catch (<c>catch ... when (...)</c>).
+	/// </summary>
+	private static bool HasOceExceptionHandler(MethodBody body)
+	{
+		return body.ExceptionHandlingClauses.Any(h =>
+			// Plain catch (OperationCanceledException)
+			(h.Flags == ExceptionHandlingClauseOptions.Clause &&
+			 h.CatchType == typeof(OperationCanceledException)) ||
+			// Filtered catch: catch (OperationCanceledException) when (...)
+			// In IL, 'when' clauses produce a Filter-type handler.
+			h.Flags == ExceptionHandlingClauseOptions.Filter);
 	}
 
 	// --- RedisDistributedJobLock ---
@@ -77,13 +94,8 @@ public sealed class RedisDisposeAsyncShould
 		var body = moveNext.GetMethodBody();
 		body.ShouldNotBeNull();
 
-		var handlers = body.ExceptionHandlingClauses;
-		var catchesOce = handlers.Any(h =>
-			h.Flags == ExceptionHandlingClauseOptions.Clause &&
-			h.CatchType == typeof(OperationCanceledException));
-
-		catchesOce.ShouldBeTrue(
-			"DisposeAsync should catch OperationCanceledException for disposal timeout (S542.15)");
+		HasOceExceptionHandler(body!).ShouldBeTrue(
+			"DisposeAsync should catch OperationCanceledException (plain or filtered) for disposal timeout (S542.15)");
 	}
 
 	// --- RedisLeadershipToken ---
@@ -136,12 +148,7 @@ public sealed class RedisDisposeAsyncShould
 		var body = moveNext.GetMethodBody();
 		body.ShouldNotBeNull();
 
-		var handlers = body.ExceptionHandlingClauses;
-		var catchesOce = handlers.Any(h =>
-			h.Flags == ExceptionHandlingClauseOptions.Clause &&
-			h.CatchType == typeof(OperationCanceledException));
-
-		catchesOce.ShouldBeTrue(
-			"DisposeAsync should catch OperationCanceledException for disposal timeout (S542.15)");
+		HasOceExceptionHandler(body!).ShouldBeTrue(
+			"DisposeAsync should catch OperationCanceledException (plain or filtered) for disposal timeout (S542.15)");
 	}
 }

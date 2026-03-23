@@ -5,9 +5,14 @@
 namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
-/// Defines data sensitivity classification levels.
+/// Defines data sensitivity classification levels for ElasticSearch field encryption.
 /// </summary>
-public enum DataClassification
+/// <remarks>
+/// Renamed from <c>DataClassification</c> to avoid collision with
+/// <c>Excalibur.Dispatch.Compliance.DataClassification</c>. This enum includes
+/// ElasticSearch-specific classifications (PII, PHI) beyond the base 4-level system.
+/// </remarks>
+public enum ElasticSearchDataClassification
 {
 	/// <summary>
 	/// Public data that can be freely shared.

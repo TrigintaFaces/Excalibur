@@ -9,6 +9,7 @@ namespace Excalibur.Tests.Domain.Model.ValueObjects;
 /// Unit tests for <see cref="ValueObjectBase"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Domain")]
 public sealed class ValueObjectBaseShould
 {
 	#region T419.8: Core ValueObjectBase Tests

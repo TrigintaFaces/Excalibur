@@ -11,6 +11,7 @@ namespace Excalibur.EventSourcing.Tests.Abstractions;
 /// Tests for <see cref="StoredEvent"/> record to verify immutability and property behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class StoredEventShould
 {
 	[Fact]

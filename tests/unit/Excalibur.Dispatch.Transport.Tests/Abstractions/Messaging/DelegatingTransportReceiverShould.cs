@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Messaging;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport")]
-public class DelegatingTransportReceiverShould
+public sealed class DelegatingTransportReceiverShould
 {
 	private readonly ITransportReceiver _innerReceiver = A.Fake<ITransportReceiver>();
 

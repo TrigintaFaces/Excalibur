@@ -21,6 +21,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Migration;
 /// with filters, transforms, batching, dry-run, and error handling.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class EventBatchMigratorFunctionalShould
 {
 	private readonly IEventStore _eventStore = A.Fake<IEventStore>();

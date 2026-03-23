@@ -9,8 +9,6 @@ using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.Logging;
 
-using MessageContext = Excalibur.Dispatch.Messaging.MessageContext;
-
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
@@ -127,12 +125,7 @@ internal sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter
 
 		try
 		{
-			var context = new MessageContext(message, _serviceProvider)
-			{
-				MessageId = messageId,
-			};
-			context.SetMessageType(message.GetType().FullName);
-			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+			var context = TransportContextFactory.CreateForReceive(message, _serviceProvider, messageId);
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 			_ = Interlocked.Increment(ref _successfulMessages);
@@ -159,10 +152,12 @@ internal sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter
 	public async Task SendAsync(
 		IDispatchMessage message,
 		string destination,
+		IMessageContext context,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+		ArgumentNullException.ThrowIfNull(context);
 
 		if (!IsRunning)
 		{
@@ -174,13 +169,6 @@ internal sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter
 
 		try
 		{
-			// Create a basic message context for the underlying message bus
-			var context = new MessageContext(message, _serviceProvider)
-			{
-				MessageId = messageId,
-				CorrelationId = messageId,
-			};
-
 			// Route to appropriate AwsEventBridgeMessageBus.PublishAsync overload based on message type
 			switch (message)
 			{
@@ -369,7 +357,7 @@ internal sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter
 			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			await StopAsync(cts.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during cancellation
 		}

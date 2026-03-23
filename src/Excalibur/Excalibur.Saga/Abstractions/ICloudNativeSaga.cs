@@ -41,13 +41,13 @@ public interface ICloudNativeSaga<TData>
 	/// Gets the timestamp when the saga started.
 	/// </summary>
 	/// <value>the timestamp when the saga started.</value>
-	DateTime StartedAt { get; }
+	DateTimeOffset StartedAt { get; }
 
 	/// <summary>
 	/// Gets the timestamp when the saga completed, if applicable.
 	/// </summary>
 	/// <value>the timestamp when the saga completed, if applicable., or <see langword="null"/> if not specified.</value>
-	DateTime? CompletedAt { get; }
+	DateTimeOffset? CompletedAt { get; }
 
 	/// <summary>
 	/// Gets the current step index being executed.

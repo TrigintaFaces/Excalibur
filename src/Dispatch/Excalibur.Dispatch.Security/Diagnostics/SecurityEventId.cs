@@ -461,6 +461,12 @@ public static class SecurityEventId
 	/// <summary>Failed to query events from SQL database.</summary>
 	public const int SqlStoreQueryFailed = 70711;
 
+	/// <summary>Security events validated but not persisted (placeholder store).</summary>
+	public const int SqlStoreEventsNotPersisted = 70712;
+
+	/// <summary>Security event query against placeholder store -- no results available.</summary>
+	public const int SqlStoreQueryNotSupported = 70713;
+
 	// Elasticsearch Security Event Store (70715-70729)
 
 	/// <summary>Elasticsearch client initialized.</summary>

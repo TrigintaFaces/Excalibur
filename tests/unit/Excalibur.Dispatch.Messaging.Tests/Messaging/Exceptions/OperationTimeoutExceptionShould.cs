@@ -205,14 +205,7 @@ public sealed class OperationTimeoutExceptionShould
 		exception.InnerException.ShouldBe(innerException);
 	}
 
-	[Fact]
-	public void HaveSerializableAttribute()
-	{
-		// Assert
-		typeof(OperationTimeoutException)
-			.GetCustomAttributes(typeof(SerializableAttribute), false)
-			.ShouldNotBeEmpty();
-	}
+	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)
 
 	[Fact]
 	public void HaveDefaultMessage()

@@ -34,6 +34,12 @@ namespace Excalibur.Dispatch.Hosting.AspNetCore;
 /// </remarks>
 public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddleware
 {
+	/// <summary>
+	/// Maximum number of entries allowed in each attribute cache.
+	/// When the cap is reached, new lookups compute attributes without caching to prevent unbounded memory growth.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
 	private readonly IHttpContextAccessor _httpContextAccessor;
 	private readonly IAuthorizationService _authorizationService;
 	private readonly ILogger<AspNetCoreAuthorizationMiddleware> _logger;
@@ -214,26 +220,50 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 
 	private static AuthorizeAttribute[] GetAuthorizeAttributes(Type type)
 	{
-		return AuthorizeAttributeCache.GetOrAdd(type, static t =>
+		if (AuthorizeAttributeCache.TryGetValue(type, out var cached))
 		{
-			var attrs = t.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true);
-			if (attrs.Length == 0)
-			{
-				return [];
-			}
+			return cached;
+		}
 
-			var result = new AuthorizeAttribute[attrs.Length];
-			for (var i = 0; i < attrs.Length; i++)
-			{
-				result[i] = (AuthorizeAttribute)attrs[i];
-			}
+		if (AuthorizeAttributeCache.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching to prevent unbounded growth
+			return ComputeAuthorizeAttributes(type);
+		}
 
-			return result;
-		});
+		return AuthorizeAttributeCache.GetOrAdd(type, static t => ComputeAuthorizeAttributes(t));
+	}
+
+	private static AuthorizeAttribute[] ComputeAuthorizeAttributes(Type type)
+	{
+		var attrs = type.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true);
+		if (attrs.Length == 0)
+		{
+			return [];
+		}
+
+		var result = new AuthorizeAttribute[attrs.Length];
+		for (var i = 0; i < attrs.Length; i++)
+		{
+			result[i] = (AuthorizeAttribute)attrs[i];
+		}
+
+		return result;
 	}
 
 	private static bool HasAllowAnonymous(Type type)
 	{
+		if (AllowAnonymousCache.TryGetValue(type, out var cached))
+		{
+			return cached;
+		}
+
+		if (AllowAnonymousCache.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching to prevent unbounded growth
+			return type.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0;
+		}
+
 		return AllowAnonymousCache.GetOrAdd(type, static t =>
 			t.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0);
 	}

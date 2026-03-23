@@ -4,9 +4,7 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions.Execution;
 using Excalibur.Data.SqlServer.ErrorHandling;
-using Excalibur.Data.SqlServer.Execution;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -30,8 +28,6 @@ public static class ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
 		services.TryAddTransient(_ => connectionFactory());
-		services.TryAddTransient<IDataExecutor, SqlServerDataExecutor>();
-		services.TryAddTransient<IQueryExecutor, SqlServerQueryExecutor>();
 		return services;
 	}
 
@@ -62,17 +58,11 @@ public static class ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Register options via IOptions pattern
-		_ = services.Configure(configure);
-
-		// Validate options at startup
-		var options = new SqlServerDeadLetterOptions();
-		configure(options);
-
-		if (string.IsNullOrWhiteSpace(options.ConnectionString))
-		{
-			throw new ArgumentException("ConnectionString must be provided", nameof(configure));
-		}
+		// Register options via IOptions pattern with ValidateOnStart
+		_ = services.AddOptions<SqlServerDeadLetterOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Register dead letter store (uses IOptions pattern via DI)
 		services.TryAddSingleton<SqlServerDeadLetterStore>();

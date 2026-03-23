@@ -90,7 +90,7 @@ public static class PostgresLeaderElectionExtensions
 			return new PostgresLeaderElection(pgOptions, electionOptions, logger);
 		});
 
-		services.TryAddSingleton<ILeaderElection>(sp =>
+		services.AddKeyedSingleton<ILeaderElection>("postgres", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<PostgresLeaderElection>();
 			var meterFactory = sp.GetService<IMeterFactory>();
@@ -98,6 +98,8 @@ public static class PostgresLeaderElectionExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElection(inner, meter, activitySource, "Postgres");
 		});
+		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
 
 		return services;
 	}

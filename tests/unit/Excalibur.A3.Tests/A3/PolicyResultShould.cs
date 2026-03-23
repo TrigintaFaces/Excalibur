@@ -6,6 +6,7 @@ namespace Excalibur.Tests.A3;
 /// Unit tests for PolicyResult record.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "A3")]
 public sealed class PolicyResultShould : UnitTestBase
 {
 	[Fact]

@@ -39,7 +39,7 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 
 		props.Length.ShouldBe(1);
 		props[0].Name.ShouldBe("CloudProvider");
-		props[0].PropertyType.ShouldBe(typeof(CloudProviderType));
+		props[0].PropertyType.ShouldBe(typeof(CloudPersistenceProviderType));
 	}
 
 	[Fact]
@@ -137,20 +137,20 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 
 	#endregion
 
-	#region CloudProviderType Enum
+	#region CloudPersistenceProviderType Enum
 
 	[Fact]
-	public void CloudProviderType_HaveThreeProviders()
+	public void CloudPersistenceProviderType_HaveThreeProviders()
 	{
-		var values = Enum.GetValues<CloudProviderType>();
+		var values = Enum.GetValues<CloudPersistenceProviderType>();
 		values.Length.ShouldBe(3);
 	}
 
 	[Theory]
-	[InlineData(CloudProviderType.CosmosDb, 0)]
-	[InlineData(CloudProviderType.DynamoDb, 1)]
-	[InlineData(CloudProviderType.Firestore, 2)]
-	public void CloudProviderType_HaveCorrectUnderlyingValues(CloudProviderType provider, int expected)
+	[InlineData(CloudPersistenceProviderType.CosmosDb, 0)]
+	[InlineData(CloudPersistenceProviderType.DynamoDb, 1)]
+	[InlineData(CloudPersistenceProviderType.Firestore, 2)]
+	public void CloudPersistenceProviderType_HaveCorrectUnderlyingValues(CloudPersistenceProviderType provider, int expected)
 	{
 		((int)provider).ShouldBe(expected);
 	}

@@ -14,6 +14,7 @@ namespace Excalibur.Saga.Tests.SqlServer;
 /// Unit tests for the <see cref="SqlServerSagaStore"/> class focusing on dual-constructor pattern.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class SqlServerSagaStoreShould : UnitTestBase
 {
 	private readonly ILogger<SqlServerSagaStore> _logger = NullLoggerFactory.CreateLogger<SqlServerSagaStore>();

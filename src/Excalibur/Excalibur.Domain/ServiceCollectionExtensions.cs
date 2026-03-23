@@ -14,6 +14,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+	private const int MaxCacheEntries = 1024;
+
 	private static readonly ConcurrentDictionary<Assembly, IEnumerable<Type>> CachedTypes = new();
 
 	/// <summary>
@@ -61,10 +63,18 @@ public static class ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(assembly);
 		ArgumentNullException.ThrowIfNull(interfaceType);
 
-		if (!CachedTypes.TryGetValue(assembly, out var types))
+		if (CachedTypes.TryGetValue(assembly, out var types))
 		{
+			// Cache hit
+		}
+		else if (CachedTypes.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching
 			types = assembly.GetExportedTypes();
-			CachedTypes[assembly] = types;
+		}
+		else
+		{
+			types = CachedTypes.GetOrAdd(assembly, static a => a.GetExportedTypes());
 		}
 
 		foreach (var implementation in types)

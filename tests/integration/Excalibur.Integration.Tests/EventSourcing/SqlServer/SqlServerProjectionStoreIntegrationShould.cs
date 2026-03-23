@@ -82,9 +82,9 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		var id = Guid.NewGuid().ToString();
 		var projection = new OrderSummary { OrderId = id, CustomerName = "Alice", TotalAmount = 99.99m, Status = "Active" };
 
-		await store.UpsertAsync(id, projection, CancellationToken.None).ConfigureAwait(true);
+		await store.UpsertAsync(id, projection, CancellationToken.None);
 
-		var loaded = await store.GetByIdAsync(id, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await store.GetByIdAsync(id, CancellationToken.None);
 
 		_ = loaded.ShouldNotBeNull();
 		loaded.OrderId.ShouldBe(id);
@@ -106,7 +106,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 
 		var store = CreateProjectionStore();
 
-		var loaded = await store.GetByIdAsync(Guid.NewGuid().ToString(), CancellationToken.None).ConfigureAwait(true);
+		var loaded = await store.GetByIdAsync(Guid.NewGuid().ToString(), CancellationToken.None);
 
 		loaded.ShouldBeNull();
 	}
@@ -126,12 +126,12 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		var id = Guid.NewGuid().ToString();
 
 		var original = new OrderSummary { OrderId = id, CustomerName = "Alice", TotalAmount = 50.00m, Status = "Pending" };
-		await store.UpsertAsync(id, original, CancellationToken.None).ConfigureAwait(true);
+		await store.UpsertAsync(id, original, CancellationToken.None);
 
 		var updated = new OrderSummary { OrderId = id, CustomerName = "Alice", TotalAmount = 75.00m, Status = "Shipped" };
-		await store.UpsertAsync(id, updated, CancellationToken.None).ConfigureAwait(true);
+		await store.UpsertAsync(id, updated, CancellationToken.None);
 
-		var loaded = await store.GetByIdAsync(id, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await store.GetByIdAsync(id, CancellationToken.None);
 
 		_ = loaded.ShouldNotBeNull();
 		loaded.TotalAmount.ShouldBe(75.00m);
@@ -152,11 +152,11 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		var store = CreateProjectionStore();
 		var id = Guid.NewGuid().ToString();
 
-		await store.UpsertAsync(id, new OrderSummary { OrderId = id, CustomerName = "Bob", TotalAmount = 10.00m, Status = "Active" }, CancellationToken.None).ConfigureAwait(true);
+		await store.UpsertAsync(id, new OrderSummary { OrderId = id, CustomerName = "Bob", TotalAmount = 10.00m, Status = "Active" }, CancellationToken.None);
 
-		await store.DeleteAsync(id, CancellationToken.None).ConfigureAwait(true);
+		await store.DeleteAsync(id, CancellationToken.None);
 
-		var loaded = await store.GetByIdAsync(id, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await store.GetByIdAsync(id, CancellationToken.None);
 		loaded.ShouldBeNull();
 	}
 
@@ -174,7 +174,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		var store = CreateProjectionStore();
 
 		// Should not throw
-		await store.DeleteAsync(Guid.NewGuid().ToString(), CancellationToken.None).ConfigureAwait(true);
+		await store.DeleteAsync(Guid.NewGuid().ToString(), CancellationToken.None);
 	}
 
 	/// <summary>
@@ -188,17 +188,17 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 			return;
 		}
 
-		await ClearAllProjectionsAsync().ConfigureAwait(true);
+		await ClearAllProjectionsAsync();
 
 		var store = CreateProjectionStore();
 
 		for (int i = 0; i < 3; i++)
 		{
 			var id = Guid.NewGuid().ToString();
-			await store.UpsertAsync(id, new OrderSummary { OrderId = id, CustomerName = $"Customer{i}", TotalAmount = i * 10m, Status = "Active" }, CancellationToken.None).ConfigureAwait(true);
+			await store.UpsertAsync(id, new OrderSummary { OrderId = id, CustomerName = $"Customer{i}", TotalAmount = i * 10m, Status = "Active" }, CancellationToken.None);
 		}
 
-		var results = await store.QueryAsync(null, null, CancellationToken.None).ConfigureAwait(true);
+		var results = await store.QueryAsync(null, null, CancellationToken.None);
 
 		results.Count.ShouldBe(3);
 	}
@@ -214,17 +214,17 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 			return;
 		}
 
-		await ClearAllProjectionsAsync().ConfigureAwait(true);
+		await ClearAllProjectionsAsync();
 
 		var store = CreateProjectionStore();
 
 		for (int i = 0; i < 5; i++)
 		{
 			var id = Guid.NewGuid().ToString();
-			await store.UpsertAsync(id, new OrderSummary { OrderId = id, CustomerName = $"Customer{i}", TotalAmount = i * 10m, Status = "Active" }, CancellationToken.None).ConfigureAwait(true);
+			await store.UpsertAsync(id, new OrderSummary { OrderId = id, CustomerName = $"Customer{i}", TotalAmount = i * 10m, Status = "Active" }, CancellationToken.None);
 		}
 
-		var count = await store.CountAsync(null, CancellationToken.None).ConfigureAwait(true);
+		var count = await store.CountAsync(null, CancellationToken.None);
 
 		count.ShouldBe(5);
 	}
@@ -240,20 +240,20 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 			return;
 		}
 
-		await ClearAllProjectionsAsync().ConfigureAwait(true);
+		await ClearAllProjectionsAsync();
 
 		var store = CreateProjectionStore();
 
 		for (int i = 0; i < 10; i++)
 		{
 			var id = $"order-{i:D3}";
-			await store.UpsertAsync(id, new OrderSummary { OrderId = id, CustomerName = $"Customer{i}", TotalAmount = i * 10m, Status = "Active" }, CancellationToken.None).ConfigureAwait(true);
+			await store.UpsertAsync(id, new OrderSummary { OrderId = id, CustomerName = $"Customer{i}", TotalAmount = i * 10m, Status = "Active" }, CancellationToken.None);
 		}
 
 		var page = await store.QueryAsync(
 			null,
 			new QueryOptions(Skip: 3, Take: 4),
-			CancellationToken.None).ConfigureAwait(true);
+			CancellationToken.None);
 
 		page.Count.ShouldBe(4);
 	}
@@ -269,7 +269,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 			return;
 		}
 
-		await ClearAllProjectionsAsync().ConfigureAwait(true);
+		await ClearAllProjectionsAsync();
 
 		var store = CreateProjectionStore();
 
@@ -277,16 +277,16 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		var id2 = Guid.NewGuid().ToString();
 		var id3 = Guid.NewGuid().ToString();
 
-		await store.UpsertAsync(id1, new OrderSummary { OrderId = id1, CustomerName = "Alice", TotalAmount = 50m, Status = "Active" }, CancellationToken.None).ConfigureAwait(true);
-		await store.UpsertAsync(id2, new OrderSummary { OrderId = id2, CustomerName = "Bob", TotalAmount = 75m, Status = "Shipped" }, CancellationToken.None).ConfigureAwait(true);
-		await store.UpsertAsync(id3, new OrderSummary { OrderId = id3, CustomerName = "Carol", TotalAmount = 25m, Status = "Active" }, CancellationToken.None).ConfigureAwait(true);
+		await store.UpsertAsync(id1, new OrderSummary { OrderId = id1, CustomerName = "Alice", TotalAmount = 50m, Status = "Active" }, CancellationToken.None);
+		await store.UpsertAsync(id2, new OrderSummary { OrderId = id2, CustomerName = "Bob", TotalAmount = 75m, Status = "Shipped" }, CancellationToken.None);
+		await store.UpsertAsync(id3, new OrderSummary { OrderId = id3, CustomerName = "Carol", TotalAmount = 25m, Status = "Active" }, CancellationToken.None);
 
 		var filters = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
 			["Status"] = "Active"
 		};
 
-		var results = await store.QueryAsync(filters, null, CancellationToken.None).ConfigureAwait(true);
+		var results = await store.QueryAsync(filters, null, CancellationToken.None);
 
 		results.Count.ShouldBe(2);
 		results.ShouldAllBe(r => r.Status == "Active");
@@ -303,7 +303,7 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 			return;
 		}
 
-		await ClearAllProjectionsAsync().ConfigureAwait(true);
+		await ClearAllProjectionsAsync();
 
 		var store = CreateProjectionStore();
 
@@ -311,16 +311,16 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		var id2 = Guid.NewGuid().ToString();
 		var id3 = Guid.NewGuid().ToString();
 
-		await store.UpsertAsync(id1, new OrderSummary { OrderId = id1, CustomerName = "Alice", TotalAmount = 50m, Status = "Active" }, CancellationToken.None).ConfigureAwait(true);
-		await store.UpsertAsync(id2, new OrderSummary { OrderId = id2, CustomerName = "Bob", TotalAmount = 75m, Status = "Shipped" }, CancellationToken.None).ConfigureAwait(true);
-		await store.UpsertAsync(id3, new OrderSummary { OrderId = id3, CustomerName = "Carol", TotalAmount = 25m, Status = "Active" }, CancellationToken.None).ConfigureAwait(true);
+		await store.UpsertAsync(id1, new OrderSummary { OrderId = id1, CustomerName = "Alice", TotalAmount = 50m, Status = "Active" }, CancellationToken.None);
+		await store.UpsertAsync(id2, new OrderSummary { OrderId = id2, CustomerName = "Bob", TotalAmount = 75m, Status = "Shipped" }, CancellationToken.None);
+		await store.UpsertAsync(id3, new OrderSummary { OrderId = id3, CustomerName = "Carol", TotalAmount = 25m, Status = "Active" }, CancellationToken.None);
 
 		var filters = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
 			["Status"] = "Shipped"
 		};
 
-		var count = await store.CountAsync(filters, CancellationToken.None).ConfigureAwait(true);
+		var count = await store.CountAsync(filters, CancellationToken.None);
 
 		count.ShouldBe(1);
 	}

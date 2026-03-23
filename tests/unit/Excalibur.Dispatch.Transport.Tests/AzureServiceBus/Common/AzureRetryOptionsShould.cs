@@ -16,7 +16,7 @@ public sealed class AzureRetryOptionsShould
 		var options = new AzureRetryOptions();
 
 		// Assert
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.Delay.ShouldBe(TimeSpan.FromSeconds(1));
 		options.MaxDelay.ShouldBe(TimeSpan.FromSeconds(10));
 		options.Mode.ShouldBe(RetryMode.Exponential);
@@ -28,14 +28,14 @@ public sealed class AzureRetryOptionsShould
 		// Arrange & Act
 		var options = new AzureRetryOptions
 		{
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			Delay = TimeSpan.FromSeconds(2),
 			MaxDelay = TimeSpan.FromSeconds(30),
 			Mode = RetryMode.Fixed,
 		};
 
 		// Assert
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.Delay.ShouldBe(TimeSpan.FromSeconds(2));
 		options.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
 		options.Mode.ShouldBe(RetryMode.Fixed);

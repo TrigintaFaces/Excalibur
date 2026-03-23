@@ -17,20 +17,36 @@ public sealed class OrderedEventProcessor : IAsyncDisposable, IDisposable
 	/// Processes a single event asynchronously while maintaining strict ordering.
 	/// </summary>
 	/// <param name="processEvent"> A delegate to process the event. </param>
+	/// <param name="cancellationToken"> A token to cancel the semaphore wait. </param>
 	/// <returns> A task that represents the asynchronous processing operation. </returns>
-	public async Task ProcessAsync(Func<Task> processEvent)
+	public async Task ProcessAsync(Func<Task> processEvent, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(processEvent);
 		ObjectDisposedException.ThrowIf(_disposedValue, this);
 
-		await _semaphore.WaitAsync().ConfigureAwait(false);
+		try
+		{
+			await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (ObjectDisposedException)
+		{
+			throw new ObjectDisposedException(GetType().FullName);
+		}
+
 		try
 		{
 			await processEvent().ConfigureAwait(false);
 		}
 		finally
 		{
-			_ = _semaphore.Release();
+			try
+			{
+				_ = _semaphore.Release();
+			}
+			catch (ObjectDisposedException)
+			{
+				// Semaphore was disposed between WaitAsync and Release -- safe to ignore
+			}
 		}
 	}
 

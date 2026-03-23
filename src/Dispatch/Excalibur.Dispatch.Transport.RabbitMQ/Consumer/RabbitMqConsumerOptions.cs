@@ -19,7 +19,7 @@ public sealed class RabbitMqConsumerOptions
 	/// Gets or sets the retry policy for failed message processing.
 	/// </summary>
 	/// <value>The retry policy. Default is exponential backoff with 3 retries.</value>
-	public RetryPolicy RetryPolicy { get; set; } = RetryPolicy.Exponential(maxRetries: 3);
+	public RabbitMqRetryOptions RetryPolicy { get; set; } = RabbitMqRetryOptions.Exponential(maxRetries: 3);
 
 	/// <summary>
 	/// Gets or sets the dead letter exchange name for failed messages.

@@ -19,6 +19,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.EndToEnd;
 /// </summary>
 [Collection(ComplianceMultiContainerTestCollection.Name)]
 [Trait("Category", TestCategories.Integration)]
+[Trait("Component", "Platform")]
 public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 {
 	private readonly ComplianceMultiContainerFixture _fixture;

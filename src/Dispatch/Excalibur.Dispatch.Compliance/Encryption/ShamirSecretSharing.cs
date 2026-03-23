@@ -85,7 +85,7 @@ public static class ShamirSecretSharing
 
 		if (secret.IsEmpty)
 		{
-			return new byte[totalShares][];
+			throw new ArgumentException("Secret must not be empty.", nameof(secret));
 		}
 
 		var shares = new byte[totalShares][];

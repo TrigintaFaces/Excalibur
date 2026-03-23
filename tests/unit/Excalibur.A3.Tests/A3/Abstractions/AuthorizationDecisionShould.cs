@@ -6,6 +6,7 @@ namespace Excalibur.Tests.A3.Abstractions;
 /// Unit tests for AuthorizationDecision record.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "A3")]
 public sealed class AuthorizationDecisionShould : UnitTestBase
 {
 	[Fact]

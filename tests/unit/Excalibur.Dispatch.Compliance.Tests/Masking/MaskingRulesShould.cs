@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.Masking;
 
-public class MaskingRulesShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class MaskingRulesShould
 {
     [Fact]
     public void Have_default_mask_character_as_asterisk()

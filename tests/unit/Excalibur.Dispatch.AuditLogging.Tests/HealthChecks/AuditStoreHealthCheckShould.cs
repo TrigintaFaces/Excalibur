@@ -6,7 +6,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.HealthChecks;
 
-public class AuditStoreHealthCheckShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditStoreHealthCheckShould
 {
     private readonly IAuditStore _fakeStore = A.Fake<IAuditStore>();
     private readonly AuditStoreHealthCheck _sut;

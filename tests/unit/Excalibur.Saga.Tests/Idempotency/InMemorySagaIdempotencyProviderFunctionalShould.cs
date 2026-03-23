@@ -10,6 +10,7 @@ namespace Excalibur.Saga.Tests.Idempotency;
 /// concurrent access, isolation between sagas, and lifecycle management.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class InMemorySagaIdempotencyProviderFunctionalShould
 {
 	[Fact]

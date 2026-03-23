@@ -11,12 +11,9 @@ public sealed class SizeBoundBatchingStrategy : IBatchingStrategy
 	private const int SampleWindowSize = 100;
 	private readonly BatchConfiguration _configuration;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
-
 #endif
 	private readonly MovingAverage _avgMessageSize;
 	private long _currentBatchBytes;

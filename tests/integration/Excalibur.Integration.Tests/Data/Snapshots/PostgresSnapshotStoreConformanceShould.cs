@@ -22,6 +22,8 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 /// ISnapshotStore interface contract using TestContainers.
 /// </remarks>
 [Collection(PostgresSnapshotStoreTestCollection.CollectionName)]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class PostgresSnapshotStoreConformanceShould : SnapshotConformanceTestBase, IClassFixture<PostgresSnapshotStoreContainerFixture>
 {
 	private readonly PostgresSnapshotStoreContainerFixture _fixture;

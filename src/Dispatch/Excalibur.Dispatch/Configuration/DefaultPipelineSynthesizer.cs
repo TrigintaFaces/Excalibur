@@ -21,13 +21,13 @@ public sealed class DefaultPipelineSynthesizer : IDefaultPipelineSynthesizer
 		DispatchMiddlewareStage.Instrumentation,
 		DispatchMiddlewareStage.Authentication,
 		DispatchMiddlewareStage.Validation,
-		DispatchMiddlewareStage.Serialization,
 		DispatchMiddlewareStage.Authorization,
+		DispatchMiddlewareStage.Serialization,
 		DispatchMiddlewareStage.Cache,
 		DispatchMiddlewareStage.Routing,
 		DispatchMiddlewareStage.Processing,
 		DispatchMiddlewareStage.PostProcessing,
-		DispatchMiddlewareStage.Error,
+		DispatchMiddlewareStage.ErrorHandling,
 		DispatchMiddlewareStage.End,
 	];
 

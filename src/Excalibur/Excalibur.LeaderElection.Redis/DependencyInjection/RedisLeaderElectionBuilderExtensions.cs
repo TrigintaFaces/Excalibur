@@ -45,7 +45,7 @@ public static class RedisLeaderElectionBuilderExtensions
 			var logger = sp.GetRequiredService<ILogger<RedisLeaderElection>>();
 			return new RedisLeaderElection(redis, lockKey, options, logger);
 		});
-		builder.Services.TryAddSingleton<ILeaderElection>(sp =>
+		builder.Services.AddKeyedSingleton<ILeaderElection>("redis", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<RedisLeaderElection>();
 			var meterFactory = sp.GetService<IMeterFactory>();
@@ -53,6 +53,8 @@ public static class RedisLeaderElectionBuilderExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElection(inner, meter, activitySource, "Redis");
 		});
+		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("redis"));
 
 		return builder;
 	}
@@ -71,7 +73,7 @@ public static class RedisLeaderElectionBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		builder.Services.TryAddSingleton<ILeaderElectionFactory>(sp =>
+		builder.Services.AddKeyedSingleton<ILeaderElectionFactory>("redis", (sp, _) =>
 		{
 			var redis = sp.GetRequiredService<IConnectionMultiplexer>();
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
@@ -81,6 +83,8 @@ public static class RedisLeaderElectionBuilderExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Redis");
 		});
+		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElectionFactory>("redis"));
 
 		return builder;
 	}

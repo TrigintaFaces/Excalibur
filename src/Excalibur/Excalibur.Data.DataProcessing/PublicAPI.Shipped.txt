@@ -98,7 +98,6 @@ Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.MissingDa
 Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.MissingDataProcessorException(string! message, System.Exception? innerException) -> void
 Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.MissingDataProcessorException(string! recordType, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.RecordType.get -> string!
-Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.RecordType.set -> void
 Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException
 Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException() -> void
 Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException(int statusCode, string? message, System.Exception? innerException) -> void
@@ -106,7 +105,6 @@ Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.Multiple
 Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException(string! message, System.Exception? innerException) -> void
 Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException(string! recordType, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.RecordType.get -> string!
-Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.RecordType.set -> void
 Excalibur.Data.DataProcessing.IDataOrchestrationManager
 Excalibur.Data.DataProcessing.IDataOrchestrationManager.AddDataTaskForRecordTypeAsync(string! recordType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Guid>!
 Excalibur.Data.DataProcessing.IDataOrchestrationManager.ProcessDataTasksAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

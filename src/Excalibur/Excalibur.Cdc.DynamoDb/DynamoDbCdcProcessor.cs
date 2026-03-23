@@ -7,6 +7,7 @@ using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBStreams.Model;
 using Amazon.DynamoDBv2;
 
+using Excalibur.Cdc.Diagnostics;
 using Excalibur.Data.DynamoDb;
 using Excalibur.Data.DynamoDb.Diagnostics;
 
@@ -316,6 +317,8 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		bool autoConfirm,
 		CancellationToken cancellationToken)
 	{
+		using var pollActivity = CdcActivitySource.StartPollActivity("DynamoDb");
+
 		var totalProcessed = 0;
 		var shardsToRemove = new List<string>();
 
@@ -352,6 +355,8 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 				}
 
 				LogReceivedBatch(shardId, response.Records.Count);
+
+				using var batchActivity = CdcActivitySource.StartProcessBatchActivity("DynamoDb", response.Records.Count);
 
 				foreach (var record in response.Records)
 				{

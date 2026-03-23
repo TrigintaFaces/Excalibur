@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka;
 /// Unit tests for KafkaOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class KafkaOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -118,7 +118,7 @@ public sealed partial class EventBatchMigrator : IEventBatchMigrator
 
 			LogMigrationCompleted(eventsMigrated, eventsSkipped);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			throw;
 		}

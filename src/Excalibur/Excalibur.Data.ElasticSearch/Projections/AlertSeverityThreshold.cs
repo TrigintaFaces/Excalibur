@@ -23,7 +23,7 @@ public sealed class AlertSeverityThreshold
 	/// <value>
 	/// The severity level.
 	/// </value>
-	public required AlertSeverity Severity { get; init; }
+	public required ProjectionAlertSeverity Severity { get; init; }
 
 	/// <summary>
 	/// Gets the alert message template.

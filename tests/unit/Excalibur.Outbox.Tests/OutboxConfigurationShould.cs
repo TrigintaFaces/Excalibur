@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="OutboxConfiguration"/> internal class behavior through public API.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class OutboxConfigurationShould : UnitTestBase
 {
 	#region Default Value Tests

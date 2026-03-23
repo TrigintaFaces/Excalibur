@@ -25,6 +25,7 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 		_sut.IsAvailable.ShouldBeFalse();
 
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", "orders-handler");
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", "MyFunction");
 		_sut.IsAvailable.ShouldBeTrue();
 	}
 
@@ -187,8 +188,10 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 	private static void ClearEnvironment()
 	{
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 		Environment.SetEnvironmentVariable("FUNCTION_REGION", null);
 		Environment.SetEnvironmentVariable("K_SERVICE", null);
+		Environment.SetEnvironmentVariable("K_REVISION", null);
 	}
 }
 

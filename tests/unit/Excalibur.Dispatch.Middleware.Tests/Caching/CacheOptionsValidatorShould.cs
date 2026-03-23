@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for <see cref="CacheOptionsValidator"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CacheOptionsValidatorShould : UnitTestBase
 {
 	private readonly CacheOptionsValidator _validator = new();

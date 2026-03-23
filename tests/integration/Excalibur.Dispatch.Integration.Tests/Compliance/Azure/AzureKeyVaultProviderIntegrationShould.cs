@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Azure;
 /// </summary>
 [Collection(AzuriteTestCollection.Name)]
 [Trait("Category", TestCategories.Integration)]
+[Trait("Component", "Platform")]
 public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDisposable
 {
 	// For real Azure Key Vault tests, set this environment variable

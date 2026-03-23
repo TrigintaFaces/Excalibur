@@ -28,7 +28,7 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 	private readonly AzureKeyVaultOptions _options;
 	private readonly SemaphoreSlim _operationSemaphore;
 	private readonly Timer _healthCheckTimer;
-	private readonly ConcurrentBag<Task> _trackedTasks = [];
+	private ConcurrentBag<Task> _trackedTasks = [];
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -497,7 +497,7 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 		{
 			await Task.WhenAll(_trackedTasks).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -664,5 +664,15 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 			}
 		}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 		_trackedTasks.Add(task);
+
+		// Drain completed tasks to prevent unbounded growth
+		var snapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
+		foreach (var t in snapshot)
+		{
+			if (!t.IsCompleted)
+			{
+				_trackedTasks.Add(t);
+			}
+		}
 	}
 }

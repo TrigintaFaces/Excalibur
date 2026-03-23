@@ -19,7 +19,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// <param name="errorMessage"> Optional error message if rotation failed. </param>
 public sealed class EncryptionKeyRotationResult(
 	bool success,
-	DataClassification classification,
+	ElasticSearchDataClassification classification,
 	string? newKeyVersion = null,
 	string? previousKeyVersion = null,
 	int affectedDocumentCount = 0,
@@ -35,7 +35,7 @@ public sealed class EncryptionKeyRotationResult(
 	/// Gets the data classification level that was rotated.
 	/// </summary>
 	/// <value> The classification level for which keys were rotated. </value>
-	public DataClassification Classification { get; } = classification;
+	public ElasticSearchDataClassification Classification { get; } = classification;
 
 	/// <summary>
 	/// Gets the version of the new encryption key.
@@ -76,7 +76,7 @@ public sealed class EncryptionKeyRotationResult(
 	/// <param name="affectedDocumentCount"> The number of documents that were re-encrypted. </param>
 	/// <returns> A successful key rotation result. </returns>
 	public static EncryptionKeyRotationResult CreateSuccess(
-		DataClassification classification,
+		ElasticSearchDataClassification classification,
 		string newKeyVersion,
 		string previousKeyVersion,
 		int affectedDocumentCount = 0)
@@ -88,6 +88,6 @@ public sealed class EncryptionKeyRotationResult(
 	/// <param name="classification"> The data classification level that failed to rotate. </param>
 	/// <param name="errorMessage"> The error message describing the failure. </param>
 	/// <returns> A failed key rotation result. </returns>
-	public static EncryptionKeyRotationResult CreateFailure(DataClassification classification, string errorMessage)
+	public static EncryptionKeyRotationResult CreateFailure(ElasticSearchDataClassification classification, string errorMessage)
 		=> new(success: false, classification, errorMessage: errorMessage);
 }

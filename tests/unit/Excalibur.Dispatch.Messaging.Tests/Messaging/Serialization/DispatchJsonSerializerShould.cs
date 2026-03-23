@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 ///     Tests for the <see cref="DispatchJsonSerializer" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatchJsonSerializerShould : IDisposable
 {
 	private readonly DispatchJsonSerializer _sut = new();

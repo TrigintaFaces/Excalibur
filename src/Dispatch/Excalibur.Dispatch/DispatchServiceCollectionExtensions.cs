@@ -11,6 +11,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
@@ -66,8 +67,8 @@ public static class DispatchServiceCollectionExtensions
 		services.TryAddSingleton<IDispatchMiddlewareInvoker>(sp => new DispatchMiddlewareInvoker(
 			sp.GetServices<IDispatchMiddleware>(),
 			sp.GetRequiredService<IMiddlewareApplicabilityStrategy>()));
-		services.TryAddSingleton<IDictionary<string, IMessageBusOptions>>(static _ =>
-			new Dictionary<string, IMessageBusOptions>(StringComparer.Ordinal));
+		services.TryAddSingleton<IDictionary<string, MessageBusOptions>>(static _ =>
+			new Dictionary<string, MessageBusOptions>(StringComparer.Ordinal));
 		services.TryAddSingleton<IRetryPolicy>(static _ => NoOpRetryPolicy.Instance);
 		services.TryAddSingleton<FinalDispatchHandler>();
 
@@ -229,14 +230,51 @@ public static class DispatchServiceCollectionExtensions
 		// This allows the builder pattern to work without explicitly calling AddHandlersFromAssembly
 		_ = services.AddDispatchHandlers();
 
-		// Create builder and invoke configure action if provided
+		// Create builder and apply default performance promotion BEFORE configure,
+		// so consumers can opt out via configure action if desired.
 		using var builder = new DispatchBuilder(services);
+		EnableDefaultPerformancePromotion(builder);
 		configure?.Invoke(builder);
 
 		// Materialize pipelines — without this call, ConfigurePipeline() configurations are silently lost
 		_ = builder.Build();
 
 		return services;
+	}
+
+	/// <summary>
+	/// Registers the Dispatch pipeline with sensible defaults and handler discovery from the specified assembly.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="handlerAssembly">The assembly to scan for message handlers.</param>
+	/// <returns>The configured <see cref="IServiceCollection"/>.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is a convenience method that registers Dispatch with a standard middleware stack:
+	/// validation, logging, timeout, retry, and exception mapping.
+	/// </para>
+	/// <para>
+	/// Equivalent to:
+	/// <code>
+	/// services.AddDispatch(dispatch => dispatch
+	///     .AddHandlersFromAssembly(handlerAssembly)
+	///     .WithDefaults());
+	/// </code>
+	/// </para>
+	/// <para>
+	/// For full control over middleware composition, use <see cref="AddDispatch(IServiceCollection, Action{IDispatchBuilder}?)"/> instead.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddDispatchWithDefaults(
+		this IServiceCollection services,
+		Assembly handlerAssembly)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(handlerAssembly);
+
+		return services.AddDispatch(dispatch => dispatch
+			.AddHandlersFromAssembly(handlerAssembly)
+			.WithDefaults());
 	}
 
 	private static void EnableDefaultPerformancePromotion(IDispatchBuilder builder)

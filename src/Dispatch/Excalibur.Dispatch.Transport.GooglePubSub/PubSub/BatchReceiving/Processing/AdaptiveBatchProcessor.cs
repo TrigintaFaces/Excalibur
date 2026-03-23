@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Batch processor that adaptively switches between parallel and ordered processing based on message characteristics and system performance.
 /// </summary>
-internal class AdaptiveBatchProcessor : BatchProcessorBase
+internal sealed class AdaptiveBatchProcessor : BatchProcessorBase
 {
 	private readonly Func<ReceivedMessage, CancellationToken, Task<object>> _messageProcessor;
 	private readonly IOptions<BatchConfiguration> _options;
@@ -290,12 +290,9 @@ internal class AdaptiveBatchProcessor : BatchProcessorBase
 	{
 		private const int MaxHistorySize = 100;
 #if NET9_0_OR_GREATER
-
-		private readonly Lock _lock = new();
-
+		private readonly System.Threading.Lock _lock = new();
 #else
 		private readonly object _lock = new();
-
 #endif
 		private readonly Queue<BatchMetric> _recentBatches = new();
 

@@ -16,7 +16,7 @@ namespace Excalibur.Hosting.Configuration;
 /// <summary>
 /// Service that validates all registered configuration validators at startup.
 /// </summary>
-public sealed partial class ConfigurationValidationService : IHostedService
+internal sealed partial class ConfigurationValidationService : IHostedService
 {
 	private readonly IConfiguration _configuration;
 	private readonly IEnumerable<IConfigurationValidator> _validators;

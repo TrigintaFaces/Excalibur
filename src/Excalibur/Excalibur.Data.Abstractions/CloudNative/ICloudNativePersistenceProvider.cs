@@ -6,9 +6,14 @@ using Excalibur.Data.Abstractions.Persistence;
 namespace Excalibur.Data.Abstractions.CloudNative;
 
 /// <summary>
-/// Defines the cloud provider types supported by the framework.
+/// Defines the cloud persistence provider types supported by the framework.
 /// </summary>
-public enum CloudProviderType
+/// <remarks>
+/// This enum represents cloud-native <em>persistence</em> providers (Cosmos DB, DynamoDB, Firestore).
+/// For cloud-native <em>transport</em> providers (AWS, Azure, Google, Kafka, etc.), see
+/// <c>Excalibur.Dispatch.Transport.Abstractions.CloudProviderType</c>.
+/// </remarks>
+public enum CloudPersistenceProviderType
 {
 	/// <summary>
 	/// Azure Cosmos DB.
@@ -73,7 +78,7 @@ public interface ICloudNativeProviderInfo
 	/// <summary>
 	/// Gets the cloud provider type.
 	/// </summary>
-	CloudProviderType CloudProvider { get; }
+	CloudPersistenceProviderType CloudProvider { get; }
 }
 
 /// <summary>

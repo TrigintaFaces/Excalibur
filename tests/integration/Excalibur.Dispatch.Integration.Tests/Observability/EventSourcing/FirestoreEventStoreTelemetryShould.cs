@@ -20,6 +20,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// (single exception pattern, simpler than DynamoDB's dual-exception pattern).
 /// </remarks>
 [Collection("EventStore Telemetry Tests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class FirestoreEventStoreTelemetryShould : IClassFixture<FirestoreEventStoreTelemetryTestFixture>, IAsyncLifetime
 {
 	private readonly FirestoreEventStoreTelemetryTestFixture _fixture;

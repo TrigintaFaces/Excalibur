@@ -23,11 +23,10 @@ public sealed class ExcaliburTestingStoresShould
 		var services = new ServiceCollection();
 		services.AddExcaliburTestingStores();
 
-		using var provider = services.BuildServiceProvider();
-
-		var eventStore = provider.GetService<IEventStore>();
-		eventStore.ShouldNotBeNull();
-		eventStore.ShouldBeOfType<InMemoryEventStore>();
+		// IEventStore is now registered as a keyed service
+		var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IEventStore) && sd.IsKeyedService);
+		descriptor.ShouldNotBeNull();
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]
@@ -36,11 +35,10 @@ public sealed class ExcaliburTestingStoresShould
 		var services = new ServiceCollection();
 		services.AddExcaliburTestingStores();
 
-		using var provider = services.BuildServiceProvider();
-
-		var snapshotStore = provider.GetService<ISnapshotStore>();
-		snapshotStore.ShouldNotBeNull();
-		snapshotStore.ShouldBeOfType<InMemorySnapshotStore>();
+		// ISnapshotStore is now registered as a keyed service
+		var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(ISnapshotStore) && sd.IsKeyedService);
+		descriptor.ShouldNotBeNull();
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]
@@ -49,11 +47,10 @@ public sealed class ExcaliburTestingStoresShould
 		var services = new ServiceCollection();
 		services.AddExcaliburTestingStores();
 
-		using var provider = services.BuildServiceProvider();
-
-		var inboxStore = provider.GetService<IInboxStore>();
-		inboxStore.ShouldNotBeNull();
-		inboxStore.ShouldBeOfType<InMemoryInboxStore>();
+		// IInboxStore is now registered as a keyed service
+		var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(IInboxStore) && sd.IsKeyedService);
+		descriptor.ShouldNotBeNull();
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]
@@ -64,8 +61,9 @@ public sealed class ExcaliburTestingStoresShould
 
 		using var provider = services.BuildServiceProvider();
 
-		var store1 = provider.GetRequiredService<IEventStore>();
-		var store2 = provider.GetRequiredService<IEventStore>();
+		// The concrete type is still registered non-keyed, verify singleton via concrete type
+		var store1 = provider.GetRequiredService<InMemoryEventStore>();
+		var store2 = provider.GetRequiredService<InMemoryEventStore>();
 		store1.ShouldBeSameAs(store2);
 	}
 
@@ -77,8 +75,9 @@ public sealed class ExcaliburTestingStoresShould
 
 		using var provider = services.BuildServiceProvider();
 
-		var store1 = provider.GetRequiredService<ISnapshotStore>();
-		var store2 = provider.GetRequiredService<ISnapshotStore>();
+		// The concrete type is still registered non-keyed, verify singleton via concrete type
+		var store1 = provider.GetRequiredService<InMemorySnapshotStore>();
+		var store2 = provider.GetRequiredService<InMemorySnapshotStore>();
 		store1.ShouldBeSameAs(store2);
 	}
 
@@ -90,8 +89,9 @@ public sealed class ExcaliburTestingStoresShould
 
 		using var provider = services.BuildServiceProvider();
 
-		var store1 = provider.GetRequiredService<IInboxStore>();
-		var store2 = provider.GetRequiredService<IInboxStore>();
+		// The concrete type is still registered non-keyed, verify singleton via concrete type
+		var store1 = provider.GetRequiredService<InMemoryInboxStore>();
+		var store2 = provider.GetRequiredService<InMemoryInboxStore>();
 		store1.ShouldBeSameAs(store2);
 	}
 

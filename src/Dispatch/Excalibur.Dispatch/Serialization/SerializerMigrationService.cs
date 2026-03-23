@@ -157,7 +157,7 @@ public partial class SerializerMigrationService
 
 			LogMigrationEstimatedRecords(estimatedRemaining.Value, store.StoreName);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			throw; // Re-throw cancellation - don't swallow it
 		}

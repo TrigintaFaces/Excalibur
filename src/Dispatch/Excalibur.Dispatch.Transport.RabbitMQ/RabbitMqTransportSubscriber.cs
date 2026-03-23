@@ -104,6 +104,10 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 		}
 
+		// Use a separate CTS for in-flight message processing so that handlers can
+		// complete ack/nack even after the subscription token is cancelled.
+		using var messageProcessingCts = new CancellationTokenSource();
+
 		var consumer = new AsyncEventingBasicConsumer(_channel);
 
 		consumer.ReceivedAsync += async (_, args) =>
@@ -113,24 +117,24 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 
 			try
 			{
-				var action = await handler(received, cancellationToken).ConfigureAwait(false);
+				var action = await handler(received, messageProcessingCts.Token).ConfigureAwait(false);
 
 				switch (action)
 				{
 					case MessageAction.Acknowledge:
-						await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, cancellationToken)
+						await _channel.BasicAckAsync(args.DeliveryTag, multiple: false, messageProcessingCts.Token)
 							.ConfigureAwait(false);
 						LogMessageAcknowledged(received.Id, Source);
 						break;
 
 					case MessageAction.Reject:
-						await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: false, cancellationToken)
+						await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: false, messageProcessingCts.Token)
 							.ConfigureAwait(false);
 						LogMessageRejected(received.Id, Source);
 						break;
 
 					case MessageAction.Requeue:
-						await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, cancellationToken)
+						await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, messageProcessingCts.Token)
 							.ConfigureAwait(false);
 						LogMessageRequeued(received.Id, Source);
 						break;
@@ -142,7 +146,7 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 				// Nack with requeue so the message becomes visible again for retry
 				try
 				{
-					await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, cancellationToken)
+					await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, CancellationToken.None)
 						.ConfigureAwait(false);
 				}
 				catch (Exception nackEx)
@@ -165,12 +169,16 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 			// Block until cancellation is requested
 			await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected on cancellation -- fall through to stop
 		}
 		finally
 		{
+			// Cancel in-flight message processing after a grace period
+			// to allow current handlers to complete ack/nack
+			await messageProcessingCts.CancelAsync().ConfigureAwait(false);
+
 			try
 			{
 				await _channel.BasicCancelAsync(consumerTag, noWait: false, CancellationToken.None)

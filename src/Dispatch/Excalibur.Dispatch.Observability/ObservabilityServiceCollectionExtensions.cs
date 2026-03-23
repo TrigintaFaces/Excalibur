@@ -167,7 +167,7 @@ public static class ObservabilityServiceCollectionExtensions
 			});
 		}
 
-		if (string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.Ordinal))
+		if (options.Export.EnableConsoleExporterInDevelopment)
 		{
 			_ = tracerProviderBuilder.AddConsoleExporter();
 		}
@@ -202,7 +202,7 @@ public static class ObservabilityServiceCollectionExtensions
 			});
 		}
 
-		if (string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.Ordinal))
+		if (options.Export.EnableConsoleExporterInDevelopment)
 		{
 			_ = meterProviderBuilder.AddConsoleExporter();
 		}

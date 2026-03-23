@@ -163,7 +163,7 @@ services.UseCloudEventsForRabbitMq(options =>
     options.Consumer.AckMode = AckMode.Manual; // Auto, Manual, or Batch
 
     // Retry policy for failed messages
-    options.Consumer.RetryPolicy = RetryPolicy.Exponential(
+    options.Consumer.RabbitMqRetryOptions = RabbitMqRetryOptions.Exponential(
         maxRetries: 3,
         initialDelay: TimeSpan.FromSeconds(1),
         maxDelay: TimeSpan.FromMinutes(5));
@@ -182,17 +182,17 @@ services.UseCloudEventsForRabbitMq(options =>
 | `Manual` | Explicit ack after processing (default) | Guaranteed delivery |
 | `Batch` | Grouped acknowledgments | High throughput scenarios |
 
-### RetryPolicy Factory Methods
+### RabbitMqRetryOptions Factory Methods
 
 ```csharp
 // No retry - fail immediately
-RetryPolicy.None()
+RabbitMqRetryOptions.None()
 
 // Fixed delay between retries
-RetryPolicy.Fixed(maxRetries: 3, delay: TimeSpan.FromSeconds(5))
+RabbitMqRetryOptions.Fixed(maxRetries: 3, delay: TimeSpan.FromSeconds(5))
 
 // Exponential backoff with jitter
-RetryPolicy.Exponential(
+RabbitMqRetryOptions.Exponential(
     maxRetries: 5,
     initialDelay: TimeSpan.FromSeconds(1),
     maxDelay: TimeSpan.FromMinutes(5))

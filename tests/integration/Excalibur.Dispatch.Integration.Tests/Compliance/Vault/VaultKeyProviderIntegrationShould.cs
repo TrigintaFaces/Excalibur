@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Vault;
 /// </summary>
 [Collection(VaultTestCollection.Name)]
 [Trait("Category", TestCategories.Integration)]
+[Trait("Component", "Platform")]
 public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposable
 {
 	private readonly VaultContainerFixture _fixture;

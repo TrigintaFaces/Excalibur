@@ -23,6 +23,7 @@ namespace Excalibur.Data.Tests.InMemory.Inbox;
 /// and status transitions.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class InMemoryInboxStoreConformanceShould : InboxStoreConformanceTestBase
 {
 	/// <inheritdoc/>

@@ -25,7 +25,7 @@ internal sealed class StreamingPullManager : IAsyncDisposable
 	private readonly MessageStreamProcessor _messageProcessor;
 	private readonly ConcurrentDictionary<string, StreamingPullStream> _activeStreams;
 	private readonly SemaphoreSlim _streamManagementSemaphore;
-	private readonly ConcurrentBag<Task> _backgroundTasks;
+	private ConcurrentBag<Task> _backgroundTasks;
 	private readonly CancellationTokenSource _shutdownTokenSource;
 	private readonly Task _managementTask;
 	private volatile bool _disposed;
@@ -150,16 +150,17 @@ internal sealed class StreamingPullManager : IAsyncDisposable
 		// Signal shutdown
 		await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
 
-		// Await tracked background tasks (AD-541.3)
+		// Await tracked background tasks (AD-541.3) -- atomic drain
 		try
 		{
-			await Task.WhenAll(_backgroundTasks).ConfigureAwait(false);
+			var finalTasks = Interlocked.Exchange(ref _backgroundTasks, new ConcurrentBag<Task>());
+			await Task.WhenAll(finalTasks).ConfigureAwait(false);
 		}
 		catch (AggregateException ex)
 		{
 			_logger.LogWarning(ex, "Background tasks completed with errors during shutdown");
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -172,7 +173,7 @@ internal sealed class StreamingPullManager : IAsyncDisposable
 		{
 			await _managementTask.ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected
 		}
@@ -311,7 +312,7 @@ internal sealed class StreamingPullManager : IAsyncDisposable
 					_ = _streamManagementSemaphore.Release();
 				}
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -342,10 +343,20 @@ internal sealed class StreamingPullManager : IAsyncDisposable
 				await stream.DisposeAsync().ConfigureAwait(false);
 				_healthMonitor.RemoveStream(streamId);
 
-				// Create replacement stream (tracked for disposal — AD-541.3)
+				// Create replacement stream (tracked for disposal -- AD-541.3)
 				if (!_shutdownTokenSource.IsCancellationRequested)
 				{
 					_backgroundTasks.Add(CreateStreamAsync(_shutdownTokenSource.Token));
+
+					// Atomic drain: swap the bag to avoid ToArray()+Clear() race
+					var drained = Interlocked.Exchange(ref _backgroundTasks, new ConcurrentBag<Task>());
+					foreach (var t in drained)
+					{
+						if (!t.IsCompleted)
+						{
+							_backgroundTasks.Add(t);
+						}
+					}
 				}
 			}
 		}

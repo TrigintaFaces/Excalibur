@@ -5,6 +5,8 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Bus;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Bus;
 
 /// <summary>
@@ -18,12 +20,13 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 {
 	private readonly IMessageBusAdapter _rabbitMqAdapter;
 	private readonly IMessageBusAdapter _kafkaAdapter;
+	private readonly NullLogger<MultiTransportMessageBusAdapter> _logger = new();
 	private readonly MultiTransportMessageBusAdapter _sut;
 
 	public MultiTransportMessageBusAdapterShould()
 	{
-		_rabbitMqAdapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
-		_kafkaAdapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
+		_rabbitMqAdapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>().Implements<IDisposable>());
+		_kafkaAdapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>().Implements<IDisposable>());
 
 		A.CallTo(() => _rabbitMqAdapter.Name).Returns("rabbitmq");
 		A.CallTo(() => _kafkaAdapter.Name).Returns("kafka");
@@ -32,14 +35,15 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 
 		_sut = new MultiTransportMessageBusAdapter(
 			[_rabbitMqAdapter, _kafkaAdapter],
+			_logger,
 			_rabbitMqAdapter);
 	}
 
 	public void Dispose()
 	{
 		_sut.Dispose();
-		_rabbitMqAdapter.Dispose();
-		_kafkaAdapter.Dispose();
+		((IDisposable)_rabbitMqAdapter).Dispose();
+		((IDisposable)_kafkaAdapter).Dispose();
 	}
 
 	#region Constructor Tests
@@ -49,7 +53,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new MultiTransportMessageBusAdapter(null!));
+			new MultiTransportMessageBusAdapter(null!, _logger));
 	}
 
 	[Fact]
@@ -59,7 +63,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		var adapters = new[] { _rabbitMqAdapter, _kafkaAdapter };
 
 		// Act
-		using var adapter = new MultiTransportMessageBusAdapter(adapters);
+		using var adapter = new MultiTransportMessageBusAdapter(adapters, _logger);
 
 		// Assert - can verify indirectly via Name
 		adapter.Name.ShouldBe("MultiTransport");
@@ -71,6 +75,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		// Arrange & Act
 		using var adapter = new MultiTransportMessageBusAdapter(
 			[_rabbitMqAdapter, _kafkaAdapter],
+			_logger,
 			_kafkaAdapter);
 
 		// Assert - the default is set (we can't directly access it, so we verify other behavior)
@@ -118,6 +123,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 
 		using var adapter = new MultiTransportMessageBusAdapter(
 			[_rabbitMqAdapter, _kafkaAdapter],
+			_logger,
 			_rabbitMqAdapter);
 
 		// Act
@@ -168,10 +174,10 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	#region IsConnected Tests
 
 	[Fact]
-	public void ReturnTrue_ForIsConnected_WhenAnyAdapterIsConnected()
+	public void ReturnTrue_ForIsConnected_WhenAllAdaptersAreConnected()
 	{
-		// Arrange
-		A.CallTo(() => _rabbitMqAdapter.IsConnected).Returns(false);
+		// Arrange - T.16: IsConnected uses ALL semantics
+		A.CallTo(() => _rabbitMqAdapter.IsConnected).Returns(true);
 		A.CallTo(() => _kafkaAdapter.IsConnected).Returns(true);
 
 		// Act
@@ -179,6 +185,20 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 
 		// Assert
 		result.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void ReturnFalse_ForIsConnected_WhenAnyAdapterIsDisconnected()
+	{
+		// Arrange - T.16: ALL semantics means one disconnected = overall disconnected
+		A.CallTo(() => _rabbitMqAdapter.IsConnected).Returns(false);
+		A.CallTo(() => _kafkaAdapter.IsConnected).Returns(true);
+
+		// Act
+		var result = _sut.IsConnected;
+
+		// Assert
+		result.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -203,7 +223,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task InitializeAllAdapters()
 	{
 		// Arrange
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 
 		// Act
 		await _sut.InitializeAsync(options, CancellationToken.None);
@@ -265,7 +285,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task ReturnFailedResult_WhenNoDefaultAdapter()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([]);
+		using var adapter = new MultiTransportMessageBusAdapter([], _logger);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 
@@ -312,7 +332,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		A.CallTo(() => _rabbitMqAdapter.SubscribeAsync(
 			"my-subscription",
 			A<Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>>>._,
-			A<IMessageBusOptions?>._,
+			A<MessageBusOptions?>._,
 			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -331,7 +351,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		A.CallTo(() => _kafkaAdapter.SubscribeAsync(
 			"my-topic",
 			A<Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>>>._,
-			A<IMessageBusOptions?>._,
+			A<MessageBusOptions?>._,
 			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -350,7 +370,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		A.CallTo(() => _kafkaAdapter.SubscribeAsync(
 			"topic://partition-a",
 			A<Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>>>._,
-			A<IMessageBusOptions?>._,
+			A<MessageBusOptions?>._,
 			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -371,7 +391,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task ThrowInvalidOperationException_WhenNoDefaultAndNoAdapterPrefix()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([]);
+		using var adapter = new MultiTransportMessageBusAdapter([], _logger);
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(_, _, _) => Task.FromResult(MessageResult.Success());
 
@@ -431,7 +451,7 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task SilentlyIgnore_WhenNoDefaultAdapterOnUnsubscribe()
 	{
 		// Arrange
-		using var adapter = new MultiTransportMessageBusAdapter([]);
+		using var adapter = new MultiTransportMessageBusAdapter([], _logger);
 
 		// Act - should not throw
 		await adapter.UnsubscribeAsync("my-subscription", CancellationToken.None);
@@ -522,20 +542,20 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void DisposeAllAdapters()
 	{
 		// Arrange
-		var rabbitMqAdapter = A.Fake<IMessageBusAdapter>();
-		var kafkaAdapter = A.Fake<IMessageBusAdapter>();
+		var rabbitMqAdapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IDisposable>());
+		var kafkaAdapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IDisposable>());
 		A.CallTo(() => rabbitMqAdapter.Name).Returns("rabbitmq");
 		A.CallTo(() => kafkaAdapter.Name).Returns("kafka");
 
 		var adapter = new MultiTransportMessageBusAdapter(
-			[rabbitMqAdapter, kafkaAdapter]);
+			[rabbitMqAdapter, kafkaAdapter], _logger);
 
 		// Act
 		adapter.Dispose();
 
 		// Assert
-		A.CallTo(() => rabbitMqAdapter.Dispose()).MustHaveHappenedOnceExactly();
-		A.CallTo(() => kafkaAdapter.Dispose()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IDisposable)rabbitMqAdapter).Dispose()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IDisposable)kafkaAdapter).Dispose()).MustHaveHappenedOnceExactly();
 	}
 
 	#endregion

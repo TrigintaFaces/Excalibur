@@ -10,7 +10,7 @@ using HostingCdcOptions = Excalibur.Hosting.Configuration.CdcOptions;
 using HostingEventSourcingOptions = Excalibur.Hosting.Configuration.EventSourcingOptions;
 using HostingExcaliburOptions = Excalibur.Hosting.Configuration.ExcaliburOptions;
 using HostingLeaderElectionOptions = Excalibur.Hosting.Configuration.LeaderElectionOptions;
-using HostingOutboxOptions = Excalibur.Hosting.Configuration.OutboxOptions;
+using HostingOutboxOptions = Excalibur.Hosting.Configuration.ExcaliburOutboxOptions;
 using HostingSagaOptions = Excalibur.Hosting.Configuration.SagaOptions;
 
 namespace Excalibur.Hosting.Tests.Builders;

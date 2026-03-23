@@ -54,7 +54,7 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 		if (_configuration.EnableRequestCoalescing)
 		{
 			_coalescingTimer = new Timer(
-				ProcessCoalescedRequests,
+				_ => _ = ProcessCoalescedRequestsAsync(),
 				state: null,
 				_configuration.CoalescingWindow,
 				_configuration.CoalescingWindow);
@@ -64,10 +64,6 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 	/// <summary>
 	/// Starts optimized polling for a queue with a message handler.
 	/// </summary>
-	/// <param name="queueUrl"> The URL of the queue to poll. </param>
-	/// <param name="messageHandler"> The handler for processing messages. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	public async Task StartPollingAsync(
 		string queueUrl,
 		Func<Message, CancellationToken, ValueTask> messageHandler,
@@ -92,9 +88,6 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 	/// <summary>
 	/// Starts optimized polling for multiple queues.
 	/// </summary>
-	/// <param name="queueHandlers"> Dictionary of queue URLs to their message handlers. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	public async Task StartPollingAsync(
 		Dictionary<string, Func<Message, CancellationToken, ValueTask>> queueHandlers,
 		CancellationToken cancellationToken)
@@ -110,9 +103,6 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 	/// <summary>
 	/// Receives messages from a queue with optional request coalescing.
 	/// </summary>
-	/// <param name="queueUrl"> The URL of the queue. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> The received messages. </returns>
 	public async Task<IReadOnlyList<Message>> ReceiveMessagesAsync(
 		string queueUrl,
 		CancellationToken cancellationToken)
@@ -126,7 +116,7 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 		}
 
 		// Queue for coalescing
-		var tcs = new TaskCompletionSource<IReadOnlyList<Message>>();
+		var tcs = new TaskCompletionSource<IReadOnlyList<Message>>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var request = new CoalescingRequest { QueueUrl = queueUrl, CompletionSource = tcs, CancellationToken = cancellationToken };
 
 		_coalescingQueue.Enqueue(request);
@@ -137,7 +127,6 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 	/// <summary>
 	/// Gets the health status of the optimizer.
 	/// </summary>
-	/// <returns> The health status. </returns>
 	public async Task<HealthStatus> GetHealthStatusAsync()
 	{
 		try
@@ -145,7 +134,7 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 			var receiverStats = await _receiver.GetStatisticsAsync().ConfigureAwait(false);
 			var strategyStats = await _strategy.GetStatisticsAsync().ConfigureAwait(false);
 
-			var isHealthy = receiverStats.PollingStatus != PollingStatus.Error &&
+			var isHealthy = receiverStats.PollingStatus != SqsPollingStatus.Error &&
 							strategyStats.EmptyReceiveRate < 0.9; // Less than 90% empty receives
 
 			var healthStatus = new HealthStatus
@@ -178,7 +167,6 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 	/// <summary>
 	/// Gets optimization statistics for all queues.
 	/// </summary>
-	/// <returns> Dictionary of queue URLs to their optimization statistics. </returns>
 	public Task<Dictionary<string, OptimizationStatistics>> GetOptimizationStatisticsAsync()
 	{
 		var results = new Dictionary<string, OptimizationStatistics>(StringComparer.Ordinal);
@@ -191,8 +179,8 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 			{
 				QueueUrl = new Uri(context.QueueUrl),
 				TotalMessages = stats.TotalMessagesReceived,
-				ApiCallsSaved = 0, // Not tracked in simplified interface
-				EfficiencyScore = 0.0, // Not tracked in simplified interface
+				ApiCallsSaved = 0,
+				EfficiencyScore = 0.0,
 				AverageLatency = stats.AveragePollDuration,
 				EmptyReceiveRate = stats.TotalAttempts > 0
 					? (double)(stats.TotalAttempts - stats.SuccessfulAttempts) / stats.TotalAttempts
@@ -221,78 +209,98 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 		_shutdownTokenSource?.Dispose();
 	}
 
-	private async void ProcessCoalescedRequests(object? state)
+	private async Task ProcessCoalescedRequestsAsync()
 	{
 		if (_isDisposed)
 		{
 			return;
 		}
 
-		await _coalescingLock.WaitAsync().ConfigureAwait(false);
 		try
 		{
-			var requests = new List<CoalescingRequest>();
-			while (_coalescingQueue.TryDequeue(out var request))
+			await _coalescingLock.WaitAsync().ConfigureAwait(false);
+			try
 			{
-				if (!request.CancellationToken.IsCancellationRequested)
+				var requests = new List<CoalescingRequest>();
+				while (_coalescingQueue.TryDequeue(out var request))
 				{
-					requests.Add(request);
-				}
-			}
-
-			if (requests.Count == 0)
-			{
-				return;
-			}
-
-			// Group by similar wait times
-			var groups = requests.GroupBy(r => r.QueueUrl, StringComparer.Ordinal).ToList();
-
-			if (groups.Count > 1)
-			{
-				var requestsSaved = requests.Count - groups.Count;
-				_metricsCollector.RecordMetric("RequestCoalescing", requestsSaved, MetricUnit.Count);
-			}
-
-			// Process each group
-			var tasks = groups.Select(async group =>
-			{
-				try
-				{
-					var messages = await _receiver.ReceiveMessagesAsync(
-						group.Key, group.First().CancellationToken).ConfigureAwait(false);
-
-					// Distribute messages to requesters
-					var messageList = messages.ToList();
-					var index = 0;
-
-					foreach (var request in group)
+					if (!request.CancellationToken.IsCancellationRequested)
 					{
-						var requestMessages = new List<Message>();
-						var messagesPerRequest = Math.Max(1, messageList.Count / group.Count());
+						requests.Add(request);
+					}
+				}
 
-						for (var i = 0; i < messagesPerRequest && index < messageList.Count; i++)
+				if (requests.Count == 0)
+				{
+					return;
+				}
+
+				var groups = requests.GroupBy(r => r.QueueUrl, StringComparer.Ordinal).ToList();
+
+				if (groups.Count > 1)
+				{
+					var requestsSaved = requests.Count - groups.Count;
+					_metricsCollector.RecordMetric("RequestCoalescing", requestsSaved, MetricUnit.Count);
+				}
+
+				var tasks = groups.Select(async group =>
+				{
+					var groupList = group.ToList();
+					var groupCount = groupList.Count;
+
+					// Create linked CTS from all request CTs so any cancellation propagates
+					var cancelableTokens = groupList
+						.Select(r => r.CancellationToken)
+						.Where(ct => ct.CanBeCanceled)
+						.ToArray();
+					using var linkedCts = cancelableTokens.Length > 0
+						? CancellationTokenSource.CreateLinkedTokenSource(cancelableTokens)
+						: CancellationTokenSource.CreateLinkedTokenSource(_shutdownTokenSource.Token);
+
+					try
+					{
+						var messages = await _receiver.ReceiveMessagesAsync(
+							group.Key, linkedCts.Token).ConfigureAwait(false);
+
+						var messageList = messages.ToList();
+						var index = 0;
+
+						foreach (var coalescingRequest in groupList)
 						{
-							requestMessages.Add(messageList[index++]);
+							var requestMessages = new List<Message>();
+							var messagesPerRequest = Math.Max(1, messageList.Count / groupCount);
+
+							for (var i = 0; i < messagesPerRequest && index < messageList.Count; i++)
+							{
+								requestMessages.Add(messageList[index++]);
+							}
+
+							coalescingRequest.CompletionSource.SetResult(requestMessages);
 						}
-
-						request.CompletionSource.SetResult(requestMessages);
 					}
-				}
-				catch (Exception ex)
-				{
-					foreach (var request in group)
+					catch (Exception ex)
 					{
-						request.CompletionSource.SetException(ex);
+						foreach (var coalescingRequest in groupList)
+						{
+							coalescingRequest.CompletionSource.SetException(ex);
+						}
 					}
-				}
-			});
+				});
 
-			await Task.WhenAll(tasks).ConfigureAwait(false);
+				await Task.WhenAll(tasks).ConfigureAwait(false);
+			}
+			finally
+			{
+				_ = _coalescingLock.Release();
+			}
 		}
-		finally
+		catch (ObjectDisposedException)
 		{
-			_ = _coalescingLock.Release();
+			// Expected during shutdown -- semaphore disposed
+		}
+		catch (Exception ex)
+		{
+			_logger?.LogError(ex, "Error processing coalesced requests");
 		}
 	}
 
@@ -304,7 +312,6 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 		}
 	}
 
-	// Source-generated logging methods
 	[LoggerMessage(AwsSqsEventId.LongPollingHealthStatusError, LogLevel.Error,
 		"Error getting health status")]
 	private partial void LogHealthStatusError(Exception ex);

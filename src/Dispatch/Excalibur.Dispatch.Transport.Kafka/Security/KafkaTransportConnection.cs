@@ -35,7 +35,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// </code>
 /// </para>
 /// </remarks>
-internal class KafkaTransportConnection : TransportConnectionBase
+internal sealed class KafkaTransportConnection : TransportConnectionBase
 {
 	private readonly ProducerConfig _producerConfig;
 	private bool _connected;

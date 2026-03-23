@@ -99,7 +99,9 @@ public static class OutboxBuilderPostgresExtensions
 
 		// Register Postgres outbox store
 		builder.Services.TryAddSingleton<PostgresOutboxStore>();
-		builder.Services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<PostgresOutboxStore>());
+		builder.Services.AddKeyedSingleton<IOutboxStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresOutboxStore>());
+		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("postgres"));
 
 		return builder;
 	}
@@ -171,7 +173,9 @@ public static class OutboxBuilderPostgresExtensions
 			var metrics = sp.GetService<PostgresOutboxStoreMetrics>();
 			return new PostgresOutboxStore(db, options, logger, metrics);
 		});
-		builder.Services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<PostgresOutboxStore>());
+		builder.Services.AddKeyedSingleton<IOutboxStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresOutboxStore>());
+		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("postgres"));
 
 		return builder;
 	}

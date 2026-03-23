@@ -17,7 +17,6 @@ namespace Excalibur.Dispatch.Exceptions;
 /// </para>
 /// <para> The inheritance chain is: <c> Exception → ApiException → DispatchException → [Specialized Exceptions] </c> </para>
 /// </remarks>
-[Serializable]
 public class DispatchException : ApiException
 {
 	/// <summary>

@@ -5,7 +5,7 @@
 
 using Dapper;
 
-using Excalibur.Data.Postgres.Projections;
+using Excalibur.EventSourcing.Postgres;
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.Logging;
@@ -21,6 +21,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 /// Tests all IProjectionStore operations including CRUD, filtering, pagination, and sorting.
 /// </summary>
 [Collection("Postgres Projection Store Tests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
 	private const string TableName = "test_order_projection";
@@ -581,4 +583,6 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 /// Ensures tests run sequentially to avoid database conflicts.
 /// </summary>
 [CollectionDefinition("Postgres Projection Store Tests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class PostgresProjectionStoreTestCollection : ICollectionFixture<PostgresFixture>;

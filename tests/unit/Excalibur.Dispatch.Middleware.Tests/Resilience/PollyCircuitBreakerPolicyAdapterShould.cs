@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Sprint 45 (bd-5tsb): Unit tests for Polly circuit breaker adapter.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 {
 	private readonly ILogger<PollyCircuitBreakerPolicyAdapter> _logger;
@@ -452,16 +453,17 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 			{
 				_ = await adapter.ExecuteAsync<int>(ct => throw new InvalidOperationException("Error"), CancellationToken.None).ConfigureAwait(false);
 			}
-			catch (InvalidOperationException)
-			{
-				// Expected
-			}
 			catch (CircuitBreakerOpenException cbEx)
 			{
 				// Circuit is now open - verify the exception mapping
+				// Must catch before InvalidOperationException since CircuitBreakerOpenException inherits from it
 				cbEx.Message.ShouldContain("test-service");
 				_ = cbEx.InnerException.ShouldNotBeNull();
 				return; // Test passed
+			}
+			catch (InvalidOperationException)
+			{
+				// Expected
 			}
 		}
 

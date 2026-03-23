@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ZeroAlloc;
 ///     Tests for the <see cref="StructMessageResult" /> struct.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class StructMessageResultShould
 {
 	[Fact]

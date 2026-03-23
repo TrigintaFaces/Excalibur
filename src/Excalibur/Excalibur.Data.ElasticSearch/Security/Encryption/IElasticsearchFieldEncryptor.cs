@@ -88,7 +88,7 @@ public interface IElasticsearchFieldEncryptor
 	Task<EncryptedFieldResult> EncryptFieldAsync(
 		string fieldName,
 		object fieldValue,
-		DataClassification classification,
+		ElasticSearchDataClassification classification,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -116,7 +116,7 @@ public interface IElasticsearchFieldEncryptor
 	/// <param name="fieldName"> The name of the field to classify. </param>
 	/// <param name="fieldValue"> The value of the field to classify. </param>
 	/// <returns> The data classification level for the field, or Public if no specific classification applies. </returns>
-	DataClassification GetFieldClassification(string fieldName, object? fieldValue);
+	ElasticSearchDataClassification GetFieldClassification(string fieldName, object? fieldValue);
 
 	/// <summary>
 	/// Validates that encrypted data integrity is maintained and has not been tampered with.
@@ -141,6 +141,6 @@ public interface IElasticsearchFieldEncryptor
 	/// </returns>
 	/// <exception cref="SecurityException"> Thrown when key rotation fails due to security constraints. </exception>
 	Task<EncryptionKeyRotationResult> RotateEncryptionKeysAsync(
-		DataClassification classification,
+		ElasticSearchDataClassification classification,
 		CancellationToken cancellationToken);
 }

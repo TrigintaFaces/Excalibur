@@ -9,6 +9,7 @@ namespace Excalibur.Tests.Domain.Exceptions;
 /// Unit tests for <see cref="DomainException"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Domain")]
 public sealed class DomainExceptionShould
 {
 	#region T419.11: DomainException Tests

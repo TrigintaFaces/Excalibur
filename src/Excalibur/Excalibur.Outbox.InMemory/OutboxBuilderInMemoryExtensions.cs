@@ -90,7 +90,9 @@ public static class OutboxBuilderInMemoryExtensions
 
 		// Register in-memory outbox store
 		builder.Services.TryAddSingleton<InMemoryOutboxStore>();
-		builder.Services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<InMemoryOutboxStore>());
+		builder.Services.AddKeyedSingleton<IOutboxStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemoryOutboxStore>());
+		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("inmemory"));
 
 		return builder;
 	}

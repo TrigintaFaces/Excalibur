@@ -9,8 +9,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// <summary>
 /// Exception thrown when multiple implementations of <see cref="IDataChangeHandler" /> are found for a specified table.
 /// </summary>
-[Serializable]
-public class CdcMultipleTableHandlerException : ApiException
+public sealed class CdcMultipleTableHandlerException : ApiException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CdcMultipleTableHandlerException" /> class.
@@ -61,5 +60,5 @@ public class CdcMultipleTableHandlerException : ApiException
 	/// <value>
 	/// The name of the table for which multiple handlers were found.
 	/// </value>
-	public string TableName { get; protected set; }
+	public string TableName { get; private set; }
 }

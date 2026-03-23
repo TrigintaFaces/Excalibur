@@ -21,7 +21,7 @@ namespace Excalibur.A3.Authorization.Grants;
 /// static factory methods for repository integration with <see cref="IEventSourcedRepository{TAggregate}"/>.
 /// </para>
 /// </remarks>
-public class Grant : AggregateRoot, IAggregateRoot<Grant, string>
+public sealed class Grant : AggregateRoot, IAggregateRoot<Grant, string>
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="Grant" /> class.

@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.EventSourcing.Tests.CosmosDb;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class CosmosDbEventStoreChangeFeedSubscriptionShould : UnitTestBase
 {
 	[Fact]

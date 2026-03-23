@@ -82,7 +82,7 @@ internal sealed partial class CdcChangeDetector
 
 			LogNoMoreRecordsProducer();
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			LogProducerCanceled();
 		}

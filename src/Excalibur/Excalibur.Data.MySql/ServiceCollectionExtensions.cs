@@ -29,7 +29,10 @@ public static class MySqlServiceCollectionExtensions
 		services.Configure(configure);
 		services.AddOptions<MySqlProviderOptions>().ValidateDataAnnotations().ValidateOnStart();
 		services.TryAddSingleton<MySqlPersistenceProvider>();
-		services.TryAddSingleton<IPersistenceProvider>(sp => sp.GetRequiredService<MySqlPersistenceProvider>());
+		services.AddKeyedSingleton<IPersistenceProvider>("mysql",
+			(sp, _) => sp.GetRequiredService<MySqlPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("mysql"));
 
 		return services;
 	}
@@ -53,7 +56,10 @@ public static class MySqlServiceCollectionExtensions
 			.ValidateOnStart();
 
 		services.TryAddSingleton<MySqlPersistenceProvider>();
-		services.TryAddSingleton<IPersistenceProvider>(sp => sp.GetRequiredService<MySqlPersistenceProvider>());
+		services.AddKeyedSingleton<IPersistenceProvider>("mysql",
+			(sp, _) => sp.GetRequiredService<MySqlPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("mysql"));
 
 		return services;
 	}

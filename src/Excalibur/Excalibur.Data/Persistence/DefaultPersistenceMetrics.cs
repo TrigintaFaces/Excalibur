@@ -37,8 +37,17 @@ internal sealed class DefaultPersistenceMetrics : IPersistenceMetrics, IDisposab
 	/// Initializes a new instance of the <see cref="DefaultPersistenceMetrics" /> class.
 	/// </summary>
 	public DefaultPersistenceMetrics()
+		: this(meterFactory: null)
 	{
-		Meter = new Meter(PersistenceTelemetryConstants.SourceName, PersistenceTelemetryConstants.Version);
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="DefaultPersistenceMetrics" /> class using an <see cref="IMeterFactory"/>.
+	/// </summary>
+	/// <param name="meterFactory"> The meter factory for DI-managed meter lifecycle, or null to create an owned meter. </param>
+	public DefaultPersistenceMetrics(IMeterFactory? meterFactory)
+	{
+		Meter = meterFactory?.Create(PersistenceTelemetryConstants.SourceName) ?? new Meter(PersistenceTelemetryConstants.SourceName, PersistenceTelemetryConstants.Version);
 		_activitySource = new ActivitySource(PersistenceTelemetryConstants.SourceName, PersistenceTelemetryConstants.Version);
 
 		_queryCounter = Meter.CreateCounter<long>(

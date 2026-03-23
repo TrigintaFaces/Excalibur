@@ -11,7 +11,6 @@ namespace Excalibur.Dispatch.Exceptions;
 /// <summary>
 /// Exception thrown when validation errors occur.
 /// </summary>
-[Serializable]
 public sealed class ValidationException : DispatchException
 {
 	/// <summary>

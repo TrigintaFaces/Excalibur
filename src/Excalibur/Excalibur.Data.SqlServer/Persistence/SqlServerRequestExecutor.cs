@@ -20,7 +20,7 @@ internal sealed partial class SqlServerRequestExecutor
 	private readonly SqlServerConnectionManager _connectionManager;
 	private readonly SqlServerPersistenceMetrics _metrics;
 	private readonly SqlServerPersistenceOptions _options;
-	private readonly IDataRequestRetryPolicy _retryPolicy;
+	private readonly IRelationalDataRequestRetryPolicy _retryPolicy;
 	private readonly ILogger<SqlServerPersistenceProvider> _logger;
 
 	internal SqlServerRequestExecutor(
@@ -33,7 +33,7 @@ internal sealed partial class SqlServerRequestExecutor
 		_connectionManager = connectionManager;
 		_metrics = metrics;
 		_options = options;
-		_retryPolicy = retryPolicy;
+		_retryPolicy = (IRelationalDataRequestRetryPolicy)retryPolicy;
 		_logger = logger;
 	}
 

@@ -245,7 +245,8 @@ public sealed class CdcBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<CdcOptions>>();
-		options.Value.TrackedTables.ShouldContain(t => t.TableName == "dbo.Orders");
+		// Sprint 679 T.8: singular type name, no naive pluralization
+		options.Value.TrackedTables.ShouldContain(t => t.TableName == "dbo.Order");
 	}
 
 	[Fact]
@@ -263,7 +264,8 @@ public sealed class CdcBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<CdcOptions>>();
-		options.Value.TrackedTables.ShouldContain(t => t.TableName == "dbo.Customers");
+		// Sprint 679 T.8: singular type name, no naive pluralization
+		options.Value.TrackedTables.ShouldContain(t => t.TableName == "dbo.Customer");
 	}
 
 	[Fact]

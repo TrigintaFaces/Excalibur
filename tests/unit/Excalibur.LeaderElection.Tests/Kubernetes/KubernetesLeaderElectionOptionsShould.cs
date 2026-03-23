@@ -6,7 +6,8 @@ using Shouldly;
 namespace Excalibur.LeaderElection.Tests.Kubernetes;
 
 [Trait("Category", "Unit")]
-public class KubernetesLeaderElectionOptionsShould
+[Trait("Component", "Core")]
+public sealed class KubernetesLeaderElectionOptionsShould
 {
 	[Fact]
 	public void Inherit_From_LeaderElectionOptions()

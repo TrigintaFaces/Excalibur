@@ -38,7 +38,7 @@ public sealed class DispatchPipelineWorkflowShould
 		var command = new CreateOrderCommand("ORD-001", 100.00m);
 
 		// Act
-		var result = await pipeline.DispatchCommandAsync(command).ConfigureAwait(true);
+		var result = await pipeline.DispatchCommandAsync(command);
 
 		// Assert - Command was processed successfully
 		result.Success.ShouldBeTrue();
@@ -64,10 +64,10 @@ public sealed class DispatchPipelineWorkflowShould
 		var query = new GetProductQuery("PROD-001");
 
 		// Act - First call (cache miss, handler executes)
-		var result1 = await pipeline.DispatchQueryAsync(query).ConfigureAwait(true);
+		var result1 = await pipeline.DispatchQueryAsync(query);
 
 		// Act - Second call (cache hit, handler skipped)
-		var result2 = await pipeline.DispatchQueryAsync(query).ConfigureAwait(true);
+		var result2 = await pipeline.DispatchQueryAsync(query);
 
 		// Assert - Both calls succeeded
 		_ = result1.ShouldNotBeNull();
@@ -94,7 +94,7 @@ public sealed class DispatchPipelineWorkflowShould
 		var @event = new OrderCreatedEvent("ORD-002", 250.00m);
 
 		// Act
-		await pipeline.PublishEventAsync(@event).ConfigureAwait(true);
+		await pipeline.PublishEventAsync(@event);
 
 		// Assert - All 3 handlers received the event
 		executionLog.Steps.ShouldContain("OrderCreatedHandler1:Handle:ORD-002");
@@ -115,7 +115,7 @@ public sealed class DispatchPipelineWorkflowShould
 		var command = new TraceableCommand("trace-001");
 
 		// Act
-		_ = await pipeline.DispatchCommandAsync(command).ConfigureAwait(true);
+		_ = await pipeline.DispatchCommandAsync(command);
 
 		// Assert - Middleware executed in correct order: Pre > Handler > Post
 		// Use the ordered steps list from ExecutionLog
@@ -145,7 +145,7 @@ public sealed class DispatchPipelineWorkflowShould
 		var command = new FailingCommand("fail-001", FailCount: 2);
 
 		// Act
-		var result = await pipeline.DispatchCommandWithRetryAsync(command, maxRetries: 3).ConfigureAwait(true);
+		var result = await pipeline.DispatchCommandWithRetryAsync(command, maxRetries: 3);
 
 		// Assert - Command eventually succeeded after retries
 		result.Success.ShouldBeTrue();

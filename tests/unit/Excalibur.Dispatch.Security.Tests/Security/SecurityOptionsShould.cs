@@ -6,6 +6,7 @@ namespace Excalibur.Dispatch.Security.Tests;
 /// Unit tests for SecurityOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class SecurityOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -65,12 +65,9 @@ internal sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOption
 	/// <returns> True if default credentials are detected; otherwise, false. </returns>
 	private static bool ContainsDefaultCredentials(string connectionString)
 	{
-		// Check for common default credential patterns
-		var lowerConnectionString = connectionString.ToUpperInvariant();
-
-		return lowerConnectionString.Contains("GUEST:GUEST@", StringComparison.Ordinal) ||
-					 lowerConnectionString.Contains("GUEST%3AGUEST@", StringComparison.Ordinal) || // URL encoded version
-					 lowerConnectionString.Contains("GUEST%3AGUEST@", StringComparison.Ordinal); // Mixed case URL encoding
+		// Check for common default credential patterns (case-insensitive via OrdinalIgnoreCase)
+		return connectionString.Contains("guest:guest@", StringComparison.OrdinalIgnoreCase) ||
+					 connectionString.Contains("guest%3Aguest@", StringComparison.OrdinalIgnoreCase); // URL encoded version
 	}
 
 	/// <summary>

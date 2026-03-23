@@ -62,7 +62,7 @@ public sealed class SagaCompensationAttributeShould
 		// Arrange & Act
 		var sut = new SagaCompensationAttribute();
 
-		// Assert - -1 means defer to AdvancedSagaOptions.MaxRetryAttempts
+		// Assert - -1 means defer to AdvancedSagaOptions.MaxRetries
 		sut.MaxRetries.ShouldBe(-1);
 	}
 

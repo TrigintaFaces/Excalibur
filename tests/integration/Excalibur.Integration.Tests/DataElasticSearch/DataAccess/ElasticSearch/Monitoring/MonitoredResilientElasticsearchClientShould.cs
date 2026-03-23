@@ -16,6 +16,8 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch
 /// <summary>
 ///     Integration tests for the <see cref="MonitoredResilientElasticsearchClient" /> class.
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 {
 	private ElasticsearchContainer? _elasticsearchContainer;

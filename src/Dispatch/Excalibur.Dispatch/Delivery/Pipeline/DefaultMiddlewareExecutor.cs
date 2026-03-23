@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <summary>
 /// Default middleware executor that uses a struct-based state machine.
 /// </summary>
-public sealed class DefaultMiddlewareExecutor : IMiddlewareExecutor
+internal sealed class DefaultMiddlewareExecutor : IMiddlewareExecutor
 {
 	/// <inheritdoc />
 	public ValueTask<IMessageResult> ExecuteAsync(

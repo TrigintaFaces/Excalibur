@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Compliance.Azure;
 /// </list>
 /// </para>
 /// </remarks>
-public class AzureKeyVaultOptions
+public sealed class AzureKeyVaultOptions
 {
 	/// <summary>
 	/// Gets or sets the URI of the Azure Key Vault instance.

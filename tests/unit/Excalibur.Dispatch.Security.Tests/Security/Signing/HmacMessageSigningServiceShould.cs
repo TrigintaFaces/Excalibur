@@ -323,4 +323,71 @@ public sealed class HmacMessageSigningServiceShould : IDisposable
             sut.Dispose();
         });
     }
+
+    // Sprint 678 T.3 -- ObjectDisposedException guards
+
+    // Sprint 678 T.3 -- ObjectDisposedException guards after Dispose
+
+    // Sprint 678 T.3 -- ObjectDisposedException guards after Dispose
+
+    [Fact]
+    public async Task ThrowObjectDisposedExceptionOnSignMessageAsyncAfterDispose()
+    {
+        // Arrange
+        var sut = new HmacMessageSigningService(
+            Microsoft.Extensions.Options.Options.Create(new SigningOptions()), _keyProvider, _logger);
+        sut.Dispose();
+
+        var context = new SigningContext { KeyId = "key-1", Algorithm = SigningAlgorithm.HMACSHA256 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ObjectDisposedException>(
+            () => sut.SignMessageAsync("test-content", context, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ThrowObjectDisposedExceptionOnVerifySignatureAsyncAfterDispose()
+    {
+        // Arrange
+        var sut = new HmacMessageSigningService(
+            Microsoft.Extensions.Options.Options.Create(new SigningOptions()), _keyProvider, _logger);
+        sut.Dispose();
+
+        var context = new SigningContext { KeyId = "key-1", Algorithm = SigningAlgorithm.HMACSHA256 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ObjectDisposedException>(
+            () => sut.VerifySignatureAsync("test-content", "fake-signature", context, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ThrowObjectDisposedExceptionOnCreateSignedMessageAsyncAfterDispose()
+    {
+        // Arrange
+        var sut = new HmacMessageSigningService(
+            Microsoft.Extensions.Options.Options.Create(new SigningOptions()), _keyProvider, _logger);
+        sut.Dispose();
+
+        var context = new SigningContext { KeyId = "key-1", Algorithm = SigningAlgorithm.HMACSHA256 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ObjectDisposedException>(
+            () => sut.CreateSignedMessageAsync("test-content", context, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ThrowObjectDisposedExceptionOnValidateSignedMessageAsyncAfterDispose()
+    {
+        // Arrange
+        var sut = new HmacMessageSigningService(
+            Microsoft.Extensions.Options.Options.Create(new SigningOptions()), _keyProvider, _logger);
+        sut.Dispose();
+
+        var signedMessage = new SignedMessage { Content = "test", Signature = "sig", Algorithm = SigningAlgorithm.HMACSHA256, KeyId = "key-1" };
+        var context = new SigningContext { KeyId = "key-1", Algorithm = SigningAlgorithm.HMACSHA256 };
+
+        // Act & Assert
+        await Should.ThrowAsync<ObjectDisposedException>(
+            () => sut.ValidateSignedMessageAsync(signedMessage, context, CancellationToken.None));
+    }
 }

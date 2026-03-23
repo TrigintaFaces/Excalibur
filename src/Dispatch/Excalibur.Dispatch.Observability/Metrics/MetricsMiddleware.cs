@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Observability.Metrics;
 /// </remarks>
 /// <param name="metrics">The dispatch metrics instance.</param>
 [AppliesTo(MessageKinds.All)]
-public sealed class MetricsMiddleware(IDispatchMetrics metrics) : IDispatchMiddleware
+internal sealed class MetricsMiddleware(IDispatchMetrics metrics) : IDispatchMiddleware
 {
 	private readonly IDispatchMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
 

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Data.DynamoDb;
 
-public sealed partial class DynamoDbHealthCheck
+internal sealed partial class DynamoDbHealthCheck
 {
 	// Source-generated logging methods
 

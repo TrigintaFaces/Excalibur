@@ -9,6 +9,7 @@ namespace Excalibur.Hosting.Tests.AzureFunctions;
 /// Unit tests for <see cref="ExcaliburAzureFunctionsServiceCollectionExtensions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class AzureFunctionsServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

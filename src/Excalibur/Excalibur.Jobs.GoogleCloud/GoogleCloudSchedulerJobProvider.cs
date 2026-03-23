@@ -20,7 +20,7 @@ namespace Excalibur.Jobs.GoogleCloud;
 /// <param name="schedulerClient"> The Google Cloud Scheduler client. </param>
 /// <param name="options"> Configuration options for Google Cloud Scheduler. </param>
 /// <param name="logger"> Logger for this provider. </param>
-public partial class GoogleCloudSchedulerJobProvider(
+public sealed partial class GoogleCloudSchedulerJobProvider(
 	CloudSchedulerClient schedulerClient,
 	GoogleCloudSchedulerOptions options,
 	ILogger<GoogleCloudSchedulerJobProvider> logger) : IDisposable
@@ -103,16 +103,6 @@ public partial class GoogleCloudSchedulerJobProvider(
 	/// Disposes the Google Cloud Scheduler client.
 	/// </summary>
 	public void Dispose()
-	{
-		Dispose(disposing: true);
-		GC.SuppressFinalize(this);
-	}
-
-	/// <summary>
-	/// Releases the unmanaged resources used by the <see cref="GoogleCloudSchedulerJobProvider"/> and optionally releases the managed resources.
-	/// </summary>
-	/// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
-	protected virtual void Dispose(bool disposing)
 	{
 		if (!_disposed)
 		{

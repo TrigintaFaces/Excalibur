@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Queries;
+using Excalibur.EventSourcing.Subscriptions;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -24,6 +25,7 @@ public sealed class GlobalStreamProjectionHostShould
 	private readonly IGlobalStreamQuery _globalStreamQuery = A.Fake<IGlobalStreamQuery>();
 	private readonly IGlobalStreamProjection<GlobalStreamTestState> _projection = A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
+	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
 
 	[Fact]
 	public void ThrowWhenGlobalStreamQueryIsNull()
@@ -32,6 +34,7 @@ public sealed class GlobalStreamProjectionHostShould
 			null!,
 			_projection,
 			_eventSerializer,
+			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
 	}
@@ -43,6 +46,7 @@ public sealed class GlobalStreamProjectionHostShould
 			_globalStreamQuery,
 			null!,
 			_eventSerializer,
+			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
 	}
@@ -54,6 +58,7 @@ public sealed class GlobalStreamProjectionHostShould
 			_globalStreamQuery,
 			_projection,
 			null!,
+			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
 	}
@@ -65,6 +70,7 @@ public sealed class GlobalStreamProjectionHostShould
 			_globalStreamQuery,
 			_projection,
 			_eventSerializer,
+			_checkpointStore,
 			null!,
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
 	}
@@ -76,6 +82,7 @@ public sealed class GlobalStreamProjectionHostShould
 			_globalStreamQuery,
 			_projection,
 			_eventSerializer,
+			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
 			null!));
 	}
@@ -91,6 +98,7 @@ public sealed class GlobalStreamProjectionHostShould
 			_globalStreamQuery,
 			_projection,
 			_eventSerializer,
+			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
@@ -108,8 +116,10 @@ public sealed class GlobalStreamProjectionHostShould
 	}
 
 	[Fact]
+#pragma warning disable CA1506 // Avoid excessive class coupling - integration test requires multiple fakes
 	public async Task ProcessEventsFromGlobalStream()
 	{
+#pragma warning restore CA1506
 		// Arrange
 		var storedEvent = new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false);
 		var domainEvent = A.Fake<IDomainEvent>();
@@ -138,6 +148,7 @@ public sealed class GlobalStreamProjectionHostShould
 			_globalStreamQuery,
 			_projection,
 			_eventSerializer,
+			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
@@ -155,6 +166,128 @@ public sealed class GlobalStreamProjectionHostShould
 		// Assert
 		A.CallTo(() => _projection.ApplyAsync(domainEvent, A<GlobalStreamTestState>._, A<CancellationToken>._))
 			.MustHaveHappened();
+	}
+
+	// --- T.8 Regression: checkpoint persistence tests ---
+
+	[Fact]
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling", Justification = "Test method requires complex DI setup")]
+	public async Task RestoreCheckpointOnStartup()
+	{
+		// Arrange - T.8 regression: host must resume from persisted checkpoint, not position 0
+		const long savedPosition = 42L;
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<long?>(savedPosition));
+		A.CallTo(() => _globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+
+		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
+			_globalStreamQuery,
+			_projection,
+			_eventSerializer,
+			_checkpointStore,
+			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
+			{
+				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
+			}),
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance);
+
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await host.StartAsync(cts.Token);
+		// Wait for at least one poll cycle
+		var deadline = DateTime.UtcNow.AddSeconds(2);
+		while (!Fake.GetCalls(_checkpointStore)
+			.Any(c => c.Method.Name == "GetCheckpointAsync") && DateTime.UtcNow < deadline)
+		{
+			await Task.Delay(10).ConfigureAwait(false);
+		}
+		await cts.CancelAsync().ConfigureAwait(false);
+		await host.StopAsync(CancellationToken.None);
+
+		// Assert - should have called GetCheckpointAsync on startup
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+
+		// And ReadAllAsync should have been called with position >= savedPosition (not 0)
+		A.CallTo(() => _globalStreamQuery.ReadAllAsync(
+			A<GlobalStreamPosition>.That.Matches(p => p.Position >= savedPosition),
+			A<int>._,
+			A<CancellationToken>._))
+			.MustHaveHappened();
+	}
+
+	[Fact]
+#pragma warning disable CA1506 // Test requires multiple fakes
+	public async Task PersistCheckpointAfterProcessingBatch()
+	{
+#pragma warning restore CA1506
+		// Arrange - T.8 regression: host must call StoreCheckpointAsync after processing events
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<long?>(null));
+
+		var storedEvent = new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false);
+		var domainEvent = A.Fake<IDomainEvent>();
+		var checkpointStored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var callCount = 0;
+		A.CallTo(() => _globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily((_) =>
+			{
+				callCount++;
+				return callCount == 1
+					? new ValueTask<IReadOnlyList<StoredEvent>>(new[] { storedEvent })
+					: new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
+
+		A.CallTo(() => _eventSerializer.ResolveType("TestEvent")).Returns(typeof(IDomainEvent));
+		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(domainEvent);
+		A.CallTo(() => _projection.ApplyAsync(domainEvent, A<GlobalStreamTestState>._, A<CancellationToken>._))
+			.Returns(Task.CompletedTask);
+		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+			.ReturnsLazily((_) =>
+			{
+				checkpointStored.TrySetResult();
+				return Task.CompletedTask;
+			});
+
+		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
+			_globalStreamQuery,
+			_projection,
+			_eventSerializer,
+			_checkpointStore,
+			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
+			{
+				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
+				CheckpointInterval = 1, // Checkpoint after every event
+			}),
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance);
+
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await host.StartAsync(cts.Token);
+		await AwaitApplyObservedAsync(checkpointStored.Task);
+		await cts.CancelAsync().ConfigureAwait(false);
+		await host.StopAsync(CancellationToken.None);
+
+		// Assert - checkpoint must have been persisted (not just logged)
+		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+			.MustHaveHappened();
+	}
+
+	[Fact]
+	public void ThrowWhenCheckpointStoreIsNull()
+	{
+		// Arrange & Act & Assert - T.8 regression: checkpoint store is required
+		Should.Throw<ArgumentNullException>(() => new GlobalStreamProjectionHost<GlobalStreamTestState>(
+			_globalStreamQuery,
+			_projection,
+			_eventSerializer,
+			null!,
+			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
 	}
 
 	private static Task AwaitApplyObservedAsync(Task signal)

@@ -455,6 +455,15 @@ public static class AwsSqsEventId
 	/// <summary>High throughput batch delete error.</summary>
 	public const int HighThroughputBatchDeleteError = 25514;
 
+	/// <summary>High throughput batch delete partial failure for individual entry.</summary>
+	public const int HighThroughputBatchDeletePartialFailure = 25515;
+
+	/// <summary>High throughput visibility extension failed for individual entry.</summary>
+	public const int HighThroughputVisibilityExtensionFailed = 25516;
+
+	/// <summary>High throughput visibility extension batch error.</summary>
+	public const int HighThroughputVisibilityExtensionError = 25517;
+
 	// SqsChannelProcessorHostedService
 	/// <summary>Channel processor hosted service starting.</summary>
 	public const int HostedServiceStarting = 25520;
@@ -706,6 +715,12 @@ public static class AwsSqsEventId
 
 	/// <summary>Transport receiver: disposed.</summary>
 	public const int TransportReceiverDisposed = 26117;
+
+	/// <summary>Transport receiver: visibility timeout extended.</summary>
+	public const int TransportReceiverVisibilityExtended = 26118;
+
+	/// <summary>Transport receiver: visibility timeout extension error.</summary>
+	public const int TransportReceiverVisibilityExtendError = 26119;
 
 	// ========================================
 	// 26120-26127: ITransportSubscriber

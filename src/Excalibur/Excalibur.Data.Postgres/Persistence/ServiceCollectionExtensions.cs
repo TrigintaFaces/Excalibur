@@ -144,7 +144,10 @@ public static class PostgresPersistenceServiceCollectionExtensions
 		// Register the persistence provider
 		services.TryAddSingleton<PostgresPersistenceProvider>();
 		services.TryAddSingleton<ISqlPersistenceProvider>(static provider => provider.GetRequiredService<PostgresPersistenceProvider>());
-		services.TryAddSingleton<IPersistenceProvider>(static provider => provider.GetRequiredService<PostgresPersistenceProvider>());
+		services.AddKeyedSingleton<IPersistenceProvider>("postgres",
+			(sp, _) => sp.GetRequiredService<PostgresPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("postgres"));
 
 		// Register transaction scope factory
 		services.TryAddTransient<ITransactionScope>(static provider =>

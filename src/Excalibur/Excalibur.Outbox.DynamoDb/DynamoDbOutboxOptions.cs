@@ -58,7 +58,7 @@ public sealed class DynamoDbOutboxOptions
 	/// Gets or sets the maximum retry attempts.
 	/// </summary>
 	/// <value>Defaults to 3.</value>
-	[Range(1, int.MaxValue)]
+	[Range(0, int.MaxValue)]
 	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>

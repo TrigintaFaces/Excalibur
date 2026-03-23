@@ -5,6 +5,8 @@ using System.Text;
 
 using Confluent.Kafka;
 
+using Excalibur.Dispatch.Transport.Diagnostics;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -169,7 +171,7 @@ internal sealed partial class KafkaDeadLetterConsumer : IDisposable
 		{
 			Id = result.Message.Key,
 			Body = result.Message.Value,
-			Properties = { [Diagnostics.TransportTelemetryConstants.PropertyKeys.PartitionKey] = result.Message.Key, },
+			Properties = { [TransportTelemetryConstants.PropertyKeys.PartitionKey] = result.Message.Key, },
 		};
 
 		// Extract DLQ metadata from headers

@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Pipeline;
 /// Integration tests verifying that the canonical dispatch pipeline composes middleware and reaches handler invokers.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatchPipelineIntegrationShould
 {
 	public DispatchPipelineIntegrationShould() => TestActionHandler.Reset();

@@ -20,6 +20,12 @@ public static class DispatchActivitySource
 	public const string Name = "Excalibur.Dispatch";
 
 	/// <summary>
+	/// Maximum number of entries allowed in each type name cache.
+	/// When the cap is reached, new lookups compute names without caching to prevent unbounded memory growth.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
+	/// <summary>
 	/// The activity source instance for Dispatch operations.
 	/// Process-lifetime singleton — do not dispose.
 	/// </summary>
@@ -38,8 +44,38 @@ public static class DispatchActivitySource
 	/// <summary>
 	/// Gets the cached name for a type, avoiding repeated reflection.
 	/// </summary>
-	private static string GetCachedTypeName(Type type) =>
-		TypeNameCache.GetOrAdd(type, static t => t.Name);
+	private static string GetCachedTypeName(Type type)
+	{
+		if (TypeNameCache.TryGetValue(type, out var cached))
+		{
+			return cached;
+		}
+
+		if (TypeNameCache.Count >= MaxCacheEntries)
+		{
+			return type.Name;
+		}
+
+		return TypeNameCache.GetOrAdd(type, static t => t.Name);
+	}
+
+	/// <summary>
+	/// Gets the cached middleware activity name for a type.
+	/// </summary>
+	private static string GetCachedMiddlewareActivityName(Type type)
+	{
+		if (MiddlewareActivityNameCache.TryGetValue(type, out var cached))
+		{
+			return cached;
+		}
+
+		if (MiddlewareActivityNameCache.Count >= MaxCacheEntries)
+		{
+			return string.Concat("middleware.", type.Name);
+		}
+
+		return MiddlewareActivityNameCache.GetOrAdd(type, static t => string.Concat("middleware.", t.Name));
+	}
 
 	/// <summary>
 	/// Starts a new activity for message processing.
@@ -124,8 +160,7 @@ public static class DispatchActivitySource
 		ArgumentNullException.ThrowIfNull(middlewareType);
 		ArgumentNullException.ThrowIfNull(message);
 
-		var activityName = MiddlewareActivityNameCache.GetOrAdd(
-			middlewareType, static t => string.Concat("middleware.", t.Name));
+		var activityName = GetCachedMiddlewareActivityName(middlewareType);
 
 		var activity = Instance.StartActivity(activityName);
 

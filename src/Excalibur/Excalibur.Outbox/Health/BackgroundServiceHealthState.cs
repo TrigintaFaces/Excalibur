@@ -18,7 +18,7 @@ namespace Excalibur.Outbox.Health;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class BackgroundServiceHealthState
+public class BackgroundServiceHealthState
 {
 	private long _totalProcessed;
 	private long _totalFailed;

@@ -9,6 +9,7 @@ namespace Excalibur.Tests.Domain.Metrics;
 /// Unit tests for <see cref="MetricsExtensions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Domain")]
 public sealed class MetricsExtensionsShould
 {
 	#region IncrementCounter Tests

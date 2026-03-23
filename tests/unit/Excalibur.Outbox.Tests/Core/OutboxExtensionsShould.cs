@@ -4,7 +4,7 @@
 using Excalibur.Dispatch.Delivery;
 
 // Explicit alias to disambiguate from Excalibur.Outbox.OutboxOptions
-using DispatchOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxOptions;
+using DispatchOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Outbox.Tests.Core;
 

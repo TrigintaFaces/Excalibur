@@ -6,28 +6,38 @@ using System.Globalization;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Diagnostics;
+
+using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Bus;
 
 /// <summary>
 /// Message bus adapter that can route messages across multiple transport adapters.
 /// </summary>
-public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessageBusAdapterCapabilities, IMessageBusAdapterLifecycle
+public sealed partial class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessageBusAdapterCapabilities, IMessageBusAdapterLifecycle, IDisposable, IAsyncDisposable
 {
 	private const string AdapterQualifierDelimiter = "://";
 	private readonly FrozenDictionary<string, IMessageBusAdapter> _adapters;
 	private readonly IMessageBusAdapter[] _adapterArray;
 	private readonly IMessageBusAdapter? _defaultAdapter;
+	private readonly ILogger<MultiTransportMessageBusAdapter> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MultiTransportMessageBusAdapter" /> class.
 	/// </summary>
 	/// <param name="adapters"> The collection of transport adapters. </param>
+	/// <param name="logger"> The logger for diagnostic messages. </param>
 	/// <param name="defaultAdapter"> The default adapter to use when no specific adapter is specified. </param>
-	public MultiTransportMessageBusAdapter(IEnumerable<IMessageBusAdapter> adapters, IMessageBusAdapter? defaultAdapter = null)
+	public MultiTransportMessageBusAdapter(
+		IEnumerable<IMessageBusAdapter> adapters,
+		ILogger<MultiTransportMessageBusAdapter> logger,
+		IMessageBusAdapter? defaultAdapter = null)
 	{
 		ArgumentNullException.ThrowIfNull(adapters);
+		ArgumentNullException.ThrowIfNull(logger);
 
+		_logger = logger;
 		var adapterMap = new Dictionary<string, IMessageBusAdapter>(StringComparer.Ordinal);
 		foreach (var adapter in adapters)
 		{
@@ -98,20 +108,25 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessa
 	{
 		get
 		{
+			if (_adapterArray.Length == 0)
+			{
+				return false;
+			}
+
 			for (var i = 0; i < _adapterArray.Length; i++)
 			{
-				if (_adapterArray[i].IsConnected)
+				if (!_adapterArray[i].IsConnected)
 				{
-					return true;
+					return false;
 				}
 			}
 
-			return false;
+			return true;
 		}
 	}
 
 	/// <inheritdoc />
-	public Task InitializeAsync(IMessageBusOptions options, CancellationToken cancellationToken)
+	public Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken)
 	{
 		if (_adapterArray.Length == 0)
 		{
@@ -154,7 +169,7 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessa
 	public async Task SubscribeAsync(
 		string subscriptionName,
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> messageHandler,
-		IMessageBusOptions? options,
+		MessageBusOptions? options,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(subscriptionName);
@@ -194,7 +209,8 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessa
 		{
 			if (!_adapters.TryGetValue(adapterName, out adapter))
 			{
-				return; // Silently ignore unknown adapters on unsubscribe
+				LogUnknownAdapterOnUnsubscribe(adapterName, parsedSubscriptionName);
+				return;
 			}
 
 			subscriptionName = parsedSubscriptionName;
@@ -296,7 +312,26 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessa
 	{
 		for (var i = 0; i < _adapterArray.Length; i++)
 		{
-			_adapterArray[i].Dispose();
+			if (_adapterArray[i] is IDisposable disposable)
+			{
+				disposable.Dispose();
+			}
+		}
+	}
+
+	/// <inheritdoc />
+	public async ValueTask DisposeAsync()
+	{
+		for (var i = 0; i < _adapterArray.Length; i++)
+		{
+			if (_adapterArray[i] is IAsyncDisposable asyncDisposable)
+			{
+				await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+			}
+			else if (_adapterArray[i] is IDisposable disposable)
+			{
+				disposable.Dispose();
+			}
 		}
 	}
 
@@ -313,6 +348,11 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessa
 
 		return result;
 	}
+
+	[LoggerMessage(CoreEventId.UnknownAdapterOnUnsubscribe, LogLevel.Warning,
+		"Attempted to unsubscribe from unknown adapter '{AdapterName}' for subscription '{SubscriptionName}'. " +
+		"Available adapters: check your transport registration.")]
+	private partial void LogUnknownAdapterOnUnsubscribe(string adapterName, string subscriptionName);
 
 	private static bool TrySplitQualifiedSubscriptionName(
 		string subscriptionName,

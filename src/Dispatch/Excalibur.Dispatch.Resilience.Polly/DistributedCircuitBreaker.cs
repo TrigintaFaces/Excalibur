@@ -24,7 +24,8 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	private readonly ResiliencePipeline _localPipeline;
 	private readonly Timer _syncTimer;
 	private readonly CancellationTokenSource _shutdownCts = new();
-	private readonly ConcurrentBag<Task> _backgroundTasks = new();
+	private ConcurrentBag<Task> _backgroundTasks = new();
+	private readonly SemaphoreSlim _metricsGate = new(1, 1);
 	private volatile bool _disposed;
 	private volatile CircuitState _lastKnownState;
 
@@ -101,12 +102,13 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	{
 		ArgumentNullException.ThrowIfNull(operation);
 
-		// Check distributed state first
-		var state = await GetStateAsync(cancellationToken).ConfigureAwait(false);
+		// Single distributed state fetch to avoid double round-trip
+		var stateData = await GetDistributedStateAsync(cancellationToken).ConfigureAwait(false);
+		var state = stateData?.State ?? CircuitState.Closed;
+		_lastKnownState = state;
 
 		if (state == CircuitState.Open)
 		{
-			var stateData = await GetDistributedStateAsync(cancellationToken).ConfigureAwait(false);
 			if (stateData != null && DateTimeOffset.UtcNow < stateData.OpenUntil)
 			{
 				throw new global::Polly.CircuitBreaker.BrokenCircuitException($"Distributed circuit breaker '{Name}' is open");
@@ -136,6 +138,7 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	/// <inheritdoc />
 	public async Task RecordSuccessAsync(CancellationToken cancellationToken)
 	{
+		await _metricsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
 			var metricsKey = GetMetricsKey();
@@ -153,15 +156,26 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 				await TransitionToClosedAsync(cancellationToken).ConfigureAwait(false);
 			}
 		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw; // Never swallow cancellation
+		}
+#pragma warning disable CA1031 // Coordination errors should not crash the caller
 		catch (Exception ex)
 		{
 			LogCoordinationError(Name, ex);
+		}
+#pragma warning restore CA1031
+		finally
+		{
+			_metricsGate.Release();
 		}
 	}
 
 	/// <inheritdoc />
 	public async Task RecordFailureAsync(CancellationToken cancellationToken, Exception? exception = null)
 	{
+		await _metricsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
 			var metrics = await GetOrCreateMetricsAsync(cancellationToken).ConfigureAwait(false);
@@ -191,6 +205,10 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		catch (Exception ex)
 		{
 			LogCoordinationError(Name, ex);
+		}
+		finally
+		{
+			_metricsGate.Release();
 		}
 	}
 
@@ -229,18 +247,20 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		_shutdownCts.Cancel();
 #endif
 
-		// Wait for tracked background tasks to complete
+		// Wait for tracked background tasks to complete (atomic drain)
 		try
 		{
-			await Task.WhenAll(_backgroundTasks.ToArray()).ConfigureAwait(false);
+			var finalTasks = Interlocked.Exchange(ref _backgroundTasks, new ConcurrentBag<Task>());
+			await Task.WhenAll(finalTasks.ToArray()).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
 
 		await _syncTimer.DisposeAsync().ConfigureAwait(false);
 		_shutdownCts.Dispose();
+		_metricsGate.Dispose();
 		GC.SuppressFinalize(this);
 	}
 
@@ -257,6 +277,16 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 
 		var task = SynchronizeStateCoreAsync();
 		_backgroundTasks.Add(task);
+
+		// Atomic drain: swap the bag to avoid ToArray()+Clear() race
+		var drained = Interlocked.Exchange(ref _backgroundTasks, new ConcurrentBag<Task>());
+		foreach (var t in drained)
+		{
+			if (!t.IsCompleted)
+			{
+				_backgroundTasks.Add(t);
+			}
+		}
 	}
 
 	private async Task SynchronizeStateCoreAsync()
@@ -273,9 +303,9 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			// Clean up expired states
 			await CleanupExpiredStateAsync().ConfigureAwait(false);
 		}
-		catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
-			// Expected during shutdown — swallow
+			// Expected during shutdown -- swallow
 		}
 		catch (Exception ex)
 		{

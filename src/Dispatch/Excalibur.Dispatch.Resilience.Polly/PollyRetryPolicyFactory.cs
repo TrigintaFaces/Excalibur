@@ -66,7 +66,7 @@ public sealed partial class PollyRetryPolicyFactory
 	/// </summary>
 	/// <param name="busOptions"> The message bus configuration options containing retry settings. </param>
 	/// <returns> An asynchronous Polly policy instance configured with retry, circuit breaker, and timeout behavior. </returns>
-	public IAsyncPolicy Create(IMessageBusOptions busOptions)
+	public IAsyncPolicy Create(MessageBusOptions busOptions)
 	{
 		ArgumentNullException.ThrowIfNull(busOptions);
 
@@ -83,7 +83,7 @@ public sealed partial class PollyRetryPolicyFactory
 	/// </summary>
 	/// <param name="busOptions">The message bus configuration options.</param>
 	/// <returns>An <see cref="IRetryPolicy"/> implementation backed by Polly.</returns>
-	public IRetryPolicy CreateRetryPolicyAdapter(IMessageBusOptions busOptions)
+	public IRetryPolicy CreateRetryPolicyAdapter(MessageBusOptions busOptions)
 	{
 		ArgumentNullException.ThrowIfNull(busOptions);
 
@@ -112,7 +112,7 @@ public sealed partial class PollyRetryPolicyFactory
 			_ => true, // Consider all other exceptions as transient by default
 		};
 
-	private AsyncRetryPolicy CreateRetryPolicyInternal(IMessageBusOptions busOptions)
+	private AsyncRetryPolicy CreateRetryPolicyInternal(MessageBusOptions busOptions)
 	{
 		var retryCount = _options.MaxRetryAttempts;
 		var delay = _options.Backoff.BaseDelay;
@@ -129,7 +129,7 @@ public sealed partial class PollyRetryPolicyFactory
 					exception));
 	}
 
-	private AsyncCircuitBreakerPolicy CreateCircuitBreakerPolicy(IMessageBusOptions busOptions) =>
+	private AsyncCircuitBreakerPolicy CreateCircuitBreakerPolicy(MessageBusOptions busOptions) =>
 		Policy
 			.Handle<Exception>(IsTransientException)
 			.AdvancedCircuitBreakerAsync(
@@ -145,7 +145,7 @@ public sealed partial class PollyRetryPolicyFactory
 				onHalfOpen: () => LogCircuitBreakerHalfOpen(
 					busOptions.Name ?? "Default"));
 
-	private AsyncTimeoutPolicy CreateTimeoutPolicy(IMessageBusOptions busOptions) =>
+	private AsyncTimeoutPolicy CreateTimeoutPolicy(MessageBusOptions busOptions) =>
 		Policy.TimeoutAsync(
 			_options.Timeout,
 			TimeoutStrategy.Optimistic,

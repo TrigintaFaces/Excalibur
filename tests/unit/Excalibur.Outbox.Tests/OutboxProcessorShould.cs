@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -28,7 +29,7 @@ using DeliveryMessageMetadata = Excalibur.Dispatch.Messaging.MessageMetadata;
 using DeliveryGuaranteeOptions = Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions;
 using DeliveryOutboxDeliveryGuarantee = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryGuarantee;
 using DeliveryOutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
-using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxOptions;
+using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Outbox.Tests;
 
@@ -63,7 +64,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new OutboxProcessor(
@@ -81,7 +82,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var options = CreateValidOptions();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new OutboxProcessor(
@@ -99,7 +100,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var options = CreateValidOptions();
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new OutboxProcessor(
@@ -145,7 +146,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() => new OutboxProcessor(
@@ -164,7 +165,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -186,7 +187,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act - Create processor without optional dependencies
 		await using var processor = new OutboxProcessor(
@@ -195,7 +196,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer,
 			serviceProvider,
 			logger,
-			telemetryClient: null,
+
 			internalSerializer: null,
 			deadLetterQueue: null,
 			circuitBreakerRegistry: null,
@@ -342,6 +343,55 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	}
 
 	[Fact]
+	public async Task DispatchPendingMessagesAsync_DispatchesCommand_WhenOutboxContainsNonEventMessage()
+	{
+		// Arrange -- T.2 (tqg8h): OutboxProcessor now accepts IDispatchMessage, not just IIntegrationEvent.
+		// This test proves commands (IDispatchAction) flow through the outbox correctly.
+		var messageType = typeof(TestOutboxCommand).Name;
+		MessageTypeRegistry.RegisterType<TestOutboxCommand>();
+
+		var outboundMessage = CreateOutboundMessageWithEnvelope(
+			"command-message",
+			messageType,
+			new TestOutboxCommand("do-something"));
+
+		var outboxStore = A.Fake<IOutboxStore>();
+		_ = A.CallTo(() => outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>([outboundMessage]));
+
+		var serializer = new DispatchJsonSerializer();
+		var dispatcher = A.Fake<IDispatcher>();
+		_ = A.CallTo(() => dispatcher.DispatchAsync(
+				A<IDispatchMessage>._,
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
+
+		var deadLetterQueue = A.Fake<IDeadLetterQueue>();
+		var serviceProvider = CreateServiceProvider(dispatcher);
+		var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 3),
+			outboxStore: outboxStore,
+			serializer: serializer,
+			serviceProvider: serviceProvider,
+			deadLetterQueue: deadLetterQueue);
+		processor.Init("dispatcher-command");
+
+		// Act
+		var processed = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
+
+		// Assert
+		processed.ShouldBe(1);
+		A.CallTo(() => dispatcher.DispatchAsync(
+				A<IDispatchMessage>.That.Matches(m => m is TestOutboxCommand),
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => outboxStore.MarkSentAsync("command-message", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
 	public async Task DispatchPendingMessagesAsync_MarksMessageFailedForRetry_WhenDispatchFailsBeforeMaxAttempts()
 	{
 		// Arrange
@@ -450,7 +500,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 				3,
 				A<CancellationToken>._))
 			.MustHaveHappenedTwiceExactly();
-		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IIntegrationEvent>._, A<IMessageContext>._, A<CancellationToken>._))
+		A.CallTo(() => scenario.Dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -729,8 +779,8 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			outboxStore ?? A.Fake<IOutboxStore>(),
 			serializer ?? new DispatchJsonSerializer(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
-			logger ?? A.Fake<ILogger<OutboxProcessor>>(),
-			telemetryClient: null,
+			logger ?? NullLogger<OutboxProcessor>.Instance,
+
 			internalSerializer: internalSerializer,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
@@ -762,7 +812,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		var dispatcher = A.Fake<IDispatcher>();
 		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IIntegrationEvent>._,
+				A<IDispatchMessage>._,
 				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult(dispatchResult));
@@ -822,7 +872,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		var dispatcher = A.Fake<IDispatcher>();
 		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IIntegrationEvent>._,
+				A<IDispatchMessage>._,
 				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
@@ -895,12 +945,12 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		var dispatcher = A.Fake<IDispatcher>();
 		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IIntegrationEvent>.That.Matches(e => e is TestParallelSuccessIntegrationEvent),
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelSuccessIntegrationEvent),
 				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
 		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IIntegrationEvent>.That.Matches(e => e is TestParallelFailureIntegrationEvent),
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelFailureIntegrationEvent),
 				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("retryable failure")));
@@ -929,7 +979,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var serializer = new DispatchJsonSerializer();
 		var dispatcher = CreateSuccessDispatcher();
 		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IIntegrationEvent>.That.Matches(e => e is TestParallelSuccessIntegrationEvent),
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelSuccessIntegrationEvent),
 				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
@@ -963,12 +1013,12 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		var dispatcher = A.Fake<IDispatcher>();
 		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IIntegrationEvent>.That.Matches(e => e is TestParallelSuccessIntegrationEvent),
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelSuccessIntegrationEvent),
 				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
 		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IIntegrationEvent>.That.Matches(e => e is TestParallelFailureIntegrationEvent),
+				A<IDispatchMessage>.That.Matches(e => e is TestParallelFailureIntegrationEvent),
 				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Failed("parallel failure")));
@@ -1064,7 +1114,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		string messageId,
 		string messageType,
 		TEvent integrationEvent)
-		where TEvent : IIntegrationEvent
+		where TEvent : IDispatchMessage
 	{
 		var eventJson = JsonSerializer.Serialize(integrationEvent, s_testJsonOptions);
 		var metadata = new DeliveryMessageMetadata(
@@ -1120,7 +1170,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	{
 		var dispatcher = A.Fake<IDispatcher>();
 		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IIntegrationEvent>._,
+				A<IDispatchMessage>._,
 				A<IMessageContext>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
@@ -1175,7 +1225,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		string messageId,
 		string messageType,
 		TEvent integrationEvent)
-		where TEvent : IIntegrationEvent
+		where TEvent : IDispatchMessage
 	{
 		var eventJson = JsonSerializer.Serialize(integrationEvent, s_testJsonOptions);
 		var metadata = new DeliveryMessageMetadata(
@@ -1264,6 +1314,8 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		string EnvelopeMessageId);
 
 	private sealed record TestOutboxIntegrationEvent(string Value) : IIntegrationEvent;
+
+	private sealed record TestOutboxCommand(string Value) : IDispatchAction;
 
 	private sealed record TestParallelSuccessIntegrationEvent(string Value) : IIntegrationEvent;
 

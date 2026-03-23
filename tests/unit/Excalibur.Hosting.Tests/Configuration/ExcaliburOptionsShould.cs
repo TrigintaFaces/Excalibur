@@ -148,18 +148,18 @@ public sealed class EventSourcingOptionsShould
 }
 
 /// <summary>
-/// Unit tests for <see cref="OutboxOptions"/>.
+/// Unit tests for <see cref="ExcaliburOutboxOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Hosting")]
 [Trait("Feature", "Configuration")]
-public sealed class OutboxOptionsShould
+public sealed class ExcaliburOutboxOptionsShould
 {
 	[Fact]
 	public void HaveEnabledFalseByDefault()
 	{
 		// Act
-		var options = new OutboxOptions();
+		var options = new ExcaliburOutboxOptions();
 
 		// Assert
 		options.Enabled.ShouldBeFalse();
@@ -169,7 +169,7 @@ public sealed class OutboxOptionsShould
 	public void HavePollingInterval5SecondsByDefault()
 	{
 		// Act
-		var options = new OutboxOptions();
+		var options = new ExcaliburOutboxOptions();
 
 		// Assert
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
@@ -179,7 +179,7 @@ public sealed class OutboxOptionsShould
 	public void HaveMaxBatchSize100ByDefault()
 	{
 		// Act
-		var options = new OutboxOptions();
+		var options = new ExcaliburOutboxOptions();
 
 		// Assert
 		options.MaxBatchSize.ShouldBe(100);
@@ -189,7 +189,7 @@ public sealed class OutboxOptionsShould
 	public void HaveMaxRetryAttempts3ByDefault()
 	{
 		// Act
-		var options = new OutboxOptions();
+		var options = new ExcaliburOutboxOptions();
 
 		// Assert
 		options.MaxRetryAttempts.ShouldBe(3);

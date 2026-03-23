@@ -23,9 +23,9 @@ public sealed class OptionsDefaultsShould
 	}
 
 	[Fact]
-	public void RetryPolicyOptionsHaveCorrectDefaults()
+	public void ElasticSearchRetryPolicyOptionsHaveCorrectDefaults()
 	{
-		var options = new RetryPolicyOptions();
+		var options = new ElasticSearchRetryPolicyOptions();
 
 		options.Enabled.ShouldBeTrue();
 		options.MaxAttempts.ShouldBe(3);

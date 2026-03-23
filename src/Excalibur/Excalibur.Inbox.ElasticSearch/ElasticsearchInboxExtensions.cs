@@ -32,7 +32,9 @@ public static class ElasticsearchInboxExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<ElasticsearchInboxStore>();
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<ElasticsearchInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("elasticsearch", (sp, _) => sp.GetRequiredService<ElasticsearchInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("elasticsearch"));
 
 		return services;
 	}

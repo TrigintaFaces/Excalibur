@@ -40,6 +40,7 @@ namespace Excalibur.Dispatch.Middleware.Auth;
 [AppliesTo(MessageKinds.All)]
 public sealed partial class TenantIdentityMiddleware : IDispatchMiddleware
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, PropertyInfo?> TenantIdPropertyCache = new();
 	private static readonly ConcurrentDictionary<string, Lazy<Regex>> TenantIdPatternRegexCache = new(StringComparer.Ordinal);
 	private static readonly Func<ILogger, string, string, string, IDisposable?> TenantLogScope =
@@ -144,13 +145,21 @@ public sealed partial class TenantIdentityMiddleware : IDispatchMiddleware
 	{
 		// Check if message has a TenantId property
 		var messageType = message.GetType();
-		var tenantProperty = TenantIdPropertyCache.GetOrAdd(
-			messageType,
-			static type =>
+
+		if (TenantIdPropertyCache.TryGetValue(messageType, out var tenantProperty))
+		{
+			// Cache hit
+		}
+		else
+		{
+			tenantProperty = messageType.GetProperty("TenantId") is { CanRead: true } prop ? prop : null;
+
+			// Bounded cache: skip caching when full to prevent unbounded memory growth
+			if (TenantIdPropertyCache.Count < MaxCacheEntries)
 			{
-				var property = type.GetProperty("TenantId");
-				return property is { CanRead: true } ? property : null;
-			});
+				TenantIdPropertyCache.TryAdd(messageType, tenantProperty);
+			}
+		}
 
 		if (tenantProperty != null)
 		{
@@ -355,11 +364,22 @@ public sealed partial class TenantIdentityMiddleware : IDispatchMiddleware
 			return null;
 		}
 
-		return TenantIdPatternRegexCache.GetOrAdd(
-			pattern,
-			static tenantPattern => new Lazy<Regex>(
-				() => new Regex(tenantPattern, RegexOptions.Compiled),
-				LazyThreadSafetyMode.ExecutionAndPublication));
+		if (TenantIdPatternRegexCache.TryGetValue(pattern, out var cached))
+		{
+			return cached;
+		}
+
+		var lazy = new Lazy<Regex>(
+			() => new Regex(pattern, RegexOptions.Compiled),
+			LazyThreadSafetyMode.ExecutionAndPublication);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (TenantIdPatternRegexCache.Count < MaxCacheEntries)
+		{
+			TenantIdPatternRegexCache.TryAdd(pattern, lazy);
+		}
+
+		return lazy;
 	}
 
 	/// <summary>

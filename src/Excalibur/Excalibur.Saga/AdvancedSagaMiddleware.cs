@@ -23,6 +23,8 @@ namespace Excalibur.Saga;
 /// </remarks>
 public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 {
+	private const int MaxCacheEntries = 1024;
+
 	private readonly ISagaOrchestrator _orchestrator;
 	private readonly ISagaStateStore _stateStore;
 	private readonly ISagaIdempotencyProvider? _idempotencyProvider;
@@ -108,7 +110,7 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 
 			return result;
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			LogSagaCancelled(_logger, sagaId);
 
@@ -133,6 +135,14 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 	}
 
 	/// <summary>
+	/// Tracks compensation operations that are in flight within this process to prevent the
+	/// TOCTOU race between <see cref="ISagaIdempotencyProvider.IsProcessedAsync"/> and
+	/// <see cref="ISagaIdempotencyProvider.MarkProcessedAsync"/>. The external provider
+	/// handles cross-process deduplication; this dictionary handles in-process atomicity.
+	/// </summary>
+	private readonly ConcurrentDictionary<string, byte> _compensationInFlight = new();
+
+	/// <summary>
 	/// Caches whether a message type has the <see cref="SagaMessageAttribute"/> to avoid repeated reflection.
 	/// </summary>
 	private static readonly ConcurrentDictionary<Type, bool> SagaMessageAttributeCache = new();
@@ -148,8 +158,20 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 
 		// Check for saga-related attributes or markers (cached to avoid per-call reflection)
 		var messageType = message.GetType();
-		return SagaMessageAttributeCache.GetOrAdd(messageType,
-			static type => type.GetCustomAttributes(typeof(SagaMessageAttribute), true).Length > 0);
+
+		if (SagaMessageAttributeCache.TryGetValue(messageType, out var cached))
+		{
+			return cached;
+		}
+
+		var result = messageType.GetCustomAttributes(typeof(SagaMessageAttribute), true).Length > 0;
+
+		if (SagaMessageAttributeCache.Count < MaxCacheEntries)
+		{
+			SagaMessageAttributeCache.TryAdd(messageType, result);
+		}
+
+		return result;
 	}
 
 	private static string? GetSagaId(IMessageContext context)
@@ -228,22 +250,31 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 			return;
 		}
 
-		// Check idempotency -- skip if this compensation was already processed
 		var compensationKey = $"{sagaId}:compensate";
-		if (_idempotencyProvider != null)
-		{
-			var alreadyProcessed = await _idempotencyProvider.IsProcessedAsync(sagaId, compensationKey, cancellationToken).ConfigureAwait(false);
-			if (alreadyProcessed)
-			{
-				LogSagaCompensationAlreadyProcessed(_logger, sagaId);
-				return;
-			}
-		}
 
-		LogSagaCompensationStarting(_logger, sagaId);
+		// Atomic in-process claim: TryAdd returns false if another thread already claimed this saga.
+		// This eliminates the TOCTOU window between IsProcessedAsync and MarkProcessedAsync.
+		if (!_compensationInFlight.TryAdd(compensationKey, 0))
+		{
+			LogSagaCompensationAlreadyProcessed(_logger, sagaId);
+			return;
+		}
 
 		try
 		{
+			// Check external idempotency store for cross-process deduplication
+			if (_idempotencyProvider != null)
+			{
+				var alreadyProcessed = await _idempotencyProvider.IsProcessedAsync(sagaId, compensationKey, cancellationToken).ConfigureAwait(false);
+				if (alreadyProcessed)
+				{
+					LogSagaCompensationAlreadyProcessed(_logger, sagaId);
+					return;
+				}
+			}
+
+			LogSagaCompensationStarting(_logger, sagaId);
+
 			await _orchestrator.CancelSagaAsync(sagaId, "Automatic compensation due to failure", cancellationToken).ConfigureAwait(false);
 
 			// Mark compensation as processed after success
@@ -255,6 +286,13 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 		catch (Exception ex)
 		{
 			LogSagaCompensationFailed(_logger, sagaId, ex);
+		}
+		finally
+		{
+			// Remove in-flight claim so that a *new* compensation request for the same saga
+			// can proceed if needed (e.g., after a retry). The external idempotency provider
+			// is the durable gate; _compensationInFlight is only a process-level TOCTOU guard.
+			_compensationInFlight.TryRemove(compensationKey, out _);
 		}
 	}
 }

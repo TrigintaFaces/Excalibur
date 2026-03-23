@@ -5,6 +5,8 @@ using Excalibur.Dispatch.Tests.Conformance.TransportProvider.Fixtures;
 
 namespace Excalibur.Dispatch.Tests.Conformance.TransportProvider.Tests;
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class RabbitMqTransportConformanceTests(RabbitMqTransportConformanceFixture fixture) : TransportConformanceSpecification<RabbitMqTransportConformanceFixture>(fixture)
 {
 }

@@ -88,7 +88,9 @@ public static class FirestoreEventStoreServiceCollectionExtensions
 	private static void RegisterServices(IServiceCollection services)
 	{
 		services.TryAddSingleton<FirestoreEventStore>();
-		services.TryAddSingleton<IEventStore>(sp => sp.GetRequiredService<FirestoreEventStore>());
+		services.AddKeyedSingleton<IEventStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreEventStore>());
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("firestore"));
 		services.TryAddSingleton<ICloudNativeEventStore>(sp => sp.GetRequiredService<FirestoreEventStore>());
 	}
 }

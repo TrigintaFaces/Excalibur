@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Soc2;
 
@@ -15,13 +16,35 @@ public sealed class Soc2ReportExporterShould
 
 	public Soc2ReportExporterShould()
 	{
-		_sut = new Soc2ReportExporter(NullLogger<Soc2ReportExporter>.Instance);
+		_sut = new Soc2ReportExporter(NullLogger<Soc2ReportExporter>.Instance, TimeProvider.System);
 	}
 
 	[Fact]
 	public void ThrowWhenLoggerIsNull()
 	{
-		Should.Throw<ArgumentNullException>(() => new Soc2ReportExporter(null!));
+		Should.Throw<ArgumentNullException>(() => new Soc2ReportExporter(null!, TimeProvider.System));
+	}
+
+	[Fact]
+	public void ThrowWhenTimeProviderIsNull()
+	{
+		Should.Throw<ArgumentNullException>(() => new Soc2ReportExporter(NullLogger<Soc2ReportExporter>.Instance, null!));
+	}
+
+	[Fact]
+	public async Task UseInjectedTimeProviderForGeneratedAt()
+	{
+		// Arrange
+		var fixedTime = new DateTimeOffset(2026, 6, 15, 10, 30, 0, TimeSpan.Zero);
+		var fakeTimeProvider = new FakeTimeProvider(fixedTime);
+		var sut = new Soc2ReportExporter(NullLogger<Soc2ReportExporter>.Instance, fakeTimeProvider);
+		var report = CreateReportWithControlSections();
+
+		// Act
+		var result = await sut.ExportAsync(report, ExportFormat.Json, null, CancellationToken.None);
+
+		// Assert
+		result.GeneratedAt.ShouldBe(fixedTime);
 	}
 
 	[Fact]

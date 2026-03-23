@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -42,7 +43,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 
 		// Act
 		var service = new InboxService(inbox, logger);
@@ -55,7 +56,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	public void Constructor_ThrowsArgumentNullException_WhenInboxIsNull()
 	{
 		// Arrange
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => new InboxService(null!, logger));
@@ -76,7 +77,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		// Act
@@ -91,7 +92,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 
 		// Act
 		var service = new InboxService(inbox, logger, drainTimeoutSeconds: 60);
@@ -105,7 +106,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		// Act
@@ -124,7 +125,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		var service = new InboxService(inbox, logger);
 
 		// Act
@@ -139,7 +140,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 		healthState.MarkStarted();
 
@@ -157,7 +158,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		var service = new InboxService(inbox, logger, healthState: null);
 
 		// Act & Assert - Should not throw
@@ -169,7 +170,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		A.CallTo(() => inbox.DisposeAsync())
 			.ThrowsAsync(new InvalidOperationException("Dispose failed"));
 
@@ -185,7 +186,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		A.CallTo(() => inbox.DisposeAsync())
 			.ThrowsAsync(new ObjectDisposedException(nameof(inbox)));
 
@@ -205,7 +206,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		string? capturedDispatcherId = null;
 		var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -249,7 +250,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => inbox.RunInboxDispatchAsync(A<string>._, A<CancellationToken>._))
@@ -289,7 +290,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 		var healthState = new BackgroundServiceHealthState();
 
 		// Delay return to allow health state check
@@ -335,7 +336,7 @@ public sealed class InboxServiceShould : UnitTestBase
 		// Arrange
 		var inbox1 = A.Fake<IInbox>();
 		var inbox2 = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 
 		string? dispatcherId1 = null;
 		string? dispatcherId2 = null;
@@ -418,7 +419,7 @@ public sealed class InboxServiceShould : UnitTestBase
 	{
 		// Arrange
 		var inbox = A.Fake<IInbox>();
-		var logger = A.Fake<ILogger<InboxService>>();
+		var logger = NullLogger<InboxService>.Instance;
 
 		var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => inbox.RunInboxDispatchAsync(A<string>._, A<CancellationToken>._))

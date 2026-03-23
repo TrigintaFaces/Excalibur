@@ -32,7 +32,7 @@ public sealed partial class MessageOutbox(
 	IOutboxStore outboxStore,
 	IOutboxProcessor outboxProcessor,
 	DispatchJsonSerializer serializer,
-	IOptions<OutboxOptions> options,
+	IOptions<OutboxDeliveryOptions> options,
 	ILogger<MessageOutbox> logger) : IOutboxDispatcher, IDisposable
 {
 	/// <summary>
@@ -47,7 +47,7 @@ public sealed partial class MessageOutbox(
 	/// </summary>
 	private readonly SemaphoreSlim _messageSignal = new(0, int.MaxValue);
 
-	private readonly OutboxOptions _options = options.Value;
+	private readonly OutboxDeliveryOptions _options = options.Value;
 
 	/// <summary>
 	/// Runs the outbox dispatch loop, continuously processing and publishing pending messages to message brokers. This method implements

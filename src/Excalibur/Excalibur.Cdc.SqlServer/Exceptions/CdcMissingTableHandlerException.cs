@@ -9,8 +9,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// <summary>
 /// Exception thrown when no implementation of <see cref="IDataChangeHandler" /> is found for a specified table.
 /// </summary>
-[Serializable]
-public class CdcMissingTableHandlerException : ApiException
+public sealed class CdcMissingTableHandlerException : ApiException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CdcMissingTableHandlerException" /> class.
@@ -53,5 +52,5 @@ public class CdcMissingTableHandlerException : ApiException
 	/// <value>
 	/// The name of the table for which the handler is missing.
 	/// </value>
-	public string TableName { get; protected set; }
+	public string TableName { get; private set; }
 }

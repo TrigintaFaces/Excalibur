@@ -29,6 +29,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.InMemory;
 [IntegrationTest]
 [Trait("Component", "Persistence")]
 [Trait("Provider", "InMemory")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemoryPersistenceIntegrationShould : IntegrationTestBase
 {
 	/// <summary>
@@ -54,7 +56,7 @@ public sealed class InMemoryPersistenceIntegrationShould : IntegrationTestBase
 		retrieved.Value.ShouldBe(42);
 
 		// Verify async connection test
-		var connectionTest = await provider.TestConnectionAsync(TestCancellationToken).ConfigureAwait(true);
+		var connectionTest = await provider.TestConnectionAsync(TestCancellationToken);
 		connectionTest.ShouldBeTrue();
 	}
 
@@ -99,7 +101,7 @@ public sealed class InMemoryPersistenceIntegrationShould : IntegrationTestBase
 		var provider = new InMemoryPersistenceProvider(options, logger);
 
 		// Act - Test connection
-		var connected = await provider.TestConnectionAsync(TestCancellationToken).ConfigureAwait(true);
+		var connected = await provider.TestConnectionAsync(TestCancellationToken);
 
 		// Assert - Provider is available
 		connected.ShouldBeTrue();
@@ -132,7 +134,7 @@ public sealed class InMemoryPersistenceIntegrationShould : IntegrationTestBase
 		provider.Store(collection2, "item-1", new TestEntity { Id = "3" });
 
 		// Act
-		var metrics = await provider.GetMetricsAsync(TestCancellationToken).ConfigureAwait(true);
+		var metrics = await provider.GetMetricsAsync(TestCancellationToken);
 
 		// Assert
 		_ = metrics.ShouldNotBeNull();
@@ -157,7 +159,7 @@ public sealed class InMemoryPersistenceIntegrationShould : IntegrationTestBase
 
 		// Act - Check initial health
 		var initialHealth = provider.IsAvailable;
-		var connectionHealth = await provider.TestConnectionAsync(TestCancellationToken).ConfigureAwait(true);
+		var connectionHealth = await provider.TestConnectionAsync(TestCancellationToken);
 
 		// Assert - Provider is healthy
 		initialHealth.ShouldBeTrue();
@@ -172,7 +174,7 @@ public sealed class InMemoryPersistenceIntegrationShould : IntegrationTestBase
 		metadata["Provider"].ShouldBe("InMemory");
 
 		// Verify connection pool stats returns null (InMemory doesn't have pooling)
-		var poolStats = await provider.GetConnectionPoolStatsAsync(TestCancellationToken).ConfigureAwait(true);
+		var poolStats = await provider.GetConnectionPoolStatsAsync(TestCancellationToken);
 		poolStats.ShouldBeNull();
 	}
 

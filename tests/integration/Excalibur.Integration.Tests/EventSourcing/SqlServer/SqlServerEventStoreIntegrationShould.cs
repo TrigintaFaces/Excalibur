@@ -91,12 +91,12 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 			new TestDomainEvent(aggregateId, 1),
 		};
 
-		var result = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		var result = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
 		result.Success.ShouldBeTrue();
 		result.NextExpectedVersion.ShouldBe(1);
 
-		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None);
 		loaded.Count.ShouldBe(2);
 		loaded[0].Version.ShouldBe(0);
 		loaded[1].Version.ShouldBe(1);
@@ -118,11 +118,11 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 		var aggregateType = "TestAggregate";
 
 		var event1 = new TestDomainEvent(aggregateId, 0);
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, [event1], -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, [event1], -1, CancellationToken.None);
 
 		// Try to append with wrong expected version
 		var event2 = new TestDomainEvent(aggregateId, 1);
-		var result = await eventStore.AppendAsync(aggregateId, aggregateType, [event2], -1, CancellationToken.None).ConfigureAwait(true);
+		var result = await eventStore.AppendAsync(aggregateId, aggregateType, [event2], -1, CancellationToken.None);
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeTrue();
@@ -150,10 +150,10 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 			new TestDomainEvent(aggregateId, 2),
 		};
 
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
 		// Load only events after version 0
-		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, 0, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, 0, CancellationToken.None);
 		loaded.Count.ShouldBe(2);
 		loaded[0].Version.ShouldBe(1);
 		loaded[1].Version.ShouldBe(2);
@@ -177,14 +177,14 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 		var testEvent = new TestDomainEvent(aggregateId, 0);
 		var events = new List<IDomainEvent> { testEvent };
 
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
-		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None).ConfigureAwait(true);
+		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None);
 		undispatched.ShouldContain(e => e.EventId == testEvent.EventId);
 
-		await eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None).ConfigureAwait(true);
+		await eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None);
 
-		var afterMark = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None).ConfigureAwait(true);
+		var afterMark = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None);
 		afterMark.ShouldNotContain(e => e.EventId == testEvent.EventId);
 	}
 
@@ -203,7 +203,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 		var aggregateId = Guid.NewGuid().ToString();
 		var aggregateType = "NonExistentAggregate";
 
-		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None);
 
 		_ = loaded.ShouldNotBeNull();
 		loaded.Count.ShouldBe(0);
@@ -231,18 +231,18 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 			new TestDomainEvent(aggregateId1, 0),
 			new TestDomainEvent(aggregateId1, 1),
 		};
-		_ = await eventStore.AppendAsync(aggregateId1, aggregateType, events1, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId1, aggregateType, events1, -1, CancellationToken.None);
 
 		// Append events to second aggregate
 		var events2 = new List<IDomainEvent>
 		{
 			new TestDomainEvent(aggregateId2, 0),
 		};
-		_ = await eventStore.AppendAsync(aggregateId2, aggregateType, events2, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId2, aggregateType, events2, -1, CancellationToken.None);
 
 		// Load and verify isolation
-		var loaded1 = await eventStore.LoadAsync(aggregateId1, aggregateType, CancellationToken.None).ConfigureAwait(true);
-		var loaded2 = await eventStore.LoadAsync(aggregateId2, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded1 = await eventStore.LoadAsync(aggregateId1, aggregateType, CancellationToken.None);
+		var loaded2 = await eventStore.LoadAsync(aggregateId2, aggregateType, CancellationToken.None);
 
 		loaded1.Count.ShouldBe(2);
 		loaded2.Count.ShouldBe(1);
@@ -275,10 +275,10 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 			new TestDomainEvent(aggregateId, 4),
 		};
 
-		var result = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		var result = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 		result.Success.ShouldBeTrue();
 
-		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None);
 		loaded.Count.ShouldBe(5);
 
 		// Verify strict version ordering
@@ -302,9 +302,9 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 		var eventStore = CreateEventStore();
 
 		// Mark all events as dispatched first by clearing the table
-		await ClearAllEventsAsync().ConfigureAwait(true);
+		await ClearAllEventsAsync();
 
-		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None).ConfigureAwait(true);
+		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None);
 
 		_ = undispatched.ShouldNotBeNull();
 		undispatched.Count.ShouldBe(0);
@@ -332,15 +332,15 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 			new TestDomainEvent(aggregateId, 2),
 		};
 
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
 		// Mark each event as dispatched one by one
 		foreach (var evt in events)
 		{
-			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None).ConfigureAwait(true);
+			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None);
 		}
 
-		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None).ConfigureAwait(true);
+		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None);
 		undispatched.ShouldNotContain(e => events.Any(evt => evt.EventId == e.EventId));
 	}
 
@@ -360,7 +360,7 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 		var aggregateType = "TestAggregate";
 
 		// Clear any existing events first
-		await ClearAllEventsAsync().ConfigureAwait(true);
+		await ClearAllEventsAsync();
 
 		// Append 5 events
 		var events = new List<IDomainEvent>
@@ -372,10 +372,10 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 			new TestDomainEvent(aggregateId, 4),
 		};
 
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
 		// Request only 3 undispatched events
-		var undispatched = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None).ConfigureAwait(true);
+		var undispatched = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
 
 		undispatched.Count.ShouldBe(3);
 	}

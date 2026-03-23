@@ -6,20 +6,20 @@ using Excalibur.Dispatch.Options.Middleware;
 namespace Excalibur.Dispatch.Tests.Options.Middleware;
 
 /// <summary>
-/// Unit tests for <see cref="OutboxOptionsValidator"/>.
+/// Unit tests for <see cref="OutboxMiddlewareOptionsValidator"/>.
 /// Sprint 563 S563.57: IValidateOptions validator tests.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Outbox")]
-public sealed class OutboxOptionsValidatorShould
+public sealed class OutboxMiddlewareOptionsValidatorShould
 {
-	private readonly OutboxOptionsValidator _validator = new();
+	private readonly OutboxMiddlewareOptionsValidator _validator = new();
 
 	[Fact]
 	public void SucceedForDefaultOptions()
 	{
 		// Arrange
-		var options = new OutboxOptions();
+		var options = new OutboxMiddlewareOptions();
 
 		// Act
 		var result = _validator.Validate(null, options);
@@ -39,35 +39,35 @@ public sealed class OutboxOptionsValidatorShould
 	public void FailWhenPublishBatchSizeIsZero()
 	{
 		// Arrange
-		var options = new OutboxOptions { PublishBatchSize = 0 };
+		var options = new OutboxMiddlewareOptions { PublishBatchSize = 0 };
 
 		// Act
 		var result = _validator.Validate(null, options);
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.PublishBatchSize));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.PublishBatchSize));
 	}
 
 	[Fact]
 	public void FailWhenPublishPollingIntervalIsZero()
 	{
 		// Arrange
-		var options = new OutboxOptions { PublishPollingInterval = TimeSpan.Zero };
+		var options = new OutboxMiddlewareOptions { PublishPollingInterval = TimeSpan.Zero };
 
 		// Act
 		var result = _validator.Validate(null, options);
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.PublishPollingInterval));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.PublishPollingInterval));
 	}
 
 	[Fact]
 	public void FailWhenMaxRetriesIsNegative()
 	{
 		// Arrange
-		var options = new OutboxOptions { Retry = { MaxRetries = -1 } };
+		var options = new OutboxMiddlewareOptions { Retry = { MaxRetries = -1 } };
 
 		// Act
 		var result = _validator.Validate(null, options);
@@ -81,7 +81,7 @@ public sealed class OutboxOptionsValidatorShould
 	public void SucceedWhenMaxRetriesIsZero()
 	{
 		// Arrange - zero retries is valid (no retries)
-		var options = new OutboxOptions { Retry = { MaxRetries = 0 } };
+		var options = new OutboxMiddlewareOptions { Retry = { MaxRetries = 0 } };
 
 		// Act
 		var result = _validator.Validate(null, options);
@@ -94,7 +94,7 @@ public sealed class OutboxOptionsValidatorShould
 	public void FailWhenRetryDelayIsZero()
 	{
 		// Arrange
-		var options = new OutboxOptions { Retry = { RetryDelay = TimeSpan.Zero } };
+		var options = new OutboxMiddlewareOptions { Retry = { RetryDelay = TimeSpan.Zero } };
 
 		// Act
 		var result = _validator.Validate(null, options);
@@ -108,35 +108,35 @@ public sealed class OutboxOptionsValidatorShould
 	public void FailWhenCleanupAgeIsZero()
 	{
 		// Arrange
-		var options = new OutboxOptions { CleanupAge = TimeSpan.Zero };
+		var options = new OutboxMiddlewareOptions { CleanupAge = TimeSpan.Zero };
 
 		// Act
 		var result = _validator.Validate(null, options);
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.CleanupAge));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.CleanupAge));
 	}
 
 	[Fact]
 	public void FailWhenCleanupIntervalIsZero()
 	{
 		// Arrange
-		var options = new OutboxOptions { CleanupInterval = TimeSpan.Zero };
+		var options = new OutboxMiddlewareOptions { CleanupInterval = TimeSpan.Zero };
 
 		// Act
 		var result = _validator.Validate(null, options);
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.CleanupInterval));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.CleanupInterval));
 	}
 
 	[Fact]
 	public void FailWhenMaxRetryDelayLessThanRetryDelay_WithExponentialBackoff()
 	{
 		// Arrange
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			Retry =
 			{
@@ -159,7 +159,7 @@ public sealed class OutboxOptionsValidatorShould
 	public void SucceedWhenMaxRetryDelayEqualsRetryDelay_WithExponentialBackoff()
 	{
 		// Arrange
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			Retry =
 			{
@@ -180,7 +180,7 @@ public sealed class OutboxOptionsValidatorShould
 	public void FailWhenMinPollingIntervalExceedsPublishPollingInterval_WithAdaptivePolling()
 	{
 		// Arrange
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			AdaptivePolling = { EnableAdaptivePolling = true, MinPollingInterval = TimeSpan.FromSeconds(10) },
 			PublishPollingInterval = TimeSpan.FromSeconds(5),
@@ -192,14 +192,14 @@ public sealed class OutboxOptionsValidatorShould
 		// Assert
 		result.Failed.ShouldBeTrue();
 		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareAdaptivePollingOptions.MinPollingInterval));
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.PublishPollingInterval));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.PublishPollingInterval));
 	}
 
 	[Fact]
 	public void FailWhenBackoffMultiplierIsOneOrLess_WithAdaptivePolling()
 	{
 		// Arrange
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			AdaptivePolling =
 			{
@@ -220,7 +220,7 @@ public sealed class OutboxOptionsValidatorShould
 	public void SucceedWhenAdaptivePollingDisabled_WithInvalidSettings()
 	{
 		// Arrange - invalid adaptive polling settings should not matter when disabled
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			AdaptivePolling =
 			{
@@ -241,7 +241,7 @@ public sealed class OutboxOptionsValidatorShould
 	public void SucceedWhenExponentialBackoffDisabled_WithInvalidMaxRetryDelay()
 	{
 		// Arrange - MaxRetryDelay < RetryDelay should not matter when exponential backoff is disabled
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			Retry =
 			{
@@ -262,7 +262,7 @@ public sealed class OutboxOptionsValidatorShould
 	public void ReportMultipleFailures()
 	{
 		// Arrange
-		var options = new OutboxOptions
+		var options = new OutboxMiddlewareOptions
 		{
 			PublishBatchSize = 0,
 			PublishPollingInterval = TimeSpan.Zero,
@@ -276,10 +276,10 @@ public sealed class OutboxOptionsValidatorShould
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.PublishBatchSize));
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.PublishPollingInterval));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.PublishBatchSize));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.PublishPollingInterval));
 		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareRetryOptions.RetryDelay));
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.CleanupAge));
-		result.FailureMessage.ShouldContain(nameof(OutboxOptions.CleanupInterval));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.CleanupAge));
+		result.FailureMessage.ShouldContain(nameof(OutboxMiddlewareOptions.CleanupInterval));
 	}
 }

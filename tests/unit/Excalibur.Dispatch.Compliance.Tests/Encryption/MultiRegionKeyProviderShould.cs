@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Encryption;
 
+[Collection("Performance Tests")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
 public sealed class MultiRegionKeyProviderShould : IDisposable

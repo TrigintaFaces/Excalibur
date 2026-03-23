@@ -6,6 +6,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 
 using Excalibur.Dispatch.Security.Diagnostics;
@@ -273,7 +274,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 		// Clear sensitive key material
 		foreach (var entry in _keyCache.Values)
 		{
-			Array.Clear(entry.Key, 0, entry.Key.Length);
+			CryptographicOperations.ZeroMemory(entry.Key);
 		}
 
 		_keyCache.Clear();
@@ -307,19 +308,19 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 			keyId = $"{keyId}:pub";
 		}
 
-		// Check cache with TTL validation
+		// Atomic check-and-refresh: read the entry and capture the key reference before
+		// any concurrent thread can zero it via TryRemove. If the entry is still valid,
+		// return the captured key. If expired, remove and refresh atomically.
 		if (_keyCache.TryGetValue(keyId, out var entry))
 		{
+			var capturedKey = entry.Key;
 			if (Stopwatch.GetTimestamp() < entry.ExpiresAtTimestamp)
 			{
-				return entry.Key;
+				return capturedKey;
 			}
 
-			// Expired - remove and clear sensitive data
-			if (_keyCache.TryRemove(keyId, out var expired))
-			{
-				Array.Clear(expired.Key, 0, expired.Key.Length);
-			}
+			// Expired - remove stale entry (don't zero: concurrent readers may still hold a reference)
+			_keyCache.TryRemove(keyId, out _);
 		}
 
 		var key = await _keyProvider.GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);

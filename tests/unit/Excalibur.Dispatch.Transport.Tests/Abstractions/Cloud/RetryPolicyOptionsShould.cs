@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Transport;
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Cloud;
 
 /// <summary>
-/// Unit tests for <see cref="RetryPolicyOptions"/> class.
+/// Unit tests for <see cref="TransportRetryPolicyOptions"/> class.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
@@ -16,7 +16,7 @@ public sealed class RetryPolicyOptionsShould
 	public void HaveThreeMaxRetryAttempts_ByDefault()
 	{
 		// Arrange & Act
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Assert
 		options.MaxRetryAttempts.ShouldBe(3);
@@ -26,7 +26,7 @@ public sealed class RetryPolicyOptionsShould
 	public void Have1000MsBaseDelay_ByDefault()
 	{
 		// Arrange & Act
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Assert
 		options.BaseDelayMs.ShouldBe(1000);
@@ -36,7 +36,7 @@ public sealed class RetryPolicyOptionsShould
 	public void Have30000MsMaxDelay_ByDefault()
 	{
 		// Arrange & Act
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Assert
 		options.MaxDelayMs.ShouldBe(30000);
@@ -46,7 +46,7 @@ public sealed class RetryPolicyOptionsShould
 	public void HaveExponentialBackoffEnabled_ByDefault()
 	{
 		// Arrange & Act
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Assert
 		options.UseExponentialBackoff.ShouldBeTrue();
@@ -56,7 +56,7 @@ public sealed class RetryPolicyOptionsShould
 	public void AllowSettingMaxRetryAttempts()
 	{
 		// Arrange
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Act
 		options.MaxRetryAttempts = 5;
@@ -69,7 +69,7 @@ public sealed class RetryPolicyOptionsShould
 	public void AllowSettingBaseDelayMs()
 	{
 		// Arrange
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Act
 		options.BaseDelayMs = 500;
@@ -82,7 +82,7 @@ public sealed class RetryPolicyOptionsShould
 	public void AllowSettingMaxDelayMs()
 	{
 		// Arrange
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Act
 		options.MaxDelayMs = 60000;
@@ -95,7 +95,7 @@ public sealed class RetryPolicyOptionsShould
 	public void AllowDisablingExponentialBackoff()
 	{
 		// Arrange
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Act
 		options.UseExponentialBackoff = false;
@@ -108,7 +108,7 @@ public sealed class RetryPolicyOptionsShould
 	public void AllowZeroMaxRetryAttempts()
 	{
 		// Arrange
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Act
 		options.MaxRetryAttempts = 0;
@@ -121,7 +121,7 @@ public sealed class RetryPolicyOptionsShould
 	public void AllowZeroBaseDelay()
 	{
 		// Arrange
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Act
 		options.BaseDelayMs = 0;
@@ -134,7 +134,7 @@ public sealed class RetryPolicyOptionsShould
 	public void HaveBaseDelayLessThanOrEqualToMaxDelay_ByDefault()
 	{
 		// Arrange & Act
-		var options = new RetryPolicyOptions();
+		var options = new TransportRetryPolicyOptions();
 
 		// Assert
 		options.BaseDelayMs.ShouldBeLessThanOrEqualTo(options.MaxDelayMs);

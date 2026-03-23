@@ -74,7 +74,7 @@ internal sealed partial class RedisLeadershipToken(
 		{
 			await ReleaseAsync(cts.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cts.IsCancellationRequested)
 		{
 			// Disposal timed out — leadership will expire naturally via Redis TTL
 			logger.LogWarning("Timed out releasing leadership for instance {InstanceId} during disposal", LeaderInstanceId);

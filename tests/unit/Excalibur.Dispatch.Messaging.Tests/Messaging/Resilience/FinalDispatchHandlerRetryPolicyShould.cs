@@ -20,11 +20,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Task: Excalibur.Dispatch-4n0b
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class FinalDispatchHandlerRetryPolicyShould
 {
 	private readonly ILogger<FinalDispatchHandler> _logger;
 	private readonly IMessageBusProvider _busProvider;
-	private readonly IDictionary<string, IMessageBusOptions> _busOptionsMap;
+	private readonly IDictionary<string, MessageBusOptions> _busOptionsMap;
 	private IMessageBus _messageBus;
 
 	public FinalDispatchHandlerRetryPolicyShould()
@@ -32,7 +33,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 		_logger = NullLoggerFactory.Instance.CreateLogger<FinalDispatchHandler>();
 		_busProvider = A.Fake<IMessageBusProvider>();
 		_messageBus = A.Fake<IMessageBus>();
-		_busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+		_busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
 		// Default setup: bus provider returns the fake message bus
 		SetupBusProvider(_messageBus);
@@ -422,5 +423,5 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 	/// <summary>
 	/// Test message bus options.
 	/// </summary>
-	private sealed class TestMessageBusOptions : IMessageBusOptions;
+	private sealed class TestMessageBusOptions : MessageBusOptions;
 }

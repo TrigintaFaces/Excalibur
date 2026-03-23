@@ -13,6 +13,7 @@ namespace Excalibur.Tests.Testing;
 /// Unit tests for <see cref="AggregateTestFixture{TAggregate}"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Testing")]
 public sealed class AggregateTestFixtureShould
 {
 	#region Given Tests

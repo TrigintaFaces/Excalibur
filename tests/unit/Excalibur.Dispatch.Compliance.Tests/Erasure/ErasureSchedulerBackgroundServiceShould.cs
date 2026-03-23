@@ -181,7 +181,8 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		var options = new ErasureSchedulerOptions
 		{
 			Enabled = true,
-			PollingInterval = TimeSpan.FromMilliseconds(50)
+			PollingInterval = TimeSpan.FromMilliseconds(50),
+			MaxRetryAttempts = 0
 		};
 
 		var sut = new ErasureSchedulerBackgroundService(
@@ -233,7 +234,8 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		var options = new ErasureSchedulerOptions
 		{
 			Enabled = true,
-			PollingInterval = TimeSpan.FromMilliseconds(50)
+			PollingInterval = TimeSpan.FromMilliseconds(50),
+			MaxRetryAttempts = 0
 		};
 
 		var sut = new ErasureSchedulerBackgroundService(
@@ -343,6 +345,85 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 
 		// Should have tried to get the query store
 		A.CallTo(() => erasureStore.GetService(typeof(IErasureQueryStore)))
+			.MustHaveHappened();
+	}
+
+	[Fact]
+	public async Task Retry_failed_erasure_before_marking_permanently_failed()
+	{
+		// Regression test for Sprint 677 T.10 (j13lz): retry logic with exponential backoff.
+		// With MaxRetryAttempts=2, the first failure should reschedule (Scheduled),
+		// and the second failure should mark as Failed.
+		var requestId = Guid.NewGuid();
+		var erasureStore = A.Fake<IErasureStore>();
+		var erasureService = A.Fake<IErasureService>();
+		var queryStore = A.Fake<IErasureQueryStore>();
+		var failedStatusUpdated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var retryStatusUpdated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		A.CallTo(() => erasureStore.GetService(typeof(IErasureQueryStore)))
+			.Returns(queryStore);
+
+		var scheduledRequest = CreateErasureStatus(requestId);
+
+		// Return the same request repeatedly so the retry cycle can run
+		A.CallTo(() => queryStore.GetScheduledRequestsAsync(A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() => Task.FromResult<IReadOnlyList<ErasureStatus>>([scheduledRequest]));
+
+		// Always fail
+		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
+			.Returns(ErasureExecutionResult.Failed("Simulated failure"));
+
+		// Track Scheduled (retry) vs Failed (final) status updates
+		A.CallTo(() => erasureStore.UpdateStatusAsync(
+				requestId, ErasureRequestStatus.Scheduled, A<string>._, A<CancellationToken>._))
+			.Invokes(() => retryStatusUpdated.TrySetResult(true))
+			.Returns(true);
+
+		A.CallTo(() => erasureStore.UpdateStatusAsync(
+				requestId, ErasureRequestStatus.Failed, A<string>._, A<CancellationToken>._))
+			.Invokes(() => failedStatusUpdated.TrySetResult(true))
+			.Returns(true);
+
+		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
+
+		var options = new ErasureSchedulerOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(50),
+			MaxRetryAttempts = 2,
+			RetryDelayBase = TimeSpan.FromMilliseconds(10),
+			UseExponentialBackoff = true
+		};
+
+		var sut = new ErasureSchedulerBackgroundService(
+			scopeFactory,
+			Microsoft.Extensions.Options.Options.Create(options),
+			NullLogger<ErasureSchedulerBackgroundService>.Instance);
+
+		using var cts = new CancellationTokenSource();
+		await sut.StartAsync(cts.Token).ConfigureAwait(false);
+
+		// First failure should reschedule
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			retryStatusUpdated.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+
+		// After enough retries, should mark as permanently failed
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			failedStatusUpdated.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+
+		await cts.CancelAsync().ConfigureAwait(false);
+		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+		// Verify: at least one Scheduled (retry) update happened before the final Failed
+		A.CallTo(() => erasureStore.UpdateStatusAsync(
+				requestId, ErasureRequestStatus.Scheduled, A<string>._, A<CancellationToken>._))
+			.MustHaveHappened();
+
+		A.CallTo(() => erasureStore.UpdateStatusAsync(
+				requestId, ErasureRequestStatus.Failed, A<string>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 

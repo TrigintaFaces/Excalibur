@@ -4,12 +4,14 @@
 using System.IO.Compression;
 using System.Text;
 
+using Excalibur.Data.InMemory.Snapshots;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Snapshots.Compression;
-using Excalibur.EventSourcing.Snapshots.InMemory;
 
 using FakeItEasy;
+
+using Microsoft.Extensions.Logging.Abstractions;
 
 using Shouldly;
 
@@ -22,6 +24,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Snapshots;
 /// round-trips, small payload bypass, and mixed-mode reads.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class CompressingSnapshotStoreFunctionalShould
 {
 	private static ISnapshot CreateSnapshot(string aggregateId, long version, byte[] data)
@@ -36,11 +39,15 @@ public sealed class CompressingSnapshotStoreFunctionalShould
 		return snapshot;
 	}
 
+	private static InMemorySnapshotStore CreateInMemoryStore() =>
+		new(Microsoft.Extensions.Options.Options.Create(new InMemorySnapshotOptions()),
+			NullLogger<InMemorySnapshotStore>.Instance);
+
 	[Fact]
 	public async Task BrotliCompression_ShouldRoundTrip()
 	{
 		// Arrange
-		var innerStore = new InMemorySnapshotStore();
+		var innerStore = CreateInMemoryStore();
 		var options = Microsoft.Extensions.Options.Options.Create(new SnapshotCompressionOptions
 		{
 			Algorithm = SnapshotCompressionAlgorithm.Brotli,
@@ -66,7 +73,7 @@ public sealed class CompressingSnapshotStoreFunctionalShould
 	public async Task GZipCompression_ShouldRoundTrip()
 	{
 		// Arrange
-		var innerStore = new InMemorySnapshotStore();
+		var innerStore = CreateInMemoryStore();
 		var options = Microsoft.Extensions.Options.Options.Create(new SnapshotCompressionOptions
 		{
 			Algorithm = SnapshotCompressionAlgorithm.GZip,
@@ -91,7 +98,7 @@ public sealed class CompressingSnapshotStoreFunctionalShould
 	public async Task SmallPayload_ShouldSkipCompression()
 	{
 		// Arrange
-		var innerStore = new InMemorySnapshotStore();
+		var innerStore = CreateInMemoryStore();
 		var options = Microsoft.Extensions.Options.Options.Create(new SnapshotCompressionOptions
 		{
 			MinimumSizeBytes = 1000, // Only compress data >= 1000 bytes
@@ -119,7 +126,7 @@ public sealed class CompressingSnapshotStoreFunctionalShould
 	public async Task GetLatestSnapshot_NonExistent_ShouldReturnNull()
 	{
 		// Arrange
-		var innerStore = new InMemorySnapshotStore();
+		var innerStore = CreateInMemoryStore();
 		var options = Microsoft.Extensions.Options.Options.Create(new SnapshotCompressionOptions());
 		var sut = new CompressingSnapshotStore(innerStore, options);
 
@@ -134,7 +141,7 @@ public sealed class CompressingSnapshotStoreFunctionalShould
 	public async Task LargePayload_ShouldCompressAndDecompress()
 	{
 		// Arrange
-		var innerStore = new InMemorySnapshotStore();
+		var innerStore = CreateInMemoryStore();
 		var options = Microsoft.Extensions.Options.Options.Create(new SnapshotCompressionOptions
 		{
 			Algorithm = SnapshotCompressionAlgorithm.Brotli,
@@ -164,7 +171,7 @@ public sealed class CompressingSnapshotStoreFunctionalShould
 	[Fact]
 	public void Constructor_ShouldThrowOnNullOptions()
 	{
-		var innerStore = new InMemorySnapshotStore();
+		var innerStore = CreateInMemoryStore();
 		Should.Throw<ArgumentNullException>(() =>
 			new CompressingSnapshotStore(innerStore, null!));
 	}

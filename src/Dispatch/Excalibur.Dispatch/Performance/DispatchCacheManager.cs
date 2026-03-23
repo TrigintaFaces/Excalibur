@@ -32,7 +32,7 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 	private readonly ILogger<DispatchCacheManager> _logger;
 	private readonly PipelineProfileRegistry? _profileRegistry;
 	private readonly TimeSpan _freezeLockTimeout;
-	private readonly object _freezeLock = new();
+	private readonly object _freezeLock = new(); // Uses Monitor.TryEnter — must remain object
 	private DateTimeOffset? _frozenAt;
 
 	/// <summary>

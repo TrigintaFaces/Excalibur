@@ -15,6 +15,7 @@ namespace Excalibur.EventSourcing.Tests;
 /// Unit tests for <see cref="AggregateRoot"/> and <see cref="AggregateRoot{TKey}"/> base classes.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class AggregateRootShould
 {
 	#region Test Domain Events

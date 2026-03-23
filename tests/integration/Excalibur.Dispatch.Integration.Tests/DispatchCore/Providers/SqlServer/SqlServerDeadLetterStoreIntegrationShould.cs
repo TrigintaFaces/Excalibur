@@ -28,6 +28,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [Trait("Component", "Data")]
 [Trait("Provider", "SqlServer")]
 [SuppressMessage("Design", "CA1506", Justification = "Integration test requires multiple dependencies for proper setup")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly SqlServerFixture _sqlFixture;
@@ -50,13 +52,13 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task StoreAndRetrieveDeadLetterMessage()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
 		var store = CreateDeadLetterStore();
 		var message = CreateTestDeadLetterMessage();
 
 		// Act
-		await store.StoreAsync(message, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetByIdAsync(message.MessageId, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(message, TestCancellationToken);
+		var loaded = await store.GetByIdAsync(message.MessageId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -75,11 +77,11 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task ReturnNullForNonExistentMessage()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
 		var store = CreateDeadLetterStore();
 
 		// Act
-		var loaded = await store.GetByIdAsync("non-existent-id", TestCancellationToken).ConfigureAwait(true);
+		var loaded = await store.GetByIdAsync("non-existent-id", TestCancellationToken);
 
 		// Assert
 		loaded.ShouldBeNull();
@@ -94,21 +96,21 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task FilterMessagesByType()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
-		await ClearAllMessagesAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
+		await ClearAllMessagesAsync();
 		var store = CreateDeadLetterStore();
 
 		var message1 = CreateTestDeadLetterMessage(messageType: "OrderCreated");
 		var message2 = CreateTestDeadLetterMessage(messageType: "OrderCreated");
 		var message3 = CreateTestDeadLetterMessage(messageType: "PaymentFailed");
 
-		await store.StoreAsync(message1, TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(message2, TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(message3, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(message1, TestCancellationToken);
+		await store.StoreAsync(message2, TestCancellationToken);
+		await store.StoreAsync(message3, TestCancellationToken);
 
 		// Act
 		var filter = new DeadLetterFilter { MessageType = "OrderCreated" };
-		var results = (await store.GetMessagesAsync(filter, TestCancellationToken).ConfigureAwait(true)).ToList();
+		var results = (await store.GetMessagesAsync(filter, TestCancellationToken)).ToList();
 
 		// Assert
 		results.Count.ShouldBe(2);
@@ -124,16 +126,16 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task CountDeadLetterMessages()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
-		await ClearAllMessagesAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
+		await ClearAllMessagesAsync();
 		var store = CreateDeadLetterStore();
 
-		await store.StoreAsync(CreateTestDeadLetterMessage(), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateTestDeadLetterMessage(), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateTestDeadLetterMessage(), TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(CreateTestDeadLetterMessage(), TestCancellationToken);
+		await store.StoreAsync(CreateTestDeadLetterMessage(), TestCancellationToken);
+		await store.StoreAsync(CreateTestDeadLetterMessage(), TestCancellationToken);
 
 		// Act
-		var count = await store.GetCountAsync(TestCancellationToken).ConfigureAwait(true);
+		var count = await store.GetCountAsync(TestCancellationToken);
 
 		// Assert
 		count.ShouldBe(3);
@@ -148,15 +150,15 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task DeleteDeadLetterMessage()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
 		var store = CreateDeadLetterStore();
 		var message = CreateTestDeadLetterMessage();
 
-		await store.StoreAsync(message, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(message, TestCancellationToken);
 
 		// Act
-		var deleted = await store.DeleteAsync(message.MessageId, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetByIdAsync(message.MessageId, TestCancellationToken).ConfigureAwait(true);
+		var deleted = await store.DeleteAsync(message.MessageId, TestCancellationToken);
+		var loaded = await store.GetByIdAsync(message.MessageId, TestCancellationToken);
 
 		// Assert
 		deleted.ShouldBeTrue();
@@ -170,11 +172,11 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task ReturnFalseWhenDeletingNonExistentMessage()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
 		var store = CreateDeadLetterStore();
 
 		// Act
-		var deleted = await store.DeleteAsync("non-existent-id", TestCancellationToken).ConfigureAwait(true);
+		var deleted = await store.DeleteAsync("non-existent-id", TestCancellationToken);
 
 		// Assert
 		deleted.ShouldBeFalse();
@@ -189,15 +191,15 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task MarkMessageAsReplayed()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
 		var store = CreateDeadLetterStore();
 		var message = CreateTestDeadLetterMessage();
 
-		await store.StoreAsync(message, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(message, TestCancellationToken);
 
 		// Act
-		await store.MarkAsReplayedAsync(message.MessageId, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetByIdAsync(message.MessageId, TestCancellationToken).ConfigureAwait(true);
+		await store.MarkAsReplayedAsync(message.MessageId, TestCancellationToken);
+		var loaded = await store.GetByIdAsync(message.MessageId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -214,25 +216,25 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task CleanupOldMessages()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
-		await ClearAllMessagesAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
+		await ClearAllMessagesAsync();
 		var store = CreateDeadLetterStore();
 
 		// Store a message with old timestamp
 		var oldMessage = CreateTestDeadLetterMessage();
 		oldMessage.MovedToDeadLetterAt = DateTimeOffset.UtcNow.AddDays(-31);
-		await store.StoreAsync(oldMessage, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(oldMessage, TestCancellationToken);
 
 		// Store a recent message
 		var recentMessage = CreateTestDeadLetterMessage();
-		await store.StoreAsync(recentMessage, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(recentMessage, TestCancellationToken);
 
 		// Act - cleanup messages older than 30 days
-		var cleanedUp = await store.CleanupOldMessagesAsync(30, TestCancellationToken).ConfigureAwait(true);
+		var cleanedUp = await store.CleanupOldMessagesAsync(30, TestCancellationToken);
 
 		// Assert
 		cleanedUp.ShouldBe(1);
-		var remaining = await store.GetCountAsync(TestCancellationToken).ConfigureAwait(true);
+		var remaining = await store.GetCountAsync(TestCancellationToken);
 		remaining.ShouldBe(1);
 	}
 
@@ -245,21 +247,21 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task FilterMessagesBySourceSystem()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
-		await ClearAllMessagesAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
+		await ClearAllMessagesAsync();
 		var store = CreateDeadLetterStore();
 
 		var message1 = CreateTestDeadLetterMessage(sourceSystem: "OrderService");
 		var message2 = CreateTestDeadLetterMessage(sourceSystem: "OrderService");
 		var message3 = CreateTestDeadLetterMessage(sourceSystem: "PaymentService");
 
-		await store.StoreAsync(message1, TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(message2, TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(message3, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(message1, TestCancellationToken);
+		await store.StoreAsync(message2, TestCancellationToken);
+		await store.StoreAsync(message3, TestCancellationToken);
 
 		// Act
 		var filter = new DeadLetterFilter { SourceSystem = "OrderService" };
-		var results = (await store.GetMessagesAsync(filter, TestCancellationToken).ConfigureAwait(true)).ToList();
+		var results = (await store.GetMessagesAsync(filter, TestCancellationToken)).ToList();
 
 		// Assert
 		results.Count.ShouldBe(2);
@@ -275,15 +277,15 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	public async Task PreserveCustomProperties()
 	{
 		// Arrange
-		await InitializeDeadLetterTableAsync().ConfigureAwait(true);
+		await InitializeDeadLetterTableAsync();
 		var store = CreateDeadLetterStore();
 		var message = CreateTestDeadLetterMessage();
 		message.Properties["CustomKey"] = "CustomValue";
 		message.Properties["AnotherKey"] = "AnotherValue";
 
 		// Act
-		await store.StoreAsync(message, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetByIdAsync(message.MessageId, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(message, TestCancellationToken);
+		var loaded = await store.GetByIdAsync(message.MessageId, TestCancellationToken);
 
 		// Assert
 		_ = loaded.ShouldNotBeNull();
@@ -328,8 +330,8 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 	private async Task ClearAllMessagesAsync()
 	{
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync("DELETE FROM [dbo].[DeadLetterMessages]").ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync("DELETE FROM [dbo].[DeadLetterMessages]");
 	}
 
 	private async Task InitializeDeadLetterTableAsync()
@@ -362,7 +364,7 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 			""";
 
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync(createTableSql).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync(createTableSql);
 	}
 }

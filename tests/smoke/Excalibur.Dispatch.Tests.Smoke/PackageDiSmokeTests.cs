@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Tests.Smoke;
 /// </summary>
 [Trait("Category", "Smoke")]
 [Trait("Component", "Platform")]
-public class PackageDiSmokeTests
+public sealed class PackageDiSmokeTests
 {
 	/// <summary>
 	/// Verifies that each package's primary DI registration succeeds without throwing.
@@ -150,7 +150,7 @@ public class PackageDiSmokeTests
 		// ══════════════════════════════════════════════════════════
 
 		yield return Reg("Excalibur.Dispatch.Security", s =>
-			Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddDispatchSecurity(
+			Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(
 				s, (Excalibur.Dispatch.Security.SecurityOptions opt) => { }));
 		yield return Reg("Excalibur.Dispatch.Security.Azure", s => s.AddAzureServiceBusSecurityValidation());
 
@@ -304,7 +304,6 @@ public class PackageDiSmokeTests
 		yield return Reg("Excalibur.Domain [Metrics]", s => s.AddExcaliburMetrics());
 		yield return Reg("Excalibur.Data", s => s.AddExcaliburDataServices());
 		yield return Reg("Excalibur.Data [Persistence]", s => s.AddPersistence());
-		yield return Reg("Excalibur.Data.Abstractions [Transactions]", s => s.AddDistributedTransactions());
 		yield return Reg("Excalibur.Data.InMemory [SnapshotStore]", s => s.AddInMemorySnapshotStore());
 		yield return Reg("Excalibur.Data.InMemory [InboxStore]", s => s.AddInMemoryInboxStore());
 		yield return Reg("Excalibur.Data.InMemory [OutboxStore]", s => s.AddInMemoryOutboxStore());

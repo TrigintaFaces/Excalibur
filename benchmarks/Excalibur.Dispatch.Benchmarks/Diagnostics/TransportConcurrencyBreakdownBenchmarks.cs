@@ -6,6 +6,7 @@ using BenchmarkDotNet.Attributes;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Benchmarks.Diagnostics.Support;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,7 @@ public class TransportConcurrencyBreakdownBenchmarks
 	private ServiceProvider? _provider;
 	private IDispatcher? _dispatcher;
 	private InMemoryTransportAdapter? _adapter;
+	private IMessageContext? _messageContext;
 	private TransportConcurrencyCommand _command = null!;
 
 	[Params(256, 4096)]
@@ -48,6 +50,7 @@ public class TransportConcurrencyBreakdownBenchmarks
 
 		var payload = new string('x', PayloadSizeBytes);
 		_command = new TransportConcurrencyCommand(payload);
+		_messageContext = new MessageContext(_command, _provider!);
 	}
 
 	[IterationSetup]
@@ -74,7 +77,7 @@ public class TransportConcurrencyBreakdownBenchmarks
 		var tasks = new Task[Concurrency];
 		for (var i = 0; i < tasks.Length; i++)
 		{
-			tasks[i] = _adapter!.SendAsync(_command, "local", CancellationToken.None);
+			tasks[i] = _adapter!.SendAsync(_command, "local", _messageContext!, CancellationToken.None);
 		}
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -109,7 +112,7 @@ public class TransportConcurrencyBreakdownBenchmarks
 
 	private async Task<IMessageResult> PublishThenReceiveAsync()
 	{
-		await _adapter!.SendAsync(_command, "local", CancellationToken.None).ConfigureAwait(false);
+		await _adapter!.SendAsync(_command, "local", _messageContext!, CancellationToken.None).ConfigureAwait(false);
 		return await _adapter.ReceiveAsync(_command, _dispatcher!, CancellationToken.None).ConfigureAwait(false);
 	}
 

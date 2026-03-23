@@ -210,6 +210,11 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 			pubsubMessage.Attributes["correlation-id"] = message.CorrelationId;
 		}
 
+		if (!string.IsNullOrWhiteSpace(message.CausationId))
+		{
+			pubsubMessage.Attributes["causation-id"] = message.CausationId;
+		}
+
 		if (!string.IsNullOrWhiteSpace(message.MessageType))
 		{
 			pubsubMessage.Attributes["message-type"] = message.MessageType;

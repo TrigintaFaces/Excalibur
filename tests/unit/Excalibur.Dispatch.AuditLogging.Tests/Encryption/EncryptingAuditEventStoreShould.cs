@@ -8,7 +8,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Encryption;
 
-public class EncryptingAuditEventStoreShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class EncryptingAuditEventStoreShould
 {
     private readonly IAuditStore _innerStore = A.Fake<IAuditStore>();
     private readonly IEncryptionProvider _encryption = A.Fake<IEncryptionProvider>();

@@ -16,10 +16,10 @@ public sealed class AwsSqsRetryOptionsShould
 		var options = new AwsSqsRetryOptions();
 
 		// Assert
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.BaseDelay.ShouldBe(TimeSpan.FromMilliseconds(200));
 		options.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
-		options.RetryStrategy.ShouldBe(RetryStrategy.Exponential);
+		options.RetryStrategy.ShouldBe(SqsRetryStrategy.Exponential);
 	}
 
 	[Fact]
@@ -28,16 +28,16 @@ public sealed class AwsSqsRetryOptionsShould
 		// Arrange & Act
 		var options = new AwsSqsRetryOptions
 		{
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			BaseDelay = TimeSpan.FromMilliseconds(500),
 			MaxDelay = TimeSpan.FromMinutes(1),
-			RetryStrategy = RetryStrategy.Linear,
+			RetryStrategy = SqsRetryStrategy.Linear,
 		};
 
 		// Assert
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.BaseDelay.ShouldBe(TimeSpan.FromMilliseconds(500));
 		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
-		options.RetryStrategy.ShouldBe(RetryStrategy.Linear);
+		options.RetryStrategy.ShouldBe(SqsRetryStrategy.Linear);
 	}
 }

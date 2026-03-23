@@ -23,7 +23,7 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	{
 		// Arrange
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
 
 		// Act & Assert
@@ -36,7 +36,7 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	{
 		// Arrange
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
 
 		// Act & Assert

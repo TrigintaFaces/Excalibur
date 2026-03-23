@@ -22,9 +22,9 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 {
 	/// <summary>
-	/// Test implementation of IMessageBusOptions for testing purposes.
+	/// Test implementation of MessageBusOptions for testing purposes.
 	/// </summary>
-	private sealed class TestMessageBusOptions : IMessageBusOptions
+	private sealed class TestMessageBusOptions : MessageBusOptions
 	{
 		public TestMessageBusOptions(string? name = "TestBus")
 		{

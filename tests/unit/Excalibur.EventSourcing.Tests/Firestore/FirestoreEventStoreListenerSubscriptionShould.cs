@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.EventSourcing.Tests.Firestore;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",

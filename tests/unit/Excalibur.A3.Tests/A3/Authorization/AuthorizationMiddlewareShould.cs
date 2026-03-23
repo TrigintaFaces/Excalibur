@@ -45,10 +45,10 @@ public sealed class AuthorizationMiddlewareShould
 	}
 
 	[Fact]
-	public void BePublicAndSealed()
+	public void BeInternalAndSealed()
 	{
-		// Assert
-		typeof(A3AuthorizationMiddleware).IsPublic.ShouldBeTrue();
+		// Assert - T.7: middleware classes moved to internal visibility
+		typeof(A3AuthorizationMiddleware).IsPublic.ShouldBeFalse();
 		typeof(A3AuthorizationMiddleware).IsSealed.ShouldBeTrue();
 	}
 

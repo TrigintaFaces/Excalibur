@@ -46,7 +46,8 @@ public sealed class NullComponentValueObject : ValueObjectBase
 }
 
 [Trait("Category", "Unit")]
-public class ValueObjectBaseFunctionalShould
+[Trait("Component", "Domain")]
+public sealed class ValueObjectBaseFunctionalShould
 {
     [Fact]
     public void Equals_SameComponents_ShouldBeTrue()

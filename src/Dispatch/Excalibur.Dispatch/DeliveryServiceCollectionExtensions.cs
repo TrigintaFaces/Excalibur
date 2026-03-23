@@ -14,7 +14,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using DeliveryInboxOptions = Excalibur.Dispatch.Options.Delivery.InboxOptions;
-using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxOptions;
+using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -43,7 +43,7 @@ public static class DeliveryServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.TryAddSingleton<IOutboxStore, TStore>();
+		services.AddKeyedSingleton<IOutboxStore, TStore>("default");
 
 		// Note: IOutboxProcessor and IOutboxDispatcher implementations are now in Excalibur.Outbox
 		// Use Excalibur.Outbox DI extensions to register those implementations
@@ -86,7 +86,7 @@ public static class DeliveryServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.TryAddSingleton<IInboxStore, TStore>();
+		services.AddKeyedSingleton<IInboxStore, TStore>("default");
 
 		// Note: IInboxProcessor, IInbox, and IInMemoryDeduplicator implementations are now in Excalibur.Outbox
 		// Use Excalibur.Outbox DI extensions to register those implementations

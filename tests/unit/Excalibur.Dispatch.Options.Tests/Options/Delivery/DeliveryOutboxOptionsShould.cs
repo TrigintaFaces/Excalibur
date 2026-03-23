@@ -6,12 +6,12 @@ using Excalibur.Dispatch.Options.Delivery;
 namespace Excalibur.Dispatch.Tests.Options.Delivery;
 
 /// <summary>
-/// Unit tests for <see cref="OutboxOptions"/> in the Delivery namespace.
+/// Unit tests for <see cref="OutboxDeliveryOptions"/> in the Delivery namespace.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Options")]
 [Trait("Priority", "0")]
-public sealed class DeliveryOutboxOptionsShould
+public sealed class DeliveryOutboxDeliveryOptionsShould
 {
 	#region Default Value Tests
 
@@ -19,7 +19,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_PerRunTotal_Is1000()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.PerRunTotal.ShouldBe(1000);
@@ -29,7 +29,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_QueueCapacity_Is1000()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.QueueCapacity.ShouldBe(1000);
@@ -39,7 +39,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_ParallelProcessingDegree_IsOne()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
@@ -49,7 +49,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_EnableDynamicBatchSizing_IsFalse()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
@@ -59,7 +59,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_MinBatchSize_IsTen()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.BatchProcessing.MinBatchSize.ShouldBe(10);
@@ -69,7 +69,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_MaxBatchSize_Is1000()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.BatchProcessing.MaxBatchSize.ShouldBe(1000);
@@ -79,7 +79,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_BatchProcessingTimeout_Is5Minutes()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
@@ -89,7 +89,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_EnableBatchDatabaseOperations_IsTrue()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.EnableBatchDatabaseOperations.ShouldBeTrue();
@@ -99,7 +99,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Default_DeliveryGuarantee_IsAtLeastOnce()
 	{
 		// Arrange & Act
-		var options = new OutboxOptions();
+		var options = new OutboxDeliveryOptions();
 
 		// Assert
 		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.AtLeastOnce);
@@ -113,7 +113,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void HighThroughput_ReturnsConfiguredOptions()
 	{
 		// Act
-		var options = OutboxOptions.HighThroughput();
+		var options = OutboxDeliveryOptions.HighThroughput();
 
 		// Assert
 		options.PerRunTotal.ShouldBe(10000);
@@ -128,7 +128,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Balanced_ReturnsConfiguredOptions()
 	{
 		// Act
-		var options = OutboxOptions.Balanced();
+		var options = OutboxDeliveryOptions.Balanced();
 
 		// Assert
 		options.PerRunTotal.ShouldBe(1000);
@@ -142,7 +142,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void HighReliability_ReturnsConfiguredOptions()
 	{
 		// Act
-		var options = OutboxOptions.HighReliability();
+		var options = OutboxDeliveryOptions.HighReliability();
 
 		// Assert
 		options.PerRunTotal.ShouldBe(100);
@@ -161,7 +161,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void WithBatchSize_ReturnsNewInstanceWithUpdatedBatchSize()
 	{
 		// Arrange
-		var original = OutboxOptions.Balanced();
+		var original = OutboxDeliveryOptions.Balanced();
 
 		// Act
 		var modified = original.WithBatchSize(500);
@@ -176,7 +176,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void WithParallelDegree_ReturnsNewInstanceWithUpdatedParallelism()
 	{
 		// Arrange
-		var original = OutboxOptions.Balanced();
+		var original = OutboxDeliveryOptions.Balanced();
 
 		// Act
 		var modified = original.WithParallelDegree(8);
@@ -190,7 +190,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void WithDeliveryGuarantee_ReturnsNewInstanceWithUpdatedGuarantee()
 	{
 		// Arrange
-		var original = OutboxOptions.Balanced();
+		var original = OutboxDeliveryOptions.Balanced();
 
 		// Act
 		var modified = original.WithDeliveryGuarantee(OutboxDeliveryGuarantee.MinimizedWindow);
@@ -204,7 +204,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void WithMaxAttempts_ReturnsNewInstanceWithUpdatedAttempts()
 	{
 		// Arrange
-		var original = OutboxOptions.Balanced();
+		var original = OutboxDeliveryOptions.Balanced();
 
 		// Act
 		var modified = original.WithMaxAttempts(7);
@@ -218,7 +218,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void WithTimeout_ReturnsNewInstanceWithUpdatedTimeout()
 	{
 		// Arrange
-		var original = OutboxOptions.Balanced();
+		var original = OutboxDeliveryOptions.Balanced();
 
 		// Act
 		var modified = original.WithTimeout(TimeSpan.FromMinutes(15));
@@ -232,7 +232,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void FluentMethods_CanBeChained()
 	{
 		// Act
-		var options = OutboxOptions.HighThroughput()
+		var options = OutboxDeliveryOptions.HighThroughput()
 			.WithBatchSize(500)
 			.WithParallelDegree(4)
 			.WithMaxAttempts(5);
@@ -251,10 +251,10 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Validate_ReturnsNull_ForValidOptions()
 	{
 		// Arrange
-		var options = OutboxOptions.Balanced();
+		var options = OutboxDeliveryOptions.Balanced();
 
 		// Act
-		var result = OutboxOptions.Validate(options);
+		var result = OutboxDeliveryOptions.Validate(options);
 
 		// Assert
 		result.ShouldBeNull();
@@ -264,7 +264,7 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Validate_ReturnsError_WhenQueueCapacityIsZero()
 	{
 		// Arrange
-		var options = new OutboxOptions
+		var options = new OutboxDeliveryOptions
 		{
 			PerRunTotal = 100,
 			QueueCapacity = 0,
@@ -274,7 +274,7 @@ public sealed class DeliveryOutboxOptionsShould
 		};
 
 		// Act
-		var result = OutboxOptions.Validate(options);
+		var result = OutboxDeliveryOptions.Validate(options);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -285,11 +285,11 @@ public sealed class DeliveryOutboxOptionsShould
 	public void Validate_ReturnsError_WhenBatchProcessingTimeoutIsZero()
 	{
 		// Arrange
-		var options = OutboxOptions.Balanced();
+		var options = OutboxDeliveryOptions.Balanced();
 		options.BatchProcessing.BatchProcessingTimeout = TimeSpan.Zero;
 
 		// Act
-		var result = OutboxOptions.Validate(options);
+		var result = OutboxDeliveryOptions.Validate(options);
 
 		// Assert
 		_ = result.ShouldNotBeNull();

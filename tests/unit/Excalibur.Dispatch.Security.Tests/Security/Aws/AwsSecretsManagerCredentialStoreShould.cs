@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Security.Tests.Aws;
 /// Verifies Sprint 390 implementation: AWS credential store moved to dedicated package.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 {
 	[Fact]

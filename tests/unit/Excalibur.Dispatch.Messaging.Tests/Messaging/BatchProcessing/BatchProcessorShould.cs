@@ -247,7 +247,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		var options = new MicroBatchOptions
 		{
 			MaxBatchSize = 1,
-			MaxBatchDelay = TimeSpan.FromSeconds(10),
+			MaxBatchDelay = TimeSpan.FromMilliseconds(50), // Short delay to avoid flakiness under load
 		};
 
 		var processor = new BatchProcessor<string>(
@@ -263,6 +263,13 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		// First item should succeed via TryWrite
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
+
+		// Poll for processing before dispose to avoid race under heavy CI load
+		_ = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref processedCount) >= 1,
+			TimeSpan.FromSeconds(5),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+
 		await processor.DisposeAsync().ConfigureAwait(false);
 		Volatile.Read(ref processedCount).ShouldBe(1);
 	}

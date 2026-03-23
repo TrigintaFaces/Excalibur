@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.CloudNative;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Options.Resilience;
 
 namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
@@ -11,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
 ///     Tests for the <see cref="CircuitBreakerPattern" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 {
 	private readonly CircuitBreakerOptions _options;

@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 /// Automatically provisions a Google Pub/Sub emulator container for testing.
 /// </summary>
 [Trait("Category", "Integration")]
+[Trait("Component", "Transport")]
 [Trait("Transport", "GooglePubSub")]
 public sealed class GooglePubSubTransportConformanceTests
 	: TransportConformanceTestBase<GooglePubSubChannelSender, GooglePubSubChannelReceiver>

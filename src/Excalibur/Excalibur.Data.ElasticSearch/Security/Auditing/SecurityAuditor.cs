@@ -54,7 +54,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private readonly ConcurrentQueue<SecurityAuditEvent> _normalEventQueue = new();
 	private readonly ConcurrentQueue<SecurityAuditEvent> _priorityEventQueue = new();
 	private readonly Timer _auditEventProcessor;
-	private readonly ConcurrentBag<Task> _trackedTasks = [];
+	private ConcurrentBag<Task> _trackedTasks = [];
 	private volatile bool _disposed;
 
 	// Focused service delegates
@@ -119,6 +119,8 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
 
 		_trackedTasks.Add(InitializeAuditIndicesAsync());
+
+		// Note: drain not needed here -- this is a one-time initialization call
 
 		_logger.LogInformation(
 			"SecurityAuditor initialized with {FrameworkCount} compliance frameworks enabled",
@@ -323,7 +325,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		{
 			await Task.WhenAll(_trackedTasks).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -415,6 +417,16 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			await ProcessAuditEventQueueCoreAsync().ConfigureAwait(false);
 		});
 		_trackedTasks.Add(task);
+
+		// Drain completed tasks to prevent unbounded growth
+		var snapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
+		foreach (var t in snapshot)
+		{
+			if (!t.IsCompleted)
+			{
+				_trackedTasks.Add(t);
+			}
+		}
 	}
 
 	private async Task ProcessAuditEventQueueCoreAsync()
@@ -533,6 +545,16 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			}
 		});
 		_trackedTasks.Add(task);
+
+		// Drain completed tasks to prevent unbounded growth
+		var drainSnapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
+		foreach (var t in drainSnapshot)
+		{
+			if (!t.IsCompleted)
+			{
+				_trackedTasks.Add(t);
+			}
+		}
 	}
 
 	private static Task QueueBackgroundWork(Func<Task> callback) =>

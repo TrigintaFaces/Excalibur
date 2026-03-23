@@ -10,7 +10,7 @@ namespace Excalibur.Data.InMemory;
 /// <summary>
 /// Null retry policy implementation for in-memory provider.
 /// </summary>
-internal sealed class NullRetryPolicy : IDataRequestRetryPolicy
+internal sealed class NullRetryPolicy : IRelationalDataRequestRetryPolicy, IDocumentDataRequestRetryPolicy
 {
 	/// <inheritdoc />
 	public int MaxRetryAttempts => 0;

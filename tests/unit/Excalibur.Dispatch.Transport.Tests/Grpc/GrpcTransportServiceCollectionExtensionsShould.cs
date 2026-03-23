@@ -134,18 +134,18 @@ public sealed class GrpcTransportServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void NotAddDuplicateServicesWhenCalledTwice()
+	public void RegisterKeyedTransportServicesWhenCalledTwice()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
+		// Act -- Sprint 697: keyed services allow multiple transports with different names
 		services.AddGrpcTransport(options => options.ServerAddress = "https://server1:5001");
-		services.AddGrpcTransport(options => options.ServerAddress = "https://server2:5001");
+		services.AddGrpcTransport("secondary", options => options.ServerAddress = "https://server2:5001");
 
-		// Assert - TryAddSingleton should prevent duplicates
-		services.Count(sd => sd.ServiceType == typeof(ITransportSender)).ShouldBe(1);
-		services.Count(sd => sd.ServiceType == typeof(ITransportReceiver)).ShouldBe(1);
-		services.Count(sd => sd.ServiceType == typeof(ITransportSubscriber)).ShouldBe(1);
+		// Assert - keyed services registered for both keys
+		services.ShouldContain(sd => sd.ServiceType == typeof(ITransportSender) && sd.IsKeyedService);
+		services.ShouldContain(sd => sd.ServiceType == typeof(ITransportReceiver) && sd.IsKeyedService);
+		services.ShouldContain(sd => sd.ServiceType == typeof(ITransportSubscriber) && sd.IsKeyedService);
 	}
 }

@@ -4,6 +4,7 @@ namespace Excalibur.Hosting.Tests.Jobs;
 /// Unit tests verifying assembly structure and exports.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class AssemblyShould : UnitTestBase
 {
 	[Fact]

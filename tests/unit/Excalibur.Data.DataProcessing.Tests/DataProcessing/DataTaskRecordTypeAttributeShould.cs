@@ -9,6 +9,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Unit tests for <see cref="DataTaskRecordTypeAttribute"/>.
 /// </summary>
 [UnitTest]
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DataTaskRecordTypeAttributeShould : UnitTestBase
 {
 	[Fact]

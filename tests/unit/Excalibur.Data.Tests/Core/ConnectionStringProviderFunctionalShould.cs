@@ -9,7 +9,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-public class ConnectionStringProviderFunctionalShould
+[Trait("Component", "Data")]
+public sealed class ConnectionStringProviderFunctionalShould
 {
 	private static (ConnectionStringProvider provider, IConfigurationRoot config) CreateProvider(
 		Dictionary<string, string?>? connectionStrings = null)

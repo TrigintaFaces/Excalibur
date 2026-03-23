@@ -240,13 +240,17 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 		}
 	}
 
+	// Unified error message for all token failures to prevent timing oracle attacks (OWASP).
+	// The specific failure reason is logged at Debug level for diagnostics but never exposed to callers.
+	private const string UnifiedAuthErrorMessage = "Authentication failed";
+
 	private AuthenticationFailedResult CreateInvalidTokenResult(IDispatchMessage message)
 	{
 		LogValidationFailed(message.GetType().Name);
 		return new AuthenticationFailedResult
 		{
 			Succeeded = false,
-			ProblemDetails = MessageProblemDetails.AuthorizationError("Invalid authentication token"),
+			ProblemDetails = MessageProblemDetails.AuthorizationError(UnifiedAuthErrorMessage),
 			Reason = AuthenticationFailureReason.InvalidToken,
 		};
 	}
@@ -257,7 +261,7 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 		return new AuthenticationFailedResult
 		{
 			Succeeded = false,
-			ProblemDetails = MessageProblemDetails.AuthorizationError("Authentication token has expired"),
+			ProblemDetails = MessageProblemDetails.AuthorizationError(UnifiedAuthErrorMessage),
 			Reason = AuthenticationFailureReason.TokenExpired,
 		};
 	}
@@ -268,7 +272,7 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 		return new AuthenticationFailedResult
 		{
 			Succeeded = false,
-			ProblemDetails = MessageProblemDetails.ValidationError("Token validation failed"),
+			ProblemDetails = MessageProblemDetails.AuthorizationError(UnifiedAuthErrorMessage),
 			Reason = AuthenticationFailureReason.ValidationError,
 		};
 	}
@@ -279,7 +283,7 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 		return new AuthenticationFailedResult
 		{
 			Succeeded = false,
-			ProblemDetails = MessageProblemDetails.InternalError("Authentication failed"),
+			ProblemDetails = MessageProblemDetails.AuthorizationError(UnifiedAuthErrorMessage),
 			Reason = AuthenticationFailureReason.UnknownError,
 		};
 	}
@@ -287,15 +291,12 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 	private void LogAuthenticationSuccess(ClaimsPrincipal principal, IDispatchMessage message, Activity? activity)
 	{
 		var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-		LogAuthSuccess(userId, message.GetType().Name);
+		// Sanitize BEFORE logging to prevent PII leaking into structured logs
+		var sanitizedUserId = _sanitizer.SanitizeTag("auth.user_id", userId) ?? userId;
+		LogAuthSuccess(sanitizedUserId, message.GetType().Name);
 		if (activity is not null)
 		{
-			var sanitized = _sanitizer.SanitizeTag("auth.user_id", userId);
-			if (sanitized is not null)
-			{
-				_ = activity.SetTag("auth.user_id", sanitized);
-			}
-
+			_ = activity.SetTag("auth.user_id", sanitizedUserId);
 			_ = activity.SetTag("auth.success", value: true);
 		}
 	}
@@ -427,6 +428,9 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 			ClockSkew = TimeSpan.FromSeconds(_options.ClockSkewSeconds),
 			RequireExpirationTime = _options.Validation.RequireExpirationTime,
 			RequireSignedTokens = _options.Validation.RequireSignedTokens,
+			// Restrict accepted algorithms to prevent alg=none bypass attacks.
+			// The consumer can override via JwtAuthenticationOptions.AllowedAlgorithms.
+			ValidAlgorithms = _options.AllowedAlgorithms,
 		};
 
 		// Set issuer(s)

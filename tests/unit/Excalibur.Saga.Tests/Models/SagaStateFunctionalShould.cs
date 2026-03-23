@@ -10,6 +10,7 @@ namespace Excalibur.Saga.Tests.Models;
 /// data serialization round-trips, step history tracking, and metadata management.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class SagaStateFunctionalShould
 {
 #pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access

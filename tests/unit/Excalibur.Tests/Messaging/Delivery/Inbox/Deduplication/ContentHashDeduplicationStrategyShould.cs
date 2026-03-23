@@ -7,7 +7,8 @@ namespace Excalibur.Tests.Messaging.Delivery.Inbox.Deduplication;
 ///     Unit tests for ContentHashDeduplicationStrategy to verify content hash deduplication functionality.
 /// </summary>
 [Trait("Category", "Unit")]
-public class ContentHashDeduplicationStrategyShould
+[Trait("Component", "Core")]
+public sealed class ContentHashDeduplicationStrategyShould
 {
 	private readonly IDeduplicationStore _store;
 	private readonly DeduplicationOptions _options;

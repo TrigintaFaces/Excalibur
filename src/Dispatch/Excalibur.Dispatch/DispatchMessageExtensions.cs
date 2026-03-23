@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Messaging;
 /// </summary>
 public static class DispatchMessageExtensions
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, bool> GenericActionInterfaceCache = new();
 
 	/// <summary>
@@ -71,22 +72,33 @@ public static class DispatchMessageExtensions
 
 	private static bool HasGenericActionInterface(Type messageType)
 	{
-		return GenericActionInterfaceCache.GetOrAdd(
-			messageType,
-			static type =>
-			{
-				var interfaces = type.GetInterfaces();
-				for (var i = 0; i < interfaces.Length; i++)
-				{
-					var iface = interfaces[i];
-					if (iface.IsGenericType &&
-						iface.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
-					{
-						return true;
-					}
-				}
+		if (GenericActionInterfaceCache.TryGetValue(messageType, out var cached))
+		{
+			return cached;
+		}
 
-				return false;
-			});
+		var result = CheckGenericActionInterface(messageType);
+		if (GenericActionInterfaceCache.Count < MaxCacheEntries)
+		{
+			_ = GenericActionInterfaceCache.TryAdd(messageType, result);
+		}
+
+		return result;
+	}
+
+	private static bool CheckGenericActionInterface(Type type)
+	{
+		var interfaces = type.GetInterfaces();
+		for (var i = 0; i < interfaces.Length; i++)
+		{
+			var iface = interfaces[i];
+			if (iface.IsGenericType &&
+				iface.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

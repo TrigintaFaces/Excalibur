@@ -6,7 +6,9 @@ using Tests.Shared.Fixtures;
 namespace Excalibur.Dispatch.Tests.Functional.Infrastructure.TestBaseClasses;
 
 [CollectionDefinition(nameof(PostgresPersistenceOnlyTests))]
-public class PostgresPersistenceOnlyTests : ICollectionFixture<PostgresContainerFixture>
+[Trait("Category", "Functional")]
+[Trait("Component", "Core")]
+public sealed class PostgresPersistenceOnlyTests : ICollectionFixture<PostgresContainerFixture>
 {
 	// No code inside, just for xUnit to recognize the shared collection.
 }

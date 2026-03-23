@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Messaging;
 /// the decorator pattern delegation chain.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Transport")]
 public sealed class DelegatingTransportSenderFunctionalShould
 {
 	private sealed class TestDelegatingSender : DelegatingTransportSender

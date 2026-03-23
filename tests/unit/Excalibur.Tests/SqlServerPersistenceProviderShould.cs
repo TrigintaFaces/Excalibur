@@ -16,6 +16,7 @@ namespace Excalibur.Tests;
 ///     performance optimizations.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class SqlServerPersistenceProviderShould : IDisposable
 {
 	private readonly ILogger<SqlServerPersistenceProvider> _logger;

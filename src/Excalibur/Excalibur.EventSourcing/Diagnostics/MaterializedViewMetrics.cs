@@ -39,7 +39,15 @@ public sealed class MaterializedViewMetrics : IDisposable
 	private readonly TagCardinalityGuard _viewNameGuard = new(maxCardinality: 128);
 	private readonly TagCardinalityGuard _errorTypeGuard = new(maxCardinality: 50);
 
+	#if NET9_0_OR_GREATER
+
+	private readonly System.Threading.Lock _stateLock = new();
+
+	#else
+
 	private readonly object _stateLock = new();
+
+	#endif
 	private readonly Dictionary<string, ViewState> _viewStates = new();
 	private long _totalRefreshAttempts;
 	private long _totalRefreshFailures;
@@ -252,31 +260,40 @@ public sealed class MaterializedViewMetrics : IDisposable
 	private IEnumerable<Measurement<double>> GetStalenessObservations()
 	{
 		var now = DateTimeOffset.UtcNow;
+		List<Measurement<double>> results;
 
 		lock (_stateLock)
 		{
+			results = new List<Measurement<double>>(_viewStates.Count);
 			foreach (var (viewName, state) in _viewStates)
 			{
 				var staleness = state.LastRefreshUtc.HasValue
 					? (now - state.LastRefreshUtc.Value).TotalSeconds
 					: -1; // -1 indicates never refreshed
 
-				yield return new Measurement<double>(staleness, new TagList { { "view_name", _viewNameGuard.Guard(viewName) } });
+				results.Add(new Measurement<double>(staleness, new TagList { { "view_name", _viewNameGuard.Guard(viewName) } }));
 			}
 		}
+
+		return results;
 	}
 
 	private IEnumerable<Measurement<int>> GetStateObservations()
 	{
+		List<Measurement<int>> results;
+
 		lock (_stateLock)
 		{
+			results = new List<Measurement<int>>(_viewStates.Count);
 			foreach (var (viewName, state) in _viewStates)
 			{
-				yield return new Measurement<int>(
+				results.Add(new Measurement<int>(
 					state.IsHealthy ? 1 : 0,
-					new TagList { { "view_name", _viewNameGuard.Guard(viewName) } });
+					new TagList { { "view_name", _viewNameGuard.Guard(viewName) } }));
 			}
 		}
+
+		return results;
 	}
 
 	/// <inheritdoc />

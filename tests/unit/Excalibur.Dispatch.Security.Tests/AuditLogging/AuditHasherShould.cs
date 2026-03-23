@@ -6,6 +6,7 @@ using Excalibur.Dispatch.AuditLogging;
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 [UnitTest]
 public sealed class AuditHasherShould
 {

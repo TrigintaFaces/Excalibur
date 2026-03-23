@@ -28,6 +28,7 @@ namespace Excalibur.EventSourcing.Tests;
 /// Unit tests for <see cref="EventSourcedRepository{TAggregate}"/> with automatic upcasting support.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class EventSourcedRepositoryShould
 {
 	#region Test Domain Events
@@ -234,7 +235,9 @@ public sealed class EventSourcedRepositoryShould
 	}
 
 	[Fact]
+#pragma warning disable CA1506 // Excessive class coupling -- test requires many fakes for constructor
 	public async Task UpcastVersionedEventsWhenEnabled()
+#pragma warning restore CA1506
 	{
 		// Arrange
 		var aggregateId = "agg-1";

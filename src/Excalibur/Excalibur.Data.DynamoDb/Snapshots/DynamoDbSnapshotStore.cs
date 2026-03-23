@@ -161,6 +161,18 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 			return snapshot;
 		}
+		catch (ProvisionedThroughputExceededException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("load", aggregateType, aggregateId, ex);
+			throw;
+		}
+		catch (InternalServerErrorException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("load", aggregateType, aggregateId, ex);
+			throw;
+		}
 		catch (Exception)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
@@ -251,6 +263,18 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				LogSnapshotVersionSkipped(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
 			}
 		}
+		catch (ProvisionedThroughputExceededException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("save", snapshot.AggregateType, snapshot.AggregateId, ex);
+			throw;
+		}
+		catch (InternalServerErrorException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("save", snapshot.AggregateType, snapshot.AggregateId, ex);
+			throw;
+		}
 		catch (Exception)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
@@ -297,6 +321,18 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		{
 			_ = await _client.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
 			LogSnapshotDeleted(aggregateType, aggregateId);
+		}
+		catch (ProvisionedThroughputExceededException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("delete", aggregateType, aggregateId, ex);
+			throw;
+		}
+		catch (InternalServerErrorException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("delete", aggregateType, aggregateId, ex);
+			throw;
 		}
 		catch (Exception)
 		{
@@ -393,6 +429,18 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				// Race condition - the snapshot was modified or a newer version now exists
 				// In this case, we don't delete since a newer snapshot should be kept
 			}
+		}
+		catch (ProvisionedThroughputExceededException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("delete_older_than", aggregateType, aggregateId, ex);
+			throw;
+		}
+		catch (InternalServerErrorException ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("delete_older_than", aggregateType, aggregateId, ex);
+			throw;
 		}
 		catch (Exception)
 		{
@@ -557,4 +605,8 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	[LoggerMessage(DataDynamoDbEventId.SnapshotDeletedOlderThan, LogLevel.Debug,
 		"Deleted snapshot older than version {Version} for {AggregateType}/{AggregateId}")]
 	private partial void LogSnapshotOlderDeleted(string aggregateType, string aggregateId, long version);
+
+	[LoggerMessage(LogLevel.Warning,
+		"DynamoDB transient error during {Operation} for {AggregateType}/{AggregateId}")]
+	private partial void LogTransientError(string operation, string aggregateType, string aggregateId, Exception ex);
 }

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using RmqRetryPolicy = Excalibur.Dispatch.Transport.RabbitMQ.RetryPolicy;
+using RmqRetryPolicy = Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryOptions;
 
 using Tests.Shared.Categories;
 
@@ -20,7 +20,7 @@ public sealed class RetryPolicyShould : UnitTestBase
 	{
 		var policy = RmqRetryPolicy.None();
 
-		policy.MaxRetries.ShouldBe(0);
+		policy.MaxRetryAttempts.ShouldBe(0);
 		policy.UseExponentialBackoff.ShouldBeFalse();
 	}
 
@@ -29,7 +29,7 @@ public sealed class RetryPolicyShould : UnitTestBase
 	{
 		var policy = RmqRetryPolicy.Fixed(5, TimeSpan.FromSeconds(3));
 
-		policy.MaxRetries.ShouldBe(5);
+		policy.MaxRetryAttempts.ShouldBe(5);
 		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(3));
 		policy.MaxDelay.ShouldBe(TimeSpan.FromSeconds(3));
 		policy.UseExponentialBackoff.ShouldBeFalse();
@@ -40,7 +40,7 @@ public sealed class RetryPolicyShould : UnitTestBase
 	{
 		var policy = RmqRetryPolicy.Fixed(3);
 
-		policy.MaxRetries.ShouldBe(3);
+		policy.MaxRetryAttempts.ShouldBe(3);
 		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(1));
 		policy.MaxDelay.ShouldBe(TimeSpan.FromSeconds(1));
 	}
@@ -54,7 +54,7 @@ public sealed class RetryPolicyShould : UnitTestBase
 			maxDelay: TimeSpan.FromMinutes(1),
 			multiplier: 3.0);
 
-		policy.MaxRetries.ShouldBe(5);
+		policy.MaxRetryAttempts.ShouldBe(5);
 		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(2));
 		policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		policy.BackoffMultiplier.ShouldBe(3.0);
@@ -66,7 +66,7 @@ public sealed class RetryPolicyShould : UnitTestBase
 	{
 		var policy = RmqRetryPolicy.Exponential(maxRetries: 3);
 
-		policy.MaxRetries.ShouldBe(3);
+		policy.MaxRetryAttempts.ShouldBe(3);
 		policy.InitialDelay.ShouldBe(TimeSpan.FromSeconds(1));
 		policy.MaxDelay.ShouldBe(TimeSpan.FromMinutes(5));
 		policy.BackoffMultiplier.ShouldBe(2.0);

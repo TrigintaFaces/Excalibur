@@ -90,10 +90,10 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 			.Cast<IDomainEvent>()
 			.ToList();
 
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
 		// Load from version 5 (exclusive) - should get versions 6, 7, 8, 9
-		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, 5, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, 5, CancellationToken.None);
 
 		loaded.Count.ShouldBe(4);
 		loaded[0].Version.ShouldBe(6);
@@ -122,10 +122,10 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 			new TestDomainEvent(aggregateId, 2),
 		};
 
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
 		// Load from version 2 (the last one) - should be empty
-		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, 2, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, 2, CancellationToken.None);
 
 		loaded.Count.ShouldBe(0);
 	}
@@ -152,7 +152,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 			.Cast<IDomainEvent>()
 			.ToList();
 
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
 		// Read all events in "pages" using fromVersion as cursor
 		var allLoaded = new List<StoredEvent>();
@@ -160,7 +160,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 
 		while (true)
 		{
-			var page = await eventStore.LoadAsync(aggregateId, aggregateType, cursor, CancellationToken.None).ConfigureAwait(true);
+			var page = await eventStore.LoadAsync(aggregateId, aggregateType, cursor, CancellationToken.None);
 			if (page.Count == 0)
 			{
 				break;
@@ -190,7 +190,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 			return;
 		}
 
-		await ClearAllEventsAsync().ConfigureAwait(true);
+		await ClearAllEventsAsync();
 
 		var eventStore = CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -202,40 +202,40 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 			.Cast<IDomainEvent>()
 			.ToList();
 
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
 		// Retrieve in batches of 3
-		var batch1 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None).ConfigureAwait(true);
+		var batch1 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
 		batch1.Count.ShouldBe(3);
 
 		// Mark first batch as dispatched
 		foreach (var evt in batch1)
 		{
-			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None).ConfigureAwait(true);
+			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None);
 		}
 
 		// Next batch should return next 3
-		var batch2 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None).ConfigureAwait(true);
+		var batch2 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
 		batch2.Count.ShouldBe(3);
 
 		// Mark second batch as dispatched
 		foreach (var evt in batch2)
 		{
-			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None).ConfigureAwait(true);
+			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None);
 		}
 
 		// Final batch should return remaining 2
-		var batch3 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None).ConfigureAwait(true);
+		var batch3 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
 		batch3.Count.ShouldBe(2);
 
 		// Mark remaining as dispatched
 		foreach (var evt in batch3)
 		{
-			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None).ConfigureAwait(true);
+			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None);
 		}
 
 		// Should be empty now
-		var batch4 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None).ConfigureAwait(true);
+		var batch4 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
 		batch4.Count.ShouldBe(0);
 	}
 
@@ -265,11 +265,11 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 			.Cast<IDomainEvent>()
 			.ToList();
 
-		_ = await eventStore.AppendAsync(aggregateId1, aggregateType, events1, -1, CancellationToken.None).ConfigureAwait(true);
-		_ = await eventStore.AppendAsync(aggregateId2, aggregateType, events2, -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId1, aggregateType, events1, -1, CancellationToken.None);
+		_ = await eventStore.AppendAsync(aggregateId2, aggregateType, events2, -1, CancellationToken.None);
 
 		// Load from version 2 for aggregate 1 only
-		var loaded = await eventStore.LoadAsync(aggregateId1, aggregateType, 2, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId1, aggregateType, 2, CancellationToken.None);
 
 		loaded.Count.ShouldBe(2); // versions 3, 4
 		loaded.ShouldAllBe(e => e.AggregateId == aggregateId1);
@@ -297,7 +297,7 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 			.Select(i => new TestDomainEvent(aggregateId, i))
 			.Cast<IDomainEvent>()
 			.ToList();
-		var result1 = await eventStore.AppendAsync(aggregateId, aggregateType, batch1, -1, CancellationToken.None).ConfigureAwait(true);
+		var result1 = await eventStore.AppendAsync(aggregateId, aggregateType, batch1, -1, CancellationToken.None);
 		result1.Success.ShouldBeTrue();
 
 		// Record the last version
@@ -308,11 +308,11 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 			.Select(i => new TestDomainEvent(aggregateId, i))
 			.Cast<IDomainEvent>()
 			.ToList();
-		var result2 = await eventStore.AppendAsync(aggregateId, aggregateType, batch2, lastVersion, CancellationToken.None).ConfigureAwait(true);
+		var result2 = await eventStore.AppendAsync(aggregateId, aggregateType, batch2, lastVersion, CancellationToken.None);
 		result2.Success.ShouldBeTrue();
 
 		// Load only events after the first batch
-		var newEvents = await eventStore.LoadAsync(aggregateId, aggregateType, lastVersion, CancellationToken.None).ConfigureAwait(true);
+		var newEvents = await eventStore.LoadAsync(aggregateId, aggregateType, lastVersion, CancellationToken.None);
 
 		newEvents.Count.ShouldBe(2);
 		newEvents[0].Version.ShouldBe(3);
@@ -335,9 +335,9 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 		var aggregateType = "TestAggregate";
 
 		var originalEvent = new TestDomainEvent(aggregateId, 0);
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, [originalEvent], -1, CancellationToken.None).ConfigureAwait(true);
+		_ = await eventStore.AppendAsync(aggregateId, aggregateType, [originalEvent], -1, CancellationToken.None);
 
-		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None);
 
 		loaded.Count.ShouldBe(1);
 		var storedEvent = loaded[0];

@@ -8,6 +8,7 @@ using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Inbox.Observability;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -27,7 +28,7 @@ namespace Excalibur.Inbox.DynamoDb;
 /// attribute_not_exists condition.
 /// </para>
 /// </remarks>
-public sealed partial class DynamoDbInboxStore : IInboxStore, IAsyncDisposable, IDisposable
+public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly DynamoDbInboxOptions _options;
 	private readonly ILogger<DynamoDbInboxStore> _logger;
@@ -121,6 +122,8 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IAsyncDisposable, 
 		ArgumentNullException.ThrowIfNull(payload);
 		ArgumentNullException.ThrowIfNull(metadata);
 
+		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
@@ -152,6 +155,8 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IAsyncDisposable, 
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -243,6 +248,8 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IAsyncDisposable, 
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
+		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
+
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var key = CreateKey(messageId, handlerType);
@@ -295,6 +302,8 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IAsyncDisposable, 
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
@@ -473,11 +482,11 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IAsyncDisposable, 
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+		using var activity = InboxActivitySource.StartCleanupActivity();
 
-		var cutoffDate = DateTimeOffset.UtcNow - retentionPeriod;
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		// First, find all processed entries older than cutoff
 		var scanRequest = new ScanRequest
@@ -489,7 +498,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IAsyncDisposable, 
 			ExpressionAttributeValues = new Dictionary<string, AttributeValue>
 			{
 				[":processed"] = new() { N = ((int)InboxStatus.Processed).ToString() },
-				[":cutoff"] = new() { S = cutoffDate.ToString("O") }
+				[":cutoff"] = new() { S = olderThan.ToString("O") }
 			}
 		};
 
@@ -539,7 +548,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IAsyncDisposable, 
 				: 0);
 		}
 
-		LogCleanedUp(deletedCount, cutoffDate);
+		LogCleanedUp(deletedCount, olderThan);
 		return deletedCount;
 	}
 

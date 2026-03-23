@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Outbox;
 /// Represents a staging request for an outbound message.
 /// </summary>
 /// <remarks> Creates a new outbound message request. </remarks>
-public sealed class OutboundMessageRequest(
+internal sealed class OutboundMessageRequest(
 	IDispatchMessage message,
 	string? destination = null,
 	DateTimeOffset? scheduledAt = null)

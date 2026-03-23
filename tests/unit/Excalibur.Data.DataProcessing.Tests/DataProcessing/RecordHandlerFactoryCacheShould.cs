@@ -15,6 +15,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// </summary>
 [UnitTest]
 [Trait("Component", "Core")]
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class RecordHandlerFactoryCacheShould : UnitTestBase
 {
 	// Each test uses a unique record type to avoid cross-test contamination

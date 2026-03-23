@@ -1,17 +1,24 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.InMemory.Snapshots;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Abstractions;
-using Excalibur.EventSourcing.Snapshots.InMemory;
+
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.Tests.Core.Snapshots.InMemory;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "EventSourcing")]
-public sealed class InMemorySnapshotStoreShould
+public sealed class InMemorySnapshotStoreShould : IDisposable
 {
-	private readonly InMemorySnapshotStore _sut = new();
+	private readonly InMemorySnapshotStore _sut = new(
+		Options.Create(new InMemorySnapshotOptions()),
+		NullLogger<InMemorySnapshotStore>.Instance);
+
+	public void Dispose() => _sut.Dispose();
 
 	[Fact]
 	public async Task SaveAndRetrieveSnapshot()
@@ -80,7 +87,6 @@ public sealed class InMemorySnapshotStoreShould
 	{
 		// Arrange
 		await _sut.SaveSnapshotAsync(CreateSnapshot("agg-1", "Type", 1), CancellationToken.None);
-		_sut.Count.ShouldBe(1);
 
 		// Act
 		await _sut.DeleteSnapshotsAsync("agg-1", "Type", CancellationToken.None);
@@ -88,7 +94,6 @@ public sealed class InMemorySnapshotStoreShould
 		// Assert
 		var result = await _sut.GetLatestSnapshotAsync("agg-1", "Type", CancellationToken.None);
 		result.ShouldBeNull();
-		_sut.Count.ShouldBe(0);
 	}
 
 	[Fact]
@@ -118,21 +123,6 @@ public sealed class InMemorySnapshotStoreShould
 		var result = await _sut.GetLatestSnapshotAsync("agg-1", "Type", CancellationToken.None);
 		result.ShouldNotBeNull();
 		result.Version.ShouldBe(10);
-	}
-
-	[Fact]
-	public async Task ClearAllSnapshots()
-	{
-		// Arrange
-		await _sut.SaveSnapshotAsync(CreateSnapshot("a1", "T1", 1), CancellationToken.None);
-		await _sut.SaveSnapshotAsync(CreateSnapshot("a2", "T2", 1), CancellationToken.None);
-		_sut.Count.ShouldBe(2);
-
-		// Act
-		_sut.Clear();
-
-		// Assert
-		_sut.Count.ShouldBe(0);
 	}
 
 	[Fact]
@@ -168,7 +158,6 @@ public sealed class InMemorySnapshotStoreShould
 		resultA.Version.ShouldBe(1);
 		resultB.ShouldNotBeNull();
 		resultB.Version.ShouldBe(2);
-		_sut.Count.ShouldBe(2);
 	}
 
 	private static ISnapshot CreateSnapshot(string aggregateId, string aggregateType, long version)

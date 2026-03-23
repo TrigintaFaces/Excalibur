@@ -17,6 +17,8 @@ namespace Excalibur.Dispatch.Caching;
 /// </summary>
 internal static class MessageTypeCache
 {
+	private const int MaxCacheEntries = 1024;
+
 #if NET9_0_OR_GREATER
 
 	private static readonly Lock _initLock = new();
@@ -128,7 +130,14 @@ internal static class MessageTypeCache
 		}
 
 		fallbackMetadata = new MessageTypeMetadata(messageType);
-		return _fallbackTypeCache.GetOrAdd(messageType, fallbackMetadata);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (_fallbackTypeCache.Count < MaxCacheEntries)
+		{
+			return _fallbackTypeCache.GetOrAdd(messageType, fallbackMetadata);
+		}
+
+		return fallbackMetadata;
 	}
 
 	/// <summary>

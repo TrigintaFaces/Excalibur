@@ -28,6 +28,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// </para>
 /// </remarks>
 [Collection("EventStore Telemetry Tests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class DynamoDbMetadataRoundTripShould : IClassFixture<DynamoDbEventStoreTelemetryTestFixture>, IAsyncLifetime
 {
 	private readonly DynamoDbEventStoreTelemetryTestFixture _fixture;

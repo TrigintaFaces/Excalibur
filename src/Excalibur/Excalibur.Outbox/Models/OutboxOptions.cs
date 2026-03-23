@@ -121,7 +121,7 @@ public sealed class OutboxCleanupOptions
 ///     .Build();
 /// </code>
 /// </example>
-public class OutboxOptions
+public sealed class OutboxOptions
 {
 	/// <summary>
 	/// Internal constructor used by the builder.

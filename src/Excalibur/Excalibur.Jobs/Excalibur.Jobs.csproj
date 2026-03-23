@@ -27,6 +27,9 @@
     <InternalsVisibleTo Include="Excalibur.Tests.Unit" />
     <InternalsVisibleTo Include="Excalibur.Tests.Integration" />
     <InternalsVisibleTo Include="Excalibur.Tests.Functional" />
+    <InternalsVisibleTo Include="Excalibur.Jobs.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Jobs.DataProcessing" />
+    <InternalsVisibleTo Include="Excalibur.Jobs.Cdc" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>

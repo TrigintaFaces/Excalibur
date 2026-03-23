@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Http;
 /// Unit tests for <see cref="W3CTraceContextMiddleware"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class W3CTraceContextMiddlewareShould : UnitTestBase
 {
 	private readonly W3CTraceContextMiddleware _middleware = new();

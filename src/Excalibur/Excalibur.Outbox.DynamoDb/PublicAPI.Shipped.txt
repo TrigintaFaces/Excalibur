@@ -42,7 +42,7 @@ Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.IncrementRetryCountAsync(string! m
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.MarkAsPublishedAsync(string! messageId, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult!>!
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.MarkBatchAsPublishedAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudBatchResult!>!
-Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.ProviderType.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.ProviderType.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.SubscribeToNewMessagesAsync(Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage!>!>!
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.ContinuationToken.get -> string!

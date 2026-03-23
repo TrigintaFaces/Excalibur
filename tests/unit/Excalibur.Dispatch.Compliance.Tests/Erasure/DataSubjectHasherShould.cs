@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.Erasure;
 
-public class DataSubjectHasherShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class DataSubjectHasherShould
 {
     [Fact]
     public void Return_uppercase_hex_encoded_sha256_hash()

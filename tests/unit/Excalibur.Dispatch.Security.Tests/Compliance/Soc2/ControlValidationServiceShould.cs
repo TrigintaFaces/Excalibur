@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Unit tests for <see cref="ControlValidationService"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class ControlValidationServiceShould
 {
 	private readonly IControlValidator _fakeValidator;
@@ -137,7 +138,7 @@ public sealed class ControlValidationServiceShould
 	public async Task ValidateControlAsync_PassCancellationToken()
 	{
 		// Arrange
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		_ = A.CallTo(() => _fakeValidator.ValidateAsync("SEC-001", cts.Token))
 			.Returns(new ControlValidationResult { ControlId = "SEC-001", IsConfigured = true, IsEffective = true, EffectivenessScore = 100 });
 

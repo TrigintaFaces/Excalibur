@@ -29,12 +29,12 @@ internal sealed class PubSubFlowController : IDisposable
 	/// <summary>
 	/// Gets the number of outstanding messages.
 	/// </summary>
-	public int OutstandingMessages => _outstandingMessages;
+	public int OutstandingMessages => Volatile.Read(ref _outstandingMessages);
 
 	/// <summary>
 	/// Gets the available capacity.
 	/// </summary>
-	public int AvailableCapacity => _maxOutstandingMessages - _outstandingMessages;
+	public int AvailableCapacity => _maxOutstandingMessages - Volatile.Read(ref _outstandingMessages);
 
 	/// <summary>
 	///
@@ -43,23 +43,39 @@ internal sealed class PubSubFlowController : IDisposable
 	public async Task<IDisposable> AcquireAsync(CancellationToken cancellationToken)
 	{
 		await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-		_ = Interlocked.Increment(ref _outstandingMessages);
-		return new FlowControlLease(this);
+		try
+		{
+			_ = Interlocked.Increment(ref _outstandingMessages);
+			return new FlowControlLease(this);
+		}
+		catch
+		{
+			_ = _semaphore.Release();
+			throw;
+		}
 	}
 
 	public bool TryAcquire(out IDisposable? lease)
 	{
 		lease = null;
-		if (_outstandingMessages >= _maxOutstandingMessages)
+		if (Volatile.Read(ref _outstandingMessages) >= _maxOutstandingMessages)
 		{
 			return false;
 		}
 
 		if (_semaphore.Wait(0))
 		{
-			_ = Interlocked.Increment(ref _outstandingMessages);
-			lease = new FlowControlLease(this);
-			return true;
+			try
+			{
+				_ = Interlocked.Increment(ref _outstandingMessages);
+				lease = new FlowControlLease(this);
+				return true;
+			}
+			catch
+			{
+				_ = _semaphore.Release();
+				throw;
+			}
 		}
 
 		return false;

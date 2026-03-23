@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
+
 using Azure.Identity;
 using Azure.Messaging.EventHubs.Producer;
 
@@ -410,6 +412,7 @@ public sealed class AzureEventHubsTransportOptions
 	/// <summary>
 	/// Gets or sets the Event Hub connection string.
 	/// </summary>
+	[Required]
 	public string? ConnectionString { get; set; }
 
 	/// <summary>

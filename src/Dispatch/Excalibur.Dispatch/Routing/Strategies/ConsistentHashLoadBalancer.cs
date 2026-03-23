@@ -23,7 +23,7 @@ internal partial class ConsistentHashLoadBalancer(
 
 	private readonly ILogger<ConsistentHashLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 #if NET9_0_OR_GREATER
-	private readonly Lock _rebuildLock = new();
+	private readonly System.Threading.Lock _rebuildLock = new();
 #else
 	private readonly object _rebuildLock = new();
 #endif

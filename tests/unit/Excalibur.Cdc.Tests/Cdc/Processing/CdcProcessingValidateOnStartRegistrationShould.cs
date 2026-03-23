@@ -12,6 +12,7 @@ namespace Excalibur.Tests.Cdc.Processing;
 /// Sprint 561 S561.51: ValidateOnStart registration tests.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Cdc")]
 public sealed class CdcProcessingValidateOnStartRegistrationShould
 {
 	[Fact]

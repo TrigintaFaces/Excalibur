@@ -100,19 +100,6 @@ public sealed class SqlServerRetryPolicyShould
 	}
 
 	[Fact]
-	public void ThrowNotSupportedForDocumentRequests()
-	{
-		// Arrange
-		var options = new RealOptions { RetryCount = 3 };
-		var sut = new SqlServerRetryPolicy(options, NullLogger.Instance);
-		var request = A.Fake<Excalibur.Data.Abstractions.IDocumentDataRequest<object, string>>();
-
-		// Act & Assert
-		Should.Throw<NotSupportedException>(() =>
-			sut.ResolveDocumentAsync(request, () => Task.FromResult(new object()), CancellationToken.None));
-	}
-
-	[Fact]
 	public async Task ThrowWhenRequestIsNullForResolveAsync()
 	{
 		// Arrange

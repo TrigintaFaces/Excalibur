@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Statistics;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class LongPollingStatisticsShould
+public sealed class LongPollingStatisticsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

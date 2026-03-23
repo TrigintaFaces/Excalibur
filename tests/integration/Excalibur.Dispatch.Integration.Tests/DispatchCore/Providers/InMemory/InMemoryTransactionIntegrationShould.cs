@@ -32,6 +32,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.InMemory;
 [IntegrationTest]
 [Trait("Component", "Transaction")]
 [Trait("Provider", "InMemory")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemoryTransactionIntegrationShould : IntegrationTestBase
 {
 	/// <summary>
@@ -49,7 +51,7 @@ public sealed class InMemoryTransactionIntegrationShould : IntegrationTestBase
 		scope.TransactionId.ShouldNotBeNullOrEmpty();
 
 		// Act
-		await scope.CommitAsync(TestCancellationToken).ConfigureAwait(true);
+		await scope.CommitAsync(TestCancellationToken);
 
 		// Assert
 		scope.Status.ShouldBe(TransactionStatus.Committed);
@@ -69,7 +71,7 @@ public sealed class InMemoryTransactionIntegrationShould : IntegrationTestBase
 		scope.Status.ShouldBe(TransactionStatus.Active);
 
 		// Act
-		await scope.RollbackAsync(TestCancellationToken).ConfigureAwait(true);
+		await scope.RollbackAsync(TestCancellationToken);
 
 		// Assert
 		scope.Status.ShouldBe(TransactionStatus.RolledBack);
@@ -152,7 +154,7 @@ public sealed class InMemoryTransactionIntegrationShould : IntegrationTestBase
 			}
 		}).ToArray();
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 
 		// Assert - All transactions completed
 		completedCount.ShouldBe(transactionCount);
@@ -204,7 +206,7 @@ public sealed class InMemoryTransactionIntegrationShould : IntegrationTestBase
 		});
 
 		// Act
-		await scope.CommitAsync(TestCancellationToken).ConfigureAwait(true);
+		await scope.CommitAsync(TestCancellationToken);
 
 		// Assert
 		commitCallbackExecuted.ShouldBeTrue();

@@ -37,10 +37,16 @@ internal sealed class AzureLogicAppsScheduler(
 	private static readonly JsonSerializerOptions SerializerOptions =
 		new(JsonSerializerDefaults.Web);
 
+	/// <summary>
+	/// Shared fallback HttpClient for when no client is injected via DI.
+	/// Static HttpClient is safe for long-lived scenarios per Microsoft guidance.
+	/// </summary>
+	private static readonly HttpClient SharedFallbackClient = new();
+
 	private readonly AzureLogicAppsSchedulerOptions _options =
 		options.Value ?? throw new ArgumentNullException(nameof(options));
 
-	private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
+	private readonly HttpClient _httpClient = httpClient ?? SharedFallbackClient;
 	private readonly TokenCredential _credential = credential ?? new DefaultAzureCredential();
 	private Uri? _resolvedCallbackUrl;
 
@@ -410,7 +416,7 @@ internal sealed class AzureLogicAppsScheduler(
 				.SendAsync(request, cancellationToken)
 				.ConfigureAwait(false);
 
-			if (response.IsSuccessStatusCode || attempt > _options.MaxRetries)
+			if (response.IsSuccessStatusCode || attempt > _options.MaxRetryAttempts)
 			{
 				return response;
 			}

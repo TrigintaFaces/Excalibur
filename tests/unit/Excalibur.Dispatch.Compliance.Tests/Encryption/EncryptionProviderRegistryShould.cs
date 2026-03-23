@@ -125,8 +125,9 @@ public sealed class EncryptionProviderRegistryShould
 	public void Find_decryption_provider_from_primary()
 	{
 		// Arrange - use real AesGcmEncryptionProvider since it's sealed and CanDecrypt does type check
+		// Sprint 680 T.6: AesGcm now validates IKeyMaterialProvider at construction
 		var provider = new AesGcmEncryptionProvider(
-			A.Fake<IKeyManagementProvider>(),
+			A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyMaterialProvider>()),
 			NullLogger<AesGcmEncryptionProvider>.Instance);
 		_sut.Register("primary", provider);
 		_sut.SetPrimary("primary");

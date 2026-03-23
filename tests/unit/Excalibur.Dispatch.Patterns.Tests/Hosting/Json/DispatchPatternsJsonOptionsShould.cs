@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.Hosting.Json;
 /// Unit tests for DispatchPatternsJsonOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Patterns")]
 public sealed class DispatchPatternsJsonOptionsShould : UnitTestBase
 {
 	[Fact]

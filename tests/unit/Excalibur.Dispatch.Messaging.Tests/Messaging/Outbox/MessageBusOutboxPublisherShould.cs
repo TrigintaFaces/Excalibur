@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Transport;
 namespace Excalibur.Dispatch.Tests.Messaging.Outbox;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MessageBusOutboxPublisherShould
 {
 	private readonly IOutboxStore _outboxStore;
@@ -250,7 +251,7 @@ public sealed class MessageBusOutboxPublisherShould
 		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
 		var adapter = A.Fake<ITransportAdapter>();
-		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, A<string>._, A<CancellationToken>._))
+		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, A<string>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(Task.CompletedTask);
 
 		var transportRegistry = new TransportRegistry();
@@ -278,7 +279,7 @@ public sealed class MessageBusOutboxPublisherShould
 		// Assert
 		result.SuccessCount.ShouldBe(1);
 		result.FailureCount.ShouldBe(0);
-		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, "orders-topic", A<CancellationToken>._))
+		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, "orders-topic", A<IMessageContext>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		_ = A.CallTo(() => multiStore.MarkTransportSentAsync(message.Id, "kafka", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -297,7 +298,7 @@ public sealed class MessageBusOutboxPublisherShould
 		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
 		var adapter = A.Fake<ITransportAdapter>();
-		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, A<string>._, A<CancellationToken>._))
+		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, A<string>._, A<IMessageContext>._, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("transport unavailable"));
 
 		var transportRegistry = new TransportRegistry();

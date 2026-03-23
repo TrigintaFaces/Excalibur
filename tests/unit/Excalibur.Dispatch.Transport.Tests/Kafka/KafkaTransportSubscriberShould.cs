@@ -121,10 +121,11 @@ public sealed class KafkaTransportSubscriberShould : IAsyncDisposable
 	public async Task Subscribe_to_topic_and_close_consumer_on_cancellation()
 	{
 		using var cts = new CancellationTokenSource();
+		await cts.CancelAsync();
 
 		// Arrange: Consume throws OperationCanceledException when cancelled
 		A.CallTo(() => _fakeConsumer.Consume(A<CancellationToken>._))
-			.Throws(() => new OperationCanceledException());
+			.Throws(() => new OperationCanceledException(cts.Token));
 
 		// Act
 		await _sut.SubscribeAsync(

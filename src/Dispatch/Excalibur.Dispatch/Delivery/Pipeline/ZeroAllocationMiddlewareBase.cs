@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <summary>
 /// Base class for zero-allocation middleware implementations.
 /// </summary>
-public abstract class ZeroAllocationMiddlewareBase : IZeroAllocationMiddleware, IDispatchMiddleware
+internal abstract class ZeroAllocationMiddlewareBase : IZeroAllocationMiddleware, IDispatchMiddleware
 {
 	/// <inheritdoc />
 	public abstract DispatchMiddlewareStage Stage { get; }

@@ -6,6 +6,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Unit tests for DistributedCircuitBreakerOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DistributedCircuitBreakerOptionsShould : UnitTestBase
 {
 	[Fact]

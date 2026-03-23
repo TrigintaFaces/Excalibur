@@ -207,7 +207,7 @@ public sealed partial class SecureKeyProvider : IKeyProvider, IDisposable
 		// Clear sensitive key material
 		foreach (var cachedKey in _keyCache.Values)
 		{
-			Array.Clear(cachedKey.KeyData, 0, cachedKey.KeyData.Length);
+			CryptographicOperations.ZeroMemory(cachedKey.KeyData);
 		}
 
 		_keyCache.Clear();
@@ -322,7 +322,7 @@ public sealed partial class SecureKeyProvider : IKeyProvider, IDisposable
 			if (_keyCache.TryRemove(key, out var cachedKey))
 			{
 				// Clear sensitive data
-				Array.Clear(cachedKey.KeyData, 0, cachedKey.KeyData.Length);
+				CryptographicOperations.ZeroMemory(cachedKey.KeyData);
 				LogExpiredKeyRemoved(key);
 			}
 		}

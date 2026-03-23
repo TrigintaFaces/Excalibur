@@ -41,7 +41,7 @@ public sealed class SagaProgressShould
 		var progress = new SagaProgress();
 
 		// Assert
-		progress.StartedAt.ShouldBe(default(DateTime));
+		progress.StartedAt.ShouldBe(default(DateTimeOffset));
 	}
 
 	[Fact]

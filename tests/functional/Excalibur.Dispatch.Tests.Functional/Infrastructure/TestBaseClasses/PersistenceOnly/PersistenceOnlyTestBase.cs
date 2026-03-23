@@ -104,7 +104,7 @@ public abstract class PersistenceOnlyTestBase<TFixture> : IClassFixture<TFixture
 
 		runner?.MigrateUp();
 
-		await OnDatabaseInitialized(connection).ConfigureAwait(true);
+		await OnDatabaseInitialized(connection);
 	}
 
 	protected virtual void Dispose(bool disposing)

@@ -25,12 +25,9 @@ public sealed class InMemoryAuditStore : IAuditStore
 	private readonly ConcurrentDictionary<string, AuditEvent> _eventsById = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, List<AuditEvent>> _eventsByTenant = new(StringComparer.Ordinal);
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _sequenceLock = new();
-
+	private readonly System.Threading.Lock _sequenceLock = new();
 #else
 	private readonly object _sequenceLock = new();
-
 #endif
 	private long _sequenceNumber;
 	private readonly DateTimeOffset _chainInitTime = DateTimeOffset.UtcNow;

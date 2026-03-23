@@ -4,10 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+
+using Shouldly;
+
 using Xunit;
 
 namespace ArchitectureTests.Architecture;
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Architecture")]
 public sealed class PackageTestCoverageMappingTests
 {
     private static readonly string RepoRoot = GetRepoRoot();
@@ -56,7 +61,7 @@ public sealed class PackageTestCoverageMappingTests
             }
         }
 
-        Assert.True(missing.Count == 0, string.Join(Environment.NewLine, missing));
+        (missing.Count == 0).ShouldBeTrue(string.Join(Environment.NewLine, missing));
     }
 
     [Fact]
@@ -106,8 +111,7 @@ public sealed class PackageTestCoverageMappingTests
             }
         }
 
-        Assert.True(
-            uncoveredPackages.Count == 0,
+        (uncoveredPackages.Count == 0).ShouldBeTrue(
             "Shipping packages without test mapping rules: " + string.Join(", ", uncoveredPackages));
     }
 
@@ -120,18 +124,17 @@ public sealed class PackageTestCoverageMappingTests
             .Select(item => item.GetString() ?? string.Empty)
             .ToArray();
 
-        Assert.Contains(
-            releaseChecklist,
+        releaseChecklist.ShouldContain(
             item => item.Contains("All required test suites pass", StringComparison.OrdinalIgnoreCase));
 
         var normalized = string.Join(" ", releaseChecklist).ToLowerInvariant();
-        Assert.Contains("smoke", normalized);
-        Assert.Contains("unit", normalized);
-        Assert.Contains("integration", normalized);
-        Assert.Contains("functional", normalized);
-        Assert.Contains("contract", normalized);
-        Assert.Contains("architecture", normalized);
-        Assert.Contains("conformance", normalized);
+        normalized.ShouldContain("smoke");
+        normalized.ShouldContain("unit");
+        normalized.ShouldContain("integration");
+        normalized.ShouldContain("functional");
+        normalized.ShouldContain("contract");
+        normalized.ShouldContain("architecture");
+        normalized.ShouldContain("conformance");
     }
 
     private static JsonDocument LoadGovernanceJson()

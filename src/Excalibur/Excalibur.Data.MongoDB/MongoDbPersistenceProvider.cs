@@ -246,7 +246,7 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 		TimeSpan? timeout = null)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		return new MongoDbTransactionScope(this, isolationLevel, timeout);
+		return new MongoDbTransactionScope(this, isolationLevel, timeout, _logger);
 	}
 
 	/// <inheritdoc />

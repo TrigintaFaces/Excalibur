@@ -37,7 +37,7 @@ public partial class CdcProcessor : ICdcProcessor
 
 	private readonly ICdcRepositoryLsnMapping _cdcLsnMapping;
 
-	private readonly ICdcStateStore _stateStore;
+	private readonly ISqlServerCdcStateStore _stateStore;
 #pragma warning restore CA1859
 
 	private readonly IDataAccessPolicyFactory _policyFactory;
@@ -54,17 +54,9 @@ public partial class CdcProcessor : ICdcProcessor
 	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
 
 #if NET9_0_OR_GREATER
-
-
-	private readonly Lock _minHeapLock = new();
-
-
+	private readonly System.Threading.Lock _minHeapLock = new();
 #else
-
-
 	private readonly object _minHeapLock = new();
-
-
 #endif
 
 	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
@@ -165,6 +157,17 @@ public partial class CdcProcessor : ICdcProcessor
 					TaskScheduler.Default)
 				.Unwrap();
 			_backgroundTasks.Add(task);
+
+			// Drain completed tasks to prevent unbounded growth
+			var snapshot = _backgroundTasks.ToArray();
+			_backgroundTasks.Clear();
+			foreach (var t in snapshot)
+			{
+				if (!t.IsCompleted)
+				{
+					_backgroundTasks.Add(t);
+				}
+			}
 		});
 	}
 
@@ -291,7 +294,7 @@ public partial class CdcProcessor : ICdcProcessor
 				{
 					LogConsumerTimeoutAsync(ex);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
 					// Disposal timeout expired — continue cleanup
 				}
@@ -432,7 +435,7 @@ public partial class CdcProcessor : ICdcProcessor
 
 			LogNoMoreRecordsProducer();
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			LogProducerCanceled();
 		}
@@ -758,7 +761,7 @@ public partial class CdcProcessor : ICdcProcessor
 
 				totalProcessedCount += batch.Length;
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				LogConsumerCanceled();
 			}
@@ -799,7 +802,7 @@ public partial class CdcProcessor : ICdcProcessor
 						await _policyFactory.GetComprehensivePolicy().ExecuteAsync(async () =>
 								await eventHandler(changeEvent, cancellationToken)
 									.ConfigureAwait(false))
-							.ConfigureAwait(false))
+							.ConfigureAwait(false), cancellationToken)
 					.ConfigureAwait(false);
 
 				EventsProcessedCounter.Add(1, new TagList

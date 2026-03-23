@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Contract.Tests;
 /// can safely deserialize domain events across versions.
 /// </summary>
 [Trait("Category", "Contract")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DomainEventContractShould
 {
 	private static readonly JsonSerializerOptions SerializerOptions = new()

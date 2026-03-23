@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Transport.Implementations;
 /// Automatically provisions a LocalStack container for testing.
 /// </summary>
 [Trait("Category", "Integration")]
+[Trait("Component", "Transport")]
 [Trait("Transport", "AwsSqs")]
 // CA1001: Disposable fields are disposed via IAsyncLifetime.DisposeAsync -> DisposeTransportAsync pattern
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable", Justification = "Base class implements IAsyncLifetime which calls DisposeTransportAsync to dispose fields")]

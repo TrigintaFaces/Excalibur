@@ -13,6 +13,7 @@ namespace Excalibur.Data.Tests.Firestore;
 /// and healthy/unhealthy scenarios.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class FirestoreHealthCheckShould : UnitTestBase
 {
 	private readonly ILogger<FirestoreHealthCheck> _healthCheckLogger;

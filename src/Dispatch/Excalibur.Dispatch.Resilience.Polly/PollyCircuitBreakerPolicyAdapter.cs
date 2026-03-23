@@ -36,13 +36,9 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 	private readonly ILogger _logger;
 	private readonly string _circuitName;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 
 	private CircuitState _currentState = CircuitState.Closed;

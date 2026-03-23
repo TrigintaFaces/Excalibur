@@ -108,7 +108,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 			}));
 		}
 
-		var results = await Task.WhenAll(tasks).ConfigureAwait(true);
+		var results = await Task.WhenAll(tasks);
 
 		// Retry any that failed due to transient deadlocks (serializable isolation can cause this)
 		foreach (var (aggregateId, result) in results.Where(r => !r.Result.Success))
@@ -121,7 +121,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 			};
 
 			var retryResult = await retryStore.AppendAsync(
-				aggregateId, "TestAggregate", retryEvents, -1, CancellationToken.None).ConfigureAwait(true);
+				aggregateId, "TestAggregate", retryEvents, -1, CancellationToken.None);
 			retryResult.Success.ShouldBeTrue();
 		}
 
@@ -129,7 +129,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 		var verifyStore = CreateEventStore();
 		foreach (var aggregateId in aggregateIds)
 		{
-			var loaded = await verifyStore.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None).ConfigureAwait(true);
+			var loaded = await verifyStore.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None);
 			loaded.Count.ShouldBe(2);
 			loaded[0].Version.ShouldBe(0);
 			loaded[1].Version.ShouldBe(1);
@@ -170,7 +170,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 			}));
 		}
 
-		var results = await Task.WhenAll(tasks).ConfigureAwait(true);
+		var results = await Task.WhenAll(tasks);
 
 		// Exactly one should succeed, the rest should be concurrency conflicts or failures
 		var successCount = results.Count(r => r.Success);
@@ -204,7 +204,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 			new TestDomainEvent(aggregateId, 2),
 		};
 		var seedResult = await eventStore.AppendAsync(
-			aggregateId, aggregateType, seedEvents, -1, CancellationToken.None).ConfigureAwait(true);
+			aggregateId, aggregateType, seedEvents, -1, CancellationToken.None);
 		seedResult.Success.ShouldBeTrue();
 
 		// Now perform concurrent reads and writes
@@ -226,9 +226,9 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 			return await reader.LoadAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(false);
 		});
 
-		await Task.WhenAll(writeTask, readTask).ConfigureAwait(true);
+		await Task.WhenAll(writeTask, readTask);
 
-		var readResult = await readTask.ConfigureAwait(true);
+		var readResult = await readTask;
 
 		// The read should return a consistent snapshot: either 3 events (before write) or 5 events (after write)
 		var validCounts = new[] { 3, 5 };
@@ -260,7 +260,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 		var result1 = await eventStore.AppendAsync(
 			aggregateId, aggregateType,
 			[new TestDomainEvent(aggregateId, 0)],
-			-1, CancellationToken.None).ConfigureAwait(true);
+			-1, CancellationToken.None);
 		result1.Success.ShouldBeTrue();
 		result1.NextExpectedVersion.ShouldBe(0);
 
@@ -268,7 +268,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 		var result2 = await eventStore.AppendAsync(
 			aggregateId, aggregateType,
 			[new TestDomainEvent(aggregateId, 1)],
-			0, CancellationToken.None).ConfigureAwait(true);
+			0, CancellationToken.None);
 		result2.Success.ShouldBeTrue();
 		result2.NextExpectedVersion.ShouldBe(1);
 
@@ -276,12 +276,12 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 		var result3 = await eventStore.AppendAsync(
 			aggregateId, aggregateType,
 			[new TestDomainEvent(aggregateId, 2), new TestDomainEvent(aggregateId, 3)],
-			1, CancellationToken.None).ConfigureAwait(true);
+			1, CancellationToken.None);
 		result3.Success.ShouldBeTrue();
 		result3.NextExpectedVersion.ShouldBe(3);
 
 		// Verify all events are persisted
-		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await eventStore.LoadAsync(aggregateId, aggregateType, CancellationToken.None);
 		loaded.Count.ShouldBe(4);
 
 		for (int i = 0; i < 4; i++)
@@ -309,7 +309,7 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 		var result1 = await writer1.AppendAsync(
 			aggregateId, aggregateType,
 			[new TestDomainEvent(aggregateId, 0)],
-			-1, CancellationToken.None).ConfigureAwait(true);
+			-1, CancellationToken.None);
 		result1.Success.ShouldBeTrue();
 
 		// Writer 2 tries with stale expected version (-1, thinking aggregate is new)
@@ -317,12 +317,12 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 		var result2 = await writer2.AppendAsync(
 			aggregateId, aggregateType,
 			[new TestDomainEvent(aggregateId, 0)],
-			-1, CancellationToken.None).ConfigureAwait(true);
+			-1, CancellationToken.None);
 		result2.Success.ShouldBeFalse();
 		result2.IsConcurrencyConflict.ShouldBeTrue();
 
 		// Verify only writer 1's event is persisted
-		var loaded = await writer1.LoadAsync(aggregateId, aggregateType, CancellationToken.None).ConfigureAwait(true);
+		var loaded = await writer1.LoadAsync(aggregateId, aggregateType, CancellationToken.None);
 		loaded.Count.ShouldBe(1);
 		loaded[0].Version.ShouldBe(0);
 	}

@@ -204,7 +204,7 @@ public sealed class ConditionalStepBuilderShould
 	{
 		// Arrange
 		var builder = new ConditionalStepBuilder<ConditionalStepBuilderTestData>("TestStep");
-		var retryPolicy = new RetryPolicy { MaxAttempts = 3 };
+		var retryPolicy = new SagaRetryOptions { MaxAttempts = 3 };
 
 		// Act
 		var result = builder.WithRetryPolicy(retryPolicy);
@@ -219,7 +219,7 @@ public sealed class ConditionalStepBuilderShould
 		// Arrange
 		var builder = new ConditionalStepBuilder<ConditionalStepBuilderTestData>("TestStep");
 		var thenStep = A.Fake<ISagaStep<ConditionalStepBuilderTestData>>();
-		var retryPolicy = new RetryPolicy { MaxAttempts = 5 };
+		var retryPolicy = new SagaRetryOptions { MaxAttempts = 5 };
 
 		// Act
 		builder.When(_ => true);
@@ -361,7 +361,7 @@ public sealed class ConditionalStepBuilderShould
 		// Arrange
 		var thenStep = A.Fake<ISagaStep<ConditionalStepBuilderTestData>>();
 		var elseStep = A.Fake<ISagaStep<ConditionalStepBuilderTestData>>();
-		var retryPolicy = new RetryPolicy { MaxAttempts = 3 };
+		var retryPolicy = new SagaRetryOptions { MaxAttempts = 3 };
 
 		// Act
 		var step = new ConditionalStepBuilder<ConditionalStepBuilderTestData>("TestStep")

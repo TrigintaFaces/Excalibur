@@ -15,6 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Shouldly;
+
 using Xunit;
 using Xunit.Abstractions;
 
@@ -27,7 +29,7 @@ namespace Excalibur.Dispatch.Tests.Smoke;
 /// </summary>
 [Trait("Category", "Smoke")]
 [Trait("Component", "Platform")]
-public class ValidateOnStartSweepTests
+public sealed class ValidateOnStartSweepTests
 {
 	private readonly ITestOutputHelper _output;
 
@@ -114,7 +116,7 @@ public class ValidateOnStartSweepTests
 		// This test is informational -- it documents the current coverage gap.
 		// As ValidateOnStart is added to more packages, the gap should shrink.
 		// We assert that the test itself ran successfully (no crashes).
-		Assert.True(totalOptionsTypes > 0, "Should find at least one Options type across all packages");
+		(totalOptionsTypes > 0).ShouldBeTrue("Should find at least one Options type across all packages");
 	}
 
 	/// <summary>

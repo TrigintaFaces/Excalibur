@@ -15,19 +15,20 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 ///     Tests for the <see cref="OutboxStagingMiddleware" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class OutboxStagingMiddlewareShould
 {
 	[Fact]
 	public void ThrowForNullOptions() =>
 		Should.Throw<ArgumentNullException>(() =>
-			new OutboxStagingMiddleware(null!, null, null, NullLogger<OutboxStagingMiddleware>.Instance));
+			new OutboxStagingMiddleware(null!, null, NullLogger<OutboxStagingMiddleware>.Instance));
 
 	[Fact]
 	public void ThrowForNullLogger() =>
 		Should.Throw<ArgumentNullException>(() =>
 			new OutboxStagingMiddleware(
 				Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions()),
-				null, null, null!));
+				null, null!));
 
 	[Fact]
 	public void ThrowWhenEnabledWithNoOutboxServices()
@@ -35,7 +36,7 @@ public sealed class OutboxStagingMiddlewareShould
 		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = true });
 
 		Should.Throw<InvalidOperationException>(() =>
-			new OutboxStagingMiddleware(options, null, null, NullLogger<OutboxStagingMiddleware>.Instance));
+			new OutboxStagingMiddleware(options, null, NullLogger<OutboxStagingMiddleware>.Instance));
 	}
 
 	[Fact]
@@ -43,7 +44,7 @@ public sealed class OutboxStagingMiddlewareShould
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = false });
 
-		var middleware = new OutboxStagingMiddleware(options, null, null, NullLogger<OutboxStagingMiddleware>.Instance);
+		var middleware = new OutboxStagingMiddleware(options, null, NullLogger<OutboxStagingMiddleware>.Instance);
 		middleware.ShouldNotBeNull();
 	}
 
@@ -53,17 +54,9 @@ public sealed class OutboxStagingMiddlewareShould
 		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = true });
 		var store = A.Fake<IOutboxStore>();
 
-		var middleware = new OutboxStagingMiddleware(options, store, null, NullLogger<OutboxStagingMiddleware>.Instance);
+		var middleware = new OutboxStagingMiddleware(options, store, NullLogger<OutboxStagingMiddleware>.Instance);
 		middleware.ShouldNotBeNull();
 	}
 
-	[Fact]
-	public void CreateSuccessfullyWithOutboxService()
-	{
-		var options = Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions { Enabled = true });
-		var service = A.Fake<IOutboxService>();
-
-		var middleware = new OutboxStagingMiddleware(options, null, service, NullLogger<OutboxStagingMiddleware>.Instance);
-		middleware.ShouldNotBeNull();
-	}
+	// Sprint 683 T.17: IOutboxService deleted -- CreateSuccessfullyWithOutboxService test removed
 }

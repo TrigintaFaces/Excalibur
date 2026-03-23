@@ -17,7 +17,7 @@ namespace Excalibur.Data.SqlServer;
 /// <summary>
 /// SQL Server-specific retry policy implementation for handling transient failures.
 /// </summary>
-public sealed partial class SqlServerRetryPolicy : IDataRequestRetryPolicy
+internal sealed partial class SqlServerRetryPolicy : IRelationalDataRequestRetryPolicy
 {
 	private readonly SqlServerProviderOptions _options;
 	private readonly ILogger _logger;
@@ -81,15 +81,6 @@ public sealed partial class SqlServerRetryPolicy : IDataRequestRetryPolicy
 				}
 			}, cancellationToken).ConfigureAwait(false);
 	}
-
-	/// <inheritdoc />
-	public Task<TResult> ResolveDocumentAsync<TConnection, TResult>(
-		IDocumentDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken) =>
-
-		// SQL Server doesn't support document operations directly
-		throw new NotSupportedException("SQL Server does not support document-based data requests.");
 
 	/// <inheritdoc />
 	public bool ShouldRetry(Exception exception) =>

@@ -5,7 +5,8 @@ namespace Excalibur.Dispatch.Abstractions.Tests.EventSourcing;
 /// Verifies the interface defines all required properties for domain event sourcing.
 /// </summary>
 [Trait("Category", "Unit")]
-public class IDomainEventContractShould
+[Trait("Component", "Dispatch.Abstractions")]
+public sealed class IDomainEventContractShould
 {
 	[Fact]
 	public void Have_EventId_Property()

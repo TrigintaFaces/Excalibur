@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.BatchProcessing;
 ///     producers and consumers without polling.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class EventDrivenWaitPatternShould
 {
 	[Fact]

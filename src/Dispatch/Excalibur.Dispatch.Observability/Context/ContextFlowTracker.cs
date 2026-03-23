@@ -4,10 +4,6 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Text;
-using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Features;
@@ -16,6 +12,7 @@ using Excalibur.Dispatch.Observability.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Observability.Context;
 
@@ -34,13 +31,9 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 	private readonly ActivitySource _activitySource;
 	private readonly Timer _cleanupTimer;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 	private volatile bool _disposed;
 
@@ -77,9 +70,7 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 	/// <param name="context"> The message context to track. </param>
 	/// <param name="stage"> The current pipeline stage. </param>
 	/// <param name="metadata"> Additional metadata about the tracking point. </param>
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	public void RecordContextState(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata = null)
+public void RecordContextState(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata = null)
 	{
 		if (context == null)
 		{
@@ -133,9 +124,7 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 	/// <param name="fromStage"> The previous pipeline stage. </param>
 	/// <param name="toStage"> The current pipeline stage. </param>
 	/// <returns> A collection of detected changes. </returns>
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	public IEnumerable<ContextChange> DetectChanges(IMessageContext context, string fromStage, string toStage)
+public IEnumerable<ContextChange> DetectChanges(IMessageContext context, string fromStage, string toStage)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(fromStage);
@@ -194,7 +183,7 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 
 		try
 		{
-			var correlationId = context.CorrelationId ?? context.MessageId ?? Guid.NewGuid().ToString();
+			var correlationId = context.CorrelationId ?? context.MessageId ?? Uuid7Extensions.GenerateString();
 			var originMessageId = context.MessageId;
 
 			// Record the service boundary transition
@@ -210,12 +199,16 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 				},
 				originMessageId);
 
-			lineage.ServiceBoundaries.Add(new ServiceBoundaryTransition
+			// Synchronize List mutations to prevent concurrent modification
+			lock (lineage)
 			{
-				ServiceName = serviceBoundary,
-				Timestamp = DateTimeOffset.UtcNow,
-				ContextPreserved = true,
-			});
+				lineage.ServiceBoundaries.Add(new ServiceBoundaryTransition
+				{
+					ServiceName = serviceBoundary,
+					Timestamp = DateTimeOffset.UtcNow,
+					ContextPreserved = true,
+				});
+			}
 
 			_metrics.RecordCrossBoundaryTransition(serviceBoundary, contextPreserved: true);
 
@@ -323,15 +316,19 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 		_disposed = true;
 
 		// DisposeAsync on Timer waits for any in-flight callback to complete
-		await _cleanupTimer.DisposeAsync().ConfigureAwait(false);
-		_activitySource.Dispose();
+		if (_cleanupTimer is not null)
+		{
+			await _cleanupTimer.DisposeAsync().ConfigureAwait(false);
+		}
+
+		_activitySource?.Dispose();
 		_contextSnapshots.Clear();
 		_contextLineage.Clear();
 		_latestSnapshotByMessageId.Clear();
+
+		GC.SuppressFinalize(this);
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private static bool AreValuesEqual(object? value1, object? value2)
 	{
 		if (ReferenceEquals(value1, value2))
@@ -350,12 +347,12 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 			return false;
 		}
 
-		// Use JSON serialization for complex object comparison
+		// Use ToString() for complex object comparison (AOT-safe, no JsonSerializer)
 		if (value1 is not string && !value1.GetType().IsPrimitive)
 		{
-			var json1 = JsonSerializer.Serialize(value1);
-			var json2 = JsonSerializer.Serialize(value2);
-			return string.Equals(json1, json2, StringComparison.Ordinal);
+			var str1 = value1.ToString();
+			var str2 = value2.ToString();
+			return string.Equals(str1, str2, StringComparison.Ordinal);
 		}
 
 		return value1.Equals(value2);
@@ -363,8 +360,8 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 
 	private static string GenerateSnapshotKey(IMessageContext context, string stage)
 	{
-		var messageId = context.MessageId ?? Guid.NewGuid().ToString();
-		return $"{messageId}:{stage}:{DateTimeOffset.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture)}";
+		var messageId = context.MessageId ?? Uuid7Extensions.GenerateString();
+		return $"{messageId}:{stage}";
 	}
 
 	private void DetectRemovedFields(
@@ -413,9 +410,7 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 		}
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private void DetectModifiedFields(
+private void DetectModifiedFields(
 		List<ContextChange> changes,
 		HashSet<string> fromFields,
 		HashSet<string> toFields,
@@ -445,9 +440,7 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 		}
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private ContextSnapshot CreateSnapshot(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata)
+private ContextSnapshot CreateSnapshot(IMessageContext context, string stage, IReadOnlyDictionary<string, object>? metadata)
 	{
 		var fields = new Dictionary<string, object?>(StringComparer.Ordinal)
 		{
@@ -482,9 +475,10 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 			}
 		}
 
-		// Calculate snapshot size
-		var json = JsonSerializer.Serialize(fields);
-		var sizeBytes = Encoding.UTF8.GetByteCount(json);
+		// Estimate snapshot size without serialization on every pipeline stage.
+		// Actual JSON serialization is deferred to when the snapshot is retrieved/exported.
+		// Estimate: ~50 bytes per field as a rough proxy.
+		var estimatedSizeBytes = fields.Count * 50;
 
 		return new ContextSnapshot
 		{
@@ -493,43 +487,42 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 			Timestamp = DateTimeOffset.UtcNow,
 			Fields = fields,
 			FieldCount = fields.Count,
-			SizeBytes = sizeBytes,
+			SizeBytes = estimatedSizeBytes,
 			Metadata = metadata ?? new Dictionary<string, object>(StringComparer.Ordinal),
 		};
 	}
 
 	private void TrackLineage(IMessageContext context, ContextSnapshot snapshot)
 	{
-		var correlationKey = context.CorrelationId ?? context.MessageId ?? Guid.NewGuid().ToString();
+		var correlationKey = context.CorrelationId ?? context.MessageId ?? Uuid7Extensions.GenerateString();
 		var originMessageId = context.MessageId;
 
-		var lineage = _contextLineage.AddOrUpdate(
+		var lineage = _contextLineage.GetOrAdd(
 			correlationKey,
 			static (key, arg) => new ContextLineage
 			{
 				CorrelationId = key,
-				OriginMessageId = arg.originMessageId,
+				OriginMessageId = arg,
 				StartTime = DateTimeOffset.UtcNow,
-				Snapshots = [arg.snapshot],
+				Snapshots = [],
 				ServiceBoundaries = [],
 			},
-			static (_, existing, arg) =>
-			{
-				existing.Snapshots.Add(arg.snapshot);
-				return existing;
-			},
-			(originMessageId, snapshot));
+			originMessageId);
 
-		// Limit lineage history size
-		if (lineage.Snapshots.Count > _options.Limits.MaxSnapshotsPerLineage)
+		// Synchronize List mutations to prevent concurrent modification
+		lock (lineage)
 		{
-			lineage.Snapshots.RemoveAt(0);
+			lineage.Snapshots.Add(snapshot);
+
+			// Limit lineage history size
+			if (lineage.Snapshots.Count > _options.Limits.MaxSnapshotsPerLineage)
+			{
+				lineage.Snapshots.RemoveAt(0);
+			}
 		}
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private void DetectContextChanges(IMessageContext context, string currentStage)
+private void DetectContextChanges(IMessageContext context, string currentStage)
 	{
 		// O(1) lookup for the previous snapshot using the messageId index
 		var messageId = context.MessageId ?? "unknown";
@@ -587,9 +580,21 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 				_ = _contextLineage.TryRemove(key, out _);
 			}
 
-			if (keysToRemove.Count != 0 || lineageKeysToRemove.Count != 0)
+			// Clean up stale messageId snapshot index (was previously unbounded)
+			var messageIdKeysToRemove = _latestSnapshotByMessageId
+				.Where(kvp => kvp.Value.Timestamp < cutoffTime)
+				.Select(kvp => kvp.Key)
+				.ToList();
+
+			foreach (var key in messageIdKeysToRemove)
 			{
-				LogSnapshotCleanup(keysToRemove.Count, lineageKeysToRemove.Count);
+				_ = _latestSnapshotByMessageId.TryRemove(key, out _);
+			}
+
+			var totalSnapshotCleanup = keysToRemove.Count + messageIdKeysToRemove.Count;
+			if (totalSnapshotCleanup != 0 || lineageKeysToRemove.Count != 0)
+			{
+				LogSnapshotCleanup(totalSnapshotCleanup, lineageKeysToRemove.Count);
 			}
 		}
 		catch (InvalidOperationException ex)

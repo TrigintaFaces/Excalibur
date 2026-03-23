@@ -50,20 +50,10 @@ public sealed class BatchMessageContextShould
 	}
 
 	[Fact]
-	public void InitializeDefaultValuesWhenNoPrimaryContext()
+	public void ThrowWhenCreatedWithEmptyContextList()
 	{
-		// Act
-		var sut = new BatchMessageContext([]);
-
-		// Assert
-		sut.Contexts.Count.ShouldBe(0);
-		sut.MessageType.ShouldBe("BatchMessage");
-		sut.VersionMetadata.ShouldNotBeNull();
-		((object?)sut.ValidationResult).ShouldNotBeNull();
-		sut.AuthorizationResult.ShouldNotBeNull();
-		sut.RoutingDecision.ShouldNotBeNull();
-		sut.RequestServices.ShouldNotBeNull();
-		sut.Success.ShouldBeTrue();
+		// Act & Assert -- T.2: empty context list is a framework bug
+		Should.Throw<InvalidOperationException>(() => new BatchMessageContext([]));
 	}
 
 	[Fact]
@@ -98,9 +88,10 @@ public sealed class BatchMessageContextShould
 	public void EvaluateSuccessFromValidationAndAuthorization()
 	{
 		// Arrange
+		var primary = CreatePrimaryContext();
 		var validation = SerializableValidationResult.Success();
 		var authorization = Excalibur.Dispatch.Abstractions.AuthorizationResult.Success();
-		var sut = new BatchMessageContext([]);
+		var sut = new BatchMessageContext([primary]);
 		sut.ValidationResult = validation;
 		sut.AuthorizationResult = authorization;
 
@@ -121,7 +112,8 @@ public sealed class BatchMessageContextShould
 	public void ProxyItemsBehavior()
 	{
 		// Arrange
-		var sut = new BatchMessageContext([]);
+		var primary = CreatePrimaryContext();
+		var sut = new BatchMessageContext([primary]);
 
 		// Act
 		sut.SetItem("count", 123);
@@ -139,10 +131,11 @@ public sealed class BatchMessageContextShould
 	}
 
 	[Fact]
-	public void CreateFreshMessageContextWhenPrimaryContextMissing()
+	public void CreateChildContextFromPrimaryContext()
 	{
 		// Arrange
-		var sut = new BatchMessageContext([]);
+		var primary = CreatePrimaryContext();
+		var sut = new BatchMessageContext([primary]);
 
 		// Act
 		var child = sut.CreateChildContext();

@@ -60,7 +60,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 	}
 
 	/// <inheritdoc />
-	public CloudProviderType CloudProvider => CloudProviderType.DynamoDb;
+	public CloudPersistenceProviderType CloudProvider => CloudPersistenceProviderType.DynamoDb;
 
 	/// <inheritdoc />
 	public object? GetService(Type serviceType)

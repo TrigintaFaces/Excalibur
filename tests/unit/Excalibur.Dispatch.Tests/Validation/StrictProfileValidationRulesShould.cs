@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Validation;
 ///     Tests for the <see cref="StrictProfileValidationRules" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class StrictProfileValidationRulesShould
 {
 	private readonly StrictProfileValidationRules _sut = new();

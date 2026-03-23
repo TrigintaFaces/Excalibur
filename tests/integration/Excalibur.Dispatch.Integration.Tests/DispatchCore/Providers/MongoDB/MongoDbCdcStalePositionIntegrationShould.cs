@@ -40,6 +40,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.MongoDB;
 [Trait("Component", "CDC")]
 [Trait("Provider", "MongoDB")]
 [Trait("SubComponent", "StalePositionRecovery")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	private readonly MongoDbContainerFixture _mongoFixture;
@@ -85,10 +87,10 @@ public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBa
 			{ "name", "Test Record 1" },
 			{ "created_at", DateTime.UtcNow }
 		};
-		await collection.InsertOneAsync(testDoc, cancellationToken: TestCancellationToken).ConfigureAwait(true);
+		await collection.InsertOneAsync(testDoc, cancellationToken: TestCancellationToken);
 
 		// Act: Verify database connectivity - query should succeed
-		var count = await collection.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken: TestCancellationToken).ConfigureAwait(true);
+		var count = await collection.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken: TestCancellationToken);
 		count.ShouldBeGreaterThan(0, "Database should have test data");
 
 		// Since change streams require replica sets not available in Docker standalone mode,
@@ -134,7 +136,7 @@ public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBa
 		MongoDbStalePositionReasonCodes.FromErrorCode(999).ShouldBe(MongoDbStalePositionReasonCodes.Unknown);
 
 		// Cleanup
-		await database.DropCollectionAsync("cdc_test_collection", TestCancellationToken).ConfigureAwait(true);
+		await database.DropCollectionAsync("cdc_test_collection", TestCancellationToken);
 	}
 
 	/// <summary>
@@ -185,7 +187,7 @@ public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBa
 		var database = client.GetDatabase("cdc_callback_test_db");
 
 		// Verify we can get database info
-		var databaseNames = await (await client.ListDatabaseNamesAsync(TestCancellationToken).ConfigureAwait(true)).ToListAsync(TestCancellationToken).ConfigureAwait(true);
+		var databaseNames = await (await client.ListDatabaseNamesAsync(TestCancellationToken)).ToListAsync(TestCancellationToken);
 		_ = databaseNames.ShouldNotBeNull();
 
 		// Simulate collection drop scenario with event args
@@ -204,7 +206,7 @@ public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBa
 			collectionName: "dropped_collection");
 
 		// Act: Invoke the callback (simulating what the processor would do)
-		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken).ConfigureAwait(true);
+		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken);
 
 		// Assert: Verify callback was invoked with correct parameters (now using CdcPositionResetEventArgs)
 		callbackInvoked.ShouldBeTrue("Recovery callback should be invoked");

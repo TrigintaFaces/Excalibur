@@ -10,12 +10,24 @@ namespace Excalibur.Dispatch.Channels;
 
 /// <summary>
 /// Adaptive wait strategy that adjusts its behavior based on contention.
+/// Uses exponential backoff when spinning is insufficient, avoiding CPU saturation
+/// from tight Task.Yield loops under sustained contention.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="AdaptiveWaitStrategy" /> class. </remarks>
 /// <param name="maxSpinCount"> The maximum number of spin iterations before yielding. </param>
 /// <param name="contentionThreshold"> The threshold for switching to less aggressive waiting. </param>
 internal sealed class AdaptiveWaitStrategy(int maxSpinCount = 100, int contentionThreshold = 10) : WaitStrategyBase
 {
+	/// <summary>
+	/// Initial delay for exponential backoff after spinning is exhausted.
+	/// </summary>
+	private const int InitialBackoffMs = 1;
+
+	/// <summary>
+	/// Maximum delay for exponential backoff to prevent excessive latency.
+	/// </summary>
+	private const int MaxBackoffMs = 64;
+
 	private readonly int _maxSpinCount = maxSpinCount > 0
 		? maxSpinCount
 		: throw new ArgumentException(ErrorConstants.MaxSpinCountMustBePositive, nameof(maxSpinCount));
@@ -25,7 +37,6 @@ internal sealed class AdaptiveWaitStrategy(int maxSpinCount = 100, int contentio
 		: throw new ArgumentException(ErrorConstants.ContentionThresholdMustBePositive, nameof(contentionThreshold));
 
 	private int _contentionCount;
-	private SpinWait _spinWait;
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -33,7 +44,7 @@ internal sealed class AdaptiveWaitStrategy(int maxSpinCount = 100, int contentio
 	{
 		ArgumentNullException.ThrowIfNull(condition);
 
-		_spinWait.Reset();
+		var spinWait = new SpinWait();
 		var spinCount = 0;
 		var useYield = _contentionCount > _contentionThreshold;
 
@@ -44,7 +55,7 @@ internal sealed class AdaptiveWaitStrategy(int maxSpinCount = 100, int contentio
 			{
 				while (spinCount < _maxSpinCount && !condition() && !cancellationToken.IsCancellationRequested)
 				{
-					_spinWait.SpinOnce(sleep1Threshold: -1);
+					spinWait.SpinOnce(sleep1Threshold: -1);
 					spinCount++;
 				}
 
@@ -60,12 +71,23 @@ internal sealed class AdaptiveWaitStrategy(int maxSpinCount = 100, int contentio
 				}
 			}
 
-			// If still not ready, indicate contention and use yielding
+			// If still not ready, indicate contention and use exponential backoff
+			// instead of a tight Task.Yield loop that saturates the CPU.
 			_ = Interlocked.Increment(ref _contentionCount);
 
+			var backoffMs = InitialBackoffMs;
 			while (!condition() && !cancellationToken.IsCancellationRequested)
 			{
-				await Task.Yield();
+				try
+				{
+					await Task.Delay(backoffMs, cancellationToken).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+				{
+					break;
+				}
+
+				backoffMs = Math.Min(backoffMs * 2, MaxBackoffMs);
 			}
 
 			return !cancellationToken.IsCancellationRequested;
@@ -83,7 +105,6 @@ internal sealed class AdaptiveWaitStrategy(int maxSpinCount = 100, int contentio
 	/// <inheritdoc />
 	public override void Reset()
 	{
-		_contentionCount = 0;
-		_spinWait.Reset();
+		Interlocked.Exchange(ref _contentionCount, 0);
 	}
 }

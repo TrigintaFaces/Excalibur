@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Validation.Context;
 ///     Tests for the <see cref="TraceContextValidator" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TraceContextValidatorShould
 {
 	private readonly TraceContextValidator _sut = new(NullLogger<TraceContextValidator>.Instance);

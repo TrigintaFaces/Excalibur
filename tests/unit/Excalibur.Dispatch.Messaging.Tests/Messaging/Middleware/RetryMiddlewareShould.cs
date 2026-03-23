@@ -20,6 +20,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class RetryMiddlewareShould
 {
 	private readonly ILogger<RetryMiddleware> _logger;

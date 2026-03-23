@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 /// Unit tests for TracingMiddleware.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TracingMiddlewareShould : UnitTestBase
 {
 	private readonly ActivityListener _activityListener;

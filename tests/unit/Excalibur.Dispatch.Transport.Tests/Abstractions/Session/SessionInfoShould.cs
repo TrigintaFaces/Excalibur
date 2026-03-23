@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Session;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class SessionInfoShould
+public sealed class SessionInfoShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

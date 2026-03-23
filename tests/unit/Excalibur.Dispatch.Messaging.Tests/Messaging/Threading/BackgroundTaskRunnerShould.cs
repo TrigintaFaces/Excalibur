@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Threading;
 ///     Tests for the <see cref="BackgroundTaskRunner" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class BackgroundTaskRunnerShould
 {
 	[Fact]

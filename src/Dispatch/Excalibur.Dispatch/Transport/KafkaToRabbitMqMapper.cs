@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </list>
 /// </para>
 /// </remarks>
-public class KafkaToRabbitMqMapper : DefaultMessageMapper
+public sealed class KafkaToRabbitMqMapper : DefaultMessageMapper
 {
 	/// <summary>
 	/// Header name for restoring RabbitMQ priority from Kafka messages.

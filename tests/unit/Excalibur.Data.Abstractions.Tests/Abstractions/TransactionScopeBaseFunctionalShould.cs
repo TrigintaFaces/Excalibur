@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 
 // ── Concrete test implementation of TransactionScopeBase ──
 
-public class TestTransactionScope : TransactionScopeBase
+public sealed class TestTransactionScope : TransactionScopeBase
 {
     public bool CommitCalled { get; private set; }
     public bool RollbackCalled { get; private set; }
@@ -80,7 +80,8 @@ public class TestTransactionScope : TransactionScopeBase
 }
 
 [Trait("Category", "Unit")]
-public class TransactionScopeBaseFunctionalShould
+[Trait("Component", "Data")]
+public sealed class TransactionScopeBaseFunctionalShould
 {
     [Fact]
     public void Constructor_ShouldInitializeState()

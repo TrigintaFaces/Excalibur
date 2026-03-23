@@ -63,7 +63,7 @@ public sealed class CdcRecoveryOptionsShould : UnitTestBase
 		};
 
 		// Invoke to verify
-		await options.OnPositionReset.Invoke(CreateTestEventArgs(), CancellationToken.None).ConfigureAwait(true);
+		await options.OnPositionReset.Invoke(CreateTestEventArgs(), CancellationToken.None);
 
 		// Assert
 		callbackInvoked.ShouldBeTrue();

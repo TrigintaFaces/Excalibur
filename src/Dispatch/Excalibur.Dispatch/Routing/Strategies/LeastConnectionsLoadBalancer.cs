@@ -38,7 +38,9 @@ public partial class LeastConnectionsLoadBalancer(ILogger<LeastConnectionsLoadBa
 
 		foreach (var route in routes)
 		{
-			var connections = _activeConnections.GetOrAdd(route.RouteId, 0);
+			// Read-only lookup for comparison; counts are inherently approximate under concurrency,
+			// which is acceptable for load balancing heuristics.
+			_ = _activeConnections.TryGetValue(route.RouteId, out var connections);
 			if (connections < minConnections)
 			{
 				minConnections = connections;
@@ -48,8 +50,9 @@ public partial class LeastConnectionsLoadBalancer(ILogger<LeastConnectionsLoadBa
 
 		if (selectedRoute != null)
 		{
-			_ = _activeConnections.AddOrUpdate(selectedRoute.RouteId, 1, static (_, count) => count + 1);
-			LogRouteSelectedWithLeastConnections(selectedRoute.RouteId, (int)minConnections);
+			// Single atomic increment -- eliminates the TOCTOU between GetOrAdd and AddOrUpdate
+			var finalCount = _activeConnections.AddOrUpdate(selectedRoute.RouteId, 1, static (_, count) => count + 1);
+			LogRouteSelectedWithLeastConnections(selectedRoute.RouteId, (int)(finalCount - 1));
 		}
 
 		return selectedRoute ?? routes[0];

@@ -154,7 +154,7 @@ var context = new EncryptionContext
 ```
 
 :::tip Multi-Tenant Security
-When `TenantId` is provided, it's included in the AAD (Associated Authenticated Data). This cryptographically binds the ciphertext to the tenant - attempting to decrypt with a different tenant ID will fail authentication, even with the correct key.
+`TenantId` is always included in the AAD (Associated Authenticated Data) as a length-prefixed field, even when empty or null. This ensures a stable, unambiguous AAD format across all tenancy modes. When a non-empty `TenantId` is provided, it cryptographically binds the ciphertext to the tenant -- attempting to decrypt with a different tenant ID will fail authentication, even with the correct key.
 :::
 
 ## Key Management

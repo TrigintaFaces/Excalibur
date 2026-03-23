@@ -108,7 +108,7 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 		services.TryAddSingleton<IHealthBasedLeaderElection>(sp =>
 			sp.GetRequiredService<SqlServerHealthBasedLeaderElection>());
 
-		services.TryAddSingleton<ILeaderElection>(sp =>
+		services.AddKeyedSingleton<ILeaderElection>("sqlserver", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<SqlServerHealthBasedLeaderElection>();
 			var meterFactory = sp.GetService<IMeterFactory>();
@@ -116,6 +116,8 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElection(inner, meter, activitySource, "SqlServer.HealthBased");
 		});
+		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("sqlserver"));
 
 		return services;
 	}

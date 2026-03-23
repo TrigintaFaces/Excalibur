@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// Tests cross-transport property mapping per Sprint 395.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Dispatch.Core")]
 public sealed class KafkaToRabbitMqMapperShould
 {
 	#region Constructor Tests

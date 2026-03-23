@@ -11,7 +11,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// <summary>
 /// Background service for security monitoring operations.
 /// </summary>
-internal partial class SecurityMonitoringBackgroundService(
+internal sealed partial class SecurityMonitoringBackgroundService(
 	IElasticsearchSecurityMonitor securityMonitor,
 	ILogger<SecurityMonitoringBackgroundService> logger)
 	: BackgroundService

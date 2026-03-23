@@ -134,7 +134,7 @@ internal sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 		{
 			await Task.WhenAll(_processingTasks).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -243,7 +243,7 @@ internal sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 					batch.Clear();
 				}
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

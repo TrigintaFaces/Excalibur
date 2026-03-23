@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Delivery.Handlers;
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class HandlerRegistryShould
 {
     // Test types

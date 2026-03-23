@@ -22,7 +22,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "STORE")]
-public class InMemorySagaStoreConformanceTests : SagaStoreConformanceTestKit
+public sealed class InMemorySagaStoreConformanceTests : SagaStoreConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override ISagaStore CreateStore() => new InMemorySagaStore();

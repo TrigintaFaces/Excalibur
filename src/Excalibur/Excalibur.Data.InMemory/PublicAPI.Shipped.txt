@@ -156,3 +156,8 @@ Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.SaveSnapshotAsync(Excali
 Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions
 static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.AddInMemorySnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.UseInMemorySnapshotStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.InMemoryProviderOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Data.InMemory.Diagnostics.InMemoryPersistenceTelemetryConstants.MeterName = "Excalibur.Data.InMemory.Persistence" -> string!
+const Excalibur.Data.InMemory.Diagnostics.InMemoryPersistenceTelemetryConstants.Version = "1.0.0" -> string!
+Excalibur.Data.InMemory.Diagnostics.InMemoryPersistenceTelemetryConstants

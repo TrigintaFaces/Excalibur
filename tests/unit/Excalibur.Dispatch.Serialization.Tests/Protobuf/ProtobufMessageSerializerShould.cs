@@ -313,7 +313,7 @@ public sealed class ProtobufMessageSerializerShould
 			return deserialized.Name == message.Name;
 		})).ToArray();
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(true);
+		_ = await Task.WhenAll(tasks);
 
 		// Assert
 		tasks.All(t => t.Result).ShouldBeTrue();

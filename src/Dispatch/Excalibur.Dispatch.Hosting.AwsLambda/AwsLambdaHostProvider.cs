@@ -116,6 +116,10 @@ internal partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostPr
 
 		LogExecutingAwsLambdaHandlerWithInputType(typeof(TInput).Name);
 
+		// Extract context headers (CorrelationId, TenantId) from Properties if populated
+		ServerlessContextHeaders.ExtractAndSet(context, key =>
+			context.Properties.TryGetValue(key, out var value) ? value?.ToString() : null);
+
 		try
 		{
 			// Create a timeout cancellation token based on remaining execution time

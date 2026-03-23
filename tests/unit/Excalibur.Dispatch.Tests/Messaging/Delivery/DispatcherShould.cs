@@ -17,6 +17,7 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatcherShould
 {
     private readonly IDispatchMiddlewareInvoker _middlewareInvoker = A.Fake<IDispatchMiddlewareInvoker>();
@@ -24,7 +25,7 @@ public sealed class DispatcherShould
         A.Fake<IMessageBusProvider>(),
         NullLogger<FinalDispatchHandler>.Instance,
         retryPolicy: null,
-        new Dictionary<string, IMessageBusOptions>(StringComparer.Ordinal));
+        new Dictionary<string, MessageBusOptions>(StringComparer.Ordinal));
 
     private Dispatcher CreateSut(
         IDispatchMiddlewareInvoker? invoker = null,

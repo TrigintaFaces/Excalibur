@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// Unit tests for <see cref="TransportConfigurationValidator"/> (Sprint 211).
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportConfigurationValidatorShould : UnitTestBase
 {
 	private readonly TransportConfigurationValidator _validator = new();

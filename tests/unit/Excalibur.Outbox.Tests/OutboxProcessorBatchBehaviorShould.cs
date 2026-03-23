@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -19,7 +20,7 @@ using Microsoft.Extensions.Options;
 
 using DeliveryMessageMetadata = Excalibur.Dispatch.Messaging.MessageMetadata;
 using DeliveryOutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
-using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxOptions;
+using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Outbox.Tests;
 
@@ -47,19 +48,19 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1", "sent-2" },
-			new List<string> { "retry-1" },
-			new List<string> { "dead-1" },
+			new List<(string, int)> { ("retry-1", 2) },
+			new List<(string, int)> { ("dead-1", 3) },
 			CancellationToken.None);
 
 		// Assert
 		A.CallTo(() => outboxStore.MarkSentAsync("sent-1", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 		A.CallTo(() => outboxStore.MarkSentAsync("sent-2", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		A.CallTo(() => outboxStore.MarkFailedAsync("retry-1", ErrorConstants.RetryAttempt, 1, A<CancellationToken>._))
+		A.CallTo(() => outboxStore.MarkFailedAsync("retry-1", ErrorConstants.RetryAttempt, 2, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => outboxStore.MarkFailedAsync(
 				"dead-1",
 				ErrorConstants.MaxRetriesReachedMovedToDeadLetter,
-				A<int>._,
+				3,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -76,8 +77,8 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string>(),
-			new List<string>(),
-			new List<string>(),
+			new List<(string, int)>(),
+			new List<(string, int)>(),
 			CancellationToken.None);
 
 		// Assert
@@ -100,8 +101,8 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1" },
-			new List<string>(),
-			new List<string>(),
+			new List<(string, int)>(),
+			new List<(string, int)>(),
 			cts.Token));
 
 		// Assert
@@ -112,25 +113,26 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task PerformBatchDatabaseOperationsAsync_PropagatesStoreException_WhenAnyBucketFails()
+	public async Task PerformBatchDatabaseOperationsAsync_ContinuesAfterStoreException_WhenAnyBucketFails()
 	{
-		// Arrange
+		// Arrange - T.2: Per-message try/catch prevents partial batch failure cascade
 		var outboxStore = A.Fake<IOutboxStore>();
 		_ = A.CallTo(() => outboxStore.MarkFailedAsync("retry-1", ErrorConstants.RetryAttempt, 1, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("mark-failed"));
 		await using var processor = CreateProcessor(outboxStore: outboxStore);
 
-		// Act
-		var ex = await Should.ThrowAsync<InvalidOperationException>(() => InvokePrivateAsync(
+		// Act - Should NOT throw; individual failures are caught per-message
+		await InvokePrivateAsync(
 			PerformBatchDatabaseOperationsAsyncMethod,
 			processor,
 			new List<string> { "sent-1" },
-			new List<string> { "retry-1" },
-			new List<string>(),
-			CancellationToken.None));
+			new List<(string, int)> { ("retry-1", 1) },
+			new List<(string, int)>(),
+			CancellationToken.None);
 
-		// Assert
-		ex.Message.ShouldBe("mark-failed");
+		// Assert - The sent message marking should still have been attempted
+		A.CallTo(() => outboxStore.MarkSentAsync("sent-1", A<CancellationToken>._))
+			.MustHaveHappened();
 	}
 
 	[Fact]
@@ -188,8 +190,8 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			outboxStore ?? A.Fake<IOutboxStore>(),
 			serializer ?? new DispatchJsonSerializer(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
-			logger ?? A.Fake<ILogger<OutboxProcessor>>(),
-			telemetryClient: null,
+			logger ?? NullLogger<OutboxProcessor>.Instance,
+
 			internalSerializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry);

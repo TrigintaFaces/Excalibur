@@ -15,7 +15,8 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 /// Tests the progressive enhancement API pattern (Sprint 208 - kca22).
 /// </summary>
 [Trait("Category", "Unit")]
-public class ProgressiveEnhancementExtensionsShould
+[Trait("Component", "Core")]
+public sealed class ProgressiveEnhancementExtensionsShould
 {
 	/// <summary>
 	/// Creates an IDispatchBuilder for testing.

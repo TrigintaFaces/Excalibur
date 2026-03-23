@@ -28,7 +28,7 @@ builder.Services.Configure<SqlServerInboxOptions>(options =>
 	options.TableName = "InboxMessages";
 });
 
-builder.Services.Configure<OutboxOptions>(options =>
+builder.Services.Configure<OutboxDeliveryOptions>(options =>
 {
 	// AtLeastOnce is the default - highest throughput, batch completion
 	// Messages are marked sent after the entire batch is published

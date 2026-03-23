@@ -71,7 +71,7 @@ internal partial class ClaimCheckCleanupService(
 
 				await PerformCleanupAsync(cleanupProvider, stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
 				// Expected when cancellation is requested
 				break;
@@ -85,7 +85,7 @@ internal partial class ClaimCheckCleanupService(
 				{
 					await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 				{
 					break;
 				}

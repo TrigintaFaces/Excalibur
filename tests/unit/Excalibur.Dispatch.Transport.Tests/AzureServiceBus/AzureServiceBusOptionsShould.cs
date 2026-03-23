@@ -1,6 +1,6 @@
 using Azure.Messaging.ServiceBus;
 
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Transport.Azure;
 
 namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus;
@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus;
 /// Unit tests for AzureServiceBusOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class AzureServiceBusOptionsShould : UnitTestBase
 {
 	[Fact]
@@ -21,7 +22,7 @@ public sealed class AzureServiceBusOptionsShould : UnitTestBase
 		options.MaxConcurrentCalls.ShouldBe(10);
 		options.PrefetchCount.ShouldBe(50);
 		options.TransportType.ShouldBe(ServiceBusTransportType.AmqpTcp);
-		options.CloudEventsMode.ShouldBe(CloudEventsMode.Structured);
+		options.CloudEventsMode.ShouldBe(CloudEventMode.Structured);
 		options.EnableEncryption.ShouldBeFalse();
 		options.DeadLetterOnRejection.ShouldBeFalse();
 	}
@@ -137,9 +138,9 @@ public sealed class AzureServiceBusOptionsShould : UnitTestBase
 		var options = new AzureServiceBusOptions();
 
 		// Act
-		options.CloudEventsMode = CloudEventsMode.Binary;
+		options.CloudEventsMode = CloudEventMode.Binary;
 
 		// Assert
-		options.CloudEventsMode.ShouldBe(CloudEventsMode.Binary);
+		options.CloudEventsMode.ShouldBe(CloudEventMode.Binary);
 	}
 }

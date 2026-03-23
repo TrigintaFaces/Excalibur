@@ -16,6 +16,7 @@ namespace Excalibur.Data.Tests.MongoDB.Projections;
 /// Verifies both simple (options-based) and advanced (IMongoClient) constructors.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<MongoDbProjectionStore<TestProjection>> _logger;

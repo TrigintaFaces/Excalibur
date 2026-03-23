@@ -19,6 +19,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Sprint 45 (bd-5tsb): Unit tests for AddPollyResilienceAdapters DI registration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatchBuilderResilienceExtensionsShould
 {
 	#region IDispatchBuilder Extension Tests

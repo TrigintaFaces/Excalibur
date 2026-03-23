@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Observability.Health;
 /// Verifies TBC-019 Health Checks Integration from Sprint 199.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportHealthChecksBuilderExtensionsShould
 {
 	[Fact]

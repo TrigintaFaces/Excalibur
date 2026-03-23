@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -42,7 +43,9 @@ namespace Excalibur.Outbox.Tests;
 [Trait("Category", "Unit")]
 [Trait("Component", "Inbox")]
 [Trait("Priority", "0")]
+#pragma warning disable CA1506 // Excessive class coupling -- test requires many fakes for InboxProcessor constructor
 public sealed class InboxProcessorShould : UnitTestBase
+#pragma warning restore CA1506
 {
 	/// <summary>
 	/// Shared JSON options matching the DispatchJsonSerializer's camelCase configuration
@@ -69,7 +72,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new InboxProcessor(
@@ -87,7 +90,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var options = CreateValidOptions();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new InboxProcessor(
@@ -105,7 +108,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var options = CreateValidOptions();
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new InboxProcessor(
@@ -151,7 +154,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() => new InboxProcessor(
@@ -170,7 +173,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new InboxProcessor(
@@ -192,7 +195,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 		var inboxStore = A.Fake<IInboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<InboxProcessor>>();
+		var logger = NullLogger<InboxProcessor>.Instance;
 
 		// Act - Create processor without optional dependencies
 		await using var processor = new InboxProcessor(
@@ -201,7 +204,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			telemetryClient: null,
+
 			internalSerializer: null,
 			deadLetterQueue: null,
 			circuitBreakerRegistry: null,
@@ -674,8 +677,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 			inboxStore ?? A.Fake<IInboxStore>(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			serializer ?? new DispatchJsonSerializer(),
-			logger ?? A.Fake<ILogger<InboxProcessor>>(),
-			telemetryClient: null,
+			logger ?? NullLogger<InboxProcessor>.Instance,
+
 			internalSerializer: internalSerializer,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
@@ -913,8 +916,8 @@ public sealed class InboxProcessorShould : UnitTestBase
 
 	private static IInboxStore CreateInboxStore(InboxEntry entry)
 	{
-		var inboxStore = A.Fake<IInboxStore>();
-		_ = A.CallTo(() => inboxStore.GetFailedEntriesAsync(
+		var inboxStore = A.Fake<IInboxStore>(o => o.Implements<IInboxStoreAdmin>());
+		_ = A.CallTo(() => ((IInboxStoreAdmin)inboxStore).GetFailedEntriesAsync(
 				A<int>._,
 				A<DateTimeOffset?>._,
 				A<int>._,

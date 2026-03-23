@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 /// preserving all fields including nullable properties and collection types.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Serialization")]
 public sealed class EnvelopeRoundTripShould
 {
 	private readonly ISerializer _sut;

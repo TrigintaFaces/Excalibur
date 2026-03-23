@@ -5,6 +5,7 @@ namespace Excalibur.Jobs.Tests;
 /// Unit tests for JobInstanceStatus enum.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class JobInstanceStatusShould : UnitTestBase
 {
 	[Fact]

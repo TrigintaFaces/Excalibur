@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.Hosting.Json;
 /// so that arbitrary test types can be serialized and deserialized.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Patterns")]
 [SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code — trimming not required")]
 [SuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Test code — AOT not required")]
 public sealed class SystemTextJsonSerializerShould : IDisposable

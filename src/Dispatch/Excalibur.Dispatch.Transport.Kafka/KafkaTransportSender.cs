@@ -180,6 +180,11 @@ internal sealed partial class KafkaTransportSender : ITransportSender
 			headers.Add("correlation-id", Encoding.UTF8.GetBytes(message.CorrelationId));
 		}
 
+		if (message.CausationId is not null)
+		{
+			headers.Add("causation-id", Encoding.UTF8.GetBytes(message.CausationId));
+		}
+
 		if (message.Subject is not null)
 		{
 			headers.Add("subject", Encoding.UTF8.GetBytes(message.Subject));

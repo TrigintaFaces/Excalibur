@@ -16,10 +16,11 @@ internal sealed class ActivityGroups(IActivityGroupStore activityGroupStore)
 	/// <summary>
 	/// Asynchronously retrieves a dictionary of activity groups and their data.
 	/// </summary>
+	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> A dictionary of activity group data. </returns>
-	public async Task<IDictionary<string, object>> ValueAsync()
+	public async Task<IDictionary<string, object>> ValueAsync(CancellationToken cancellationToken)
 	{
-		var result = await activityGroupStore.FindActivityGroupsAsync(CancellationToken.None).ConfigureAwait(false);
+		var result = await activityGroupStore.FindActivityGroupsAsync(cancellationToken).ConfigureAwait(false);
 		return new Dictionary<string, object>(result);
 	}
 }

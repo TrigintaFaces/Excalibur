@@ -9,13 +9,21 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </summary>
 public sealed class SqsChannelMetrics
 {
+	private long _totalMessagesProcessed;
+	private long _successfulMessages;
+	private long _failedMessages;
+
 	/// <summary>
 	/// Gets or sets the total messages processed.
 	/// </summary>
 	/// <value>
 	/// The total messages processed.
 	/// </value>
-	public long TotalMessagesProcessed { get; set; }
+	public long TotalMessagesProcessed
+	{
+		get => Interlocked.Read(ref _totalMessagesProcessed);
+		set => Interlocked.Exchange(ref _totalMessagesProcessed, value);
+	}
 
 	/// <summary>
 	/// Gets or sets the successful message count.
@@ -23,7 +31,11 @@ public sealed class SqsChannelMetrics
 	/// <value>
 	/// The successful message count.
 	/// </value>
-	public long SuccessfulMessages { get; set; }
+	public long SuccessfulMessages
+	{
+		get => Interlocked.Read(ref _successfulMessages);
+		set => Interlocked.Exchange(ref _successfulMessages, value);
+	}
 
 	/// <summary>
 	/// Gets or sets the failed message count.
@@ -31,7 +43,29 @@ public sealed class SqsChannelMetrics
 	/// <value>
 	/// The failed message count.
 	/// </value>
-	public long FailedMessages { get; set; }
+	public long FailedMessages
+	{
+		get => Interlocked.Read(ref _failedMessages);
+		set => Interlocked.Exchange(ref _failedMessages, value);
+	}
+
+	/// <summary>
+	/// Atomically adds a value to the total messages processed counter.
+	/// </summary>
+	/// <param name="count">The number of messages to add.</param>
+	internal void AddTotalMessagesProcessed(long count) => Interlocked.Add(ref _totalMessagesProcessed, count);
+
+	/// <summary>
+	/// Atomically adds a value to the successful messages counter.
+	/// </summary>
+	/// <param name="count">The number of messages to add.</param>
+	internal void AddSuccessfulMessages(long count) => Interlocked.Add(ref _successfulMessages, count);
+
+	/// <summary>
+	/// Atomically adds a value to the failed messages counter.
+	/// </summary>
+	/// <param name="count">The number of messages to add.</param>
+	internal void AddFailedMessages(long count) => Interlocked.Add(ref _failedMessages, count);
 
 	/// <summary>
 	/// Gets or sets the average processing time in milliseconds.

@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Metrics;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class BatchProcessingMetricsShould
+public sealed class BatchProcessingMetricsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

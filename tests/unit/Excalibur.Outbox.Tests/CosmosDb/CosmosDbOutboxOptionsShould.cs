@@ -7,6 +7,7 @@ namespace Excalibur.Outbox.Tests.CosmosDb;
 /// Unit tests for <see cref="CosmosDbOutboxOptions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 {
 	[Fact]

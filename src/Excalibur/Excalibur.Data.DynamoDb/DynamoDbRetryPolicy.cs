@@ -5,7 +5,6 @@ using System.Net;
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.Abstractions;
 using Excalibur.Data.Abstractions.Resilience;
 
 namespace Excalibur.Data.DynamoDb;
@@ -46,27 +45,7 @@ internal sealed class DynamoDbRetryPolicy : IDataRequestRetryPolicy
 		};
 	}
 
-	/// <inheritdoc/>
-	public async Task<TResult> ResolveAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		await Task.CompletedTask.ConfigureAwait(false);
-		throw new NotSupportedException(
-			"Use cloud-native specific methods (GetByIdAsync, CreateAsync, etc.) for DynamoDB operations.");
-	}
 
-	/// <inheritdoc/>
-	public async Task<TResult> ResolveDocumentAsync<TConnection, TResult>(
-		IDocumentDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken)
-	{
-		await Task.CompletedTask.ConfigureAwait(false);
-		throw new NotSupportedException(
-			"Use cloud-native specific methods (GetByIdAsync, CreateAsync, etc.) for DynamoDB operations.");
-	}
 
 	private static bool IsTransientStatusCode(HttpStatusCode statusCode) =>
 		statusCode switch

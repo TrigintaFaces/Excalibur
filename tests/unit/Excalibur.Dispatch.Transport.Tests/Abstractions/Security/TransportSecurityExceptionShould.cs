@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Security;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class TransportSecurityExceptionShould
+public sealed class TransportSecurityExceptionShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

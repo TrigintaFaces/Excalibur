@@ -13,8 +13,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// This exception indicates that during the processing of a specific LSN (Log Sequence Number), there were UpdateBefore records without
 /// corresponding UpdateAfter records, or vice versa, which violates the expected CDC data integrity constraints.
 /// </remarks>
-[Serializable]
-public class UnmatchedUpdateRecordsException : ApiException
+public sealed class UnmatchedUpdateRecordsException : ApiException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="UnmatchedUpdateRecordsException" /> class.
@@ -58,5 +57,5 @@ public class UnmatchedUpdateRecordsException : ApiException
 	/// Gets or sets the LSN for which the duplicate record exists.
 	/// </summary>
 	/// <value> The LSN for which the duplicate record exists. </value>
-	public byte[] Lsn { get; protected set; }
+	public byte[] Lsn { get; private set; }
 }

@@ -138,13 +138,13 @@ public sealed partial class DefaultLeaderElectionWatcher : ILeaderElectionWatche
 				{
 					await Task.Delay(_options.PollInterval, cancellationToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
 					break;
 				}
 			}
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected when cancellation is requested; complete the channel gracefully
 		}

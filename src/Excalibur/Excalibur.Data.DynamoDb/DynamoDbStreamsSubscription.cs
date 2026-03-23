@@ -139,7 +139,7 @@ TDocument>
 			streamDescription = await _streamsClient.DescribeStreamAsync(describeStreamRequest, linkedToken)
 				.ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			yield break;
 		}
@@ -183,7 +183,7 @@ TDocument>
 					recordsResponse = await _streamsClient.GetRecordsAsync(recordsRequest, linkedToken)
 						.ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
 					yield break;
 				}
@@ -245,7 +245,7 @@ TDocument>
 				{
 					await Task.Delay(_options.PollingInterval, linkedToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
 					yield break;
 				}

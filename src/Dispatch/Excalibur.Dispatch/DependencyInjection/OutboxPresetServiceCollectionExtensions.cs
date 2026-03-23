@@ -11,7 +11,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// These extensions provide a convenient way to configure <see cref="OutboxOptions"/>
+/// These extensions provide a convenient way to configure <see cref="OutboxDeliveryOptions"/>
 /// using predefined performance presets:
 /// </para>
 /// <list type="bullet">
@@ -65,13 +65,13 @@ public static class OutboxPresetServiceCollectionExtensions
 	/// </remarks>
 	public static IServiceCollection AddOutboxHighThroughput(
 		this IServiceCollection services,
-		Action<OutboxOptions>? configure = null)
+		Action<OutboxDeliveryOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.Configure<OutboxOptions>(options =>
+		_ = services.Configure<OutboxDeliveryOptions>(options =>
 		{
-			var preset = OutboxOptions.HighThroughput();
+			var preset = OutboxDeliveryOptions.HighThroughput();
 			CopyFrom(options, preset);
 			configure?.Invoke(options);
 		});
@@ -104,13 +104,13 @@ public static class OutboxPresetServiceCollectionExtensions
 	/// </remarks>
 	public static IServiceCollection AddOutboxBalanced(
 		this IServiceCollection services,
-		Action<OutboxOptions>? configure = null)
+		Action<OutboxDeliveryOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.Configure<OutboxOptions>(options =>
+		_ = services.Configure<OutboxDeliveryOptions>(options =>
 		{
-			var preset = OutboxOptions.Balanced();
+			var preset = OutboxDeliveryOptions.Balanced();
 			CopyFrom(options, preset);
 			configure?.Invoke(options);
 		});
@@ -143,13 +143,13 @@ public static class OutboxPresetServiceCollectionExtensions
 	/// </remarks>
 	public static IServiceCollection AddOutboxHighReliability(
 		this IServiceCollection services,
-		Action<OutboxOptions>? configure = null)
+		Action<OutboxDeliveryOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.Configure<OutboxOptions>(options =>
+		_ = services.Configure<OutboxDeliveryOptions>(options =>
 		{
-			var preset = OutboxOptions.HighReliability();
+			var preset = OutboxDeliveryOptions.HighReliability();
 			CopyFrom(options, preset);
 			configure?.Invoke(options);
 		});
@@ -162,7 +162,7 @@ public static class OutboxPresetServiceCollectionExtensions
 	/// </summary>
 	/// <param name="target">The target options to copy to.</param>
 	/// <param name="source">The source options to copy from.</param>
-	private static void CopyFrom(OutboxOptions target, OutboxOptions source)
+	private static void CopyFrom(OutboxDeliveryOptions target, OutboxDeliveryOptions source)
 	{
 		target.PerRunTotal = source.PerRunTotal;
 		target.QueueCapacity = source.QueueCapacity;

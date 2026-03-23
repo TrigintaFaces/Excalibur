@@ -9,7 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Buffers;
 /// Unit tests for the BufferManager component.
 /// </summary>
 [Trait("Category", "Unit")]
-public class BufferManagerShould
+[Trait("Component", "Dispatch.Core")]
+public sealed class BufferManagerShould
 {
 	[Fact]
 	public void RentBuffer_WithRequestedSize()

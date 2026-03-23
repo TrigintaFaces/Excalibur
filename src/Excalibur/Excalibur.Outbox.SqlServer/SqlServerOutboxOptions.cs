@@ -9,11 +9,12 @@ namespace Excalibur.Outbox.SqlServer;
 /// <summary>
 /// Configuration options for SQL Server-based outbox message storage.
 /// </summary>
-public class SqlServerOutboxOptions
+public sealed class SqlServerOutboxOptions
 {
 	/// <summary>
 	/// Gets or sets the connection string for the SQL Server database.
 	/// </summary>
+	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>
@@ -85,6 +86,22 @@ public class SqlServerOutboxOptions
 	/// </summary>
 	/// <value>True to enable row-level locking. Defaults to true.</value>
 	public bool UseRowLocking { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the lease timeout in seconds for message processing.
+	/// When a processor claims messages, they are leased for this duration.
+	/// If the processor fails to complete within this time, the messages
+	/// become available for other processors to reclaim.
+	/// </summary>
+	/// <value>The lease timeout in seconds. Defaults to 120 (2 minutes).</value>
+	[Range(10, 3600)]
+	public int LeaseTimeoutSeconds { get; set; } = 120;
+
+	/// <summary>
+	/// Gets or sets the processor identifier used for lease ownership.
+	/// </summary>
+	/// <value>The processor ID. Defaults to machine name + process ID.</value>
+	public string ProcessorId { get; set; } = $"{Environment.MachineName}:{Environment.ProcessId}";
 
 	/// <summary>
 	/// Gets or sets the schema name for the outbox tables.

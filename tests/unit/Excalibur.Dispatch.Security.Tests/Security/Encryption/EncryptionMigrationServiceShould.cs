@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Security.Tests.Encryption;
 /// Unit tests for <see cref="EncryptionMigrationService"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class EncryptionMigrationServiceShould
 {
 	private readonly IEncryptionProvider _encryptionProvider;

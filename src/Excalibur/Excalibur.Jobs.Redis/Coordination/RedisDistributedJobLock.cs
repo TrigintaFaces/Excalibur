@@ -78,7 +78,7 @@ internal sealed partial class RedisDistributedJobLock(
 		{
 			await ReleaseAsync(cts.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cts.IsCancellationRequested)
 		{
 			// Disposal timed out — lock will expire naturally via Redis TTL
 			logger.LogWarning("Timed out releasing distributed lock for job {JobKey} during disposal", JobKey);

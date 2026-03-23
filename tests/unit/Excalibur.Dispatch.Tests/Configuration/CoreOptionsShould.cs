@@ -51,55 +51,6 @@ public sealed class CoreOptionsShould
 		options.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
 	}
 
-	// --- TimeoutOptions ---
-
-	[Fact]
-	public void TimeoutOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new TimeoutOptions();
-
-		// Assert
-		options.Enabled.ShouldBeFalse();
-		options.DefaultTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.MessageTypeTimeouts.ShouldNotBeNull();
-		options.MessageTypeTimeouts.ShouldBeEmpty();
-		options.ThrowOnTimeout.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void TimeoutOptions_MessageTypeTimeouts_CanAddEntries()
-	{
-		// Arrange
-		var options = new TimeoutOptions();
-
-		// Act
-		options.MessageTypeTimeouts["OrderCreated"] = TimeSpan.FromMinutes(5);
-		options.MessageTypeTimeouts["HealthCheck"] = TimeSpan.FromSeconds(10);
-
-		// Assert
-		options.MessageTypeTimeouts.Count.ShouldBe(2);
-		options.MessageTypeTimeouts["OrderCreated"].ShouldBe(TimeSpan.FromMinutes(5));
-		options.MessageTypeTimeouts["HealthCheck"].ShouldBe(TimeSpan.FromSeconds(10));
-	}
-
-	[Fact]
-	public void TimeoutOptions_AllProperties_AreSettable()
-	{
-		// Act
-		var options = new TimeoutOptions
-		{
-			Enabled = true,
-			DefaultTimeout = TimeSpan.FromMinutes(1),
-			ThrowOnTimeout = false,
-		};
-
-		// Assert
-		options.Enabled.ShouldBeTrue();
-		options.DefaultTimeout.ShouldBe(TimeSpan.FromMinutes(1));
-		options.ThrowOnTimeout.ShouldBeFalse();
-	}
-
 	// --- VersioningOptions ---
 
 	[Fact]

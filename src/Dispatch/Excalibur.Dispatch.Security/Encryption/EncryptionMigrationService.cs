@@ -231,7 +231,7 @@ public sealed partial class EncryptionMigrationService : IEncryptionMigrationSer
 				CompletedAt = completedAt,
 			};
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			var cancelledAt = DateTimeOffset.UtcNow;
 

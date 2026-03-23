@@ -11,7 +11,9 @@ namespace Excalibur.Dispatch.Testing.Tests.Transport;
 /// Demonstrates the conformance test kit pattern using the InMemory transport.
 /// </summary>
 [UnitTest]
-public class InMemoryTransportSubscriberConformanceShould : TransportSubscriberConformanceTests
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class InMemoryTransportSubscriberConformanceShould : TransportSubscriberConformanceTests
 {
 	private const string Source = "conformance-test-topic";
 

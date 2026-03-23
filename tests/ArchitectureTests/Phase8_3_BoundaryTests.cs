@@ -20,6 +20,8 @@ namespace Excalibur.Dispatch.ArchitectureTests;
 ///
 /// These tests provide compile-time enforcement to prevent future violations.
 /// </remarks>
+[Trait("Category", "Unit")]
+[Trait("Component", "Architecture")]
 public sealed class Phase8_3_BoundaryTests
 {
     #region R1.9: Dispatch MUST NOT Reference Excalibur

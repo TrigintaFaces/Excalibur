@@ -3,11 +3,12 @@
 
 
 using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Serialization.MessagePack;
 
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace Excalibur.Dispatch.Serialization.MessagePack;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for registering MessagePack serialization support.

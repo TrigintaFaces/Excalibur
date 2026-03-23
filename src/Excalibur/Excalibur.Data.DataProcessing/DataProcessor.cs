@@ -324,7 +324,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 				}
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			if (_logger.IsEnabled(LogLevel.Debug))
 			{
@@ -417,7 +417,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
 						// processed sequentially.
 						await _orderedEventProcessor
-							.ProcessAsync(async () => await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false))
+							.ProcessAsync(async () => await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false), cancellationToken)
 							.ConfigureAwait(false);
 
 						var updatedTotal = Interlocked.Increment(ref _processedTotal);
@@ -451,7 +451,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 				LogCompletedProcessing(totalProcessedCount);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			if (_logger.IsEnabled(LogLevel.Debug))
 			{

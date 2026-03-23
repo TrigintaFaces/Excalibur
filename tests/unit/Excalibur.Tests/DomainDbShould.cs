@@ -16,7 +16,8 @@ namespace Excalibur.Tests;
 ///     the base Db class.
 /// </remarks>
 [Trait("Category", "Unit")]
-public class DomainDbShould
+[Trait("Component", "Core")]
+public sealed class DomainDbShould
 {
 	[Fact]
 	public void ConstructorShouldThrowArgumentNullExceptionWhenConnectionIsNull()

@@ -38,6 +38,11 @@ public sealed class CompressingSnapshotStore : DelegatingSnapshotStore
 	/// </summary>
 	internal static readonly byte[] GZipMagic = [0x45, 0x58, 0x47, 0x5A]; // "EXGZ"
 
+	/// <summary>
+	/// Maximum allowed decompressed snapshot size (64 MB). Prevents OOM from corrupted or malicious data.
+	/// </summary>
+	private const int MaxDecompressedSize = 64 * 1024 * 1024;
+
 	private readonly IOptions<SnapshotCompressionOptions> _options;
 
 	/// <summary>
@@ -145,6 +150,12 @@ public sealed class CompressingSnapshotStore : DelegatingSnapshotStore
 		}
 
 		var originalSize = BitConverter.ToInt32(data, 4);
+		if (originalSize is < 0 or > MaxDecompressedSize)
+		{
+			throw new InvalidOperationException(
+				$"Decompressed snapshot size {originalSize} bytes is invalid or exceeds maximum allowed {MaxDecompressedSize} bytes.");
+		}
+
 		using var input = new MemoryStream(data, 8, data.Length - 8);
 		using var decompressionStream = CreateDecompressionStream(input, algorithm.Value);
 		using var output = new MemoryStream(originalSize);

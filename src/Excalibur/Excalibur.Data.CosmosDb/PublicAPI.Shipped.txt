@@ -189,9 +189,6 @@ Excalibur.Data.CosmosDb.CosmosDbClientResilienceOptions.MaxRetryWaitTimeInSecond
 Excalibur.Data.CosmosDb.CosmosDbClientResilienceOptions.MaxRetryWaitTimeInSeconds.set -> void
 Excalibur.Data.CosmosDb.CosmosDbClientResilienceOptions.RequestTimeoutInSeconds.get -> int
 Excalibur.Data.CosmosDb.CosmosDbClientResilienceOptions.RequestTimeoutInSeconds.set -> void
-Excalibur.Data.CosmosDb.CosmosDbHealthCheck
-Excalibur.Data.CosmosDb.CosmosDbHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Data.CosmosDb.CosmosDbHealthCheck.CosmosDbHealthCheck(Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider! provider, Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.CosmosDbOptions!>! options) -> void
 Excalibur.Data.CosmosDb.CosmosDbOptions
 Excalibur.Data.CosmosDb.CosmosDbOptions.AllowBulkExecution.get -> bool
 Excalibur.Data.CosmosDb.CosmosDbOptions.AllowBulkExecution.set -> void
@@ -217,7 +214,7 @@ Excalibur.Data.CosmosDb.CosmosDbOptions.Name.set -> void
 Excalibur.Data.CosmosDb.CosmosDbOptions.Validate() -> void
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.Client.get -> Microsoft.Azure.Cosmos.CosmosClient?
-Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.ConnectionString.get -> string!
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CosmosDbPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.CosmosDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider!>! logger) -> void
 Excalibur.Data.CosmosDb.CosmosDbPersistenceProvider.CreateAsync<TDocument>(TDocument! document, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<TDocument!>!>!
@@ -334,3 +331,6 @@ static Microsoft.Extensions.DependencyInjection.CosmosDbServiceCollectionExtensi
 static Microsoft.Extensions.DependencyInjection.CosmosDbSnapshotStoreExtensions.AddCosmosDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! accountEndpoint, string! accountKey, string! databaseName, System.Action<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbSnapshotStoreExtensions.AddCosmosDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName, System.Action<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbSnapshotStoreExtensions.AddCosmosDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Data.CosmosDb.Diagnostics.CosmosDbPersistenceTelemetryConstants.MeterName = "Excalibur.Data.CosmosDb.Persistence" -> string!
+const Excalibur.Data.CosmosDb.Diagnostics.CosmosDbPersistenceTelemetryConstants.Version = "1.0.0" -> string!
+Excalibur.Data.CosmosDb.Diagnostics.CosmosDbPersistenceTelemetryConstants

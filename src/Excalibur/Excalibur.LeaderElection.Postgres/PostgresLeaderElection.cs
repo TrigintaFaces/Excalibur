@@ -37,7 +37,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	private readonly ILogger<PostgresLeaderElection> _logger;
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _lock = new();
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
 #endif
@@ -153,7 +153,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 				{
 					await _renewalTask.ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
 					// Expected
 				}

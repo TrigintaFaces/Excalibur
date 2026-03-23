@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Metrics;
 /// <summary>
 /// Configuration for histogram buckets.
 /// </summary>
-public class HistogramConfiguration
+public sealed class HistogramConfiguration
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="HistogramConfiguration" /> class with the specified bucket boundaries. Bucket

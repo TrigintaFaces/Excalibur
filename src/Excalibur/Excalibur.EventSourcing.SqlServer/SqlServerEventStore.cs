@@ -40,7 +40,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class SqlServerEventStore : IEventStore
+public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 {
 	// Format markers for envelope detection (ADR-058)
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -271,6 +271,9 @@ public sealed class SqlServerEventStore : IEventStore
 
 		if (currentVersion != expectedVersion)
 		{
+			// Explicit rollback to release Serializable locks immediately instead of
+			// waiting for DisposeAsync, reducing lock contention under concurrency.
+			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
 			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 			return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 		}
@@ -565,5 +568,34 @@ public sealed class SqlServerEventStore : IEventStore
 		result[0] = EnvelopeFormatMarker;
 		envelopeData.CopyTo(result, 1);
 		return result;
+	}
+
+	/// <inheritdoc/>
+	public async Task<int> EraseEventsAsync(
+		string aggregateId,
+		string aggregateType,
+		Guid erasureRequestId,
+		CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async Task<bool> IsErasedAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+			new Requests.IsErasedRequest(aggregateId, aggregateType, cancellationToken))
+			.ConfigureAwait(false);
 	}
 }

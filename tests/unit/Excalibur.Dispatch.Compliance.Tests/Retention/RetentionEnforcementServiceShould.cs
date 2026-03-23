@@ -5,7 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Retention;
 
-public class RetentionEnforcementServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class RetentionEnforcementServiceShould
 {
 	private readonly RetentionEnforcementOptions _options;
 	private readonly RetentionEnforcementService _sut;
@@ -84,7 +86,9 @@ public class RetentionEnforcementServiceShould
 	}
 }
 
-public class RetentionEnforcementOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class RetentionEnforcementOptionsShould
 {
 	[Fact]
 	public void Have_24_hour_default_scan_interval()

@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Tests personal data discovery and mapping per ADR-054.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class DataInventoryServiceShould
 {
 	private readonly IDataInventoryStore _store;

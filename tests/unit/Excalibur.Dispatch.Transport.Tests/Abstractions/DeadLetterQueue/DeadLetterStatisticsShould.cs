@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.DeadLetterQueue;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class DeadLetterStatisticsShould
+public sealed class DeadLetterStatisticsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

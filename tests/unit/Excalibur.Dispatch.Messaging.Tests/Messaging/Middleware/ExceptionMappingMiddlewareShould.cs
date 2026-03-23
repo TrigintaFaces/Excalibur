@@ -44,7 +44,8 @@ public sealed class ExceptionMappingMiddlewareShould
 		var middleware = CreateMiddleware();
 
 		// Assert
-		middleware.Stage.ShouldBe(DispatchMiddlewareStage.ErrorHandling);
+		// Sprint 695 T.15: ExceptionMappingMiddleware moved ErrorHandling→PostProcessing
+		middleware.Stage.ShouldBe(DispatchMiddlewareStage.PostProcessing);
 	}
 
 	[Fact]
@@ -122,7 +123,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var middleware = CreateMiddleware();
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		cts.Cancel();
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -143,13 +144,15 @@ public sealed class ExceptionMappingMiddlewareShould
 		var middleware = CreateMiddleware();
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };
+		using var cts = new CancellationTokenSource();
+		await cts.CancelAsync();
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> throw new OperationCanceledException("Handler cancelled");
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(
-			middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask());
+			middleware.InvokeAsync(message, context, NextDelegate, cts.Token).AsTask());
 	}
 
 	[Fact]
@@ -278,7 +281,7 @@ public sealed class ExceptionMappingMiddlewareShould
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };
 		var expectedException = new InvalidOperationException("Test");
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		CancellationToken receivedToken = default;
 
 		_ = A.CallTo(() => _mapper.MapAsync(expectedException, A<CancellationToken>._))
@@ -420,13 +423,15 @@ public sealed class ExceptionMappingMiddlewareShould
 		var middleware = CreateMiddleware();
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-123" };
+		using var cts = new CancellationTokenSource();
+		await cts.CancelAsync();
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> throw new TaskCanceledException("Task cancelled");
 
 		// Act & Assert - TaskCanceledException derives from OperationCanceledException
 		_ = await Should.ThrowAsync<TaskCanceledException>(
-			middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask());
+			middleware.InvokeAsync(message, context, NextDelegate, cts.Token).AsTask());
 	}
 
 	[Fact]

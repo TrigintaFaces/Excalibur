@@ -11,7 +11,8 @@ namespace Excalibur.Tests.Domain.Model;
 /// Unit tests for <see cref="KeyedAggregateRoot{TKey, TBusinessKey}"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-public class KeyedAggregateRootShould
+[Trait("Component", "Domain")]
+public sealed class KeyedAggregateRootShould
 {
 	[Fact]
 	public void Have_Separate_Id_And_BusinessKey()

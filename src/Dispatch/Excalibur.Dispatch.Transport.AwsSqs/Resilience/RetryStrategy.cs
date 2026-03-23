@@ -6,7 +6,12 @@ namespace Excalibur.Dispatch.Transport.AwsSqs;
 /// <summary>
 /// Specifies the retry backoff strategy for AWS SQS operations.
 /// </summary>
-public enum RetryStrategy
+/// <remarks>
+/// Renamed from <c>RetryStrategy</c> to avoid collision with
+/// <c>Excalibur.Dispatch.Abstractions.Transport.RetryStrategy</c> which defines
+/// generic retry strategies (FixedDelay, ExponentialBackoff).
+/// </remarks>
+public enum SqsRetryStrategy
 {
 	/// <summary>
 	/// Exponential backoff with jitter. Each retry waits exponentially longer

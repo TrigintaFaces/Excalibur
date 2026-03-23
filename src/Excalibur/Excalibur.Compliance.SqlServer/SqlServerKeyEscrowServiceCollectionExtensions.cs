@@ -6,6 +6,7 @@ using Excalibur.Compliance.SqlServer;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -27,7 +28,12 @@ public static class SqlServerKeyEscrowServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
+		_ = services.AddOptions<SqlServerKeyEscrowOptions>()
+			.Configure(configure)
+			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerKeyEscrowOptions>,
+				SqlServerKeyEscrowOptionsValidator>());
 		services.TryAddSingleton<IKeyEscrowService, SqlServerKeyEscrowService>();
 
 		return services;

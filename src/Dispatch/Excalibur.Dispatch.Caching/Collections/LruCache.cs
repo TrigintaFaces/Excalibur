@@ -26,13 +26,9 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 	private readonly Counter<long> _lruExpirationCounter;
 
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 	private readonly Dictionary<TKey, LinkedListNode<CacheEntry>> _cache;
 	private readonly LinkedList<CacheEntry> _lruList;
@@ -167,9 +163,9 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 				if (IsExpired(node.Value))
 				{
 					RemoveNode(node);
-					_ = Interlocked.Increment(ref _expirations);
+					_expirations++;
 					_lruExpirationCounter.Add(1);
-					_ = Interlocked.Increment(ref _misses);
+					_misses++;
 					_lruMissCounter.Add(1);
 					value = default;
 					return false;
@@ -185,13 +181,13 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 					node.Value.LastAccessed = DateTimeOffset.UtcNow;
 				}
 
-				_ = Interlocked.Increment(ref _hits);
+				_hits++;
 				_lruHitCounter.Add(1);
 				value = node.Value.Value;
 				return true;
 			}
 
-			_ = Interlocked.Increment(ref _misses);
+			_misses++;
 			_lruMissCounter.Add(1);
 			value = default;
 			return false;
@@ -227,7 +223,7 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 					if (lru != null)
 					{
 						RemoveNode(lru);
-						_ = Interlocked.Increment(ref _evictions);
+						_evictions++;
 						_lruEvictionCounter.Add(1);
 					}
 				}
@@ -256,28 +252,60 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(valueFactory);
 
-		// Try to get existing value first
-		if (TryGetValue(key, out var existingValue) && existingValue is not null)
-		{
-			return existingValue;
-		}
-
-		// Create new value outside of lock if possible
-		var newValue = valueFactory(key);
-
 		lock (_lock)
 		{
-			// Double-check inside lock
-			if (_cache.TryGetValue(key, out var node) && !IsExpired(node.Value))
+			// Check if key exists and is not expired
+			if (_cache.TryGetValue(key, out var node))
 			{
-				// Another thread added it while we were waiting
-				_lruList.Remove(node);
-				_lruList.AddFirst(node);
-				return node.Value.Value;
+				if (!IsExpired(node.Value))
+				{
+					// Move to front (most recently used)
+					_lruList.Remove(node);
+					_lruList.AddFirst(node);
+
+					if (_defaultTtl.HasValue)
+					{
+						node.Value.LastAccessed = DateTimeOffset.UtcNow;
+					}
+
+					_hits++;
+					_lruHitCounter.Add(1);
+					return node.Value.Value;
+				}
+
+				// Expired — remove before reinserting
+				RemoveNode(node);
+				_expirations++;
+				_lruExpirationCounter.Add(1);
 			}
 
-			// Add the new value
-			Set(key, newValue, ttl);
+			_misses++;
+			_lruMissCounter.Add(1);
+
+			// Factory runs under the lock to prevent duplicate invocations
+			var newValue = valueFactory(key);
+
+			// Evict if at capacity
+			if (_cache.Count >= Capacity)
+			{
+				var lru = _lruList.Last;
+				if (lru != null)
+				{
+					RemoveNode(lru);
+					_evictions++;
+					_lruEvictionCounter.Add(1);
+				}
+			}
+
+			var entry = new CacheEntry
+			{
+				Key = key,
+				Value = newValue,
+				LastAccessed = DateTimeOffset.UtcNow,
+				ExpiresAt = CalculateExpiration(ttl),
+			};
+
+			_cache[key] = _lruList.AddFirst(entry);
 			return newValue;
 		}
 	}
@@ -349,7 +377,7 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 				foreach (var node in toRemove)
 				{
 					RemoveNode(node);
-					_ = Interlocked.Increment(ref _expirations);
+					_expirations++;
 					_lruExpirationCounter.Add(1);
 				}
 			}

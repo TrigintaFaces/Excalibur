@@ -17,7 +17,7 @@ internal sealed class HandlerRegistry : IHandlerRegistry
 	private readonly ConcurrentDictionary<Type, List<HandlerRegistryEntry>> _handlers = new();
 	private readonly ConcurrentDictionary<Type, HandlerRegistryEntry[]> _handlerSnapshots = new();
 #if NET9_0_OR_GREATER
-	private readonly Lock _updateLock = new();
+	private readonly System.Threading.Lock _updateLock = new();
 #else
 	private readonly object _updateLock = new();
 #endif

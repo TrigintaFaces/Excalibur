@@ -19,6 +19,7 @@ namespace Excalibur.Data.Tests.MongoDB;
 /// Unit tests for MongoDbRetryPolicy.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class MongoDbRetryPolicyShould : UnitTestBase
 {
 	private static object CreateMongoDbRetryPolicy(int maxRetryAttempts)

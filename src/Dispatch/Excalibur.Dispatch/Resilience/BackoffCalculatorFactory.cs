@@ -36,6 +36,11 @@ internal static class BackoffCalculatorFactory
 				options.Backoff.BackoffMultiplier,
 				enableJitter: true,
 				options.Backoff.JitterFactor),
+			BackoffStrategy.Fibonacci => options.Backoff.EnableJitter
+				? new JitteredBackoffCalculator(
+					new FibonacciBackoffCalculator(options.Backoff.BaseDelay, options.Backoff.MaxDelay),
+					options.Backoff.JitterFactor)
+				: new FibonacciBackoffCalculator(options.Backoff.BaseDelay, options.Backoff.MaxDelay),
 			_ => throw new ArgumentOutOfRangeException(
 				nameof(strategy),
 				strategy,

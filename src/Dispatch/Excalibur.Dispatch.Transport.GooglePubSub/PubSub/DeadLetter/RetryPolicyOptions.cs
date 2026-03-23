@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Configuration options for retry policies.
 /// </summary>
-public sealed class RetryPolicyOptions
+public sealed class PubSubRetryPolicyOptions
 {
 	/// <summary>
 	/// Gets or sets the default retry strategy.

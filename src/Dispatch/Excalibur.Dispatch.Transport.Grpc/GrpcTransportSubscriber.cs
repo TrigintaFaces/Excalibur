@@ -98,7 +98,7 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 		{
 			// Expected on cancellation
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected on cancellation
 		}

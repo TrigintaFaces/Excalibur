@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// fast path, migration path, and error handling behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PayloadSerializerShould
 {
 	private readonly ILogger<PayloadSerializer> _logger = NullLogger<PayloadSerializer>.Instance;

@@ -251,14 +251,6 @@ Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.GetMessagesAsync
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.MarkAsReplayedAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.SqlServerDeadLetterStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore!>! logger) -> void
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.StoreAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.SqlServer.Execution.DataExecutorExtensions
-Excalibur.Data.SqlServer.Execution.SqlServerDataExecutor
-Excalibur.Data.SqlServer.Execution.SqlServerDataExecutor.ExecuteAsync(string! commandText, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? parameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Data.SqlServer.Execution.SqlServerDataExecutor.SqlServerDataExecutor(System.Func<System.Data.IDbConnection!>! connectionFactory) -> void
-Excalibur.Data.SqlServer.Execution.SqlServerQueryExecutor
-Excalibur.Data.SqlServer.Execution.SqlServerQueryExecutor.QueryAsync<T>(string! queryText, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? parameters, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<T>!
-Excalibur.Data.SqlServer.Execution.SqlServerQueryExecutor.QuerySingleAsync<T>(string! queryText, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? parameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!
-Excalibur.Data.SqlServer.Execution.SqlServerQueryExecutor.SqlServerQueryExecutor(System.Func<System.Data.IDbConnection!>! connectionFactory) -> void
 Excalibur.Data.SqlServer.HealthChecksBuilderExtensions
 Excalibur.Data.SqlServer.Persistence.ApplicationIntent
 Excalibur.Data.SqlServer.Persistence.ApplicationIntent.ReadOnly = 1 -> Excalibur.Data.SqlServer.Persistence.ApplicationIntent
@@ -317,9 +309,6 @@ Excalibur.Data.SqlServer.Persistence.SqlServerObservabilityOptions.EnableMetrics
 Excalibur.Data.SqlServer.Persistence.SqlServerObservabilityOptions.EnableMetrics.set -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerObservabilityOptions.SqlServerObservabilityOptions() -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceHealthCheck
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceHealthCheck.SqlServerPersistenceHealthCheck(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceHealthCheck!>! logger, Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics! metrics) -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics.Dispose() -> void
 Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics.GetMetricsAsync() -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
@@ -558,13 +547,6 @@ Excalibur.Data.SqlServer.SqlServerProviderOptions.Pooling.set -> void
 Excalibur.Data.SqlServer.SqlServerProviderOptions.RetryCount.get -> int
 Excalibur.Data.SqlServer.SqlServerProviderOptions.RetryCount.set -> void
 Excalibur.Data.SqlServer.SqlServerProviderOptions.SqlServerProviderOptions() -> void
-Excalibur.Data.SqlServer.SqlServerRetryPolicy
-Excalibur.Data.SqlServer.SqlServerRetryPolicy.BaseRetryDelay.get -> System.TimeSpan
-Excalibur.Data.SqlServer.SqlServerRetryPolicy.MaxRetryAttempts.get -> int
-Excalibur.Data.SqlServer.SqlServerRetryPolicy.ResolveAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.SqlServer.SqlServerRetryPolicy.ResolveDocumentAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Data.SqlServer.SqlServerRetryPolicy.ShouldRetry(System.Exception! exception) -> bool
-Excalibur.Data.SqlServer.SqlServerRetryPolicy.SqlServerRetryPolicy(Excalibur.Data.SqlServer.SqlServerProviderOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Data.SqlServer.TypeHandlers.DateOnlyTypeHandler
 Excalibur.Data.SqlServer.TypeHandlers.DateOnlyTypeHandler.DateOnlyTypeHandler(System.IFormatProvider? formatProvider = null) -> void
 Excalibur.Data.SqlServer.TypeHandlers.MoneyTypeHandler
@@ -596,13 +578,11 @@ static Excalibur.Data.SqlServer.ConfigurationExtensions.GetSqlConnection(this Mi
 static Excalibur.Data.SqlServer.ConfigurationExtensions.GetSqlDb(this Microsoft.Extensions.Configuration.IConfiguration! configuration, string! connectionName) -> System.Func<Excalibur.Data.SqlServer.SqlDb!>!
 static Excalibur.Data.SqlServer.Diagnostics.CdcTelemetryConstants.ActivitySource.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Data.SqlServer.Diagnostics.CdcTelemetryConstants.Meter.get -> System.Diagnostics.Metrics.Meter!
-static Excalibur.Data.SqlServer.Execution.DataExecutorExtensions.ExecuteAsync(this Excalibur.Data.Abstractions.Execution.IDataExecutor! executor, Excalibur.Data.Abstractions.Execution.DataCommandRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 static Excalibur.Data.SqlServer.HealthChecksBuilderExtensions.AddSqlHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Excalibur.Data.SqlServer.HealthChecksBuilderExtensions.AddSqlHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, string? connectionString, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName = "SqlServerPersistence") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistenceHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "sqlserver-persistence", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null, System.TimeSpan? timeout = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistenceHighAvailability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistenceReadOnly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistenceWithEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, Excalibur.Data.SqlServer.Persistence.SqlConnectionColumnEncryptionSetting columnEncryptionSetting = Excalibur.Data.SqlServer.Persistence.SqlConnectionColumnEncryptionSetting.Enabled) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -627,7 +607,6 @@ static Excalibur.Data.SqlServer.RequestProviders.SqlServerGrantRequestProvider.S
 static Excalibur.Data.SqlServer.ServiceProviderExtensions.BuildConnection(this System.IServiceProvider! provider, string! connectionName) -> Microsoft.Data.SqlClient.SqlConnection!
 static Microsoft.Extensions.DependencyInjection.A3BuilderSqlServerExtensions.UseSqlServer(this Excalibur.A3.IA3Builder! builder) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.ExcaliburDataSqlServerServiceCollectionExtensions.AddExcaliburSqlServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params Dapper.SqlMapper.ITypeHandler![]? additionalTypeHandlers) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddSqlServerDataExecutors(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.Data.IDbConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddSqlServerDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddSqlServerDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics.Dispose(bool disposing) -> void
@@ -635,3 +614,4 @@ virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.Dispos
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
+const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcCheckpointSkipped = 100742 -> int

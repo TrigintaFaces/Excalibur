@@ -34,7 +34,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	private readonly ConcurrentDictionary<string, CandidateHealth> _candidateHealthCache = new(StringComparer.Ordinal);
 	private readonly ResiliencePipeline _retryPolicy;
 
-	private readonly ConcurrentBag<Task> _trackedTasks = [];
+	private ConcurrentBag<Task> _trackedTasks = [];
 	private readonly CancellationTokenSource _shutdownTokenSource = new();
 
 	private string? _sessionId;
@@ -315,7 +315,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		{
 			await Task.WhenAll(_trackedTasks).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -593,6 +593,9 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 
 		var task = RenewSessionAsync();
 		_trackedTasks.Add(task);
+
+		// Drain completed tasks to prevent unbounded growth
+		DrainCompletedTrackedTasks();
 	}
 
 	/// <summary>
@@ -608,6 +611,21 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 
 		var task = MonitorLeadershipAsync();
 		_trackedTasks.Add(task);
+
+		// Drain completed tasks to prevent unbounded growth
+		DrainCompletedTrackedTasks();
+	}
+
+	private void DrainCompletedTrackedTasks()
+	{
+		var snapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
+		foreach (var t in snapshot)
+		{
+			if (!t.IsCompleted)
+			{
+				_trackedTasks.Add(t);
+			}
+		}
 	}
 
 	private async Task RenewSessionAsync()
@@ -634,7 +652,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 				LogRenewedSession(_resourceName);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Shutdown requested — expected during disposal
 		}
@@ -676,7 +694,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 				await TryAcquireLeadershipAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Shutdown requested — expected during disposal
 		}
@@ -704,7 +722,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 				return leaderInfo?.CandidateId;
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			throw;
 		}

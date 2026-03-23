@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Statistics;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class ChannelStatisticsShould
+public sealed class ChannelStatisticsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

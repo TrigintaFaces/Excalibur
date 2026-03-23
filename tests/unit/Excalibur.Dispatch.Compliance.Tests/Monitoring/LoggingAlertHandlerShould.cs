@@ -3,7 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Monitoring;
 
-public class LoggingAlertHandlerShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class LoggingAlertHandlerShould
 {
     private readonly LoggingAlertHandler _sut;
 

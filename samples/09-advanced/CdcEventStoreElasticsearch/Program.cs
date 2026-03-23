@@ -105,7 +105,8 @@ var eventStoreConnectionString = builder.Configuration.GetConnectionString("Even
 var elasticsearchUri = builder.Configuration["Elasticsearch:Uri"] ?? "http://localhost:9200";
 
 // Use the host's built-in bootstrap logger for startup messages
-var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Startup");
+using var startupLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
+var startupLogger = startupLoggerFactory.CreateLogger("Startup");
 startupLogger.LogInformation("CDC + Event Store + Elasticsearch Sample - Production Configuration with Web API");
 startupLogger.LogInformation("SQL Server #1 (CDC Source): localhost:1433");
 startupLogger.LogInformation("SQL Server #2 (Event Store): localhost:1434");

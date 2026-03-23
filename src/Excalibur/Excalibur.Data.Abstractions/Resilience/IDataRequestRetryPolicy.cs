@@ -5,8 +5,24 @@
 namespace Excalibur.Data.Abstractions.Resilience;
 
 /// <summary>
-/// Defines retry policies for DataRequest execution with resilience capabilities.
+/// Core retry policy interface for data providers. Defines retry configuration
+/// and transient failure detection without prescribing execution patterns.
 /// </summary>
+/// <remarks>
+/// <para>
+/// This is the minimal core interface that ALL data providers implement, including
+/// cloud-native providers (DynamoDb, CosmosDb, Firestore) that use their own SDK
+/// patterns instead of the <see cref="IDataRequest{TConnection, TResult}"/> pattern.
+/// </para>
+/// <para>
+/// For providers that support the connection-factory execution pattern, use the
+/// sub-interfaces:
+/// <list type="bullet">
+///   <item><see cref="IRelationalDataRequestRetryPolicy"/> for SQL/relational providers</item>
+///   <item><see cref="IDocumentDataRequestRetryPolicy"/> for document database providers</item>
+/// </list>
+/// </para>
+/// </remarks>
 public interface IDataRequestRetryPolicy
 {
 	/// <summary>
@@ -20,34 +36,6 @@ public interface IDataRequestRetryPolicy
 	/// </summary>
 	/// <value> The base delay between retry attempts. </value>
 	TimeSpan BaseRetryDelay { get; }
-
-	/// <summary>
-	/// Executes a DataRequest with retry logic for transient failures.
-	/// </summary>
-	/// <typeparam name="TConnection"> The type of the database connection. </typeparam>
-	/// <typeparam name="TResult"> The type of the result. </typeparam>
-	/// <param name="request"> The data request to execute. </param>
-	/// <param name="connectionFactory"> Factory function to create connections. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> The result of the data request execution. </returns>
-	Task<TResult> ResolveAsync<TConnection, TResult>(
-		IDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Executes a document DataRequest with retry logic for transient failures.
-	/// </summary>
-	/// <typeparam name="TConnection"> The type of the document database connection. </typeparam>
-	/// <typeparam name="TResult"> The type of the result. </typeparam>
-	/// <param name="request"> The document data request to execute. </param>
-	/// <param name="connectionFactory"> Factory function to create connections. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> The result of the document data request execution. </returns>
-	Task<TResult> ResolveDocumentAsync<TConnection, TResult>(
-		IDocumentDataRequest<TConnection, TResult> request,
-		Func<Task<TConnection>> connectionFactory,
-		CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Determines if an exception represents a transient failure that should be retried.

@@ -172,14 +172,7 @@ public sealed class ForbiddenExceptionShould
 		exception.InnerException.ShouldBe(innerException);
 	}
 
-	[Fact]
-	public void HaveSerializableAttribute()
-	{
-		// Assert
-		typeof(ForbiddenException)
-			.GetCustomAttributes(typeof(SerializableAttribute), false)
-			.ShouldNotBeEmpty();
-	}
+	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)
 
 	[Fact]
 	public void HaveDefaultMessage()

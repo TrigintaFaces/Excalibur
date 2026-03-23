@@ -1,12 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Grpc;
+using Excalibur.Dispatch.Transport.Grpc.DeadLetter;
+using Excalibur.Dispatch.Transport.Grpc.Diagnostics;
 
 using Grpc.Net.Client;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -29,8 +33,25 @@ public static class GrpcTransportServiceCollectionExtensions
 	public static IServiceCollection AddGrpcTransport(
 		this IServiceCollection services,
 		Action<GrpcTransportOptions> configure)
+		=> AddGrpcTransport(services, "default", configure);
+
+	/// <summary>
+	/// Adds the gRPC transport with the specified name and configuration.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="name">The transport name used as the keyed service key.</param>
+	/// <param name="configure">The options configuration action.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	public static IServiceCollection AddGrpcTransport(
+		this IServiceCollection services,
+		string name,
+		Action<GrpcTransportOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.AddOptions<GrpcTransportOptions>()
@@ -56,7 +77,7 @@ public static class GrpcTransportServiceCollectionExtensions
 			return GrpcChannel.ForAddress(options.ServerAddress, channelOptions);
 		});
 
-		services.TryAddSingleton<ITransportSender>(sp =>
+		services.AddKeyedSingleton<ITransportSender>(name, (sp, _) =>
 		{
 			var channel = sp.GetRequiredService<GrpcChannel>();
 			var options = sp.GetRequiredService<IOptions<GrpcTransportOptions>>();
@@ -64,7 +85,7 @@ public static class GrpcTransportServiceCollectionExtensions
 			return new GrpcTransportSender(channel, options, logger);
 		});
 
-		services.TryAddSingleton<ITransportReceiver>(sp =>
+		services.AddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
 		{
 			var channel = sp.GetRequiredService<GrpcChannel>();
 			var options = sp.GetRequiredService<IOptions<GrpcTransportOptions>>();
@@ -72,13 +93,34 @@ public static class GrpcTransportServiceCollectionExtensions
 			return new GrpcTransportReceiver(channel, options, logger);
 		});
 
-		services.TryAddSingleton<ITransportSubscriber>(sp =>
+		services.AddKeyedSingleton<ITransportSubscriber>(name, (sp, _) =>
 		{
 			var channel = sp.GetRequiredService<GrpcChannel>();
 			var options = sp.GetRequiredService<IOptions<GrpcTransportOptions>>();
 			var logger = sp.GetRequiredService<ILogger<GrpcTransportSubscriber>>();
 			return new GrpcTransportSubscriber(channel, options, logger);
 		});
+
+		// Register in-memory DLQ manager for gRPC transport (gRPC has no native DLQ)
+		services.AddKeyedSingleton<IDeadLetterQueueManager>(name, (sp, _) =>
+			new GrpcDeadLetterQueueManager(
+				sp.GetRequiredService<ILogger<GrpcDeadLetterQueueManager>>()));
+
+		// Register IValidateOptions for cross-property validation
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GrpcTransportOptions>, GrpcTransportOptionsValidator>());
+
+		// Register health check
+		services.TryAddSingleton<GrpcTransportHealthCheck>();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHealthCheck, GrpcTransportHealthCheck>());
+
+		// Register transport adapter (bridges gRPC to dispatch pipeline)
+		services.TryAddSingleton<GrpcTransportAdapter>();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<ITransportAdapter, GrpcTransportAdapter>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<ITransportHealthChecker, GrpcTransportAdapter>());
 
 		return services;
 	}

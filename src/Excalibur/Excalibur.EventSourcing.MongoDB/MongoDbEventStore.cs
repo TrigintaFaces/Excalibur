@@ -44,7 +44,7 @@ namespace Excalibur.EventSourcing.MongoDB;
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
 	Justification = "Event store implementations inherently couple with many SDK and abstraction types.")]
-public sealed partial class MongoDbEventStore : IEventStore, IAsyncDisposable
+public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure, IAsyncDisposable
 {
 	// MongoDB error code for duplicate key (unique constraint violation)
 	private const int DuplicateKeyErrorCode = 11000;
@@ -655,4 +655,48 @@ public sealed partial class MongoDbEventStore : IEventStore, IAsyncDisposable
 
 	[LoggerMessage(DataMongoDbEventId.EventDispatched, LogLevel.Debug, "Marked event {EventId} as dispatched")]
 	private partial void LogEventDispatched(string eventId);
+
+	/// <inheritdoc/>
+	public async Task<int> EraseEventsAsync(
+		string aggregateId,
+		string aggregateType,
+		Guid erasureRequestId,
+		CancellationToken cancellationToken)
+	{
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var filter = Builders<MongoDbEventDocument>.Filter.And(
+			Builders<MongoDbEventDocument>.Filter.Eq(e => e.StreamId, aggregateId),
+			Builders<MongoDbEventDocument>.Filter.Eq(e => e.AggregateType, aggregateType),
+			Builders<MongoDbEventDocument>.Filter.Ne(e => e.EventType, "$erased"));
+
+		var update = Builders<MongoDbEventDocument>.Update
+			.Set(e => e.Payload, null!)
+			.Set(e => e.EventType, "$erased")
+			.Set(e => e.Metadata, null);
+
+		var result = await _eventsCollection!.UpdateManyAsync(filter, update, cancellationToken: cancellationToken)
+			.ConfigureAwait(false);
+
+		return (int)result.ModifiedCount;
+	}
+
+	/// <inheritdoc/>
+	public async Task<bool> IsErasedAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var filter = Builders<MongoDbEventDocument>.Filter.And(
+			Builders<MongoDbEventDocument>.Filter.Eq(e => e.StreamId, aggregateId),
+			Builders<MongoDbEventDocument>.Filter.Eq(e => e.AggregateType, aggregateType),
+			Builders<MongoDbEventDocument>.Filter.Eq(e => e.EventType, "$erased"));
+
+		var count = await _eventsCollection!.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
+			.ConfigureAwait(false);
+
+		return count > 0;
+	}
 }

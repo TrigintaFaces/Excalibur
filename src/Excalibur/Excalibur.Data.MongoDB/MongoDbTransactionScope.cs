@@ -6,6 +6,8 @@ using System.Data;
 
 using Excalibur.Data.Abstractions.Persistence;
 
+using Microsoft.Extensions.Logging;
+
 using MongoDB.Driver;
 
 namespace Excalibur.Data.MongoDB;
@@ -13,7 +15,11 @@ namespace Excalibur.Data.MongoDB;
 /// <summary>
 /// MongoDB transaction scope implementation.
 /// </summary>
-internal sealed class MongoDbTransactionScope(MongoDbPersistenceProvider provider, IsolationLevel isolationLevel, TimeSpan? timeout)
+internal sealed partial class MongoDbTransactionScope(
+	MongoDbPersistenceProvider provider,
+	IsolationLevel isolationLevel,
+	TimeSpan? timeout,
+	ILogger logger)
 	: ITransactionScope, ITransactionScopeCallbacks
 {
 	private readonly List<IPersistenceProvider> _enlistedProviders = [provider];
@@ -118,9 +124,9 @@ internal sealed class MongoDbTransactionScope(MongoDbPersistenceProvider provide
 			{
 				await callback().ConfigureAwait(false);
 			}
-			catch (Exception)
+			catch (Exception ex)
 			{
-				// Log but don't throw - callbacks shouldn't break the commit
+				LogCallbackException(TransactionId, "onCommit", ex);
 			}
 		}
 
@@ -131,9 +137,9 @@ internal sealed class MongoDbTransactionScope(MongoDbPersistenceProvider provide
 			{
 				await callback(Status).ConfigureAwait(false);
 			}
-			catch (Exception)
+			catch (Exception ex)
 			{
-				// Log but don't throw - callbacks shouldn't break the commit
+				LogCallbackException(TransactionId, "onComplete", ex);
 			}
 		}
 	}
@@ -169,9 +175,9 @@ internal sealed class MongoDbTransactionScope(MongoDbPersistenceProvider provide
 			{
 				await callback().ConfigureAwait(false);
 			}
-			catch (Exception)
+			catch (Exception ex)
 			{
-				// Log but don't throw - callbacks shouldn't break the rollback
+				LogCallbackException(TransactionId, "onRollback", ex);
 			}
 		}
 
@@ -182,9 +188,9 @@ internal sealed class MongoDbTransactionScope(MongoDbPersistenceProvider provide
 			{
 				await callback(Status).ConfigureAwait(false);
 			}
-			catch (Exception)
+			catch (Exception ex)
 			{
-				// Log but don't throw - callbacks shouldn't break the rollback
+				LogCallbackException(TransactionId, "onComplete", ex);
 			}
 		}
 	}
@@ -266,4 +272,10 @@ internal sealed class MongoDbTransactionScope(MongoDbPersistenceProvider provide
 
 		return ValueTask.CompletedTask;
 	}
+
+	[LoggerMessage(
+		Diagnostics.DataMongoDbEventId.TransactionCallbackException,
+		LogLevel.Error,
+		"Transaction {TransactionId}: {CallbackType} callback threw an exception")]
+	private partial void LogCallbackException(string transactionId, string callbackType, Exception exception);
 }

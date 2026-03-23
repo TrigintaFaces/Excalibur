@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Tests.Messaging.Outbox;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class OutboxBackgroundServiceShould
 {
 	private readonly IOutboxPublisher _publisher;
@@ -18,7 +20,7 @@ public sealed class OutboxBackgroundServiceShould
 	public OutboxBackgroundServiceShould()
 	{
 		_publisher = A.Fake<IOutboxPublisher>();
-		_logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		_logger = NullLogger<OutboxBackgroundService>.Instance;
 
 		// Default successful results
 		_ = A.CallTo(() => _publisher.PublishPendingMessagesAsync(A<CancellationToken>._))

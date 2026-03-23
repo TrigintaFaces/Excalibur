@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// <summary>
 /// AWS Lambda specific implementation of serverless context.
 /// </summary>
-internal class AwsLambdaServerlessContext : ServerlessContextBase
+internal sealed class AwsLambdaServerlessContext : ServerlessContextBase
 {
 #if AWS_LAMBDA_SUPPORT
 	private readonly ILambdaContext _lambdaContext;

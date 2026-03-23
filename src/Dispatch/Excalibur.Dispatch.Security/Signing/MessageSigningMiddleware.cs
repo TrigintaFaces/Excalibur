@@ -47,6 +47,11 @@ public sealed partial class MessageSigningMiddleware : IDispatchMiddleware
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Signing wraps encryption (encrypt-then-sign). On send: encryption runs first (inner),
+	/// then signing covers the ciphertext (outer). On receive: verify signature first (cheap,
+	/// outer stage) before decrypting (expensive, inner stage).
+	/// </remarks>
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Validation;
 
 	/// <inheritdoc />

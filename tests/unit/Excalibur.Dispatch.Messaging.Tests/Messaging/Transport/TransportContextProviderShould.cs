@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// Unit tests for <see cref="TransportContextProvider"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportContextProviderShould : UnitTestBase
 {
 	#region Constructor Tests

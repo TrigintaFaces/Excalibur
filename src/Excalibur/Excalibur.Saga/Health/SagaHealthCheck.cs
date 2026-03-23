@@ -29,7 +29,7 @@ namespace Excalibur.Saga.Health;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class SagaHealthCheck : IHealthCheck
+internal sealed class SagaHealthCheck : IHealthCheck
 {
 	private readonly ISagaMonitoringService _monitoring;
 	private readonly SagaHealthCheckOptions _options;

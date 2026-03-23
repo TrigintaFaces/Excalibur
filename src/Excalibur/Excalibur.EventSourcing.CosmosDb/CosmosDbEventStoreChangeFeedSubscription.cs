@@ -128,7 +128,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 					}
 				}
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				shouldBreak = true;
 			}
@@ -224,7 +224,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 					ChangeFeedMode.LatestVersion,
 					changeFeedOptions);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

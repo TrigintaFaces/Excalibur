@@ -115,6 +115,9 @@ public static class CoreEventId
 	/// <summary>Failed to publish message.</summary>
 	public const int FailedToPublishMessage = 10109;
 
+	/// <summary>Unknown adapter referenced during unsubscribe.</summary>
+	public const int UnknownAdapterOnUnsubscribe = 10110;
+
 	// ========================================
 	// 10200-10299: Message Routing
 	// ========================================

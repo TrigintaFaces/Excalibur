@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Observability.Http;
 /// </para>
 /// </remarks>
 [AppliesTo(MessageKinds.All)]
-public sealed class W3CTraceContextMiddleware : IDispatchMiddleware
+internal sealed class W3CTraceContextMiddleware : IDispatchMiddleware
 {
 	/// <summary>
 	/// The well-known key for the W3C traceparent header in message properties.

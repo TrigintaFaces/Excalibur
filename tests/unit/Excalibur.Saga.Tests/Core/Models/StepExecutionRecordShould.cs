@@ -41,7 +41,7 @@ public sealed class StepExecutionRecordShould
 		var record = new StepExecutionRecord();
 
 		// Assert
-		record.StartedAt.ShouldBe(default(DateTime));
+		record.StartedAt.ShouldBe(default(DateTimeOffset));
 	}
 
 	[Fact]

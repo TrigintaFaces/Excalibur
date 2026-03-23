@@ -19,6 +19,8 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// ISagaStore interface using INSERT ON CONFLICT upsert pattern.
 /// </remarks>
 [Collection("PostgresSagaStore")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class PostgresSagaStoreConformanceShould : IAsyncLifetime
 {
 	private readonly PostgresSagaStoreContainerFixture _fixture;

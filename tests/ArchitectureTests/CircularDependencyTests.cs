@@ -10,7 +10,9 @@ namespace Excalibur.Dispatch.ArchitectureTests;
 /// Detects circular dependencies between packages, which create build order issues
 /// and tight coupling that prevents proper architectural layering.
 /// </summary>
-public class CircularDependencyTests
+[Trait("Category", "Unit")]
+[Trait("Component", "Architecture")]
+public sealed class CircularDependencyTests
 {
     /// <summary>
     /// CRITICAL VIOLATION: Circular dependency between A3 (Authentication/Authorization/Auditing)

@@ -64,6 +64,9 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		string? previousHash = null;
 		string eventHash;
 
+		// When hash chain is enabled, the lock must span from hash computation through INSERT
+		// to prevent concurrent threads from computing hashes against the same previous hash,
+		// which would break the tamper-detection chain.
 		if (_options.EnableHashChain)
 		{
 			await _hashChainLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -75,17 +78,52 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 
 				// Compute hash for this event
 				eventHash = ComputeEventHash(auditEvent, previousHash);
+
+				// INSERT must happen inside the lock to preserve hash chain integrity
+				var sequenceNumber = await InsertAuditEventAsync(
+					connection, auditEvent, previousHash, eventHash, cancellationToken).ConfigureAwait(false);
+
+				LogStoredAuditEvent(auditEvent.EventId, sequenceNumber);
+
+				return new AuditEventId
+				{
+					EventId = auditEvent.EventId,
+					SequenceNumber = sequenceNumber,
+					EventHash = eventHash,
+					RecordedAt = auditEvent.Timestamp
+				};
 			}
 			finally
 			{
 				_ = _hashChainLock.Release();
 			}
 		}
-		else
-		{
-			eventHash = ComputeEventHash(auditEvent, null);
-		}
 
+		eventHash = ComputeEventHash(auditEvent, null);
+
+		{
+			var sequenceNumber = await InsertAuditEventAsync(
+				connection, auditEvent, previousHash, eventHash, cancellationToken).ConfigureAwait(false);
+
+			LogStoredAuditEvent(auditEvent.EventId, sequenceNumber);
+
+			return new AuditEventId
+			{
+				EventId = auditEvent.EventId,
+				SequenceNumber = sequenceNumber,
+				EventHash = eventHash,
+				RecordedAt = auditEvent.Timestamp
+			};
+		}
+	}
+
+	private async Task<long> InsertAuditEventAsync(
+		SqlConnection connection,
+		AuditEvent auditEvent,
+		string? previousHash,
+		string eventHash,
+		CancellationToken cancellationToken)
+	{
 		var parameters = new DynamicParameters();
 		parameters.Add("@EventId", auditEvent.EventId);
 		parameters.Add("@EventType", (int)auditEvent.EventType);
@@ -111,7 +149,6 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 			: null);
 		parameters.Add("@PreviousEventHash", previousHash);
 		parameters.Add("@EventHash", eventHash);
-		parameters.Add("@SequenceNumber", dbType: DbType.Int64, direction: ParameterDirection.Output);
 
 		var sql = $@"
 			INSERT INTO {_options.FullyQualifiedTableName}
@@ -124,20 +161,10 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 			 @ResourceId, @ResourceType, @ResourceClassification, @TenantId, @CorrelationId,
 			 @SessionId, @IpAddress, @UserAgent, @Reason, @Metadata, @PreviousEventHash, @EventHash)";
 
-		var sequenceNumber = await connection.ExecuteScalarAsync<long>(
+		return await connection.ExecuteScalarAsync<long>(
 				new CommandDefinition(sql, parameters, commandTimeout: _options.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
-
-		LogStoredAuditEvent(auditEvent.EventId, sequenceNumber);
-
-		return new AuditEventId
-		{
-			EventId = auditEvent.EventId,
-			SequenceNumber = sequenceNumber,
-			EventHash = eventHash,
-			RecordedAt = auditEvent.Timestamp
-		};
 	}
 
 	/// <inheritdoc />

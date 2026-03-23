@@ -69,6 +69,13 @@ public interface ICdcBuilder
 	/// Use this method to configure which database tables to track for changes
 	/// and how to map those changes to domain events.
 	/// </para>
+	/// <para>
+	/// <strong>Table naming conventions:</strong> Use singular, schema-qualified names
+	/// (e.g., <c>"dbo.Order"</c> not <c>"Orders"</c>). SQL Server CDC capture instances
+	/// are derived from table names, so consistent naming avoids ambiguity when querying
+	/// <c>cdc.fn_cdc_get_all_changes_*</c> functions. If your database uses plural table
+	/// names, pass the exact name as it appears in the database.
+	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
@@ -90,7 +97,11 @@ public interface ICdcBuilder
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// The table name is inferred from the entity type name using conventions.
+	/// The table name is inferred from the entity type name using the singular form
+	/// (e.g., <c>TrackTable&lt;Order&gt;()</c> maps to <c>{DefaultSchema}.Order</c>).
+	/// No naive pluralization is applied. For custom table names (e.g., plural tables
+	/// or non-default schemas), use the string overload:
+	/// <c>TrackTable("sales.OrderItems", configure)</c>.
 	/// </para>
 	/// </remarks>
 	/// <example>

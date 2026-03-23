@@ -2,7 +2,9 @@ using Excalibur.Dispatch.AuditLogging.Alerting;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Alerting;
 
-public class AuditAlertSeverityShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditAlertSeverityShould
 {
     [Fact]
     public void Define_info_as_zero()

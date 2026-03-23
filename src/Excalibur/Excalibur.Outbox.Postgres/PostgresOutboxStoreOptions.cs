@@ -4,7 +4,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-using DispatchOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxOptions;
+using DispatchOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Outbox.Postgres;
 

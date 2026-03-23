@@ -12,13 +12,9 @@ public sealed class ChannelLatencyTracker(string channelId, int sampleSize = 100
 	private readonly string _channelId = channelId ?? throw new ArgumentNullException(nameof(channelId));
 	private readonly double[] _samples = new double[sampleSize];
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 	private int _sampleIndex;
 

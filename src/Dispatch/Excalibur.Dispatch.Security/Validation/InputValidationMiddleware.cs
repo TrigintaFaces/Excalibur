@@ -35,6 +35,12 @@ public sealed partial class InputValidationMiddleware(
 	IEnumerable<IInputValidator> validators,
 	ISecurityEventLogger securityEventLogger) : IDispatchMiddleware
 {
+	/// <summary>
+	/// Maximum number of entries allowed in the property reflection cache.
+	/// When the cap is reached, new lookups compute properties without caching to prevent unbounded memory growth.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
 	private static readonly ConcurrentDictionary<Type, PropertyInfo[]> PropertyCache = new();
 
 	private readonly ILogger<InputValidationMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -172,7 +178,20 @@ public sealed partial class InputValidationMiddleware(
 
 	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2075", Justification = "Message types are known at runtime and properties are accessed for validation")]
 	private static PropertyInfo[] GetPropertiesForValidation([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
-		=> PropertyCache.GetOrAdd(type, static t => t.GetProperties());
+	{
+		if (PropertyCache.TryGetValue(type, out var cached))
+		{
+			return cached;
+		}
+
+		if (PropertyCache.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching to prevent unbounded growth
+			return type.GetProperties();
+		}
+
+		return PropertyCache.GetOrAdd(type, static t => t.GetProperties());
+	}
 
 	// Regex patterns for injection detection
 	[GeneratedRegex(@"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|EXEC|EXECUTE)\b)|(--)|(;)|(\*/)|(/\*)",

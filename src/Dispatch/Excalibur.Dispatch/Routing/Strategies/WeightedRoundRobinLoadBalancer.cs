@@ -23,7 +23,7 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 	private readonly ILogger<WeightedRoundRobinLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly ConcurrentDictionary<string, RouteState> _routeStates = new(StringComparer.Ordinal);
 #if NET9_0_OR_GREATER
-	private readonly Lock _snapshotLock = new();
+	private readonly System.Threading.Lock _snapshotLock = new();
 #else
 	private readonly object _snapshotLock = new();
 #endif
@@ -159,12 +159,9 @@ public partial class WeightedRoundRobinLoadBalancer(ILogger<WeightedRoundRobinLo
 	private sealed class RouteState
 	{
 #if NET9_0_OR_GREATER
-		private readonly Lock _lock = new();
-
+		private readonly System.Threading.Lock _lock = new();
 #else
-
 		private readonly object _lock = new();
-
 #endif
 		private double _totalLatency;
 

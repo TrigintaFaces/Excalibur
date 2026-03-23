@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Options.Middleware;
+
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Middleware.Outbox;
 
@@ -40,6 +43,21 @@ public static class OutboxPipelineExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
+		return builder.UseMiddleware<OutboxMiddleware>();
+	}
+
+	/// <summary>
+	/// Adds outbox middleware to the dispatch pipeline with configuration.
+	/// </summary>
+	/// <param name="builder"> The dispatch builder. </param>
+	/// <param name="configure"> Action to configure <see cref="OutboxStagingOptions"/>. </param>
+	/// <returns> The builder for fluent configuration. </returns>
+	public static IDispatchBuilder UseOutbox(this IDispatchBuilder builder, Action<OutboxStagingOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		builder.Services.Configure(configure);
 		return builder.UseMiddleware<OutboxMiddleware>();
 	}
 }

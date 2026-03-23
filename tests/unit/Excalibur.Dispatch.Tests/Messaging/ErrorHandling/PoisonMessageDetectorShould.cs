@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PoisonMessageDetectorShould
 {
     private static MessageProcessingInfo CreateProcessingInfo(int attemptCount = 1) => new()

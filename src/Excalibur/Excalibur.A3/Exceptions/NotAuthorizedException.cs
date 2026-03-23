@@ -13,8 +13,7 @@ namespace Excalibur.A3.Exceptions;
 /// <remarks>
 /// Inherits from <see cref="ApiException" /> and provides specific details about unauthorized access, including user-related context.
 /// </remarks>
-[Serializable]
-public class NotAuthorizedException : ApiException
+public sealed class NotAuthorizedException : ApiException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="NotAuthorizedException" /> class with the specified user details, status code,
@@ -59,19 +58,19 @@ public class NotAuthorizedException : ApiException
 	/// Gets or sets the login associated with the unauthorized action.
 	/// </summary>
 	/// <value>The login name, or <see langword="null"/> if not available.</value>
-	public string? Login { get; protected set; }
+	public string? Login { get; private set; }
 
 	/// <summary>
 	/// Gets or sets the user ID associated with the unauthorized action.
 	/// </summary>
 	/// <value>The user identifier, or <see langword="null"/> if not available.</value>
-	public string? UserId { get; protected set; }
+	public string? UserId { get; private set; }
 
 	/// <summary>
 	/// Gets or sets the full name of the user associated with the unauthorized action.
 	/// </summary>
 	/// <value>The full name of the user, or <see langword="null"/> if not available.</value>
-	public string? UserName { get; protected set; }
+	public string? UserName { get; private set; }
 
 	/// <summary>
 	/// Creates a <see cref="NotAuthorizedException" /> indicating that anonymous access is not allowed.

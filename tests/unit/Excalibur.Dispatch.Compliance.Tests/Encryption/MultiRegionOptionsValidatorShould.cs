@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Dispatch.Compliance.Tests.Encryption;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
 public sealed class MultiRegionOptionsValidatorShould
 {
 	private readonly MultiRegionOptionsValidator _validator = new();

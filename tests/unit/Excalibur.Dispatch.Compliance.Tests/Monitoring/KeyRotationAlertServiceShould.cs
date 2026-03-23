@@ -2,7 +2,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Monitoring;
 
-public class KeyRotationAlertServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class KeyRotationAlertServiceShould
 {
     private readonly IKeyRotationAlertHandler _handler;
     private readonly KeyRotationAlertService _sut;

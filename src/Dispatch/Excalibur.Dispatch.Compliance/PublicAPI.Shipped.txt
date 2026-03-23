@@ -950,7 +950,7 @@ Excalibur.Dispatch.Compliance.Soc2ReportExporter
 Excalibur.Dispatch.Compliance.Soc2ReportExporter.ExportAsync(Excalibur.Dispatch.Compliance.Soc2Report! report, Excalibur.Dispatch.Compliance.ExportFormat format, Excalibur.Dispatch.Compliance.Soc2ReportExportOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ExportResult!>!
 Excalibur.Dispatch.Compliance.Soc2ReportExporter.ExportWithEvidenceAsync(Excalibur.Dispatch.Compliance.Soc2Report! report, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditEvidence!>! evidence, Excalibur.Dispatch.Compliance.EvidencePackageOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ExportResult!>!
 Excalibur.Dispatch.Compliance.Soc2ReportExporter.GetSupportedFormats() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.ExportFormat>!
-Excalibur.Dispatch.Compliance.Soc2ReportExporter.Soc2ReportExporter(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Compliance.Soc2ReportExporter!>! logger) -> void
+Excalibur.Dispatch.Compliance.Soc2ReportExporter.Soc2ReportExporter(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Compliance.Soc2ReportExporter!>! logger, System.TimeProvider! timeProvider) -> void
 Excalibur.Dispatch.Compliance.Soc2ReportExporter.ValidateForExport(Excalibur.Dispatch.Compliance.Soc2Report! report, Excalibur.Dispatch.Compliance.ExportFormat format) -> Excalibur.Dispatch.Compliance.ExportValidationResult!
 Excalibur.Dispatch.Compliance.Soc2ReportGenerator
 Excalibur.Dispatch.Compliance.Soc2ReportGenerator.GenerateAndStoreReportAsync(Excalibur.Dispatch.Compliance.ReportGenerationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.Soc2Report!>!
@@ -1058,3 +1058,6 @@ static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.
 static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ContinuousMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.Soc2ServiceCollectionExtensions.AddSoc2ReportStore<TStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Dispatch.Compliance.BaseControlValidator.RunTestAsync(string! controlId, Excalibur.Dispatch.Compliance.ControlTestParameters! parameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ControlTestResult!>!
+const Excalibur.Dispatch.Compliance.Diagnostics.ComplianceEventId.ErasureBlockedNoHoldDetails = 92728 -> int
+const Excalibur.Dispatch.Compliance.Diagnostics.ComplianceEventId.ErasurePartiallyCompleted = 92729 -> int
+const Excalibur.Dispatch.Compliance.Diagnostics.ComplianceEventId.LegalHoldAutoReleasePartialFailure = 92795 -> int

@@ -10,6 +10,7 @@ namespace Excalibur.Saga.Tests;
 /// Unit tests for <see cref="SagaServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class SagaServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

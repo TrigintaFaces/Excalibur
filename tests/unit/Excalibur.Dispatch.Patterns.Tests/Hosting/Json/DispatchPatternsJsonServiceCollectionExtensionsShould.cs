@@ -19,6 +19,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.Hosting.Json;
 /// Unit tests for <see cref="DispatchPatternsJsonServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Patterns")]
 public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

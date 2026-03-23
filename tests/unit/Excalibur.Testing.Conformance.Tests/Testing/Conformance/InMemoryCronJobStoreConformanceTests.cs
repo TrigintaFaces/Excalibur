@@ -33,7 +33,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "STORE")]
-public class InMemoryCronJobStoreConformanceTests : CronJobStoreConformanceTestKit
+public sealed class InMemoryCronJobStoreConformanceTests : CronJobStoreConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override ICronJobStore CreateStore() => new InMemoryCronJobStore();

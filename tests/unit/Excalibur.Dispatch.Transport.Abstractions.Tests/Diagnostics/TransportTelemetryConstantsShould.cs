@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Diagnostics;
 
-public class TransportTelemetryConstantsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class TransportTelemetryConstantsShould
 {
     [Theory]
     [InlineData("Kafka", "Excalibur.Dispatch.Transport.Kafka")]

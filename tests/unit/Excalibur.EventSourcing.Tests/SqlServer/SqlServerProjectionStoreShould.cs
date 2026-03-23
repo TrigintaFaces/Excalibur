@@ -252,13 +252,46 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Constructor_WithEmptyTableName_AcceptsEmptyName()
+	public void Constructor_WithEmptyTableName_ThrowsArgumentException()
 	{
-		// Arrange & Act - Empty table name doesn't throw during construction
+		// Arrange & Act & Assert - Empty table name now fails regex validation
+		Should.Throw<ArgumentException>(() => new SqlServerProjectionStore<TestProjection>(
+			"Server=localhost;Database=TestDb",
+			_logger,
+			tableName: string.Empty));
+	}
+
+	// --- T.5 Regression: SQL injection validation via [GeneratedRegex] whitelist ---
+
+	[Theory]
+	[InlineData("; DROP TABLE --")]
+	[InlineData("Robert'; DROP TABLE Students;--")]
+	[InlineData("table name")]
+	[InlineData("table-name")]
+	[InlineData("table.name")]
+	[InlineData("[tablename]")]
+	[InlineData("table\tname")]
+	public void Constructor_WithSqlInjectionTableName_ThrowsArgumentException(string maliciousName)
+	{
+		// Arrange & Act & Assert - Regex whitelist rejects non-alphanumeric/underscore characters
+		var ex = Should.Throw<ArgumentException>(() => new SqlServerProjectionStore<TestProjection>(
+			"Server=localhost;Database=TestDb",
+			_logger,
+			tableName: maliciousName));
+		ex.Message.ShouldContain("invalid characters");
+	}
+
+	[Theory]
+	[InlineData("ValidTable")]
+	[InlineData("My_Projection_123")]
+	[InlineData("_underscore_prefix")]
+	public void Constructor_WithValidTableName_Succeeds(string validName)
+	{
+		// Arrange & Act
 		var store = new SqlServerProjectionStore<TestProjection>(
 			"Server=localhost;Database=TestDb",
 			_logger,
-			tableName: string.Empty);
+			tableName: validName);
 
 		// Assert
 		_ = store.ShouldNotBeNull();

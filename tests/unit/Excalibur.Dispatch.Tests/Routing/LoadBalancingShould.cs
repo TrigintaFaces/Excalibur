@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Dispatch.Tests.Routing;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class LoadBalancingShould
 {
     private static RouteDefinition CreateRoute(string id, int weight = 100) => new()

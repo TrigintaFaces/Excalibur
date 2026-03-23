@@ -32,7 +32,7 @@ namespace Excalibur.Saga.Services;
 /// (e.g., SqlServerSagaTimeoutStore) must persist timeouts to survive process restarts.
 /// </para>
 /// </remarks>
-public partial class SagaTimeoutDeliveryService : BackgroundService
+internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 {
 	private readonly ISagaTimeoutStore _timeoutStore;
 	private readonly IServiceProvider _serviceProvider;

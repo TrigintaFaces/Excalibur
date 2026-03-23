@@ -39,7 +39,7 @@ public sealed class B3TracingContextPropagator : ITracingContextPropagator
 			return Task.CompletedTask;
 		}
 
-		var sampled = context.TraceFlags.HasFlag(ActivityTraceFlags.Recorded) ? "1" : "0";
+		var sampled = (context.TraceFlags & ActivityTraceFlags.Recorded) != 0 ? "1" : "0";
 
 		// Inject single-header format
 		carrier[B3SingleHeader] = $"{context.TraceId}-{context.SpanId}-{sampled}";

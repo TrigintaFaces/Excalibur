@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Performance;
 /// <remarks> Initializes a new instance of the <see cref="PerformanceMiddleware" /> class. </remarks>
 /// <param name="metricsCollector"> The metrics collector to record performance data. </param>
 /// <exception cref="ArgumentNullException"> Thrown when metricsCollector is null. </exception>
-public sealed class PerformanceMiddleware(IPerformanceMetricsCollector metricsCollector) : IDispatchMiddleware
+internal sealed class PerformanceMiddleware(IPerformanceMetricsCollector metricsCollector) : IDispatchMiddleware
 {
 	private readonly IPerformanceMetricsCollector _metricsCollector =
 		metricsCollector ?? throw new ArgumentNullException(nameof(metricsCollector));

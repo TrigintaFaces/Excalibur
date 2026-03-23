@@ -758,6 +758,9 @@ public static class AzureServiceBusEventId
 	/// <summary>Transport receiver: disposed.</summary>
 	public const int TransportReceiverDisposed = 24987;
 
+	/// <summary>Transport receiver: message cache full, skipping cache entry.</summary>
+	public const int TransportReceiverCacheFull = 24988;
+
 	// ========================================
 	// 24990-24997: ITransportSubscriber
 	// ========================================

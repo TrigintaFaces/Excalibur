@@ -18,6 +18,7 @@ using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 
 using RabbitMqBasicProperties = RabbitMQ.Client.BasicProperties;
+using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
@@ -172,7 +173,7 @@ internal sealed partial class RabbitMqMessageBus(
 	{
 		var envelope = new MessageEnvelope(message)
 		{
-			MessageId = context.MessageId ?? Guid.NewGuid().ToString(),
+			MessageId = context.MessageId ?? Uuid7Extensions.GenerateString(),
 			ExternalId = context.GetExternalId(),
 			UserId = context.GetUserId(),
 			CorrelationId = context.CorrelationId,

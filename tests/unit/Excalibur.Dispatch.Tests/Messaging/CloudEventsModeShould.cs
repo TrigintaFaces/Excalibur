@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.CloudEvents;
 
 namespace Excalibur.Dispatch.Tests.Messaging;
 
@@ -7,17 +7,16 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 public sealed class CloudEventsModeShould
 {
 	[Theory]
-	[InlineData(CloudEventsMode.None, 0)]
-	[InlineData(CloudEventsMode.Structured, 1)]
-	[InlineData(CloudEventsMode.Binary, 2)]
-	public void HaveExpectedValues(CloudEventsMode mode, int expected)
+	[InlineData(CloudEventMode.Structured, 0)]
+	[InlineData(CloudEventMode.Binary, 1)]
+	public void HaveExpectedValues(CloudEventMode mode, int expected)
 	{
 		((int)mode).ShouldBe(expected);
 	}
 
 	[Fact]
-	public void HaveThreeMembers()
+	public void HaveTwoMembers()
 	{
-		Enum.GetValues<CloudEventsMode>().Length.ShouldBe(3);
+		Enum.GetValues<CloudEventMode>().Length.ShouldBe(2);
 	}
 }

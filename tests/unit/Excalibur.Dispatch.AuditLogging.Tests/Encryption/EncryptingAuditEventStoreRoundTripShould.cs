@@ -11,7 +11,9 @@ namespace Excalibur.Dispatch.AuditLogging.Tests.Encryption;
 /// Integration-style tests verifying the full encrypt/store/retrieve/decrypt round-trip
 /// using InMemoryAuditStore and a fake IEncryptionProvider.
 /// </summary>
-public class EncryptingAuditEventStoreRoundTripShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class EncryptingAuditEventStoreRoundTripShould
 {
     private readonly InMemoryAuditStore _innerStore = new();
     private readonly IEncryptionProvider _encryption = A.Fake<IEncryptionProvider>();

@@ -57,7 +57,7 @@ internal sealed partial class StreamHealthMonitor : IDisposable
 		if (_options.EnableHealthMonitoring)
 		{
 			_healthCheckTimer = new Timer(
-				PerformHealthCheck,
+				_ => _ = PerformHealthCheckAsync(),
 				state: null,
 				_options.HealthCheckInterval,
 				_options.HealthCheckInterval);
@@ -83,8 +83,8 @@ internal sealed partial class StreamHealthMonitor : IDisposable
 
 		var health = _streamHealth.GetOrAdd(streamId, _ => new StreamHealthInfo(streamId));
 		health.LastMessageTime = DateTimeOffset.UtcNow;
-		health.MessagesReceived++;
-		health.BytesReceived += messageSize;
+		health.IncrementMessagesReceived();
+		health.AddBytesReceived(messageSize);
 	}
 
 	/// <summary>
@@ -101,7 +101,7 @@ internal sealed partial class StreamHealthMonitor : IDisposable
 
 		var health = _streamHealth.GetOrAdd(streamId, _ => new StreamHealthInfo(streamId));
 		health.LastErrorTime = DateTimeOffset.UtcNow;
-		health.ErrorCount++;
+		health.IncrementErrorCount();
 		health.LastError = error;
 
 		LogStreamError(streamId, (int)health.ErrorCount, error);
@@ -119,7 +119,7 @@ internal sealed partial class StreamHealthMonitor : IDisposable
 		}
 
 		var health = _streamHealth.GetOrAdd(streamId, _ => new StreamHealthInfo(streamId));
-		health.AcknowledgmentsSucceeded++;
+		health.IncrementAcknowledgmentsSucceeded();
 	}
 
 	/// <summary>
@@ -134,7 +134,7 @@ internal sealed partial class StreamHealthMonitor : IDisposable
 		}
 
 		var health = _streamHealth.GetOrAdd(streamId, _ => new StreamHealthInfo(streamId));
-		health.AcknowledgmentsFailed++;
+		health.IncrementAcknowledgmentsFailed();
 	}
 
 	/// <summary>
@@ -151,7 +151,7 @@ internal sealed partial class StreamHealthMonitor : IDisposable
 		var health = _streamHealth.GetOrAdd(streamId, _ => new StreamHealthInfo(streamId));
 		health.ConnectedTime = DateTimeOffset.UtcNow;
 		health.IsConnected = true;
-		health.ReconnectCount++;
+		health.IncrementReconnectCount();
 
 		LogStreamConnected(streamId, health.ReconnectCount);
 	}
@@ -268,7 +268,7 @@ internal sealed partial class StreamHealthMonitor : IDisposable
 	/// <summary>
 	/// Performs a health check on all streams.
 	/// </summary>
-	private async void PerformHealthCheck(object? state)
+	private async Task PerformHealthCheckAsync()
 	{
 		if (_disposed || !await _checkSemaphore.WaitAsync(0).ConfigureAwait(false))
 		{

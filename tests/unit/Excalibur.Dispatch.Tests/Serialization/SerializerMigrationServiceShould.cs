@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// progress reporting, idempotency, and error handling.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class SerializerMigrationServiceShould
 {
 	private readonly ILogger<SerializerMigrationService> _logger = NullLogger<SerializerMigrationService>.Instance;
@@ -564,7 +565,7 @@ public sealed class SerializerMigrationServiceShould
 
 		_ = A.CallTo(() => store.StoreName).Returns("TestStore");
 
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Set up the store to throw when the cancellation token is triggered
 		// This simulates a real async operation that respects cancellation

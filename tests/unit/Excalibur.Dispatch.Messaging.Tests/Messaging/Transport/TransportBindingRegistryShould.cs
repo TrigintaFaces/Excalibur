@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Transport;
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportBindingRegistryShould : UnitTestBase
 {
 	[Fact]

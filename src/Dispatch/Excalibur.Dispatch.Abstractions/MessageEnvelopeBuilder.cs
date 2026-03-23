@@ -3,6 +3,7 @@
 
 
 using System.Buffers;
+using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Abstractions;
 
@@ -23,6 +24,7 @@ public sealed class MessageEnvelopeBuilder<T>
 	/// <param name="message"> The message payload to include in the envelope. </param>
 	public MessageEnvelopeBuilder<T> WithMessage(T message)
 	{
+		ArgumentNullException.ThrowIfNull(message);
 		_message = message;
 		return this;
 	}
@@ -33,6 +35,7 @@ public sealed class MessageEnvelopeBuilder<T>
 	/// <param name="context"> The message context containing metadata. </param>
 	public MessageEnvelopeBuilder<T> WithContext(IMessageContext context)
 	{
+		ArgumentNullException.ThrowIfNull(context);
 		_context = context;
 		return this;
 	}
@@ -43,6 +46,7 @@ public sealed class MessageEnvelopeBuilder<T>
 	/// <param name="messageId"> The unique identifier for the message. </param>
 	public MessageEnvelopeBuilder<T> WithMessageId(string messageId)
 	{
+		ArgumentException.ThrowIfNullOrEmpty(messageId);
 		_messageId = messageId;
 		return this;
 	}
@@ -73,6 +77,7 @@ public sealed class MessageEnvelopeBuilder<T>
 	/// <param name="memoryOwner"> The memory owner for managing pooled byte arrays. </param>
 	public MessageEnvelopeBuilder<T> WithMemoryOwner(IMemoryOwner<byte> memoryOwner)
 	{
+		ArgumentNullException.ThrowIfNull(memoryOwner);
 		_ = memoryOwner; // Placeholder implementation
 		return this;
 	}
@@ -86,6 +91,8 @@ public sealed class MessageEnvelopeBuilder<T>
 		Func<CancellationToken, Task> onAcknowledge,
 		Func<string?, CancellationToken, Task> onReject)
 	{
+		ArgumentNullException.ThrowIfNull(onAcknowledge);
+		ArgumentNullException.ThrowIfNull(onReject);
 		_ = onAcknowledge; // Placeholder implementation
 		_ = onReject; // Placeholder implementation
 		return this;
@@ -111,8 +118,8 @@ public sealed class MessageEnvelopeBuilder<T>
 		// Create the envelope with the message
 		return new MessageEnvelope(_message)
 		{
-			MessageId = _messageId ?? Guid.NewGuid().ToString(),
-			CorrelationId = _context.CorrelationId ?? Guid.NewGuid().ToString(),
+			MessageId = _messageId ?? Uuid7Extensions.GenerateString(),
+			CorrelationId = _context.CorrelationId ?? Uuid7Extensions.GenerateString(),
 			CausationId = _context.CausationId,
 			ContentType = "application/json",
 		};

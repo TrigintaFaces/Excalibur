@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Transport.Aws;
 
-using AwsPollingStatus = Excalibur.Dispatch.Transport.Aws.PollingStatus;
+using AwsPollingStatus = Excalibur.Dispatch.Transport.Aws.SqsPollingStatus;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 

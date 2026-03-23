@@ -9,6 +9,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Tests.Diagnostics;
 
+[Trait("Category", "Unit")]
+[Trait("Component", "Platform")]
 public sealed class DispatchTelemetryProviderShould : IDisposable
 {
 	private readonly DispatchTelemetryProvider _sut;

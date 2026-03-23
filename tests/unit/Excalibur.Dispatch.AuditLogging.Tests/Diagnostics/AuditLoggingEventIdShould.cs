@@ -2,7 +2,9 @@ using Excalibur.Dispatch.AuditLogging.Diagnostics;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Diagnostics;
 
-public class AuditLoggingEventIdShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditLoggingEventIdShould
 {
     [Fact]
     public void Define_core_event_ids_in_93000_range()

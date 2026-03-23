@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Cdc.Diagnostics;
 using Excalibur.Data.MongoDB.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -101,6 +102,8 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
+		using var pollActivity = CdcActivitySource.StartPollActivity("MongoDB");
+
 		// Load last confirmed position
 		_confirmedPosition = await _stateStore
 			.GetLastPositionAsync(_options.ProcessorId, cancellationToken)
@@ -149,6 +152,8 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 		// Save position if we processed anything
 		if (count > 0)
 		{
+			using var batchActivity = CdcActivitySource.StartProcessBatchActivity("MongoDB", count);
+
 			await _stateStore
 				.SavePositionAsync(_options.ProcessorId, _currentPosition, cancellationToken)
 				.ConfigureAwait(false);
@@ -429,11 +434,15 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 		Func<MongoDbDataChangeEvent, CancellationToken, Task> eventHandler,
 		CancellationToken cancellationToken)
 	{
+		using var pollActivity = CdcActivitySource.StartPollActivity("MongoDB");
+
 		var options = BuildChangeStreamOptions();
 
 		using var cursor = await WatchAsync(options, cancellationToken).ConfigureAwait(false);
 
 		LogConnected();
+
+		var count = 0;
 
 		while (await cursor.MoveNextAsync(cancellationToken).ConfigureAwait(false))
 		{
@@ -459,6 +468,7 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 					if (ShouldProcessChange(changeEvent))
 					{
 						await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+						count++;
 
 						LogProcessed(changeEvent.ChangeType, changeEvent.FullNamespace);
 					}
@@ -467,6 +477,11 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 				// Update position
 				_currentPosition = new MongoDbCdcPosition(change.ResumeToken);
 			}
+		}
+
+		if (count > 0)
+		{
+			using var batchActivity = CdcActivitySource.StartProcessBatchActivity("MongoDB", count);
 		}
 	}
 

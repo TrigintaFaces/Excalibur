@@ -260,7 +260,7 @@ public sealed class MiddlewareOptionsShould
 	[Fact]
 	public void OutboxOptions_HaveDefaults()
 	{
-		var opts = new OutboxOptions();
+		var opts = new OutboxMiddlewareOptions();
 
 		opts.Enabled.ShouldBeFalse();
 		opts.DefaultPriority.ShouldBe(0);
@@ -279,13 +279,13 @@ public sealed class MiddlewareOptionsShould
 		opts.AdaptivePolling.AdaptivePollingBackoffMultiplier.ShouldBe(2.0);
 	}
 
-	// --- OutboxOptionsValidator ---
+	// --- OutboxMiddlewareOptionsValidator ---
 
 	[Fact]
-	public void OutboxOptionsValidator_AcceptValidDefaults()
+	public void OutboxMiddlewareOptionsValidator_AcceptValidDefaults()
 	{
-		var validator = new OutboxOptionsValidator();
-		var opts = new OutboxOptions();
+		var validator = new OutboxMiddlewareOptionsValidator();
+		var opts = new OutboxMiddlewareOptions();
 
 		var result = validator.Validate(null, opts);
 
@@ -293,10 +293,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_RejectZeroBatchSize()
+	public void OutboxMiddlewareOptionsValidator_RejectZeroBatchSize()
 	{
-		var validator = new OutboxOptionsValidator();
-		var opts = new OutboxOptions { PublishBatchSize = 0 };
+		var validator = new OutboxMiddlewareOptionsValidator();
+		var opts = new OutboxMiddlewareOptions { PublishBatchSize = 0 };
 
 		var result = validator.Validate(null, opts);
 
@@ -305,10 +305,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_RejectZeroPollingInterval()
+	public void OutboxMiddlewareOptionsValidator_RejectZeroPollingInterval()
 	{
-		var validator = new OutboxOptionsValidator();
-		var opts = new OutboxOptions { PublishPollingInterval = TimeSpan.Zero };
+		var validator = new OutboxMiddlewareOptionsValidator();
+		var opts = new OutboxMiddlewareOptions { PublishPollingInterval = TimeSpan.Zero };
 
 		var result = validator.Validate(null, opts);
 
@@ -317,10 +317,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_RejectNegativeRetries()
+	public void OutboxMiddlewareOptionsValidator_RejectNegativeRetries()
 	{
-		var validator = new OutboxOptionsValidator();
-		var opts = new OutboxOptions { Retry = { MaxRetries = -1 } };
+		var validator = new OutboxMiddlewareOptionsValidator();
+		var opts = new OutboxMiddlewareOptions { Retry = { MaxRetries = -1 } };
 
 		var result = validator.Validate(null, opts);
 
@@ -329,10 +329,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_RejectMaxRetryDelayLessThanRetryDelay()
+	public void OutboxMiddlewareOptionsValidator_RejectMaxRetryDelayLessThanRetryDelay()
 	{
-		var validator = new OutboxOptionsValidator();
-		var opts = new OutboxOptions
+		var validator = new OutboxMiddlewareOptionsValidator();
+		var opts = new OutboxMiddlewareOptions
 		{
 			Retry =
 			{
@@ -349,10 +349,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_RejectMinPollingGreaterThanPublish()
+	public void OutboxMiddlewareOptionsValidator_RejectMinPollingGreaterThanPublish()
 	{
-		var validator = new OutboxOptionsValidator();
-		var opts = new OutboxOptions
+		var validator = new OutboxMiddlewareOptionsValidator();
+		var opts = new OutboxMiddlewareOptions
 		{
 			AdaptivePolling =
 			{
@@ -369,10 +369,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_RejectLowBackoffMultiplier()
+	public void OutboxMiddlewareOptionsValidator_RejectLowBackoffMultiplier()
 	{
-		var validator = new OutboxOptionsValidator();
-		var opts = new OutboxOptions
+		var validator = new OutboxMiddlewareOptionsValidator();
+		var opts = new OutboxMiddlewareOptions
 		{
 			AdaptivePolling =
 			{
@@ -410,7 +410,7 @@ public sealed class MiddlewareOptionsShould
 		opts.Enabled.ShouldBeTrue();
 		opts.EnablePerTenantLimiting.ShouldBeTrue();
 		opts.DefaultLimit.ShouldNotBeNull();
-		opts.DefaultLimit.Algorithm.ShouldBe(RateLimitAlgorithm.TokenBucket);
+		opts.DefaultLimit.Algorithm.ShouldBe(MiddlewareRateLimitAlgorithm.TokenBucket);
 		opts.DefaultLimit.TokenLimit.ShouldBe(100);
 		opts.GlobalLimit.ShouldNotBeNull();
 		opts.GlobalLimit.TokenLimit.ShouldBe(1000);

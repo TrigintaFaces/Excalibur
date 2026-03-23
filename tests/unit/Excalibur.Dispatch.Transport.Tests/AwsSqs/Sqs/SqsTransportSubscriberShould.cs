@@ -45,7 +45,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 	public async Task SubscribeAndProcessMessages()
 	{
 		// Arrange
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		var processedIds = new List<string>();
 		var callCount = 0;
 
@@ -92,7 +92,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 	public async Task RejectMessageByDeletingIt()
 	{
 		// Arrange
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		var callCount = 0;
 
 		A.CallTo(() => _fakeSqs.ReceiveMessageAsync(A<ReceiveMessageRequest>._, A<CancellationToken>._))
@@ -134,7 +134,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 	public async Task RequeueMessageByChangingVisibility()
 	{
 		// Arrange
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		var callCount = 0;
 
 		A.CallTo(() => _fakeSqs.ReceiveMessageAsync(A<ReceiveMessageRequest>._, A<CancellationToken>._))
@@ -177,7 +177,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 	public async Task HandleHandlerExceptionByChangingVisibility()
 	{
 		// Arrange
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		var callCount = 0;
 
 		A.CallTo(() => _fakeSqs.ReceiveMessageAsync(A<ReceiveMessageRequest>._, A<CancellationToken>._))
@@ -293,7 +293,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 	public async Task SkipEmptyPollsAndContinue()
 	{
 		// Arrange
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 		var callCount = 0;
 		var secondPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 

@@ -14,6 +14,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", TestComponents.AuditLogging)]
 [Trait("Infrastructure", TestInfrastructure.SqlServer)]
+[Trait("Category", "Integration")]
+[Trait("Component", "Compliance")]
 public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly SqlServerFixture _fixture;
@@ -26,12 +28,12 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 	[Fact]
 	public async Task Store_and_get_by_id_round_trip()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		using var store = CreateStore();
 		var evt = CreateAuditEvent("evt-roundtrip", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2));
 
-		var stored = await store.StoreAsync(evt, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetByIdAsync(evt.EventId, TestCancellationToken).ConfigureAwait(true);
+		var stored = await store.StoreAsync(evt, TestCancellationToken);
+		var loaded = await store.GetByIdAsync(evt.EventId, TestCancellationToken);
 
 		stored.SequenceNumber.ShouldBeGreaterThan(0);
 		loaded.ShouldNotBeNull();
@@ -45,12 +47,12 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 	[Fact]
 	public async Task Query_and_count_with_filters()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		using var store = CreateStore();
 
-		await store.StoreAsync(CreateAuditEvent("evt-q-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-4), actorId: "actor-a", action: "read"), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateAuditEvent("evt-q-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3), actorId: "actor-a", action: "write"), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateAuditEvent("evt-q-3", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-2), actorId: "actor-b", action: "read"), TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(CreateAuditEvent("evt-q-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-4), actorId: "actor-a", action: "read"), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("evt-q-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3), actorId: "actor-a", action: "write"), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("evt-q-3", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-2), actorId: "actor-b", action: "read"), TestCancellationToken);
 
 		var query = new AuditQuery
 		{
@@ -60,8 +62,8 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 			Skip = 0
 		};
 
-		var results = await store.QueryAsync(query, TestCancellationToken).ConfigureAwait(true);
-		var count = await store.CountAsync(query, TestCancellationToken).ConfigureAwait(true);
+		var results = await store.QueryAsync(query, TestCancellationToken);
+		var count = await store.CountAsync(query, TestCancellationToken);
 
 		results.Count.ShouldBe(2);
 		count.ShouldBe(2);
@@ -70,30 +72,30 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 	[Fact]
 	public async Task Verify_chain_integrity_detects_tampering()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		using var store = CreateStore();
 
 		var first = CreateAuditEvent("evt-v-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2));
 		var second = CreateAuditEvent("evt-v-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-1));
 
-		await store.StoreAsync(first, TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(second, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(first, TestCancellationToken);
+		await store.StoreAsync(second, TestCancellationToken);
 
 		var start = DateTimeOffset.UtcNow.AddHours(-1);
 		var end = DateTimeOffset.UtcNow.AddHours(1);
 
-		var validResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken).ConfigureAwait(true);
+		var validResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
 		validResult.IsValid.ShouldBeTrue();
 
 		await using (var connection = new SqlConnection(_fixture.ConnectionString))
 		{
-			await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+			await connection.OpenAsync(TestCancellationToken);
 			_ = await connection.ExecuteAsync(
 				"UPDATE [audit].[AuditEvents] SET EventHash = @BadHash WHERE EventId = @EventId",
-				new { BadHash = new string('F', 64), EventId = second.EventId }).ConfigureAwait(true);
+				new { BadHash = new string('F', 64), EventId = second.EventId });
 		}
 
-		var invalidResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken).ConfigureAwait(true);
+		var invalidResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
 
 		invalidResult.IsValid.ShouldBeFalse();
 		invalidResult.ViolationCount.ShouldBeGreaterThan(0);
@@ -103,27 +105,27 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 	[Fact]
 	public async Task Verify_chain_integrity_detects_chain_link_break()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		using var store = CreateStore();
 
 		var first = CreateAuditEvent("evt-chain-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2));
 		var second = CreateAuditEvent("evt-chain-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-1));
 
-		await store.StoreAsync(first, TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(second, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(first, TestCancellationToken);
+		await store.StoreAsync(second, TestCancellationToken);
 
 		var start = DateTimeOffset.UtcNow.AddHours(-1);
 		var end = DateTimeOffset.UtcNow.AddHours(1);
 
 		await using (var connection = new SqlConnection(_fixture.ConnectionString))
 		{
-			await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+			await connection.OpenAsync(TestCancellationToken);
 			_ = await connection.ExecuteAsync(
 				"UPDATE [audit].[AuditEvents] SET PreviousEventHash = @BadHash WHERE EventId = @EventId",
-				new { BadHash = new string('F', 64), EventId = second.EventId }).ConfigureAwait(true);
+				new { BadHash = new string('F', 64), EventId = second.EventId });
 		}
 
-		var invalidResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken).ConfigureAwait(true);
+		var invalidResult = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
 
 		invalidResult.IsValid.ShouldBeFalse();
 		invalidResult.ViolationCount.ShouldBeGreaterThan(0);
@@ -133,15 +135,15 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 	[Fact]
 	public async Task Get_last_event_supports_tenant_filter()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		using var store = CreateStore();
 
-		await store.StoreAsync(CreateAuditEvent("evt-last-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3)), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateAuditEvent("evt-last-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2)), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateAuditEvent("evt-last-3", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-1)), TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(CreateAuditEvent("evt-last-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3)), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("evt-last-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2)), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("evt-last-3", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-1)), TestCancellationToken);
 
-		var tenantLast = await store.GetLastEventAsync("tenant-1", TestCancellationToken).ConfigureAwait(true);
-		var overallLast = await store.GetLastEventAsync(null, TestCancellationToken).ConfigureAwait(true);
+		var tenantLast = await store.GetLastEventAsync("tenant-1", TestCancellationToken);
+		var overallLast = await store.GetLastEventAsync(null, TestCancellationToken);
 
 		tenantLast.ShouldNotBeNull();
 		tenantLast!.EventId.ShouldBe("evt-last-2");
@@ -152,17 +154,17 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 	[Fact]
 	public async Task Enforce_retention_deletes_old_rows_in_batches()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		using var store = CreateStore(options =>
 		{
 			options.Retention.CleanupBatchSize = 1;
 		});
 
-		await store.StoreAsync(CreateAuditEvent("evt-old", "tenant-1", DateTimeOffset.UtcNow.AddDays(-40)), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateAuditEvent("evt-new", "tenant-1", DateTimeOffset.UtcNow.AddDays(-1)), TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(CreateAuditEvent("evt-old", "tenant-1", DateTimeOffset.UtcNow.AddDays(-40)), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("evt-new", "tenant-1", DateTimeOffset.UtcNow.AddDays(-1)), TestCancellationToken);
 
-		var deleted = await store.EnforceRetentionAsync(DateTimeOffset.UtcNow.AddDays(-30), TestCancellationToken).ConfigureAwait(true);
-		var remaining = await store.CountAsync(new AuditQuery(), TestCancellationToken).ConfigureAwait(true);
+		var deleted = await store.EnforceRetentionAsync(DateTimeOffset.UtcNow.AddDays(-30), TestCancellationToken);
+		var remaining = await store.CountAsync(new AuditQuery(), TestCancellationToken);
 
 		deleted.ShouldBe(1);
 		remaining.ShouldBe(1);
@@ -171,7 +173,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 	[Fact]
 	public async Task Store_batch_persists_all_events()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		using var store = CreateStore();
 		var events = new List<AuditEvent>
 		{
@@ -179,8 +181,8 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 			CreateAuditEvent("evt-batch-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-1)),
 		};
 
-		var ids = await store.StoreBatchAsync(events, TestCancellationToken).ConfigureAwait(true);
-		var count = await store.CountAsync(new AuditQuery(), TestCancellationToken).ConfigureAwait(true);
+		var ids = await store.StoreBatchAsync(events, TestCancellationToken);
+		var count = await store.CountAsync(new AuditQuery(), TestCancellationToken);
 
 		ids.Count.ShouldBe(2);
 		ids.All(id => id.SequenceNumber > 0).ShouldBeTrue();
@@ -245,8 +247,8 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 			""";
 
 		await using var connection = new SqlConnection(_fixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync(createSchemaAndTableSql).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync(createSchemaAndTableSql);
 	}
 
 	private static AuditEvent CreateAuditEvent(

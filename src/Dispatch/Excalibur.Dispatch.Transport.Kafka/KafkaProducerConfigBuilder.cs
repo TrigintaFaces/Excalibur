@@ -36,7 +36,7 @@ internal static class KafkaProducerConfigBuilder
 		if (cloudEventOptions is not null)
 		{
 			config.MessageMaxBytes = cloudEventOptions.Producer.MaxMessageSizeBytes;
-			config.MessageSendMaxRetries = cloudEventOptions.Producer.RetrySettings.MaxRetries;
+			config.MessageSendMaxRetries = cloudEventOptions.Producer.RetrySettings.MaxRetryAttempts;
 			config.Set(
 					"retry.backoff.ms",
 					((int)cloudEventOptions.Producer.RetrySettings.RetryDelay.TotalMilliseconds)

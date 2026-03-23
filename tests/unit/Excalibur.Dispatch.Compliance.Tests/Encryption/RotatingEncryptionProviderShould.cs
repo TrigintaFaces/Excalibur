@@ -57,10 +57,11 @@ public sealed class RotatingEncryptionProviderShould : IDisposable
 			Algorithm = EncryptionAlgorithm.Aes256Gcm,
 		};
 		var context = new EncryptionContext();
-		var expected = new byte[] { 10, 20, 30 };
+		var innerReturn = new byte[] { 10, 20, 30 };
+		byte[] expectedValues = [10, 20, 30]; // Separate copy -- innerReturn gets zeroed by T.8
 
 		A.CallTo(() => _inner.DecryptAsync(encrypted, context, A<CancellationToken>._))
-			.Returns(Task.FromResult(expected));
+			.Returns(Task.FromResult(innerReturn));
 		A.CallTo(() => _keyManagement.GetActiveKeyAsync(A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<KeyMetadata?>(null));
 
@@ -68,8 +69,10 @@ public sealed class RotatingEncryptionProviderShould : IDisposable
 		var result = await _sut.DecryptAsync(encrypted, context, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Assert
-		result.ShouldBeSameAs(expected);
+		// Assert -- T.8 (Sprint 690): DecryptAsync returns a copy; intermediate is zeroed for security
+		result.ShouldBe(expectedValues);
+		result.ShouldNotBeSameAs(innerReturn); // Verify it's a copy, not the original buffer
+		innerReturn.ShouldBe(new byte[3]); // Verify intermediate was zeroed
 	}
 
 	[Fact]

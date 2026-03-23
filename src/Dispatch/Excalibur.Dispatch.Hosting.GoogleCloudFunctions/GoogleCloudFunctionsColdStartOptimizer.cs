@@ -22,7 +22,9 @@ internal partial class GoogleCloudFunctionsColdStartOptimizer(
 	private readonly ILogger<GoogleCloudFunctionsColdStartOptimizer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	public override bool IsEnabled => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_NAME"));
+	public override bool IsEnabled =>
+		!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_NAME")) &&
+		!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FUNCTION_TARGET"));
 
 	/// <inheritdoc />
 	protected override string PlatformName => "Google Cloud Functions";

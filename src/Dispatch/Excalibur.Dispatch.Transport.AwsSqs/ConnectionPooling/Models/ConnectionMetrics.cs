@@ -9,16 +9,12 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ConnectionMetrics" /> class. </remarks>
 /// <param name="metricsPrefix"> The prefix for metric names. </param>
-internal class ConnectionMetrics(string metricsPrefix) : IDisposable
+internal sealed class ConnectionMetrics(string metricsPrefix) : IDisposable
 {
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
-
 	private readonly object _lock = new();
-
 #endif
 	private long _acquisitions;
 	private long _hits;
@@ -107,19 +103,6 @@ internal class ConnectionMetrics(string metricsPrefix) : IDisposable
 	/// <inheritdoc />
 	public void Dispose()
 	{
-		Dispose(disposing: true);
 		GC.SuppressFinalize(this);
-	}
-
-	/// <summary>
-	/// Releases the unmanaged resources used by the <see cref="ConnectionMetrics" /> and optionally releases the managed resources.
-	/// </summary>
-	/// <param name="disposing"> true to release both managed and unmanaged resources; false to release only unmanaged resources. </param>
-	protected virtual void Dispose(bool disposing)
-	{
-		if (disposing)
-		{
-			// Cleanup managed resources if needed
-		}
 	}
 }

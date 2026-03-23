@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Aws;
 /// </summary>
 [Collection(LocalStackTestCollection.Name)]
 [Trait("Category", TestCategories.Integration)]
+[Trait("Component", "Platform")]
 public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposable
 {
 	private readonly LocalStackContainerFixture _fixture;

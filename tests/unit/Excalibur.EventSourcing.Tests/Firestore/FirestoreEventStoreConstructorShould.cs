@@ -13,6 +13,7 @@ namespace Excalibur.EventSourcing.Tests.Firestore;
 /// Verifies both simple (options-based) and advanced (FirestoreDb) constructors.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<FirestoreEventStore> _logger;
@@ -100,7 +101,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 		var store = new FirestoreEventStore(_validOptions, _logger);
 
 		// Act & Assert
-		store.CloudProvider.ShouldBe(CloudProviderType.Firestore);
+		store.CloudProvider.ShouldBe(CloudPersistenceProviderType.Firestore);
 	}
 
 	#endregion CloudProviderType Tests

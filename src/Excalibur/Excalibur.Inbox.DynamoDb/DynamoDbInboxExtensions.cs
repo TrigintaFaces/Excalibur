@@ -37,7 +37,9 @@ public static class DynamoDbInboxExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<DynamoDbInboxStore>();
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<DynamoDbInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("dynamodb"));
 
 		return services;
 	}
@@ -92,7 +94,9 @@ public static class DynamoDbInboxExtensions
 			var logger = sp.GetRequiredService<ILogger<DynamoDbInboxStore>>();
 			return new DynamoDbInboxStore(client, options, logger);
 		});
-		services.TryAddSingleton<IInboxStore>(sp => sp.GetRequiredService<DynamoDbInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbInboxStore>());
+		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IInboxStore>("dynamodb"));
 
 		return services;
 	}

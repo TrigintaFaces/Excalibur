@@ -92,7 +92,9 @@ public static class OutboxBuilderSqlServerExtensions
 
 		// Register SQL Server outbox store
 		builder.Services.TryAddSingleton<SqlServerOutboxStore>();
-		builder.Services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		builder.Services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
+		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 
@@ -166,7 +168,9 @@ public static class OutboxBuilderSqlServerExtensions
 			var logger = sp.GetRequiredService<ILogger<SqlServerOutboxStore>>();
 			return new SqlServerOutboxStore(factory, options, payloadSerializer, logger);
 		});
-		builder.Services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		builder.Services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
+		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 

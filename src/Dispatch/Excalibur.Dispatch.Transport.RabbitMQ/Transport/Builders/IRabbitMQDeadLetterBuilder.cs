@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 ///     dlx.Exchange("dead-letters")
 ///        .Queue("dead-letter-queue")
 ///        .RoutingKey("#")
-///        .MaxRetries(3)
+///        .MaxRetryAttempts(3)
 ///        .RetryDelay(TimeSpan.FromSeconds(30));
 /// });
 /// </code>
@@ -63,7 +63,7 @@ public interface IRabbitMQDeadLetterBuilder
 	/// <param name="maxRetries">The maximum retry count.</param>
 	/// <returns>The builder for chaining.</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxRetries"/> is negative.</exception>
-	IRabbitMQDeadLetterBuilder MaxRetries(int maxRetries);
+	IRabbitMQDeadLetterBuilder MaxRetryAttempts(int maxRetries);
 
 	/// <summary>
 	/// Sets the delay between retry attempts.
@@ -115,10 +115,10 @@ internal sealed class RabbitMQDeadLetterBuilder : IRabbitMQDeadLetterBuilder
 	}
 
 	/// <inheritdoc/>
-	public IRabbitMQDeadLetterBuilder MaxRetries(int maxRetries)
+	public IRabbitMQDeadLetterBuilder MaxRetryAttempts(int maxRetries)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(maxRetries);
-		_options.MaxRetries = maxRetries;
+		_options.MaxRetryAttempts = maxRetries;
 		return this;
 	}
 

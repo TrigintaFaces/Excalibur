@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Outbox.Tests.SqlServer;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class SqlServerOutboxExtensionsShould : UnitTestBase
 {
 	[Fact]
@@ -77,7 +78,8 @@ public sealed class SqlServerOutboxExtensionsShould : UnitTestBase
 
 		// Act
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		var store = provider.GetRequiredService<IOutboxStore>();
+		// IOutboxStore is now registered as keyed service
+		var store = provider.GetRequiredKeyedService<IOutboxStore>("default");
 
 		// Assert
 		options.Value.ConnectionString.ShouldBe(connectionString);

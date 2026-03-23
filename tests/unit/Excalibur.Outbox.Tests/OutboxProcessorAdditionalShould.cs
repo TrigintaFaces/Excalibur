@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
@@ -16,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 // Use alias to avoid namespace collision with Excalibur.Outbox.OutboxOptions
-using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxOptions;
+using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Outbox.Tests;
 
@@ -39,7 +40,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 		var deadLetterQueue = A.Fake<IDeadLetterQueue>();
 		var circuitBreakerRegistry = A.Fake<ITransportCircuitBreakerRegistry>();
 		var backoffCalculator = A.Fake<IBackoffCalculator>();
@@ -51,7 +52,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			serializer,
 			serviceProvider,
 			logger,
-			telemetryClient: null,
+
 			internalSerializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
@@ -78,7 +79,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -113,7 +114,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -166,7 +167,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -197,7 +198,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -240,7 +241,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -280,7 +281,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -316,7 +317,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -348,7 +349,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -380,7 +381,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		var outboxStore = A.Fake<IOutboxStore>();
 		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = A.Fake<ILogger<OutboxProcessor>>();
+		var logger = NullLogger<OutboxProcessor>.Instance;
 
 		// Act
 		await using var processor = new OutboxProcessor(
@@ -450,8 +451,8 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			outboxStore ?? A.Fake<IOutboxStore>(),
 			serializer ?? new DispatchJsonSerializer(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
-			logger ?? A.Fake<ILogger<OutboxProcessor>>(),
-			telemetryClient: null,
+			logger ?? NullLogger<OutboxProcessor>.Instance,
+
 			internalSerializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,

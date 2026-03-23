@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Abstractions;
 /// Target: Increase OutboundMessage coverage from 43.4% to 80%.
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class OutboundMessageShould
 {
 	#region Default Constructor Tests

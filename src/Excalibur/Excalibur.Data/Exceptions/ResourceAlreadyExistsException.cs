@@ -13,19 +13,16 @@ namespace Excalibur.Data.Exceptions;
 /// This exception is typically used to indicate that an operation could not proceed because a resource with the same key already exists in
 /// the system.
 /// </remarks>
-[Serializable]
 public sealed class ResourceAlreadyExistsException : ResourceException
 {
 	/// <summary>
 	/// The default HTTP status code for resource already exists exceptions.
 	/// </summary>
-	[NonSerialized]
 	public const int DefaultStatusCode = 404;
 
 	/// <summary>
 	/// The default error message for resource already exists exceptions.
 	/// </summary>
-	[NonSerialized]
 	public const string DefaultMessage = "The specified resource was not found.";
 
 	/// <summary>

@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Serialization.Tests.Protobuf;
 /// - Service collection integrity
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Serialization")]
 public sealed class ProtobufSerializationExtensionsShould
 {
 	[Fact]

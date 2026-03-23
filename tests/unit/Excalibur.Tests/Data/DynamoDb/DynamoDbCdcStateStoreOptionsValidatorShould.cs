@@ -8,6 +8,7 @@ namespace Excalibur.Tests.Data.DynamoDb;
 /// Unit tests for <see cref="DynamoDbCdcStateStoreOptionsValidator"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DynamoDbCdcStateStoreOptionsValidatorShould
 {
 	private readonly DynamoDbCdcStateStoreOptionsValidator _validator = new();

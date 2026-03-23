@@ -22,10 +22,17 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class CloudEventsServiceCollectionExtensions
 {
+	/// <summary>
+	/// Assembly-qualified type name for <c>ICloudEventMapper&lt;T&gt;</c> in Excalibur.Dispatch.Transport.Abstractions.
+	/// Centralized here to avoid duplicate hardcoded strings (also used by <see cref="EnvelopeCloudEventBridge"/>).
+	/// </summary>
+	internal const string CloudEventMapperTypeName =
+		"Excalibur.Dispatch.Transport.ICloudEventMapper`1, Excalibur.Dispatch.Transport.Abstractions";
+
 	private static readonly Type CloudEventMapperOpenGenericType = Excalibur.Dispatch.TypeResolution.TypeResolver.ResolveType(
-																	   "Excalibur.Dispatch.Transport.ICloudEventMapper`1, Excalibur.Dispatch.Transport.Abstractions")
+																	   CloudEventMapperTypeName)
 																   ?? throw new InvalidOperationException(
-																	   "Unable to locate Excalibur.Dispatch.Transport CloudEvent mapper type.");
+																	   $"Unable to locate CloudEvent mapper type: {CloudEventMapperTypeName}");
 
 	/// <summary>
 	/// Adds CloudEvents support to the Dispatch pipeline.

@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.InMemory.Snapshots;
 using Excalibur.Domain.Model;
-using Excalibur.EventSourcing.Snapshots.InMemory;
 
 using FakeItEasy;
+
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Shouldly;
 
@@ -13,13 +16,18 @@ using Xunit;
 namespace Excalibur.EventSourcing.Tests.Core.Snapshots;
 
 /// <summary>
-/// Functional tests for <see cref="InMemorySnapshotStore"/> covering CRUD operations,
-/// concurrency, and version semantics.
+/// Functional tests for <see cref="InMemorySnapshotStore"/> (from Excalibur.Data.InMemory)
+/// covering CRUD operations, concurrency, and version semantics.
 /// </summary>
 [Trait("Category", "Unit")]
-public sealed class InMemorySnapshotStoreFunctionalShould
+[Trait("Component", "EventSourcing")]
+public sealed class InMemorySnapshotStoreFunctionalShould : IDisposable
 {
-	private readonly InMemorySnapshotStore _sut = new();
+	private readonly InMemorySnapshotStore _sut = new(
+		Options.Create(new InMemorySnapshotOptions()),
+		NullLogger<InMemorySnapshotStore>.Instance);
+
+	public void Dispose() => _sut.Dispose();
 
 	private static ISnapshot CreateSnapshot(string aggregateId, string aggregateType, long version, byte[]? data = null)
 	{
@@ -142,21 +150,6 @@ public sealed class InMemorySnapshotStoreFunctionalShould
 	}
 
 	[Fact]
-	public async Task Clear_ShouldRemoveAllSnapshots()
-	{
-		// Arrange
-		await _sut.SaveSnapshotAsync(CreateSnapshot("agg-1", "Order", 1), CancellationToken.None);
-		await _sut.SaveSnapshotAsync(CreateSnapshot("agg-2", "Customer", 1), CancellationToken.None);
-		_sut.Count.ShouldBe(2);
-
-		// Act
-		_sut.Clear();
-
-		// Assert
-		_sut.Count.ShouldBe(0);
-	}
-
-	[Fact]
 	public async Task DifferentAggregateTypes_ShouldBeIndependent()
 	{
 		// Arrange
@@ -189,7 +182,12 @@ public sealed class InMemorySnapshotStoreFunctionalShould
 
 		await Task.WhenAll(tasks);
 
-		// Assert
-		_sut.Count.ShouldBe(50);
+		// Assert - verify a sample of snapshots are retrievable
+		for (var i = 0; i < 50; i += 10)
+		{
+			var result = await _sut.GetLatestSnapshotAsync($"agg-{i}", "Order", CancellationToken.None);
+			result.ShouldNotBeNull();
+			result.Version.ShouldBe(i);
+		}
 	}
 }

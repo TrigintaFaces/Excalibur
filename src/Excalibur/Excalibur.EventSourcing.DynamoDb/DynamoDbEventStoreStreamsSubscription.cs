@@ -142,7 +142,7 @@ public sealed class DynamoDbEventStoreStreamsSubscription : IChangeFeedSubscript
 					}
 				}
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				shouldBreak = true;
 			}
@@ -263,7 +263,7 @@ public sealed class DynamoDbEventStoreStreamsSubscription : IChangeFeedSubscript
 				// Poll interval
 				await Task.Delay(_options.StreamsPollIntervalMs, cancellationToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

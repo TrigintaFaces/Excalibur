@@ -35,7 +35,7 @@ public interface ICloudNativeSnapshotStore
 	/// <summary>
 	/// Gets the underlying cloud provider type.
 	/// </summary>
-	CloudProviderType ProviderType { get; }
+	CloudPersistenceProviderType ProviderType { get; }
 
 	/// <summary>
 	/// Gets the latest snapshot for an aggregate.

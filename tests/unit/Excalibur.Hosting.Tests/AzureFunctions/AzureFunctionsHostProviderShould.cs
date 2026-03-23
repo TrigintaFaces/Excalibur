@@ -10,6 +10,7 @@ namespace Excalibur.Hosting.Tests.AzureFunctions;
 /// </summary>
 [Collection("EnvironmentVariableTests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 {
 	private readonly AzureFunctionsHostProvider _sut;

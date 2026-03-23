@@ -23,7 +23,7 @@ public sealed class DlqOptions
 	/// <value>
 	/// The maximum number of retries before permanent failure.
 	/// </value>
-	public int MaxRetries { get; set; } = 3;
+	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the delay between retry attempts.

@@ -5,9 +5,15 @@
 namespace Excalibur.Data.ElasticSearch.Security;
 
 /// <summary>
-/// Security event types for audit logging.
+/// Security event types for ElasticSearch audit logging.
 /// </summary>
-public enum SecurityEventType
+/// <remarks>
+/// Renamed from <c>SecurityEventType</c> to avoid collision with
+/// <c>Excalibur.Dispatch.Security.SecurityEventType</c> which tracks
+/// specific security events (auth success/failure, injection attempts).
+/// This enum represents broad audit event categories for ElasticSearch.
+/// </remarks>
+public enum SecurityAuditEventType
 {
 	/// <summary>
 	/// Authentication-related security events including login, logout, and authentication failures.

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
+
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +16,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// <summary>
 /// Configuration options for the erasure scheduler background service.
 /// </summary>
-public class ErasureSchedulerOptions
+public sealed class ErasureSchedulerOptions
 {
 	/// <summary>
 	/// Gets or sets the interval between polling for scheduled erasures.
@@ -73,12 +75,13 @@ public class ErasureSchedulerOptions
 /// <item><description>Cleans up expired certificates past their retention period</description></item>
 /// </list>
 /// </remarks>
-public partial class ErasureSchedulerBackgroundService : BackgroundService
+internal sealed partial class ErasureSchedulerBackgroundService : BackgroundService
 {
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<ErasureSchedulerOptions> _options;
 	private readonly ILogger<ErasureSchedulerBackgroundService> _logger;
 
+	private readonly ConcurrentDictionary<Guid, int> _retryAttempts = new();
 	private DateTimeOffset _lastCertificateCleanup = DateTimeOffset.MinValue;
 
 	/// <summary>
@@ -126,7 +129,7 @@ public partial class ErasureSchedulerBackgroundService : BackgroundService
 			{
 				await Task.Delay(_options.Value.PollingInterval, stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -210,16 +213,38 @@ public partial class ErasureSchedulerBackgroundService : BackgroundService
 		string? errorMessage,
 		CancellationToken cancellationToken)
 	{
-		// Note: Retry logic with exponential backoff is available via _options.Value
-		// (MaxRetryAttempts, RetryDelayBase, UseExponentialBackoff)
-		// For now, we simply mark as failed - the store could track retry counts
-		_ = await erasureStore.UpdateStatusAsync(
-			request.RequestId,
-			ErasureRequestStatus.Failed,
-			errorMessage,
-			cancellationToken).ConfigureAwait(false);
+		var opts = _options.Value;
+		var attemptCount = _retryAttempts.AddOrUpdate(request.RequestId, 1, static (_, current) => current + 1);
 
-		LogErasureSchedulerMarkedFailed(request.RequestId, errorMessage);
+		if (attemptCount < opts.MaxRetryAttempts)
+		{
+			// Reschedule with backoff delay
+			var delay = opts.UseExponentialBackoff
+				? TimeSpan.FromTicks(opts.RetryDelayBase.Ticks * (1L << attemptCount))
+				: opts.RetryDelayBase;
+
+			LogErasureSchedulerRetrying(request.RequestId, attemptCount, opts.MaxRetryAttempts, delay);
+
+			// Set status back to Scheduled so the next polling cycle picks it up after the delay
+			_ = await erasureStore.UpdateStatusAsync(
+				request.RequestId,
+				ErasureRequestStatus.Scheduled,
+				$"Retry {attemptCount}/{opts.MaxRetryAttempts}: {errorMessage}",
+				cancellationToken).ConfigureAwait(false);
+		}
+		else
+		{
+			// Retries exhausted -- mark as permanently failed and clean up tracking
+			_ = _retryAttempts.TryRemove(request.RequestId, out _);
+
+			_ = await erasureStore.UpdateStatusAsync(
+				request.RequestId,
+				ErasureRequestStatus.Failed,
+				$"Failed after {attemptCount} attempts: {errorMessage}",
+				cancellationToken).ConfigureAwait(false);
+
+			LogErasureSchedulerMarkedFailed(request.RequestId, errorMessage);
+		}
 	}
 
 	private async Task MaybeCleanupCertificatesAsync(CancellationToken cancellationToken)
@@ -322,6 +347,12 @@ public partial class ErasureSchedulerBackgroundService : BackgroundService
 			LogLevel.Warning,
 			"Erasure request {RequestId} marked as failed. Error: {Error}")]
 	private partial void LogErasureSchedulerMarkedFailed(Guid requestId, string? error);
+
+	[LoggerMessage(
+			ComplianceEventId.ErasureSchedulerRetrying,
+			LogLevel.Information,
+			"Erasure request {RequestId} scheduled for retry (attempt {AttemptCount}/{MaxAttempts}, delay: {Delay})")]
+	private partial void LogErasureSchedulerRetrying(Guid requestId, int attemptCount, int maxAttempts, TimeSpan delay);
 
 	[LoggerMessage(
 			ComplianceEventId.ErasureSchedulerCertificatesCleaned,

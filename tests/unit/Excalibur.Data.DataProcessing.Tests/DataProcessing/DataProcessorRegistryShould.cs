@@ -10,6 +10,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Unit tests for <see cref="DataProcessorRegistry"/>.
 /// </summary>
 [UnitTest]
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DataProcessorRegistryShould : UnitTestBase
 {
 	[DataTaskRecordType("TestRecord")]

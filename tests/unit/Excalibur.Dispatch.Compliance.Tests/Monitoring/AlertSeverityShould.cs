@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.Monitoring;
 
-public class AlertSeverityShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AlertSeverityShould
 {
     [Theory]
     [InlineData(5, AlertSeverity.Critical)]

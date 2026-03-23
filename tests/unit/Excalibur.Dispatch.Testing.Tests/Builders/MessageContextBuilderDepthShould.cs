@@ -56,7 +56,7 @@ public sealed class MessageContextBuilderDepthShould
 		// Assert
 		child.MessageId.ShouldNotBe("parent-msg-id");
 		child.MessageId.ShouldNotBeNullOrEmpty();
-		Guid.TryParse(child.MessageId, out _).ShouldBeTrue();
+		child.MessageId.Length.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]

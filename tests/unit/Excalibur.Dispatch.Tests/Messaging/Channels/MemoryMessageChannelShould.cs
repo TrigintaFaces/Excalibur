@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Channels;
 namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MemoryMessageChannelShould
 {
     [Fact]

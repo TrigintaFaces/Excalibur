@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Memory channel message pump implementation.
 /// </summary>
-internal class MessagePump : IChannelMessagePump
+internal sealed class MessagePump : IChannelMessagePump
 {
 	private readonly Channel<MessageEnvelope> _messageChannel;
 	private readonly Channel<MessageEnvelope> _channel;
@@ -131,44 +131,34 @@ internal class MessagePump : IChannelMessagePump
 	/// </summary>
 	public void Dispose()
 	{
-		Dispose(disposing: true);
+		DisposeCore();
 		GC.SuppressFinalize(this);
 	}
 
 	/// <summary>
-	/// Releases the unmanaged resources used by the message pump and optionally releases the managed resources.
+	/// Core disposal logic for managed resources.
 	/// </summary>
-	/// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
+	/// <remarks>
+	/// Prefer <see cref="DisposeAsync"/> to avoid sync-over-async risks.
+	/// The sync path uses a 5-second timeout to prevent deadlocks on SynchronizationContexts.
+	/// </remarks>
 	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
 		Justification = "IDisposable.Dispose() is synchronous by contract. Prefer DisposeAsync when available.")]
-	protected virtual void Dispose(bool disposing)
+	private void DisposeCore()
 	{
-		if (disposing)
+		if (_isRunning)
 		{
-			if (_isRunning)
-			{
-				// Use ConfigureAwait(false) to prevent deadlocks in synchronous disposal
-				StopAsync(CancellationToken.None).ConfigureAwait(false).GetAwaiter().GetResult();
-			}
-
-			_cancellationTokenSource?.Dispose();
-			_ = (_channel?.Writer.TryComplete());
+			_isRunning = false;
+			_cancellationTokenSource?.Cancel();
 		}
+
+		_cancellationTokenSource?.Dispose();
+		_ = (_channel?.Writer.TryComplete());
 	}
 
-	protected virtual void OnMessageConsumed() => Interlocked.Increment(ref _messagesConsumed);
+	private void OnMessageConsumed() => Interlocked.Increment(ref _messagesConsumed);
 
-	protected virtual void OnMessageFailed() => Interlocked.Increment(ref _messagesFailed);
-
-	/// <summary>
-	/// </summary>
-	/// <param name="writer"> </param>
-	/// <param name="cancellationToken"> </param>
-	/// <returns> A <see cref="Task" /> representing the result of the asynchronous operation. </returns>
-	protected virtual async Task ProduceMessagesAsync(ChannelWriter<MessageEnvelope> writer, CancellationToken cancellationToken) =>
-
-		// This method should be overridden by derived classes
-		await Task.CompletedTask.ConfigureAwait(false);
+	private void OnMessageFailed() => Interlocked.Increment(ref _messagesFailed);
 
 	private async Task ProcessMessagesAsync(CancellationToken cancellationToken)
 	{

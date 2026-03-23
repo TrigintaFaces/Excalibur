@@ -7,6 +7,7 @@ namespace Excalibur.LeaderElection.Tests.SqlServer;
 /// Unit tests for <see cref="SqlServerLeaderElectionFactory" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class SqlServerLeaderElectionFactoryShould : UnitTestBase
 {
 	private const string TestConnectionString = "Server=localhost;Database=test;Integrated Security=true;";

@@ -66,7 +66,7 @@ public static class MongoDbLeaderElectionBuilderExtensions
 			var logger = sp.GetRequiredService<ILogger<MongoDbLeaderElection>>();
 			return new MongoDbLeaderElection(client, resourceName, mongoOptions, electionOptions, logger);
 		});
-		builder.Services.TryAddSingleton<ILeaderElection>(sp =>
+		builder.Services.AddKeyedSingleton<ILeaderElection>("mongodb", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<MongoDbLeaderElection>();
 			var meterFactory = sp.GetService<IMeterFactory>();
@@ -74,6 +74,8 @@ public static class MongoDbLeaderElectionBuilderExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElection(inner, meter, activitySource, "MongoDB");
 		});
+		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("mongodb"));
 
 		return builder;
 	}

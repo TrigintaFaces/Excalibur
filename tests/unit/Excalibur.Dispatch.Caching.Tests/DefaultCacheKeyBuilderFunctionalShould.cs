@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Caching.Tests;
 /// real serialization -- Castle.Proxies types are not in the source-gen context.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Caching")]
 public sealed class DefaultCacheKeyBuilderFunctionalShould
 {
 	private sealed class TestCacheableAction : ICacheable<string>

@@ -49,9 +49,10 @@ public sealed class PostgresPersistenceMetrics : IDisposable
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresPersistenceMetrics" /> class.
 	/// </summary>
-	public PostgresPersistenceMetrics()
+	/// <param name="meterFactory">Optional meter factory for DI-managed meter lifecycle.</param>
+	public PostgresPersistenceMetrics(IMeterFactory? meterFactory = null)
 	{
-		_meter = new Meter(MeterName, "1.0.0");
+		_meter = meterFactory?.Create(MeterName) ?? new Meter(MeterName, "1.0.0");
 
 		// Counters for operations
 		_totalQueries = _meter.CreateCounter<long>(

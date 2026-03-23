@@ -32,7 +32,7 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 	private readonly MiddlewareChainBuilder _chainBuilder;
 	private readonly int _pipelineSignature;
 	private readonly int _middlewareCount;
-	private volatile bool _autoFrozen;
+	private int _autoFrozen; // 0 = not frozen, 1 = frozen; uses Interlocked.CompareExchange for one-shot
 
 	// PERF-T3: Global bypass flag computed at construction time. When all registered middleware
 	// is routing-only (or none applies), CanBypassFor() can return true instantly without
@@ -87,10 +87,12 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 			return true;
 		}
 
-		if (!_autoFrozen && !_chainBuilder.IsFrozen)
+		if (_autoFrozen == 0 && !_chainBuilder.IsFrozen)
 		{
-			_chainBuilder.Freeze();
-			_autoFrozen = true;
+			if (Interlocked.CompareExchange(ref _autoFrozen, 1, 0) == 0)
+			{
+				_chainBuilder.Freeze();
+			}
 		}
 
 		var chain = _chainBuilder.GetChain(messageType, _pipelineSignature);
@@ -138,10 +140,12 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 
 		// Auto-freeze on first dispatch to prevent per-dispatch ConcurrentDictionary overhead.
 		// Uses volatile read + Freeze()'s internal double-check lock for thread safety.
-		if (!_autoFrozen && !_chainBuilder.IsFrozen)
+		if (_autoFrozen == 0 && !_chainBuilder.IsFrozen)
 		{
-			_chainBuilder.Freeze();
-			_autoFrozen = true;
+			if (Interlocked.CompareExchange(ref _autoFrozen, 1, 0) == 0)
+			{
+				_chainBuilder.Freeze();
+			}
 		}
 
 		// Get pre-compiled chain for this message type

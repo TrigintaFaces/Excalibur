@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Caching;
 /// Delegates to the registered <see cref="ICacheHealthMonitor"/> to perform a lightweight
 /// connectivity probe. Register via <c>AddHealthChecks().AddCheck&lt;CacheHealthCheck&gt;("dispatch-cache")</c>.
 /// </remarks>
-public sealed class CacheHealthCheck : IHealthCheck
+internal sealed class CacheHealthCheck : IHealthCheck
 {
 	private readonly ICacheHealthMonitor _monitor;
 

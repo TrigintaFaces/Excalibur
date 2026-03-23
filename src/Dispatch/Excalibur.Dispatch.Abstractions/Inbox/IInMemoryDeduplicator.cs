@@ -54,6 +54,7 @@ public interface IInMemoryDeduplicator
 	/// <summary>
 	/// Clears all tracked message IDs from memory.
 	/// </summary>
+	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns> A <see cref="Task"/> representing the asynchronous operation. </returns>
-	Task ClearAsync();
+	Task ClearAsync(CancellationToken cancellationToken);
 }

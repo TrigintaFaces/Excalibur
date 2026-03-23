@@ -16,6 +16,7 @@ namespace Excalibur.Data.Tests.Postgres.Saga;
 /// Verifies both simple (options-based) and advanced (connection factory) constructors.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<PostgresSagaStore> _logger;

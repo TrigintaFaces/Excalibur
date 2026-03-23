@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Options.Performance;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 
 /// <summary>
@@ -13,6 +15,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Performance")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TimeoutCancellationPerformanceShould : IDisposable
 {
 	private readonly ILogger<BatchProcessor<string>> _logger;
@@ -77,7 +80,18 @@ public sealed class TimeoutCancellationPerformanceShould : IDisposable
 			// because the thread pool is saturated and batch processor tasks can't run
 		}
 
-		await Task.Delay(200).ConfigureAwait(false); // Allow processing to complete
+		// Poll until processing stabilizes (replaces bare Task.Delay)
+		var lastTotal = 0;
+		await WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				var current = processedCount + timedOutCount;
+				var stable = current == lastTotal && current > 0;
+				lastTotal = current;
+				return stable;
+			},
+			TimeSpan.FromSeconds(5),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		stopwatch.Stop();
 
@@ -234,7 +248,18 @@ public sealed class TimeoutCancellationPerformanceShould : IDisposable
 		}
 
 		await Task.WhenAll(allTasks).ConfigureAwait(false);
-		await Task.Delay(200).ConfigureAwait(false); // Allow final processing
+		// Poll until stage metrics stabilize (replaces bare Task.Delay)
+		var lastCount = 0;
+		await WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				var current = stageMetrics.Sum(kv => kv.Value.Completed + kv.Value.TimedOut);
+				var stable = current == lastCount && current > 0;
+				lastCount = current;
+				return stable;
+			},
+			TimeSpan.FromSeconds(5),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		overallStopwatch.Stop();
 
@@ -322,7 +347,18 @@ public sealed class TimeoutCancellationPerformanceShould : IDisposable
 			// Under full-suite parallel load, Task.WhenAll may not complete
 		}
 
-		await Task.Delay(100).ConfigureAwait(false);
+		// Brief stabilization (replaces bare Task.Delay) -- budget test only needs tasks to drain
+		var lastBudgetCount = 0;
+		await WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				var current = budgetTracking.Count;
+				var stable = current == lastBudgetCount;
+				lastBudgetCount = current;
+				return stable;
+			},
+			TimeSpan.FromSeconds(3),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		stopwatch.Stop();
 
@@ -474,7 +510,18 @@ public sealed class TimeoutCancellationPerformanceShould : IDisposable
 			// Some tasks hung under extreme thread pool starvation — acceptable
 		}
 
-		await Task.Delay(2000).ConfigureAwait(false); // Allow processing to complete (generous for load)
+		// Poll until processing stabilizes (replaces bare Task.Delay(2000))
+		var lastTotal2 = 0;
+		await WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				var current = completedCount + timedOutCount;
+				var stable = current == lastTotal2 && current > 0;
+				lastTotal2 = current;
+				return stable;
+			},
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 
 		stopwatch.Stop();
 
@@ -559,7 +606,18 @@ public sealed class TimeoutCancellationPerformanceShould : IDisposable
 			});
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
-		await Task.Delay(500).ConfigureAwait(false); // CI-friendly: Increased from 300ms to 500ms - Allow processing to complete
+		// Poll until processing stabilizes (replaces bare Task.Delay(500))
+		var lastCoopTotal = 0;
+		await WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				var current = cooperativeCount + nonCooperativeCount;
+				var stable = current == lastCoopTotal;
+				lastCoopTotal = current;
+				return stable && current >= 0;
+			},
+			TimeSpan.FromSeconds(5),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		stopwatch.Stop();
 

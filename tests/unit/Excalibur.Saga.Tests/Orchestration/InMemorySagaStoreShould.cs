@@ -54,9 +54,9 @@ public sealed class InMemorySagaStoreShould
 	{
 		// Arrange
 		var sagaId = Guid.NewGuid();
-		var state1 = new TestSagaState { SagaId = sagaId, Value = "first" };
-		var state2 = new TestSagaState { SagaId = sagaId, Value = "second" };
-		var state3 = new TestSagaState { SagaId = sagaId, Value = "third" };
+		var state1 = new TestSagaState { SagaId = sagaId, Value = "first", Version = 0 };
+		var state2 = new TestSagaState { SagaId = sagaId, Value = "second", Version = 1 };
+		var state3 = new TestSagaState { SagaId = sagaId, Value = "third", Version = 2 };
 
 		await _sut.SaveAsync(state1, CancellationToken.None);
 		await _sut.SaveAsync(state2, CancellationToken.None);
@@ -126,8 +126,8 @@ public sealed class InMemorySagaStoreShould
 	{
 		// Arrange
 		var sagaId = Guid.NewGuid();
-		var originalState = new TestSagaState { SagaId = sagaId, Value = "original" };
-		var updatedState = new TestSagaState { SagaId = sagaId, Value = "updated" };
+		var originalState = new TestSagaState { SagaId = sagaId, Value = "original", Version = 0 };
+		var updatedState = new TestSagaState { SagaId = sagaId, Value = "updated", Version = 1 };
 
 		await _sut.SaveAsync(originalState, CancellationToken.None);
 

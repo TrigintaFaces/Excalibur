@@ -28,6 +28,8 @@ namespace Excalibur.Dispatch.Versioning;
 /// </remarks>
 public sealed class UpcastingPipeline : IUpcastingPipeline, IDisposable
 {
+	private const int MaxCacheEntries = 1024;
+
 	// Message type cache for reflection-based discovery
 	private static readonly ConcurrentDictionary<Type, string> MessageTypeCache = new();
 
@@ -331,7 +333,12 @@ public sealed class UpcastingPipeline : IUpcastingPipeline, IDisposable
 				"(e.g., 'UserCreatedEventV1' where 'V1' is the version suffix).");
 		}
 
-		MessageTypeCache[type] = messageType;
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (MessageTypeCache.Count < MaxCacheEntries)
+		{
+			MessageTypeCache.TryAdd(type, messageType);
+		}
+
 		return messageType;
 	}
 

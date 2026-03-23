@@ -3,6 +3,8 @@
 
 using System.Buffers;
 using System.Collections.Concurrent;
+
+using Excalibur.Dispatch.Caching;
 using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
@@ -44,12 +46,9 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private readonly Counter<long>? _returnGlobalCounter;
 	private readonly Timer _adaptiveSizeTimer;
 #if NET9_0_OR_GREATER
-	private readonly Lock _sizingLock = new();
-
+	private readonly System.Threading.Lock _sizingLock = new();
 #else
-
 	private readonly object _sizingLock = new();
-
 #endif
 
 	private readonly int _threadLocalCacheSize;
@@ -459,7 +458,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 
 			var options = ExtractWriterOptions(writer);
 			var key = GetOptionsHashCode(options);
-			var queue = _globalPool.GetOrAdd(key, static _ => new ConcurrentQueue<Utf8JsonWriter>());
+			var queue = _globalPool.BoundedGetOrAdd(key, static _ => new ConcurrentQueue<Utf8JsonWriter>(), maxEntries: 16);
 			queue.Enqueue(writer);
 
 			// Update peak size

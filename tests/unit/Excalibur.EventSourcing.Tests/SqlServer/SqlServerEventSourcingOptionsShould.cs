@@ -9,6 +9,7 @@ namespace Excalibur.EventSourcing.Tests.SqlServer;
 /// Unit tests for <see cref="SqlServerEventSourcingOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 {
 	[Fact]

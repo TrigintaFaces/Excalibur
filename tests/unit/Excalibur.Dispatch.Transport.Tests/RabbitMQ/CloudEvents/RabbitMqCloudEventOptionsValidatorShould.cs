@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Transport.RabbitMQ;
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.CloudEvents;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class RabbitMqCloudEventOptionsValidatorShould
 {
 	private readonly RabbitMqCloudEventOptionsValidator _validator = new();

@@ -12,6 +12,8 @@ namespace Excalibur.Integration.Tests.Jobs;
 /// Integration tests for job scheduling and execution.
 /// These tests verify job registration, scheduling, and execution flow.
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class JobSchedulingIntegrationShould : IntegrationTestBase
 {
 	#region Job Registration Tests

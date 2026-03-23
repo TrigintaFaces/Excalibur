@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// <summary>
 /// Configuration options for the legal hold expiration background service.
 /// </summary>
-public class LegalHoldExpirationOptions
+public sealed class LegalHoldExpirationOptions
 {
 	/// <summary>
 	/// Gets or sets the interval between polling for expired holds.
@@ -42,7 +42,7 @@ public class LegalHoldExpirationOptions
 /// explicitly released by an operator.
 /// </para>
 /// </remarks>
-public partial class LegalHoldExpirationService : BackgroundService
+internal sealed partial class LegalHoldExpirationService : BackgroundService
 {
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<LegalHoldExpirationOptions> _options;

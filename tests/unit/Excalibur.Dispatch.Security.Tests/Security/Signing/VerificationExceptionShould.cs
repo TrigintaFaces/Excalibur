@@ -58,7 +58,8 @@ public sealed class VerificationExceptionShould
 	public void InheritFromException()
 	{
 		// Assert
-		typeof(VerificationException).BaseType.ShouldBe(typeof(Exception));
+		// Sprint 697 T.13: reparented to ApiException
+		typeof(VerificationException).BaseType.ShouldBe(typeof(global::Excalibur.Dispatch.Abstractions.ApiException));
 	}
 
 	[Fact]

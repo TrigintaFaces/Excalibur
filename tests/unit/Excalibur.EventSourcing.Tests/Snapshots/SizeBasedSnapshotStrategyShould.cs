@@ -18,6 +18,7 @@ namespace Excalibur.EventSourcing.Tests.Snapshots;
 /// Unit tests for <see cref="SizeBasedSnapshotStrategy"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class SizeBasedSnapshotStrategyShould
 {
 	[Fact]

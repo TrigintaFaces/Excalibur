@@ -210,7 +210,7 @@ public sealed class ValidationResultExtensionsShould
 		var dispatchResult = fluentResult.ToDispatchResult();
 
 		// Assert
-		Assert.IsType<SerializableValidationResult>(dispatchResult);
+		dispatchResult.ShouldBeOfType<SerializableValidationResult>();
 	}
 
 	[Fact]
@@ -223,7 +223,7 @@ public sealed class ValidationResultExtensionsShould
 		var dispatchResult = fluentResult.ToDispatchResult();
 
 		// Assert
-		Assert.IsType<SerializableValidationResult>(dispatchResult);
+		dispatchResult.ShouldBeOfType<SerializableValidationResult>();
 	}
 
 	#endregion ToDispatchResult Tests - Failure Path
@@ -403,7 +403,7 @@ public sealed class ValidationResultExtensionsShould
 		var result = message.ValidateWith<ExtTestMessage, ExtTestMessageValidator>();
 
 		// Assert
-		Assert.IsType<SerializableValidationResult>(result);
+		result.ShouldBeOfType<SerializableValidationResult>();
 	}
 
 	#endregion ValidateWith Tests
@@ -420,7 +420,7 @@ public sealed class ValidationResultExtensionsShould
 		var result = await message.ValidateWithAsync<ExtTestMessage, ExtTestMessageValidator>(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldNotBeNull();
+		Assert.NotNull(result);
 		result.IsValid.ShouldBeTrue();
 		result.Errors.ShouldBeEmpty();
 	}
@@ -435,7 +435,7 @@ public sealed class ValidationResultExtensionsShould
 		var result = await message.ValidateWithAsync<ExtTestMessage, ExtTestMessageValidator>(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldNotBeNull();
+		Assert.NotNull(result);
 		result.IsValid.ShouldBeFalse();
 		result.Errors.Count.ShouldBeGreaterThan(0);
 	}

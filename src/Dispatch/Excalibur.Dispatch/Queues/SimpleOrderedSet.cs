@@ -25,7 +25,7 @@ internal sealed class SimpleOrderedSet<T> : IDistributedOrderedSetQueue<T>
 	{
 		_channel = capacity.HasValue
 			? Channel.CreateBounded<T>(new BoundedChannelOptions(capacity.Value) { FullMode = BoundedChannelFullMode.Wait, })
-			: Channel.CreateUnbounded<T>();
+			: Channel.CreateBounded<T>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.Wait });
 	}
 
 	/// <inheritdoc />

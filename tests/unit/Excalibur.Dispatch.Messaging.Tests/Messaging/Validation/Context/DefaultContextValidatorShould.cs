@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Validation.Context;
 ///     Tests for the <see cref="DefaultContextValidator" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DefaultContextValidatorShould
 {
 	private const string ValidTraceParent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";

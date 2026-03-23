@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Options;
 
-public class ProviderOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class ProviderOptionsShould
 {
     [Fact]
     public void Should_Default_Region_To_Empty()

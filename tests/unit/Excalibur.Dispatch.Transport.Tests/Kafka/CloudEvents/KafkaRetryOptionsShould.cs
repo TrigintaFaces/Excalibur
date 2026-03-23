@@ -16,7 +16,7 @@ public sealed class KafkaRetryOptionsShould
 		var options = new KafkaRetryOptions();
 
 		// Assert
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.RetryDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
 		options.UseExponentialBackoff.ShouldBeTrue();
 		options.BackoffMultiplier.ShouldBe(2.0);
@@ -30,7 +30,7 @@ public sealed class KafkaRetryOptionsShould
 		// Arrange & Act
 		var options = new KafkaRetryOptions
 		{
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			RetryDelay = TimeSpan.FromMilliseconds(200),
 			UseExponentialBackoff = false,
 			BackoffMultiplier = 3.0,
@@ -39,7 +39,7 @@ public sealed class KafkaRetryOptionsShould
 		};
 
 		// Assert
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.RetryDelay.ShouldBe(TimeSpan.FromMilliseconds(200));
 		options.UseExponentialBackoff.ShouldBeFalse();
 		options.BackoffMultiplier.ShouldBe(3.0);

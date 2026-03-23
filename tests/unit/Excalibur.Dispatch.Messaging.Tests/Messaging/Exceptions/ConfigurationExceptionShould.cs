@@ -172,14 +172,7 @@ public sealed class ConfigurationExceptionShould
 		exception.Data["ErrorCode"].ShouldBe(ErrorCodes.ConfigurationSectionNotFound);
 	}
 
-	[Fact]
-	public void HaveSerializableAttribute()
-	{
-		// Assert
-		typeof(ConfigurationException)
-			.GetCustomAttributes(typeof(SerializableAttribute), false)
-			.ShouldNotBeEmpty();
-	}
+	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)
 
 	[Fact]
 	public void BeCatchableAsDispatchException()
@@ -241,5 +234,34 @@ public sealed class ConfigurationExceptionShould
 		// Assert
 		exception.SuggestedAction.ShouldContain("appsettings.json");
 		exception.SuggestedAction.ShouldContain("environment variables");
+	}
+
+	[Fact]
+	public void CreatePipelineMisconfigurationException()
+	{
+		// Arrange -- Sprint 697 T.20
+		const string pipelineName = "OrderPipeline";
+		const string reason = "Missing required middleware";
+
+		// Act
+		var exception = ConfigurationException.PipelineMisconfiguration(pipelineName, reason);
+
+		// Assert
+		exception.ShouldNotBeNull();
+		exception.ErrorCode.ShouldBe(ErrorCodes.PipelineMisconfigured);
+		exception.Message.ShouldContain(pipelineName);
+		exception.Message.ShouldContain(reason);
+		exception.Context.ShouldContainKeyAndValue("pipelineName", pipelineName);
+		exception.Context.ShouldContainKeyAndValue("reason", reason);
+		exception.SuggestedAction.ShouldContain(pipelineName);
+		exception.SuggestedAction.ShouldContain("ConfigurePipeline");
+		exception.DispatchStatusCode.ShouldBe(500);
+	}
+
+	[Fact]
+	public void PipelineMisconfiguredErrorCodeHasCorrectValue()
+	{
+		// Assert -- Sprint 697 T.20
+		ErrorCodes.PipelineMisconfigured.ShouldBe("CFG005");
 	}
 }

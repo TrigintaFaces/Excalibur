@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Bus;
 ///     Tests for the <see cref="InMemoryMessageBusAdapter" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 {
 	private readonly InMemoryMessageBusAdapter _sut;
@@ -59,7 +60,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	[Fact]
 	public async Task InitializeSuccessfully()
 	{
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _sut.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 		_sut.IsConnected.ShouldBeTrue();
 	}
@@ -77,7 +78,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	[Fact]
 	public async Task PublishSuccessfullyWhenConnected()
 	{
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _sut.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 
 		var message = A.Fake<IDispatchMessage>();
@@ -92,7 +93,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	[Fact]
 	public async Task ThrowForNullMessageOnPublish()
 	{
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _sut.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -102,7 +103,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	[Fact]
 	public async Task ThrowForNullContextOnPublish()
 	{
-		var options = A.Fake<IMessageBusOptions>();
+		var options = A.Fake<MessageBusOptions>();
 		await _sut.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 
 		await Should.ThrowAsync<ArgumentNullException>(

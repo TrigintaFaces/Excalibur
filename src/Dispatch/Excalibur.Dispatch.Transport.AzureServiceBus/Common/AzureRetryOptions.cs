@@ -15,7 +15,7 @@ public sealed class AzureRetryOptions
 	/// <value>
 	/// The maximum number of retries.
 	/// </value>
-	public int MaxRetries { get; set; } = 3;
+	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the delay between retries.

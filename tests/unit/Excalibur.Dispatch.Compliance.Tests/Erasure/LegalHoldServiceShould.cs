@@ -4,7 +4,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Erasure;
 
-public class LegalHoldServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class LegalHoldServiceShould
 {
 	private readonly ILegalHoldStore _store;
 	private readonly ILegalHoldQueryStore _queryStore;
@@ -403,5 +405,56 @@ public class LegalHoldServiceShould
 
 		Should.Throw<InvalidOperationException>(
 			() => new LegalHoldService(store, NullLogger<LegalHoldService>.Instance));
+	}
+
+	// Sprint 678 T.4 -- ProcessExpiredHoldsAsync partial failure handling
+
+	[Fact]
+	public async Task ProcessExpiredHolds_ContinueProcessingAfterIndividualFailure()
+	{
+		// Arrange -- two expired holds, first one fails to release
+		var holdId1 = Guid.NewGuid();
+		var holdId2 = Guid.NewGuid();
+		var expiredHolds = new[]
+		{
+			new LegalHold { HoldId = holdId1, IsActive = true, DataSubjectIdHash = "hash1", Basis = LegalHoldBasis.LegalObligation, CaseReference = "CASE-1", Description = "Hold 1", CreatedBy = "system", CreatedAt = DateTimeOffset.UtcNow.AddDays(-30) },
+			new LegalHold { HoldId = holdId2, IsActive = true, DataSubjectIdHash = "hash2", Basis = LegalHoldBasis.LegalObligation, CaseReference = "CASE-2", Description = "Hold 2", CreatedBy = "system", CreatedAt = DateTimeOffset.UtcNow.AddDays(-30) }
+		};
+
+		A.CallTo(() => _queryStore.GetExpiredHoldsAsync(A<CancellationToken>._))
+			.Returns(expiredHolds);
+
+		// First hold: store.GetHoldAsync throws
+		A.CallTo(() => _store.GetHoldAsync(holdId1, A<CancellationToken>._))
+			.Throws(new InvalidOperationException("Simulated failure"));
+		// Second hold: succeeds
+		A.CallTo(() => _store.GetHoldAsync(holdId2, A<CancellationToken>._))
+			.Returns(expiredHolds[1]);
+		A.CallTo(() => _store.UpdateHoldAsync(A<LegalHold>.That.Matches(h => h.HoldId == holdId2), A<CancellationToken>._))
+			.Returns(true);
+
+		// Act
+		var releasedCount = await _sut.ProcessExpiredHoldsAsync(CancellationToken.None);
+
+		// Assert -- should have released the second hold despite first failing
+		releasedCount.ShouldBe(1);
+		A.CallTo(() => _store.UpdateHoldAsync(
+			A<LegalHold>.That.Matches(h => h.HoldId == holdId2 && !h.IsActive),
+			A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task ProcessExpiredHolds_ReturnZeroWhenNoExpiredHolds()
+	{
+		// Arrange
+		A.CallTo(() => _queryStore.GetExpiredHoldsAsync(A<CancellationToken>._))
+			.Returns(Array.Empty<LegalHold>());
+
+		// Act
+		var releasedCount = await _sut.ProcessExpiredHoldsAsync(CancellationToken.None);
+
+		// Assert
+		releasedCount.ShouldBe(0);
 	}
 }

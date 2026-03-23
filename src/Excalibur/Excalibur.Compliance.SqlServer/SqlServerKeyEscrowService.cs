@@ -9,6 +9,7 @@ using System.Text.Json;
 
 using Dapper;
 
+using Excalibur.Data.Abstractions.Validation;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Data.SqlClient;
@@ -74,6 +75,11 @@ public sealed partial class SqlServerKeyEscrowService : IKeyEscrowService, IDisp
 		{
 			throw new ArgumentException(Resources.SqlServerKeyEscrowService_ConnectionStringRequired, nameof(options));
 		}
+
+		// Defense-in-depth: validate SQL identifiers even if IValidateOptions ran at startup
+		SqlIdentifierValidator.ThrowIfInvalid(_options.Schema, nameof(_options.Schema));
+		SqlIdentifierValidator.ThrowIfInvalid(_options.TableName, nameof(_options.TableName));
+		SqlIdentifierValidator.ThrowIfInvalid(_options.TokensTableName, nameof(_options.TokensTableName));
 	}
 
 	/// <inheritdoc />

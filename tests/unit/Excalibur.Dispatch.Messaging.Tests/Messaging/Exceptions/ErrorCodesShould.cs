@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 ///     Tests for the <see cref="ErrorCodes" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ErrorCodesShould
 {
 	[Fact]

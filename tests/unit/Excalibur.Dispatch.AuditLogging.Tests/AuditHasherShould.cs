@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Compliance;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests;
 
-public class AuditHasherShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditHasherShould
 {
     private static AuditEvent CreateEvent(string eventId = "evt-1", string action = "Read", string actorId = "user-1") =>
         new()

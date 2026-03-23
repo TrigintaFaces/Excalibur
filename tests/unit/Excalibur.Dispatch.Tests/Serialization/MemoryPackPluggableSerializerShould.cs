@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// deserialization, and error handling behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MemoryPackPluggableSerializerShould
 {
 	private readonly MemoryPackSerializer _sut = new();

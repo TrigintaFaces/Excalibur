@@ -15,7 +15,9 @@ using Xunit.Abstractions;
 namespace Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch;
 
 [Collection(nameof(ElasticsearchPersistenceOnlyTests))]
-public class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, ITestOutputHelper output)
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, ITestOutputHelper output)
 	: PersistenceOnlyTestBase<ElasticsearchContainerFixture>(fixture, output)
 {
 	[Fact]
@@ -23,8 +25,8 @@ public class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, 
 	{
 		var _repository = GetRequiredService<ITestElasticRepository>();
 		var doc = ElasticSearchMother.CreateTestDocument();
-		_ = await _repository.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None).ConfigureAwait(true);
-		var result = await _repository.GetByIdAsync(doc.Id, CancellationToken.None).ConfigureAwait(true);
+		_ = await _repository.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None);
+		var result = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
 		_ = result.ShouldNotBeNull();
 		result.Id.ShouldBe(doc.Id);
 	}
@@ -33,7 +35,7 @@ public class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, 
 	public async Task GetByIdShouldReturnNullIfNotFound()
 	{
 		var _repository = GetRequiredService<ITestElasticRepository>();
-		var result = await _repository.GetByIdAsync("nonexistent-id", CancellationToken.None).ConfigureAwait(true);
+		var result = await _repository.GetByIdAsync("nonexistent-id", CancellationToken.None);
 		result.ShouldBeNull();
 	}
 
@@ -42,10 +44,10 @@ public class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, 
 	{
 		var _repository = GetRequiredService<ITestElasticRepository>();
 		var doc = ElasticSearchMother.CreateTestDocument();
-		_ = await _repository.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None).ConfigureAwait(true);
-		var deleted = await _repository.RemoveAsync(doc.Id, CancellationToken.None).ConfigureAwait(true);
+		_ = await _repository.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None);
+		var deleted = await _repository.RemoveAsync(doc.Id, CancellationToken.None);
 		deleted.ShouldBeTrue();
-		var result = await _repository.GetByIdAsync(doc.Id, CancellationToken.None).ConfigureAwait(true);
+		var result = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
 		result.ShouldBeNull();
 	}
 
@@ -54,10 +56,10 @@ public class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, 
 	{
 		var _repository = GetRequiredService<ITestElasticRepository>();
 		var docs = ElasticSearchMother.CreateManyTestDocuments(5).ToList();
-		_ = await _repository.BulkAddOrUpdateAsync(docs, static x => x.Id, CancellationToken.None).ConfigureAwait(true);
+		_ = await _repository.BulkAddOrUpdateAsync(docs, static x => x.Id, CancellationToken.None);
 		foreach (var doc in docs)
 		{
-			var fetched = await _repository.GetByIdAsync(doc.Id, CancellationToken.None).ConfigureAwait(true);
+			var fetched = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
 			_ = fetched.ShouldNotBeNull();
 			fetched.Name.ShouldBe(doc.Name);
 		}
@@ -68,10 +70,10 @@ public class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, 
 	{
 		var _repository = GetRequiredService<ITestElasticRepository>();
 		var doc = ElasticSearchMother.CreateTestDocument();
-		_ = await _repository.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None).ConfigureAwait(true);
+		_ = await _repository.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None);
 		var updated = new Dictionary<string, object> { ["name"] = "Updated Name" };
-		_ = await _repository.UpdateAsync(doc.Id, updated, CancellationToken.None).ConfigureAwait(true);
-		var fetched = await _repository.GetByIdAsync(doc.Id, CancellationToken.None).ConfigureAwait(true);
+		_ = await _repository.UpdateAsync(doc.Id, updated, CancellationToken.None);
+		var fetched = await _repository.GetByIdAsync(doc.Id, CancellationToken.None);
 		fetched.Name.ShouldBe("Updated Name");
 	}
 
@@ -80,17 +82,17 @@ public class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, 
 	{
 		var _repository = GetRequiredService<ITestElasticRepository>();
 		var doc = ElasticSearchMother.CreateTestDocument(name: "UniqueName");
-		_ = await _repository.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None).ConfigureAwait(true);
+		_ = await _repository.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None);
 
 		// Elasticsearch near-real-time: force a refresh so the indexed document becomes searchable
 		var client = GetRequiredService<ElasticsearchClient>();
-		_ = await client.Indices.RefreshAsync("test-elastic-index").ConfigureAwait(true);
+		_ = await client.Indices.RefreshAsync("test-elastic-index");
 
 		var request = new SearchRequestDescriptor<TestElasticDocument>()
 				.Indices("test-elastic-index")
 				.Query(q => q.Match(m => m.Field("name").Query("UniqueName")));
 
-		var result = await _repository.SearchAsync(request, CancellationToken.None).ConfigureAwait(true);
+		var result = await _repository.SearchAsync(request, CancellationToken.None);
 		result.Documents.ShouldContain(x => x.Id == doc.Id);
 	}
 
@@ -98,7 +100,7 @@ public class TestElasticRepositoryShould(ElasticsearchContainerFixture fixture, 
 	public async Task GetByIdShouldReturnNullIfDocumentNotFound()
 	{
 		var _repository = GetRequiredService<ITestElasticRepository>();
-		var result = await _repository.GetByIdAsync("nonexistent-id", CancellationToken.None).ConfigureAwait(true);
+		var result = await _repository.GetByIdAsync("nonexistent-id", CancellationToken.None);
 		result.ShouldBeNull();
 	}
 

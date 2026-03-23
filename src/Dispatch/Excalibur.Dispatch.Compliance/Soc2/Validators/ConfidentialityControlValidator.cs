@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// Validates confidentiality controls (CNF-001, CNF-002, CNF-003).
 /// Maps to C1 (Data Classification), C2 (Data Protection), C3 (Data Disposal).
 /// </summary>
-public class ConfidentialityControlValidator : BaseControlValidator
+public sealed class ConfidentialityControlValidator : BaseControlValidator
 {
 	private const string ControlCnf001 = "CNF-001"; // Data Classification
 	private const string ControlCnf002 = "CNF-002"; // Data Protection

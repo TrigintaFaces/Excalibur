@@ -6,6 +6,7 @@ namespace Excalibur.Tests.Caching;
 /// Unit tests for AdaptiveTtlOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Caching")]
 public sealed class AdaptiveTtlOptionsShould : UnitTestBase
 {
 	[Fact]

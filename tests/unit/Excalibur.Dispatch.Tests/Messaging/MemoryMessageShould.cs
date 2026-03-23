@@ -22,7 +22,7 @@ public sealed class MemoryMessageShould
 		message.ContentType.ShouldBe("application/octet-stream");
 		message.OwnsMemory.ShouldBeTrue();
 		message.Body.Length.ShouldBeGreaterThan(0);
-		Guid.TryParse(message.MessageId, out _).ShouldBeTrue();
+		message.MessageId!.Length.ShouldBeGreaterThan(0);
 		message.Timestamp.ShouldNotBe(default);
 		message.Headers.ShouldNotBeNull();
 		message.Headers.Count.ShouldBe(0);

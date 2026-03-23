@@ -289,6 +289,9 @@ public static class ComplianceEventId
 	/// <summary>Force rotation failed.</summary>
 	public const int KeyRotationForceFailed = 92555;
 
+	/// <summary>Key rotation already in progress.</summary>
+	public const int KeyRotationAlreadyInProgress = 92556;
+
 	// ========================================
 	// 92600-92699: Cloud Provider Compliance
 	// ========================================
@@ -396,6 +399,12 @@ public static class ComplianceEventId
 	/// <summary>Erasure contributor threw an exception.</summary>
 	public const int ErasureContributorException = 92727;
 
+	/// <summary>Erasure request blocked by legal hold but no hold details available.</summary>
+	public const int ErasureBlockedNoHoldDetails = 92728;
+
+	/// <summary>Erasure partially completed with contributor or key deletion failures.</summary>
+	public const int ErasurePartiallyCompleted = 92729;
+
 	/// <summary>Erasure scheduler disabled.</summary>
 	public const int ErasureSchedulerDisabled = 92750;
 
@@ -434,6 +443,9 @@ public static class ComplianceEventId
 
 	/// <summary>Certificate cleanup failed.</summary>
 	public const int ErasureSchedulerCertificateCleanupFailed = 92762;
+
+	/// <summary>Erasure request scheduled for retry with backoff.</summary>
+	public const int ErasureSchedulerRetrying = 92763;
 
 	/// <summary>Data inventory discovery started.</summary>
 	public const int DataInventoryDiscoveryStarted = 92770;
@@ -491,6 +503,9 @@ public static class ComplianceEventId
 
 	/// <summary>Legal hold auto-release completed.</summary>
 	public const int LegalHoldAutoReleaseCompleted = 92794;
+
+	/// <summary>Legal hold auto-release partial failure summary.</summary>
+	public const int LegalHoldAutoReleasePartialFailure = 92795;
 
 	// ========================================
 	// 92800-92899: Compliance Monitoring & Alerts

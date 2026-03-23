@@ -7,6 +7,8 @@ using Dapper;
 
 using Excalibur.Dispatch.Abstractions;
 
+using Excalibur.Inbox.Observability;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -28,7 +30,7 @@ namespace Excalibur.Inbox.Postgres;
 /// using Postgres's INSERT ... ON CONFLICT DO NOTHING for proper isolation.
 /// </para>
 /// </remarks>
-public sealed class PostgresInboxStore : IInboxStore
+public sealed class PostgresInboxStore : IInboxStore, IInboxStoreAdmin
 {
 	private readonly Func<NpgsqlConnection> _connectionFactory;
 	private readonly PostgresInboxOptions _options;
@@ -83,6 +85,8 @@ public sealed class PostgresInboxStore : IInboxStore
 		ArgumentNullException.ThrowIfNull(payload);
 		ArgumentNullException.ThrowIfNull(metadata);
 
+		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
+
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
 
 		var sql = $"""
@@ -132,6 +136,8 @@ public sealed class PostgresInboxStore : IInboxStore
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
@@ -217,6 +223,8 @@ public sealed class PostgresInboxStore : IInboxStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
+		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
+
 		var sql = $"""
 		           SELECT EXISTS (
 		           	SELECT 1 FROM {_options.QualifiedTableName}
@@ -268,6 +276,8 @@ public sealed class PostgresInboxStore : IInboxStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		var sql = $"""
 		           UPDATE {_options.QualifiedTableName}
@@ -380,9 +390,9 @@ public sealed class PostgresInboxStore : IInboxStore
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
-		var cutoffDate = DateTimeOffset.UtcNow - retentionPeriod;
+		using var activity = InboxActivitySource.StartCleanupActivity();
 
 		var sql = $"""
 		           DELETE FROM {_options.QualifiedTableName}
@@ -394,12 +404,12 @@ public sealed class PostgresInboxStore : IInboxStore
 
 		var command = new CommandDefinition(
 			sql,
-			new { ProcessedStatus = (int)InboxStatus.Processed, CutoffDate = cutoffDate },
+			new { ProcessedStatus = (int)InboxStatus.Processed, CutoffDate = olderThan },
 			commandTimeout: _options.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		var deleted = await connection.ExecuteAsync(command).ConfigureAwait(false);
-		_logger.LogInformation("Cleaned up {Count} processed inbox entries older than {CutoffDate}", deleted, cutoffDate);
+		_logger.LogInformation("Cleaned up {Count} processed inbox entries older than {CutoffDate}", deleted, olderThan);
 
 		return deleted;
 	}

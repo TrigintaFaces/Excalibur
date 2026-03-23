@@ -11,6 +11,7 @@ using StackExchange.Redis;
 namespace Excalibur.EventSourcing.Tests.Redis;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class RedisEventSourcingExtensionsShould : UnitTestBase
 {
 	[Fact]

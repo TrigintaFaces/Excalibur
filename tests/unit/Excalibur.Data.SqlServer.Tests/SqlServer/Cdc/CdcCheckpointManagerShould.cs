@@ -18,12 +18,12 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	private static CdcCheckpointManager CreateSut(
 		IDatabaseConfig? dbConfig = null,
 		ICdcRepository? cdcRepository = null,
-		ICdcStateStore? stateStore = null)
+		ISqlServerCdcStateStore? stateStore = null)
 	{
 		return new CdcCheckpointManager(
 			dbConfig ?? A.Fake<IDatabaseConfig>(),
 			cdcRepository ?? A.Fake<ICdcRepository>(),
-			stateStore ?? A.Fake<ICdcStateStore>(),
+			stateStore ?? A.Fake<ISqlServerCdcStateStore>(),
 			NullLogger.Instance);
 	}
 
@@ -72,7 +72,7 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	{
 		var dbConfig = A.Fake<IDatabaseConfig>();
 		var cdcRepository = A.Fake<ICdcRepository>();
-		var stateStore = A.Fake<ICdcStateStore>();
+		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
 
 		A.CallTo(() => dbConfig.CaptureInstances).Returns(["dbo_orders"]);
@@ -108,7 +108,7 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	{
 		var dbConfig = A.Fake<IDatabaseConfig>();
 		var cdcRepository = A.Fake<ICdcRepository>();
-		var stateStore = A.Fake<ICdcStateStore>();
+		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
 
 		A.CallTo(() => dbConfig.CaptureInstances).Returns(["dbo_orders"]);
@@ -133,7 +133,7 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	{
 		var dbConfig = A.Fake<IDatabaseConfig>();
 		var cdcRepository = A.Fake<ICdcRepository>();
-		var stateStore = A.Fake<ICdcStateStore>();
+		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
 
 		A.CallTo(() => dbConfig.CaptureInstances).Returns(["dbo_orders"]);
@@ -202,7 +202,7 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 	public async Task UpdateTableLastProcessedAsync_DelegatesToStateStore()
 	{
 		var dbConfig = A.Fake<IDatabaseConfig>();
-		var stateStore = A.Fake<ICdcStateStore>();
+		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, stateStore: stateStore);
 
 		A.CallTo(() => dbConfig.DatabaseConnectionIdentifier).Returns("conn");

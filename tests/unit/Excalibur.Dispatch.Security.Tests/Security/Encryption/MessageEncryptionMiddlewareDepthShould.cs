@@ -190,7 +190,8 @@ public sealed class MessageEncryptionMiddlewareDepthShould
 	[Fact]
 	public void HaveCorrectStage()
 	{
-		_sut.Stage.ShouldBe(DispatchMiddlewareStage.Serialization);
+		// Sprint 694 T.19: Encryption moved to PreProcessing stage
+		_sut.Stage.ShouldBe(DispatchMiddlewareStage.PreProcessing);
 	}
 
 	[Fact]

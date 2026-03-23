@@ -187,7 +187,7 @@ public sealed class W3ProviderBoundaryTests
 
         // Document: Excalibur.Data.* packages are where database drivers belong
         // This test passes to confirm the pattern is valid
-        Assert.True(true,
+        true.ShouldBeTrue(
             "Excalibur.Data.* packages are the correct location for database driver dependencies. " +
             $"Found {excaliburDataTypes.Count} types in Excalibur.Data.* namespace.");
     }
@@ -242,7 +242,7 @@ public sealed class W3ProviderBoundaryTests
             .ToList();
 
         // This test documents the allowed dependency direction
-        Assert.True(true,
+        true.ShouldBeTrue(
             "Excalibur.* packages may reference Excalibur.Dispatch.Abstractions for IDomainEvent, etc. " +
             $"Found {excaliburTypes.Count} types in Excalibur.* namespace.");
     }
@@ -325,7 +325,7 @@ public sealed class W3ProviderBoundaryTests
         if (dispatchAssembly is null)
         {
             // Dispatch assembly not loaded - test is informational
-            Assert.True(true, "Dispatch assembly not loaded in test domain.");
+            true.ShouldBeTrue("Dispatch assembly not loaded in test domain.");
             return;
         }
 

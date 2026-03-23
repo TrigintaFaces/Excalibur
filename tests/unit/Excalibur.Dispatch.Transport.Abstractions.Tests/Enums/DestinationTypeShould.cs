@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Enums;
 
-public class DestinationTypeShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class DestinationTypeShould
 {
     [Theory]
     [InlineData(DestinationType.Queue, 0)]

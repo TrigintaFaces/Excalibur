@@ -15,7 +15,7 @@ public sealed class DataClassificationRuleShould
 		var sut = new DataClassificationRule();
 
 		sut.FieldPattern.ShouldBe(string.Empty);
-		sut.Classification.ShouldBe(DataClassification.Public);
+		sut.Classification.ShouldBe(ElasticSearchDataClassification.Public);
 		sut.Enabled.ShouldBeTrue();
 		sut.EncryptionAlgorithm.ShouldBeNull();
 	}
@@ -26,13 +26,13 @@ public sealed class DataClassificationRuleShould
 		var sut = new DataClassificationRule
 		{
 			FieldPattern = @"^(email|ssn|phone)$",
-			Classification = DataClassification.PersonallyIdentifiable,
+			Classification = ElasticSearchDataClassification.PersonallyIdentifiable,
 			Enabled = false,
 			EncryptionAlgorithm = "AES-256-GCM",
 		};
 
 		sut.FieldPattern.ShouldBe(@"^(email|ssn|phone)$");
-		sut.Classification.ShouldBe(DataClassification.PersonallyIdentifiable);
+		sut.Classification.ShouldBe(ElasticSearchDataClassification.PersonallyIdentifiable);
 		sut.Enabled.ShouldBeFalse();
 		sut.EncryptionAlgorithm.ShouldBe("AES-256-GCM");
 	}

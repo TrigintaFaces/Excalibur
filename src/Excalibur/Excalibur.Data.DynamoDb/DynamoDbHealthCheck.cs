@@ -10,7 +10,7 @@ namespace Excalibur.Data.DynamoDb;
 /// <summary>
 /// Health check for AWS DynamoDB connectivity.
 /// </summary>
-public sealed partial class DynamoDbHealthCheck : IHealthCheck
+internal sealed partial class DynamoDbHealthCheck : IHealthCheck
 {
 	private readonly DynamoDbPersistenceProvider _provider;
 	private readonly ILogger<DynamoDbHealthCheck> _logger;

@@ -137,6 +137,7 @@ public sealed class ServerlessHostProviderFactoryDepthShould : UnitTestBase
 		var originalAzureFunc = Environment.GetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT");
 		var originalSiteName = Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME");
 		var originalGoogleFunc = Environment.GetEnvironmentVariable("FUNCTION_NAME");
+		var originalFuncTarget = Environment.GetEnvironmentVariable("FUNCTION_TARGET");
 		try
 		{
 			Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", null);
@@ -144,6 +145,7 @@ public sealed class ServerlessHostProviderFactoryDepthShould : UnitTestBase
 			Environment.SetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT", null);
 			Environment.SetEnvironmentVariable("WEBSITE_SITE_NAME", null);
 			Environment.SetEnvironmentVariable("FUNCTION_NAME", "my-google-function");
+			Environment.SetEnvironmentVariable("FUNCTION_TARGET", "MyFunction");
 			var factory = CreateFactory();
 
 			// Act
@@ -159,6 +161,7 @@ public sealed class ServerlessHostProviderFactoryDepthShould : UnitTestBase
 			Environment.SetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT", originalAzureFunc);
 			Environment.SetEnvironmentVariable("WEBSITE_SITE_NAME", originalSiteName);
 			Environment.SetEnvironmentVariable("FUNCTION_NAME", originalGoogleFunc);
+			Environment.SetEnvironmentVariable("FUNCTION_TARGET", originalFuncTarget);
 		}
 	}
 
@@ -172,6 +175,7 @@ public sealed class ServerlessHostProviderFactoryDepthShould : UnitTestBase
 		var originalSiteName = Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME");
 		var originalGoogleFunc = Environment.GetEnvironmentVariable("FUNCTION_NAME");
 		var originalKService = Environment.GetEnvironmentVariable("K_SERVICE");
+		var originalKRevision = Environment.GetEnvironmentVariable("K_REVISION");
 		try
 		{
 			Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", null);
@@ -180,6 +184,7 @@ public sealed class ServerlessHostProviderFactoryDepthShould : UnitTestBase
 			Environment.SetEnvironmentVariable("WEBSITE_SITE_NAME", null);
 			Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
 			Environment.SetEnvironmentVariable("K_SERVICE", "my-cloud-run-service");
+			Environment.SetEnvironmentVariable("K_REVISION", "my-cloud-run-service-00001");
 			var factory = CreateFactory();
 
 			// Act
@@ -196,6 +201,7 @@ public sealed class ServerlessHostProviderFactoryDepthShould : UnitTestBase
 			Environment.SetEnvironmentVariable("WEBSITE_SITE_NAME", originalSiteName);
 			Environment.SetEnvironmentVariable("FUNCTION_NAME", originalGoogleFunc);
 			Environment.SetEnvironmentVariable("K_SERVICE", originalKService);
+			Environment.SetEnvironmentVariable("K_REVISION", originalKRevision);
 		}
 	}
 

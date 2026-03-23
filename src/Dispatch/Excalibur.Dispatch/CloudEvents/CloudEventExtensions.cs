@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using CloudNative.CloudEvents;
@@ -69,39 +68,18 @@ public static class CloudEventExtensions
 	/// </summary>
 	/// <param name="cloudEvent"> The CloudEvent to convert. </param>
 	/// <returns> A dispatch event if conversion is successful; otherwise, null. </returns>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Deserializing to interface type IDispatchEvent will fail and is caught. This is a fallback path.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "Deserializing to interface type IDispatchEvent will fail and is caught. This is a fallback path.")]
 	public static IDispatchEvent? ToDispatchEvent(this CloudEvent cloudEvent)
 	{
 		ArgumentNullException.ThrowIfNull(cloudEvent);
 
-		switch (cloudEvent.Data)
+		// JsonElement cannot be deserialized to IDispatchEvent without a custom converter
+		// or type discriminator. Callers should use CloudEvent.Type to resolve a concrete
+		// .NET type, then deserialize with their own JsonSerializerContext.
+		return cloudEvent.Data switch
 		{
-			case IDispatchEvent dispatchEvent:
-				return dispatchEvent;
-
-			case JsonElement element:
-				try
-				{
-					var json = element.GetRawText();
-
-					// This will fail for interface types, but we catch it and return null
-					return JsonSerializer.Deserialize<IDispatchEvent>(json);
-				}
-				catch (NotSupportedException)
-				{
-					// Cannot deserialize to interface type
-					return null;
-				}
-
-			default:
-				return cloudEvent.Data as IDispatchEvent;
-		}
+			IDispatchEvent dispatchEvent => dispatchEvent,
+			JsonElement => null,
+			_ => cloudEvent.Data as IDispatchEvent,
+		};
 	}
 }

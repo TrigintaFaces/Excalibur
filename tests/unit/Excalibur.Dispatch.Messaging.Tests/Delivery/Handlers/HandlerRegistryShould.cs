@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Handlers;
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 [Trait("Priority", "0")]
-public class HandlerRegistryShould : UnitTestBase
+public sealed class HandlerRegistryShould : UnitTestBase
 {
 	private readonly HandlerRegistry _sut = new();
 

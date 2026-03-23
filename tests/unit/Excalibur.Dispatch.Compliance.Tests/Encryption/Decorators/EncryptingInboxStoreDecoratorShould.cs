@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Compliance.Tests.Encryption.Decorators;
 [Trait("Component", "Compliance")]
 public sealed class EncryptingInboxStoreDecoratorShould
 {
-	private readonly IInboxStore _inner = A.Fake<IInboxStore>();
+	private readonly IInboxStore _inner = A.Fake<IInboxStore>(o => o.Implements<IInboxStoreAdmin>());
 	private readonly IEncryptionProviderRegistry _registry = A.Fake<IEncryptionProviderRegistry>();
 	private readonly IEncryptionProvider _provider = A.Fake<IEncryptionProvider>();
 
@@ -182,11 +182,11 @@ public sealed class EncryptingInboxStoreDecoratorShould
 		// Arrange
 		var sut = CreateSut();
 		var stats = new InboxStatistics();
-		A.CallTo(() => _inner.GetStatisticsAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IInboxStoreAdmin)_inner).GetStatisticsAsync(A<CancellationToken>._))
 			.Returns(new ValueTask<InboxStatistics>(stats));
 
 		// Act
-		var result = await sut.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var result = await ((IInboxStoreAdmin)sut).GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.ShouldBeSameAs(stats);
@@ -197,11 +197,11 @@ public sealed class EncryptingInboxStoreDecoratorShould
 	{
 		// Arrange
 		var sut = CreateSut();
-		A.CallTo(() => _inner.CleanupAsync(A<TimeSpan>._, A<CancellationToken>._))
+		A.CallTo(() => ((IInboxStoreAdmin)_inner).CleanupAsync(A<DateTimeOffset>._, A<CancellationToken>._))
 			.Returns(new ValueTask<int>(5));
 
 		// Act
-		var result = await sut.CleanupAsync(TimeSpan.FromDays(30), CancellationToken.None)
+		var result = await ((IInboxStoreAdmin)sut).CleanupAsync(DateTimeOffset.UtcNow.AddDays(-30), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert

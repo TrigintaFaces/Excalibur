@@ -9,6 +9,7 @@ namespace Excalibur.Outbox.Tests.SqlServer.Requests;
 /// Unit tests for <see cref="GetUnsentMessagesRequest"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 {
 	private const string TestTableName = "[dbo].[OutboxMessages]";
@@ -20,7 +21,7 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetUnsentMessagesRequest(null!, 100, 30, CancellationToken.None));
+			new GetUnsentMessagesRequest(null!, 100, 30, 300, "test-processor", CancellationToken.None));
 	}
 
 	[Fact]
@@ -28,7 +29,7 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetUnsentMessagesRequest("", 100, 30, CancellationToken.None));
+			new GetUnsentMessagesRequest("", 100, 30, 300, "test-processor", CancellationToken.None));
 	}
 
 	[Fact]
@@ -36,7 +37,23 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new GetUnsentMessagesRequest("   ", 100, 30, CancellationToken.None));
+			new GetUnsentMessagesRequest("   ", 100, 30, 300, "test-processor", CancellationToken.None));
+	}
+
+	[Fact]
+	public void ThrowOnNullProcessorId()
+	{
+		// Act & Assert
+		_ = Should.Throw<ArgumentException>(() =>
+			new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, null!, CancellationToken.None));
+	}
+
+	[Fact]
+	public void ThrowOnEmptyProcessorId()
+	{
+		// Act & Assert
+		_ = Should.Throw<ArgumentException>(() =>
+			new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "", CancellationToken.None));
 	}
 
 	#endregion
@@ -47,11 +64,11 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	public void CreateCommandWithValidParameters()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
 
-		// Assert
+		// Assert - Uses UPDATE...OUTPUT lease pattern
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
-		request.Command.CommandText.ShouldContain("SELECT TOP");
+		request.Command.CommandText.ShouldContain("UPDATE TOP");
 		request.Command.CommandText.ShouldContain(TestTableName);
 	}
 
@@ -59,7 +76,7 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	public void CreateCommandThatFiltersCorrectStatuses()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
 
 		// Assert - Should include Staged (0), Failed (3), PartiallyFailed (4)
 		request.Command.CommandText.ShouldContain("Status IN (0, 3, 4)");
@@ -69,20 +86,44 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	public void CreateCommandWithScheduleFilter()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldContain("ScheduledAt IS NULL OR ScheduledAt <= @Now");
 	}
 
 	[Fact]
-	public void CreateCommandWithPriorityOrdering()
+	public void CreateCommandWithLeaseColumns()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
 
-		// Assert
-		request.Command.CommandText.ShouldContain("ORDER BY Priority DESC, CreatedAt ASC");
+		// Assert - Atomic claim via UPDATE sets lease ownership
+		request.Command.CommandText.ShouldContain("LeasedAt");
+		request.Command.CommandText.ShouldContain("LeasedBy");
+		request.Command.CommandText.ShouldContain("@ProcessorId");
+	}
+
+	[Fact]
+	public void CreateCommandWithOutputClause()
+	{
+		// Act
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+
+		// Assert - OUTPUT clause returns claimed rows
+		request.Command.CommandText.ShouldContain("OUTPUT");
+		request.Command.CommandText.ShouldContain("INSERTED.Id");
+		request.Command.CommandText.ShouldContain("INSERTED.MessageType");
+	}
+
+	[Fact]
+	public void CreateCommandWithStaleLeaseReclamation()
+	{
+		// Act
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+
+		// Assert - Stale leases are reclaimed
+		request.Command.CommandText.ShouldContain("@LeaseTimeoutSeconds");
 	}
 
 	[Fact]
@@ -92,7 +133,7 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 		const int timeout = 60;
 
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, timeout, CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, timeout, 300, "test-processor", CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(timeout);
@@ -102,7 +143,7 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	public void CreateCommandWithDefaultTimeout()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(30);
@@ -112,7 +153,7 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	public void SetResolveAsyncDelegate()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
 
 		// Assert
 		_ = request.ResolveAsync.ShouldNotBeNull();
@@ -130,7 +171,7 @@ public sealed class GetUnsentMessagesRequestShould : UnitTestBase
 	public void AcceptValidBatchSize(int batchSize)
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, batchSize, 30, CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, batchSize, 30, 300, "test-processor", CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();

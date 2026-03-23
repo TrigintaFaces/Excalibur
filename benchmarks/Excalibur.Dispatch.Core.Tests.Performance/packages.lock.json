@@ -64,9 +64,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.3, )",
-        "resolved": "10.0.3",
-        "contentHash": "0B6nZyCHWXnvmlB559oduOspVdNOnpNXPjhpWVMovLPAsDVG7A4jJR9rzECf67JUzxP8/ee/wA8clwIzJcWNFA=="
+        "requested": "[10.0.4, )",
+        "resolved": "10.0.4",
+        "contentHash": "CCx8ojW3mOL150/LnP0DK7qpMrJEt6xxNCmJFKoX89v1h0FwpsEHqennowGPYDxp6zIkIO4f9PxynjOeLF+1zw=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -926,6 +926,7 @@
           "CloudNative.CloudEvents.SystemTextJson": "[2.8.0, )",
           "Cronos": "[0.11.1, )",
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Compliance.Abstractions": "[0.1.0-local, )",
           "Excalibur.Dispatch.Serialization.MemoryPack": "[0.1.0-local, )",
           "Medo.Uuid7": "[1.4.0, )",
           "MemoryPack": "[1.21.4, )",
@@ -997,6 +998,7 @@
       "excalibur.dispatch.compliance.abstractions": {
         "type": "Project",
         "dependencies": {
+          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )"
         }
       },

@@ -5,6 +5,8 @@ using System.Text;
 
 using Confluent.Kafka;
 
+using Excalibur.Dispatch.Transport.Diagnostics;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -73,7 +75,7 @@ internal sealed partial class KafkaDeadLetterProducer
 
 		// Preserve original message key for partition affinity
 		var messageKey = originalMessage.Properties.TryGetValue(
-			Diagnostics.TransportTelemetryConstants.PropertyKeys.PartitionKey, out var pk)
+			TransportTelemetryConstants.PropertyKeys.PartitionKey, out var pk)
 			? pk?.ToString() ?? originalMessage.Id
 			: originalMessage.Id;
 
@@ -123,7 +125,7 @@ internal sealed partial class KafkaDeadLetterProducer
 		CancellationToken cancellationToken)
 	{
 		var messageKey = message.Properties.TryGetValue(
-			Diagnostics.TransportTelemetryConstants.PropertyKeys.PartitionKey, out var pk)
+			TransportTelemetryConstants.PropertyKeys.PartitionKey, out var pk)
 			? pk?.ToString() ?? message.Id
 			: message.Id;
 

@@ -162,6 +162,9 @@ public static class DataMongoDbEventId
 	/// <summary>Timeout exception.</summary>
 	public const int TimeoutException = 104604;
 
+	/// <summary>Transaction scope callback exception swallowed.</summary>
+	public const int TransactionCallbackException = 104605;
+
 	// ========================================
 	// 104700-104799: Retry Policy
 	// ========================================

@@ -54,7 +54,9 @@ public static class PostgresSagaExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<PostgresSagaStore>();
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<PostgresSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("postgres"));
 
 		return services;
 	}
@@ -114,7 +116,9 @@ public static class PostgresSagaExtensions
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new PostgresSagaStore(connectionFactory, options, logger, serializer);
 		});
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<PostgresSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("postgres"));
 
 		return services;
 	}

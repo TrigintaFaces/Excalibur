@@ -42,7 +42,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Compliance")]
 [Trait("Pattern", "PROVIDER")]
-public class InMemoryKeyManagementProviderConformanceTests : KeyManagementProviderConformanceTestKit
+public sealed class InMemoryKeyManagementProviderConformanceTests : KeyManagementProviderConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override IKeyManagementProvider CreateProvider() =>

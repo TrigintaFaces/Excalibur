@@ -5,9 +5,16 @@
 namespace Excalibur.Dispatch.Abstractions;
 
 /// <summary>
-/// Middleware interface for processing contexts in a pipeline.
+/// Generic middleware interface for processing contexts in a pipeline.
 /// </summary>
 /// <typeparam name="TContext"> The type of context that flows through the middleware pipeline. </typeparam>
+/// <remarks>
+/// This is a general-purpose building block for composing typed middleware pipelines
+/// (see <see cref="IMiddlewarePipelineBuilder{TContext}"/>). For the dispatch-specific
+/// middleware contract used by the message dispatch pipeline, see
+/// <see cref="IDispatchMiddleware"/>.
+/// </remarks>
+/// <seealso cref="IDispatchMiddleware"/>
 public interface IMiddleware<TContext>
 {
 	/// <summary>

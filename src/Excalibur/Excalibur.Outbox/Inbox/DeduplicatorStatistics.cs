@@ -5,8 +5,12 @@
 namespace Excalibur.Outbox.Inbox;
 
 /// <summary>
-/// Statistics about the current state of the deduplicator.
+/// Statistics about the current state of the persistent inbox deduplicator.
 /// </summary>
+/// <remarks>
+/// This type tracks persistent (store-backed) deduplication entry lifecycle. For volatile
+/// (in-memory) deduplication performance metrics, see <see cref="Excalibur.Dispatch.Abstractions.DeduplicationStatistics"/>.
+/// </remarks>
 public sealed class DeduplicatorStatistics
 {
 	/// <summary>

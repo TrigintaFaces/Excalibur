@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.BatchProcessing;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class MessageProcessingResultShould
+public sealed class MessageProcessingResultShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

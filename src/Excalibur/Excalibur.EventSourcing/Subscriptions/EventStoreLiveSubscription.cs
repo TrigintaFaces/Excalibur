@@ -38,8 +38,8 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 	private volatile bool _disposed;
 	private CancellationTokenSource? _pollingCts;
 	private Task? _pollingTask;
-	private string? _subscribedStreamId;
-	private Func<IReadOnlyList<IDomainEvent>, Task>? _handler;
+	private volatile string? _subscribedStreamId;
+	private volatile Func<IReadOnlyList<IDomainEvent>, Task>? _handler;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventStoreLiveSubscription"/> class.
@@ -61,7 +61,7 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 	}
 
 	/// <inheritdoc />
-	public Task SubscribeAsync(
+	public async Task SubscribeAsync(
 		string streamId,
 		Func<IReadOnlyList<IDomainEvent>, Task> handler,
 		CancellationToken cancellationToken)
@@ -85,11 +85,17 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 
 		LogSubscriptionStarted(streamId, _options.StartPosition.ToString());
 
-		// Start the polling loop
-		_pollingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		_pollingTask = PollForEventsAsync(_pollingCts.Token);
+		// Dispose existing CTS before creating a new one to prevent leaks on re-subscribe
+		var newCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		var oldCts = Interlocked.Exchange(ref _pollingCts, newCts);
+		if (oldCts is not null)
+		{
+			await oldCts.CancelAsync().ConfigureAwait(false);
+			oldCts.Dispose();
+		}
 
-		return Task.CompletedTask;
+		// Start the polling loop
+		_pollingTask = PollForEventsAsync(newCts.Token);
 	}
 
 	/// <inheritdoc />
@@ -106,7 +112,7 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 			{
 				await _pollingTask.ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				// Expected during unsubscribe
 			}
@@ -143,7 +149,7 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 			{
 				await _pollingTask.ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				// Expected during disposal
 			}
@@ -176,8 +182,10 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 					continue;
 				}
 
-				// Batch events according to MaxBatchSize
-				var domainEvents = DeserializeEvents(events);
+				// Deserialize events, tracking which versions succeeded.
+				// If deserialization fails for an event, we stop advancing
+				// position at that point so the event is retried on next poll.
+				var (domainEvents, lastSuccessfulVersion) = DeserializeEventsWithVersionTracking(events, lastPosition);
 
 				if (domainEvents.Count == 0)
 				{
@@ -193,12 +201,13 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 					await _handler(batch).ConfigureAwait(false);
 				}
 
-				// Update position to the last processed event
-				_positions[_subscribedStreamId] = events[events.Count - 1].Version;
+				// Update position only to the last successfully deserialized event version.
+				// Events that failed deserialization are NOT skipped -- they will be retried.
+				_positions[_subscribedStreamId] = lastSuccessfulVersion;
 
 				LogEventsDelivered(_subscribedStreamId, domainEvents.Count);
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -210,9 +219,17 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 		}
 	}
 
-	private List<IDomainEvent> DeserializeEvents(IReadOnlyList<StoredEvent> storedEvents)
+	/// <summary>
+	/// Deserializes stored events sequentially, stopping at the first deserialization failure.
+	/// Returns the deserialized events and the version of the last successfully deserialized event.
+	/// This ensures the subscription position only advances past events that were actually processed.
+	/// </summary>
+	private (List<IDomainEvent> Events, long LastVersion) DeserializeEventsWithVersionTracking(
+		IReadOnlyList<StoredEvent> storedEvents,
+		long currentPosition)
 	{
 		var results = new List<IDomainEvent>(storedEvents.Count);
+		var lastVersion = currentPosition;
 
 		foreach (var storedEvent in storedEvents)
 		{
@@ -224,37 +241,41 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 				if (domainEvent is not null)
 				{
 					results.Add(domainEvent);
+					lastVersion = storedEvent.Version;
 				}
 			}
 			catch (Exception ex)
 			{
 				LogDeserializationError(storedEvent.EventId, ex);
-				// Skip events that cannot be deserialized
+				// Stop processing at the first deserialization failure.
+				// The position will NOT advance past this event, so it will be
+				// retried on the next polling cycle.
+				break;
 			}
 		}
 
-		return results;
+		return (results, lastVersion);
 	}
 
 	#region Logging
 
-	[LoggerMessage(EventSourcingEventId.ProjectionStarted, LogLevel.Information,
+	[LoggerMessage(EventSourcingEventId.SubscriptionStarted, LogLevel.Information,
 		"Live subscription started for stream {StreamId} at position {StartPosition}")]
 	private partial void LogSubscriptionStarted(string streamId, string startPosition);
 
-	[LoggerMessage(EventSourcingEventId.ProjectionStopped, LogLevel.Information,
+	[LoggerMessage(EventSourcingEventId.SubscriptionStopped, LogLevel.Information,
 		"Live subscription stopped for stream {StreamId}")]
 	private partial void LogSubscriptionStopped(string streamId);
 
-	[LoggerMessage(EventSourcingEventId.ProjectionEventProcessed, LogLevel.Debug,
+	[LoggerMessage(EventSourcingEventId.SubscriptionEventsDelivered, LogLevel.Debug,
 		"Delivered {EventCount} events for stream {StreamId}")]
 	private partial void LogEventsDelivered(string streamId, int eventCount);
 
-	[LoggerMessage(EventSourcingEventId.ProjectionError, LogLevel.Error,
+	[LoggerMessage(EventSourcingEventId.SubscriptionPollingError, LogLevel.Error,
 		"Error polling for events on stream {StreamId}")]
 	private partial void LogPollingError(string streamId, Exception ex);
 
-	[LoggerMessage(EventSourcingEventId.EventSerializationFailed, LogLevel.Warning,
+	[LoggerMessage(EventSourcingEventId.SubscriptionDeserializationFailed, LogLevel.Warning,
 		"Failed to deserialize event {EventId}")]
 	private partial void LogDeserializationError(string eventId, Exception ex);
 

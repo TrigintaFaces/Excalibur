@@ -24,7 +24,14 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 	private volatile DegradationLevel _currentLevel;
 	private volatile bool _disposed;
 
-	// CPU delta tracking for real CPU usage calculation
+	private static readonly DegradationLevel[] CachedDegradationLevels = Enum.GetValues<DegradationLevel>();
+
+	// CPU delta tracking for real CPU usage calculation (lock protects compound read/write)
+#if NET9_0_OR_GREATER
+	private readonly System.Threading.Lock _cpuSampleLock = new();
+#else
+	private readonly object _cpuSampleLock = new();
+#endif
 	private TimeSpan _previousCpuTime;
 	private DateTimeOffset _previousCpuSampleTime;
 
@@ -83,15 +90,9 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 		var stats = _operationStats.GetOrAdd(context.OperationName, _ => new OperationStatistics());
 		stats.RecordAttempt();
 
-		try
-		{
-			return await TryExecutePrimaryOrFallbackAsync(context, stats).ConfigureAwait(false);
-		}
-		catch
-		{
-			stats.RecordFailure();
-			throw;
-		}
+		// RecordFailure is called inside TryExecutePrimaryOrFallbackAsync on primary failure;
+		// do not record again here to avoid double-counting.
+		return await TryExecutePrimaryOrFallbackAsync(context, stats).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -121,8 +122,15 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 			static pair => pair.Value.Clone(),
 			StringComparer.Ordinal);
 
-		var total = stats.Sum(static entry => entry.Value.TotalAttempts);
-		var successes = stats.Sum(static entry => entry.Value.Successes);
+		long total = 0;
+		long successes = 0;
+		long fallbacks = 0;
+		foreach (var entry in stats.Values)
+		{
+			total += entry.TotalAttempts;
+			successes += entry.Successes;
+			fallbacks += entry.FallbackExecutions;
+		}
 
 		return new DegradationMetrics
 		{
@@ -132,7 +140,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 			OperationStatistics = stats,
 			HealthMetrics = _currentHealth,
 			TotalOperations = total,
-			TotalFallbacks = stats.Sum(static s => s.Value.FallbackExecutions),
+			TotalFallbacks = fallbacks,
 			SuccessRate = total > 0 ? (double)successes / total : 1.0,
 		};
 	}
@@ -225,7 +233,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 			return result;
 		}
 
-		foreach (var level in Enum.GetValues<DegradationLevel>().Where(l => l > CurrentLevel).Order())
+		foreach (var level in CachedDegradationLevels.Where(l => l > CurrentLevel))
 		{
 			if (context.Fallbacks.TryGetValue(level, out fallback))
 			{
@@ -290,14 +298,24 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 	private HealthMetrics CollectHealthMetrics()
 	{
 		// Calculate error rate from operation statistics
-		var totalOps = _operationStats.Sum(static entry => entry.Value.TotalAttempts);
-		var failures = _operationStats.Sum(static entry => entry.Value.Failures);
+		long totalOps = 0;
+		long failures = 0;
+		foreach (var entry in _operationStats.Values)
+		{
+			totalOps += entry.TotalAttempts;
+			failures += entry.Failures;
+		}
 		var errorRate = totalOps > 0 ? (double)failures / totalOps : 0;
 
-		// Real memory metric: Environment.WorkingSet (bytes -> percentage of 2GB baseline)
+		// Real memory metric: WorkingSet as percentage of available memory
 		var workingSetBytes = Environment.WorkingSet;
-		const long assumedMaxBytes = 2_147_483_648L;
-		var memoryUsage = (double)workingSetBytes / assumedMaxBytes * 100;
+		var totalAvailableBytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+		if (totalAvailableBytes <= 0)
+		{
+			totalAvailableBytes = 2_147_483_648L; // Fallback to 2GB if unavailable
+		}
+
+		var memoryUsage = (double)workingSetBytes / totalAvailableBytes * 100;
 
 		// Real CPU metric: Process.TotalProcessorTime delta calculation
 		double cpuUsage;
@@ -306,21 +324,25 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 			using var currentProcess = Process.GetCurrentProcess();
 			var currentCpuTime = currentProcess.TotalProcessorTime;
 			var now = DateTimeOffset.UtcNow;
-			var elapsed = now - _previousCpuSampleTime;
 
-			if (elapsed.TotalMilliseconds > 0)
+			lock (_cpuSampleLock)
 			{
-				var cpuDelta = (currentCpuTime - _previousCpuTime).TotalMilliseconds;
-				cpuUsage = cpuDelta / (elapsed.TotalMilliseconds * Environment.ProcessorCount) * 100;
-				cpuUsage = Math.Clamp(cpuUsage, 0, 100);
-			}
-			else
-			{
-				cpuUsage = 0;
-			}
+				var elapsed = now - _previousCpuSampleTime;
 
-			_previousCpuTime = currentCpuTime;
-			_previousCpuSampleTime = now;
+				if (elapsed.TotalMilliseconds > 0)
+				{
+					var cpuDelta = (currentCpuTime - _previousCpuTime).TotalMilliseconds;
+					cpuUsage = cpuDelta / (elapsed.TotalMilliseconds * Environment.ProcessorCount) * 100;
+					cpuUsage = Math.Clamp(cpuUsage, 0, 100);
+				}
+				else
+				{
+					cpuUsage = 0;
+				}
+
+				_previousCpuTime = currentCpuTime;
+				_previousCpuSampleTime = now;
+			}
 		}
 		catch (Exception)
 		{

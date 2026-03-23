@@ -354,6 +354,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 						_options.QualifiedOutboxTableName,
 						batchSize,
 						_options.CommandTimeoutSeconds,
+						_options.LeaseTimeoutSeconds,
+						_options.ProcessorId,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -452,7 +454,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			var sql = $"""
 				UPDATE {_options.QualifiedOutboxTableName}
-				SET Status = 2, SentAt = @SentAt, LastError = NULL
+				SET Status = 2, SentAt = @SentAt, LastError = NULL, LeasedAt = NULL, LeasedBy = NULL
 				WHERE Id IN @Ids AND Status != 2
 				""";
 
@@ -477,7 +479,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	}
 
 	/// <inheritdoc />
-	public async ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, CancellationToken cancellationToken)
+	public async ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, int retryCount, CancellationToken cancellationToken)
 	{
 		if (messageIds.Count == 0)
 		{
@@ -496,7 +498,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			var sql = $"""
 				UPDATE {_options.QualifiedOutboxTableName}
-				SET Status = 3, RetryCount = RetryCount + 1, LastError = @Reason, LastAttemptAt = @Now
+				SET Status = 3, RetryCount = RetryCount + 1, LastError = @Reason, LastAttemptAt = @Now,
+					LeasedAt = NULL, LeasedBy = NULL
 				WHERE Id IN @Ids
 				""";
 

@@ -3,7 +3,9 @@ using Excalibur.Dispatch.Transport.Builders;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Builders;
 
-public class TransportReceiverBuilderShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class TransportReceiverBuilderShould
 {
     [Fact]
     public void Should_Throw_On_Null_InnerReceiver()

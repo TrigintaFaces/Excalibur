@@ -69,9 +69,20 @@ public static class DispatchContextInitializer
 			context.CausationId = causationId;
 		}
 
-		_ = headers.ContainsKey("X-User-ID");
+		if (headers.TryGetValue("traceparent", out var traceParent) && !string.IsNullOrWhiteSpace(traceParent))
+		{
+			context.GetOrCreateIdentityFeature().TraceParent = traceParent;
+		}
 
-		_ = headers.ContainsKey("X-Tenant-ID");
+		if (headers.TryGetValue("X-User-ID", out var userId) && !string.IsNullOrWhiteSpace(userId))
+		{
+			context.GetOrCreateIdentityFeature().UserId = userId;
+		}
+
+		if (headers.TryGetValue("X-Tenant-ID", out var tenantId) && !string.IsNullOrWhiteSpace(tenantId))
+		{
+			context.GetOrCreateIdentityFeature().TenantId = tenantId;
+		}
 
 		foreach (var pair in headers)
 		{
@@ -103,9 +114,20 @@ public static class DispatchContextInitializer
 			context.CausationId = causation;
 		}
 
-		_ = metadata.ContainsKey("UserId");
+		if (metadata.TryGetValue("TraceParent", out var traceParent) && !string.IsNullOrWhiteSpace(traceParent))
+		{
+			context.GetOrCreateIdentityFeature().TraceParent = traceParent;
+		}
 
-		_ = metadata.ContainsKey("TenantId");
+		if (metadata.TryGetValue("UserId", out var userId) && !string.IsNullOrWhiteSpace(userId))
+		{
+			context.GetOrCreateIdentityFeature().UserId = userId;
+		}
+
+		if (metadata.TryGetValue("TenantId", out var tenantId) && !string.IsNullOrWhiteSpace(tenantId))
+		{
+			context.GetOrCreateIdentityFeature().TenantId = tenantId;
+		}
 
 		foreach (var pair in metadata)
 		{

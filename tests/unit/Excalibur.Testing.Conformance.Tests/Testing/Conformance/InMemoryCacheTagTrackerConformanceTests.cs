@@ -39,7 +39,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "CACHE")]
-public class InMemoryCacheTagTrackerConformanceTests : CacheTagTrackerConformanceTestKit
+public sealed class InMemoryCacheTagTrackerConformanceTests : CacheTagTrackerConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override ICacheTagTracker CreateTracker()

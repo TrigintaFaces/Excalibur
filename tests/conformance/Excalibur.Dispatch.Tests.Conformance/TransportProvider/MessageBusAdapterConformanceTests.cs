@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.TransportProvider;
 ///     expected behavior and contracts defined by the IMessageBusAdapter interface. Concrete test classes should inherit from this class
 ///     and implement the factory methods to provide the specific message bus adapter under test.
 /// </remarks>
+[Trait("Component", "Transport")]
 public abstract class MessageBusAdapterConformanceTests
 {
 	/// <summary>
@@ -539,8 +540,11 @@ public abstract class MessageBusAdapterConformanceTests
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// Act & Assert
-		adapter.Dispose();
+		// Act & Assert -- T.19: IDisposable removed from IMessageBusAdapter; cast if adapter implements it
+		if (adapter is IDisposable disposable)
+		{
+			disposable.Dispose();
+		}
 		// Should not throw
 	}
 
@@ -555,8 +559,11 @@ public abstract class MessageBusAdapterConformanceTests
 		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// Act & Assert
-		adapter.Dispose();
+		// Act & Assert -- T.19: IDisposable removed from IMessageBusAdapter; cast if adapter implements it
+		if (adapter is IDisposable disposable)
+		{
+			disposable.Dispose();
+		}
 		// Should not throw
 	}
 
@@ -570,7 +577,7 @@ public abstract class MessageBusAdapterConformanceTests
 	///     Creates test message bus options for adapter initialization and configuration.
 	/// </summary>
 	/// <returns> Valid message bus options for testing. </returns>
-	protected abstract IMessageBusOptions CreateTestOptions();
+	protected abstract MessageBusOptions CreateTestOptions();
 
 	/// <summary>
 	///     Creates a test message for testing publish operations.

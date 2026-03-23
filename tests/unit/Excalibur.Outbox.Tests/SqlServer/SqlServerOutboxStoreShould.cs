@@ -14,6 +14,7 @@ namespace Excalibur.Outbox.Tests.SqlServer;
 /// Unit tests for the <see cref="SqlServerOutboxStore"/> class focusing on dual-constructor pattern.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class SqlServerOutboxStoreShould : UnitTestBase
 {
 	private readonly ILogger<SqlServerOutboxStore> _logger = NullLoggerFactory.CreateLogger<SqlServerOutboxStore>();

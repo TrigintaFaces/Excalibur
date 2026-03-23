@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Unit tests for <see cref="ComplianceMonitoringService"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class ComplianceMonitoringServiceShould
 {
 	private readonly IServiceScopeFactory _fakeScopeFactory;
@@ -98,7 +99,7 @@ public sealed class ComplianceMonitoringServiceShould
 		});
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -136,7 +137,7 @@ public sealed class ComplianceMonitoringServiceShould
 			.ReturnsLazily(() => CreateFullyCompliantStatus());
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -167,7 +168,7 @@ public sealed class ComplianceMonitoringServiceShould
 		// Arrange
 		SetupFullyCompliantStatus();
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -201,7 +202,7 @@ public sealed class ComplianceMonitoringServiceShould
 			.ReturnsLazily(() => CreateFullyCompliantStatus());
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -239,7 +240,7 @@ public sealed class ComplianceMonitoringServiceShould
 			.Invokes(() => alertObserved.TrySetResult());
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -283,7 +284,7 @@ public sealed class ComplianceMonitoringServiceShould
 			})
 			.ReturnsLazily(() => CreateStatusWithGap(GapSeverity.Low));
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -338,7 +339,7 @@ public sealed class ComplianceMonitoringServiceShould
 			})
 			.ReturnsLazily(() => CreateStatusWithGap(GapSeverity.Critical));
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -378,7 +379,7 @@ public sealed class ComplianceMonitoringServiceShould
 			.Invokes(() => validationAlertObserved.TrySetResult());
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -433,7 +434,7 @@ public sealed class ComplianceMonitoringServiceShould
 			.Invokes(() => Interlocked.Exchange(ref statusChangeObserved, 1));
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -490,7 +491,7 @@ public sealed class ComplianceMonitoringServiceShould
 			.Invokes(() => Interlocked.Exchange(ref statusChangeObserved, 1));
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
@@ -546,7 +547,7 @@ public sealed class ComplianceMonitoringServiceShould
 			});
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
-		var cts = new CancellationTokenSource();
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);

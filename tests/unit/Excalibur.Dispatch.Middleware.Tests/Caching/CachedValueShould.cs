@@ -6,6 +6,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for CachedValue functionality.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class CachedValueShould : UnitTestBase
 {
 	[Fact]

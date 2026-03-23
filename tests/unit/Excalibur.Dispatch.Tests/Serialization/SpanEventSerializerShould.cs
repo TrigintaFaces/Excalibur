@@ -144,7 +144,7 @@ public sealed class SpanEventSerializerShould
 		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
-		var ex = Assert.Throws<ArgumentNullException>(() =>
+		var ex = Should.Throw<ArgumentNullException>(() =>
 		{
 			var buffer = new byte[256];
 			_ = serializer.SerializeEvent(null!, buffer.AsSpan());
@@ -205,7 +205,7 @@ public sealed class SpanEventSerializerShould
 		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
-		var ex = Assert.Throws<ArgumentException>(() =>
+		var ex = Should.Throw<ArgumentException>(() =>
 		{
 			var smallBuffer = new byte[10]; // Too small
 			_ = serializer.SerializeEvent(testEvent, smallBuffer.AsSpan());
@@ -225,7 +225,7 @@ public sealed class SpanEventSerializerShould
 		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
-		var ex = Assert.Throws<ArgumentNullException>(() =>
+		var ex = Should.Throw<ArgumentNullException>(() =>
 		{
 			var data = new byte[] { 1, 2, 3 };
 			_ = serializer.DeserializeEvent(data.AsSpan(), null!);
@@ -265,7 +265,7 @@ public sealed class SpanEventSerializerShould
 
 		// Act & Assert - Try to deserialize as TestDomainEvent but it's actually TestSnapshot
 		// This will fail with SerializationException because TestSnapshot is not IDomainEvent
-		var ex = Assert.Throws<SerializationException>(() =>
+		var ex = Should.Throw<SerializationException>(() =>
 		{
 			_ = serializer.DeserializeEvent(serializedData.AsSpan(), typeof(TestSnapshot));
 		});
@@ -336,7 +336,7 @@ public sealed class SpanEventSerializerShould
 		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
-		var ex = Assert.Throws<ArgumentNullException>(() =>
+		var ex = Should.Throw<ArgumentNullException>(() =>
 		{
 			var buffer = new byte[256];
 			_ = serializer.SerializeSnapshot(null!, buffer.AsSpan());
@@ -377,7 +377,7 @@ public sealed class SpanEventSerializerShould
 		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
-		var ex = Assert.Throws<ArgumentException>(() =>
+		var ex = Should.Throw<ArgumentException>(() =>
 		{
 			var smallBuffer = new byte[50];
 			_ = serializer.SerializeSnapshot(snapshot, smallBuffer.AsSpan());
@@ -397,7 +397,7 @@ public sealed class SpanEventSerializerShould
 		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
-		var ex = Assert.Throws<ArgumentNullException>(() =>
+		var ex = Should.Throw<ArgumentNullException>(() =>
 		{
 			var data = new byte[] { 1, 2, 3 };
 			_ = serializer.DeserializeSnapshot(data.AsSpan(), null!);

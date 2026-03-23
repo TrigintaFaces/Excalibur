@@ -4,7 +4,6 @@ abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur
 abstract Excalibur.Domain.Model.EntityBase<TKey>.Key.get -> TKey
 abstract Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.BusinessKey.get -> TBusinessKey
 abstract Excalibur.Domain.Model.ValueObjects.ValueObjectBase.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
-abstract Excalibur.Domain.Specifications.Specification<T>.IsSatisfiedBy(T candidate) -> bool
 const Excalibur.Domain.Cultures.DefaultCultureName = "en-US" -> string!
 const Excalibur.Domain.ExcaliburHeaderNames.CorrelationId = "X-Correlation-Id" -> string!
 const Excalibur.Domain.ExcaliburHeaderNames.ETag = "X-Etag" -> string!
@@ -235,7 +234,7 @@ Excalibur.Domain.OrderedEventProcessor
 Excalibur.Domain.OrderedEventProcessor.Dispose() -> void
 Excalibur.Domain.OrderedEventProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Domain.OrderedEventProcessor.OrderedEventProcessor() -> void
-Excalibur.Domain.OrderedEventProcessor.ProcessAsync(System.Func<System.Threading.Tasks.Task!>! processEvent) -> System.Threading.Tasks.Task!
+Excalibur.Domain.OrderedEventProcessor.ProcessAsync(System.Func<System.Threading.Tasks.Task!>! processEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Domain.PageableResult<T>
 Excalibur.Domain.PageableResult<T>.GetEnumerator() -> System.Collections.Generic.IEnumerator<T!>!
 Excalibur.Domain.PageableResult<T>.HasNextPage.get -> bool
@@ -254,18 +253,6 @@ Excalibur.Domain.PageNavigation.First = 0 -> Excalibur.Domain.PageNavigation
 Excalibur.Domain.PageNavigation.Last = 3 -> Excalibur.Domain.PageNavigation
 Excalibur.Domain.PageNavigation.Next = 2 -> Excalibur.Domain.PageNavigation
 Excalibur.Domain.PageNavigation.Previous = 1 -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.Repositories.IRepository<T>
-Excalibur.Domain.Repositories.IRepository<T>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Domain.Repositories.IRepository<T>.ExistsAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Domain.Repositories.IRepository<T>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!
-Excalibur.Domain.Repositories.IRepository<T>.SaveAsync(T! entity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Domain.Specifications.ISpecification<T>
-Excalibur.Domain.Specifications.ISpecification<T>.IsSatisfiedBy(T candidate) -> bool
-Excalibur.Domain.Specifications.Specification<T>
-Excalibur.Domain.Specifications.Specification<T>.And(Excalibur.Domain.Specifications.ISpecification<T>! other) -> Excalibur.Domain.Specifications.Specification<T>!
-Excalibur.Domain.Specifications.Specification<T>.Not() -> Excalibur.Domain.Specifications.Specification<T>!
-Excalibur.Domain.Specifications.Specification<T>.Or(Excalibur.Domain.Specifications.ISpecification<T>! other) -> Excalibur.Domain.Specifications.Specification<T>!
-Excalibur.Domain.Specifications.Specification<T>.Specification() -> void
 Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MetricsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions

@@ -16,6 +16,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [Collection(ContainerCollections.Postgres)]
 [Trait("Component", TestComponents.Data)]
 [Trait("Infrastructure", TestInfrastructure.Postgres)]
+[Trait("Category", "Integration")]
+[Trait("Component", "Platform")]
 public sealed class PostgresAuditAndLeaderElectionIntegrationShould : IntegrationTestBase
 {
 	private readonly PostgresFixture _fixture;
@@ -28,12 +30,12 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 	[Fact]
 	public async Task Store_and_get_by_id_round_trip()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		await using var store = CreateAuditStore();
 		var evt = CreateAuditEvent("pg-evt-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2));
 
-		var stored = await store.StoreAsync(evt, TestCancellationToken).ConfigureAwait(true);
-		var loaded = await store.GetByIdAsync(evt.EventId, TestCancellationToken).ConfigureAwait(true);
+		var stored = await store.StoreAsync(evt, TestCancellationToken);
+		var loaded = await store.GetByIdAsync(evt.EventId, TestCancellationToken);
 
 		stored.SequenceNumber.ShouldBeGreaterThan(0);
 		loaded.ShouldNotBeNull();
@@ -46,12 +48,12 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 	[Fact]
 	public async Task Query_count_and_get_last_event_work_with_tenant_filters()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		await using var store = CreateAuditStore();
 
-		await store.StoreAsync(CreateAuditEvent("pg-evt-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-4), actorId: "actor-a"), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateAuditEvent("pg-evt-3", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3), actorId: "actor-a"), TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(CreateAuditEvent("pg-evt-4", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-2), actorId: "actor-b"), TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(CreateAuditEvent("pg-evt-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-4), actorId: "actor-a"), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("pg-evt-3", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3), actorId: "actor-a"), TestCancellationToken);
+		await store.StoreAsync(CreateAuditEvent("pg-evt-4", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-2), actorId: "actor-b"), TestCancellationToken);
 
 		var query = new AuditQuery
 		{
@@ -61,10 +63,10 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 			Skip = 0
 		};
 
-		var results = await store.QueryAsync(query, TestCancellationToken).ConfigureAwait(true);
-		var count = await store.CountAsync(query, TestCancellationToken).ConfigureAwait(true);
-		var tenantLast = await store.GetLastEventAsync("tenant-1", TestCancellationToken).ConfigureAwait(true);
-		var overallLast = await store.GetLastEventAsync(null, TestCancellationToken).ConfigureAwait(true);
+		var results = await store.QueryAsync(query, TestCancellationToken);
+		var count = await store.CountAsync(query, TestCancellationToken);
+		var tenantLast = await store.GetLastEventAsync("tenant-1", TestCancellationToken);
+		var overallLast = await store.GetLastEventAsync(null, TestCancellationToken);
 
 		results.Count.ShouldBe(2);
 		count.ShouldBe(2);
@@ -77,28 +79,28 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 	[Fact]
 	public async Task Verify_chain_integrity_detects_tampering()
 	{
-		await InitializeAuditTableAsync().ConfigureAwait(true);
+		await InitializeAuditTableAsync();
 		await using var store = CreateAuditStore();
 		var first = CreateAuditEvent("pg-evt-5", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2));
 		var second = CreateAuditEvent("pg-evt-6", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-1));
 
-		await store.StoreAsync(first, TestCancellationToken).ConfigureAwait(true);
-		await store.StoreAsync(second, TestCancellationToken).ConfigureAwait(true);
+		await store.StoreAsync(first, TestCancellationToken);
+		await store.StoreAsync(second, TestCancellationToken);
 
 		var start = DateTimeOffset.UtcNow.AddHours(-1);
 		var end = DateTimeOffset.UtcNow.AddHours(1);
-		var valid = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken).ConfigureAwait(true);
+		var valid = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
 		valid.IsValid.ShouldBeTrue();
 
 		await using (var connection = new NpgsqlConnection(_fixture.ConnectionString))
 		{
-			await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+			await connection.OpenAsync(TestCancellationToken);
 			_ = await connection.ExecuteAsync(
 				"UPDATE audit.audit_events SET previous_event_hash = @Hash WHERE event_id = @EventId",
-				new { Hash = new string('F', 64), EventId = second.EventId }).ConfigureAwait(true);
+				new { Hash = new string('F', 64), EventId = second.EventId });
 		}
 
-		var invalid = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken).ConfigureAwait(true);
+		var invalid = await store.VerifyChainIntegrityAsync(start, end, TestCancellationToken);
 		invalid.IsValid.ShouldBeFalse();
 		invalid.ViolationCount.ShouldBeGreaterThan(0);
 		invalid.FirstViolationEventId.ShouldNotBeNullOrWhiteSpace();
@@ -113,8 +115,8 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		election.BecameLeader += (_, _) => becameLeader = true;
 		election.LostLeadership += (_, _) => lostLeadership = true;
 
-		await election.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await election.StopAsync(TestCancellationToken).ConfigureAwait(true);
+		await election.StartAsync(TestCancellationToken);
+		await election.StopAsync(TestCancellationToken);
 
 		becameLeader.ShouldBeTrue();
 		lostLeadership.ShouldBeTrue();
@@ -127,7 +129,7 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 	{
 		var election = CreateLeaderElection();
 
-		await election.StartAsync(TestCancellationToken).ConfigureAwait(true);
+		await election.StartAsync(TestCancellationToken);
 
 		await Should.NotThrowAsync(() => election.DisposeAsync().AsTask());
 	}
@@ -141,19 +143,19 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		var leaderAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		leader.BecameLeader += (_, _) => leaderAcquired.TrySetResult();
 
-		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await follower.StartAsync(TestCancellationToken).ConfigureAwait(true);
+		await leader.StartAsync(TestCancellationToken);
+		await follower.StartAsync(TestCancellationToken);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 				leaderAcquired.Task,
 				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
 				cancellationToken: TestCancellationToken)
-			.ConfigureAwait(true);
+			;
 
 		leader.IsLeader.ShouldBeTrue();
 		follower.IsLeader.ShouldBeFalse();
 
-		await follower.StopAsync(TestCancellationToken).ConfigureAwait(true);
-		await leader.StopAsync(TestCancellationToken).ConfigureAwait(true);
+		await follower.StopAsync(TestCancellationToken);
+		await leader.StopAsync(TestCancellationToken);
 	}
 
 	[Fact]
@@ -167,26 +169,26 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		leader.BecameLeader += (_, _) => leaderAcquired.TrySetResult();
 		follower.BecameLeader += (_, _) => followerAcquired.TrySetResult();
 
-		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await follower.StartAsync(TestCancellationToken).ConfigureAwait(true);
+		await leader.StartAsync(TestCancellationToken);
+		await follower.StartAsync(TestCancellationToken);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 				leaderAcquired.Task,
 				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
 				cancellationToken: TestCancellationToken)
-			.ConfigureAwait(true);
+			;
 
 		leader.IsLeader.ShouldBeTrue();
 		follower.IsLeader.ShouldBeFalse();
 
-		await leader.StopAsync(TestCancellationToken).ConfigureAwait(true);
+		await leader.StopAsync(TestCancellationToken);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 				followerAcquired.Task,
 				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
 				cancellationToken: TestCancellationToken)
-			.ConfigureAwait(true);
+			;
 
 		follower.IsLeader.ShouldBeTrue();
-		await follower.StopAsync(TestCancellationToken).ConfigureAwait(true);
+		await follower.StopAsync(TestCancellationToken);
 	}
 
 	[Fact]
@@ -202,12 +204,12 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		leader.BecameLeader += (_, _) => leaderAcquired.TrySetResult();
 		leader.LostLeadership += (_, _) => leadershipLost.TrySetResult();
 
-		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
+		await leader.StartAsync(TestCancellationToken);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 				leaderAcquired.Task,
 				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
 				cancellationToken: TestCancellationToken)
-			.ConfigureAwait(true);
+			;
 
 		var connectionField = typeof(PostgresLeaderElection).GetField(
 			"_connection",
@@ -218,10 +220,10 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 				leadershipLost.Task,
 				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
 				cancellationToken: TestCancellationToken)
-			.ConfigureAwait(true);
+			;
 
 		leader.IsLeader.ShouldBeFalse();
-		await leader.StopAsync(TestCancellationToken).ConfigureAwait(true);
+		await leader.StopAsync(TestCancellationToken);
 	}
 
 	private PostgresAuditStore CreateAuditStore(Action<PostgresAuditOptions>? configure = null)
@@ -299,8 +301,8 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 			""";
 
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync(sql).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync(sql);
 	}
 
 	private static AuditEvent CreateAuditEvent(

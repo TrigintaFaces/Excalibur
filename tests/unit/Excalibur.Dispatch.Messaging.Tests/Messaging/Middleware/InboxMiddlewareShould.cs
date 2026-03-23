@@ -9,7 +9,7 @@ using Excalibur.Dispatch.Tests.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using InboxOptions = Excalibur.Dispatch.Options.Configuration.InboxOptions;
+using InboxOptions = Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions;
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;

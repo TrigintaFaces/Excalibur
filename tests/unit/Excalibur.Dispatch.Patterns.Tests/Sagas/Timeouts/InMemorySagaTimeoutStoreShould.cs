@@ -40,7 +40,7 @@ public sealed class InMemorySagaTimeoutStoreShould
 		var timeout = CreateTimeout("saga-001", "timeout-001", DateTime.UtcNow.AddMinutes(5));
 
 		// Act
-		await store.ScheduleTimeoutAsync(timeout, CancellationToken.None).ConfigureAwait(true);
+		await store.ScheduleTimeoutAsync(timeout, CancellationToken.None);
 
 		// Assert
 		store.GetPendingCount().ShouldBe(1);
@@ -58,17 +58,17 @@ public sealed class InMemorySagaTimeoutStoreShould
 		var timeout1 = CreateTimeout(sagaId, "timeout-001", DateTime.UtcNow.AddMinutes(5));
 		var timeout2 = CreateTimeout(sagaId, "timeout-002", DateTime.UtcNow.AddMinutes(10));
 
-		await store.ScheduleTimeoutAsync(timeout1, CancellationToken.None).ConfigureAwait(true);
-		await store.ScheduleTimeoutAsync(timeout2, CancellationToken.None).ConfigureAwait(true);
+		await store.ScheduleTimeoutAsync(timeout1, CancellationToken.None);
+		await store.ScheduleTimeoutAsync(timeout2, CancellationToken.None);
 
 		// Act - Cancel first timeout
-		await store.CancelTimeoutAsync(sagaId, "timeout-001", CancellationToken.None).ConfigureAwait(true);
+		await store.CancelTimeoutAsync(sagaId, "timeout-001", CancellationToken.None);
 
 		// Assert - Only second timeout remains
 		store.GetPendingCount().ShouldBe(1);
 
 		// Act - Cancel again (idempotent)
-		await store.CancelTimeoutAsync(sagaId, "timeout-001", CancellationToken.None).ConfigureAwait(true);
+		await store.CancelTimeoutAsync(sagaId, "timeout-001", CancellationToken.None);
 
 		// Assert - Still only one timeout
 		store.GetPendingCount().ShouldBe(1);
@@ -85,14 +85,14 @@ public sealed class InMemorySagaTimeoutStoreShould
 		var sagaId1 = Guid.NewGuid().ToString();
 		var sagaId2 = Guid.NewGuid().ToString();
 
-		await store.ScheduleTimeoutAsync(CreateTimeout(sagaId1, "t1", DateTime.UtcNow.AddMinutes(5)), CancellationToken.None).ConfigureAwait(true);
-		await store.ScheduleTimeoutAsync(CreateTimeout(sagaId1, "t2", DateTime.UtcNow.AddMinutes(10)), CancellationToken.None).ConfigureAwait(true);
-		await store.ScheduleTimeoutAsync(CreateTimeout(sagaId2, "t3", DateTime.UtcNow.AddMinutes(15)), CancellationToken.None).ConfigureAwait(true);
+		await store.ScheduleTimeoutAsync(CreateTimeout(sagaId1, "t1", DateTime.UtcNow.AddMinutes(5)), CancellationToken.None);
+		await store.ScheduleTimeoutAsync(CreateTimeout(sagaId1, "t2", DateTime.UtcNow.AddMinutes(10)), CancellationToken.None);
+		await store.ScheduleTimeoutAsync(CreateTimeout(sagaId2, "t3", DateTime.UtcNow.AddMinutes(15)), CancellationToken.None);
 
 		store.GetPendingCount().ShouldBe(3);
 
 		// Act - Cancel all timeouts for saga1
-		await store.CancelAllTimeoutsAsync(sagaId1, CancellationToken.None).ConfigureAwait(true);
+		await store.CancelAllTimeoutsAsync(sagaId1, CancellationToken.None);
 
 		// Assert - Only saga2's timeout remains
 		store.GetPendingCount().ShouldBe(1);
@@ -115,13 +115,13 @@ public sealed class InMemorySagaTimeoutStoreShould
 		var timeout2 = CreateTimeout(sagaId, "t2", now.AddMinutes(-2)); // Due earlier (most overdue)
 		var timeout4 = CreateTimeout(sagaId, "t4", now.AddMinutes(10)); // Not due yet
 
-		await store.ScheduleTimeoutAsync(timeout3, CancellationToken.None).ConfigureAwait(true);
-		await store.ScheduleTimeoutAsync(timeout1, CancellationToken.None).ConfigureAwait(true);
-		await store.ScheduleTimeoutAsync(timeout2, CancellationToken.None).ConfigureAwait(true);
-		await store.ScheduleTimeoutAsync(timeout4, CancellationToken.None).ConfigureAwait(true);
+		await store.ScheduleTimeoutAsync(timeout3, CancellationToken.None);
+		await store.ScheduleTimeoutAsync(timeout1, CancellationToken.None);
+		await store.ScheduleTimeoutAsync(timeout2, CancellationToken.None);
+		await store.ScheduleTimeoutAsync(timeout4, CancellationToken.None);
 
 		// Act - Query for due timeouts as of now
-		var dueTimeouts = await store.GetDueTimeoutsAsync(now, CancellationToken.None).ConfigureAwait(true);
+		var dueTimeouts = await store.GetDueTimeoutsAsync(now, CancellationToken.None);
 
 		// Assert - Only past-due timeouts returned, ordered by DueAt ascending
 		dueTimeouts.Count.ShouldBe(2);
@@ -140,17 +140,17 @@ public sealed class InMemorySagaTimeoutStoreShould
 		var sagaId = Guid.NewGuid().ToString();
 		var timeout = CreateTimeout(sagaId, "timeout-delivered", DateTime.UtcNow.AddMinutes(-1));
 
-		await store.ScheduleTimeoutAsync(timeout, CancellationToken.None).ConfigureAwait(true);
+		await store.ScheduleTimeoutAsync(timeout, CancellationToken.None);
 		store.GetPendingCount().ShouldBe(1);
 
 		// Act - Mark as delivered
-		await store.MarkDeliveredAsync("timeout-delivered", CancellationToken.None).ConfigureAwait(true);
+		await store.MarkDeliveredAsync("timeout-delivered", CancellationToken.None);
 
 		// Assert - Timeout removed
 		store.GetPendingCount().ShouldBe(0);
 
 		// Act - Mark again (idempotent)
-		await store.MarkDeliveredAsync("timeout-delivered", CancellationToken.None).ConfigureAwait(true);
+		await store.MarkDeliveredAsync("timeout-delivered", CancellationToken.None);
 
 		// Assert - Still zero
 		store.GetPendingCount().ShouldBe(0);
@@ -203,16 +203,16 @@ public sealed class InMemorySagaTimeoutStoreShould
 			}));
 		}
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 
 		// Assert - Store is in consistent state (no exception, count >= 0)
 		store.GetPendingCount().ShouldBeGreaterThanOrEqualTo(0);
 
 		// Verify we can still perform operations after concurrent load
 		var finalTimeout = CreateTimeout(sagaId, "final-timeout", now.AddMinutes(1));
-		await store.ScheduleTimeoutAsync(finalTimeout, CancellationToken.None).ConfigureAwait(true);
+		await store.ScheduleTimeoutAsync(finalTimeout, CancellationToken.None);
 
-		var dueTimeouts = await store.GetDueTimeoutsAsync(now.AddMinutes(5), CancellationToken.None).ConfigureAwait(true);
+		var dueTimeouts = await store.GetDueTimeoutsAsync(now.AddMinutes(5), CancellationToken.None);
 		_ = dueTimeouts.ShouldNotBeNull();
 	}
 

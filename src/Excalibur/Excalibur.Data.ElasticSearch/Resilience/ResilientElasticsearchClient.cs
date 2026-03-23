@@ -350,7 +350,7 @@ public sealed class ResilientElasticsearchClient(
 					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 				}
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				_logger.LogInformation("{OperationType} operation was cancelled", operationType);
 				throw;

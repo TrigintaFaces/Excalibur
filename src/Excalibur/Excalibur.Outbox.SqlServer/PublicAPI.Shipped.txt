@@ -172,3 +172,8 @@ static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.UseSqlServerOutboxSt
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.UseSqlServerOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.UseSqlServerOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.AddSqlServerOutboxStore<TDb>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.LeaseTimeoutSeconds.get -> int
+Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.LeaseTimeoutSeconds.set -> void
+Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.ProcessorId.get -> string!
+Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.ProcessorId.set -> void
+Excalibur.Outbox.SqlServer.Requests.GetUnsentMessagesRequest.GetUnsentMessagesRequest(string! tableName, int batchSize, int commandTimeout, int leaseTimeoutSeconds, string! processorId, System.Threading.CancellationToken cancellationToken) -> void

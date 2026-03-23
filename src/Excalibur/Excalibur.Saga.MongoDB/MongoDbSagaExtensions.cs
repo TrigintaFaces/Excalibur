@@ -55,7 +55,9 @@ public static class MongoDbSagaExtensions
 			.ValidateOnStart();
 
 		services.TryAddSingleton<MongoDbSagaStore>();
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<MongoDbSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("mongodb"));
 
 		return services;
 	}
@@ -140,7 +142,9 @@ public static class MongoDbSagaExtensions
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new MongoDbSagaStore(client, options, logger, serializer);
 		});
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<MongoDbSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("mongodb"));
 
 		return services;
 	}

@@ -54,7 +54,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 			? Math.Min(_options.MaxConcurrentOrderingKeys, Environment.ProcessorCount * 2)
 			: Environment.ProcessorCount;
 
-		_workChannel = Channel.CreateUnbounded<OrderingKeyWork>(new UnboundedChannelOptions { SingleReader = false, SingleWriter = false });
+		_workChannel = Channel.CreateBounded<OrderingKeyWork>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = false });
 
 		_workerTasks = new Task[workerCount];
 		_shutdownTokenSource = new CancellationTokenSource();
@@ -206,7 +206,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 
 			LogProcessorShutdown(_processedCount.Value, _errorCount.Value);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			LogShutdownTimeout();
 		}
@@ -341,7 +341,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 			}
 
 			LogMessageProcessingError(work.Message.MessageId, work.OrderingKey,
-				_options.MaxRetries, ex);
+				_options.MaxRetryAttempts, ex);
 
 			_ = work.CompletionSource.TrySetException(ex);
 			_ = activity?.SetStatus(ActivityStatusCode.Error, ex.Message);

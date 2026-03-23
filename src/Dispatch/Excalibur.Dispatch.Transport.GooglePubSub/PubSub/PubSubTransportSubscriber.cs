@@ -101,7 +101,7 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 			// Block until cancellation is requested
 			await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected on cancellation - fall through to stop
 		}

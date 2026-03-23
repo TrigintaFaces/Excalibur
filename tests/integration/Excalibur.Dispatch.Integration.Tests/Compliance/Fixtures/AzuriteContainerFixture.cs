@@ -37,7 +37,7 @@ public class AzuriteContainerFixture : ContainerFixtureBase
 			.WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(10000))
 			.Build();
 
-		await _container.StartAsync(cancellationToken).ConfigureAwait(true);
+		await _container.StartAsync(cancellationToken);
 	}
 
 	/// <inheritdoc/>
@@ -45,7 +45,7 @@ public class AzuriteContainerFixture : ContainerFixtureBase
 	{
 		if (_container is not null)
 		{
-			await _container.DisposeAsync().ConfigureAwait(true);
+			await _container.DisposeAsync();
 		}
 	}
 }

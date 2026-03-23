@@ -19,6 +19,7 @@ public sealed class MarkEventDispatchedRequest : DataRequestBase<IDbConnection, 
 		UPDATE events
 		SET is_dispatched = true
 		WHERE event_id = @EventId
+		AND is_dispatched = false
 		""";
 
 	/// <summary>

@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Validates Sprint 394 implementation: GDPR Audit Log Verification (T394.5).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class ErasureVerificationServiceAuditShould
 {
 	private readonly IErasureStore _fakeStore;

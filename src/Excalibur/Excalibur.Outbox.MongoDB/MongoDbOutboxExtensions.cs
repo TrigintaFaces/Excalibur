@@ -36,7 +36,9 @@ public static class MongoDbOutboxExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<MongoDbOutboxStore>();
-		services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<MongoDbOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("mongodb"));
 
 		return services;
 	}
@@ -91,7 +93,9 @@ public static class MongoDbOutboxExtensions
 			var logger = sp.GetRequiredService<ILogger<MongoDbOutboxStore>>();
 			return new MongoDbOutboxStore(client, options, logger);
 		});
-		services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<MongoDbOutboxStore>());
+		services.AddKeyedSingleton<IOutboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbOutboxStore>());
+		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IOutboxStore>("mongodb"));
 
 		return services;
 	}

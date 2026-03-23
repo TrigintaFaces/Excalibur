@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Compliance.HealthChecks;
 ///   <item><b>Unhealthy:</b> Store query failed with an exception</item>
 /// </list>
 /// </remarks>
-public sealed partial class ErasureHealthCheck : IHealthCheck
+internal sealed partial class ErasureHealthCheck : IHealthCheck
 {
 	private readonly IErasureStore _erasureStore;
 	private readonly ILogger<ErasureHealthCheck> _logger;

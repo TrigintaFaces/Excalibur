@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Time;
 ///     Tests for the <see cref="TimeProviderUtilities" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TimeProviderUtilitiesShould
 {
 	[Fact]
@@ -31,18 +32,27 @@ public sealed class TimeProviderUtilitiesShould
 	}
 
 	[Fact]
-	public void ReturnCancellationTokenNoneForInfiniteDelay()
+	public void ReturnNullCtsForInfiniteDelay()
 	{
-		var token = TimeProvider.System.CreateCancellationToken(Timeout.InfiniteTimeSpan);
+		var cts = TimeProvider.System.CreateTimeoutCancellationTokenSource(Timeout.InfiniteTimeSpan);
 
-		token.ShouldBe(CancellationToken.None);
+		cts.ShouldBeNull();
 	}
 
 	[Fact]
-	public void ThrowForNullTimeProviderOnCreateCancellationToken()
+	public void ReturnDisposableCtsForFiniteDelay()
+	{
+		using var cts = TimeProvider.System.CreateTimeoutCancellationTokenSource(TimeSpan.FromSeconds(30));
+
+		cts.ShouldNotBeNull();
+		cts.Token.CanBeCanceled.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void ThrowForNullTimeProviderOnCreateTimeoutCts()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			TimeProviderUtilities.CreateCancellationToken(null!, TimeSpan.FromSeconds(1)));
+			TimeProviderUtilities.CreateTimeoutCancellationTokenSource(null!, TimeSpan.FromSeconds(1)));
 	}
 
 	[Fact]

@@ -84,11 +84,11 @@ public sealed class AwsEventBridgeOptionsShould
 		var options = new AwsEventBridgeOptions
 		{
 			Region = "eu-west-1",
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 		};
 
 		// Assert
 		options.Region.ShouldBe("eu-west-1");
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 	}
 }

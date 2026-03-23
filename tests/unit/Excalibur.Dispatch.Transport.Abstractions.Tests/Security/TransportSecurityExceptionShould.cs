@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Security;
 
-public class TransportSecurityExceptionShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class TransportSecurityExceptionShould
 {
     [Fact]
     public void Should_Create_With_Default_Message()

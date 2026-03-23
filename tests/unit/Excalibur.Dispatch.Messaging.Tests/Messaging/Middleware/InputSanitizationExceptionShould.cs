@@ -139,20 +139,20 @@ public sealed class InputSanitizationExceptionShould
 	#region Inheritance Tests
 
 	[Fact]
-	public void InheritsFromException()
+	public void InheritsFromApiException()
 	{
 		// Act
 		var exception = new InputSanitizationException("test");
 
 		// Assert
-		_ = exception.ShouldBeAssignableTo<Exception>();
+		_ = exception.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
 	}
 
 	[Fact]
-	public void CanBeCaughtAsException()
+	public void CanBeCaughtAsApiException()
 	{
 		// Act & Assert
-		_ = Should.Throw<Exception>(() => throw new InputSanitizationException("test"));
+		_ = Should.Throw<Excalibur.Dispatch.Abstractions.ApiException>(() => throw new InputSanitizationException("test"));
 	}
 
 	[Fact]

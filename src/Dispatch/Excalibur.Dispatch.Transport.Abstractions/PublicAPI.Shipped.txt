@@ -282,7 +282,7 @@ Excalibur.Dispatch.Transport.BatchProcessingOptions.PreserveOrder.get -> bool
 Excalibur.Dispatch.Transport.BatchProcessingOptions.PreserveOrder.set -> void
 Excalibur.Dispatch.Transport.BatchProcessingOptions.ProcessInParallel.get -> bool
 Excalibur.Dispatch.Transport.BatchProcessingOptions.ProcessInParallel.set -> void
-Excalibur.Dispatch.Transport.BatchProcessingOptions.RetryPolicy.get -> Excalibur.Dispatch.Transport.RetryPolicy!
+Excalibur.Dispatch.Transport.BatchProcessingOptions.RetryPolicy.get -> Excalibur.Dispatch.Transport.BatchRetryOptions!
 Excalibur.Dispatch.Transport.BatchProcessingOptions.RetryPolicy.set -> void
 Excalibur.Dispatch.Transport.BatchProcessingResult
 Excalibur.Dispatch.Transport.BatchProcessingResult.BatchId.get -> string!
@@ -455,9 +455,6 @@ Excalibur.Dispatch.Transport.CloudProviderType.Google = 2 -> Excalibur.Dispatch.
 Excalibur.Dispatch.Transport.CloudProviderType.Grpc = 5 -> Excalibur.Dispatch.Transport.CloudProviderType
 Excalibur.Dispatch.Transport.CloudProviderType.Kafka = 3 -> Excalibur.Dispatch.Transport.CloudProviderType
 Excalibur.Dispatch.Transport.CloudProviderType.RabbitMQ = 4 -> Excalibur.Dispatch.Transport.CloudProviderType
-Excalibur.Dispatch.Transport.CloudWatchMetricsCollector
-Excalibur.Dispatch.Transport.CloudWatchMetricsCollector.CloudWatchMetricsCollector() -> void
-Excalibur.Dispatch.Transport.CloudWatchMetricsCollector.Dispose() -> void
 Excalibur.Dispatch.Transport.DeadLetterAlertThresholds
 Excalibur.Dispatch.Transport.DeadLetterAlertThresholds.DeadLetterAlertThresholds() -> void
 Excalibur.Dispatch.Transport.DeadLetterAlertThresholds.FailureRateThreshold.get -> double
@@ -574,11 +571,11 @@ Excalibur.Dispatch.Transport.ErrorHandlingStrategy.DeadLetter = 1 -> Excalibur.D
 Excalibur.Dispatch.Transport.ErrorHandlingStrategy.Ignore = 2 -> Excalibur.Dispatch.Transport.ErrorHandlingStrategy
 Excalibur.Dispatch.Transport.ErrorHandlingStrategy.Retry = 0 -> Excalibur.Dispatch.Transport.ErrorHandlingStrategy
 Excalibur.Dispatch.Transport.ErrorHandlingStrategy.Throw = 3 -> Excalibur.Dispatch.Transport.ErrorHandlingStrategy
-Excalibur.Dispatch.Transport.ErrorSeverity
-Excalibur.Dispatch.Transport.ErrorSeverity.Critical = 3 -> Excalibur.Dispatch.Transport.ErrorSeverity
-Excalibur.Dispatch.Transport.ErrorSeverity.Error = 2 -> Excalibur.Dispatch.Transport.ErrorSeverity
-Excalibur.Dispatch.Transport.ErrorSeverity.Info = 0 -> Excalibur.Dispatch.Transport.ErrorSeverity
-Excalibur.Dispatch.Transport.ErrorSeverity.Warning = 1 -> Excalibur.Dispatch.Transport.ErrorSeverity
+Excalibur.Dispatch.Transport.BatchErrorSeverity
+Excalibur.Dispatch.Transport.BatchErrorSeverity.Critical = 3 -> Excalibur.Dispatch.Transport.BatchErrorSeverity
+Excalibur.Dispatch.Transport.BatchErrorSeverity.Error = 2 -> Excalibur.Dispatch.Transport.BatchErrorSeverity
+Excalibur.Dispatch.Transport.BatchErrorSeverity.Info = 0 -> Excalibur.Dispatch.Transport.BatchErrorSeverity
+Excalibur.Dispatch.Transport.BatchErrorSeverity.Warning = 1 -> Excalibur.Dispatch.Transport.BatchErrorSeverity
 Excalibur.Dispatch.Transport.IAdvancedSessionLocking
 Excalibur.Dispatch.Transport.IAdvancedSessionLocking.AcquireMultipleLocksAsync(System.Collections.Generic.IEnumerable<string!>! sessionIds, System.TimeSpan lockDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.SessionLockToken!>!>!
 Excalibur.Dispatch.Transport.IAdvancedSessionLocking.BreakLockAsync(string! sessionId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -648,7 +645,6 @@ Excalibur.Dispatch.Transport.ISessionLockCoordinator.ExtendLockAsync(Excalibur.D
 Excalibur.Dispatch.Transport.ISessionLockCoordinator.IsLockedAsync(string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Transport.ISessionLockCoordinator.ReleaseLockAsync(Excalibur.Dispatch.Transport.SessionLockToken! lockToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Transport.ISessionLockCoordinator.TryAcquireLockAsync(string! sessionId, System.TimeSpan lockDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.SessionLockToken?>!
-Excalibur.Dispatch.Transport.ISessionManager
 Excalibur.Dispatch.Transport.ISessionStateManager
 Excalibur.Dispatch.Transport.ISessionStateManager.DeleteStateAsync(string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Transport.ISessionStateManager.GetStateAsync<TState>(string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TState?>!
@@ -783,7 +779,7 @@ Excalibur.Dispatch.Transport.ProcessingError.MessageId.set -> void
 Excalibur.Dispatch.Transport.ProcessingError.OccurredAt.get -> System.DateTimeOffset
 Excalibur.Dispatch.Transport.ProcessingError.OccurredAt.set -> void
 Excalibur.Dispatch.Transport.ProcessingError.ProcessingError() -> void
-Excalibur.Dispatch.Transport.ProcessingError.Severity.get -> Excalibur.Dispatch.Transport.ErrorSeverity
+Excalibur.Dispatch.Transport.ProcessingError.Severity.get -> Excalibur.Dispatch.Transport.BatchErrorSeverity
 Excalibur.Dispatch.Transport.ProcessingError.Severity.set -> void
 Excalibur.Dispatch.Transport.ProviderOptions
 Excalibur.Dispatch.Transport.ProviderOptions.ConnectionString.get -> string!
@@ -799,7 +795,7 @@ Excalibur.Dispatch.Transport.ProviderOptions.Provider.set -> void
 Excalibur.Dispatch.Transport.ProviderOptions.ProviderOptions() -> void
 Excalibur.Dispatch.Transport.ProviderOptions.Region.get -> string!
 Excalibur.Dispatch.Transport.ProviderOptions.Region.set -> void
-Excalibur.Dispatch.Transport.ProviderOptions.RetryPolicy.get -> Excalibur.Dispatch.Transport.RetryPolicyOptions!
+Excalibur.Dispatch.Transport.ProviderOptions.RetryPolicy.get -> Excalibur.Dispatch.Transport.TransportRetryPolicyOptions!
 Excalibur.Dispatch.Transport.ProviderOptions.RetryPolicy.set -> void
 Excalibur.Dispatch.Transport.ProviderOptionsValidator
 Excalibur.Dispatch.Transport.ProviderOptionsValidator.ProviderOptionsValidator() -> void
@@ -876,30 +872,30 @@ Excalibur.Dispatch.Transport.RetryDelayStrategy
 Excalibur.Dispatch.Transport.RetryDelayStrategy.Exponential = 1 -> Excalibur.Dispatch.Transport.RetryDelayStrategy
 Excalibur.Dispatch.Transport.RetryDelayStrategy.Fixed = 0 -> Excalibur.Dispatch.Transport.RetryDelayStrategy
 Excalibur.Dispatch.Transport.RetryDelayStrategy.Linear = 2 -> Excalibur.Dispatch.Transport.RetryDelayStrategy
-Excalibur.Dispatch.Transport.RetryPolicy
-Excalibur.Dispatch.Transport.RetryPolicy.BackoffMultiplier.get -> double
-Excalibur.Dispatch.Transport.RetryPolicy.BackoffMultiplier.set -> void
-Excalibur.Dispatch.Transport.RetryPolicy.InitialDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.RetryPolicy.InitialDelay.set -> void
-Excalibur.Dispatch.Transport.RetryPolicy.MaxDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.RetryPolicy.MaxDelay.set -> void
-Excalibur.Dispatch.Transport.RetryPolicy.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.RetryPolicy.MaxRetries.set -> void
-Excalibur.Dispatch.Transport.RetryPolicy.RetryPolicy() -> void
-Excalibur.Dispatch.Transport.RetryPolicy.UseExponentialBackoff.get -> bool
-Excalibur.Dispatch.Transport.RetryPolicy.UseExponentialBackoff.set -> void
-Excalibur.Dispatch.Transport.RetryPolicy.UseJitter.get -> bool
-Excalibur.Dispatch.Transport.RetryPolicy.UseJitter.set -> void
-Excalibur.Dispatch.Transport.RetryPolicyOptions
-Excalibur.Dispatch.Transport.RetryPolicyOptions.BaseDelayMs.get -> int
-Excalibur.Dispatch.Transport.RetryPolicyOptions.BaseDelayMs.set -> void
-Excalibur.Dispatch.Transport.RetryPolicyOptions.MaxDelayMs.get -> int
-Excalibur.Dispatch.Transport.RetryPolicyOptions.MaxDelayMs.set -> void
-Excalibur.Dispatch.Transport.RetryPolicyOptions.MaxRetryAttempts.get -> int
-Excalibur.Dispatch.Transport.RetryPolicyOptions.MaxRetryAttempts.set -> void
-Excalibur.Dispatch.Transport.RetryPolicyOptions.RetryPolicyOptions() -> void
-Excalibur.Dispatch.Transport.RetryPolicyOptions.UseExponentialBackoff.get -> bool
-Excalibur.Dispatch.Transport.RetryPolicyOptions.UseExponentialBackoff.set -> void
+Excalibur.Dispatch.Transport.BatchRetryOptions
+Excalibur.Dispatch.Transport.BatchRetryOptions.BackoffMultiplier.get -> double
+Excalibur.Dispatch.Transport.BatchRetryOptions.BackoffMultiplier.set -> void
+Excalibur.Dispatch.Transport.BatchRetryOptions.InitialDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.BatchRetryOptions.InitialDelay.set -> void
+Excalibur.Dispatch.Transport.BatchRetryOptions.MaxDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.BatchRetryOptions.MaxDelay.set -> void
+Excalibur.Dispatch.Transport.BatchRetryOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.BatchRetryOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Transport.BatchRetryOptions.BatchRetryOptions() -> void
+Excalibur.Dispatch.Transport.BatchRetryOptions.UseExponentialBackoff.get -> bool
+Excalibur.Dispatch.Transport.BatchRetryOptions.UseExponentialBackoff.set -> void
+Excalibur.Dispatch.Transport.BatchRetryOptions.UseJitter.get -> bool
+Excalibur.Dispatch.Transport.BatchRetryOptions.UseJitter.set -> void
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.BaseDelayMs.get -> int
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.BaseDelayMs.set -> void
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.MaxDelayMs.get -> int
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.MaxDelayMs.set -> void
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.TransportRetryPolicyOptions() -> void
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.UseExponentialBackoff.get -> bool
+Excalibur.Dispatch.Transport.TransportRetryPolicyOptions.UseExponentialBackoff.set -> void
 Excalibur.Dispatch.Transport.ScheduleInfo
 Excalibur.Dispatch.Transport.ScheduleInfo.CreatedTime.get -> System.DateTimeOffset
 Excalibur.Dispatch.Transport.ScheduleInfo.CreatedTime.set -> void
@@ -1067,6 +1063,8 @@ Excalibur.Dispatch.Transport.TransportMessage.ContentType.get -> string?
 Excalibur.Dispatch.Transport.TransportMessage.ContentType.set -> void
 Excalibur.Dispatch.Transport.TransportMessage.CorrelationId.get -> string?
 Excalibur.Dispatch.Transport.TransportMessage.CorrelationId.set -> void
+Excalibur.Dispatch.Transport.TransportMessage.CausationId.get -> string?
+Excalibur.Dispatch.Transport.TransportMessage.CausationId.set -> void
 Excalibur.Dispatch.Transport.TransportMessage.CreatedAt.get -> System.DateTimeOffset
 Excalibur.Dispatch.Transport.TransportMessage.CreatedAt.set -> void
 Excalibur.Dispatch.Transport.TransportMessage.HasProperties.get -> bool

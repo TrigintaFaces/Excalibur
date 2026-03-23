@@ -33,6 +33,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [Collection(ContainerCollections.Postgres)]
 [Trait("Component", "TransactionalCompletion")]
 [Trait("Provider", "Postgres")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class PostgresTransactionalCompletionIntegrationShould : IntegrationTestBase
 {
 	private readonly PostgresFixture _pgFixture;
@@ -45,11 +47,11 @@ public sealed class PostgresTransactionalCompletionIntegrationShould : Integrati
 	[Fact]
 	public async Task TryMarkSentAndReceived_ReturnsFalse_AndDoesNotWriteInbox()
 	{
-		await InitializeTablesAsync().ConfigureAwait(true);
+		await InitializeTablesAsync();
 
 		IOutboxStore store = CreateOutboxStore();
 		var message = CreateTestMessage();
-		await store.StageMessageAsync(message, TestCancellationToken).ConfigureAwait(true);
+		await store.StageMessageAsync(message, TestCancellationToken);
 
 		var inboxEntry = CreateTestInboxEntry(message.Id);
 
@@ -57,14 +59,14 @@ public sealed class PostgresTransactionalCompletionIntegrationShould : Integrati
 				message.Id,
 				inboxEntry,
 				TestCancellationToken)
-			.ConfigureAwait(true);
+			;
 
 		result.ShouldBeFalse("Postgres outbox store does not support transactional completion");
 
-		var outboxCount = await CountOutboxEntriesAsync(message.Id).ConfigureAwait(true);
+		var outboxCount = await CountOutboxEntriesAsync(message.Id);
 		outboxCount.ShouldBe(1, "Message should remain in outbox when transactional completion is unavailable");
 
-		var inboxCount = await CountInboxEntriesAsync(message.Id).ConfigureAwait(true);
+		var inboxCount = await CountInboxEntriesAsync(message.Id);
 		inboxCount.ShouldBe(0, "No inbox entry should be created when transactional completion is unavailable");
 	}
 
@@ -165,30 +167,30 @@ public sealed class PostgresTransactionalCompletionIntegrationShould : Integrati
             """;
 
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync(createTablesSql).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync(createTablesSql);
 		_ = await connection.ExecuteAsync(
 				"TRUNCATE TABLE inbox_messages CASCADE; TRUNCATE TABLE outbox CASCADE; TRUNCATE TABLE outbox_dead_letters CASCADE;")
-			.ConfigureAwait(true);
+			;
 	}
 
 	private async Task<int> CountOutboxEntriesAsync(string messageId)
 	{
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
 		return await connection.ExecuteScalarAsync<int>(
 				"SELECT COUNT(*) FROM outbox WHERE message_id = @MessageId",
 				new { MessageId = messageId })
-			.ConfigureAwait(true);
+			;
 	}
 
 	private async Task<int> CountInboxEntriesAsync(string messageId)
 	{
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
 		return await connection.ExecuteScalarAsync<int>(
 				"SELECT COUNT(*) FROM inbox_messages WHERE message_id = @MessageId",
 				new { MessageId = messageId })
-			.ConfigureAwait(true);
+			;
 	}
 }

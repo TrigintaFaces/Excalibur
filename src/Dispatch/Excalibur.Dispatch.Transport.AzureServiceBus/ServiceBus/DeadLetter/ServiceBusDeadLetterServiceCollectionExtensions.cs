@@ -39,8 +39,22 @@ public static class ServiceBusDeadLetterServiceCollectionExtensions
 	public static IServiceCollection AddServiceBusDeadLetterQueue(
 		this IServiceCollection services,
 		Action<ServiceBusDeadLetterOptions>? configure = null)
+		=> AddServiceBusDeadLetterQueue(services, "default", configure);
+
+	/// <summary>
+	/// Adds Azure Service Bus dead letter queue support with the specified transport name and configuration.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="transportName"> The transport name used as the keyed service key. </param>
+	/// <param name="configure"> An optional action to configure the dead letter queue options. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddServiceBusDeadLetterQueue(
+		this IServiceCollection services,
+		string transportName,
+		Action<ServiceBusDeadLetterOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 
 		if (configure is not null)
 		{
@@ -51,7 +65,9 @@ public static class ServiceBusDeadLetterServiceCollectionExtensions
 			_ = services.Configure<ServiceBusDeadLetterOptions>(_ => { });
 		}
 
-		services.TryAddSingleton<IDeadLetterQueueManager, ServiceBusDeadLetterQueueManager>();
+		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
+			(sp, _) => sp.GetRequiredService<ServiceBusDeadLetterQueueManager>());
+		services.TryAddSingleton<ServiceBusDeadLetterQueueManager>();
 
 		return services;
 	}

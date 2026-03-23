@@ -9,6 +9,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Unit tests for <see cref="DataProcessorDefaults"/> constants.
 /// </summary>
 [UnitTest]
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class DataProcessorDefaultsShould : UnitTestBase
 {
 	[Fact]

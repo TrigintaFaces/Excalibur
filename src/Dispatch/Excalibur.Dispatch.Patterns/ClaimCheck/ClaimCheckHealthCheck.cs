@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 ///   <item><b>Unhealthy:</b> Round-trip failed or data integrity check failed</item>
 /// </list>
 /// </remarks>
-public sealed class ClaimCheckHealthCheck : IHealthCheck
+internal sealed class ClaimCheckHealthCheck : IHealthCheck
 {
 	private static readonly byte[] ProbePayload = "healthcheck-probe"u8.ToArray();
 

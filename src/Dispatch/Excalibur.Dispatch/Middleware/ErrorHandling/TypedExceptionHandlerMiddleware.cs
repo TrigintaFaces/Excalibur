@@ -56,7 +56,7 @@ public sealed partial class TypedExceptionHandlerMiddleware(
 		{
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			// Never handle cancellation - propagate for proper cancellation handling
 			throw;

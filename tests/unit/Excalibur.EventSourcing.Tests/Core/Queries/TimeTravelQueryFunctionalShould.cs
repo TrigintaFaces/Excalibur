@@ -17,6 +17,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Queries;
 /// point-in-time, version-based, and time-range queries.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class TimeTravelQueryFunctionalShould
 {
 	private readonly IEventStore _eventStore = A.Fake<IEventStore>();

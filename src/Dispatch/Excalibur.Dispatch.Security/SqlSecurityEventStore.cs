@@ -3,9 +3,6 @@
 
 
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Text;
-using System.Text.Json;
 
 using Excalibur.Dispatch.Security.Diagnostics;
 
@@ -24,9 +21,6 @@ namespace Excalibur.Dispatch.Security;
 internal sealed partial class SqlSecurityEventStore(
 		ILogger<SqlSecurityEventStore> logger) : ISecurityEventStore, IDisposable
 {
-	private static readonly CompositeFormat InvalidEventsDetectedFormat =
-			CompositeFormat.Parse(Resources.SqlSecurityEventStore_InvalidEventsDetectedFormat);
-
 	private readonly ILogger<SqlSecurityEventStore> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -51,53 +45,18 @@ internal sealed partial class SqlSecurityEventStore(
 		await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			LogStoringEvents(eventsList.Count);
-
-			// Note: In a real implementation, you would use a proper database connection and a library like Dapper
-			//
-			// Example with Dapper: using var connection = new SqlConnection(_connectionString); await connection.OpenAsync(cancellationToken);
-			//
-			// const string sql = @" INSERT INTO SecurityEvents (MessageId, Timestamp, EventType, Description, Severity, CorrelationId,
-			// UserId, SourceIp, UserAgent, MessageType, AdditionalData) VALUES (@MessageId, @Timestamp, @EventType, @Description,
-			// @Severity, @CorrelationId, @UserId, @SourceIp, @UserAgent, @MessageType, @AdditionalData)";
-			//
-			// var parameters = eventsList.Select(evt => new { evt.MessageId, evt.Timestamp, EventType = evt.EventType.ToString(),
-			// evt.Description, Severity = evt.Severity.ToString(), evt.CorrelationId, evt.UserId, evt.SourceIp, evt.UserAgent,
-			// evt.MessageType, AdditionalData = JsonSerializer.Serialize(evt.AdditionalData) });
-			//
-			// var rowsAffected = await connection.ExecuteAsync(sql, parameters);
-
-			// For now, validate the events and simulate successful storage
-			var validEvents = 0;
+			// Validate events
 			foreach (var evt in eventsList)
 			{
-				if (evt.Id != Guid.Empty && !string.IsNullOrWhiteSpace(evt.Description))
-				{
-					validEvents++;
-				}
-				else
+				if (evt.Id == Guid.Empty || string.IsNullOrWhiteSpace(evt.Description))
 				{
 					LogInvalidEvent(evt.Id, evt.Description);
 				}
 			}
 
-			if (validEvents != eventsList.Count)
-			{
-				throw new ArgumentException(
-						string.Format(
-								CultureInfo.InvariantCulture,
-								InvalidEventsDetectedFormat,
-								eventsList.Count - validEvents,
-								eventsList.Count),
-						nameof(events));
-			}
-
-			LogEventsStored(eventsList.Count);
-		}
-		catch (Exception ex)
-		{
-			LogStoreFailed(ex, eventsList.Count);
-			throw new InvalidOperationException(Resources.SqlSecurityEventStore_FailedToStoreEvents, ex);
+			// Events validated but NOT persisted -- no backing store configured.
+			// Register a real ISecurityEventStore implementation to persist audit events.
+			LogEventsNotPersisted(eventsList.Count);
 		}
 		finally
 		{
@@ -120,29 +79,6 @@ internal sealed partial class SqlSecurityEventStore(
 		await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			LogQueryingEvents(JsonSerializer.Serialize(query, SecurityEventSerializerContext.Default.SecurityEventQuery));
-
-			// In a real implementation, you would build dynamic SQL with proper parameterization Example with Dapper: using var connection
-			// = new SqlConnection(_connectionString); await connection.OpenAsync(cancellationToken);
-			//
-			// var sql = new StringBuilder("SELECT TOP (@MaxResults) * FROM SecurityEvents WHERE 1=1"); var parameters = new
-			// DynamicParameters(); parameters.Add("MaxResults", query.MaxResults);
-			//
-			// if (query.StartTime.HasValue) { sql.Append(" AND Timestamp >= @StartTime"); parameters.Add("StartTime",
-			// query.StartTime.Value); }
-			//
-			// if (query.EndTime.HasValue) { sql.Append(" AND Timestamp <= @EndTime"); parameters.Add("EndTime", query.EndTime.Value); }
-			//
-			// if (query.EventType.HasValue) { sql.Append(" AND EventType = @EventType"); parameters.Add("EventType",
-			// query.EventType.Value.ToString()); }
-			//
-			// if (!string.IsNullOrEmpty(query.UserId)) { sql.Append(" AND UserId = @UserId"); parameters.Add("UserId", query.UserId); }
-			//
-			// sql.Append(" ORDER BY Timestamp DESC");
-			//
-			// var results = await connection.QueryAsync<SecurityEventDto>(sql.ToString(), parameters); return results.Select(MapToSecurityEvent);
-
-			// For now, return empty collection with proper validation
 			if (query.MaxResults <= 0)
 			{
 				throw new ArgumentException(
@@ -157,15 +93,11 @@ internal sealed partial class SqlSecurityEventStore(
 						nameof(query));
 			}
 
-			LogQueryExecuted();
+			// No backing store configured -- no results available.
+			// Register a real ISecurityEventStore to enable audit persistence.
+			LogQueryNotSupported();
 
-			// Return empty collection for now - in real implementation this would return actual query results
 			return [];
-		}
-		catch (Exception ex)
-		{
-			LogQueryFailed(ex);
-			throw new InvalidOperationException(Resources.SqlSecurityEventStore_FailedToQueryEvents, ex);
 		}
 		finally
 		{
@@ -196,24 +128,14 @@ internal sealed partial class SqlSecurityEventStore(
 	}
 
 	// Source-generated logging methods
-	[LoggerMessage(SecurityEventId.SqlStoreStoringEvents, LogLevel.Debug, "Storing {Count} security events in SQL database")]
-	private partial void LogStoringEvents(int count);
-
 	[LoggerMessage(SecurityEventId.SqlStoreInvalidEvent, LogLevel.Warning, "Invalid security event detected: {SecurityEventId}, Description: {Description}")]
 	private partial void LogInvalidEvent(Guid securityEventId, string? description);
 
-	[LoggerMessage(SecurityEventId.SqlStoreEventsStored, LogLevel.Information, "Successfully stored {Count} security events in SQL database")]
-	private partial void LogEventsStored(int count);
+	[LoggerMessage(SecurityEventId.SqlStoreEventsNotPersisted, LogLevel.Warning,
+		"Security events validated but not persisted ({Count} events). Register a real ISecurityEventStore to enable audit persistence.")]
+	private partial void LogEventsNotPersisted(int count);
 
-	[LoggerMessage(SecurityEventId.SqlStoreStoreFailed, LogLevel.Error, "Failed to store {Count} security events in SQL database")]
-	private partial void LogStoreFailed(Exception ex, int count);
-
-	[LoggerMessage(SecurityEventId.SqlStoreQueryingEvents, LogLevel.Debug, "Querying security events from SQL database with parameters: {Query}")]
-	private partial void LogQueryingEvents(string query);
-
-	[LoggerMessage(SecurityEventId.SqlStoreQueryExecuted, LogLevel.Information, "Security events query executed successfully (would return filtered results from SQL database)")]
-	private partial void LogQueryExecuted();
-
-	[LoggerMessage(SecurityEventId.SqlStoreQueryFailed, LogLevel.Error, "Failed to query security events from SQL database")]
-	private partial void LogQueryFailed(Exception ex);
+	[LoggerMessage(SecurityEventId.SqlStoreQueryNotSupported, LogLevel.Warning,
+		"Security event query executed against placeholder store -- no results available. Register a real ISecurityEventStore.")]
+	private partial void LogQueryNotSupported();
 }

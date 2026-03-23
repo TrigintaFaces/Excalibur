@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.SubjectAccess;
 
-public class SubjectAccessOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class SubjectAccessOptionsShould
 {
     [Fact]
     public void Have_30_day_response_deadline_by_default()

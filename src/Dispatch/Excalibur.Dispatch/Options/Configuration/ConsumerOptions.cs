@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Dispatch.Options.Configuration;
 
 /// <summary>
@@ -15,7 +17,7 @@ public sealed class ConsumerOptions
 	/// <value>
 	/// The deduplication configuration.
 	/// </value>
-	public DeduplicationOptions Dedupe { get; set; } = new();
+	public Delivery.DeduplicationOptions Dedupe { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to automatically acknowledge messages after successful processing.
@@ -27,6 +29,7 @@ public sealed class ConsumerOptions
 	/// Gets or sets the maximum number of concurrent messages to process.
 	/// </summary>
 	/// <value>The current <see cref="MaxConcurrentMessages"/> value.</value>
+	[Range(1, int.MaxValue)]
 	public int MaxConcurrentMessages { get; set; } = 10;
 
 	/// <summary>
@@ -41,5 +44,6 @@ public sealed class ConsumerOptions
 	/// Gets or sets the maximum number of retries for failed messages.
 	/// </summary>
 	/// <value>The current <see cref="MaxRetries"/> value.</value>
+	[Range(0, int.MaxValue)]
 	public int MaxRetries { get; set; } = 3;
 }

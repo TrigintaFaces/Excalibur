@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Options;
 
-public class ProviderOptionsValidatorShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class ProviderOptionsValidatorShould
 {
     private readonly ProviderOptionsValidator _validator = new();
 
@@ -48,7 +50,7 @@ public class ProviderOptionsValidatorShould
     {
         var options = new ProviderOptions
         {
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 BaseDelayMs = 5000,
                 MaxDelayMs = 1000,
@@ -67,7 +69,7 @@ public class ProviderOptionsValidatorShould
     {
         var options = new ProviderOptions
         {
-            RetryPolicy = new RetryPolicyOptions { BaseDelayMs = 0 },
+            RetryPolicy = new TransportRetryPolicyOptions { BaseDelayMs = 0 },
         };
 
         var result = _validator.Validate(null, options);
@@ -81,7 +83,7 @@ public class ProviderOptionsValidatorShould
     {
         var options = new ProviderOptions
         {
-            RetryPolicy = new RetryPolicyOptions { MaxDelayMs = 0, BaseDelayMs = 0 },
+            RetryPolicy = new TransportRetryPolicyOptions { MaxDelayMs = 0, BaseDelayMs = 0 },
         };
 
         var result = _validator.Validate(null, options);
@@ -94,7 +96,7 @@ public class ProviderOptionsValidatorShould
     {
         var options = new ProviderOptions
         {
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 BaseDelayMs = 1000,
                 MaxDelayMs = 1000,
@@ -112,7 +114,7 @@ public class ProviderOptionsValidatorShould
         var options = new ProviderOptions
         {
             DefaultTimeoutMs = 0,
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 BaseDelayMs = 0,
                 MaxDelayMs = 0,

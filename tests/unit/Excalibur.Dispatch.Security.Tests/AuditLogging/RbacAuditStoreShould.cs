@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// Tests for <see cref="RbacAuditStore"/> role-based access control decorator.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 [UnitTest]
 public sealed class RbacAuditStoreShould
 {

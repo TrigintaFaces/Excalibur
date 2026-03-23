@@ -27,6 +27,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </remarks>
 public sealed partial class TransportRouterMiddleware(ILogger<TransportRouterMiddleware> logger) : IDispatchMiddleware
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindCache = new();
 
 	private readonly ILogger<TransportRouterMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -97,7 +98,18 @@ public sealed partial class TransportRouterMiddleware(ILogger<TransportRouterMid
 	private static MessageKinds DetermineMessageKind(IDispatchMessage message)
 	{
 		var type = message.GetType();
-		return MessageKindCache.GetOrAdd(type, static t => DetermineMessageKindForType(t));
+		if (MessageKindCache.TryGetValue(type, out var cached))
+		{
+			return cached;
+		}
+
+		var result = DetermineMessageKindForType(type);
+		if (MessageKindCache.Count < MaxCacheEntries)
+		{
+			_ = MessageKindCache.TryAdd(type, result);
+		}
+
+		return result;
 	}
 
 	[RequiresUnreferencedCode("Uses reflection to check message interfaces")]

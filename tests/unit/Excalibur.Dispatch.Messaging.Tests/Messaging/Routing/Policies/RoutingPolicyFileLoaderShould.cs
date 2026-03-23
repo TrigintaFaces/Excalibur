@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing.Policies;
 ///     Tests for the <see cref="RoutingPolicyFileLoader" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class RoutingPolicyFileLoaderShould : IDisposable
 {
 	private readonly RoutingPolicyFileLoader _sut;

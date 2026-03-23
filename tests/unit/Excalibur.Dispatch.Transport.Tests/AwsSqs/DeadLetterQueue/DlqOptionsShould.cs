@@ -17,7 +17,7 @@ public sealed class DlqOptionsShould
 
 		// Assert
 		options.DeadLetterQueueUrl.ShouldBeNull();
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
 		options.UseExponentialBackoff.ShouldBeTrue();
 		options.MaxMessageAge.ShouldBe(TimeSpan.FromDays(14));
@@ -35,7 +35,7 @@ public sealed class DlqOptionsShould
 		var options = new DlqOptions
 		{
 			DeadLetterQueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123/dlq"),
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			RetryDelay = TimeSpan.FromMinutes(10),
 			UseExponentialBackoff = false,
 			MaxMessageAge = TimeSpan.FromDays(7),
@@ -48,7 +48,7 @@ public sealed class DlqOptionsShould
 
 		// Assert
 		options.DeadLetterQueueUrl.ShouldNotBeNull();
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
 		options.UseExponentialBackoff.ShouldBeFalse();
 		options.MaxMessageAge.ShouldBe(TimeSpan.FromDays(7));

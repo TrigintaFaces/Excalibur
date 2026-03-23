@@ -173,9 +173,6 @@ Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.TimeoutInSeconds.get -> int
 Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.TimeoutInSeconds.set -> void
 Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.WriteCapacityUnits.get -> int?
 Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.WriteCapacityUnits.set -> void
-Excalibur.Data.DynamoDb.DynamoDbHealthCheck
-Excalibur.Data.DynamoDb.DynamoDbHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Data.DynamoDb.DynamoDbHealthCheck.DynamoDbHealthCheck(Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider! provider, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.DynamoDbHealthCheck!>! logger) -> void
 Excalibur.Data.DynamoDb.DynamoDbOptions
 Excalibur.Data.DynamoDb.DynamoDbOptions.Connection.get -> Excalibur.Data.DynamoDb.DynamoDbConnectionOptions!
 Excalibur.Data.DynamoDb.DynamoDbOptions.Connection.set -> void
@@ -198,7 +195,7 @@ Excalibur.Data.DynamoDb.DynamoDbOptions.UseConsistentReads.set -> void
 Excalibur.Data.DynamoDb.DynamoDbOptions.Validate() -> void
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.Client.get -> Amazon.DynamoDBv2.IAmazonDynamoDB?
-Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ConnectionString.get -> string!
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.CreateAsync<TDocument>(TDocument! document, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<TDocument!>!>!
 Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.CreateChangeFeedSubscriptionAsync<TDocument>(string! containerName, Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<TDocument!>!>!
@@ -303,3 +300,6 @@ static Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensi
 static Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensions.AddDynamoDbWithClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.DynamoDbOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbSnapshotStoreExtensions.AddDynamoDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbSnapshotStoreExtensions.AddDynamoDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Data.DynamoDb.Diagnostics.DynamoDbPersistenceTelemetryConstants.MeterName = "Excalibur.Data.DynamoDb.Persistence" -> string!
+const Excalibur.Data.DynamoDb.Diagnostics.DynamoDbPersistenceTelemetryConstants.Version = "1.0.0" -> string!
+Excalibur.Data.DynamoDb.Diagnostics.DynamoDbPersistenceTelemetryConstants

@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Propagation;
 /// Unit tests for <see cref="W3CTracingContextPropagator"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class W3CTracingContextPropagatorShould : UnitTestBase
 {
 	private readonly W3CTracingContextPropagator _propagator = new();

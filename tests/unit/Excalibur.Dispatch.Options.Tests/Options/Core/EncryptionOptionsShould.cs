@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Options.Core;
+
+using EncryptionAlgorithm = Excalibur.Dispatch.Compliance.EncryptionAlgorithm;
+using EncryptionOptions = Excalibur.Dispatch.Options.Core.EncryptionOptions;
 
 namespace Excalibur.Dispatch.Tests.Options.Core;
 
@@ -90,10 +92,10 @@ public sealed class EncryptionOptionsShould
 		var options = new EncryptionOptions();
 
 		// Act
-		options.Algorithm = EncryptionAlgorithm.Aes128Gcm;
+		options.Algorithm = EncryptionAlgorithm.Aes256CbcHmac;
 
 		// Assert
-		options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes128Gcm);
+		options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
 	}
 
 	[Fact]
@@ -137,14 +139,14 @@ public sealed class EncryptionOptionsShould
 		var options = new EncryptionOptions
 		{
 			Enabled = true,
-			Algorithm = EncryptionAlgorithm.Aes128Gcm,
+			Algorithm = EncryptionAlgorithm.Aes256CbcHmac,
 			Key = key,
 			EnableKeyRotation = true,
 		};
 
 		// Assert
 		options.Enabled.ShouldBeTrue();
-		options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes128Gcm);
+		options.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
 		options.Key.ShouldBe(key);
 		options.EnableKeyRotation.ShouldBeTrue();
 	}

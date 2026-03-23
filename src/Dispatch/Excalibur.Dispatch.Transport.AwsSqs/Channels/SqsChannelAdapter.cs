@@ -307,7 +307,7 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 		{
 			await Task.WhenAll(_pollingTasks).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -396,7 +396,7 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 					_ = _pollingSemaphore.Release();
 				}
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				// Expected during shutdown
 				break;

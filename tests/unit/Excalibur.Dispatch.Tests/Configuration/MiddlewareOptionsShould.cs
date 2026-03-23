@@ -17,7 +17,7 @@ using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.Options;
 
-using MiddlewareOutboxOptions = Excalibur.Dispatch.Options.Middleware.OutboxOptions;
+using MiddlewareOutboxOptions = Excalibur.Dispatch.Options.Middleware.OutboxMiddlewareOptions;
 using MiddlewareTimeoutOptions = Excalibur.Dispatch.Options.Middleware.TimeoutOptions;
 using MiddlewareTransactionOptions = Excalibur.Dispatch.Options.Middleware.TransactionOptions;
 using MiddlewareValidationOptions = Excalibur.Dispatch.Options.Middleware.ValidationOptions;
@@ -266,13 +266,13 @@ public sealed class MiddlewareOptionsShould
 		options.AdaptivePolling.AdaptivePollingBackoffMultiplier.ShouldBe(2.0);
 	}
 
-	// --- OutboxOptionsValidator ---
+	// --- OutboxMiddlewareOptionsValidator ---
 
 	[Fact]
-	public void OutboxOptionsValidator_Valid_ReturnsSuccess()
+	public void OutboxMiddlewareOptionsValidator_Valid_ReturnsSuccess()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 		var options = new MiddlewareOutboxOptions();
 
 		// Act
@@ -283,20 +283,20 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_ThrowsOnNull()
+	public void OutboxMiddlewareOptionsValidator_ThrowsOnNull()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => validator.Validate(null, null!));
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_DetectsZeroBatchSize()
+	public void OutboxMiddlewareOptionsValidator_DetectsZeroBatchSize()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 		var options = new MiddlewareOutboxOptions { PublishBatchSize = 0 };
 
 		// Act
@@ -308,10 +308,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_DetectsZeroPollingInterval()
+	public void OutboxMiddlewareOptionsValidator_DetectsZeroPollingInterval()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 		var options = new MiddlewareOutboxOptions { PublishPollingInterval = TimeSpan.Zero };
 
 		// Act
@@ -323,10 +323,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_DetectsNegativeMaxRetries()
+	public void OutboxMiddlewareOptionsValidator_DetectsNegativeMaxRetries()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 		var options = new MiddlewareOutboxOptions { Retry = { MaxRetries = -1 } };
 
 		// Act
@@ -338,10 +338,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_DetectsZeroRetryDelay()
+	public void OutboxMiddlewareOptionsValidator_DetectsZeroRetryDelay()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 		var options = new MiddlewareOutboxOptions { Retry = { RetryDelay = TimeSpan.Zero } };
 
 		// Act
@@ -353,10 +353,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_DetectsMaxRetryDelayLessThanRetryDelay_WhenExponential()
+	public void OutboxMiddlewareOptionsValidator_DetectsMaxRetryDelayLessThanRetryDelay_WhenExponential()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 		var options = new MiddlewareOutboxOptions
 		{
 			Retry =
@@ -376,10 +376,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_DetectsMinPollingGreaterThanMax_WhenAdaptive()
+	public void OutboxMiddlewareOptionsValidator_DetectsMinPollingGreaterThanMax_WhenAdaptive()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 		var options = new MiddlewareOutboxOptions
 		{
 			AdaptivePolling =
@@ -399,10 +399,10 @@ public sealed class MiddlewareOptionsShould
 	}
 
 	[Fact]
-	public void OutboxOptionsValidator_DetectsBackoffMultiplierTooLow_WhenAdaptive()
+	public void OutboxMiddlewareOptionsValidator_DetectsBackoffMultiplierTooLow_WhenAdaptive()
 	{
 		// Arrange
-		var validator = new OutboxOptionsValidator();
+		var validator = new OutboxMiddlewareOptionsValidator();
 		var options = new MiddlewareOutboxOptions
 		{
 			AdaptivePolling =
@@ -447,7 +447,7 @@ public sealed class MiddlewareOptionsShould
 		options.Enabled.ShouldBeTrue();
 		options.EnablePerTenantLimiting.ShouldBeTrue();
 		options.DefaultLimit.ShouldNotBeNull();
-		options.DefaultLimit.Algorithm.ShouldBe(RateLimitAlgorithm.TokenBucket);
+		options.DefaultLimit.Algorithm.ShouldBe(MiddlewareRateLimitAlgorithm.TokenBucket);
 		options.DefaultLimit.TokenLimit.ShouldBe(100);
 		options.GlobalLimit.ShouldNotBeNull();
 		options.GlobalLimit.TokenLimit.ShouldBe(1000);

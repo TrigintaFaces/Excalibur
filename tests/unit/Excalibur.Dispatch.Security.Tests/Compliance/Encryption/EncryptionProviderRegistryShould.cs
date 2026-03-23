@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Unit tests for <see cref="EncryptionProviderRegistry"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class EncryptionProviderRegistryShould
 {
 	private readonly EncryptionProviderRegistry _sut;
@@ -501,8 +502,9 @@ public sealed class EncryptionProviderRegistryShould
 	/// </summary>
 	private static AesGcmEncryptionProvider CreateAesGcmProvider()
 	{
+		// Sprint 680 T.6: AesGcm validates IKeyMaterialProvider at construction
 		return new AesGcmEncryptionProvider(
-			A.Fake<IKeyManagementProvider>(),
+			A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyMaterialProvider>()),
 			Microsoft.Extensions.Logging.Abstractions.NullLogger<AesGcmEncryptionProvider>.Instance);
 	}
 

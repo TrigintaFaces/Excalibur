@@ -37,8 +37,13 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
 
-		// Create unbounded channel for high-throughput event logging
-		_eventChannel = Channel.CreateUnbounded<SecurityEvent>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+		// Use bounded channel to prevent DoS via auth flood
+		_eventChannel = Channel.CreateBounded<SecurityEvent>(new BoundedChannelOptions(10_000)
+		{
+			SingleReader = true,
+			SingleWriter = false,
+			FullMode = BoundedChannelFullMode.DropOldest
+		});
 
 		_shutdownTokenSource = new CancellationTokenSource();
 	}
@@ -126,7 +131,7 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 			{
 				LogProcessingTimeout();
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				// External cancellation requested
 			}

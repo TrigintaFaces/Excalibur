@@ -115,40 +115,4 @@ public interface IInboxStore
 	/// <exception cref="ArgumentException">Thrown when messageId or handlerType is null or empty.</exception>
 	/// <exception cref="ArgumentNullException">Thrown when errorMessage is null.</exception>
 	ValueTask MarkFailedAsync(string messageId, string handlerType, string errorMessage, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Retrieves failed message entries for retry processing.
-	/// </summary>
-	/// <param name="maxRetries">Maximum number of retry attempts to consider.</param>
-	/// <param name="olderThan">Only return entries older than this timestamp.</param>
-	/// <param name="batchSize">Maximum number of entries to return.</param>
-	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>Collection of failed inbox entries eligible for retry.</returns>
-	ValueTask<IEnumerable<InboxEntry>> GetFailedEntriesAsync(
-		int maxRetries,
-		DateTimeOffset? olderThan,
-		int batchSize,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Retrieves all inbox entries for testing and diagnostics.
-	/// </summary>
-	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>Collection of all inbox entries.</returns>
-	ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Gets statistics about inbox entries.
-	/// </summary>
-	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>Statistics including counts of entries by status.</returns>
-	ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Cleans up processed entries older than the specified retention period.
-	/// </summary>
-	/// <param name="retentionPeriod">Entries processed longer than this duration ago will be removed.</param>
-	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>The number of entries removed.</returns>
-	ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken);
 }

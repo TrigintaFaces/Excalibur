@@ -17,6 +17,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.EventSourcing.Tests.DynamoDb;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",

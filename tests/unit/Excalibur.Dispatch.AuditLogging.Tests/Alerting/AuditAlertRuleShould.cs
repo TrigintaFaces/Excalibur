@@ -3,7 +3,9 @@ using Excalibur.Dispatch.Compliance;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Alerting;
 
-public class AuditAlertRuleShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditAlertRuleShould
 {
     [Fact]
     public void Create_rule_with_required_properties()

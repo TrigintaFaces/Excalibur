@@ -59,7 +59,7 @@ public sealed class ProtobufSerializer : ISerializer
 		if (value is not IMessage protoMessage)
 		{
 			throw new InvalidOperationException(
-				string.Format(CultureInfo.CurrentCulture, TypeNotIMessageFormat, typeof(T).Name));
+				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, typeof(T).Name));
 		}
 
 		var bytes = protoMessage.ToByteArray();
@@ -74,7 +74,7 @@ public sealed class ProtobufSerializer : ISerializer
 		if (!typeof(IMessage).IsAssignableFrom(typeof(T)))
 		{
 			throw new InvalidOperationException(
-				string.Format(CultureInfo.CurrentCulture, TypeNotIMessageFormat, typeof(T).Name));
+				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, typeof(T).Name));
 		}
 
 		try
@@ -100,7 +100,7 @@ public sealed class ProtobufSerializer : ISerializer
 		if (value is not IMessage protoMessage)
 		{
 			throw new InvalidOperationException(
-				string.Format(CultureInfo.CurrentCulture, TypeNotIMessageFormat, type.Name));
+				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, type.Name));
 		}
 
 		return protoMessage.ToByteArray();
@@ -114,7 +114,7 @@ public sealed class ProtobufSerializer : ISerializer
 		if (!typeof(IMessage).IsAssignableFrom(type))
 		{
 			throw new InvalidOperationException(
-				string.Format(CultureInfo.CurrentCulture, TypeNotIMessageFormat, type.Name));
+				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, type.Name));
 		}
 
 		var parser = GetParser(type);
@@ -135,6 +135,6 @@ public sealed class ProtobufSerializer : ISerializer
 
 		return parserProperty?.GetValue(null) as MessageParser
 			?? throw new InvalidOperationException(
-				string.Format(CultureInfo.CurrentCulture, NoParserFoundFormat, messageType.Name));
+				string.Format(CultureInfo.InvariantCulture, NoParserFoundFormat, messageType.Name));
 	}
 }

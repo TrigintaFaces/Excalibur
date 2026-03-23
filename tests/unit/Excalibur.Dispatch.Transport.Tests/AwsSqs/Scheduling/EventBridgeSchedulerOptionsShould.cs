@@ -20,7 +20,7 @@ public sealed class EventBridgeSchedulerOptionsShould
 		options.RoleArn.ShouldBeNull();
 		options.ScheduleGroupName.ShouldBe("default");
 		options.TargetArn.ShouldBeNull();
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.ScheduleTimeZone.ShouldBe("UTC");
 		options.DeadLetterQueueArn.ShouldBeNull();
 	}
@@ -35,7 +35,7 @@ public sealed class EventBridgeSchedulerOptionsShould
 			RoleArn = "arn:aws:iam::123456789:role/EventBridgeRole",
 			ScheduleGroupName = "dispatch-schedules",
 			TargetArn = "arn:aws:sqs:eu-west-1:123456789:target-queue",
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			ScheduleTimeZone = "Europe/London",
 			DeadLetterQueueArn = "arn:aws:sqs:eu-west-1:123456789:dlq",
 		};
@@ -45,7 +45,7 @@ public sealed class EventBridgeSchedulerOptionsShould
 		options.RoleArn.ShouldBe("arn:aws:iam::123456789:role/EventBridgeRole");
 		options.ScheduleGroupName.ShouldBe("dispatch-schedules");
 		options.TargetArn.ShouldBe("arn:aws:sqs:eu-west-1:123456789:target-queue");
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.ScheduleTimeZone.ShouldBe("Europe/London");
 		options.DeadLetterQueueArn.ShouldBe("arn:aws:sqs:eu-west-1:123456789:dlq");
 	}
@@ -57,12 +57,12 @@ public sealed class EventBridgeSchedulerOptionsShould
 		var options = new AwsEventBridgeSchedulerOptions
 		{
 			Region = "ap-southeast-1",
-			MaxRetries = 10,
+			MaxRetryAttempts = 10,
 		};
 
 		// Assert — AwsEventBridgeSchedulerOptions inherits from EventBridgeSchedulerOptions
 		options.ShouldBeAssignableTo<EventBridgeSchedulerOptions>();
 		options.Region.ShouldBe("ap-southeast-1");
-		options.MaxRetries.ShouldBe(10);
+		options.MaxRetryAttempts.ShouldBe(10);
 	}
 }

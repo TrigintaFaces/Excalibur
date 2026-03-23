@@ -5,6 +5,8 @@ using Excalibur.Dispatch.Diagnostics;
 
 namespace Excalibur.Dispatch.Tests.Diagnostics;
 
+[Trait("Category", "Unit")]
+[Trait("Component", "Platform")]
 public sealed class DispatchTelemetryOptionsShould
 {
 	[Fact]

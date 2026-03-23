@@ -13,7 +13,7 @@ using Excalibur.Dispatch.Transport;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.InMemory;
-using Excalibur.EventSourcing.Snapshots.InMemory;
+using Excalibur.Data.InMemory.Snapshots;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -149,7 +149,9 @@ public class EndToEndScenarioBenchmarks
 	private async Task SetupScenario2_EventSourcingFullCycleAsync()
 	{
 		_eventStore = new InMemoryEventStore();
-		_snapshotStore = new InMemorySnapshotStore();
+		_snapshotStore = new InMemorySnapshotStore(
+			Microsoft.Extensions.Options.Options.Create(new InMemorySnapshotOptions()),
+			NullLogger<InMemorySnapshotStore>.Instance);
 
 		// Pre-load an aggregate with 20 events for realistic load-modify-save benchmarks
 		_preloadedAggregateId = Guid.NewGuid().ToString();

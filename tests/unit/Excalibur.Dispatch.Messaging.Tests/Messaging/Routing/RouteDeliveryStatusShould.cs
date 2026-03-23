@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing;
 ///     Tests for the <see cref="RouteDeliveryStatus" /> enum.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class RouteDeliveryStatusShould
 {
 	[Fact]

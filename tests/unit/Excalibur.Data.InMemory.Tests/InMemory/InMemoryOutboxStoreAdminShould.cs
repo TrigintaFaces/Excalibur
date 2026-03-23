@@ -14,6 +14,7 @@ namespace Excalibur.Data.Tests.InMemory;
 /// Verifies the ISP split from S559 -- IOutboxStoreAdmin is a separate sub-interface from IOutboxStore.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 {
 	private readonly InMemoryOutboxStore _store;

@@ -2,10 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+
+using Shouldly;
+
 using Xunit;
 
 namespace ArchitectureTests.Architecture;
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Architecture")]
 public sealed class BannedDependenciesTests
 {
     private static readonly string RepoRoot = GetRepoRoot();
@@ -61,20 +66,20 @@ public sealed class BannedDependenciesTests
 
         if (violations.Count == 0)
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
         var message = "Abstractions banned dependency violations (report-only):\n" + string.Join("\n", violations);
         if (Enforce)
         {
-            Assert.False(true, message);
+            false.ShouldBeTrue(message);
         }
         else
         {
             // Report-only: attach as output but do not fail the test.
             Console.WriteLine(message);
-            Assert.True(true);
+            true.ShouldBeTrue();
         }
     }
 
@@ -129,19 +134,19 @@ public sealed class BannedDependenciesTests
 
         if (violations.Count == 0)
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
         var message = "Core banned dependency violations (report-only):\n" + string.Join("\n", violations);
         if (Enforce)
         {
-            Assert.False(true, message);
+            false.ShouldBeTrue(message);
         }
         else
         {
             Console.WriteLine(message);
-            Assert.True(true);
+            true.ShouldBeTrue();
         }
 
         if (policyDrift.Count > 0)
@@ -218,14 +223,14 @@ public sealed class BannedDependenciesTests
                     Console.WriteLine(u);
                 }
             }
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
         var message = "Excalibur.Abstractions banned dependencies (report-only):\n" + string.Join("\n", violations);
         if (Enforce)
         {
-            Assert.False(true, message);
+            false.ShouldBeTrue(message);
         }
         else
         {
@@ -238,7 +243,7 @@ public sealed class BannedDependenciesTests
                     Console.WriteLine(u);
                 }
             }
-            Assert.True(true);
+            true.ShouldBeTrue();
         }
     }
 
@@ -249,7 +254,7 @@ public sealed class BannedDependenciesTests
         var dir = Path.Combine(repoRoot, "src", "Excalibur", "Excalibur.Data.Abstractions");
         if (!Directory.Exists(dir))
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
@@ -270,19 +275,19 @@ public sealed class BannedDependenciesTests
 
         if (hits.Count == 0)
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
         var message = "Excalibur.Data.Abstractions source banned usings (report-only):\n" + string.Join("\n", hits);
         if (Enforce)
         {
-            Assert.False(true, message);
+            false.ShouldBeTrue(message);
         }
         else
         {
             Console.WriteLine(message);
-            Assert.True(true);
+            true.ShouldBeTrue();
         }
     }
 
@@ -293,7 +298,7 @@ public sealed class BannedDependenciesTests
         var patternsDir = Path.Combine(repoRoot, "src", "Dispatch", "Excalibur.Dispatch.Patterns");
         if (!Directory.Exists(patternsDir))
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
@@ -313,19 +318,19 @@ public sealed class BannedDependenciesTests
 
         if (hits.Count == 0)
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
         var message = "Excalibur.Dispatch.Patterns source using System.Text.Json (report-only):\n" + string.Join("\n", hits);
         if (Enforce)
         {
-            Assert.False(true, message);
+            false.ShouldBeTrue(message);
         }
         else
         {
             Console.WriteLine(message);
-            Assert.True(true);
+            true.ShouldBeTrue();
         }
     }
 

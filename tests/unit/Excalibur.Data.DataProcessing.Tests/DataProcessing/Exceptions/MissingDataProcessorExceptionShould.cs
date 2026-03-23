@@ -10,6 +10,8 @@ namespace Excalibur.Data.Tests.DataProcessing.Exceptions;
 /// Unit tests for <see cref="MissingDataProcessorException"/>.
 /// </summary>
 [UnitTest]
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class MissingDataProcessorExceptionShould : UnitTestBase
 {
 	[Fact]

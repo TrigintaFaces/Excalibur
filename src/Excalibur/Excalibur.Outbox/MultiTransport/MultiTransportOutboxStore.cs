@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Outbox.MultiTransport;
 
 /// <summary>
-/// Decorating implementation of <see cref="IMultiTransportOutboxStore"/> that adds
+/// Decorating implementation of <see cref="IMultiTransportOutboxRouter"/> that adds
 /// transport routing on top of an existing <see cref="IOutboxStore"/>.
 /// </summary>
 /// <remarks>
@@ -21,7 +21,7 @@ namespace Excalibur.Outbox.MultiTransport;
 /// to the inner store.
 /// </para>
 /// </remarks>
-public sealed partial class MultiTransportOutboxStore : IMultiTransportOutboxStore
+public sealed partial class MultiTransportOutboxStore : IMultiTransportOutboxRouter
 {
 	private readonly IOutboxStore _innerStore;
 	private readonly MultiTransportOutboxOptions _options;

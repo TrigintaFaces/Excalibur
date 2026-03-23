@@ -10,7 +10,7 @@ namespace Excalibur.Data.CosmosDb;
 /// <summary>
 /// Health check for Azure Cosmos DB connectivity.
 /// </summary>
-public sealed class CosmosDbHealthCheck : IHealthCheck
+internal sealed class CosmosDbHealthCheck : IHealthCheck
 {
 	private readonly CosmosDbPersistenceProvider _provider;
 	private readonly CosmosDbOptions _options;

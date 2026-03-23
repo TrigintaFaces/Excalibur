@@ -30,6 +30,7 @@ internal sealed class MarkIdempotencyKeyProcessedRequest : DataRequestBase<IDbCo
 		ArgumentException.ThrowIfNullOrWhiteSpace(sagaId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
+		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);
 
 		var sql = $"""
 			MERGE {qualifiedTableName} AS target

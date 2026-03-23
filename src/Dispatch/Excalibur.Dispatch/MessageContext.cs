@@ -35,25 +35,26 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	private Dictionary<Type, object>? _features;
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _lockObject = new();
+	private readonly System.Threading.Lock _lockObject = new();
 #else
 	private readonly object _lockObject = new();
 #endif
 
 	// Lazy MessageId generation (PERF-5)
+	// volatile ensures cross-thread visibility for lazy-initialized fields
 	private Guid _messageIdGuid;
-	private string? _messageId;
-	private bool _messageIdWasExplicitlySet;
+	private volatile string? _messageId;
+	private volatile bool _messageIdWasExplicitlySet;
 
 	// Lazy CorrelationId generation (PERF-6)
-	private string? _correlationId;
-	private bool _correlationIdLazyEnabled;
-	private bool _correlationIdWasExplicitlySet;
+	private volatile string? _correlationId;
+	private volatile bool _correlationIdLazyEnabled;
+	private volatile bool _correlationIdWasExplicitlySet;
 
 	// Lazy CausationId generation (PERF-6)
-	private string? _causationId;
-	private bool _causationIdLazyEnabled;
-	private bool _causationIdWasExplicitlySet;
+	private volatile string? _causationId;
+	private volatile bool _causationIdLazyEnabled;
+	private volatile bool _causationIdWasExplicitlySet;
 
 	// Implementation-only fields (not on IMessageContext interface)
 	private volatile IMessageVersionMetadata _versionMetadata = DefaultVersionMetadata;

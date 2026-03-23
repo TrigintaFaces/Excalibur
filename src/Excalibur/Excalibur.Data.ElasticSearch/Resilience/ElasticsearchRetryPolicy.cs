@@ -15,8 +15,7 @@ namespace Excalibur.Data.ElasticSearch.Resilience;
 /// </summary>
 public sealed class ElasticsearchRetryPolicy : IElasticsearchRetryPolicy
 {
-	private readonly RetryPolicyOptions _settings;
-	private readonly Random _random;
+	private readonly ElasticSearchRetryPolicyOptions _settings;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ElasticsearchRetryPolicy" /> class.
@@ -27,7 +26,6 @@ public sealed class ElasticsearchRetryPolicy : IElasticsearchRetryPolicy
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		_settings = options.Value.Resilience.Retry;
-		_random = new Random();
 	}
 
 	/// <inheritdoc />
@@ -67,7 +65,7 @@ public sealed class ElasticsearchRetryPolicy : IElasticsearchRetryPolicy
 		if (_settings.JitterFactor > 0)
 		{
 			var jitterRange = delay.TotalMilliseconds * _settings.JitterFactor;
-			var jitterOffset = (_random.NextDouble() - 0.5) * 2 * jitterRange;
+			var jitterOffset = (Random.Shared.NextDouble() - 0.5) * 2 * jitterRange;
 			var jitteredDelayMs = Math.Max(0, delay.TotalMilliseconds + jitterOffset);
 			delay = TimeSpan.FromMilliseconds(jitteredDelayMs);
 		}

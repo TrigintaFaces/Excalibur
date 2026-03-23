@@ -317,7 +317,7 @@ public partial class TimeAwareScheduledMessageService(
 			timeoutMonitor?.CompleteOperation(operationToken, success: true, timedOut: false);
 			LogMessageProcessed(logger, item.Id.ToString(), item.MessageName);
 		}
-		catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			timeoutMonitor?.CompleteOperation(operationToken, success: false, timedOut: false);
 			throw;

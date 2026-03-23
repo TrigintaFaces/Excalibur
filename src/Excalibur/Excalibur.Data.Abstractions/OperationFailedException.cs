@@ -10,19 +10,16 @@ namespace Excalibur.Data.Abstractions;
 /// <remarks>
 /// This exception can be used to encapsulate information about failed operations, including the name of the operation and the resource involved.
 /// </remarks>
-[Serializable]
 public sealed class OperationFailedException : ResourceException
 {
 	/// <summary>
 	/// The default HTTP status code for operation failures.
 	/// </summary>
-	[NonSerialized]
 	public const int DefaultStatusCode = 500;
 
 	/// <summary>
 	/// The default error message for operation failures.
 	/// </summary>
-	[NonSerialized]
 	public const string DefaultMessage = "The operation failed.";
 
 	/// <summary>

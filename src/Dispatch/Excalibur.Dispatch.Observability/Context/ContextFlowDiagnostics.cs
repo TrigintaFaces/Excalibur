@@ -48,7 +48,7 @@ public sealed partial class ContextFlowDiagnostics(
 		new(StringComparer.Ordinal);
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _historyEventsLock = new();
+	private readonly System.Threading.Lock _historyEventsLock = new();
 #else
 	private readonly object _historyEventsLock = new();
 #endif

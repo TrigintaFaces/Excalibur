@@ -16,6 +16,7 @@ namespace Excalibur.EventSourcing.Tests;
 /// <see cref="ConflictException"/> with HTTP 409 status code support.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class ConcurrencyExceptionShould
 {
 	[Fact]
@@ -121,14 +122,7 @@ public sealed class ConcurrencyExceptionShould
 		exception.Message.ShouldBe(message);
 	}
 
-	[Fact]
-	public void HaveSerializableAttribute()
-	{
-		// Assert - Check that the exception has the Serializable attribute
-		typeof(ConcurrencyException)
-			.GetCustomAttributes(typeof(SerializableAttribute), false)
-			.ShouldNotBeEmpty();
-	}
+	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)
 
 	[Fact]
 	public void CreateForAggregateWithFactory()

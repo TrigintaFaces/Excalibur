@@ -77,7 +77,7 @@ public sealed class BatchProcessingOptions
 	/// Gets or sets the retry policy.
 	/// </summary>
 	/// <value>The policy describing retry behavior when processing failures occur.</value>
-	public RetryPolicy RetryPolicy { get; set; } = new();
+	public BatchRetryOptions RetryPolicy { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable metrics collection.

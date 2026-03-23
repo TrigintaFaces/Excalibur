@@ -64,8 +64,8 @@ internal sealed class StringEncodingCache : IDisposable
 		// Try to get from cache
 		if (_cache.TryGetValue(value, out var cached))
 		{
-			cached.AccessCount++;
-			cached.LastAccessTimestamp = ValueStopwatch.GetTimestamp();
+			Interlocked.Increment(ref cached._accessCount);
+			Volatile.Write(ref cached._lastAccessTimestamp, ValueStopwatch.GetTimestamp());
 			_ = Interlocked.Increment(ref _hitCount);
 			return new ReadOnlySpan<byte>(cached.Utf8Bytes, 0, cached.Length);
 		}
@@ -165,8 +165,8 @@ internal sealed class StringEncodingCache : IDisposable
 		// Another thread added it, get their version
 		if (_cache.TryGetValue(value, out var existing))
 		{
-			existing.AccessCount++;
-			existing.LastAccessTimestamp = ValueStopwatch.GetTimestamp();
+			Interlocked.Increment(ref existing._accessCount);
+			Volatile.Write(ref existing._lastAccessTimestamp, ValueStopwatch.GetTimestamp());
 			return new ReadOnlySpan<byte>(existing.Utf8Bytes, 0, existing.Length);
 		}
 
@@ -218,6 +218,16 @@ internal sealed class StringEncodingCache : IDisposable
 	internal sealed class CachedEncoding(byte[] utf8Bytes, int length)
 	{
 		/// <summary>
+		/// Access count field for atomic <see cref="Interlocked.Increment(ref int)"/> operations.
+		/// </summary>
+		internal int _accessCount = 1;
+
+		/// <summary>
+		/// Last access timestamp field for atomic <see cref="Volatile.Write(ref long, long)"/> operations.
+		/// </summary>
+		internal long _lastAccessTimestamp = ValueStopwatch.GetTimestamp();
+
+		/// <summary>
 		/// Gets the cached UTF-8 bytes.
 		/// </summary>
 		/// <value>The current <see cref="Utf8Bytes"/> value.</value>
@@ -230,17 +240,17 @@ internal sealed class StringEncodingCache : IDisposable
 		public int Length { get; } = length;
 
 		/// <summary>
-		/// Gets or sets how many times this cache entry has been accessed.
+		/// Gets how many times this cache entry has been accessed.
 		/// </summary>
-		/// <value>The current <see cref="AccessCount"/> value.</value>
-		public int AccessCount { get; set; } = 1;
+		/// <value>The current access count.</value>
+		public int AccessCount => Volatile.Read(ref _accessCount);
 
 		/// <summary>
-		/// Gets or sets the last access timestamp captured via <see cref="ValueStopwatch" />.
+		/// Gets the last access timestamp captured via <see cref="ValueStopwatch" />.
 		/// </summary>
 		/// <value>
 		/// The last access timestamp captured via <see cref="ValueStopwatch" />.
 		/// </value>
-		public long LastAccessTimestamp { get; set; } = ValueStopwatch.GetTimestamp();
+		public long LastAccessTimestamp => Volatile.Read(ref _lastAccessTimestamp);
 	}
 }

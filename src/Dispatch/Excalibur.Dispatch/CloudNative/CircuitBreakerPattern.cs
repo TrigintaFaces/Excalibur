@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -35,24 +36,16 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 	private readonly SemaphoreSlim _halfOpenSemaphore;
 	private readonly List<IPatternObserver> _observers = [];
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _observerLock = new();
-
+	private readonly System.Threading.Lock _observerLock = new();
 #else
-
 	private readonly object _observerLock = new();
-
 #endif
 
 	private readonly CircuitBreakerMetrics _metrics = new();
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _stateLock = new();
-
+	private readonly System.Threading.Lock _stateLock = new();
 #else
-
 	private readonly object _stateLock = new();
-
 #endif
 	private readonly ConcurrentDictionary<string, long> _operationLatencies = new(StringComparer.Ordinal);
 	private int _consecutiveFailures;

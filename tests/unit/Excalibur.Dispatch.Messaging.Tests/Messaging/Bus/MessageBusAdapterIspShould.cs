@@ -46,9 +46,10 @@ public sealed class MessageBusAdapterIspShould : UnitTestBase
 	}
 
 	[Fact]
-	public void IMessageBusAdapter_ExtendIDisposable()
+	public void IMessageBusAdapter_NotExtendIDisposable()
 	{
-		typeof(IDisposable).IsAssignableFrom(typeof(IMessageBusAdapter)).ShouldBeTrue();
+		// T.19 (Sprint 689): IDisposable removed from IMessageBusAdapter -- implementors add IDisposable independently
+		typeof(IDisposable).IsAssignableFrom(typeof(IMessageBusAdapter)).ShouldBeFalse();
 	}
 
 	#endregion
@@ -183,13 +184,13 @@ public sealed class MessageBusAdapterIspShould : UnitTestBase
 		public bool SupportsSubscription => true;
 		public bool SupportsTransactions => false;
 
-		public Task InitializeAsync(IMessageBusOptions options, CancellationToken cancellationToken) =>
+		public Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
 
 		public Task<IMessageResult> PublishAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
 			throw new NotImplementedException();
 
-		public Task SubscribeAsync(string subscriptionName, Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> messageHandler, IMessageBusOptions? options, CancellationToken cancellationToken) =>
+		public Task SubscribeAsync(string subscriptionName, Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> messageHandler, MessageBusOptions? options, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
 
 		public Task UnsubscribeAsync(string subscriptionName, CancellationToken cancellationToken) =>

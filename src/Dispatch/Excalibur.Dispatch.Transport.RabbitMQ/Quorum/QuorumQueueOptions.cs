@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// services.AddRabbitMqQuorumQueues(options =>
 /// {
 ///     options.DeliveryLimit = 5;
-///     options.DeadLetterStrategy = DeadLetterStrategy.AtLeastOnce;
+///     options.DeadLetterStrategy = QuorumDeadLetterStrategy.AtLeastOnce;
 ///     options.QuorumSize = 3;
 /// });
 /// </code>
@@ -53,8 +53,8 @@ public sealed class QuorumQueueOptions
 	/// <summary>
 	/// Gets or sets the dead letter strategy for the quorum queue.
 	/// </summary>
-	/// <value>The dead letter strategy. Default is <see cref="Quorum.DeadLetterStrategy.AtMostOnce"/>.</value>
-	public DeadLetterStrategy DeadLetterStrategy { get; set; } = DeadLetterStrategy.AtMostOnce;
+	/// <value>The dead letter strategy. Default is <see cref="QuorumDeadLetterStrategy.AtMostOnce"/>.</value>
+	public QuorumDeadLetterStrategy DeadLetterStrategy { get; set; } = QuorumDeadLetterStrategy.AtMostOnce;
 
 	/// <summary>
 	/// Gets or sets the initial quorum group size (number of replicas).

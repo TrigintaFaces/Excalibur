@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 ///     Tests for the <see cref="InMemoryTransportAdapter" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryTransportAdapterShould : IAsyncDisposable
 {
 	private readonly InMemoryTransportAdapter _sut = new(NullLogger<InMemoryTransportAdapter>.Instance);

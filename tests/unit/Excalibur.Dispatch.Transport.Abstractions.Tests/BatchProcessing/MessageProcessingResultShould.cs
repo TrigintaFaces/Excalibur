@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.BatchProcessing;
 
-public class MessageProcessingResultShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class MessageProcessingResultShould
 {
     [Fact]
     public void Should_Default_MessageId_To_Empty()

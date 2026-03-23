@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.Consent;
 
-public class ConsentOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class ConsentOptionsShould
 {
     [Fact]
     public void Have_365_day_default_expiration()

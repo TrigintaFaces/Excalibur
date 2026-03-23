@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Messaging;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
-public class TopicOptionsShould
+public sealed class TopicOptionsShould
 {
     [Fact]
     public void HaveCorrectDefaultValues()

@@ -20,6 +20,8 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 /// IEventStore interface contract using TestContainers.
 /// </remarks>
 [Collection(PostgresEventStoreTestCollection.CollectionName)]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class PostgresEventStoreConformanceShould : EventStoreConformanceTestBase, IClassFixture<PostgresEventStoreContainerFixture>
 {
 	private readonly PostgresEventStoreContainerFixture _fixture;

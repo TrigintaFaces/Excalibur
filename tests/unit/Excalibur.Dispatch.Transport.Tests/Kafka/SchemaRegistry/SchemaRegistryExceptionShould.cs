@@ -188,23 +188,16 @@ public sealed class SchemaRegistryExceptionShould
 	#region Inheritance Tests
 
 	[Fact]
-	public void InheritsFromException()
+	public void InheritsFromApiException()
 	{
 		// Assert
-		typeof(SchemaRegistryException).IsSubclassOf(typeof(Exception)).ShouldBeTrue();
+		typeof(SchemaRegistryException).IsSubclassOf(typeof(Excalibur.Dispatch.Abstractions.ApiException)).ShouldBeTrue();
 	}
 
-	[Fact]
-	public void HasSerializableAttribute()
-	{
-		// Assert
-		typeof(SchemaRegistryException)
-			.GetCustomAttributes(typeof(SerializableAttribute), false)
-			.ShouldNotBeEmpty();
-	}
+	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)
 
 	[Fact]
-	public void CanBeCaughtAsException()
+	public void CanBeCaughtAsApiException()
 	{
 		// Arrange
 		var exception = new SchemaRegistryException("Test");
@@ -214,7 +207,7 @@ public sealed class SchemaRegistryExceptionShould
 		{
 			throw exception;
 		}
-		catch (Exception ex)
+		catch (Excalibur.Dispatch.Abstractions.ApiException ex)
 		{
 			ex.ShouldBeOfType<SchemaRegistryException>();
 		}

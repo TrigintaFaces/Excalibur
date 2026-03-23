@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Unit tests for <see cref="ShamirSecretSharing"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class ShamirSecretSharingShould
 {
 	#region Split Tests
@@ -64,18 +65,16 @@ public sealed class ShamirSecretSharingShould
 	}
 
 	[Fact]
-	public void Split_ReturnsEmptyArrays_WhenSecretIsEmpty()
+	public void Split_ThrowsArgumentException_WhenSecretIsEmpty()
 	{
-		// Arrange
+		// Arrange -- Sprint 676 added empty-secret guard to ShamirSecretSharing.Split
 		var secret = Array.Empty<byte>();
 		const int totalShares = 5;
 		const int threshold = 3;
 
-		// Act
-		var shares = ShamirSecretSharing.Split(secret, totalShares, threshold);
-
-		// Assert
-		shares.Length.ShouldBe(totalShares);
+		// Act & Assert
+		Should.Throw<ArgumentException>(() =>
+			ShamirSecretSharing.Split(secret, totalShares, threshold));
 	}
 
 	[Theory]

@@ -84,7 +84,8 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	public void HaveProcessingStage()
 	{
 		// Assert
-		_defaultMiddleware.Stage.ShouldBe(DispatchMiddlewareStage.Processing);
+		// Sprint 695 T.16: TimeoutMiddleware moved Processing→PreProcessing
+		_defaultMiddleware.Stage.ShouldBe(DispatchMiddlewareStage.PreProcessing);
 	}
 
 	[Fact]

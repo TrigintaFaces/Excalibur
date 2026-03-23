@@ -17,7 +17,7 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// <param name="affectedDocumentCount"> The number of documents that were re-encrypted. </param>
 /// <param name="rotatedAt"> The timestamp when the key rotation occurred. </param>
 public sealed class EncryptionKeyRotatedEventArgs(
-	DataClassification classification,
+	ElasticSearchDataClassification classification,
 	string newKeyVersion,
 	string previousKeyVersion,
 	int affectedDocumentCount,
@@ -27,7 +27,7 @@ public sealed class EncryptionKeyRotatedEventArgs(
 	/// Gets the data classification level that was rotated.
 	/// </summary>
 	/// <value> The classification level for which keys were rotated. </value>
-	public DataClassification Classification { get; } = classification;
+	public ElasticSearchDataClassification Classification { get; } = classification;
 
 	/// <summary>
 	/// Gets the version of the new encryption key.

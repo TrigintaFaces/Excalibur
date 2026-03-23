@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Security;
 
-public class TransportConnectionBaseShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class TransportConnectionBaseShould
 {
     private sealed class SecureTestConnection : TransportConnectionBase
     {

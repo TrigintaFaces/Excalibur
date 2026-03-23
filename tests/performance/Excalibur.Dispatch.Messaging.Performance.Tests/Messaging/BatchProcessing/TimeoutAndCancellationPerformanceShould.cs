@@ -12,6 +12,8 @@ using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;
 
+using Tests.Shared.Infrastructure;
+
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
@@ -21,6 +23,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Performance")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 {
 	private readonly ILogger<UnifiedBatchingMiddleware> _logger;
@@ -86,8 +89,11 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 
-		// Wait for processing to complete (generous for full-suite parallel load)
-		await Task.Delay(10000).ConfigureAwait(false);
+		// Poll for processing completion instead of flat delay (Sprint 679 T.11)
+		_ = await WaitHelpers.WaitUntilAsync(
+			() => processedCount + canceledCount > 0,
+			TimeSpan.FromSeconds(15),
+			TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 		stopwatch.Stop();
 
 		// Assert - under full-suite parallel load (40K+ tests), the batch processor

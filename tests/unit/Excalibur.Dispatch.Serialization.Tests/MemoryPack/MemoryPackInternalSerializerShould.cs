@@ -23,6 +23,7 @@ namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 /// - Null result handling (SerializationException)
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Serialization")]
 public sealed class MemoryPackInternalSerializerShould
 {
 	private readonly ISerializer _sut;

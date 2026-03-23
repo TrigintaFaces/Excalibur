@@ -14,6 +14,7 @@ namespace Excalibur.EventSourcing.Tests.Concurrency;
 /// of event append operations, optimistic concurrency control, and concurrent access patterns.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class EventStoreConcurrencyShould
 {
 	private const string AggregateType = "TestAggregate";

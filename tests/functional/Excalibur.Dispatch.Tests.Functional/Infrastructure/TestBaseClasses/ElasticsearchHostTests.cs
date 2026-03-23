@@ -6,7 +6,9 @@ using Tests.Shared.Fixtures;
 namespace Excalibur.Dispatch.Tests.Functional.Infrastructure.TestBaseClasses;
 
 [CollectionDefinition(nameof(ElasticsearchHostTests))]
-public class ElasticsearchHostTests : ICollectionFixture<ElasticsearchContainerFixture>
+[Trait("Category", "Functional")]
+[Trait("Component", "Core")]
+public sealed class ElasticsearchHostTests : ICollectionFixture<ElasticsearchContainerFixture>
 {
 	// No code inside, just for xUnit to recognize the shared collection.
 }

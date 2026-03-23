@@ -54,7 +54,7 @@ internal partial class InMemoryClaimCheckCleanupService(
 					LogCleanupTaskNoExpiredEntries();
 				}
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
 				// Expected when cancellation is requested
 				break;

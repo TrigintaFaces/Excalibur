@@ -41,7 +41,10 @@ services.AddDispatch(dispatch =>
 
 var provider = services.BuildServiceProvider();
 
-// Initialize the local message bus
+// Initialize the local message bus.
+// AddDispatch() registers a keyed IMessageBus named "Local" for in-process messaging.
+// Resolving it here ensures the bus is initialized before dispatching messages.
+// In ASP.NET Core / Generic Host apps, this happens automatically via hosted services.
 _ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 
 // Get the dispatcher and create a context

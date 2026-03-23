@@ -10,6 +10,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.Conformance;
 /// </summary>
 [SuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Test project")]
 [SuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.", Justification = "Test project")]
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class SystemTextJsonConformanceShould : SerializerConformanceTestsBase
 {
 	protected override ISerializer CreateSerializer() => new SystemTextJsonSerializer();

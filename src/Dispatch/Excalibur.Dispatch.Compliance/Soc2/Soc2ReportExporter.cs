@@ -46,6 +46,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			CompositeFormat.Parse(Resources.Soc2ReportExporter_ReportNotExportable);
 
 	private readonly ILogger<Soc2ReportExporter> _logger;
+	private readonly TimeProvider _timeProvider;
 
 	[LoggerMessage(LogLevel.Information, "Exporting report {ReportId} to {Format}")]
 	private partial void LogExportingReport(Guid reportId, ExportFormat format);
@@ -69,9 +70,11 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 	/// Initializes a new instance of the <see cref="Soc2ReportExporter"/> class.
 	/// </summary>
 	/// <param name="logger">Logger instance.</param>
-	public Soc2ReportExporter(ILogger<Soc2ReportExporter> logger)
+	/// <param name="timeProvider">Time provider for testable time access.</param>
+	public Soc2ReportExporter(ILogger<Soc2ReportExporter> logger, TimeProvider timeProvider)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 	}
 
 	/// <inheritdoc />
@@ -124,7 +127,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			ContentType = options.Compress ? "application/gzip" : contentType,
 			FileName = fileName,
 			Format = format,
-			GeneratedAt = DateTimeOffset.UtcNow,
+			GeneratedAt = _timeProvider.GetUtcNow(),
 			Checksum = checksum
 		};
 	}
@@ -169,7 +172,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			{
 				ReportId = report.ReportId,
 				ReportTitle = report.Title,
-				GeneratedAt = DateTimeOffset.UtcNow,
+				GeneratedAt = _timeProvider.GetUtcNow(),
 				EvidenceItems = []
 			};
 
@@ -224,7 +227,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			{
 				var checksums = new StringBuilder();
 				checksums.AppendLine("# SHA-256 Checksums");
-				checksums.AppendLine($"# Generated: {DateTimeOffset.UtcNow:O}");
+				checksums.AppendLine($"# Generated: {_timeProvider.GetUtcNow():O}");
 				checksums.AppendLine();
 
 				foreach (var item in manifest.EvidenceItems.Where(i => i.IsEmbedded && i.Checksum is not null))
@@ -243,7 +246,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		}
 
 		var packageData = memoryStream.ToArray();
-		var packageFileName = $"soc2-evidence-{report.ReportId:N}-{DateTimeOffset.UtcNow:yyyyMMdd}.zip";
+		var packageFileName = $"soc2-evidence-{report.ReportId:N}-{_timeProvider.GetUtcNow():yyyyMMdd}.zip";
 
 		LogCreatedEvidencePackage(report.ReportId, packageData.Length, evidence.Count);
 
@@ -253,7 +256,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			ContentType = "application/zip",
 			FileName = packageFileName,
 			Format = ExportFormat.Json, // Primary format in package
-			GeneratedAt = DateTimeOffset.UtcNow,
+			GeneratedAt = _timeProvider.GetUtcNow(),
 			Checksum = ComputeChecksum(packageData)
 		};
 	}
@@ -354,7 +357,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 	{
 		var xml = new StringBuilder();
 		_ = xml.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-		_ = xml.AppendLine($"<soc2Report xmlns=\"urn:dispatch:compliance:soc2\" generated=\"{DateTimeOffset.UtcNow:O}\">");
+		_ = xml.AppendLine($"<soc2Report xmlns=\"urn:dispatch:compliance:soc2\" generated=\"{_timeProvider.GetUtcNow():O}\">");
 		_ = xml.AppendLine($"  <reportId>{report.ReportId}</reportId>");
 		_ = xml.AppendLine($"  <reportType>{report.ReportType}</reportType>");
 		_ = xml.AppendLine($"  <title>{EscapeXml(report.Title)}</title>");
@@ -465,7 +468,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		return Task.FromResult((stream.ToArray(), "application/pdf", ".pdf"));
 	}
 
-	private static void RenderPdfHeader(IContainer container, Soc2Report report, Soc2ReportExportOptions options)
+	private void RenderPdfHeader(IContainer container, Soc2Report report, Soc2ReportExportOptions options)
 	{
 		container.Row(row =>
 		{
@@ -475,7 +478,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 					.SemiBold().FontSize(20);
 				_ = col.Item().Text(report.Title)
 					.FontSize(14).FontColor(Colors.Grey.Darken2);
-				_ = col.Item().Text($"Generated: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC")
+				_ = col.Item().Text($"Generated: {_timeProvider.GetUtcNow():yyyy-MM-dd HH:mm} UTC")
 					.FontSize(10).FontColor(Colors.Grey.Medium);
 			});
 		});
@@ -809,7 +812,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		return text.ToString();
 	}
 
-	private static Soc2ReportExportModel CreateExportModel(
+	private Soc2ReportExportModel CreateExportModel(
 			Soc2Report report,
 			Soc2ReportExportOptions options)
 	{
@@ -834,7 +837,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 				TestResults = options.IncludeTestResults ? section.TestResults : null
 			}).ToList(),
 			Exceptions = options.IncludeExceptions ? report.Exceptions : null,
-			ExportedAt = DateTimeOffset.UtcNow
+			ExportedAt = _timeProvider.GetUtcNow()
 		};
 	}
 

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.KeyRotation;
 
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class KeyRotationServiceShould : IDisposable
 {
 	private readonly IKeyManagementProvider _keyProvider;

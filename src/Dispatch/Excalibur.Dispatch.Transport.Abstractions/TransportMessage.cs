@@ -47,6 +47,12 @@ public sealed class TransportMessage
 	public string? CorrelationId { get; set; }
 
 	/// <summary>
+	/// Gets or sets the causation identifier linking this message to its triggering action.
+	/// </summary>
+	/// <value>The causation identifier.</value>
+	public string? CausationId { get; set; }
+
+	/// <summary>
 	/// Gets or sets the subject/label of the message.
 	/// </summary>
 	/// <value>The message subject.</value>

@@ -42,7 +42,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 			.Build();
 
 		// Act
-		services.AddDispatchSecurity(config);
+		services.AddDispatchSecurityMiddleware(config);
 
 		// Assert — encryption, signing, rate limiting, JWT authentication should all be registered
 		services.ShouldContain(sd => sd.ServiceType == typeof(IMessageEncryptionService));
@@ -56,7 +56,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		var config = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
 
 		Should.Throw<ArgumentNullException>(() =>
-			SecurityMiddlewareExtensions.AddDispatchSecurity(null!, config));
+			SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(null!, config));
 	}
 
 	[Fact]
@@ -65,14 +65,14 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDispatchSecurity((IConfiguration)null!));
+			services.AddDispatchSecurityMiddleware((IConfiguration)null!));
 	}
 
 	[Fact]
 	public void AddDispatchSecurityWithAction_ThrowsWhenServicesIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			SecurityMiddlewareExtensions.AddDispatchSecurity(null!, _ => { }));
+			SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(null!, _ => { }));
 	}
 
 	[Fact]
@@ -81,7 +81,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDispatchSecurity((Action<SecurityOptions>)null!));
+			services.AddDispatchSecurityMiddleware((Action<SecurityOptions>)null!));
 	}
 
 	[Fact]
@@ -92,7 +92,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		services.AddLogging();
 
 		// Act
-		services.AddDispatchSecurity(opts =>
+		services.AddDispatchSecurityMiddleware(opts =>
 		{
 			opts.Encryption.EnableEncryption = true;
 			opts.Signing.EnableSigning = false;
@@ -113,7 +113,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		services.AddSingleton(A.Fake<IKeyProvider>());
 
 		// Act
-		services.AddDispatchSecurity(opts =>
+		services.AddDispatchSecurityMiddleware(opts =>
 		{
 			opts.Encryption.EnableEncryption = false;
 			opts.Signing.EnableSigning = true;
@@ -133,7 +133,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		services.AddLogging();
 
 		// Act
-		services.AddDispatchSecurity(opts =>
+		services.AddDispatchSecurityMiddleware(opts =>
 		{
 			opts.Encryption.EnableEncryption = false;
 			opts.Signing.EnableSigning = false;
@@ -154,7 +154,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		services.AddSingleton(A.Fake<ITelemetrySanitizer>());
 
 		// Act
-		services.AddDispatchSecurity(opts =>
+		services.AddDispatchSecurityMiddleware(opts =>
 		{
 			opts.Encryption.EnableEncryption = false;
 			opts.Signing.EnableSigning = false;
@@ -180,7 +180,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		services.AddLogging();
 
 		// Act — all features disabled
-		services.AddDispatchSecurity(opts =>
+		services.AddDispatchSecurityMiddleware(opts =>
 		{
 			opts.Encryption.EnableEncryption = false;
 			opts.Signing.EnableSigning = false;

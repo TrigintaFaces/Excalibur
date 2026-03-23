@@ -7,6 +7,7 @@ namespace Excalibur.LeaderElection.Tests.InMemory;
 /// Unit tests for <see cref="InMemoryLeaderElectionFactory" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class InMemoryLeaderElectionFactoryShould : UnitTestBase
 {
 	[Fact]

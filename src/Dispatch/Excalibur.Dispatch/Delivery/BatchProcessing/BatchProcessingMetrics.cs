@@ -5,8 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
-using Microsoft.ApplicationInsights;
-
 namespace Excalibur.Dispatch.Delivery.BatchProcessing;
 
 /// <summary>
@@ -17,7 +15,6 @@ public sealed class BatchProcessingMetrics : IDisposable
 	private static readonly KeyValuePair<string, object?>[] EmptyTagList = [];
 
 	private readonly Meter _meter;
-	private readonly TelemetryClient? _telemetryClient;
 
 	/// <summary>
 	/// Counters.
@@ -49,11 +46,10 @@ public sealed class BatchProcessingMetrics : IDisposable
 	/// Initializes a new instance of the <see cref="BatchProcessingMetrics" /> class.
 	/// </summary>
 	/// <param name="meterName"> The name for the metrics meter. </param>
-	/// <param name="telemetryClient"> Optional Application Insights telemetry client. </param>
 	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
 		Justification = "Meter lifecycle is managed by this class and disposed in Dispose()")]
-	public BatchProcessingMetrics(string meterName, TelemetryClient? telemetryClient = null)
-		: this(meterFactory: null, meterName, telemetryClient)
+	public BatchProcessingMetrics(string meterName)
+		: this(meterFactory: null, meterName)
 	{
 	}
 
@@ -62,13 +58,11 @@ public sealed class BatchProcessingMetrics : IDisposable
 	/// </summary>
 	/// <param name="meterFactory"> Optional meter factory for DI-managed meter lifecycle. If null, creates an unmanaged meter. </param>
 	/// <param name="meterName"> The name for the metrics meter. </param>
-	/// <param name="telemetryClient"> Optional Application Insights telemetry client. </param>
 	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
 		Justification = "Meter lifecycle is managed by IMeterFactory or this class and disposed in Dispose()")]
-	public BatchProcessingMetrics(IMeterFactory? meterFactory, string meterName, TelemetryClient? telemetryClient = null)
+	public BatchProcessingMetrics(IMeterFactory? meterFactory, string meterName)
 	{
 		_meter = meterFactory?.Create(meterName) ?? new Meter(meterName, "1.0.0");
-		_telemetryClient = telemetryClient;
 
 		// Initialize counters
 		_messagesProcessedCounter = _meter.CreateCounter<long>(
@@ -145,18 +139,6 @@ public sealed class BatchProcessingMetrics : IDisposable
 		_currentBatchSize = batchSize;
 		_currentSuccessRate = successRate;
 
-		// Send to Application Insights if available
-		_telemetryClient?.TrackMetric("BatchProcessing.BatchSize", batchSize);
-		_telemetryClient?.TrackMetric("BatchProcessing.SuccessRate", successRate);
-		_telemetryClient?.TrackMetric("BatchProcessing.Throughput", throughput);
-		_telemetryClient?.TrackMetric("BatchProcessing.Duration", duration.TotalMilliseconds);
-
-		if (tags != null)
-		{
-			var properties = CreateTelemetryProperties(tags);
-
-			_telemetryClient?.TrackEvent("BatchProcessingCompleted", properties);
-		}
 	}
 
 	/// <summary>
@@ -164,8 +146,9 @@ public sealed class BatchProcessingMetrics : IDisposable
 	/// </summary>
 	public void RecordBatchFailure(Exception exception, Dictionary<string, object?>? tags = null)
 	{
-		var properties = tags is null ? null : CreateTelemetryProperties(tags);
-		_telemetryClient?.TrackException(exception, properties);
+		// OTel exception recording is handled by Activity spans in the processor
+		_ = exception;
+		_ = tags;
 	}
 
 	/// <summary>
@@ -190,14 +173,4 @@ public sealed class BatchProcessingMetrics : IDisposable
 		return tagList;
 	}
 
-	private static Dictionary<string, string> CreateTelemetryProperties(Dictionary<string, object?> tags)
-	{
-		var properties = new Dictionary<string, string>(tags.Count, StringComparer.Ordinal);
-		foreach (var tag in tags)
-		{
-			properties[tag.Key] = tag.Value?.ToString() ?? string.Empty;
-		}
-
-		return properties;
-	}
 }

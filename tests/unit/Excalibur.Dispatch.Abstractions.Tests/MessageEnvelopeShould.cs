@@ -4,6 +4,7 @@ namespace Excalibur.Dispatch.Abstractions.Tests;
 /// Unit tests for MessageEnvelope functionality.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Abstractions")]
 public sealed class MessageEnvelopeShould : UnitTestBase
 {
 	[Fact]

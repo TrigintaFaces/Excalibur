@@ -16,6 +16,7 @@ namespace Excalibur.EventSourcing.Tests.DynamoDb;
 /// Verifies constructor validation and initialization.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 {
 	private readonly IAmazonDynamoDB _client;
@@ -93,7 +94,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger);
 
 		// Act & Assert
-		store.CloudProvider.ShouldBe(CloudProviderType.DynamoDb);
+		store.CloudProvider.ShouldBe(CloudPersistenceProviderType.DynamoDb);
 	}
 
 	#endregion CloudProviderType Tests

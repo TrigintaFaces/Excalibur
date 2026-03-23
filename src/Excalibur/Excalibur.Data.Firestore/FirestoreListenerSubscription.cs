@@ -59,11 +59,12 @@ public sealed partial class FirestoreListenerSubscription<
 
 		SubscriptionId = $"firestore-{collectionPath}-{Guid.NewGuid():N}";
 
-		// Create bounded channel for backpressure
-		_channel = Channel.CreateBounded<IChangeFeedEvent<TDocument>>(
-			new BoundedChannelOptions(_options.MaxBatchSize * 10)
+		// Use unbounded channel to prevent silent event loss. The sync ProcessSnapshot callback
+		// cannot await WriteAsync, so TryWrite on a bounded channel drops events when full.
+		// Firestore listener events are low-volume and must not be lost.
+		_channel = Channel.CreateUnbounded<IChangeFeedEvent<TDocument>>(
+			new UnboundedChannelOptions
 			{
-				FullMode = BoundedChannelFullMode.Wait,
 				SingleReader = true,
 				SingleWriter = true
 			});
@@ -160,7 +161,7 @@ public sealed partial class FirestoreListenerSubscription<
 					}
 				}
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				shouldBreak = true;
 			}

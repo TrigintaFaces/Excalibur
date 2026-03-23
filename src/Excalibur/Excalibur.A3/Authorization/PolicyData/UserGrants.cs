@@ -21,12 +21,13 @@ internal sealed class UserGrants(IGrantStore grantStore)
 	/// Asynchronously retrieves a dictionary of grants for a specific user.
 	/// </summary>
 	/// <param name="userId"> The ID of the user. </param>
+	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> A dictionary of grants. </returns>
-	public async Task<IDictionary<string, object>> ValueAsync(string userId)
+	public async Task<IDictionary<string, object>> ValueAsync(string userId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-		var result = await _queryStore.FindUserGrantsAsync(userId, CancellationToken.None).ConfigureAwait(false);
+		var result = await _queryStore.FindUserGrantsAsync(userId, cancellationToken).ConfigureAwait(false);
 		return new Dictionary<string, object>(result);
 	}
 }

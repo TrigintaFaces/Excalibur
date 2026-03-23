@@ -18,7 +18,7 @@ namespace Excalibur.Data.Postgres;
 /// <summary>
 /// Postgres-specific retry policy implementation for handling transient failures.
 /// </summary>
-public sealed partial class PostgresRetryPolicy : IDataRequestRetryPolicy
+internal sealed partial class PostgresRetryPolicy : IRelationalDataRequestRetryPolicy, IDocumentDataRequestRetryPolicy
 {
 	private readonly PostgresProviderOptions _options;
 	private readonly ILogger _logger;

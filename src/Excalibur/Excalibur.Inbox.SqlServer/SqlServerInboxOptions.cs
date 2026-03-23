@@ -15,6 +15,7 @@ public sealed class SqlServerInboxOptions
 	/// Gets or sets the SQL Server connection string.
 	/// </summary>
 	/// <value>The connection string for the SQL Server database.</value>
+	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>

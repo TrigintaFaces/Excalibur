@@ -59,7 +59,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 	}
 
 	/// <inheritdoc/>
-	public CloudProviderType ProviderType => CloudProviderType.DynamoDb;
+	public CloudPersistenceProviderType ProviderType => CloudPersistenceProviderType.DynamoDb;
 
 	/// <summary>
 	/// Initializes the DynamoDB client and creates the table if needed.

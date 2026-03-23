@@ -33,6 +33,7 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 			CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
+		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);
 
 		var sql = $"SELECT StateJson, IsCompleted FROM {qualifiedTableName} WHERE SagaId = @SagaId;";
 		Parameters.Add("SagaId", sagaId);

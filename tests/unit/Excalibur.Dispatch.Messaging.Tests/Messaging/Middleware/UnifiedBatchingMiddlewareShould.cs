@@ -17,6 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Tests for the <see cref="UnifiedBatchingMiddleware" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 {
 	private readonly UnifiedBatchingMiddleware _middleware;

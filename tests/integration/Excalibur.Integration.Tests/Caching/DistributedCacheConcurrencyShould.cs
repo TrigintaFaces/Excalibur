@@ -15,6 +15,8 @@ namespace Excalibur.Integration.Tests.Caching;
 
 // Public test types for distributed cache concurrency tests (private nested types prevent HybridCache from working)
 [CacheResult(Tags = ["test-tag"])]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class ConcurrencyTestQuery : QueryBase<ConcurrencyTestResult>, IDispatchAction<ConcurrencyTestResult>
 {
 	public int Value { get; init; }
@@ -24,6 +26,8 @@ public sealed class ConcurrencyTestQuery : QueryBase<ConcurrencyTestResult>, IDi
 	public override string ActivityDescription => "Query used for distributed cache concurrency tests";
 }
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class ConcurrencyTestResult
 {
 	public int Value { get; init; }
@@ -31,6 +35,8 @@ public sealed class ConcurrencyTestResult
 
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class ConcurrencyTestQueryHandler : IActionHandler<ConcurrencyTestQuery, ConcurrencyTestResult>
 {
 	private static int _callCount;
@@ -51,6 +57,8 @@ public sealed class ConcurrencyTestQueryHandler : IActionHandler<ConcurrencyTest
 
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class ConcurrencyInvalidateCacheCommand : ICacheInvalidator, ITestCacheInvalidator, IDispatchAction
 {
 	public Guid Id => Guid.NewGuid();
@@ -92,6 +100,8 @@ public sealed class ConcurrencyInvalidateCacheCommand : ICacheInvalidator, ITest
 
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 	Justification = "Instantiated via DI")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class ConcurrencyInvalidateCacheCommandHandler : IActionHandler<ConcurrencyInvalidateCacheCommand>
 {
 	public Task HandleAsync(ConcurrencyInvalidateCacheCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -101,6 +111,8 @@ public sealed class ConcurrencyInvalidateCacheCommandHandler : IActionHandler<Co
 /// Validates distributed caching with concurrent dispatches and invalidations.
 /// </summary>
 [Collection("CachingIntegrationTests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 {
 	[Fact]
@@ -143,7 +155,7 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 				query,
 				new MessageContext(new TestDispatchAction(), provider), cancellationToken: default));
 		var firstResults =
-			await Task.WhenAll(firstTasks).ConfigureAwait(true);
+			await Task.WhenAll(firstTasks);
 
 		foreach (var r in firstResults)
 		{
@@ -151,7 +163,7 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 		}
 
 		// Ensure cache is warm before testing invalidation behavior.
-		var warmedResult = await DispatchUntilCacheHitAsync(dispatcher, query, provider, TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+		var warmedResult = await DispatchUntilCacheHitAsync(dispatcher, query, provider, TimeSpan.FromSeconds(5));
 		warmedResult.CacheHit.ShouldBeTrue();
 		var callCountBeforeInvalidation = ConcurrencyTestQueryHandler.CallCount;
 
@@ -161,7 +173,7 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 			.Select(_ => dispatcher.DispatchAsync(
 				invalidate,
 				new MessageContext(new TestDispatchAction(), provider), cancellationToken: default));
-		_ = await Task.WhenAll(invalidationTasks).ConfigureAwait(true);
+		_ = await Task.WhenAll(invalidationTasks);
 
 		// Invalidation should force at least one recomputation once we dispatch again.
 		var recomputedResult = await DispatchUntilCallCountIncreasesAsync(
@@ -169,10 +181,10 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 			query,
 			provider,
 			callCountBeforeInvalidation,
-			TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+			TimeSpan.FromSeconds(5));
 		recomputedResult.Succeeded.ShouldBeTrue();
 
-		var rewarmedResult = await DispatchUntilCacheHitAsync(dispatcher, query, provider, TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+		var rewarmedResult = await DispatchUntilCacheHitAsync(dispatcher, query, provider, TimeSpan.FromSeconds(5));
 		rewarmedResult.Succeeded.ShouldBeTrue();
 		rewarmedResult.CacheHit.ShouldBeTrue();
 		ConcurrencyTestQueryHandler.CallCount.ShouldBeGreaterThan(callCountBeforeInvalidation);
@@ -192,14 +204,14 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 			lastResult = await dispatcher.DispatchAsync<ConcurrencyTestQuery, ConcurrencyTestResult>(
 				query,
 				new MessageContext(new TestDispatchAction(), provider),
-				cancellationToken: default).ConfigureAwait(true);
+				cancellationToken: default);
 
 			if (lastResult.CacheHit)
 			{
 				return lastResult;
 			}
 
-			await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(true);
+			await Task.Delay(TimeSpan.FromMilliseconds(50));
 		}
 
 		lastResult.ShouldNotBeNull();
@@ -221,14 +233,14 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 			lastResult = await dispatcher.DispatchAsync<ConcurrencyTestQuery, ConcurrencyTestResult>(
 				query,
 				new MessageContext(new TestDispatchAction(), provider),
-				cancellationToken: default).ConfigureAwait(true);
+				cancellationToken: default);
 
 			if (ConcurrencyTestQueryHandler.CallCount > baselineCallCount)
 			{
 				return lastResult;
 			}
 
-			await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(true);
+			await Task.Delay(TimeSpan.FromMilliseconds(50));
 		}
 
 		lastResult.ShouldNotBeNull();

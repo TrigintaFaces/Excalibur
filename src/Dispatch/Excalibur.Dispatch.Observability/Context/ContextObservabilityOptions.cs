@@ -235,6 +235,12 @@ public sealed class ContextExportOptions
 	public string PrometheusScrapePath { get; set; } = "/metrics";
 
 	/// <summary>
+	/// Gets or sets a value indicating whether to enable console exporter in development.
+	/// Replaces the previous direct <c>ASPNETCORE_ENVIRONMENT</c> environment variable check.
+	/// </summary>
+	public bool EnableConsoleExporterInDevelopment { get; set; }
+
+	/// <summary>
 	/// Gets or sets a value indicating whether to export to Application Insights.
 	/// </summary>
 	public bool ExportToApplicationInsights { get; set; }

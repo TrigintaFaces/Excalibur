@@ -39,6 +39,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Firestore;
 [Trait("Component", "CDC")]
 [Trait("Provider", "Firestore")]
 [Trait("SubComponent", "StalePositionRecovery")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class FirestoreCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	/// <summary>
@@ -322,7 +324,7 @@ public sealed class FirestoreCdcStalePositionIntegrationShould : IntegrationTest
 			collectionPath: "protected/collection");
 
 		// Invoke callback
-		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken).ConfigureAwait(true);
+		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken);
 
 		// Assert: Callback was invoked with correct parameters
 		callbackInvoked.ShouldBeTrue("Recovery callback should be invoked");

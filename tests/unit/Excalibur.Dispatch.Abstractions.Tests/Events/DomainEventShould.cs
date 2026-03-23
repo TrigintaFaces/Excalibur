@@ -5,7 +5,8 @@ namespace Excalibur.Dispatch.Abstractions.Tests.Events;
 /// Verifies UUID v7 generation, OccurredAt init, metadata support, and immutability.
 /// </summary>
 [Trait("Category", "Unit")]
-public class DomainEventShould
+[Trait("Component", "Dispatch.Abstractions")]
+public sealed class DomainEventShould
 {
 	// Test implementation of abstract DomainEvent
 	private sealed record TestDomainEvent : DomainEvent

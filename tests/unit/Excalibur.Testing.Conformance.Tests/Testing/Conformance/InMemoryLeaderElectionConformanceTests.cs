@@ -27,7 +27,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "LEADER-ELECTION")]
-public class InMemoryLeaderElectionConformanceTests : LeaderElectionConformanceTestKit
+public sealed class InMemoryLeaderElectionConformanceTests : LeaderElectionConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override ILeaderElection CreateElection(string resourceName, string? candidateId)

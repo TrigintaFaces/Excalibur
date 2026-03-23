@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.EventSourcing.Tests.SqlServer;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 {
 	private const string InvalidConnectionString =

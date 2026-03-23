@@ -16,6 +16,7 @@ namespace Excalibur.EventSourcing.Tests;
 /// Unit tests for <see cref="InMemoryEventStore"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class InMemoryEventStoreShould
 {
 	#region Test Events

@@ -15,6 +15,8 @@ namespace Excalibur.Integration.Tests.Caching;
 /// Memory, Distributed, and Hybrid.
 /// </summary>
 [Collection("CachingIntegrationTests")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class CacheModeIntegrationShould
 {
 	[Theory]
@@ -65,11 +67,11 @@ public sealed class CacheModeIntegrationShould
 
 		// Act 1 — first call populates cache
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
+			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Act 2 — second call should hit cache
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
+			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Assert — cached
 		result1.Succeeded.ShouldBeTrue();
@@ -81,11 +83,11 @@ public sealed class CacheModeIntegrationShould
 		// Act 3 — invalidate by tag
 		var invalidate = new InvalidateCacheCommand { TagsToInvalidate = ["test-tag"] };
 		_ = await dispatcher.DispatchAsync(
-			invalidate, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
+			invalidate, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Act 4 — after invalidation handler should execute again
 		var result3 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default).ConfigureAwait(true);
+			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Assert — cache miss after invalidation
 		CachingTestQueryHandler.CallCount.ShouldBe(2);
@@ -139,7 +141,7 @@ public sealed class CacheModeIntegrationShould
 		var tasks = Enumerable.Range(0, 5)
 			.Select(_ => dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
 				query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default));
-		var results = await Task.WhenAll(tasks).ConfigureAwait(true);
+		var results = await Task.WhenAll(tasks);
 
 		// Assert — handler called exactly once despite concurrency
 		foreach (var r in results)

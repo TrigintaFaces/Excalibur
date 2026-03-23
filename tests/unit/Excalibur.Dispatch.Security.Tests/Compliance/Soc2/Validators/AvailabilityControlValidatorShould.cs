@@ -8,6 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2.Validators;
 /// Tests T401.12 scenarios: backup verification, health monitoring, and performance metrics validation.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class AvailabilityControlValidatorShould
 {
 	private readonly IComplianceMetrics? _fakeComplianceMetrics;

@@ -774,13 +774,13 @@ Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Authentication = 175 -> 
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Authorization = 300 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Cache = 400 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.End = 1000 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
-Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Error = 800 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
-Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.ErrorHandling = 801 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
+Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.ErrorHandling = 800 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Instrumentation = 150 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Logging = 190 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Optimization = 450 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.PostProcessing = 700 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.PreProcessing = 100 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
+Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Deduplication = 599 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Processing = 600 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.RateLimiting = 50 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Routing = 500 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
@@ -964,7 +964,6 @@ Excalibur.Dispatch.Abstractions.IConnectionPool<TConnection>.GetStatistics() -> 
 Excalibur.Dispatch.Abstractions.IConnectionPool<TConnection>.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.ConnectionPoolStatistics!>!
 Excalibur.Dispatch.Abstractions.IConnectionPool<TConnection>.IsAvailable.get -> bool
 Excalibur.Dispatch.Abstractions.IConnectionPool<TConnection>.Name.get -> string!
-Excalibur.Dispatch.Abstractions.IConnectionPool<TConnection>.ReturnConnectionAsync(TConnection! connection, bool forceDispose = false) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IConnectionPool<TConnection>.WarmupAsync(int minConnections, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.ICorrelationAware
 Excalibur.Dispatch.Abstractions.ICorrelationAware.CorrelationId.get -> System.Guid?
@@ -1068,19 +1067,19 @@ Excalibur.Dispatch.Abstractions.IInboxProcessor
 Excalibur.Dispatch.Abstractions.IInboxProcessor.DispatchPendingMessagesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Dispatch.Abstractions.IInboxProcessor.Init(string! dispatcherId) -> void
 Excalibur.Dispatch.Abstractions.IInboxStore
-Excalibur.Dispatch.Abstractions.IInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Dispatch.Abstractions.IInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
-Excalibur.Dispatch.Abstractions.IInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
 Excalibur.Dispatch.Abstractions.IInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry?>
-Excalibur.Dispatch.Abstractions.IInboxStore.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
-Excalibur.Dispatch.Abstractions.IInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxStatistics!>
 Excalibur.Dispatch.Abstractions.IInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Dispatch.Abstractions.IInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Dispatch.Abstractions.IInboxStoreAdmin
+Excalibur.Dispatch.Abstractions.IInboxStoreAdmin.CleanupAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Dispatch.Abstractions.IInboxStoreAdmin.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Dispatch.Abstractions.IInboxStoreAdmin.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Dispatch.Abstractions.IInboxStoreAdmin.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxStatistics!>
 Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator
 Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator.CleanupExpiredEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator.ClearAsync() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator.GetStatistics() -> Excalibur.Dispatch.Abstractions.DeduplicationStatistics!
 Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator.IsDuplicateAsync(string! messageId, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator.MarkProcessedAsync(string! messageId, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -2503,11 +2502,11 @@ Excalibur.Dispatch.Abstractions.Transport.IMessageBus.PublishAsync(Excalibur.Dis
 Excalibur.Dispatch.Abstractions.Transport.IMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter.InitializeAsync(Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter.InitializeAsync(Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter.IsConnected.get -> bool
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter.Name.get -> string!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter.SubscribeAsync(string! subscriptionName, System.Func<Excalibur.Dispatch.Abstractions.IDispatchMessage!, Excalibur.Dispatch.Abstractions.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!>! messageHandler, Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter.SubscribeAsync(string! subscriptionName, System.Func<Excalibur.Dispatch.Abstractions.IDispatchMessage!, Excalibur.Dispatch.Abstractions.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!>! messageHandler, Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter.UnsubscribeAsync(string! subscriptionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapterCapabilities
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapterCapabilities.SupportsPublishing.get -> bool
@@ -2517,28 +2516,28 @@ Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapterLifecycle
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapterLifecycle.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Transport.HealthCheckResult!>!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapterLifecycle.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapterLifecycle.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.EnableEncryption.get -> bool
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.EnableEncryption.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.EnableRetries.get -> bool
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.EnableRetries.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.EnableTelemetry.get -> bool
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.EnableTelemetry.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.EncryptionProviderKey.get -> string?
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.EncryptionProviderKey.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.IMessageBusOptions() -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.JitterFactor.get -> double
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.JitterFactor.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.MaxRetryAttempts.get -> int
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.MaxRetryAttempts.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.Name.get -> string!
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.Name.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.RetryDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.RetryDelay.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.RetryStrategy.get -> Excalibur.Dispatch.Abstractions.Transport.RetryStrategy
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.RetryStrategy.init -> void
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.TargetUri.get -> System.Uri?
-Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions.TargetUri.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.EnableEncryption.get -> bool
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.EnableEncryption.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.EnableRetries.get -> bool
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.EnableRetries.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.EnableTelemetry.get -> bool
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.EnableTelemetry.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.EncryptionProviderKey.get -> string?
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.EncryptionProviderKey.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.MessageBusOptions() -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.JitterFactor.get -> double
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.JitterFactor.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.MaxRetryAttempts.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.Name.get -> string!
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.Name.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.RetryDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.RetryDelay.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.RetryStrategy.get -> Excalibur.Dispatch.Abstractions.Transport.RetryStrategy
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.RetryStrategy.init -> void
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.TargetUri.get -> System.Uri?
+Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions.TargetUri.init -> void
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusProvider
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusProvider.GetAllMessageBuses() -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.Transport.IMessageBus!>!
 Excalibur.Dispatch.Abstractions.Transport.IMessageBusProvider.GetAllMessageBusNames() -> System.Collections.Generic.IEnumerable<string!>!
@@ -2593,7 +2592,7 @@ Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter
 Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter.IsRunning.get -> bool
 Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter.Name.get -> string!
 Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter.ReceiveAsync(object! transportMessage, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!
-Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter.SendAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, string! destination, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter.SendAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, string! destination, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter.TransportType.get -> string!
@@ -2644,12 +2643,12 @@ Excalibur.Dispatch.Abstractions.Transport.ITransportMessageContext.Timestamp.get
 Excalibur.Dispatch.Abstractions.Transport.ITransportProvider
 Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.Capabilities.get -> Excalibur.Dispatch.Abstractions.Transport.TransportCapabilities
 Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Transport.HealthCheckResult!>!
-Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.CreateMessageBusAdapterAsync(string! busName, Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter!>!
-Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.CreateTransportAdapterAsync(string! adapterName, Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter!>!
+Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.CreateMessageBusAdapterAsync(string! busName, Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter!>!
+Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.CreateTransportAdapterAsync(string! adapterName, Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter!>!
 Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.IsAvailable.get -> bool
 Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.Name.get -> string!
 Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.TransportType.get -> string!
-Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.ValidateAsync(Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Validation.ValidationResult!>!
+Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.ValidateAsync(Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Validation.ValidationResult!>!
 Excalibur.Dispatch.Abstractions.Transport.ITransportProvider.Version.get -> string!
 Excalibur.Dispatch.Abstractions.Transport.MessageBusRegistration
 Excalibur.Dispatch.Abstractions.Transport.MessageBusRegistration.IsRemote.get -> bool
@@ -2967,19 +2966,18 @@ static Excalibur.Dispatch.Abstractions.MessageResultExtensions.MatchAsync<TIn, T
 static Excalibur.Dispatch.Abstractions.MessageResultExtensions.Tap<T>(this Excalibur.Dispatch.Abstractions.IMessageResult<T>! result, System.Action<T>! action) -> Excalibur.Dispatch.Abstractions.IMessageResult<T>!
 static Excalibur.Dispatch.Abstractions.MessageResultExtensions.Tap<T>(this System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult<T>!>! resultTask, System.Action<T>! action) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult<T>!>!
 static Excalibur.Dispatch.Abstractions.MessageResultExtensions.TapAsync<T>(this Excalibur.Dispatch.Abstractions.IMessageResult<T>! result, System.Func<T, System.Threading.Tasks.Task!>! action) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult<T>!>!
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.CompareByTimestamp(System.Guid uuid1, System.Guid uuid2, bool assumeGuidEndianness = true) -> int
+static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.CompareByTimestamp(System.Guid uuid1, System.Guid uuid2) -> int
 static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.ExtractTimestamp(string! uuidString) -> System.DateTimeOffset?
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.ExtractTimestamp(System.Guid uuid, bool assumeGuidEndianness = true) -> System.DateTimeOffset?
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateGuid(bool matchGuidEndianness = true) -> System.Guid
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateGuids(int count, bool matchGuidEndianness = true) -> System.Guid[]!
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateGuidWithTimestamp(System.DateTimeOffset timestamp, bool matchGuidEndianness = true) -> System.Guid
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateSequentialGuids(int count, int intervalMs = 1, System.DateTimeOffset? startTime = null, bool matchGuidEndianness = true) -> System.Collections.Generic.IEnumerable<System.Guid>!
+static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.ExtractTimestamp(System.Guid uuid) -> System.DateTimeOffset?
+static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateGuid() -> System.Guid
+static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateGuids(int count) -> System.Guid[]!
+static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateSequentialGuids(int count, int intervalMs = 1) -> System.Collections.Generic.IEnumerable<System.Guid>!
 static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateString() -> string!
 static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.GenerateStrings(int count) -> string![]!
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.IsValidUuid7Guid(System.Guid guidValue, bool assumeGuidEndianness = true) -> bool
+static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.IsValidUuid7Guid(System.Guid guidValue) -> bool
 static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.IsValidUuid7String(string? uuidString) -> bool
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.ToGuid(string! uuidString, bool matchGuidEndianness = true) -> System.Guid
-static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.ToUuid7String(System.Guid guidValue, bool assumeGuidEndianness = true) -> string?
+static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.ToGuid(string! uuidString) -> System.Guid
+static Excalibur.Dispatch.Abstractions.Messaging.Uuid7Extensions.ToUuid7String(System.Guid guidValue) -> string?
 static Excalibur.Dispatch.Abstractions.MetadataBuilderCollectionExtensions.AddAttribute(this Excalibur.Dispatch.Abstractions.IMessageMetadataBuilder! builder, string! key, object! value) -> Excalibur.Dispatch.Abstractions.IMessageMetadataBuilder!
 static Excalibur.Dispatch.Abstractions.MetadataBuilderCollectionExtensions.AddAttributes(this Excalibur.Dispatch.Abstractions.IMessageMetadataBuilder! builder, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, object!>>! attributes) -> Excalibur.Dispatch.Abstractions.IMessageMetadataBuilder!
 static Excalibur.Dispatch.Abstractions.MetadataBuilderCollectionExtensions.AddHeaders(this Excalibur.Dispatch.Abstractions.IMessageMetadataBuilder! builder, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, string!>>! headers) -> Excalibur.Dispatch.Abstractions.IMessageMetadataBuilder!
@@ -3172,3 +3170,19 @@ virtual Excalibur.Dispatch.Abstractions.DomainEvent.OccurredAt.get -> System.Dat
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.OccurredAt.init -> void
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.Version.get -> long
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.Version.init -> void
+Excalibur.Dispatch.Abstractions.Versioning.IMessageVersionMapper
+Excalibur.Dispatch.Abstractions.Versioning.IMessageVersionMapper.CanMap(string! messageType, int fromVersion, int toVersion) -> bool
+Excalibur.Dispatch.Abstractions.Versioning.IMessageVersionMapper.Map(object! message, string! messageType, int fromVersion, int toVersion) -> object!
+Excalibur.Dispatch.Abstractions.Messaging.SagaState.ProcessedEventIds.get -> System.Collections.Generic.ISet<string!>!
+Excalibur.Dispatch.Abstractions.Messaging.SagaState.TryMarkEventProcessed(string! eventId) -> bool
+Excalibur.Dispatch.Abstractions.Messaging.SagaState.Version.get -> long
+Excalibur.Dispatch.Abstractions.Messaging.SagaState.Version.set -> void
+Excalibur.Dispatch.Abstractions.Outbox.IOutboxWriter
+Excalibur.Dispatch.Abstractions.Outbox.IOutboxWriter.WriteAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, string? destination, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode
+Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode.EventuallyConsistent = 0 -> Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode
+Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode.Transactional = 1 -> Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode
+Excalibur.Dispatch.Abstractions.Outbox.OutboxWriterExtensions
+static Excalibur.Dispatch.Abstractions.Outbox.OutboxWriterExtensions.WriteScheduledAsync(this Excalibur.Dispatch.Abstractions.Outbox.IOutboxWriter! writer, Excalibur.Dispatch.Abstractions.IDispatchMessage! message, string? destination, System.DateTimeOffset scheduledAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Abstractions.IConnectionPool<TConnection>.ReturnConnectionAsync(TConnection! connection, bool forceDispose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator.ClearAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

@@ -27,6 +27,7 @@ public sealed class EventSubscriptionManager : IEventSubscriptionManager
 	private readonly IEventStore _eventStore;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly ILoggerFactory _loggerFactory;
+	private volatile bool _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventSubscriptionManager"/> class.
@@ -69,5 +70,41 @@ public sealed class EventSubscriptionManager : IEventSubscriptionManager
 	{
 		ArgumentException.ThrowIfNullOrEmpty(name);
 		return _subscriptions.GetValueOrDefault(name);
+	}
+
+	/// <inheritdoc />
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		List<Exception>? exceptions = null;
+
+		foreach (var kvp in _subscriptions)
+		{
+			if (kvp.Value is IAsyncDisposable asyncDisposable)
+			{
+				try
+				{
+					await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					exceptions ??= [];
+					exceptions.Add(ex);
+				}
+			}
+		}
+
+		_subscriptions.Clear();
+
+		if (exceptions is { Count: > 0 })
+		{
+			throw new AggregateException("One or more subscriptions failed to dispose.", exceptions);
+		}
 	}
 }

@@ -26,12 +26,9 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	private readonly LeaderElectionOptions _options;
 	private readonly ILogger<RedisLeaderElection> _logger;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _lock = new();
-
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
-
 #endif
 
 	private CancellationTokenSource? _renewalCts;
@@ -162,7 +159,7 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 				{
 					await _renewalTask.ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
 					// Expected
 				}
@@ -286,7 +283,7 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 					}
 				}
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

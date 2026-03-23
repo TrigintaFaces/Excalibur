@@ -18,13 +18,13 @@ public sealed class OrderedEventProcessorExtendedShould
 		{
 			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
 			results.Add(1);
-		}).ConfigureAwait(false);
+		}, CancellationToken.None).ConfigureAwait(false);
 
 		await processor.ProcessAsync(() =>
 		{
 			results.Add(2);
 			return Task.CompletedTask;
-		}).ConfigureAwait(false);
+		}, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		results.ShouldBe(ExpectedSequence);
@@ -38,7 +38,7 @@ public sealed class OrderedEventProcessorExtendedShould
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => processor.ProcessAsync(null!)).ConfigureAwait(false);
+			() => processor.ProcessAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -50,7 +50,7 @@ public sealed class OrderedEventProcessorExtendedShould
 
 		// Act & Assert
 		await Should.ThrowAsync<ObjectDisposedException>(
-			() => processor.ProcessAsync(() => Task.CompletedTask)).ConfigureAwait(false);
+			() => processor.ProcessAsync(() => Task.CompletedTask, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -72,7 +72,7 @@ public sealed class OrderedEventProcessorExtendedShould
 
 		// Act & Assert
 		await Should.ThrowAsync<InvalidOperationException>(
-			() => processor.ProcessAsync(() => throw new InvalidOperationException("test error"))).ConfigureAwait(false);
+			() => processor.ProcessAsync(() => throw new InvalidOperationException("test error"), CancellationToken.None)).ConfigureAwait(false);
 
 		// Processor should still work after exception
 		var processed = false;
@@ -80,7 +80,7 @@ public sealed class OrderedEventProcessorExtendedShould
 		{
 			processed = true;
 			return Task.CompletedTask;
-		}).ConfigureAwait(false);
+		}, CancellationToken.None).ConfigureAwait(false);
 
 		processed.ShouldBeTrue();
 	}
@@ -96,4 +96,3 @@ public sealed class OrderedEventProcessorExtendedShould
 		await processor.DisposeAsync().ConfigureAwait(false);
 	}
 }
-

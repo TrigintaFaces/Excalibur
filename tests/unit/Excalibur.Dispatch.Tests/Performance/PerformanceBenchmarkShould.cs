@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Performance;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PerformanceBenchmarkShould
 {
 	private static PerformanceSnapshot CreateEmptySnapshot() =>

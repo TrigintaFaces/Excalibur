@@ -24,7 +24,7 @@ namespace Excalibur.Saga.Hosting;
 /// to be registered in the service collection.
 /// </para>
 /// </remarks>
-public sealed partial class SagaTimeoutCleanupService : BackgroundService
+internal sealed partial class SagaTimeoutCleanupService : BackgroundService
 {
 	private readonly Abstractions.ISagaStateStore _stateStore;
 	private readonly Abstractions.ISagaStateStoreQuery _stateStoreQuery;
@@ -94,7 +94,7 @@ public sealed partial class SagaTimeoutCleanupService : BackgroundService
 			.GetByStatusAsync(SagaStatus.Running, _options.BatchSize, cancellationToken)
 			.ConfigureAwait(false);
 
-		var cutoff = DateTime.UtcNow - _options.TimeoutThreshold;
+		var cutoff = DateTimeOffset.UtcNow - _options.TimeoutThreshold;
 		var cleanedUp = 0;
 
 		foreach (var saga in runningSagas)
@@ -108,7 +108,7 @@ public sealed partial class SagaTimeoutCleanupService : BackgroundService
 			{
 				saga.Status = SagaStatus.Expired;
 				saga.ErrorMessage = $"Saga timed out after {_options.TimeoutThreshold.TotalHours:F1} hours of inactivity.";
-				saga.CompletedAt = DateTime.UtcNow;
+				saga.CompletedAt = DateTimeOffset.UtcNow;
 
 				await _stateStore.UpdateStateAsync(saga, cancellationToken).ConfigureAwait(false);
 				cleanedUp++;

@@ -7,7 +7,7 @@ namespace Excalibur.Cdc.Postgres;
 /// Exception thrown when the Postgres CDC processor detects a stale WAL position
 /// that cannot be recovered automatically.
 /// </summary>
-public sealed class PostgresStalePositionException : Exception
+public sealed class PostgresStalePositionException : Excalibur.Cdc.CdcStalePositionException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresStalePositionException"/> class.
@@ -62,24 +62,9 @@ public sealed class PostgresStalePositionException : Exception
 	}
 
 	/// <summary>
-	/// Gets the event arguments containing details about the stale position scenario.
+	/// Gets the stale WAL position that was detected, as a typed Postgres position.
 	/// </summary>
-	public CdcPositionResetEventArgs? EventArgs { get; }
-
-	/// <summary>
-	/// Gets the processor ID that detected the stale position.
-	/// </summary>
-	public string? ProcessorId => EventArgs?.ProcessorId;
-
-	/// <summary>
-	/// Gets the reason code for the stale position.
-	/// </summary>
-	public string? ReasonCode => EventArgs?.ReasonCode;
-
-	/// <summary>
-	/// Gets the stale WAL position that was detected.
-	/// </summary>
-	public PostgresCdcPosition? StalePosition => EventArgs?.StalePosition != null && EventArgs.StalePosition.Length >= 8
+	public PostgresCdcPosition? StaleWalPosition => EventArgs?.StalePosition != null && EventArgs.StalePosition.Length >= 8
 		? new PostgresCdcPosition(BitConverter.ToUInt64(EventArgs.StalePosition, 0))
 		: null;
 

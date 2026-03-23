@@ -21,18 +21,19 @@ public static class TimeProviderUtilities
 	}
 
 	/// <summary>
-	/// Creates a cancellation token that cancels after the specified delay.
+	/// Creates a <see cref="CancellationTokenSource"/> that cancels after the specified delay.
+	/// The caller is responsible for disposing the returned <see cref="CancellationTokenSource"/>.
 	/// </summary>
 	/// <param name="timeProvider"> The TimeProvider instance. </param>
 	/// <param name="delay"> The delay before cancellation. </param>
-	/// <returns> A cancellation token that cancels after the delay. </returns>
-	public static CancellationToken CreateCancellationToken(this TimeProvider timeProvider, TimeSpan delay)
+	/// <returns> A <see cref="CancellationTokenSource"/> that cancels after the delay, or <see langword="null"/> if <paramref name="delay"/> is <see cref="Timeout.InfiniteTimeSpan"/>. </returns>
+	public static CancellationTokenSource? CreateTimeoutCancellationTokenSource(this TimeProvider timeProvider, TimeSpan delay)
 	{
 		ArgumentNullException.ThrowIfNull(timeProvider);
 
 		if (delay == Timeout.InfiniteTimeSpan)
 		{
-			return CancellationToken.None;
+			return null;
 		}
 
 		var cts = new CancellationTokenSource();
@@ -42,10 +43,10 @@ public static class TimeProviderUtilities
 			delay,
 			Timeout.InfiniteTimeSpan);
 
-		// Dispose timer when cancellation token is disposed (requires .NET 8+ pattern)
+		// Dispose timer when CTS is cancelled
 		_ = cts.Token.Register(timer.Dispose);
 
-		return cts.Token;
+		return cts;
 	}
 
 	/// <summary>
@@ -65,7 +66,7 @@ public static class TimeProviderUtilities
 		}
 
 		// Use TaskCompletionSource with timer for TimeProvider-based delay
-		var tcs = new TaskCompletionSource<bool>();
+		var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var timer = timeProvider.CreateTimer(
 			_ => tcs.TrySetResult(true),
 			state: null,

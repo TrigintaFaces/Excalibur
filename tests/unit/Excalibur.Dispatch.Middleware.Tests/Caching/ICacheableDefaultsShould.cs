@@ -12,6 +12,7 @@ using MsOptions = Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ICacheableDefaultsShould : UnitTestBase
 {
 	[Fact]

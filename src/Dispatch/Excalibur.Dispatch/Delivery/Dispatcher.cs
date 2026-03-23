@@ -45,7 +45,7 @@ internal sealed class Dispatcher(
 	ITransportContextProvider? transportContextProvider = null,
 	IServiceProvider? serviceProvider = null,
 	LocalMessageBus? localMessageBus = null,
-	IDictionary<string, IMessageBusOptions>? busOptionsMap = null,
+	IDictionary<string, MessageBusOptions>? busOptionsMap = null,
 	IDispatchRouter? dispatchRouter = null,
 	IOptions<DispatchOptions>? dispatchOptions = null) : IDispatcher, IStreamingDispatcher, IProgressDispatcher, IDirectLocalDispatcher
 {
@@ -2012,7 +2012,7 @@ internal sealed class Dispatcher(
 
 	private static bool IsDirectLocalActionPathEnabled(
 		IDispatchMiddlewareInvoker? middlewareInvoker,
-		IDictionary<string, IMessageBusOptions>? busOptionsMap)
+		IDictionary<string, MessageBusOptions>? busOptionsMap)
 	{
 		if (middlewareInvoker is not DispatchMiddlewareInvoker)
 		{

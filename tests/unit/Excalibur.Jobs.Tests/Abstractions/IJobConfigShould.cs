@@ -6,6 +6,7 @@ namespace Excalibur.Jobs.Tests.Abstractions;
 /// Unit tests for IJobConfig interface contract.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class IJobConfigShould : UnitTestBase
 {
 	[Fact]

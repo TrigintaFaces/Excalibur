@@ -568,7 +568,7 @@ public abstract class DeduplicatorConformanceTestKit
 			}
 
 			// Act
-			await deduplicator.ClearAsync().ConfigureAwait(false);
+			await deduplicator.ClearAsync(cts.Token).ConfigureAwait(false);
 
 			// Assert - message should no longer be duplicate
 			var isDuplicateAfter = await deduplicator.IsDuplicateAsync(messageId, TimeSpan.FromMinutes(5), cts.Token).ConfigureAwait(false);
@@ -609,7 +609,7 @@ public abstract class DeduplicatorConformanceTestKit
 			}
 
 			// Act
-			await deduplicator.ClearAsync().ConfigureAwait(false);
+			await deduplicator.ClearAsync(cts.Token).ConfigureAwait(false);
 
 			// Assert
 			var statsAfter = deduplicator.GetStatistics();

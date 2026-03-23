@@ -64,6 +64,10 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 	{
 		ArgumentNullException.ThrowIfNull(handler);
 
+		// Use a separate CTS for in-flight message processing so that handlers can
+		// complete commit even after the subscription token is cancelled.
+		using var messageProcessingCts = new CancellationTokenSource();
+
 		_consumer.Subscribe(Source);
 		LogSubscriptionStarted(Source);
 
@@ -76,7 +80,7 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 				{
 					consumeResult = _consumer.Consume(cancellationToken);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
 					break;
 				}
@@ -91,7 +95,7 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 
 				try
 				{
-					var action = await handler(received, cancellationToken).ConfigureAwait(false);
+					var action = await handler(received, messageProcessingCts.Token).ConfigureAwait(false);
 
 					switch (action)
 					{
@@ -119,7 +123,7 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 							break;
 					}
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
 					break;
 				}
@@ -131,6 +135,9 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 		}
 		finally
 		{
+			// Cancel in-flight message processing
+			await messageProcessingCts.CancelAsync().ConfigureAwait(false);
+
 			_consumer.Close();
 			LogSubscriptionStopped(Source);
 		}

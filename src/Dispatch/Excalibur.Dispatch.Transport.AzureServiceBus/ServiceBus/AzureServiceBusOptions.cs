@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations;
 
 using Azure.Messaging.ServiceBus;
 
-using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.CloudEvents;
 
 namespace Excalibur.Dispatch.Transport.Azure;
 
@@ -39,6 +39,7 @@ public sealed class AzureServiceBusOptions
 	/// <value>
 	/// The connection string for Azure Service Bus.
 	/// </value>
+	[Required]
 	public string? ConnectionString { get; set; }
 
 	/// <summary>
@@ -73,7 +74,7 @@ public sealed class AzureServiceBusOptions
 	/// <value>
 	/// The CloudEvents mode for message formatting. Default value is Structured.
 	/// </value>
-	public CloudEventsMode CloudEventsMode { get; set; } = CloudEventsMode.Structured;
+	public CloudEventMode CloudEventsMode { get; set; } = CloudEventMode.Structured;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether enables encryption when sending or receiving messages.

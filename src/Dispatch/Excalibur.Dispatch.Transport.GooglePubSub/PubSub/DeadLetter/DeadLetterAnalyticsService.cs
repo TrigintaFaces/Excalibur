@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Service for analyzing dead letter queue messages and providing insights.
 /// </summary>
-internal class DeadLetterAnalyticsService : BackgroundService, IDeadLetterAnalyticsService
+internal sealed class DeadLetterAnalyticsService : BackgroundService, IDeadLetterAnalyticsService
 {
 	private readonly ILogger<DeadLetterAnalyticsService> _logger;
 	private readonly DeadLetterAnalyticsOptions _options;
@@ -173,7 +173,7 @@ internal class DeadLetterAnalyticsService : BackgroundService, IDeadLetterAnalyt
 				await Task.Delay(_options.CollectionInterval, stoppingToken).ConfigureAwait(false);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}

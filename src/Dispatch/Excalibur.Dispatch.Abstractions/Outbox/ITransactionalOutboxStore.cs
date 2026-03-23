@@ -9,6 +9,11 @@ namespace Excalibur.Dispatch.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
+/// <strong>When to use:</strong> Implement this interface when your outbox store is backed by a
+/// relational database that supports transactions (SQL Server, PostgreSQL) and you need exactly-once
+/// delivery guarantees. If your store only needs at-least-once delivery, use <see cref="IOutboxStore"/> alone.
+/// </para>
+/// <para>
 /// This interface enables the <see cref="Options.Delivery.OutboxDeliveryGuarantee.TransactionalWhenApplicable"/>
 /// delivery guarantee level by providing a mechanism to atomically dispatch a message and mark it as sent
 /// within a single database transaction.
@@ -17,6 +22,16 @@ namespace Excalibur.Dispatch.Abstractions;
 /// Implementations should return <see langword="true"/> for <see cref="SupportsTransactions"/>
 /// only when they can guarantee atomic dispatch-and-mark operations. In-memory stores and stores
 /// that use different databases for persistence and transport should return <see langword="false"/>.
+/// </para>
+/// <para>
+/// <strong>Interface hierarchy:</strong>
+/// <list type="bullet">
+/// <item><see cref="IOutboxStore"/> -- Core polling-based outbox (stage, get unsent, mark sent/failed)</item>
+/// <item><see cref="IOutboxStoreAdmin"/> -- Admin operations (failed retrieval, scheduled messages, cleanup, stats)</item>
+/// <item><see cref="ITransactionalOutboxStore"/> -- Atomic batch operations for exactly-once delivery</item>
+/// <item><see cref="IMultiTransportOutboxStore"/> -- Per-transport delivery tracking for fan-out scenarios</item>
+/// <item><c>IEventSourcedOutboxStore</c> (in Excalibur.EventSourcing) -- Event sourcing integration with <c>IDbTransaction</c></item>
+/// </list>
 /// </para>
 /// </remarks>
 public interface ITransactionalOutboxStore : IOutboxStore

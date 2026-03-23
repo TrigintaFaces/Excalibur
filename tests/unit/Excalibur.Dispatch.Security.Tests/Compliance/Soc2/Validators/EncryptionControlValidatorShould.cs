@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2.Validators;
 /// Unit tests for <see cref="EncryptionControlValidator"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class EncryptionControlValidatorShould
 {
 	private readonly IEncryptionProvider _fakeEncryptionProvider;

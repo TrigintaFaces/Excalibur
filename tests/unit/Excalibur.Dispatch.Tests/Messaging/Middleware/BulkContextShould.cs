@@ -52,16 +52,10 @@ public sealed class BulkContextShould
 	}
 
 	[Fact]
-	public void DefaultToSafeValuesWhenNoPrimaryContext()
+	public void ThrowWhenCreatedWithEmptyContextList()
 	{
-		// Act
-		var sut = new BulkContext([]);
-
-		// Assert
-		sut.Contexts.Count.ShouldBe(0);
-		sut.RoutingDecision.ShouldNotBeNull();
-		sut.RoutingDecision.IsSuccess.ShouldBeTrue();
-		sut.Success.ShouldBeTrue();
+		// Act & Assert -- T.2: empty context list is a framework bug
+		Should.Throw<InvalidOperationException>(() => new BulkContext([]));
 	}
 
 	[Fact]
@@ -99,7 +93,8 @@ public sealed class BulkContextShould
 		var validation = SerializableValidationResult.Success();
 		var authorization = Excalibur.Dispatch.Abstractions.AuthorizationResult.Success();
 		var routing = RoutingDecision.Success("local", []);
-		var sut = new BulkContext([]);
+		var primary = CreatePrimaryContext();
+		var sut = new BulkContext([primary]);
 		sut.ValidationResult = validation;
 		sut.AuthorizationResult = authorization;
 		sut.RoutingDecision = routing;
@@ -126,7 +121,8 @@ public sealed class BulkContextShould
 	public void ProxyItemsBehavior()
 	{
 		// Arrange
-		var sut = new BulkContext([]);
+		var primary = CreatePrimaryContext();
+		var sut = new BulkContext([primary]);
 
 		// Act
 		sut.SetItem("count", 123);
@@ -144,10 +140,11 @@ public sealed class BulkContextShould
 	}
 
 	[Fact]
-	public void CreateFreshMessageContextWhenPrimaryContextMissing()
+	public void CreateChildContextFromPrimaryContext()
 	{
 		// Arrange
-		var sut = new BulkContext([]);
+		var primary = CreatePrimaryContext();
+		var sut = new BulkContext([primary]);
 
 		// Act
 		var child = sut.CreateChildContext();

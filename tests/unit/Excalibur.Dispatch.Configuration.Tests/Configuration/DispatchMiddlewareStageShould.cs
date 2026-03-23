@@ -18,7 +18,7 @@ public sealed class DispatchMiddlewareStageShould
 		// Arrange
 		var values = Enum.GetValues<DispatchMiddlewareStage>();
 
-		// Assert - canonical enum has 17 members (including ErrorHandling alias)
+		// Assert - canonical enum has 17 members (Sprint 697 T.17 added Deduplication=599)
 		values.Length.ShouldBe(17);
 		values.ShouldContain(DispatchMiddlewareStage.Start);
 		values.ShouldContain(DispatchMiddlewareStage.RateLimiting);
@@ -32,9 +32,9 @@ public sealed class DispatchMiddlewareStageShould
 		values.ShouldContain(DispatchMiddlewareStage.Cache);
 		values.ShouldContain(DispatchMiddlewareStage.Optimization);
 		values.ShouldContain(DispatchMiddlewareStage.Routing);
+		values.ShouldContain(DispatchMiddlewareStage.Deduplication);
 		values.ShouldContain(DispatchMiddlewareStage.Processing);
 		values.ShouldContain(DispatchMiddlewareStage.PostProcessing);
-		values.ShouldContain(DispatchMiddlewareStage.Error);
 		values.ShouldContain(DispatchMiddlewareStage.ErrorHandling);
 		values.ShouldContain(DispatchMiddlewareStage.End);
 	}
@@ -85,7 +85,7 @@ public sealed class DispatchMiddlewareStageShould
 	public void ErrorHandling_HasExpectedValue()
 	{
 		// Assert
-		((int)DispatchMiddlewareStage.ErrorHandling).ShouldBe(801);
+		((int)DispatchMiddlewareStage.ErrorHandling).ShouldBe(800);
 	}
 
 	[Fact]
@@ -114,7 +114,6 @@ public sealed class DispatchMiddlewareStageShould
 	[InlineData(DispatchMiddlewareStage.Authorization)]
 	[InlineData(DispatchMiddlewareStage.Processing)]
 	[InlineData(DispatchMiddlewareStage.PostProcessing)]
-	[InlineData(DispatchMiddlewareStage.Error)]
 	[InlineData(DispatchMiddlewareStage.ErrorHandling)]
 	[InlineData(DispatchMiddlewareStage.End)]
 	public void BeDefinedForAllValues(DispatchMiddlewareStage stage)
@@ -133,7 +132,7 @@ public sealed class DispatchMiddlewareStageShould
 		(DispatchMiddlewareStage.Validation < DispatchMiddlewareStage.Authorization).ShouldBeTrue();
 		(DispatchMiddlewareStage.Authorization < DispatchMiddlewareStage.Processing).ShouldBeTrue();
 		(DispatchMiddlewareStage.Processing < DispatchMiddlewareStage.PostProcessing).ShouldBeTrue();
-		(DispatchMiddlewareStage.PostProcessing < DispatchMiddlewareStage.Error).ShouldBeTrue();
-		(DispatchMiddlewareStage.Error < DispatchMiddlewareStage.End).ShouldBeTrue();
+		(DispatchMiddlewareStage.PostProcessing < DispatchMiddlewareStage.ErrorHandling).ShouldBeTrue();
+		(DispatchMiddlewareStage.ErrorHandling < DispatchMiddlewareStage.End).ShouldBeTrue();
 	}
 }

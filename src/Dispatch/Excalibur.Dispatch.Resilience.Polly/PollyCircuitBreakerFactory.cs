@@ -22,7 +22,7 @@ public partial class PollyCircuitBreakerFactory(CircuitBreakerOptions? defaultOp
 	: ICircuitBreakerFactory, IAsyncDisposable
 {
 	private readonly ConcurrentDictionary<string, PollyCircuitBreakerAdapter> _circuitBreakers = new(StringComparer.Ordinal);
-	private readonly ConcurrentBag<Task> _pendingDisposals = [];
+	private ConcurrentBag<Task> _pendingDisposals = [];
 	private readonly CircuitBreakerOptions _defaultOptions = defaultOptions ?? new CircuitBreakerOptions();
 	private readonly ILogger<PollyCircuitBreakerFactory> _logger = logger ?? NullLogger<PollyCircuitBreakerFactory>.Instance;
 
@@ -66,6 +66,17 @@ public partial class PollyCircuitBreakerFactory(CircuitBreakerOptions? defaultOp
 		if (_circuitBreakers.TryRemove(name, out var circuitBreaker))
 		{
 			_pendingDisposals.Add(circuitBreaker.DisposeAsync().AsTask());
+
+			// Atomic drain: swap the bag to avoid ToArray()+Clear() race
+			var drained = Interlocked.Exchange(ref _pendingDisposals, new ConcurrentBag<Task>());
+			foreach (var t in drained)
+			{
+				if (!t.IsCompleted)
+				{
+					_pendingDisposals.Add(t);
+				}
+			}
+
 			LogCircuitBreakerRemoved(name);
 			return true;
 		}
@@ -76,9 +87,10 @@ public partial class PollyCircuitBreakerFactory(CircuitBreakerOptions? defaultOp
 	/// <inheritdoc />
 	public async ValueTask DisposeAsync()
 	{
+		var finalPending = Interlocked.Exchange(ref _pendingDisposals, new ConcurrentBag<Task>());
 		var disposeTasks = _circuitBreakers.Values
 			.Select(static cb => cb.DisposeAsync().AsTask())
-			.Concat(_pendingDisposals);
+			.Concat(finalPending);
 		await Task.WhenAll(disposeTasks).ConfigureAwait(false);
 
 		_circuitBreakers.Clear();

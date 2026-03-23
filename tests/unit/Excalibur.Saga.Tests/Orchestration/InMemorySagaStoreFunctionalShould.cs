@@ -26,6 +26,7 @@ internal sealed class TestSagaState : AbstractSagaState
 /// saga state persistence, data round-trips, concurrent access, and overwrite semantics.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class InMemorySagaStoreFunctionalShould
 {
 	[Fact]
@@ -80,12 +81,14 @@ public sealed class InMemorySagaStoreFunctionalShould
 			SagaId = sagaId,
 			Status = "Running",
 			CurrentStepIndex = 1,
+			Version = 0,
 		};
 		var state2 = new TestSagaState
 		{
 			SagaId = sagaId,
 			Status = "Completed",
 			CurrentStepIndex = 5,
+			Version = 1,
 		};
 
 		// Act

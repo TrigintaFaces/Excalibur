@@ -27,13 +27,9 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 	private readonly SemaphoreSlim _receiveLock;
 	private readonly Dictionary<string, CancellationTokenSource> _activePolling;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _pollingLock = new();
-
+	private readonly System.Threading.Lock _pollingLock = new();
 #else
-
 	private readonly object _pollingLock = new();
-
 #endif
 
 	private long _totalReceiveOperations;
@@ -65,7 +61,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 	}
 
 	/// <inheritdoc />
-	public PollingStatus Status { get; private set; } = PollingStatus.Inactive;
+	public SqsPollingStatus Status { get; private set; } = SqsPollingStatus.Inactive;
 
 	/// <inheritdoc />
 	public async ValueTask<IReadOnlyList<Message>> ReceiveMessagesAsync(
@@ -221,7 +217,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 
 			var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 			_activePolling[queueUrl] = cts;
-			Status = PollingStatus.Active;
+			Status = SqsPollingStatus.Active;
 		}
 
 		LogPollingStarted(queueUrl);
@@ -261,7 +257,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 				_ = _activePolling.Remove(queueUrl);
 				if (_activePolling.Count == 0)
 				{
-					Status = PollingStatus.Inactive;
+					Status = SqsPollingStatus.Inactive;
 				}
 			}
 
@@ -396,12 +392,12 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 	{
 		lock (_pollingLock)
 		{
-			if (Status == PollingStatus.Active)
+			if (Status == SqsPollingStatus.Active)
 			{
 				return Task.CompletedTask;
 			}
 
-			Status = PollingStatus.Active;
+			Status = SqsPollingStatus.Active;
 			LogReceiverStarted();
 		}
 
@@ -414,12 +410,12 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 		List<CancellationTokenSource> sourcesToCancel;
 		lock (_pollingLock)
 		{
-			if (Status != PollingStatus.Active)
+			if (Status != SqsPollingStatus.Active)
 			{
 				return;
 			}
 
-			Status = PollingStatus.Stopping;
+			Status = SqsPollingStatus.Stopping;
 			sourcesToCancel = [.. _activePolling.Values];
 		}
 
@@ -440,7 +436,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 		lock (_pollingLock)
 		{
 			_activePolling.Clear();
-			Status = PollingStatus.Inactive;
+			Status = SqsPollingStatus.Inactive;
 			LogReceiverStopped();
 		}
 	}
@@ -450,7 +446,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 	{
 		lock (_pollingLock)
 		{
-			Status = PollingStatus.Stopping;
+			Status = SqsPollingStatus.Stopping;
 
 			foreach (var cts in _activePolling.Values)
 			{

@@ -21,6 +21,7 @@ namespace Excalibur.EventSourcing.Snapshots;
 /// </remarks>
 public sealed class TimeBasedSnapshotStrategy : ISnapshotStrategy
 {
+	private const int MaxTrackedAggregates = 4096;
 	private readonly TimeSpan _interval;
 	private readonly ConcurrentDictionary<string, DateTimeOffset> _lastSnapshotTimes;
 
@@ -49,25 +50,40 @@ public sealed class TimeBasedSnapshotStrategy : ISnapshotStrategy
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
 
-		var now = DateTimeOffset.UtcNow;
+		var nowTicks = DateTimeOffset.UtcNow.Ticks;
+		var intervalTicks = _interval.Ticks;
 
-		// Check if we have a last snapshot time for this aggregate
-		if (_lastSnapshotTimes.TryGetValue(aggregate.Id, out var lastSnapshotTime))
+		// Bounded growth guard: when at capacity, always recommend snapshot
+		// to avoid OOM. Extra snapshots are harmless; OOM is not.
+		if (_lastSnapshotTimes.Count >= MaxTrackedAggregates &&
+			!_lastSnapshotTimes.ContainsKey(aggregate.Id))
 		{
-			// Check if enough time has passed
-			if (now - lastSnapshotTime >= _interval)
-			{
-				// Update the last snapshot time
-				_lastSnapshotTimes[aggregate.Id] = now;
-				return true;
-			}
-
-			return false;
+			return true;
 		}
 
-		// First time seeing this aggregate, create snapshot
-		_lastSnapshotTimes[aggregate.Id] = now;
-		return true;
+		// Use AddOrUpdate with atomic comparison to avoid TOCTOU race
+		var shouldSnapshot = false;
+		_lastSnapshotTimes.AddOrUpdate(
+			aggregate.Id,
+			_ =>
+			{
+				// First time seeing this aggregate, create snapshot
+				shouldSnapshot = true;
+				return new DateTimeOffset(nowTicks, TimeSpan.Zero);
+			},
+			(_, lastSnapshotTime) =>
+			{
+				// Check if enough time has passed using atomic compare
+				if (nowTicks - lastSnapshotTime.Ticks >= intervalTicks)
+				{
+					shouldSnapshot = true;
+					return new DateTimeOffset(nowTicks, TimeSpan.Zero);
+				}
+
+				return lastSnapshotTime;
+			});
+
+		return shouldSnapshot;
 	}
 
 	/// <summary>

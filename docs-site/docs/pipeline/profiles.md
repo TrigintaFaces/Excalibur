@@ -109,7 +109,7 @@ builder.Services.AddDispatch(dispatch =>
 Full security pipeline for external/partner inputs. Includes rate limiting, authentication, input sanitization, and comprehensive audit logging.
 
 **Middleware Order:**
-1. `RateLimitingMiddleware` - Throttle external requests
+1. `ThrottlingMiddleware` - Throttle external requests
 2. `AuthenticationMiddleware` - Verify identity
 3. `TenantIdentityMiddleware` - Multi-tenancy context
 4. `InputSanitizationMiddleware` - Sanitize inputs

@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport;
 /// Transport security is enforced at connection time rather than per-message to minimize overhead.
 /// </para>
 /// </remarks>
-public class TransportSecurityOptions
+public sealed class TransportSecurityOptions
 {
 	/// <summary>
 	/// Gets or sets a value indicating whether TLS is required for the transport connection.

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Data.Redis.Tests.Redis;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class RedisProviderOptionsValidatorShould
 {
 	// RedisProviderOptionsValidator is internal with no InternalsVisibleTo for this test project.

@@ -9,6 +9,8 @@ using System.Text.Json;
 using Excalibur.Data.Redis.Diagnostics;
 using Excalibur.Dispatch.Abstractions;
 
+using Excalibur.Inbox.Observability;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -24,7 +26,7 @@ namespace Excalibur.Inbox.Redis;
 /// Keys are formatted as: {KeyPrefix}:{messageId}:{handlerType}
 /// Uses Redis TTL for automatic cleanup of processed entries.
 /// </remarks>
-public sealed partial class RedisInboxStore : IInboxStore, IAsyncDisposable
+public sealed partial class RedisInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
 	private static readonly CompositeFormat EntryAlreadyExistsFormat =
 		CompositeFormat.Parse("Inbox entry already exists for message '{0}' and handler '{1}'.");
@@ -95,6 +97,8 @@ public sealed partial class RedisInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentNullException.ThrowIfNull(payload);
 		ArgumentNullException.ThrowIfNull(metadata);
 
+		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
+
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
@@ -132,6 +136,8 @@ public sealed partial class RedisInboxStore : IInboxStore, IAsyncDisposable
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
@@ -223,6 +229,8 @@ public sealed partial class RedisInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
+		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
+
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
 		var key = GetKey(messageId, handlerType);
@@ -262,6 +270,8 @@ public sealed partial class RedisInboxStore : IInboxStore, IAsyncDisposable
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 		ArgumentNullException.ThrowIfNull(errorMessage);
+
+		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
@@ -407,11 +417,13 @@ public sealed partial class RedisInboxStore : IInboxStore, IAsyncDisposable
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
+		using var activity = InboxActivitySource.StartCleanupActivity();
+
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
-		var cutoff = DateTimeOffset.UtcNow - retentionPeriod;
+		var cutoff = olderThan;
 		var deleted = 0;
 		var pattern = $"{_options.KeyPrefix}:*";
 

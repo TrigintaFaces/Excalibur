@@ -31,7 +31,7 @@ public partial class SqlServerTransactionScope : ITransactionScope, ITransaction
 	private readonly List<Func<Task>> _onRollbackCallbacks;
 	private readonly List<Func<TransactionStatus, Task>> _onCompleteCallbacks;
 #if NET9_0_OR_GREATER
-	private readonly Lock _lock = new();
+	private readonly System.Threading.Lock _lock = new();
 #else
 	private readonly object _lock = new();
 #endif

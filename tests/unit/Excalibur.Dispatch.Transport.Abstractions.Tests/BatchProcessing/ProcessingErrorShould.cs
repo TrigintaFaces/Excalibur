@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.BatchProcessing;
 
-public class ProcessingErrorShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class ProcessingErrorShould
 {
     [Fact]
     public void Should_Default_Code_To_Empty()
@@ -25,7 +27,7 @@ public class ProcessingErrorShould
     {
         var error = new ProcessingError();
 
-        error.Severity.ShouldBe(ErrorSeverity.Info);
+        error.Severity.ShouldBe(BatchErrorSeverity.Info);
     }
 
     [Fact]
@@ -63,14 +65,14 @@ public class ProcessingErrorShould
         {
             Code = "ERR_001",
             Message = "Processing failed",
-            Severity = ErrorSeverity.Critical,
+            Severity = BatchErrorSeverity.Critical,
             MessageId = "msg-42",
             Exception = ex,
         };
 
         error.Code.ShouldBe("ERR_001");
         error.Message.ShouldBe("Processing failed");
-        error.Severity.ShouldBe(ErrorSeverity.Critical);
+        error.Severity.ShouldBe(BatchErrorSeverity.Critical);
         error.MessageId.ShouldBe("msg-42");
         error.Exception.ShouldBe(ex);
     }

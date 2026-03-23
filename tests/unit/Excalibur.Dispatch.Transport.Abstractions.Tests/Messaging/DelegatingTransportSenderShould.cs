@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Messaging;
 
-public class DelegatingTransportSenderShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class DelegatingTransportSenderShould
 {
     private sealed class TestDelegatingSender : DelegatingTransportSender
     {

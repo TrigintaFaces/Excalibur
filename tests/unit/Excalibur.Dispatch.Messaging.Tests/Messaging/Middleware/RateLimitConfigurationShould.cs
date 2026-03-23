@@ -20,7 +20,7 @@ public sealed class RateLimitConfigurationShould
 		var config = new RateLimitConfiguration();
 
 		// Assert
-		config.Algorithm.ShouldBe(RateLimitAlgorithm.TokenBucket);
+		config.Algorithm.ShouldBe(MiddlewareRateLimitAlgorithm.TokenBucket);
 	}
 
 	[Fact]
@@ -84,11 +84,11 @@ public sealed class RateLimitConfigurationShould
 	}
 
 	[Theory]
-	[InlineData(RateLimitAlgorithm.TokenBucket)]
-	[InlineData(RateLimitAlgorithm.SlidingWindow)]
-	[InlineData(RateLimitAlgorithm.FixedWindow)]
-	[InlineData(RateLimitAlgorithm.Concurrency)]
-	public void AllowSettingAlgorithm(RateLimitAlgorithm algorithm)
+	[InlineData(MiddlewareRateLimitAlgorithm.TokenBucket)]
+	[InlineData(MiddlewareRateLimitAlgorithm.SlidingWindow)]
+	[InlineData(MiddlewareRateLimitAlgorithm.FixedWindow)]
+	[InlineData(MiddlewareRateLimitAlgorithm.Concurrency)]
+	public void AllowSettingAlgorithm(MiddlewareRateLimitAlgorithm algorithm)
 	{
 		// Arrange
 		var config = new RateLimitConfiguration();
@@ -206,7 +206,7 @@ public sealed class RateLimitConfigurationShould
 		// Arrange & Act
 		var config = new RateLimitConfiguration
 		{
-			Algorithm = RateLimitAlgorithm.SlidingWindow,
+			Algorithm = MiddlewareRateLimitAlgorithm.SlidingWindow,
 			TokenLimit = 500,
 			ReplenishmentPeriod = TimeSpan.FromSeconds(10),
 			TokensPerPeriod = 50,
@@ -216,7 +216,7 @@ public sealed class RateLimitConfigurationShould
 		};
 
 		// Assert
-		config.Algorithm.ShouldBe(RateLimitAlgorithm.SlidingWindow);
+		config.Algorithm.ShouldBe(MiddlewareRateLimitAlgorithm.SlidingWindow);
 		config.TokenLimit.ShouldBe(500);
 		config.ReplenishmentPeriod.ShouldBe(TimeSpan.FromSeconds(10));
 		config.TokensPerPeriod.ShouldBe(50);
@@ -257,7 +257,7 @@ public sealed class RateLimitConfigurationShould
 		// Arrange & Act - High throughput API configuration
 		var config = new RateLimitConfiguration
 		{
-			Algorithm = RateLimitAlgorithm.TokenBucket,
+			Algorithm = MiddlewareRateLimitAlgorithm.TokenBucket,
 			TokenLimit = 10000,
 			ReplenishmentPeriod = TimeSpan.FromSeconds(1),
 			TokensPerPeriod = 1000,
@@ -274,7 +274,7 @@ public sealed class RateLimitConfigurationShould
 		// Arrange & Act - Conservative rate limit for expensive operations
 		var config = new RateLimitConfiguration
 		{
-			Algorithm = RateLimitAlgorithm.FixedWindow,
+			Algorithm = MiddlewareRateLimitAlgorithm.FixedWindow,
 			PermitLimit = 10,
 			Window = TimeSpan.FromHours(1),
 		};
@@ -290,14 +290,14 @@ public sealed class RateLimitConfigurationShould
 		// Arrange & Act - Sliding window for smoother rate limiting
 		var config = new RateLimitConfiguration
 		{
-			Algorithm = RateLimitAlgorithm.SlidingWindow,
+			Algorithm = MiddlewareRateLimitAlgorithm.SlidingWindow,
 			PermitLimit = 100,
 			Window = TimeSpan.FromMinutes(1),
 			SegmentsPerWindow = 6, // 10-second segments
 		};
 
 		// Assert
-		config.Algorithm.ShouldBe(RateLimitAlgorithm.SlidingWindow);
+		config.Algorithm.ShouldBe(MiddlewareRateLimitAlgorithm.SlidingWindow);
 		config.SegmentsPerWindow.ShouldBe(6);
 	}
 }

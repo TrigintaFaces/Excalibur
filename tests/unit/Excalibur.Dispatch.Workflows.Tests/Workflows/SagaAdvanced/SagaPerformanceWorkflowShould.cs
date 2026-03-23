@@ -50,21 +50,21 @@ public sealed class SagaPerformanceWorkflowShould
 			return sagaId;
 		}).ToList();
 
-		var completedSagaIds = await Task.WhenAll(tasks).ConfigureAwait(true);
+		var completedSagaIds = await Task.WhenAll(tasks);
 
 		// Assert - All sagas completed
 		completedSagaIds.Length.ShouldBe(concurrentSagas);
 
 		foreach (var sagaId in completedSagaIds)
 		{
-			var state = await store.GetAsync(sagaId).ConfigureAwait(true);
+			var state = await store.GetAsync(sagaId);
 			_ = state.ShouldNotBeNull();
 			state.Status.ShouldBe(SagaStatus.Completed);
 			state.CompletedSteps.Count.ShouldBe(4);
 		}
 
 		// Assert - No cross-saga contamination
-		var allStates = await store.GetAllAsync().ConfigureAwait(true);
+		var allStates = await store.GetAllAsync();
 		allStates.Count.ShouldBe(concurrentSagas);
 
 		var uniqueOrderIds = allStates.Select(s => s.Data.OrderId).Distinct().ToList();
@@ -102,7 +102,7 @@ public sealed class SagaPerformanceWorkflowShould
 			await saga.CompleteAsync(sagaId).ConfigureAwait(false);
 		}).ToList();
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 		sw.Stop();
 
 		// Assert - Reasonable throughput achieved
@@ -116,7 +116,7 @@ public sealed class SagaPerformanceWorkflowShould
 		metrics.RecordThroughput("SagasPerSecond", throughput);
 
 		// Verify all completed
-		var allStates = await store.GetAllAsync().ConfigureAwait(true);
+		var allStates = await store.GetAllAsync();
 		allStates.Count.ShouldBe(totalSagas);
 		allStates.All(s => s.Status == SagaStatus.Completed).ShouldBeTrue();
 	}
@@ -139,13 +139,13 @@ public sealed class SagaPerformanceWorkflowShould
 		for (int i = 1; i <= iterations; i++)
 		{
 			var sagaId = $"saga-latency-{i:D3}";
-			await saga.StartAsync(sagaId, new OrderData { OrderId = $"ORD-{i:D3}" }).ConfigureAwait(true);
+			await saga.StartAsync(sagaId, new OrderData { OrderId = $"ORD-{i:D3}" });
 
 			// Execute steps with latency tracking
-			await saga.ProcessStepWithLatencyAsync(sagaId, "ValidateOrder").ConfigureAwait(true);
-			await saga.ProcessStepWithLatencyAsync(sagaId, "ProcessPayment").ConfigureAwait(true);
-			await saga.ProcessStepWithLatencyAsync(sagaId, "ShipOrder").ConfigureAwait(true);
-			await saga.CompleteAsync(sagaId).ConfigureAwait(true);
+			await saga.ProcessStepWithLatencyAsync(sagaId, "ValidateOrder");
+			await saga.ProcessStepWithLatencyAsync(sagaId, "ProcessPayment");
+			await saga.ProcessStepWithLatencyAsync(sagaId, "ShipOrder");
+			await saga.CompleteAsync(sagaId);
 		}
 
 		// Assert - Latency metrics collected
@@ -199,19 +199,19 @@ public sealed class SagaPerformanceWorkflowShould
 			{
 				OrderId = $"ORD-{i:D3}",
 				Amount = i * 100m,
-			}).ConfigureAwait(true);
+			});
 
-			await saga.ProcessStepAsync(sagaId, "Step1").ConfigureAwait(true);
+			await saga.ProcessStepAsync(sagaId, "Step1");
 
 			// Simulate some failures (every 3rd saga fails)
 			if (i % 3 == 0)
 			{
-				await saga.FailAsync(sagaId, "Simulated failure").ConfigureAwait(true);
+				await saga.FailAsync(sagaId, "Simulated failure");
 			}
 			else
 			{
-				await saga.ProcessStepAsync(sagaId, "Step2").ConfigureAwait(true);
-				await saga.CompleteAsync(sagaId).ConfigureAwait(true);
+				await saga.ProcessStepAsync(sagaId, "Step2");
+				await saga.CompleteAsync(sagaId);
 			}
 		}
 
@@ -256,12 +256,12 @@ public sealed class SagaPerformanceWorkflowShould
 		var traceId = Guid.NewGuid().ToString("N");
 
 		// Act - Execute saga with tracing
-		await saga.StartWithTraceAsync("saga-traced", new OrderData { OrderId = "ORD-TRACED" }, traceId).ConfigureAwait(true);
-		await saga.ProcessStepWithTraceAsync("saga-traced", "ValidateOrder").ConfigureAwait(true);
-		await saga.ProcessStepWithTraceAsync("saga-traced", "ReserveInventory").ConfigureAwait(true);
-		await saga.ProcessStepWithTraceAsync("saga-traced", "ProcessPayment").ConfigureAwait(true);
-		await saga.ProcessStepWithTraceAsync("saga-traced", "ShipOrder").ConfigureAwait(true);
-		await saga.CompleteWithTraceAsync("saga-traced").ConfigureAwait(true);
+		await saga.StartWithTraceAsync("saga-traced", new OrderData { OrderId = "ORD-TRACED" }, traceId);
+		await saga.ProcessStepWithTraceAsync("saga-traced", "ValidateOrder");
+		await saga.ProcessStepWithTraceAsync("saga-traced", "ReserveInventory");
+		await saga.ProcessStepWithTraceAsync("saga-traced", "ProcessPayment");
+		await saga.ProcessStepWithTraceAsync("saga-traced", "ShipOrder");
+		await saga.CompleteWithTraceAsync("saga-traced");
 
 		// Assert - Trace spans created
 		tracer.Spans.Count.ShouldBeGreaterThan(0);

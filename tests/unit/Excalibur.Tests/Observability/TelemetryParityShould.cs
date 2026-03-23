@@ -25,6 +25,7 @@ namespace Excalibur.Tests.Observability;
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class TelemetryParityShould
 {
 	private readonly ITestOutputHelper _output;

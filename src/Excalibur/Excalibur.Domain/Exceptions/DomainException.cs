@@ -13,8 +13,7 @@ namespace Excalibur.Domain.Exceptions;
 /// HTTP status code mapping belongs in the API/middleware layer, not in the domain.
 /// </para>
 /// </remarks>
-[Serializable]
-public sealed class DomainException : Exception
+public class DomainException : Exception
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DomainException" /> class with a default error message.

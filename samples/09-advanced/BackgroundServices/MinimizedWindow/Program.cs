@@ -19,7 +19,7 @@ builder.Services.Configure<SqlServerOutboxOptions>(options =>
 	options.OutboxTableName = "OutboxMessages";
 });
 
-builder.Services.Configure<OutboxOptions>(options =>
+builder.Services.Configure<OutboxDeliveryOptions>(options =>
 {
 	// MinimizedWindow: Each message is marked sent immediately after publishing
 	// Lower throughput but smaller failure window (single message vs entire batch)

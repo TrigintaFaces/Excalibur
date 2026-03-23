@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Simd;
 ///     Functional tests for <see cref="SimdJsonFieldExtractor" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class SimdJsonFieldExtractorShould
 {
 	[Fact]

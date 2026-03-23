@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.EventSourcing.Tests.Postgres;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class PostgresEventStoreBehaviorShould : UnitTestBase
 {
 	private const string InvalidConnectionString =

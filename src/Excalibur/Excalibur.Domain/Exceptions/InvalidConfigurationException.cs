@@ -12,8 +12,7 @@ namespace Excalibur.Domain.Exceptions;
 /// <summary>
 /// Represents an exception that occurs when a configuration setting is invalid or missing.
 /// </summary>
-[Serializable]
-public class InvalidConfigurationException : ApiException
+public sealed class InvalidConfigurationException : ApiException
 {
 	private static readonly CompositeFormat SettingMissingFormat =
 			CompositeFormat.Parse(Resources.InvalidConfigurationException_SettingMissing);
@@ -79,5 +78,5 @@ public class InvalidConfigurationException : ApiException
 	/// Gets or sets the name of the configuration setting that caused the exception.
 	/// </summary>
 	/// <value> The name of the configuration setting that caused the exception. </value>
-	public string Setting { get; protected set; }
+	public string Setting { get; private set; }
 }

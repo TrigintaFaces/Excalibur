@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <summary>
 /// Configuration options for connection pool sizing and capacity management.
 /// </summary>
-public class ConnectionPoolSizingOptions
+public sealed class ConnectionPoolSizingOptions
 {
 	/// <summary>
 	/// Gets or sets the minimum number of connections to maintain in the pool.
@@ -62,7 +62,7 @@ public class ConnectionPoolSizingOptions
 	/// Validates the sizing configuration and throws exceptions for invalid settings.
 	/// </summary>
 	/// <exception cref="ArgumentException">Thrown when configuration values are invalid.</exception>
-	public virtual void Validate()
+	public void Validate()
 	{
 		if (MinConnections < 0)
 		{
@@ -104,7 +104,7 @@ public class ConnectionPoolSizingOptions
 	/// Creates a copy of these sizing options with the same configuration.
 	/// </summary>
 	/// <returns>A new instance with identical configuration.</returns>
-	public virtual ConnectionPoolSizingOptions Clone() =>
+	public ConnectionPoolSizingOptions Clone() =>
 		new()
 		{
 			MinConnections = MinConnections,

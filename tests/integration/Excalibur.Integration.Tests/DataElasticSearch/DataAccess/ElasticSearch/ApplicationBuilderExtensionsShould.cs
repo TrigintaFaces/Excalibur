@@ -17,7 +17,9 @@ using Xunit.Abstractions;
 namespace Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch;
 
 [Collection(nameof(ElasticsearchHostTests))]
-public class ApplicationBuilderExtensionsShould(ElasticsearchContainerFixture fixture, ITestOutputHelper output)
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class ApplicationBuilderExtensionsShould(ElasticsearchContainerFixture fixture, ITestOutputHelper output)
 	: HostTestBase<ElasticsearchContainerFixture>(fixture, output)
 {
 	[Fact]
@@ -28,8 +30,8 @@ public class ApplicationBuilderExtensionsShould(ElasticsearchContainerFixture fi
 		var doc = ElasticSearchMother.CreateTestDocument();
 
 		// If the index is not initialized during startup, this will throw
-		_ = await repo.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None).ConfigureAwait(true);
-		var result = await repo.GetByIdAsync(doc.Id, CancellationToken.None).ConfigureAwait(true);
+		_ = await repo.AddOrUpdateAsync(doc.Id, doc, CancellationToken.None);
+		var result = await repo.GetByIdAsync(doc.Id, CancellationToken.None);
 
 		_ = result.ShouldNotBeNull();
 		result.Id.ShouldBe(doc.Id);

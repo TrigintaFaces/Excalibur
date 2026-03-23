@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Options.Channels;
 namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class DispatchChannelShould : IDisposable
 {
     private DispatchChannel<string>? _channel;

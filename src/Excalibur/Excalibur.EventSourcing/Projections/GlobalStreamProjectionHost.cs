@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Queries;
+using Excalibur.EventSourcing.Subscriptions;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -40,6 +41,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	private readonly IGlobalStreamQuery _globalStreamQuery;
 	private readonly IGlobalStreamProjection<TState> _projection;
 	private readonly IEventSerializer _eventSerializer;
+	private readonly ISubscriptionCheckpointStore _checkpointStore;
 	private readonly IOptions<GlobalStreamProjectionOptions> _options;
 	private readonly ILogger<GlobalStreamProjectionHost<TState>> _logger;
 
@@ -52,18 +54,21 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	/// <param name="globalStreamQuery">The global stream query for reading events.</param>
 	/// <param name="projection">The projection to apply events to.</param>
 	/// <param name="eventSerializer">The event serializer for deserializing stored events.</param>
+	/// <param name="checkpointStore">The checkpoint store for persisting and restoring position.</param>
 	/// <param name="options">The projection host options.</param>
 	/// <param name="logger">The logger.</param>
 	public GlobalStreamProjectionHost(
 		IGlobalStreamQuery globalStreamQuery,
 		IGlobalStreamProjection<TState> projection,
 		IEventSerializer eventSerializer,
+		ISubscriptionCheckpointStore checkpointStore,
 		IOptions<GlobalStreamProjectionOptions> options,
 		ILogger<GlobalStreamProjectionHost<TState>> logger)
 	{
 		_globalStreamQuery = globalStreamQuery ?? throw new ArgumentNullException(nameof(globalStreamQuery));
 		_projection = projection ?? throw new ArgumentNullException(nameof(projection));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
+		_checkpointStore = checkpointStore ?? throw new ArgumentNullException(nameof(checkpointStore));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
@@ -73,6 +78,14 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	{
 		var opts = _options.Value;
 		var state = new TState();
+
+		// Restore checkpoint position from last run
+		var lastCheckpoint = await _checkpointStore.GetCheckpointAsync(opts.ProjectionName, stoppingToken)
+			.ConfigureAwait(false);
+		if (lastCheckpoint.HasValue)
+		{
+			_currentPosition = new GlobalStreamPosition(lastCheckpoint.Value, DateTimeOffset.MinValue);
+		}
 
 		LogProjectionHostStarted(opts.ProjectionName);
 
@@ -122,16 +135,19 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					lastEvent.Version + 1,
 					lastEvent.Timestamp);
 
-				// Checkpoint if needed
+				// Checkpoint if needed -- persist position so restarts resume here
 				if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
 				{
+					await _checkpointStore.StoreCheckpointAsync(
+						opts.ProjectionName, _currentPosition.Position, stoppingToken)
+						.ConfigureAwait(false);
 					LogCheckpointSaved(opts.ProjectionName, _currentPosition.Position);
 					_eventsSinceCheckpoint = 0;
 				}
 
 				LogBatchProcessed(opts.ProjectionName, events.Count, _currentPosition.Position);
 			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -141,6 +157,22 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 
 				// Wait before retrying to avoid tight error loops
 				await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
+			}
+		}
+
+		// Persist final checkpoint position on graceful shutdown
+		if (_eventsSinceCheckpoint > 0)
+		{
+			try
+			{
+				await _checkpointStore.StoreCheckpointAsync(
+					opts.ProjectionName, _currentPosition.Position, CancellationToken.None)
+					.ConfigureAwait(false);
+				LogCheckpointSaved(opts.ProjectionName, _currentPosition.Position);
+			}
+			catch (Exception ex) when (ex is not OperationCanceledException)
+			{
+				LogProjectionHostError(opts.ProjectionName, ex);
 			}
 		}
 

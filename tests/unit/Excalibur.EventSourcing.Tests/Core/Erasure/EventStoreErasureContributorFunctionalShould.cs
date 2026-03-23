@@ -22,6 +22,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Erasure;
 /// partial failures, and already-erased aggregates.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class EventStoreErasureContributorFunctionalShould
 {
 	private readonly IEventStoreErasure _eventStoreErasure = A.Fake<IEventStoreErasure>();

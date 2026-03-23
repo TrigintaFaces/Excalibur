@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// <summary>
 /// Detects poison messages based on specific exception types.
 /// </summary>
-public sealed class ExceptionTypePoisonDetector : IPoisonMessageDetector
+public class ExceptionTypePoisonDetector : IPoisonMessageDetector
 {
 	private readonly PoisonMessageOptions _options;
 

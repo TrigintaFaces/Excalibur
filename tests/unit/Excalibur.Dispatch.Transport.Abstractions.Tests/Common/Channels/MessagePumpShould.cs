@@ -230,33 +230,4 @@ public sealed class MessagePumpShould
         channel.Writer.TryWrite(new MessageEnvelope()).ShouldBeFalse();
     }
 
-    [Fact]
-    public async Task ProtectedHooks_CanBeInvoked_ByDerivedPump()
-    {
-        var channel = Channel.CreateUnbounded<MessageEnvelope>();
-        var pump = new TestableMessagePump("pump", channel, _ => Task.CompletedTask);
-
-        pump.MarkConsumed();
-        pump.MarkConsumed();
-        pump.MarkFailed();
-        await pump.InvokeProduceAsync(channel.Writer, CancellationToken.None);
-
-        GetPrivateCounter(pump, "_messagesConsumed").ShouldBe(2);
-        GetPrivateCounter(pump, "_messagesFailed").ShouldBe(1);
-    }
-
-    private sealed class TestableMessagePump(
-        string name,
-        Channel<MessageEnvelope> channel,
-        Func<MessageEnvelope, Task> messageHandler,
-        ChannelMessagePumpOptions? options = null)
-        : MessagePump(name, channel, messageHandler, options)
-    {
-        public void MarkConsumed() => OnMessageConsumed();
-
-        public void MarkFailed() => OnMessageFailed();
-
-        public Task InvokeProduceAsync(ChannelWriter<MessageEnvelope> writer, CancellationToken cancellationToken) =>
-            ProduceMessagesAsync(writer, cancellationToken);
-    }
 }

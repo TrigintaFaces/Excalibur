@@ -19,7 +19,8 @@ namespace Excalibur.Cdc.MongoDB;
 public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 {
 	private readonly IMongoCollection<CdcStateDocument> _collection;
-	private readonly Lazy<Task> _indexCreation;
+	private readonly SemaphoreSlim _indexLock = new(1, 1);
+	private volatile bool _indexesCreated;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -44,16 +45,34 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 		var database = client.GetDatabase(options.DatabaseName);
 		_collection = database.GetCollection<CdcStateDocument>(options.CollectionName);
 
-		// Defer index creation to first async operation to avoid sync-over-async blocking
-		_indexCreation = new Lazy<Task>(() => CreateIndexesAsync());
+		// Index creation is deferred to first async operation via SemaphoreSlim guard.
+		// Unlike Lazy<Task>, this pattern retries on fault instead of caching exceptions.
 	}
 
 	/// <summary>
 	/// Ensures indexes are created before first data operation.
+	/// Uses SemaphoreSlim guard with volatile flag to retry on fault instead of caching exceptions.
 	/// </summary>
-	private async Task EnsureIndexesAsync()
+	private async Task EnsureIndexesAsync(CancellationToken cancellationToken)
 	{
-		await _indexCreation.Value.ConfigureAwait(false);
+		if (_indexesCreated)
+		{
+			return;
+		}
+
+		await _indexLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			if (!_indexesCreated)
+			{
+				await CreateIndexesAsync().ConfigureAwait(false);
+				_indexesCreated = true;
+			}
+		}
+		finally
+		{
+			_indexLock.Release();
+		}
 	}
 
 	/// <inheritdoc/>
@@ -63,7 +82,7 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
-		await EnsureIndexesAsync().ConfigureAwait(false);
+		await EnsureIndexesAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<CdcStateDocument>.Filter.And(
 			Builders<CdcStateDocument>.Filter.Eq(x => x.ProcessorId, processorId),
@@ -85,7 +104,7 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
-		await EnsureIndexesAsync().ConfigureAwait(false);
+		await EnsureIndexesAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<CdcStateDocument>.Filter.And(
 			Builders<CdcStateDocument>.Filter.Eq(x => x.ProcessorId, processorId),
@@ -109,7 +128,7 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
-		await EnsureIndexesAsync().ConfigureAwait(false);
+		await EnsureIndexesAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<CdcStateDocument>.Filter.Eq(x => x.ProcessorId, processorId);
 
@@ -138,7 +157,7 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentNullException.ThrowIfNull(entry);
 		ArgumentException.ThrowIfNullOrWhiteSpace(entry.ProcessorId);
-		await EnsureIndexesAsync().ConfigureAwait(false);
+		await EnsureIndexesAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<CdcStateDocument>.Filter.And(
 			Builders<CdcStateDocument>.Filter.Eq(x => x.ProcessorId, entry.ProcessorId),
@@ -164,7 +183,7 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
-		await EnsureIndexesAsync().ConfigureAwait(false);
+		await EnsureIndexesAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<CdcStateDocument>.Filter.Eq(x => x.ProcessorId, processorId);
 
@@ -200,7 +219,7 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		await EnsureIndexesAsync().ConfigureAwait(false);
+		await EnsureIndexesAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = Builders<CdcStateDocument>.Filter.Eq(x => x.Namespace, null);
 		var documents = await _collection.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -224,6 +243,7 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 		}
 
 		_disposed = true;
+		_indexLock.Dispose();
 	}
 
 	/// <inheritdoc/>

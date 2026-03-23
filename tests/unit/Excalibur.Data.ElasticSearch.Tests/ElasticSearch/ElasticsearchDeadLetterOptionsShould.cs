@@ -5,6 +5,7 @@ namespace Excalibur.Data.Tests.ElasticSearch;
 /// Unit tests for ElasticsearchDeadLetterOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class ElasticsearchDeadLetterOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -15,6 +15,7 @@ namespace Excalibur.Saga.Tests.Implementation;
 /// multi-way branching, default step fallback, compensation, and dynamic routing.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class MultiConditionalSagaStepFunctionalShould
 {
 	[Fact]

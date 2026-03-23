@@ -21,7 +21,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "STORE")]
-public class InMemoryInboxStoreConformanceTests : InboxStoreConformanceTestKit
+public sealed class InMemoryInboxStoreConformanceTests : InboxStoreConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override IInboxStore CreateStore()

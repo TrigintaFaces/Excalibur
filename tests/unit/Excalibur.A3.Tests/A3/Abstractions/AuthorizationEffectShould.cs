@@ -6,6 +6,7 @@ namespace Excalibur.Tests.A3.Abstractions;
 /// Unit tests for AuthorizationEffect enum.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "A3")]
 public sealed class AuthorizationEffectShould : UnitTestBase
 {
 	[Fact]

@@ -35,10 +35,15 @@ public static class AwsServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		var optionsBuilder = services.AddOptions<AwsEventBridgeSchedulerOptions>();
 		if (configure != null)
 		{
-			_ = services.Configure(configure);
+			_ = optionsBuilder.Configure(configure);
 		}
+
+		_ = optionsBuilder
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddSingleton<IAmazonScheduler>(sp =>
 		{

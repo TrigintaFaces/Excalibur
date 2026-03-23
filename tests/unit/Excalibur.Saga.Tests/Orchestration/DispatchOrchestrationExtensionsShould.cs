@@ -41,10 +41,15 @@ public sealed class DispatchOrchestrationExtensionsShould
 		// Act
 		services.AddDispatchOrchestration();
 
-		// Assert - verify registration exists
-		var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISagaStore));
+		// Assert - verify keyed registration exists for ISagaStore
+		var descriptor = services.FirstOrDefault(d =>
+			d.ServiceType == typeof(ISagaStore) && d.IsKeyedService);
 		descriptor.ShouldNotBeNull();
-		descriptor.ImplementationType.ShouldBe(typeof(InMemorySagaStore));
+
+		// Verify the concrete InMemorySagaStore is also registered
+		services.ShouldContain(d =>
+			d.ServiceType == typeof(InMemorySagaStore) &&
+			d.Lifetime == ServiceLifetime.Singleton);
 	}
 
 	[Fact]
@@ -87,8 +92,9 @@ public sealed class DispatchOrchestrationExtensionsShould
 		// Act
 		services.AddDispatchOrchestration();
 
-		// Assert - verify singleton lifetime
-		var storeDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ISagaStore));
+		// Assert - verify singleton lifetime for keyed ISagaStore
+		var storeDescriptor = services.FirstOrDefault(d =>
+			d.ServiceType == typeof(ISagaStore) && d.IsKeyedService);
 		storeDescriptor.ShouldNotBeNull();
 		storeDescriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 
@@ -103,15 +109,19 @@ public sealed class DispatchOrchestrationExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		var fakeSagaStore = A.Fake<ISagaStore>();
-		services.AddSingleton(fakeSagaStore);
+		// Pre-register a keyed "default" ISagaStore to prevent override
+		services.AddKeyedSingleton<ISagaStore>("default", fakeSagaStore);
 
 		// Act
 		services.AddDispatchOrchestration();
 
-		// Assert - should only have one registration (the original fake)
-		var descriptors = services.Where(d => d.ServiceType == typeof(ISagaStore)).ToList();
-		descriptors.Count.ShouldBe(1);
-		descriptors[0].ImplementationInstance.ShouldBeSameAs(fakeSagaStore);
+		// Assert - the "default" keyed registration should still be the original fake
+		var defaultDescriptors = services.Where(d =>
+			d.ServiceType == typeof(ISagaStore) &&
+			d.IsKeyedService &&
+			Equals(d.ServiceKey, "default")).ToList();
+		defaultDescriptors.Count.ShouldBe(1);
+		defaultDescriptors[0].KeyedImplementationInstance.ShouldBeSameAs(fakeSagaStore);
 	}
 
 	[Fact]

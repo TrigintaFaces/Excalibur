@@ -19,6 +19,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Erasure;
 /// the in-memory audit store for isolation and deterministic behavior.
 /// </remarks>
 [Trait("Category", TestCategories.Integration)]
+[Trait("Component", "Platform")]
 public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 {
 	private readonly IErasureStore _fakeErasureStore;

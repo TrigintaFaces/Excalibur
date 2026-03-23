@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Serialization;
 namespace Excalibur.Dispatch.Tests.Serialization;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class Utf8JsonWriterPoolMetricsShould : IDisposable
 {
 	private readonly Meter _meter = new("Test.Utf8JsonWriterPool");

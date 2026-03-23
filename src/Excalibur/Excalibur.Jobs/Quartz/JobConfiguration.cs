@@ -10,7 +10,7 @@ namespace Excalibur.Jobs.Quartz;
 /// <remarks> Initializes a new instance of the <see cref="JobConfiguration" /> class. </remarks>
 /// <param name="jobKey"> The unique key for this job instance. </param>
 /// <param name="cronExpression"> The cron expression for scheduling. </param>
-public sealed class JobConfiguration(string jobKey, string cronExpression)
+public class JobConfiguration(string jobKey, string cronExpression)
 {
 	/// <summary>
 	/// Gets the unique key for this job instance.

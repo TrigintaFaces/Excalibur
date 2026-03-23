@@ -15,7 +15,8 @@ namespace Excalibur.Tests;
 /// </remarks>
 [Collection("ApplicationContext")]
 [Trait("Category", "Unit")]
-public class ActivityContextExtensionsShould
+[Trait("Component", "Core")]
+public sealed class ActivityContextExtensionsShould
 {
 	private readonly IActivityContext _activityContext = A.Fake<IActivityContext>();
 

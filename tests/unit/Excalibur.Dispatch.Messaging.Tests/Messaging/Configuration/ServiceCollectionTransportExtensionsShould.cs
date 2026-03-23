@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 /// Tests DI merging fix per Sprint 34 bd-790j, bd-u6k0.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ServiceCollectionTransportExtensionsShould
 {
 	#region AddEventBindings Tests

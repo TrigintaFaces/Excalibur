@@ -43,8 +43,10 @@ public static class ElasticsearchPersistenceServiceCollectionExtensions
 			.ValidateOnStart();
 
 		services.TryAddSingleton<ElasticsearchPersistenceProvider>();
-		services.TryAddSingleton<IPersistenceProvider>(sp =>
-			sp.GetRequiredService<ElasticsearchPersistenceProvider>());
+		services.AddKeyedSingleton<IPersistenceProvider>("elasticsearch",
+			(sp, _) => sp.GetRequiredService<ElasticsearchPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("elasticsearch"));
 
 		return services;
 	}

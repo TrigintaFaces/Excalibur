@@ -25,23 +25,33 @@ namespace Excalibur.Dispatch.Delivery;
 /// </list>
 /// The deduplicator uses a concurrent dictionary for thread-safe operations and periodic cleanup to manage memory usage. It's optimized for
 /// scenarios where message volumes are predictable and memory constraints are well-understood.
+/// <para>
+/// <b>Related deduplication components:</b>
+/// For handler-level persistent deduplication, see <c>IdempotentHandlerMiddleware</c>.
+/// For content-based outbox deduplication, see <c>ContentHashDeduplicationStrategy</c> in Excalibur.Outbox.
+/// </para>
 /// </remarks>
-public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDisposable
+internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDisposable
 {
+	/// <summary>
+	/// Maximum number of tracked entries to prevent unbounded memory growth.
+	/// When the cap is reached, new messages are not deduplicated (treated as non-duplicate)
+	/// to maintain correctness while avoiding OOM. The periodic cleanup timer will
+	/// reclaim space as entries expire.
+	/// </summary>
+	private const int MaxTrackedEntries = 10_000;
+
 	private readonly ConcurrentDictionary<string, ProcessedEntry> _processedMessages = new(StringComparer.Ordinal);
 	private readonly ILogger<InMemoryDeduplicator> _logger;
 	private readonly Timer _cleanupTimer;
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _statsLock = new();
-
+	private readonly System.Threading.Lock _statsLock = new();
 #else
-
 	private readonly object _statsLock = new();
-
 #endif
 
 	private readonly ValueStopwatch _uptime = ValueStopwatch.StartNew();
+	private readonly SemaphoreSlim _cleanupGuard = new(1, 1);
 
 	/// <summary>
 	/// Statistics tracking.
@@ -113,6 +123,14 @@ public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDispo
 			}
 		}
 
+		// Bounded growth guard: when at capacity, skip dedup tracking to prevent OOM.
+		// The cleanup timer will reclaim space as entries expire.
+		if (_processedMessages.Count >= MaxTrackedEntries)
+		{
+			LogCapacityReached(MaxTrackedEntries);
+			return Task.FromResult(false);
+		}
+
 		return Task.FromResult(false);
 	}
 
@@ -128,31 +146,29 @@ public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDispo
 			throw new ArgumentOutOfRangeException(nameof(expiry), ErrorMessages.ArgumentMustBePositive);
 		}
 
+		// Bounded growth guard: skip caching when at capacity to prevent OOM.
+		if (_processedMessages.Count >= MaxTrackedEntries)
+		{
+			LogCapacityReached(MaxTrackedEntries);
+			return Task.CompletedTask;
+		}
+
 		var now = DateTimeOffset.UtcNow;
 		var expiresAt = now.Add(expiry);
 
 		var entry = new ProcessedEntry { MessageId = messageId, ProcessedAt = now, ExpiresAt = expiresAt };
 
-		// AddOrUpdate to handle race conditions
-		_ = _processedMessages.AddOrUpdate(
-			messageId,
-			static (key, state) =>
-			{
-				_ = key;
-				return state;
-			},
-			static (key, existing, state) =>
-			{
-				_ = key;
-				// If the message is already processed, extend expiry if new one is later
-				if (state.ExpiresAt > existing.ExpiresAt)
-				{
-					return state;
-				}
-
-				return existing;
-			},
-			entry);
+		// Atomic TryAdd to prevent race conditions between concurrent IsDuplicate/MarkProcessed calls.
+		// If the key already exists (another thread raced ahead), we keep the existing entry.
+		if (!_processedMessages.TryAdd(messageId, entry))
+		{
+			// Key already exists -- extend expiry if the new one is later
+			_processedMessages.AddOrUpdate(
+				messageId,
+				static (_, state) => state,
+				static (_, existing, state) => state.ExpiresAt > existing.ExpiresAt ? state : existing,
+				entry);
+		}
 
 		LogMessageMarkedProcessed(messageId, expiresAt);
 
@@ -174,8 +190,8 @@ public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDispo
 				expiredKeys.Add(kvp.Key);
 			}
 
-			// Check for cancellation periodically
-			if (removedCount % 100 == 0 && cancellationToken.IsCancellationRequested)
+			// Check for cancellation periodically (use expiredKeys.Count, not removedCount which is always 0 here)
+			if (expiredKeys.Count % 100 == 0 && cancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -223,7 +239,7 @@ public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDispo
 	}
 
 	/// <inheritdoc />
-	public Task ClearAsync()
+	public Task ClearAsync(CancellationToken cancellationToken)
 	{
 		var clearedCount = _processedMessages.Count;
 		_processedMessages.Clear();
@@ -237,6 +253,7 @@ public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDispo
 	public void Dispose()
 	{
 		_cleanupTimer?.Dispose();
+		_cleanupGuard.Dispose();
 		_processedMessages.Clear();
 
 		var finalStats = GetStatistics();
@@ -248,6 +265,12 @@ public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDispo
 	/// </summary>
 	private async Task PerformScheduledCleanupAsync()
 	{
+		// Guard against concurrent timer callbacks -- skip if already running
+		if (!_cleanupGuard.Wait(0))
+		{
+			return;
+		}
+
 		try
 		{
 			var removedCount = await CleanupExpiredEntriesAsync(CancellationToken.None).ConfigureAwait(false);
@@ -267,6 +290,10 @@ public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDispo
 		catch (Exception ex)
 		{
 			LogScheduledCleanupError(ex);
+		}
+		finally
+		{
+			_cleanupGuard.Release();
 		}
 	}
 
@@ -334,4 +361,8 @@ public sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDispo
 	[LoggerMessage(DeliveryEventId.ScheduledCleanupError, LogLevel.Error,
 		"Error during scheduled deduplication cleanup")]
 	private partial void LogScheduledCleanupError(Exception ex);
+
+	[LoggerMessage(DeliveryEventId.DeduplicatorCapacityReached, LogLevel.Warning,
+		"InMemoryDeduplicator capacity reached ({MaxEntries} entries). New messages will not be deduplicated until cleanup reclaims space.")]
+	private partial void LogCapacityReached(int maxEntries);
 }

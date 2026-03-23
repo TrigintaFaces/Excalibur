@@ -10,13 +10,14 @@ using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
+using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Bus;
 
 /// <summary>
 /// In-memory message bus adapter for testing and development scenarios.
 /// </summary>
-public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMessageBusAdapterCapabilities, IMessageBusAdapterLifecycle, IAsyncDisposable
+public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMessageBusAdapterCapabilities, IMessageBusAdapterLifecycle, IDisposable, IAsyncDisposable
 {
 	private readonly ILogger<InMemoryMessageBusAdapter> _logger;
 	private readonly Channel<PendingMessage> _messageChannel;
@@ -69,11 +70,11 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	public bool IsConnected { get; private set; }
 
 	/// <inheritdoc />
-	public async Task InitializeAsync(IMessageBusOptions options, CancellationToken cancellationToken)
+	public Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken)
 	{
 		LogInitializing(_logger);
 		IsConnected = true;
-		await Task.CompletedTask.ConfigureAwait(false);
+		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc />
@@ -126,7 +127,7 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 	public async Task SubscribeAsync(
 		string subscriptionName,
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> messageHandler,
-		IMessageBusOptions? options,
+		MessageBusOptions? options,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionName);
@@ -230,7 +231,7 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			await StopAsync(cts.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during cancellation - dispose should not throw
 		}
@@ -294,7 +295,7 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 			context.Message = message;
 		}
 
-		context.MessageId ??= Guid.NewGuid().ToString();
+		context.MessageId ??= Uuid7Extensions.GenerateString();
 		context.SetMessageType(context.GetMessageType() ?? message.GetType().FullName);
 		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 	}

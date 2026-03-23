@@ -92,6 +92,11 @@ public static class DispatchTelemetryConstants
 		/// Outbox publisher background service operations.
 		/// </summary>
 		public const string OutboxBackgroundService = "Excalibur.Dispatch.Outbox.Publisher";
+
+		/// <summary>
+		/// Inbox middleware operations for distributed tracing of message deduplication.
+		/// </summary>
+		public const string Inbox = "Excalibur.Dispatch.Inbox";
 	}
 
 	/// <summary>

@@ -82,6 +82,18 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 		_keyManagement = keyManagement ?? throw new ArgumentNullException(nameof(keyManagement));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options = options ?? new AesGcmEncryptionOptions();
+
+		// Validate at DI construction time that the key management provider can supply key material.
+		// This gives a clear error at startup instead of a cryptic EncryptionException at runtime
+		// when the first encrypt/decrypt operation is attempted.
+		if (keyManagement is not IKeyMaterialProvider)
+		{
+			throw new InvalidOperationException(
+				$"The registered IKeyManagementProvider ({keyManagement.GetType().Name}) does not implement " +
+				$"IKeyMaterialProvider. AesGcmEncryptionProvider requires a provider that can supply raw key " +
+				$"material. Use InMemoryKeyManagementProvider for development or a cloud KMS provider that " +
+				$"implements IKeyMaterialProvider for production.");
+		}
 	}
 
 	/// <inheritdoc/>
@@ -93,9 +105,34 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentNullException.ThrowIfNull(plaintext);
 
-		// Get the key to use for encryption
+		// Resolve key and material, then validate status atomically to minimize TOCTOU window.
+		// Key status is checked AFTER material retrieval so revocation between resolve and
+		// material fetch is caught before any encryption occurs.
 		var keyMetadata = await ResolveEncryptionKeyAsync(context, cancellationToken).ConfigureAwait(false);
 		var keyMaterial = await GetKeyMaterialAsync(keyMetadata, cancellationToken).ConfigureAwait(false);
+
+		// Re-validate key status after material retrieval to close TOCTOU gap
+		if (keyMetadata.Status != KeyStatus.Active)
+		{
+			throw new EncryptionException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					KeyStatusNotAllowedForEncryptionFormat,
+					keyMetadata.Status))
+			{
+				ErrorCode = keyMetadata.Status switch
+				{
+					KeyStatus.DecryptOnly or KeyStatus.PendingDestruction => EncryptionErrorCode.KeyExpired,
+					KeyStatus.Suspended => EncryptionErrorCode.KeySuspended,
+					_ => EncryptionErrorCode.Unknown
+				}
+			};
+		}
+
+		if (keyMetadata.ExpiresAt.HasValue && keyMetadata.ExpiresAt.Value <= DateTimeOffset.UtcNow)
+		{
+			throw new EncryptionException(Resources.AesGcmEncryptionProvider_KeyExpired) { ErrorCode = EncryptionErrorCode.KeyExpired };
+		}
 
 		try
 		{
@@ -404,7 +441,8 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 	private byte[] BuildAssociatedData(EncryptionContext context, string keyId, int keyVersion)
 	{
 		// Build AAD from multiple sources for maximum binding
-		// Format: [keyId|keyVersion|tenantId?|userAAD?]
+		// Format: [keyId|keyVersion|tenantIdLength|tenantId?|userAADLength|userAAD?]
+		// All fields are length-prefixed to prevent format ambiguity across tenants.
 		using var ms = new MemoryStream();
 		using var writer = new BinaryWriter(ms);
 
@@ -412,17 +450,25 @@ public sealed partial class AesGcmEncryptionProvider : IEncryptionProvider, IDis
 		writer.Write(keyId);
 		writer.Write(keyVersion);
 
-		// Include tenant ID if present (multi-tenant isolation)
-		if (!string.IsNullOrEmpty(context.TenantId))
+		// Always include tenant ID field with length prefix for unambiguous AAD format.
+		// This prevents cross-tenant AAD ambiguity where null/empty tenant would produce
+		// identical AAD as no-tenant, potentially allowing cross-tenant decryption.
+		var tenantId = context.TenantId ?? string.Empty;
+		writer.Write(tenantId.Length);
+		if (tenantId.Length > 0)
 		{
-			writer.Write(context.TenantId);
+			writer.Write(tenantId);
 		}
 
-		// Include user-provided AAD if present
+		// Include user-provided AAD if present (always length-prefixed)
 		if (context.AssociatedData is { Length: > 0 })
 		{
 			writer.Write(context.AssociatedData.Length);
 			writer.Write(context.AssociatedData);
+		}
+		else
+		{
+			writer.Write(0);
 		}
 
 		return ms.ToArray();

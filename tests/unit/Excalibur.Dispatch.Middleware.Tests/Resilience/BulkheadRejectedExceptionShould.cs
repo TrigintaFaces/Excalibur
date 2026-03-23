@@ -60,12 +60,12 @@ public sealed class BulkheadRejectedExceptionShould : UnitTestBase
 	}
 
 	[Fact]
-	public void IsException()
+	public void IsApiException()
 	{
 		// Arrange
 		var exception = new BulkheadRejectedException();
 
 		// Assert
-		exception.ShouldBeAssignableTo<Exception>();
+		exception.ShouldBeAssignableTo<Excalibur.Dispatch.Abstractions.ApiException>();
 	}
 }

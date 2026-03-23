@@ -86,7 +86,7 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 			CreateGrant("permission", "write"),
 		};
 
-		A.CallTo(() => _grantRepository.ReadAllAsync("target-user"))
+		A.CallTo(() => _grantRepository.ReadAllAsync("target-user", A<CancellationToken>._))
 			.Returns(grants.AsEnumerable());
 
 		// Act
@@ -110,7 +110,7 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 		var activityGroupGrant = CreateGrant(GrantType.ActivityGroup, "orders-group");
 		var regularGrant = CreateGrant("role", "admin");
 
-		A.CallTo(() => _grantRepository.ReadAllAsync("target-user"))
+		A.CallTo(() => _grantRepository.ReadAllAsync("target-user", A<CancellationToken>._))
 			.Returns(new[] { activityGroupGrant, regularGrant }.AsEnumerable());
 
 		// Act
@@ -130,7 +130,7 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 		var sut = CreateSut();
 		var command = CreateValidCommand();
 
-		A.CallTo(() => _grantRepository.ReadAllAsync("target-user"))
+		A.CallTo(() => _grantRepository.ReadAllAsync("target-user", A<CancellationToken>._))
 			.Returns(Enumerable.Empty<Grant>());
 
 		// Act
@@ -148,7 +148,7 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 		var sut = CreateSut();
 		var command = CreateValidCommand();
 
-		A.CallTo(() => _grantRepository.ReadAllAsync("target-user"))
+		A.CallTo(() => _grantRepository.ReadAllAsync("target-user", A<CancellationToken>._))
 			.Returns(new[] { CreateGrant("role", "admin") }.AsEnumerable());
 
 		// Act
@@ -168,7 +168,7 @@ public sealed class RevokeAllGrantsCommandHandlerShould
 
 		var expiredGrant = CreateExpiredGrant("role", "admin");
 
-		A.CallTo(() => _grantRepository.ReadAllAsync("target-user"))
+		A.CallTo(() => _grantRepository.ReadAllAsync("target-user", A<CancellationToken>._))
 			.Returns(new[] { expiredGrant }.AsEnumerable());
 
 		// Act

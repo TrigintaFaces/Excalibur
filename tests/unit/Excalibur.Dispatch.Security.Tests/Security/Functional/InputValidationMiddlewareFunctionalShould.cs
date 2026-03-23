@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Security;
 namespace Excalibur.Dispatch.Security.Tests.Security.Functional;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class InputValidationMiddlewareFunctionalShould
 {
     private static InputValidationMiddleware CreateMiddleware(

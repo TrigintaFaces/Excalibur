@@ -171,10 +171,10 @@ public sealed class CosmosDbStalePositionExceptionShould
 	#region Inheritance Tests
 
 	[Fact]
-	public void InheritsFromException()
+	public void InheritsFromCdcStalePositionException()
 	{
-		// Assert
-		typeof(CosmosDbStalePositionException).BaseType.ShouldBe(typeof(Exception));
+		// Sprint 683 T.10: CDC exception hierarchy aligned
+		typeof(CosmosDbStalePositionException).BaseType.ShouldBe(typeof(Excalibur.Cdc.CdcStalePositionException));
 	}
 
 	[Fact]

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
+
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.Logging;
@@ -20,7 +22,12 @@ namespace Excalibur.EventSourcing.Snapshots;
 /// </remarks>
 public sealed partial class SnapshotVersionManager
 {
-	private readonly Dictionary<string, List<ISnapshotUpgrader>> _upgraders = [];
+	private readonly ConcurrentDictionary<string, List<ISnapshotUpgrader>> _upgraders = new(StringComparer.Ordinal);
+#if NET9_0_OR_GREATER
+	private readonly System.Threading.Lock _registrationLock = new();
+#else
+	private readonly object _registrationLock = new();
+#endif
 	private readonly ILogger<SnapshotVersionManager> _logger;
 
 	/// <summary>
@@ -51,22 +58,25 @@ public sealed partial class SnapshotVersionManager
 	{
 		ArgumentNullException.ThrowIfNull(upgrader);
 
-		if (!_upgraders.TryGetValue(upgrader.AggregateType, out var upgraderList))
+		// Top-level lock eliminates the TOCTOU between GetOrAdd (which may create or return
+		// an existing list) and the subsequent mutation. RegisterUpgrader is called during
+		// startup only, so contention is negligible.
+		lock (_registrationLock)
 		{
-			upgraderList = [];
-			_upgraders[upgrader.AggregateType] = upgraderList;
+			var upgraderList = _upgraders.GetOrAdd(upgrader.AggregateType, static _ => []);
+
+			var existingUpgrader = upgraderList.FirstOrDefault(u =>
+				u.FromVersion == upgrader.FromVersion && u.ToVersion == upgrader.ToVersion);
+
+			if (existingUpgrader is not null)
+			{
+				throw new InvalidOperationException(
+					$"A snapshot upgrader for aggregate type '{upgrader.AggregateType}' from version {upgrader.FromVersion} to {upgrader.ToVersion} is already registered.");
+			}
+
+			upgraderList.Add(upgrader);
 		}
 
-		var existingUpgrader = upgraderList.FirstOrDefault(u =>
-			u.FromVersion == upgrader.FromVersion && u.ToVersion == upgrader.ToVersion);
-
-		if (existingUpgrader is not null)
-		{
-			throw new InvalidOperationException(
-				$"A snapshot upgrader for aggregate type '{upgrader.AggregateType}' from version {upgrader.FromVersion} to {upgrader.ToVersion} is already registered.");
-		}
-
-		upgraderList.Add(upgrader);
 		LogUpgraderRegistered(upgrader.AggregateType, upgrader.FromVersion, upgrader.ToVersion);
 	}
 

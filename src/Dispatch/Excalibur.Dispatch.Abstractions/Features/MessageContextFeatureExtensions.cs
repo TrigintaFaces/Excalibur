@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Abstractions.Features;
 
@@ -306,7 +307,7 @@ public static class MessageContextFeatureExtensions
 		{
 			CorrelationId = context.CorrelationId,
 			CausationId = context.MessageId ?? context.CorrelationId,
-			MessageId = Guid.NewGuid().ToString(),
+			MessageId = Uuid7Extensions.GenerateString(),
 		};
 
 		// Propagate identity feature

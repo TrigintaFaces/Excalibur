@@ -17,7 +17,9 @@ namespace Excalibur.Dispatch.Tests.Conformance.Providers.CrossTransport;
 /// - A CloudEvents adapter class
 /// - A CloudEvents DI extension method
 /// </summary>
-public class CloudEventsConformanceShould
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
+public sealed class CloudEventsConformanceShould
 {
 	private static readonly Type s_cloudEventMapperOpenGeneric = typeof(ICloudEventMapper<>);
 

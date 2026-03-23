@@ -19,6 +19,8 @@ using Microsoft.Extensions.Options;
 
 using RabbitMQ.Client;
 
+using Excalibur.Dispatch.Abstractions.Messaging;
+
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
 /// <summary>
@@ -286,7 +288,7 @@ internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 
 	private static void ApplyStandardProperties(CloudEventBasicProperties properties, CloudEvent cloudEvent)
 	{
-		properties.MessageId = cloudEvent.Id ?? Guid.NewGuid().ToString();
+		properties.MessageId = cloudEvent.Id ?? Uuid7Extensions.GenerateString();
 		properties.Timestamp = new AmqpTimestamp((cloudEvent.Time ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds());
 
 		if (!string.IsNullOrWhiteSpace(cloudEvent.Subject))

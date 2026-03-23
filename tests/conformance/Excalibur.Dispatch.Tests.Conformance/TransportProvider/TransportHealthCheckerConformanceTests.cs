@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.TransportProvider;
 ///     expected behavior and contracts defined by the ITransportHealthChecker interface. Concrete test classes should inherit from this
 ///     class and implement the factory methods to provide the specific transport health checker under test.
 /// </remarks>
+[Trait("Component", "Transport")]
 public abstract class TransportHealthCheckerConformanceTests
 {
 	/// <summary>

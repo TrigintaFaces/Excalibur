@@ -142,7 +142,7 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 								break;
 						}
 					}
-					catch (OperationCanceledException)
+					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 					{
 						throw;
 					}
@@ -169,7 +169,7 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 				}
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected on cancellation — fall through to stop
 		}
@@ -203,7 +203,7 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 		return ValueTask.CompletedTask;
 	}
 
-	private static TransportReceivedMessage ConvertToReceivedMessage(Message sqsMessage)
+	private TransportReceivedMessage ConvertToReceivedMessage(Message sqsMessage)
 	{
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 
@@ -253,7 +253,7 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 			CorrelationId = correlationId,
 			DeliveryCount = deliveryCount,
 			EnqueuedAt = enqueuedAt,
-			Source = sqsMessage.MessageId,
+			Source = _queueUrl,
 			MessageGroupId = sqsMessage.Attributes?.TryGetValue("MessageGroupId", out var groupId) == true ? groupId : null,
 			Properties = properties,
 			ProviderData = new Dictionary<string, object>

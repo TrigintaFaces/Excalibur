@@ -17,7 +17,7 @@ namespace Excalibur.A3.Authorization;
 /// <param name="accessToken"> The access token containing user authentication and authorization information. </param>
 /// <param name="authorization"> The authorization service to validate permissions. </param>
 /// <param name="attributeCache"> The cache for RequirePermission attribute lookups. </param>
-public sealed class AuthorizationMiddleware(
+internal sealed class AuthorizationMiddleware(
 	IAccessToken accessToken,
 	IDispatchAuthorizationService authorization,
 	AttributeAuthorizationCache attributeCache)

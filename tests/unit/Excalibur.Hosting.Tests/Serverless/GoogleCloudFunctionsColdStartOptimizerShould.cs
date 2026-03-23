@@ -47,16 +47,18 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	{
 		// Arrange
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 
 		// Act & Assert
 		_sut.IsEnabled.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void IsEnabled_ReturnsTrue_WhenEnvVarIsSet()
+	public void IsEnabled_ReturnsTrue_WhenEnvVarsAreSet()
 	{
-		// Arrange
+		// Arrange - Both FUNCTION_NAME and FUNCTION_TARGET are required
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", "test-function");
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", "handler");
 
 		try
 		{
@@ -66,6 +68,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 		finally
 		{
 			Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+			Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 		}
 	}
 
@@ -74,6 +77,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	{
 		// Arrange
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 
 		// Act & Assert
 		await _sut.OptimizeAsync().ConfigureAwait(false);
@@ -84,6 +88,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	{
 		// Arrange
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", "test-function");
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", "handler");
 
 		try
 		{
@@ -93,6 +98,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 		finally
 		{
 			Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+			Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 		}
 	}
 
@@ -101,6 +107,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	{
 		// Arrange
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 
 		// Act & Assert
 		await _sut.WarmupAsync().ConfigureAwait(false);
@@ -111,6 +118,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 	{
 		// Arrange
 		Environment.SetEnvironmentVariable("FUNCTION_NAME", "test-function");
+		Environment.SetEnvironmentVariable("FUNCTION_TARGET", "handler");
 
 		try
 		{
@@ -120,6 +128,7 @@ public sealed class GoogleCloudFunctionsColdStartOptimizerShould : UnitTestBase
 		finally
 		{
 			Environment.SetEnvironmentVariable("FUNCTION_NAME", null);
+			Environment.SetEnvironmentVariable("FUNCTION_TARGET", null);
 		}
 	}
 

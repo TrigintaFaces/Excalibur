@@ -33,8 +33,8 @@ public sealed class SagaEventSourcingIntegrationShould
 		_ = services.AddDispatchOrchestration();
 		var provider = services.BuildServiceProvider();
 
-		// Assert -- ISagaStore resolves to InMemorySagaStore
-		var store = provider.GetService<ISagaStore>();
+		// Assert -- ISagaStore resolves via keyed service to InMemorySagaStore
+		var store = provider.GetKeyedService<ISagaStore>("default");
 		store.ShouldNotBeNull();
 		store.ShouldBeOfType<InMemorySagaStore>();
 
@@ -51,15 +51,12 @@ public sealed class SagaEventSourcingIntegrationShould
 		var store = new InMemorySagaStore();
 		var sagaId = Guid.NewGuid();
 
-		var state = new TestSagaState { SagaId = sagaId, Status = "Started", Counter = 0 };
+		var state1 = new TestSagaState { SagaId = sagaId, Status = "Started", Counter = 0, Version = 0 };
+		await store.SaveAsync(state1, CancellationToken.None);
 
-		// Act -- Save state (simulates saga step persisting state after processing a domain event)
-		await store.SaveAsync(state, CancellationToken.None);
-
-		// Simulate event processing advancing the saga
-		state.Counter++;
-		state.Status = "Processing";
-		await store.SaveAsync(state, CancellationToken.None);
+		// Act -- Simulate event processing advancing the saga (new instance, incremented Version)
+		var state2 = new TestSagaState { SagaId = sagaId, Status = "Processing", Counter = 1, Version = 1 };
+		await store.SaveAsync(state2, CancellationToken.None);
 
 		// Assert -- State is persisted correctly
 		var loaded = await store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
@@ -71,25 +68,16 @@ public sealed class SagaEventSourcingIntegrationShould
 	[Fact]
 	public async Task CompleteSagaAfterAllEventsProcessed()
 	{
-		// Arrange
+		// Arrange -- each save uses a new instance to avoid shared-reference issues with ConcurrentDictionary
 		var store = new InMemorySagaStore();
 		var sagaId = Guid.NewGuid();
-		var state = new TestSagaState { SagaId = sagaId, Status = "Started" };
-		await store.SaveAsync(state, CancellationToken.None);
 
-		// Act -- Simulate processing through multiple events
-		state.Status = "Step1Complete";
-		state.Counter = 1;
-		await store.SaveAsync(state, CancellationToken.None);
+		await store.SaveAsync(new TestSagaState { SagaId = sagaId, Status = "Started", Version = 0 }, CancellationToken.None);
 
-		state.Status = "Step2Complete";
-		state.Counter = 2;
-		await store.SaveAsync(state, CancellationToken.None);
-
-		state.Completed = true;
-		state.Status = "Completed";
-		state.CompletedUtc = DateTime.UtcNow;
-		await store.SaveAsync(state, CancellationToken.None);
+		// Act -- Simulate processing through multiple events (each with incremented Version)
+		await store.SaveAsync(new TestSagaState { SagaId = sagaId, Status = "Step1Complete", Counter = 1, Version = 1 }, CancellationToken.None);
+		await store.SaveAsync(new TestSagaState { SagaId = sagaId, Status = "Step2Complete", Counter = 2, Version = 2 }, CancellationToken.None);
+		await store.SaveAsync(new TestSagaState { SagaId = sagaId, Status = "Completed", Counter = 2, Completed = true, CompletedUtc = DateTime.UtcNow, Version = 3 }, CancellationToken.None);
 
 		// Assert
 		var loaded = await store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
@@ -111,12 +99,12 @@ public sealed class SagaEventSourcingIntegrationShould
 		var state1 = new TestSagaState { SagaId = sagaId1, Status = "Order1", Counter = 10 };
 		var state2 = new TestSagaState { SagaId = sagaId2, Status = "Order2", Counter = 20 };
 
-		// Act -- Save and mutate independently
+		// Act -- Save and mutate independently (new instances for Version concurrency)
 		await store.SaveAsync(state1, CancellationToken.None);
 		await store.SaveAsync(state2, CancellationToken.None);
 
-		state1.Counter = 11;
-		await store.SaveAsync(state1, CancellationToken.None);
+		var state1v2 = new TestSagaState { SagaId = sagaId1, Status = "Order1", Counter = 11, Version = 1 };
+		await store.SaveAsync(state1v2, CancellationToken.None);
 
 		// Assert -- Mutations don't leak between instances
 		var loaded1 = await store.LoadAsync<TestSagaState>(sagaId1, CancellationToken.None);
@@ -143,21 +131,17 @@ public sealed class SagaEventSourcingIntegrationShould
 		state.Data["orderId"] = "ORD-001";
 		await store.SaveAsync(state, CancellationToken.None);
 
-		// Cycle 2: PaymentReceived event advances the saga
-		var reloaded = await store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
-		reloaded.ShouldNotBeNull();
-		reloaded.Status = "PaymentReceived";
-		reloaded.Counter = 1;
-		reloaded.Data["paymentId"] = "PAY-001";
-		await store.SaveAsync(reloaded, CancellationToken.None);
+		// Cycle 2: PaymentReceived event (new instance with incremented Version, preserving accumulated data)
+		var state2 = new TestSagaState { SagaId = sagaId, Status = "PaymentReceived", Counter = 1, Version = 1 };
+		state2.Data["orderId"] = "ORD-001";
+		state2.Data["paymentId"] = "PAY-001";
+		await store.SaveAsync(state2, CancellationToken.None);
 
 		// Cycle 3: ShipmentDispatched event completes the saga
-		var reloaded2 = await store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
-		reloaded2.ShouldNotBeNull();
-		reloaded2.Status = "ShipmentDispatched";
-		reloaded2.Counter = 2;
-		reloaded2.Completed = true;
-		await store.SaveAsync(reloaded2, CancellationToken.None);
+		var state3 = new TestSagaState { SagaId = sagaId, Status = "ShipmentDispatched", Counter = 2, Completed = true, Version = 2 };
+		state3.Data["orderId"] = "ORD-001";
+		state3.Data["paymentId"] = "PAY-001";
+		await store.SaveAsync(state3, CancellationToken.None);
 
 		// Assert -- All accumulated state is preserved
 		var final = await store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None);
@@ -182,8 +166,8 @@ public sealed class SagaEventSourcingIntegrationShould
 		// Act
 		var provider = services.BuildServiceProvider();
 
-		// Assert -- Both subsystems resolve without throwing
-		var sagaStore = provider.GetService<ISagaStore>();
+		// Assert -- Both subsystems resolve without throwing (keyed service)
+		var sagaStore = provider.GetKeyedService<ISagaStore>("default");
 		sagaStore.ShouldNotBeNull();
 
 		// Assert -- Both middleware types registered as IDispatchMiddleware descriptors

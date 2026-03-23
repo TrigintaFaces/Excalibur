@@ -9,6 +9,7 @@ namespace Excalibur.Tests.Domain.Concurrency;
 /// Unit tests for <see cref="ETag"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Domain")]
 public sealed class ETagShould
 {
 	#region T419.12: ETag Tests

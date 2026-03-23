@@ -36,8 +36,10 @@ public static class DeadLetterServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
-		// Register core services — shared Transport.Abstractions interface
-		services.TryAddSingleton<Excalibur.Dispatch.Transport.IDeadLetterQueueManager, PubSubDeadLetterQueueManager>();
+		// Register core services — shared Transport.Abstractions interface (keyed by transport name)
+		services.TryAddSingleton<PubSubDeadLetterQueueManager>();
+		services.AddKeyedSingleton<Excalibur.Dispatch.Transport.IDeadLetterQueueManager>("googlepubsub",
+			(sp, _) => sp.GetRequiredService<PubSubDeadLetterQueueManager>());
 
 		// Register poison detection
 		_ = services.AddPoisonMessageDetection();
@@ -115,12 +117,12 @@ public static class DeadLetterServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddRetryPolicies(
 		this IServiceCollection services,
-		Action<RetryPolicyOptions>? configure = null)
+		Action<PubSubRetryPolicyOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Register options
-		_ = services.AddOptions<RetryPolicyOptions>()
+		_ = services.AddOptions<PubSubRetryPolicyOptions>()
 			.Configure(options => configure?.Invoke(options))
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
@@ -223,7 +225,7 @@ public static class DeadLetterServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(messageType);
 		ArgumentNullException.ThrowIfNull(strategy);
 
-		_ = services.Configure<RetryPolicyOptions>(options => options.CustomStrategies[messageType] = strategy);
+		_ = services.Configure<PubSubRetryPolicyOptions>(options => options.CustomStrategies[messageType] = strategy);
 
 		return services;
 	}

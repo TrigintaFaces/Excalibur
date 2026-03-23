@@ -230,13 +230,9 @@ internal sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 	private sealed class AdaptiveBatchSizer(BatchConfiguration config)
 	{
 #if NET9_0_OR_GREATER
-
-		private readonly Lock _lock = new();
-
+		private readonly System.Threading.Lock _lock = new();
 #else
-
 		private readonly object _lock = new();
-
 #endif
 		private int _currentBatchSize = config.MaxMessagesPerBatch / 2;
 		private double _avgProcessingTime;

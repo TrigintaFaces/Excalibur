@@ -26,12 +26,15 @@ namespace Excalibur.Saga.Orchestration;
 public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, ISagaStore sagaStore, ILogger<SagaCoordinator> logger)
 	: ISagaCoordinator
 {
+	private const int MaxCacheEntries = 1024;
+
 	private static readonly MethodInfo HandleEventInternalMethodInfo =
 		typeof(SagaCoordinator).GetMethod(
 			nameof(HandleEventInternalAsync),
 			BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!;
 
 	private static readonly ConcurrentDictionary<(Type SagaType, Type StateType), MethodInfo> GenericMethodCache = new();
+
 	/// <summary>
 	/// Processes a saga event by routing it to the appropriate saga instance and managing state transitions. This method handles saga
 	/// discovery, instantiation, event processing, and state persistence for long-running business processes. Supports both saga initiation
@@ -71,10 +74,23 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		}
 
 		var sagaStateType = sagaInfo.StateType;
+		var cacheKey = (sagaType, sagaStateType);
 
-		var method = GenericMethodCache.GetOrAdd(
-			(sagaType, sagaStateType),
-			static key => HandleEventInternalMethodInfo.MakeGenericMethod(key.SagaType, key.StateType));
+		MethodInfo method;
+		if (GenericMethodCache.TryGetValue(cacheKey, out var cached))
+		{
+			method = cached;
+		}
+		else
+		{
+			method = HandleEventInternalMethodInfo.MakeGenericMethod(sagaType, sagaStateType);
+
+			// Cache the method if under the limit; TryAdd is a no-op if another thread added it first
+			if (GenericMethodCache.Count < MaxCacheEntries)
+			{
+				GenericMethodCache.TryAdd(cacheKey, method);
+			}
+		}
 
 		var result = method.Invoke(this, [messageContext, evt, sagaInfo, cancellationToken]);
 		if (result is not Task task)
@@ -145,6 +161,16 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 			return;
 		}
 
+		// Idempotent replay guard: derive a unique event ID and check if already processed.
+		// The ID is added to the in-memory set BEFORE HandleAsync, but only persisted when SaveAsync succeeds.
+		// If SaveAsync fails or crashes, the ID is lost from the set on reload, allowing correct replay.
+		var eventId = DeriveEventId(evt);
+		if (!sagaState.TryMarkEventProcessed(eventId))
+		{
+			LogDuplicateEventSkipped(evt.SagaId, eventId);
+			return;
+		}
+
 		await saga.HandleAsync(evt, cancellationToken).ConfigureAwait(false);
 
 		await sagaStore.SaveAsync(sagaState, cancellationToken).ConfigureAwait(false);
@@ -153,6 +179,32 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		{
 			LogSagaCompleted(evt.SagaId);
 		}
+	}
+
+	/// <summary>
+	/// Derives a unique event identifier for idempotent replay detection.
+	/// Uses the event type name, saga ID, and step ID to produce a deterministic key.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// When <see cref="ISagaEvent.StepId"/> is <see langword="null"/>, the derived ID
+	/// uses only the event type name and saga ID: <c>{EventType}:{SagaId}</c>.
+	/// This means that if the same saga receives multiple events of the same type
+	/// (but for different steps) without a <c>StepId</c>, only the first will be
+	/// processed -- subsequent deliveries will be treated as duplicates.
+	/// </para>
+	/// <para>
+	/// To ensure correct deduplication when a saga handles the same event type in
+	/// multiple steps, always set <see cref="ISagaEvent.StepId"/> to a unique value
+	/// per step (e.g., the step name or ordinal).
+	/// </para>
+	/// </remarks>
+	private static string DeriveEventId(ISagaEvent evt)
+	{
+		// Combine type + sagaId + stepId for a deterministic unique key per saga event delivery
+		return evt.StepId is not null
+			? $"{evt.GetType().Name}:{evt.SagaId}:{evt.StepId}"
+			: $"{evt.GetType().Name}:{evt.SagaId}";
 	}
 
 	// Source-generated logging methods
@@ -175,4 +227,8 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	[LoggerMessage(SagaEventId.SagaExecutionFailed, LogLevel.Error,
 		"No saga metadata configured for saga type {SagaType}")]
 	private partial void LogNoSagaMetadata(string sagaType);
+
+	[LoggerMessage(SagaEventId.SagaDuplicateEventSkipped, LogLevel.Information,
+		"Saga {SagaId} skipped duplicate event {EventId} (idempotent replay protection)")]
+	private partial void LogDuplicateEventSkipped(string sagaId, string eventId);
 }

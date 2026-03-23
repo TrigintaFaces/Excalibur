@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Performs both <see cref="System.ComponentModel.DataAnnotations"/> validation and
 /// cross-property constraint checks (e.g., <c>StreamIdleTimeout > StreamAckDeadlineSeconds</c>).
 /// </remarks>
-public sealed class StreamingPullOptionsValidator : IValidateOptions<StreamingPullOptions>
+internal sealed class StreamingPullOptionsValidator : IValidateOptions<StreamingPullOptions>
 {
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, StreamingPullOptions options)

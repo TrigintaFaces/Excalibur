@@ -2,7 +2,7 @@
 Excalibur.EventSourcing.Firestore.EventSourcingBuilderFirestoreExtensions
 Excalibur.EventSourcing.Firestore.FirestoreEventStore
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.AppendAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudAppendResult!>!
-Excalibur.EventSourcing.Firestore.FirestoreEventStore.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.EventSourcing.Firestore.FirestoreEventStore.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.FirestoreEventStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Firestore.FirestoreEventStore!>! logger) -> void
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.FirestoreEventStore(Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Firestore.FirestoreEventStore!>! logger) -> void

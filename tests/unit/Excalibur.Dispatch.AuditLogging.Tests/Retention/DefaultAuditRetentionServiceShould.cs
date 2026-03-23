@@ -6,7 +6,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Retention;
 
-public class DefaultAuditRetentionServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class DefaultAuditRetentionServiceShould
 {
     private readonly IAuditStore _fakeStore = A.Fake<IAuditStore>();
 

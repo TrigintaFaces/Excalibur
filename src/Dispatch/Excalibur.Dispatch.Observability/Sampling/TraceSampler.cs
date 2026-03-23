@@ -35,7 +35,7 @@ public sealed class TraceSampler(IOptions<TraceSamplerOptions> options) : ITrace
 		// If there is a parent context with a valid trace ID, inherit the parent's decision
 		if (context != default && context.TraceId != default)
 		{
-			return context.TraceFlags.HasFlag(ActivityTraceFlags.Recorded);
+			return (context.TraceFlags & ActivityTraceFlags.Recorded) != 0;
 		}
 
 		// Root span: fall back to ratio-based sampling

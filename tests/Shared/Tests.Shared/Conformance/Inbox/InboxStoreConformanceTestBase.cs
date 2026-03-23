@@ -37,10 +37,20 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	/// </summary>
 	protected IInboxStore Store { get; private set; } = null!;
 
+	/// <summary>
+	/// The inbox store admin interface, resolved from the Store via cast.
+	/// Available after <see cref="InitializeAsync"/> completes.
+	/// </summary>
+	protected IInboxStoreAdmin AdminStore { get; private set; } = null!;
+
 	/// <inheritdoc/>
 	public async Task InitializeAsync()
 	{
 		Store = await CreateStoreAsync().ConfigureAwait(false);
+		AdminStore = Store as IInboxStoreAdmin
+			?? throw new InvalidOperationException(
+				$"Conformance test requires the inbox store ({Store.GetType().Name}) " +
+				$"to implement IInboxStoreAdmin for admin operation tests.");
 	}
 
 	/// <inheritdoc/>
@@ -476,7 +486,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act
-		var failedEntries = await Store.GetFailedEntriesAsync(
+		var failedEntries = await AdminStore.GetFailedEntriesAsync(
 			maxRetries: 5, olderThan: null, batchSize: 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -506,7 +516,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		}
 
 		// Act - maxRetries = 3 means entries with retryCount >= 3 are excluded
-		var failedEntries = await Store.GetFailedEntriesAsync(
+		var failedEntries = await AdminStore.GetFailedEntriesAsync(
 			maxRetries: 3, olderThan: null, batchSize: 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -532,7 +542,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		}
 
 		// Act
-		var failedEntries = await Store.GetFailedEntriesAsync(
+		var failedEntries = await AdminStore.GetFailedEntriesAsync(
 			maxRetries: 10, olderThan: null, batchSize: 2, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -571,7 +581,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act
-		var stats = await Store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await AdminStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		stats.TotalEntries.ShouldBe(3);
@@ -584,7 +594,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	public async Task GetStatistics_EmptyStore_ReturnsZeroCounts()
 	{
 		// Act
-		var stats = await Store.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		var stats = await AdminStore.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		stats.TotalEntries.ShouldBe(0);
@@ -617,7 +627,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
 		do
 		{
-			removed += await Store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			removed += await AdminStore.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None).ConfigureAwait(false);
 			entry = await Store.GetEntryAsync(messageId, "Handler.A", CancellationToken.None).ConfigureAwait(false);
 			if (entry is null || removed > 0)
 			{
@@ -647,7 +657,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act - Cleanup with 1 hour retention should preserve recent entries
-		var removed = await Store.CleanupAsync(TimeSpan.FromHours(1), CancellationToken.None)
+		var removed = await AdminStore.CleanupAsync(DateTimeOffset.UtcNow.AddHours(-1), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -672,7 +682,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act - Cleanup should not remove failed entries
-		var removed = await Store.CleanupAsync(TimeSpan.Zero, CancellationToken.None)
+		var removed = await AdminStore.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -694,7 +704,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 			.ConfigureAwait(false);
 
 		// Act - Cleanup should not remove pending entries
-		var removed = await Store.CleanupAsync(TimeSpan.Zero, CancellationToken.None)
+		var removed = await AdminStore.CleanupAsync(DateTimeOffset.UtcNow, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -734,7 +744,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		// id3 remains pending
 
 		// Act
-		var allEntries = await Store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+		var allEntries = await AdminStore.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		var entriesList = allEntries.ToList();
@@ -748,7 +758,7 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 	public async Task GetAllEntries_EmptyStore_ReturnsEmptyCollection()
 	{
 		// Act
-		var allEntries = await Store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
+		var allEntries = await AdminStore.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		allEntries.ShouldBeEmpty();

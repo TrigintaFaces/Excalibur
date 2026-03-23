@@ -5,9 +5,13 @@
 namespace Excalibur.Data.ElasticSearch.Projections;
 
 /// <summary>
-/// Defines alert severity levels.
+/// Defines alert severity levels for projection monitoring.
 /// </summary>
-public enum AlertSeverity
+/// <remarks>
+/// Renamed from <c>AlertSeverity</c> to avoid collision with
+/// <c>Excalibur.Dispatch.Compliance.AlertSeverity</c> (key rotation alerts).
+/// </remarks>
+public enum ProjectionAlertSeverity
 {
 	/// <summary>
 	/// Informational alert.

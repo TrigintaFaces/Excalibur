@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Security;
 /// TLS verification, connection lifecycle, and disposal behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Transport")]
 public sealed class TransportConnectionBaseFunctionalShould
 {
 	private sealed class SecureConnection : TransportConnectionBase

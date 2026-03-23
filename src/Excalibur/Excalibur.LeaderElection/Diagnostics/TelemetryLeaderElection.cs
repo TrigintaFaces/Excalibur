@@ -38,6 +38,11 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 	private readonly string _providerName;
 	private readonly TagCardinalityGuard _instanceGuard;
 
+#if NET9_0_OR_GREATER
+	private readonly System.Threading.Lock _stopwatchLock = new();
+#else
+	private readonly object _stopwatchLock = new();
+#endif
 	private ValueStopwatch? _leaseStopwatch;
 	private volatile bool _disposed;
 
@@ -162,8 +167,8 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 		_inner.LostLeadership -= HandleLostLeadership;
 		_inner.LeaderChanged -= HandleLeaderChanged;
 
-		_meter.Dispose();
-		_activitySource.Dispose();
+		// Do not dispose _meter and _activitySource here -- they are owned by
+		// TelemetryLeaderElectionFactory and shared across election instances.
 
 		if (_inner is IAsyncDisposable asyncDisposable)
 		{
@@ -187,7 +192,10 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 		_acquisitionsCounter.Add(1, tags);
 
 		// Start tracking lease duration
-		_leaseStopwatch = ValueStopwatch.StartNew();
+		lock (_stopwatchLock)
+		{
+			_leaseStopwatch = ValueStopwatch.StartNew();
+		}
 
 		BecameLeader?.Invoke(this, e);
 	}
@@ -217,8 +225,13 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 
 	private void RecordLeaseDurationIfActive()
 	{
-		if (_leaseStopwatch is { } leaseStopwatch)
+		lock (_stopwatchLock)
 		{
+			if (_leaseStopwatch is not { } leaseStopwatch)
+			{
+				return;
+			}
+
 			var guardedInstance = _instanceGuard.Guard(_inner.CandidateId);
 			var tags = new TagList
 			{

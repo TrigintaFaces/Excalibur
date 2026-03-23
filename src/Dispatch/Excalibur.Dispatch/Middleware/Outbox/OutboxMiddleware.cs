@@ -13,7 +13,7 @@ using Excalibur.Dispatch.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using OutboxOptions = Excalibur.Dispatch.Options.Middleware.OutboxOptions;
+using Excalibur.Dispatch.Options.Middleware;
 
 namespace Excalibur.Dispatch.Middleware.Outbox;
 
@@ -35,12 +35,13 @@ namespace Excalibur.Dispatch.Middleware.Outbox;
 [RequiresFeatures(DispatchFeatures.Outbox)]
 public sealed partial class OutboxMiddleware : IDispatchMiddleware
 {
+	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, bool> BypassOutboxAttributeCache = new();
 	private static readonly Func<ILogger, string, bool, string, IDisposable?> OutboxLogScope =
 		LoggerMessage.DefineScope<string, bool, string>(
 			"MessageType:{MessageType} OutboxEnabled:{OutboxEnabled} CorrelationId:{CorrelationId}");
 
-	private readonly OutboxOptions _options;
+	private readonly OutboxMiddlewareOptions _options;
 	private readonly IOutboxStore? _outboxStore;
 	private readonly ILogger<OutboxMiddleware> _logger;
 	private readonly FrozenSet<string>? _bypassOutboxTypes;
@@ -52,7 +53,7 @@ public sealed partial class OutboxMiddleware : IDispatchMiddleware
 	/// <param name="outboxStore"> Optional persistent outbox store for message staging. </param>
 	/// <param name="logger"> Logger for diagnostic information. </param>
 	public OutboxMiddleware(
-		IOptions<OutboxOptions> options,
+		IOptions<OutboxMiddlewareOptions> options,
 		IOutboxStore? outboxStore,
 		ILogger<OutboxMiddleware> logger)
 	{
@@ -158,9 +159,14 @@ public sealed partial class OutboxMiddleware : IDispatchMiddleware
 	{
 		// Check if message bypasses outbox
 		var messageType = message.GetType();
-		var hasBypassOutboxAttribute = BypassOutboxAttributeCache.GetOrAdd(
-			messageType,
-			static type => type.GetCustomAttributes(typeof(BypassOutboxAttribute), inherit: true).Length != 0);
+		if (!BypassOutboxAttributeCache.TryGetValue(messageType, out var hasBypassOutboxAttribute))
+		{
+			hasBypassOutboxAttribute = messageType.GetCustomAttributes(typeof(BypassOutboxAttribute), inherit: true).Length != 0;
+			if (BypassOutboxAttributeCache.Count < MaxCacheEntries)
+			{
+				_ = BypassOutboxAttributeCache.TryAdd(messageType, hasBypassOutboxAttribute);
+			}
+		}
 		if (hasBypassOutboxAttribute)
 		{
 			return false;

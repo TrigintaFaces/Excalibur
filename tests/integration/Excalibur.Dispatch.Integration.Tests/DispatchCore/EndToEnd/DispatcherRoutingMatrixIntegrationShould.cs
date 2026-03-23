@@ -332,7 +332,7 @@ public sealed class DispatcherRoutingMatrixIntegrationShould : IntegrationTestBa
 		}
 	}
 
-	private sealed class MatrixRemoteBusOptions : IMessageBusOptions;
+	private sealed class MatrixRemoteBusOptions : MessageBusOptions;
 
 	private sealed class LocalRoutedCommandHandler(LocalRouteCounter counter) : IActionHandler<LocalRoutedCommand>
 	{

@@ -130,6 +130,7 @@ const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportAdapterStarting =
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportAdapterStopping = 22009 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverAcknowledgeError = 22913 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverDisposed = 22916 -> int
+const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverOffsetCacheOverflow = 22917 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverMessageAcknowledged = 22912 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverMessageReceived = 22910 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverMessageRejected = 22914 -> int
@@ -230,9 +231,6 @@ Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>.Topic.get -> stri
 Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>.Topic.set -> void
 Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>.Value.get -> TValue?
 Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>.Value.set -> void
-Excalibur.Dispatch.Transport.Kafka.CorrelationId
-Excalibur.Dispatch.Transport.Kafka.CorrelationId.CorrelationId(string! value) -> void
-Excalibur.Dispatch.Transport.Kafka.CorrelationId.Value.get -> string!
 Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling
 Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling.DeadLetter = 1 -> Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling
 Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling.Skip = 0 -> Excalibur.Dispatch.Transport.Kafka.DeserializationErrorHandling
@@ -531,8 +529,8 @@ Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.BackoffMultiplier.get -> double
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.BackoffMultiplier.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.KafkaRetryOptions() -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.MaxRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.MaxRetryDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.MaxRetryDelay.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.RetryDelay.get -> System.TimeSpan
@@ -663,7 +661,6 @@ Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensi
 Microsoft.Extensions.DependencyInjection.KafkaOtelMetricsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.KafkaTransportServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SchemaRegistryServiceCollectionExtensions
-override Excalibur.Dispatch.Transport.Kafka.CorrelationId.ToString() -> string!
 static Excalibur.Dispatch.Transport.Kafka.CompatibilityModeExtensions.ParseCompatibilityMode(string! apiValue) -> Excalibur.Dispatch.Transport.Kafka.CompatibilityMode
 static Excalibur.Dispatch.Transport.Kafka.CompatibilityModeExtensions.ToApiString(this Excalibur.Dispatch.Transport.Kafka.CompatibilityMode mode) -> string!
 static Excalibur.Dispatch.Transport.Kafka.ConfluentWireFormat.GetPayload(System.ReadOnlySpan<byte> source) -> System.ReadOnlySpan<byte>
@@ -700,6 +697,7 @@ static Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions.U
 static Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions.UseConfluentFormat(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryOptions!>! configureRegistry, System.Action<Excalibur.Dispatch.Transport.Kafka.CachingSchemaRegistryOptions!>! configureCaching) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions.UseSubjectNaming<TStrategy>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensions.AddKafkaDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensions.AddKafkaDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! transportName, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaOtelMetricsServiceCollectionExtensions.AddKafkaOtelMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaTransportServiceCollectionExtensions.AddKafkaTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaTransportServiceCollectionExtensions.AddKafkaTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MultiTransportHealthCheckShould
 {
 	[Fact]
@@ -342,7 +343,7 @@ public sealed class MultiTransportHealthCheckShould
 		public Task<IMessageResult> ReceiveAsync(object transportMessage, IDispatcher dispatcher, CancellationToken cancellationToken = default)
 			=> Task.FromResult<IMessageResult>(null!);
 
-		public Task SendAsync(IDispatchMessage message, string destination, CancellationToken cancellationToken = default)
+		public Task SendAsync(IDispatchMessage message, string destination, IMessageContext context, CancellationToken cancellationToken = default)
 			=> Task.CompletedTask;
 
 		public Task StartAsync(CancellationToken cancellationToken = default)

@@ -19,27 +19,25 @@ namespace Excalibur.Dispatch.BatchProcessing;
 /// <summary>
 /// Micro-batch processor for efficient batch processing.
 /// </summary>
-public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
+internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	where T : class
 {
 	private readonly Func<IReadOnlyList<T>, ValueTask> _batchProcessor;
 	private readonly MicroBatchOptions _options;
 	private readonly Channel<ItemWithToken> _inputChannel;
 	private readonly Task _processingTask;
-	private readonly CancellationTokenSource _shutdownTokenSource;
+	[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
+		Justification = "Disposed via Interlocked.Exchange in Dispose/DisposeAsync to prevent race conditions")]
+	private CancellationTokenSource _shutdownTokenSource;
 	private readonly ILogger<BatchProcessor<T>> _logger;
 	// AD-251-4: Lock retained for List<Task> operations - List<T> is not thread-safe
 	private readonly List<Task> _inFlightTasks = [];
 #if NET9_0_OR_GREATER
-
-	private readonly Lock _inFlightTasksLock = new();
-
+	private readonly System.Threading.Lock _inFlightTasksLock = new();
 #else
-
 	private readonly object _inFlightTasksLock = new();
-
 #endif
-	private volatile bool _disposed;
+	private int _disposed;
 
 	/// <summary>
 	/// ActivitySource for distributed tracing (instance-scoped to enable test listener registration).
@@ -121,9 +119,15 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		_batchSizeHistogram = _meter.CreateHistogram<int>("dispatch.microbatch.batch.size", description: "Size of batches processed");
 		_processingDurationHistogram = _meter.CreateHistogram<double>("dispatch.microbatch.processing.duration", unit: "ms", description: "Duration of batch processing in milliseconds");
 
-		// Create input channel
-		var channelOptions = new UnboundedChannelOptions { SingleWriter = false, SingleReader = true };
-		_inputChannel = Channel.CreateUnbounded<ItemWithToken>(channelOptions);
+		// Create bounded input channel for backpressure -- producers block when full (Wait mode)
+		// to prevent unbounded memory growth. Use DropOldest only for telemetry; batch data must not be lost.
+		var channelOptions = new BoundedChannelOptions(_options.ChannelCapacity)
+		{
+			SingleWriter = false,
+			SingleReader = true,
+			FullMode = BoundedChannelFullMode.Wait,
+		};
+		_inputChannel = Channel.CreateBounded<ItemWithToken>(channelOptions);
 
 		// Start processing task
 		_shutdownTokenSource = new CancellationTokenSource();
@@ -175,12 +179,13 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	/// </remarks>
 	public async ValueTask DisposeAsync()
 	{
-		if (_disposed)
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
 		{
 			return; // Idempotent - safe to call multiple times
 		}
 
-		_disposed = true;
+		// Capture a local reference to avoid races with concurrent Dispose
+		var cts = Interlocked.Exchange(ref _shutdownTokenSource, null!);
 
 		_ = _inputChannel.Writer.TryComplete();
 
@@ -197,9 +202,9 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 				LogProcessingTaskTimeout(_logger);
 				try
 				{
-					if (!_shutdownTokenSource.IsCancellationRequested)
+					if (cts is { IsCancellationRequested: false })
 					{
-						await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
+						await cts.CancelAsync().ConfigureAwait(false);
 					}
 				}
 				catch (ObjectDisposedException)
@@ -207,7 +212,7 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 					LogShutdownCancellationTokenDisposed(_logger);
 				}
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				// Processing task was cancelled - expected during shutdown
 			}
@@ -244,7 +249,7 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		finally
 		{
 			// Always dispose resources in finally block
-			_shutdownTokenSource?.Dispose();
+			cts?.Dispose();
 			_meter?.Dispose();
 			_activitySource?.Dispose();
 		}
@@ -268,19 +273,20 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	/// </remarks>
 	public void Dispose()
 	{
-		if (_disposed)
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
 		{
 			return; // Idempotent - safe to call multiple times
 		}
 
-		_disposed = true;
+		// Capture a local reference to avoid races with concurrent Dispose/DisposeAsync
+		var cts = Interlocked.Exchange(ref _shutdownTokenSource, null!);
 
 		try
 		{
 			// Safe cancellation - check before calling Cancel()
-			if (!_shutdownTokenSource.IsCancellationRequested)
+			if (cts is { IsCancellationRequested: false })
 			{
-				_shutdownTokenSource.Cancel();
+				cts.Cancel();
 			}
 		}
 		catch (ObjectDisposedException)
@@ -299,7 +305,7 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		// Dispose resources immediately
 		try
 		{
-			_shutdownTokenSource?.Dispose();
+			cts?.Dispose();
 		}
 		catch (ObjectDisposedException)
 		{
@@ -418,65 +424,7 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 					// Cooperative cancellation check before processing batch
 					cancellationToken.ThrowIfCancellationRequested();
 
-					// Filter out cancelled items and build active batch
-					activeBatch.Clear();
-					foreach (var wrapped in pendingItems)
-					{
-						if (!wrapped.Token.IsCancellationRequested)
-						{
-							activeBatch.Add(wrapped.Item);
-						}
-					}
-
-					// Process batch if there are any non-cancelled items
-					if (activeBatch.Count > 0)
-					{
-						// AD-251-4: Use ToArray() instead of ToList() for immutable batch snapshot
-						var batchCopy = activeBatch.ToArray();
-
-						// Fire off batch processing without awaiting
-						// Capture parent Activity context for propagation across Task.Run() boundary (Phase 9.1h-2)
-						var parentContext = Activity.Current?.Context ?? default;
-
-						var processingTask = StartBatchWorkAsync(
-							async () =>
-						{
-							// Create activity for batch processing with trace context linked to parent
-							using var activity = _activitySource.StartActivity("BatchProcessor.ProcessBatch", ActivityKind.Internal, parentContext);
-							_ = (activity?.SetTag("batch.size", batchCopy.Length));
-							_ = (activity?.SetTag("component.name", "BatchProcessor"));
-
-							var startTimestamp = ValueStopwatch.GetTimestamp();
-							try
-							{
-								await _batchProcessor(batchCopy).ConfigureAwait(false);
-
-								// Record success metrics
-								var endTimestamp = ValueStopwatch.GetTimestamp();
-								var elapsedMs = (endTimestamp - startTimestamp) * 1000.0 / ValueStopwatch.GetFrequency();
-								_itemsProcessedCounter.Add(batchCopy.Length);
-								_batchSizeHistogram.Record(batchCopy.Length);
-								_processingDurationHistogram.Record(elapsedMs);
-
-								_ = (activity?.SetStatus(ActivityStatusCode.Ok));
-							}
-							catch (Exception ex)
-							{
-								LogErrorProcessingBatchOfItems(ex, batchCopy.Length);
-								_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
-								_ = (activity?.AddTag("exception.type", ex.GetType().FullName));
-								_ = (activity?.AddTag("exception.message", ex.Message));
-								_ = (activity?.AddTag("exception.stacktrace", ex.StackTrace));
-								throw;
-							}
-						});
-
-						lock (_inFlightTasksLock)
-						{
-							_inFlightTasks.Add(processingTask);
-						}
-					}
-
+					FlushBatch(pendingItems, activeBatch, isShutdown: false);
 					pendingItems.Clear();
 					lastFlush = now;
 				}
@@ -490,66 +438,10 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 			// Process remaining items - allow graceful flush even during shutdown
 			if (pendingItems.Count > 0)
 			{
-				// Filter out cancelled items
-				activeBatch.Clear();
-				foreach (var wrapped in pendingItems)
-				{
-					if (!wrapped.Token.IsCancellationRequested)
-					{
-						activeBatch.Add(wrapped.Item);
-					}
-				}
-
-				if (activeBatch.Count > 0)
-				{
-					// AD-251-4: Use ToArray() instead of ToList() for immutable batch snapshot
-					var batchCopy = activeBatch.ToArray();
-
-					// Capture parent Activity context for propagation across Task.Run() boundary (Phase 9.1h-2)
-					var parentContext = Activity.Current?.Context ?? default;
-
-					// Fire off batch processing without awaiting
-					var processingTask = StartBatchWorkAsync(
-						async () =>
-					{
-						// Create activity for batch processing with trace context linked to parent
-						using var activity = _activitySource.StartActivity("BatchProcessor.ProcessBatch", ActivityKind.Internal, parentContext);
-						_ = (activity?.SetTag("batch.size", batchCopy.Length));
-						_ = (activity?.SetTag("component.name", "BatchProcessor"));
-						_ = (activity?.SetTag("shutdown", "true"));
-
-						var startTimestamp = ValueStopwatch.GetTimestamp();
-						try
-						{
-							await _batchProcessor(batchCopy).ConfigureAwait(false);
-
-							// Record success metrics
-							var endTimestamp = ValueStopwatch.GetTimestamp();
-							var elapsedMs = (endTimestamp - startTimestamp) * 1000.0 / ValueStopwatch.GetFrequency();
-							_itemsProcessedCounter.Add(batchCopy.Length);
-							_batchSizeHistogram.Record(batchCopy.Length);
-							_processingDurationHistogram.Record(elapsedMs);
-
-							_ = (activity?.SetStatus(ActivityStatusCode.Ok));
-						}
-						catch (Exception ex)
-						{
-							LogErrorProcessingBatchOfItems(ex, batchCopy.Length);
-							_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
-							_ = (activity?.AddTag("exception.type", ex.GetType().FullName));
-							_ = (activity?.AddTag("exception.message", ex.Message));
-							_ = (activity?.AddTag("exception.stacktrace", ex.StackTrace));
-						}
-					});
-
-					lock (_inFlightTasksLock)
-					{
-						_inFlightTasks.Add(processingTask);
-					}
-				}
+				FlushBatch(pendingItems, activeBatch, isShutdown: true);
 			}
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -558,63 +450,7 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 			// Timeout on WaitAsync - flush pending batch if any
 			if (pendingItems.Count > 0)
 			{
-				// Filter out cancelled items
-				activeBatch.Clear();
-				foreach (var wrapped in pendingItems)
-				{
-					if (!wrapped.Token.IsCancellationRequested)
-					{
-						activeBatch.Add(wrapped.Item);
-					}
-				}
-
-				if (activeBatch.Count > 0)
-				{
-					// AD-251-4: Use ToArray() instead of ToList() for immutable batch snapshot
-					var batchCopy = activeBatch.ToArray();
-
-					// Capture parent Activity context for propagation across Task.Run() boundary (Phase 9.1h-2)
-					var parentContext = Activity.Current?.Context ?? default;
-
-					// Fire off batch processing without awaiting
-					var processingTask = StartBatchWorkAsync(
-						async () =>
-					{
-						// Create activity for batch processing with trace context linked to parent
-						using var activity = _activitySource.StartActivity("BatchProcessor.ProcessBatch", ActivityKind.Internal, parentContext);
-						_ = (activity?.SetTag("batch.size", batchCopy.Length));
-						_ = (activity?.SetTag("component.name", "BatchProcessor"));
-						_ = (activity?.SetTag("shutdown", "true"));
-
-						var startTimestamp = ValueStopwatch.GetTimestamp();
-						try
-						{
-							await _batchProcessor(batchCopy).ConfigureAwait(false);
-
-							// Record success metrics
-							var endTimestamp = ValueStopwatch.GetTimestamp();
-							var elapsedMs = (endTimestamp - startTimestamp) * 1000.0 / ValueStopwatch.GetFrequency();
-							_itemsProcessedCounter.Add(batchCopy.Length);
-							_batchSizeHistogram.Record(batchCopy.Length);
-							_processingDurationHistogram.Record(elapsedMs);
-
-							_ = (activity?.SetStatus(ActivityStatusCode.Ok));
-						}
-						catch (Exception ex)
-						{
-							LogErrorProcessingBatchOfItems(ex, batchCopy.Length);
-							_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
-							_ = (activity?.AddTag("exception.type", ex.GetType().FullName));
-							_ = (activity?.AddTag("exception.message", ex.Message));
-							_ = (activity?.AddTag("exception.stacktrace", ex.StackTrace));
-						}
-					});
-
-					lock (_inFlightTasksLock)
-					{
-						_inFlightTasks.Add(processingTask);
-					}
-				}
+				FlushBatch(pendingItems, activeBatch, isShutdown: true);
 			}
 		}
 
@@ -638,12 +474,92 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		}
 	}
 
-	private Task StartBatchWorkAsync(Func<Task> work) =>
-		Task.Factory.StartNew(
+	/// <summary>
+	/// Filters cancelled items, creates a batch snapshot, and fires off batch processing
+	/// with activity tracing and metrics. Adds the task to in-flight tracking.
+	/// </summary>
+	/// <param name="pendingItems">The pending items to flush.</param>
+	/// <param name="activeBatch">Reusable list for building the active batch.</param>
+	/// <param name="isShutdown">Whether this is a shutdown/cleanup flush (suppresses rethrow on error).</param>
+	private void FlushBatch(List<ItemWithToken> pendingItems, List<T> activeBatch, bool isShutdown)
+	{
+		// Filter out cancelled items
+		activeBatch.Clear();
+		foreach (var wrapped in pendingItems)
+		{
+			if (!wrapped.Token.IsCancellationRequested)
+			{
+				activeBatch.Add(wrapped.Item);
+			}
+		}
+
+		if (activeBatch.Count == 0)
+		{
+			return;
+		}
+
+		// AD-251-4: Use ToArray() instead of ToList() for immutable batch snapshot
+		var batchCopy = activeBatch.ToArray();
+
+		// Capture parent Activity context for propagation across Task.Run() boundary (Phase 9.1h-2)
+		var parentContext = Activity.Current?.Context ?? default;
+
+		// Fire off batch processing without awaiting
+		var processingTask = StartBatchWorkAsync(
+			async () =>
+		{
+			// Create activity for batch processing with trace context linked to parent
+			using var activity = _activitySource.StartActivity("BatchProcessor.ProcessBatch", ActivityKind.Internal, parentContext);
+			_ = (activity?.SetTag("batch.size", batchCopy.Length));
+			_ = (activity?.SetTag("component.name", "BatchProcessor"));
+			if (isShutdown)
+			{
+				_ = (activity?.SetTag("shutdown", "true"));
+			}
+
+			var startTimestamp = ValueStopwatch.GetTimestamp();
+			try
+			{
+				await _batchProcessor(batchCopy).ConfigureAwait(false);
+
+				// Record success metrics
+				var endTimestamp = ValueStopwatch.GetTimestamp();
+				var elapsedMs = (endTimestamp - startTimestamp) * 1000.0 / ValueStopwatch.GetFrequency();
+				_itemsProcessedCounter.Add(batchCopy.Length);
+				_batchSizeHistogram.Record(batchCopy.Length);
+				_processingDurationHistogram.Record(elapsedMs);
+
+				_ = (activity?.SetStatus(ActivityStatusCode.Ok));
+			}
+			catch (Exception ex)
+			{
+				LogErrorProcessingBatchOfItems(ex, batchCopy.Length);
+				_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
+				_ = (activity?.AddTag("exception.type", ex.GetType().FullName));
+				_ = (activity?.AddTag("exception.message", ex.Message));
+				_ = (activity?.AddTag("exception.stacktrace", ex.StackTrace?.Length > 1024 ? ex.StackTrace[..1024] : ex.StackTrace));
+				if (!isShutdown)
+				{
+					throw;
+				}
+			}
+		});
+
+		lock (_inFlightTasksLock)
+		{
+			_inFlightTasks.Add(processingTask);
+		}
+	}
+
+	private Task StartBatchWorkAsync(Func<Task> work)
+	{
+		var token = _shutdownTokenSource?.Token ?? CancellationToken.None;
+		return Task.Factory.StartNew(
 			work,
-			_shutdownTokenSource.Token,
+			token,
 			TaskCreationOptions.DenyChildAttach,
 			TaskScheduler.Default).Unwrap();
+	}
 
 	// Source-generated logging methods
 	[LoggerMessage(LogLevel.Debug, "CancellationTokenSource already disposed during shutdown signal")]

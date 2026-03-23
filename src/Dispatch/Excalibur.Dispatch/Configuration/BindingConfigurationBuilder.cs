@@ -75,12 +75,12 @@ internal sealed class BindingConfigurationBuilder(
 
 		if (string.IsNullOrWhiteSpace(_transportName))
 		{
-			throw new InvalidOperationException(ErrorMessages.TransportNameIsRequired);
+			throw new InvalidOperationException($"Binding '{_name}': {ErrorMessages.TransportNameIsRequired}");
 		}
 
 		if (string.IsNullOrWhiteSpace(_endpointPattern))
 		{
-			throw new InvalidOperationException(ErrorMessages.EndpointPatternIsRequired);
+			throw new InvalidOperationException($"Binding '{_name}': {ErrorMessages.EndpointPatternIsRequired}");
 		}
 
 		if (!transportAdapters.TryGetValue(_transportName, out var adapter))

@@ -569,6 +569,7 @@
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
           "Excalibur.Hosting": "[0.1.0-local, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
+          "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Options": "[10.0.0, )",
@@ -646,6 +647,7 @@
           "CloudNative.CloudEvents.SystemTextJson": "[2.8.0, )",
           "Cronos": "[0.11.1, )",
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Compliance.Abstractions": "[0.1.0-local, )",
           "Excalibur.Dispatch.Serialization.MemoryPack": "[0.1.0-local, )",
           "Medo.Uuid7": "[1.4.0, )",
           "MemoryPack": "[1.21.4, )",
@@ -706,6 +708,7 @@
       "excalibur.dispatch.compliance.abstractions": {
         "type": "Project",
         "dependencies": {
+          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )"
         }
       },

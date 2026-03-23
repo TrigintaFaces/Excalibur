@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Performance;
 /// Configuration is controlled via <see cref="PerformanceOptions.AutoFreezeOnStart"/>.
 /// </para>
 /// </remarks>
-public sealed partial class DispatchCacheOptimizationHostedService : IHostedService
+internal sealed partial class DispatchCacheOptimizationHostedService : IHostedService
 {
 	private readonly IDispatchCacheManager _cacheManager;
 	private readonly IHostApplicationLifetime _applicationLifetime;

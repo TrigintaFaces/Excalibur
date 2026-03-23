@@ -16,6 +16,8 @@ namespace Excalibur.Domain;
 /// </summary>
 public static partial class ApplicationContext
 {
+	private const int MaxCacheEntries = 1024;
+
 	private static readonly CompositeFormat CircularReferenceDetectedFormat =
 			CompositeFormat.Parse(Resources.ApplicationContext_CircularReferenceDetected);
 
@@ -33,6 +35,7 @@ public static partial class ApplicationContext
 	private static readonly object InitLock = new();
 #endif
 	private static readonly ConcurrentDictionary<string, string> SecureContextValues = new(StringComparer.OrdinalIgnoreCase);
+	// Process-lifetime lock for static ApplicationContext; no disposal needed (static class cannot implement IDisposable).
 	private static readonly ReaderWriterLockSlim CacheLock = new();
 	private static readonly ConcurrentDictionary<string, (string? Value, DateTimeOffset CachedAt)> ValueCache = new(StringComparer.Ordinal);
 	private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
@@ -228,7 +231,12 @@ public static partial class ApplicationContext
 			}
 
 			var value = GetInternal(key, new HashSet<string>(StringComparer.Ordinal));
-			ValueCache[key] = (value, now);
+
+			if (ValueCache.Count < MaxCacheEntries)
+			{
+				ValueCache[key] = (value, now);
+			}
+
 			return value ?? defaultValue ?? throw new InvalidConfigurationException(key);
 		}
 		finally

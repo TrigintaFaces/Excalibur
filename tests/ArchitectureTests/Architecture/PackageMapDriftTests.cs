@@ -2,10 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+
+using Shouldly;
+
 using Xunit;
 
 namespace ArchitectureTests.Architecture;
 
+[Trait("Category", "Integration")]
+[Trait("Component", "Architecture")]
 public sealed class PackageMapDriftTests
 {
     private static readonly string RepoRoot = GetRepoRoot();
@@ -20,7 +25,7 @@ public sealed class PackageMapDriftTests
         if (!File.Exists(mapPath))
         {
             Console.WriteLine($"package-map.yaml not found at {mapPath}; skipping.");
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
@@ -61,14 +66,14 @@ public sealed class PackageMapDriftTests
 
         if (missing.Count == 0)
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
         var message = "Package map entries not found as project names (report-only):\n" + string.Join("\n", missing);
         // Always report-only for drift; enforcement should be a manual review initially.
         Console.WriteLine(message);
-        Assert.True(true);
+        true.ShouldBeTrue();
     }
 
     private static string GetRepoRoot()
@@ -85,4 +90,3 @@ public sealed class PackageMapDriftTests
         return Directory.GetCurrentDirectory();
     }
 }
-

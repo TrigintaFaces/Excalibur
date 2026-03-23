@@ -36,7 +36,7 @@ public class SqlServerContainerFixture : ContainerFixtureBase
 			.WithPassword("YourStrong(!)Password")
 			.Build();
 
-		await _container.StartAsync().ConfigureAwait(true);
+		await _container.StartAsync();
 	}
 
 	/// <summary>
@@ -45,13 +45,13 @@ public class SqlServerContainerFixture : ContainerFixtureBase
 	public async Task ExecuteScriptAsync(string script, CancellationToken cancellationToken = default)
 	{
 		await using var connection = new SqlConnection(ConnectionString);
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(cancellationToken);
 
 		await using var command = connection.CreateCommand();
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities - test code with controlled input
 		command.CommandText = script;
 #pragma warning restore CA2100
-		_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(true);
+		_ = await command.ExecuteNonQueryAsync(cancellationToken);
 	}
 
 	/// <inheritdoc/>
@@ -59,7 +59,7 @@ public class SqlServerContainerFixture : ContainerFixtureBase
 	{
 		if (_container is not null)
 		{
-			await _container.DisposeAsync().ConfigureAwait(true);
+			await _container.DisposeAsync();
 		}
 	}
 }

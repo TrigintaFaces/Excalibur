@@ -27,6 +27,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Shouldly;
+
 using Xunit;
 using Xunit.Abstractions;
 
@@ -101,9 +103,8 @@ public sealed class VerificationScenarioTests
 				invalidCommand, context, CancellationToken.None));
 
 		// Assert -- should throw ValidationException
-		Assert.NotNull(exception);
-		Assert.True(
-			exception is System.ComponentModel.DataAnnotations.ValidationException,
+		exception.ShouldNotBeNull();
+		exception.ShouldBeOfType<System.ComponentModel.DataAnnotations.ValidationException>(
 			$"Expected ValidationException but got {exception.GetType().Name}: {exception.Message}");
 		_output.WriteLine($"Scenario 2 PASSED: Invalid command rejected with: {exception.Message}");
 	}
@@ -155,8 +156,8 @@ public sealed class VerificationScenarioTests
 				command, context, CancellationToken.None));
 
 		// Assert -- handler was invoked through the resilience pipeline
-		Assert.Null(exception);
-		Assert.True(RetryTrackingHandler.CallCount >= 1,
+		exception.ShouldBeNull();
+		(RetryTrackingHandler.CallCount >= 1).ShouldBeTrue(
 			"Handler should have been called through the resilience pipeline");
 		_output.WriteLine($"Scenario 3: Handler called {RetryTrackingHandler.CallCount} time(s) through resilience pipeline");
 
@@ -188,7 +189,7 @@ public sealed class VerificationScenarioTests
 		services.AddDispatch();
 
 		// Register security with encryption enabled (signing requires IKeyProvider from cloud packages)
-		services.AddDispatchSecurity(options =>
+		services.AddDispatchSecurityMiddleware(options =>
 		{
 			options.Encryption.EnableEncryption = true;
 			// Signing left disabled -- IKeyProvider requires cloud-specific package (Azure/AWS)
@@ -275,7 +276,7 @@ public sealed class VerificationScenarioTests
 			_output.WriteLine($"  - {activity.OperationName} (Source: {activity.Source.Name})");
 		}
 
-		Assert.True(capturedActivities.Count > 0,
+		(capturedActivities.Count > 0).ShouldBeTrue(
 			"Expected at least one OTel activity during command dispatch");
 		_output.WriteLine("Scenario 5 PASSED: OTel activities captured during dispatch");
 	}
@@ -334,8 +335,8 @@ public sealed class VerificationScenarioTests
 			.ConfigureAwait(false);
 
 		// Assert
-		Assert.Equal(HealthStatus.Healthy, report.Status);
-		Assert.Contains(report.Entries, e => e.Key == "self");
+		report.Status.ShouldBe(HealthStatus.Healthy);
+		report.Entries.ShouldContain(e => e.Key == "self");
 
 		_output.WriteLine($"Scenario 6b: Overall status = {report.Status}");
 		foreach (var entry in report.Entries)
@@ -367,7 +368,7 @@ public sealed class VerificationScenarioTests
 		{
 			services.AddExcaliburOutbox();
 		});
-		Assert.Null(regException);
+		regException.ShouldBeNull();
 
 		// Act
 		using var provider = services.BuildServiceProvider();

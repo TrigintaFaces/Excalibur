@@ -77,9 +77,11 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			cancellationToken);
 
 	/// <summary>
-	/// Lazy-initialized, frozen table-to-handler map. Built once on first use, then O(1) lookups.
+	/// Lazy-initialized, frozen table-to-handler-type map. Caches handler TYPES (not instances)
+	/// so that fresh handler instances are resolved from each scoped ServiceProvider,
+	/// avoiding references to disposed services from previous scopes.
 	/// </summary>
-	private volatile FrozenDictionary<string, IDataChangeHandler>? _handlerMap;
+	private volatile FrozenDictionary<string, Type>? _handlerTypeMap;
 
 	private IDataChangeHandler GetHandler(IServiceProvider serviceProvider, string tableName)
 	{
@@ -88,20 +90,31 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			throw new ArgumentNullException(nameof(tableName));
 		}
 
-		var map = _handlerMap ??= BuildHandlerMap(serviceProvider);
+		var map = _handlerTypeMap ??= BuildHandlerTypeMap(serviceProvider);
 
-		if (map.TryGetValue(tableName, out var handler))
+		if (!map.TryGetValue(tableName, out var handlerType))
 		{
-			return handler;
+			throw new CdcMissingTableHandlerException(tableName);
+		}
+
+		// Resolve a fresh handler instance from the current scope to avoid
+		// holding references to disposed scoped services.
+		var handlers = serviceProvider.GetServices<IDataChangeHandler>();
+		foreach (var handler in handlers)
+		{
+			if (handler.GetType() == handlerType)
+			{
+				return handler;
+			}
 		}
 
 		throw new CdcMissingTableHandlerException(tableName);
 	}
 
-	private static FrozenDictionary<string, IDataChangeHandler> BuildHandlerMap(IServiceProvider serviceProvider)
+	private static FrozenDictionary<string, Type> BuildHandlerTypeMap(IServiceProvider serviceProvider)
 	{
 		var handlers = serviceProvider.GetServices<IDataChangeHandler>();
-		var dict = new Dictionary<string, IDataChangeHandler>(StringComparer.OrdinalIgnoreCase);
+		var dict = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var handler in handlers)
 		{
@@ -112,7 +125,7 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 					throw new CdcMultipleTableHandlerException(tableName);
 				}
 
-				dict[tableName] = handler;
+				dict[tableName] = handler.GetType();
 			}
 		}
 

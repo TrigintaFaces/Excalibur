@@ -68,7 +68,7 @@ public static class SqlServerLeaderElectionExtensions
 			var logger = sp.GetRequiredService<ILogger<SqlServerLeaderElection>>();
 			return new SqlServerLeaderElection(connectionString, lockResource, options, logger);
 		});
-		services.TryAddSingleton<ILeaderElection>(sp =>
+		services.AddKeyedSingleton<ILeaderElection>("sqlserver", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<SqlServerLeaderElection>();
 			var meterFactory = sp.GetService<IMeterFactory>();
@@ -76,6 +76,8 @@ public static class SqlServerLeaderElectionExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElection(inner, meter, activitySource, "SqlServer");
 		});
+		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("sqlserver"));
 
 		return services;
 	}
@@ -96,7 +98,7 @@ public static class SqlServerLeaderElectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-		services.TryAddSingleton<ILeaderElectionFactory>(sp =>
+		services.AddKeyedSingleton<ILeaderElectionFactory>("sqlserver", (sp, _) =>
 		{
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 			var inner = new SqlServerLeaderElectionFactory(connectionString, loggerFactory);
@@ -105,6 +107,8 @@ public static class SqlServerLeaderElectionExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "SqlServer");
 		});
+		services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElectionFactory>("sqlserver"));
 
 		return services;
 	}

@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,7 @@ public class TransportAdapterPhaseBenchmarks
 	private IMessageMapper? _mapper;
 	private DispatchJsonSerializer? _serializer;
 	private ITransportMessageContext? _sourceContext;
+	private IMessageContext? _messageContext;
 	private TransportBenchmarkCommand _command = null!;
 	private Dictionary<string, string> _serializationPayload = null!;
 	private readonly ConcurrentDictionary<string, byte> _inflight = new(StringComparer.Ordinal);
@@ -60,6 +62,7 @@ public class TransportAdapterPhaseBenchmarks
 
 		var payload = new string('x', PayloadSizeBytes);
 		_command = new TransportBenchmarkCommand(payload);
+		_messageContext = new MessageContext(_command, _provider);
 		_serializationPayload = new Dictionary<string, string>(capacity: 4, comparer: StringComparer.Ordinal)
 		{
 			["messageId"] = Guid.NewGuid().ToString("N"),
@@ -112,7 +115,7 @@ public class TransportAdapterPhaseBenchmarks
 	[Benchmark(Description = "Publish to in-memory adapter")]
 	public async Task<int> PublishToInMemoryAdapter()
 	{
-		await _adapter!.SendAsync(_command, "local", CancellationToken.None).ConfigureAwait(false);
+		await _adapter!.SendAsync(_command, "local", _messageContext!, CancellationToken.None).ConfigureAwait(false);
 		return _adapter.SentMessages.Count;
 	}
 

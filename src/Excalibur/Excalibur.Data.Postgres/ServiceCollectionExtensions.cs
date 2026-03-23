@@ -4,8 +4,6 @@
 
 using System.Data;
 
-using Excalibur.Data.Abstractions.Execution;
-using Excalibur.Data.Postgres.Execution;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -24,8 +22,6 @@ public static class PostgresDataExecutorServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
 		services.TryAddTransient(_ => connectionFactory());
-		services.TryAddTransient<IDataExecutor, PostgresDataExecutor>();
-		services.TryAddTransient<IQueryExecutor, PostgresQueryExecutor>();
 		return services;
 	}
 }

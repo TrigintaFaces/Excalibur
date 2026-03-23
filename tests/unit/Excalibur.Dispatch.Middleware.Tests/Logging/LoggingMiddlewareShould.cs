@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Logging;
 /// Unit tests for LoggingMiddleware.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class LoggingMiddlewareShould : UnitTestBase
 {
 	private readonly ILogger<LoggingMiddleware> _logger;

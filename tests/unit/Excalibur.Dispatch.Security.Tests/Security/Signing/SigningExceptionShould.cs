@@ -58,7 +58,8 @@ public sealed class SigningExceptionShould
 	public void InheritFromException()
 	{
 		// Assert
-		typeof(SigningException).BaseType.ShouldBe(typeof(Exception));
+		// Sprint 697 T.13: reparented to ApiException
+		typeof(SigningException).BaseType.ShouldBe(typeof(global::Excalibur.Dispatch.Abstractions.ApiException));
 	}
 
 	[Fact]

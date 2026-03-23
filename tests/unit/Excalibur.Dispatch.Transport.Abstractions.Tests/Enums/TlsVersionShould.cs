@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Enums;
 
-public class TlsVersionShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class TlsVersionShould
 {
     [Theory]
     [InlineData(TlsVersion.Tls10, 0)]

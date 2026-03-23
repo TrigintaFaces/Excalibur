@@ -122,7 +122,7 @@ internal sealed partial class SqlServerDistributedJobLock : IDistributedJobLock
 		{
 			await ReleaseAsync(cts.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cts.IsCancellationRequested)
 		{
 			LogLockReleaseTimedOut(_logger, JobKey);
 		}

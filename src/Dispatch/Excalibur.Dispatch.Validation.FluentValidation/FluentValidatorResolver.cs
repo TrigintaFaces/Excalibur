@@ -34,6 +34,12 @@ namespace Excalibur.Dispatch.Validation.FluentValidation;
 public sealed class FluentValidatorResolver(IServiceProvider provider) : IValidatorResolver
 {
 	/// <summary>
+	/// Maximum number of entries allowed in the validator type cache.
+	/// When the cap is reached, new lookups compute the generic type without caching to prevent unbounded memory growth.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
+	/// <summary>
 	/// Cache of generic IValidator{T} types per message type to avoid MakeGenericType per call.
 	/// </summary>
 	private static readonly ConcurrentDictionary<Type, Type> ValidatorTypeCache = new();
@@ -55,9 +61,22 @@ public sealed class FluentValidatorResolver(IServiceProvider provider) : IValida
 
 		var messageType = message.GetType();
 
-		// Get the generic IValidator<T> type for this message type (cached to avoid MakeGenericType per call)
-		var validatorType = ValidatorTypeCache.GetOrAdd(messageType,
-			static type => typeof(IValidator<>).MakeGenericType(type));
+		// Bounded cache: try fast lookup first, then check capacity before adding
+		Type validatorType;
+		if (ValidatorTypeCache.TryGetValue(messageType, out var cached))
+		{
+			validatorType = cached;
+		}
+		else if (ValidatorTypeCache.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching to prevent unbounded growth
+			validatorType = typeof(IValidator<>).MakeGenericType(messageType);
+		}
+		else
+		{
+			validatorType = ValidatorTypeCache.GetOrAdd(messageType,
+				static type => typeof(IValidator<>).MakeGenericType(type));
+		}
 
 		// Get all validators for this message type using the service provider
 		var validators = provider.GetServices(validatorType).Cast<IValidator>().ToArray();

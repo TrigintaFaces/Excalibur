@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Portability;
 
-public class DataPortabilityServiceShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class DataPortabilityServiceShould
 {
     private readonly DataPortabilityService _sut;
     private readonly DataPortabilityOptions _options = new();

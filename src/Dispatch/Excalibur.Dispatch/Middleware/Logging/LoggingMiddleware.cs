@@ -108,15 +108,17 @@ public sealed partial class LoggingMiddleware(
 		}
 	}
 
+	private static readonly JsonSerializerOptions PayloadSerializerOptions = new()
+	{
+		WriteIndented = false,
+		MaxDepth = 3 // Limit depth to avoid circular references
+	};
+
 	private static string SerializePayload(IDispatchMessage message)
 	{
 		try
 		{
-			return JsonSerializer.Serialize(message, new JsonSerializerOptions
-			{
-				WriteIndented = false,
-				MaxDepth = 3 // Limit depth to avoid circular references
-			});
+			return JsonSerializer.Serialize(message, PayloadSerializerOptions);
 		}
 		catch
 		{

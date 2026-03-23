@@ -43,7 +43,7 @@ public sealed class CdcPosition(byte[] lsn, byte[]? seqVal) : IEquatable<CdcPosi
 
 	/// <summary>
 	/// Converts this position to a <see cref="ChangePosition"/> for use with the unified
-	/// <see cref="Excalibur.Dispatch.Abstractions.ICdcStateStore"/> contract.
+	/// <see cref="Excalibur.Dispatch.Abstractions.ISqlServerCdcStateStore"/> contract.
 	/// </summary>
 	/// <returns>
 	/// A <see cref="TokenChangePosition"/> with the LSN encoded as a hex string,

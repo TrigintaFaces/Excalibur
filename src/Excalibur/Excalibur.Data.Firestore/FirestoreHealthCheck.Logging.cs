@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Data.Firestore;
 
-public sealed partial class FirestoreHealthCheck
+internal sealed partial class FirestoreHealthCheck
 {
 	// Source-generated logging methods
 

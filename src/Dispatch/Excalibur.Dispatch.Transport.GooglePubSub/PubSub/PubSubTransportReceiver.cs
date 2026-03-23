@@ -106,7 +106,10 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 				AckIds = { ackId },
 			};
 
-			await _client.AcknowledgeAsync(request, CreateCallSettings(cancellationToken))
+			// Ack must complete even during shutdown to prevent redelivery;
+			// use dedicated timeout instead of caller's cancellation token
+			using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+			await _client.AcknowledgeAsync(request, CreateCallSettings(ackCts.Token))
 				.ConfigureAwait(false);
 			LogMessageAcknowledged(message.Id, Source);
 		}
@@ -126,6 +129,9 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 
 		try
 		{
+			// Reject must complete even during shutdown to prevent redelivery;
+			// use dedicated timeout instead of caller's cancellation token
+			using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			if (requeue)
 			{
 				// Set ack deadline to 0 so message becomes available for redelivery immediately
@@ -136,7 +142,7 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 					AckDeadlineSeconds = 0,
 				};
 
-				await _client.ModifyAckDeadlineAsync(request, CreateCallSettings(cancellationToken))
+				await _client.ModifyAckDeadlineAsync(request, CreateCallSettings(rejectCts.Token))
 					.ConfigureAwait(false);
 				LogMessageRejectedRequeue(message.Id, Source, reason ?? "no reason");
 			}
@@ -149,7 +155,7 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 					AckIds = { ackId },
 				};
 
-				await _client.AcknowledgeAsync(request, CreateCallSettings(cancellationToken))
+				await _client.AcknowledgeAsync(request, CreateCallSettings(rejectCts.Token))
 					.ConfigureAwait(false);
 				LogMessageRejected(message.Id, Source, reason ?? "no reason");
 			}

@@ -2,7 +2,9 @@ using Excalibur.Dispatch.AuditLogging.Encryption;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests.Encryption;
 
-public class AuditEncryptionOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class AuditEncryptionOptionsShould
 {
     [Fact]
     public void Default_encrypt_actor_id_to_true()

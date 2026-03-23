@@ -12,6 +12,7 @@ namespace Excalibur.Outbox.Tests;
 /// Unit tests for <see cref="ContentHashDeduplicationStrategy"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class ContentHashDeduplicationStrategyShould : UnitTestBase
 {
 	private readonly IDeduplicationStore _fakeStore;

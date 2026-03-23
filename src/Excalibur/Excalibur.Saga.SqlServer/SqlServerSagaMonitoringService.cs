@@ -167,7 +167,7 @@ public sealed partial class SqlServerSagaMonitoringService : ISagaMonitoringServ
 	}
 
 	/// <inheritdoc />
-	public async Task<int> GetCompletedCountAsync(string? sagaType, DateTime? since, CancellationToken cancellationToken)
+	public async Task<int> GetCompletedCountAsync(string? sagaType, DateTimeOffset? since, CancellationToken cancellationToken)
 	{
 		using var activity = ActivitySource.StartActivity("GetCompletedCount");
 		_ = (activity?.SetTag("saga.type", sagaType ?? "all"));
@@ -294,7 +294,7 @@ public sealed partial class SqlServerSagaMonitoringService : ISagaMonitoringServ
 	/// <inheritdoc />
 	public async Task<TimeSpan?> GetAverageCompletionTimeAsync(
 		string sagaType,
-		DateTime since,
+		DateTimeOffset since,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sagaType);
@@ -342,8 +342,8 @@ public sealed partial class SqlServerSagaMonitoringService : ISagaMonitoringServ
 		Guid SagaId,
 		string SagaType,
 		bool IsCompleted,
-		DateTime CreatedUtc,
-		DateTime UpdatedUtc,
-		DateTime? CompletedAt,
+		DateTimeOffset CreatedUtc,
+		DateTimeOffset UpdatedUtc,
+		DateTimeOffset? CompletedAt,
 		string? FailureReason);
 }

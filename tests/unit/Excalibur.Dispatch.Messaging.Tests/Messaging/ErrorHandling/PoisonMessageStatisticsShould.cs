@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 ///     Tests for the <see cref="PoisonMessageStatistics" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PoisonMessageStatisticsShould
 {
 	[Fact]

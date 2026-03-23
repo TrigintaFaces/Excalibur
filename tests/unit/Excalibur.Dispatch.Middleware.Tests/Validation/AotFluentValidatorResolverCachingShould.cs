@@ -166,7 +166,7 @@ public sealed class AotFluentValidatorResolverCachingShould : UnitTestBase
 
 		// Assert -- internal cache should contain the type key
 		var cache = GetCacheField(sut);
-		Assert.NotNull(cache);
+		cache.ShouldNotBeNull();
 		cache.ContainsKey(typeof(CacheTestMessage)).ShouldBeTrue();
 	}
 
@@ -186,7 +186,7 @@ public sealed class AotFluentValidatorResolverCachingShould : UnitTestBase
 
 		// Cache should contain the type key even for empty arrays
 		var cache = GetCacheField(sut);
-		Assert.NotNull(cache);
+		cache.ShouldNotBeNull();
 		cache.ContainsKey(typeof(EmptyCacheMessage)).ShouldBeTrue();
 	}
 
@@ -213,7 +213,7 @@ public sealed class AotFluentValidatorResolverCachingShould : UnitTestBase
 
 		// Cache should contain both types
 		var cache = GetCacheField(sut);
-		Assert.NotNull(cache);
+		cache.ShouldNotBeNull();
 		cache.Count.ShouldBe(2);
 		cache.ContainsKey(typeof(CacheTestMessage)).ShouldBeTrue();
 		cache.ContainsKey(typeof(OtherCacheTestMessage)).ShouldBeTrue();

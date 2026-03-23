@@ -6,6 +6,7 @@ using System.Diagnostics.Metrics;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Observability;
 
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class EncryptionTelemetryShould : IDisposable
 {
 	private readonly EncryptionTelemetry _sut;

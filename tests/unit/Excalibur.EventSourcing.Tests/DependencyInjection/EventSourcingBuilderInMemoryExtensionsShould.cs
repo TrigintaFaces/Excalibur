@@ -50,8 +50,8 @@ public sealed class EventSourcingBuilderInMemoryExtensionsShould
 		// Act
 		builder.UseInMemory();
 
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IEventStore));
+		// Assert - IEventStore is now registered as keyed service
+		services.ShouldContain(sd => sd.ServiceType == typeof(IEventStore) && sd.IsKeyedService);
 	}
 
 	[Fact]
@@ -65,8 +65,8 @@ public sealed class EventSourcingBuilderInMemoryExtensionsShould
 		builder.UseInMemory();
 		var provider = services.BuildServiceProvider();
 
-		// Assert
-		var store = provider.GetService<IEventStore>();
+		// Assert - IEventStore is now keyed, resolve via "default" key
+		var store = provider.GetRequiredKeyedService<IEventStore>("default");
 		store.ShouldNotBeNull();
 		store.ShouldBeOfType<InMemoryEventStore>();
 	}

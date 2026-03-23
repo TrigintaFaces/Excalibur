@@ -70,7 +70,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 	}
 
 	/// <inheritdoc />
-	public CloudProviderType CloudProvider => CloudProviderType.Firestore;
+	public CloudPersistenceProviderType CloudProvider => CloudPersistenceProviderType.Firestore;
 
 	/// <inheritdoc />
 	public object? GetService(Type serviceType)

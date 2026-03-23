@@ -22,7 +22,7 @@ public sealed class AzureLogicAppsSchedulerOptionsShould
 		options.WorkflowName.ShouldBeNull();
 		options.CallbackUrl.ShouldBeNull();
 		options.TriggerName.ShouldBeNull();
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.RetryDelaySeconds.ShouldBe(60);
 	}
 
@@ -38,7 +38,7 @@ public sealed class AzureLogicAppsSchedulerOptionsShould
 			WorkflowName = "schedule-workflow",
 			CallbackUrl = new Uri("https://example.com/callback"),
 			TriggerName = "manual-trigger",
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			RetryDelaySeconds = 120,
 		};
 
@@ -49,7 +49,7 @@ public sealed class AzureLogicAppsSchedulerOptionsShould
 		options.WorkflowName.ShouldBe("schedule-workflow");
 		options.CallbackUrl.ShouldNotBeNull();
 		options.TriggerName.ShouldBe("manual-trigger");
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.RetryDelaySeconds.ShouldBe(120);
 	}
 }

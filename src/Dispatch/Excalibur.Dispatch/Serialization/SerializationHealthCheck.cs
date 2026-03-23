@@ -42,7 +42,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// See the pluggable serialization architecture documentation.
 /// </para>
 /// </remarks>
-public sealed partial class SerializationHealthCheck : IHealthCheck
+internal sealed partial class SerializationHealthCheck : IHealthCheck
 {
 	/// <summary>
 	/// Maximum time allowed for a single round-trip before flagging as degraded.

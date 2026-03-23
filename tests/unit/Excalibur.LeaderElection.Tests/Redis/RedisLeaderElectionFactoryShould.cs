@@ -7,6 +7,7 @@ namespace Excalibur.LeaderElection.Tests.Redis;
 /// Unit tests for <see cref="RedisLeaderElectionFactory" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 {
 	[Fact]

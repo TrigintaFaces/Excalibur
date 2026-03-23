@@ -170,7 +170,7 @@ public sealed class RabbitMqSerializationModelsShould
 		// Assert
 		config.Exchange.ShouldBe("dlx");
 		config.RoutingKey.ShouldBe("dlq-routing");
-		config.MaxRetries.ShouldBe(3);
+		config.MaxRetryAttempts.ShouldBe(3);
 		config.RetryInterval.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 

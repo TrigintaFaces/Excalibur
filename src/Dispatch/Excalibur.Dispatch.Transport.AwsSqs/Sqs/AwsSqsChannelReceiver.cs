@@ -96,7 +96,7 @@ public sealed partial class AwsSqsChannelReceiver : IAsyncDisposable
 		_batchDeleteIntervalMs = channelOptions?.BatchTimeoutMs > 0 ? channelOptions.BatchTimeoutMs : 100;
 
 		// Initialize batch delete timer
-		_batchDeleteTimer = new Timer(ProcessBatchDeletes, state: null, Timeout.Infinite, Timeout.Infinite);
+		_batchDeleteTimer = new Timer(_ => _ = ProcessBatchDeletesAsync(), state: null, Timeout.Infinite, Timeout.Infinite);
 	}
 
 	/// <inheritdoc />
@@ -156,21 +156,32 @@ public sealed partial class AwsSqsChannelReceiver : IAsyncDisposable
 		}
 	}
 
-	private async void ProcessBatchDeletes(object? state)
+	private async Task ProcessBatchDeletesAsync()
 	{
-		if (!await _batchDeleteSemaphore.WaitAsync(0).ConfigureAwait(false))
-		{
-			// Already processing
-			return;
-		}
-
 		try
 		{
-			await ProcessBatchDeletesInternalAsync(CancellationToken.None).ConfigureAwait(false);
+			if (!await _batchDeleteSemaphore.WaitAsync(0).ConfigureAwait(false))
+			{
+				// Already processing
+				return;
+			}
+
+			try
+			{
+				await ProcessBatchDeletesInternalAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			finally
+			{
+				_ = _batchDeleteSemaphore.Release();
+			}
 		}
-		finally
+		catch (ObjectDisposedException)
 		{
-			_ = _batchDeleteSemaphore.Release();
+			// Expected during shutdown -- semaphore disposed
+		}
+		catch (Exception ex)
+		{
+			_logger?.LogError(ex, "Error processing batch deletes");
 		}
 	}
 

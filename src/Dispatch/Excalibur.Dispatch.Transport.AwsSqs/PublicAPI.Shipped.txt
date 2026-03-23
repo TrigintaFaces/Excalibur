@@ -212,6 +212,8 @@ const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportAdapterStarting
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportAdapterStopping = 26011 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportReceiverAcknowledgeError = 26113 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportReceiverDisposed = 26117 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportReceiverVisibilityExtended = 26118 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportReceiverVisibilityExtendError = 26119 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportReceiverMessageAcknowledged = 26112 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportReceiverMessageReceived = 26110 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.TransportReceiverMessageRejected = 26114 -> int
@@ -297,8 +299,8 @@ Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.EnableEncryption.get -> bool
 Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.EnableEncryption.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.KmsKeyId.get -> string?
 Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.KmsKeyId.set -> void
-Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.MaxRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.Region.get -> string!
 Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.Region.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsProviderOptions.RequestTimeout.get -> System.TimeSpan
@@ -620,8 +622,8 @@ Excalibur.Dispatch.Transport.Aws.DlqOptions.EnableAutomaticRedrive.get -> bool
 Excalibur.Dispatch.Transport.Aws.DlqOptions.EnableAutomaticRedrive.set -> void
 Excalibur.Dispatch.Transport.Aws.DlqOptions.MaxMessageAge.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.Aws.DlqOptions.MaxMessageAge.set -> void
-Excalibur.Dispatch.Transport.Aws.DlqOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.Aws.DlqOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Transport.Aws.DlqOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Aws.DlqOptions.MaxRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.Aws.DlqOptions.RetryDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.Aws.DlqOptions.RetryDelay.set -> void
 Excalibur.Dispatch.Transport.Aws.DlqOptions.UseExponentialBackoff.get -> bool
@@ -712,8 +714,8 @@ Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions
 Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.DeadLetterQueueArn.get -> string?
 Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.DeadLetterQueueArn.set -> void
 Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.EventBridgeSchedulerOptions() -> void
-Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.MaxRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.Region.get -> string!
 Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.Region.set -> void
 Excalibur.Dispatch.Transport.Aws.EventBridgeSchedulerOptions.RoleArn.get -> string?
@@ -856,7 +858,7 @@ Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.ReceiveMessagesAsync(strin
 Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.StartContinuousPollingAsync(string! queueUrl, System.Func<Amazon.SQS.Model.Message!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! messageHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.StartContinuousPollingAsync(string! queueUrl, System.Func<System.Collections.Generic.IReadOnlyList<Amazon.SQS.Model.Message!>!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! batchHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.Status.get -> Excalibur.Dispatch.Transport.Aws.PollingStatus
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.Status.get -> Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
 Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Aws.IMessageAnalyzer
 Excalibur.Dispatch.Transport.Aws.IMessageAnalyzer.AnalyzeMessage(Excalibur.Dispatch.Transport.Aws.DlqMessage! message, System.Exception! exception, int attemptCount) -> Excalibur.Dispatch.Transport.Aws.DlqAnalysisResult!
@@ -1056,11 +1058,11 @@ Excalibur.Dispatch.Transport.Aws.PollingStatistics.TotalAttempts.get -> long
 Excalibur.Dispatch.Transport.Aws.PollingStatistics.TotalAttempts.set -> void
 Excalibur.Dispatch.Transport.Aws.PollingStatistics.TotalMessagesReceived.get -> long
 Excalibur.Dispatch.Transport.Aws.PollingStatistics.TotalMessagesReceived.set -> void
-Excalibur.Dispatch.Transport.Aws.PollingStatus
-Excalibur.Dispatch.Transport.Aws.PollingStatus.Active = 1 -> Excalibur.Dispatch.Transport.Aws.PollingStatus
-Excalibur.Dispatch.Transport.Aws.PollingStatus.Error = 3 -> Excalibur.Dispatch.Transport.Aws.PollingStatus
-Excalibur.Dispatch.Transport.Aws.PollingStatus.Inactive = 0 -> Excalibur.Dispatch.Transport.Aws.PollingStatus
-Excalibur.Dispatch.Transport.Aws.PollingStatus.Stopping = 2 -> Excalibur.Dispatch.Transport.Aws.PollingStatus
+Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
+Excalibur.Dispatch.Transport.Aws.SqsPollingStatus.Active = 1 -> Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
+Excalibur.Dispatch.Transport.Aws.SqsPollingStatus.Error = 3 -> Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
+Excalibur.Dispatch.Transport.Aws.SqsPollingStatus.Inactive = 0 -> Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
+Excalibur.Dispatch.Transport.Aws.SqsPollingStatus.Stopping = 2 -> Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
 Excalibur.Dispatch.Transport.Aws.PooledConnection<TConnection>
 Excalibur.Dispatch.Transport.Aws.PooledConnection<TConnection>.Client.get -> TConnection!
 Excalibur.Dispatch.Transport.Aws.PooledConnection<TConnection>.Client.set -> void
@@ -1127,7 +1129,7 @@ Excalibur.Dispatch.Transport.Aws.ReceiveOptions.WaitTime.init -> void
 Excalibur.Dispatch.Transport.Aws.ReceiverStatistics
 Excalibur.Dispatch.Transport.Aws.ReceiverStatistics.LastReceiveTime.get -> System.DateTimeOffset
 Excalibur.Dispatch.Transport.Aws.ReceiverStatistics.LastReceiveTime.init -> void
-Excalibur.Dispatch.Transport.Aws.ReceiverStatistics.PollingStatus.get -> Excalibur.Dispatch.Transport.Aws.PollingStatus
+Excalibur.Dispatch.Transport.Aws.ReceiverStatistics.PollingStatus.get -> Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
 Excalibur.Dispatch.Transport.Aws.ReceiverStatistics.PollingStatus.init -> void
 Excalibur.Dispatch.Transport.Aws.ReceiverStatistics.ReceiverStatistics() -> void
 Excalibur.Dispatch.Transport.Aws.ReceiverStatistics.TotalMessagesDeleted.get -> long
@@ -1142,18 +1144,18 @@ Excalibur.Dispatch.Transport.Aws.RedisSessionStoreOptions
 Excalibur.Dispatch.Transport.Aws.RedisSessionStoreOptions.KeyPrefix.get -> string!
 Excalibur.Dispatch.Transport.Aws.RedisSessionStoreOptions.KeyPrefix.set -> void
 Excalibur.Dispatch.Transport.Aws.RedisSessionStoreOptions.RedisSessionStoreOptions() -> void
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.BaseDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.BaseDelay.set -> void
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.MaxDelay.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.MaxDelay.set -> void
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.MaxRetries.set -> void
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.RetryPolicyOptions() -> void
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.UseExponentialBackoff.get -> bool
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.UseExponentialBackoff.set -> void
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.UseJitter.get -> bool
-Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions.UseJitter.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.BaseDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.BaseDelay.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.MaxDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.MaxDelay.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.AwsSqsRetryPolicyOptions() -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.UseExponentialBackoff.get -> bool
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.UseExponentialBackoff.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.UseJitter.get -> bool
+Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions.UseJitter.set -> void
 Excalibur.Dispatch.Transport.Aws.SendMessageBatch
 Excalibur.Dispatch.Transport.Aws.SendMessageBatch.Entries.get -> System.Collections.ObjectModel.Collection<Amazon.SQS.Model.SendMessageBatchRequestEntry!>!
 Excalibur.Dispatch.Transport.Aws.SendMessageBatch.SendMessageBatch() -> void
@@ -1425,9 +1427,9 @@ Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.BaseDelay.get -> System.T
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.BaseDelay.set -> void
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxDelay.set -> void
-Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxRetries.get -> int
-Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxRetries.set -> void
-Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.RetryStrategy.get -> Excalibur.Dispatch.Transport.AwsSqs.RetryStrategy
+Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.RetryStrategy.get -> Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy
 Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions.RetryStrategy.set -> void
 Excalibur.Dispatch.Transport.AwsSqs.CloudWatchMetricsOptions
 Excalibur.Dispatch.Transport.AwsSqs.CloudWatchMetricsOptions.CloudWatchMetricsOptions() -> void
@@ -1451,10 +1453,10 @@ Excalibur.Dispatch.Transport.AwsSqs.MetricDatum.Unit.get -> string!
 Excalibur.Dispatch.Transport.AwsSqs.MetricDatum.Unit.init -> void
 Excalibur.Dispatch.Transport.AwsSqs.MetricDatum.Value.get -> double
 Excalibur.Dispatch.Transport.AwsSqs.MetricDatum.Value.init -> void
-Excalibur.Dispatch.Transport.AwsSqs.RetryStrategy
-Excalibur.Dispatch.Transport.AwsSqs.RetryStrategy.Exponential = 0 -> Excalibur.Dispatch.Transport.AwsSqs.RetryStrategy
-Excalibur.Dispatch.Transport.AwsSqs.RetryStrategy.Fixed = 2 -> Excalibur.Dispatch.Transport.AwsSqs.RetryStrategy
-Excalibur.Dispatch.Transport.AwsSqs.RetryStrategy.Linear = 1 -> Excalibur.Dispatch.Transport.AwsSqs.RetryStrategy
+Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy
+Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy.Exponential = 0 -> Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy
+Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy.Fixed = 2 -> Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy
+Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy.Linear = 1 -> Excalibur.Dispatch.Transport.AwsSqs.SqsRetryStrategy
 Microsoft.Extensions.DependencyInjection.AwsCloudEventsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.AwsCoreServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportOptions

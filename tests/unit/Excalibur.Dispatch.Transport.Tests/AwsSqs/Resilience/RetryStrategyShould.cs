@@ -7,24 +7,24 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Resilience;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Platform")]
-public sealed class RetryStrategyShould
+public sealed class SqsRetryStrategyShould
 {
 	[Fact]
 	public void HaveCorrectEnumValues()
 	{
 		// Assert
-		((int)RetryStrategy.Exponential).ShouldBe(0);
-		((int)RetryStrategy.Linear).ShouldBe(1);
-		((int)RetryStrategy.Fixed).ShouldBe(2);
+		((int)SqsRetryStrategy.Exponential).ShouldBe(0);
+		((int)SqsRetryStrategy.Linear).ShouldBe(1);
+		((int)SqsRetryStrategy.Fixed).ShouldBe(2);
 	}
 
 	[Fact]
 	public void DefaultToExponential()
 	{
 		// Arrange & Act
-		var strategy = default(RetryStrategy);
+		var strategy = default(SqsRetryStrategy);
 
 		// Assert
-		strategy.ShouldBe(RetryStrategy.Exponential);
+		strategy.ShouldBe(SqsRetryStrategy.Exponential);
 	}
 }

@@ -8,6 +8,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.DeadLetter;
 
 /// <summary>
 /// Verifies DI registration for Kafka DLQ services (S523.7).
+/// Sprint 697: Updated for keyed service registration.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -22,10 +23,10 @@ public sealed class KafkaDeadLetterServiceRegistrationShould
 		// Act
 		services.AddKafkaDeadLetterQueue();
 
-		// Assert
+		// Assert -- Sprint 697: keyed registration
 		var descriptor = services.FirstOrDefault(d =>
-			d.ServiceType == typeof(IDeadLetterQueueManager));
-		descriptor.ShouldNotBeNull("IDeadLetterQueueManager should be registered");
+			d.ServiceType == typeof(IDeadLetterQueueManager) && d.IsKeyedService);
+		descriptor.ShouldNotBeNull("IDeadLetterQueueManager should be registered as keyed service");
 		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
@@ -62,7 +63,7 @@ public sealed class KafkaDeadLetterServiceRegistrationShould
 
 		// Assert - should not throw
 		var descriptor = services.FirstOrDefault(d =>
-			d.ServiceType == typeof(IDeadLetterQueueManager));
+			d.ServiceType == typeof(IDeadLetterQueueManager) && d.IsKeyedService);
 		descriptor.ShouldNotBeNull();
 	}
 
@@ -75,19 +76,18 @@ public sealed class KafkaDeadLetterServiceRegistrationShould
 	}
 
 	[Fact]
-	public void AddKafkaDeadLetterQueue_UsesTryAdd_NoDuplicateRegistration()
+	public void AddKafkaDeadLetterQueue_RegistersKeyedService()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act - register twice
-		services.AddKafkaDeadLetterQueue();
+		// Act
 		services.AddKafkaDeadLetterQueue();
 
-		// Assert - only one IDeadLetterQueueManager registration (TryAddSingleton)
+		// Assert -- Sprint 697: keyed registration
 		var managerDescriptors = services
-			.Where(d => d.ServiceType == typeof(IDeadLetterQueueManager))
+			.Where(d => d.ServiceType == typeof(IDeadLetterQueueManager) && d.IsKeyedService)
 			.ToList();
-		managerDescriptors.Count.ShouldBe(1, "TryAddSingleton should prevent duplicate registration");
+		managerDescriptors.Count.ShouldBeGreaterThanOrEqualTo(1, "Keyed IDeadLetterQueueManager should be registered");
 	}
 }

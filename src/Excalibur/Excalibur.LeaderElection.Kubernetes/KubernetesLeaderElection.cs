@@ -39,7 +39,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	private readonly ResiliencePipeline _retryPolicy;
 	private readonly SemaphoreSlim _leaseLock = new(1, 1);
 
-	private readonly ConcurrentBag<Task> _trackedTasks = [];
+	private ConcurrentBag<Task> _trackedTasks = [];
 
 	private CancellationTokenSource? _runningTokenSource;
 	private V1Lease? _currentLease;
@@ -339,7 +339,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 		{
 			await Task.WhenAll(_trackedTasks).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during shutdown
 		}
@@ -352,7 +352,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 			{
 				await ReleaseLeadershipAsync(cts.Token).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				// Timed out — lease will expire naturally
 			}
@@ -461,7 +461,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				// Wait before next attempt
 				await Task.Delay(TimeSpan.FromMilliseconds(_options.RetryIntervalMilliseconds), cancellationToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -611,6 +611,16 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 
 		var task = RenewLeadershipCoreAsync(_runningTokenSource?.Token ?? CancellationToken.None);
 		_trackedTasks.Add(task);
+
+		// Drain completed tasks to prevent unbounded growth
+		var snapshot = Interlocked.Exchange(ref _trackedTasks, new ConcurrentBag<Task>());
+		foreach (var t in snapshot)
+		{
+			if (!t.IsCompleted)
+			{
+				_trackedTasks.Add(t);
+			}
+		}
 	}
 
 	private async Task RenewLeadershipCoreAsync(CancellationToken cancellationToken)
@@ -619,7 +629,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 		{
 			await TryAcquireOrRenewLeaseAsync(cancellationToken).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			// Shutdown requested — expected during disposal
 		}

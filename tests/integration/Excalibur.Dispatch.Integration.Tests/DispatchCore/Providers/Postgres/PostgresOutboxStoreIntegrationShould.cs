@@ -42,6 +42,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [Collection(ContainerCollections.Postgres)]
 [Trait("Component", "Outbox")]
 [Trait("Provider", "Postgres")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly PostgresFixture _pgFixture;
@@ -62,20 +64,20 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task StageMessage()
 	{
 		// Arrange
-		await InitializeOutboxTableAsync().ConfigureAwait(true);
+		await InitializeOutboxTableAsync();
 		var (store, _) = CreateOutboxStore();
 		var message = CreateTestOutboxMessage();
 
 		// Act
-		var count = await store.SaveMessagesAsync(new[] { message }, TestCancellationToken).ConfigureAwait(true);
+		var count = await store.SaveMessagesAsync(new[] { message }, TestCancellationToken);
 
 		// Assert
 		count.ShouldBe(1);
 
 		// Verify in database
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		var dbCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM outbox WHERE message_id = @id", new { id = message.MessageId }).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		var dbCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM outbox WHERE message_id = @id", new { id = message.MessageId });
 		dbCount.ShouldBe(1);
 	}
 
@@ -86,16 +88,16 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task StageMessageDuplicateIdThrows()
 	{
 		// Arrange
-		await InitializeOutboxTableAsync().ConfigureAwait(true);
+		await InitializeOutboxTableAsync();
 		var (store, _) = CreateOutboxStore();
 		var message = CreateTestOutboundMessage();
 		var duplicate = CreateTestOutboundMessage(message.Id);
 
-		await store.StageMessageAsync(message, TestCancellationToken).ConfigureAwait(true);
+		await store.StageMessageAsync(message, TestCancellationToken);
 
 		// Act & Assert - Postgres implementation wraps database exceptions in OperationFailedException
 		_ = await Should.ThrowAsync<OperationFailedException>(async () =>
-			await store.StageMessageAsync(duplicate, TestCancellationToken).ConfigureAwait(true));
+			await store.StageMessageAsync(duplicate, TestCancellationToken));
 	}
 
 	/// <summary>
@@ -105,7 +107,7 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task RetrieveUnsentMessages()
 	{
 		// Arrange
-		await InitializeOutboxTableAsync().ConfigureAwait(true);
+		await InitializeOutboxTableAsync();
 		var (store, _) = CreateOutboxStore();
 		var messages = new[]
 		{
@@ -114,11 +116,11 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			CreateTestOutboxMessage()
 		};
 
-		_ = await store.SaveMessagesAsync(messages, TestCancellationToken).ConfigureAwait(true);
+		_ = await store.SaveMessagesAsync(messages, TestCancellationToken);
 
 		// Act
 		var dispatcherId = $"test-dispatcher-{Guid.NewGuid()}";
-		var reserved = await store.ReserveOutboxMessagesAsync(dispatcherId, 10, TestCancellationToken).ConfigureAwait(true);
+		var reserved = await store.ReserveOutboxMessagesAsync(dispatcherId, 10, TestCancellationToken);
 
 		// Assert
 		reserved.Count().ShouldBe(3);
@@ -131,22 +133,22 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task MarkMessageAsSent()
 	{
 		// Arrange
-		await InitializeOutboxTableAsync().ConfigureAwait(true);
+		await InitializeOutboxTableAsync();
 		var (store, _) = CreateOutboxStore();
 		var message = CreateTestOutboxMessage();
 
-		_ = await store.SaveMessagesAsync(new[] { message }, TestCancellationToken).ConfigureAwait(true);
+		_ = await store.SaveMessagesAsync(new[] { message }, TestCancellationToken);
 
 		// Act
-		var deleted = await store.DeleteOutboxRecord(message.MessageId, TestCancellationToken).ConfigureAwait(true);
+		var deleted = await store.DeleteOutboxRecord(message.MessageId, TestCancellationToken);
 
 		// Assert
 		deleted.ShouldBe(1);
 
 		// Verify deleted from database
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		var dbCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM outbox WHERE message_id = @id", new { id = message.MessageId }).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		var dbCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM outbox WHERE message_id = @id", new { id = message.MessageId });
 		dbCount.ShouldBe(0);
 	}
 
@@ -157,13 +159,13 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task MarkSentNonExistentThrows()
 	{
 		// Arrange
-		await InitializeOutboxTableAsync().ConfigureAwait(true);
+		await InitializeOutboxTableAsync();
 		var (store, _) = CreateOutboxStore();
 		var nonExistentId = Guid.NewGuid().ToString();
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
-			await store.MarkSentAsync(nonExistentId, TestCancellationToken).ConfigureAwait(true));
+			await store.MarkSentAsync(nonExistentId, TestCancellationToken));
 	}
 
 	/// <summary>
@@ -173,27 +175,27 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task MarkMessageAsFailed()
 	{
 		// Arrange
-		await InitializeOutboxTableAsync().ConfigureAwait(true);
+		await InitializeOutboxTableAsync();
 		var (store, _) = CreateOutboxStore();
 		var message = CreateTestOutboxMessage();
 
-		_ = await store.SaveMessagesAsync(new[] { message }, TestCancellationToken).ConfigureAwait(true);
+		_ = await store.SaveMessagesAsync(new[] { message }, TestCancellationToken);
 
 		// Increase attempts first
-		_ = await store.IncreaseAttempts(message.MessageId, TestCancellationToken).ConfigureAwait(true);
+		_ = await store.IncreaseAttempts(message.MessageId, TestCancellationToken);
 
 		// Act - Move to dead letter
-		var moved = await store.MoveToDeadLetter(message.MessageId, TestCancellationToken).ConfigureAwait(true);
+		var moved = await store.MoveToDeadLetter(message.MessageId, TestCancellationToken);
 
 		// Assert - ExecuteAsync returns total affected rows (1 INSERT + 1 DELETE = 2)
 		moved.ShouldBe(2);
 
 		// Verify moved to dead letter table
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
 
-		var outboxCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM outbox WHERE message_id = @id", new { id = message.MessageId }).ConfigureAwait(true);
-		var deadLetterCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM outbox_dead_letters WHERE message_id = @id", new { id = message.MessageId }).ConfigureAwait(true);
+		var outboxCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM outbox WHERE message_id = @id", new { id = message.MessageId });
+		var deadLetterCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM outbox_dead_letters WHERE message_id = @id", new { id = message.MessageId });
 
 		outboxCount.ShouldBe(0);
 		deadLetterCount.ShouldBe(1);
@@ -206,7 +208,7 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 	public async Task PreserveMessageOrder()
 	{
 		// Arrange
-		await InitializeOutboxTableAsync().ConfigureAwait(true);
+		await InitializeOutboxTableAsync();
 		var (store, _) = CreateOutboxStore();
 
 		// Create messages with sequence numbers in metadata
@@ -220,13 +222,13 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 				$"{{\"data\": \"message-{i}\"}}",
 				DateTimeOffset.UtcNow);
 			messages.Add(msg);
-			_ = await store.SaveMessagesAsync(new[] { msg }, TestCancellationToken).ConfigureAwait(true);
-			await Task.Delay(10, TestCancellationToken).ConfigureAwait(true); // Ensure distinct timestamps
+			_ = await store.SaveMessagesAsync(new[] { msg }, TestCancellationToken);
+			await Task.Delay(10, TestCancellationToken); // Ensure distinct timestamps
 		}
 
 		// Act
 		var dispatcherId = $"test-dispatcher-{Guid.NewGuid()}";
-		var reserved = (await store.ReserveOutboxMessagesAsync(dispatcherId, 10, TestCancellationToken).ConfigureAwait(true)).ToList();
+		var reserved = (await store.ReserveOutboxMessagesAsync(dispatcherId, 10, TestCancellationToken)).ToList();
 
 		// Assert - Messages should be in FIFO order (sequence 1, 2, 3, 4, 5)
 		reserved.Count.ShouldBe(5);
@@ -311,10 +313,10 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			""";
 
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync(createTablesSql).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync(createTablesSql);
 
 		// Clean up any existing data for test isolation
-		_ = await connection.ExecuteAsync("TRUNCATE TABLE outbox CASCADE; TRUNCATE TABLE outbox_dead_letters CASCADE;").ConfigureAwait(true);
+		_ = await connection.ExecuteAsync("TRUNCATE TABLE outbox CASCADE; TRUNCATE TABLE outbox_dead_letters CASCADE;");
 	}
 }

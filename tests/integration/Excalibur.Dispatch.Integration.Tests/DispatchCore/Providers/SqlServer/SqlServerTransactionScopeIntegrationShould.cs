@@ -30,6 +30,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", "Data")]
 [Trait("Provider", "SqlServer")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTestBase
 {
 	private readonly SqlServerFixture _sqlFixture;
@@ -50,8 +52,8 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task CommitTransactionWithRealData()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
-		await ClearTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
+		await ClearTestTableAsync();
 
 		TransactionStatus statusAfterCommit;
 
@@ -61,19 +63,19 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 		{
 			await using var scope = CreateTransactionScope();
 			var connection = new SqlConnection(_sqlFixture.ConnectionString);
-			await scope.EnlistConnectionAsync(connection, TestCancellationToken).ConfigureAwait(true);
+			await scope.EnlistConnectionAsync(connection, TestCancellationToken);
 
 			var transaction = GetEnlistedTransaction(scope);
 			await connection.ExecuteAsync(
 				"INSERT INTO [dbo].[TransactionTestTable] (Name, Value) VALUES (@Name, @Value)",
 				new { Name = "committed-row", Value = 42 },
-				transaction).ConfigureAwait(true);
-			await scope.CommitAsync(TestCancellationToken).ConfigureAwait(true);
+				transaction);
+			await scope.CommitAsync(TestCancellationToken);
 			statusAfterCommit = scope.Status;
 		}
 
 		// Assert - Data should be visible after commit (scope fully disposed)
-		var count = await CountRowsAsync("committed-row").ConfigureAwait(true);
+		var count = await CountRowsAsync("committed-row");
 		count.ShouldBe(1);
 		statusAfterCommit.ShouldBe(TransactionStatus.Committed);
 	}
@@ -85,23 +87,23 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task RollbackTransactionDiscardsData()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
-		await ClearTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
+		await ClearTestTableAsync();
 
 		await using var scope = CreateTransactionScope();
 		var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await scope.EnlistConnectionAsync(connection, TestCancellationToken).ConfigureAwait(true);
+		await scope.EnlistConnectionAsync(connection, TestCancellationToken);
 
 		// Act - Insert within transaction and rollback
 		var transaction = GetEnlistedTransaction(scope);
 		await connection.ExecuteAsync(
 			"INSERT INTO [dbo].[TransactionTestTable] (Name, Value) VALUES (@Name, @Value)",
 			new { Name = "rolled-back-row", Value = 99 },
-			transaction).ConfigureAwait(true);
-		await scope.RollbackAsync(TestCancellationToken).ConfigureAwait(true);
+			transaction);
+		await scope.RollbackAsync(TestCancellationToken);
 
 		// Assert - Data should not be visible after rollback
-		var count = await CountRowsAsync("rolled-back-row").ConfigureAwait(true);
+		var count = await CountRowsAsync("rolled-back-row");
 		count.ShouldBe(0);
 		scope.Status.ShouldBe(TransactionStatus.RolledBack);
 	}
@@ -113,25 +115,25 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task DisposeActiveTransactionTriggersRollback()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
-		await ClearTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
+		await ClearTestTableAsync();
 
 		// Act - Insert within transaction scope that is disposed without commit
 		{
 			await using var scope = CreateTransactionScope();
 			var connection = new SqlConnection(_sqlFixture.ConnectionString);
-			await scope.EnlistConnectionAsync(connection, TestCancellationToken).ConfigureAwait(true);
+			await scope.EnlistConnectionAsync(connection, TestCancellationToken);
 
 			var transaction = GetEnlistedTransaction(scope);
 			await connection.ExecuteAsync(
 				"INSERT INTO [dbo].[TransactionTestTable] (Name, Value) VALUES (@Name, @Value)",
 				new { Name = "auto-rollback-row", Value = 1 },
-				transaction).ConfigureAwait(true);
+				transaction);
 			// scope disposed here without commit
 		}
 
 		// Assert - Data should not persist
-		var count = await CountRowsAsync("auto-rollback-row").ConfigureAwait(true);
+		var count = await CountRowsAsync("auto-rollback-row");
 		count.ShouldBe(0);
 	}
 
@@ -158,13 +160,13 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task RollbackToSavepointPreservesEarlierData()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
-		await ClearTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
+		await ClearTestTableAsync();
 
 		{
 			await using var scope = CreateTransactionScope();
 			var connection = new SqlConnection(_sqlFixture.ConnectionString);
-			await scope.EnlistConnectionAsync(connection, TestCancellationToken).ConfigureAwait(true);
+			await scope.EnlistConnectionAsync(connection, TestCancellationToken);
 
 			var transaction = GetEnlistedTransaction(scope);
 
@@ -172,27 +174,27 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 			await connection.ExecuteAsync(
 				"INSERT INTO [dbo].[TransactionTestTable] (Name, Value) VALUES (@Name, @Value)",
 				new { Name = "before-savepoint", Value = 1 },
-				transaction).ConfigureAwait(true);
+				transaction);
 
 			// Create savepoint
-			await scope.CreateSavepointAsync("sp1", TestCancellationToken).ConfigureAwait(true);
+			await scope.CreateSavepointAsync("sp1", TestCancellationToken);
 
 			// Insert second row after savepoint
 			await connection.ExecuteAsync(
 				"INSERT INTO [dbo].[TransactionTestTable] (Name, Value) VALUES (@Name, @Value)",
 				new { Name = "after-savepoint", Value = 2 },
-				transaction).ConfigureAwait(true);
+				transaction);
 
 			// Act - Rollback to savepoint
-			await scope.RollbackToSavepointAsync("sp1", TestCancellationToken).ConfigureAwait(true);
+			await scope.RollbackToSavepointAsync("sp1", TestCancellationToken);
 
 			// Commit the transaction
-			await scope.CommitAsync(TestCancellationToken).ConfigureAwait(true);
+			await scope.CommitAsync(TestCancellationToken);
 		}
 
 		// Assert - First row should persist, second should not (scope fully disposed)
-		var countBefore = await CountRowsAsync("before-savepoint").ConfigureAwait(true);
-		var countAfter = await CountRowsAsync("after-savepoint").ConfigureAwait(true);
+		var countBefore = await CountRowsAsync("before-savepoint");
+		var countAfter = await CountRowsAsync("after-savepoint");
 
 		countBefore.ShouldBe(1, "Data before savepoint should persist");
 		countAfter.ShouldBe(0, "Data after savepoint should be rolled back");
@@ -205,10 +207,10 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task InvokeCommitCallbacksOnCommit()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
 		await using var scope = CreateTransactionScope();
 		var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await scope.EnlistConnectionAsync(connection, TestCancellationToken).ConfigureAwait(true);
+		await scope.EnlistConnectionAsync(connection, TestCancellationToken);
 
 		var callbackInvoked = false;
 		scope.OnCommit(() =>
@@ -218,7 +220,7 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 		});
 
 		// Act
-		await scope.CommitAsync(TestCancellationToken).ConfigureAwait(true);
+		await scope.CommitAsync(TestCancellationToken);
 
 		// Assert
 		callbackInvoked.ShouldBeTrue();
@@ -231,10 +233,10 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task InvokeRollbackCallbacksOnRollback()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
 		await using var scope = CreateTransactionScope();
 		var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await scope.EnlistConnectionAsync(connection, TestCancellationToken).ConfigureAwait(true);
+		await scope.EnlistConnectionAsync(connection, TestCancellationToken);
 
 		var callbackInvoked = false;
 		scope.OnRollback(() =>
@@ -244,7 +246,7 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 		});
 
 		// Act
-		await scope.RollbackAsync(TestCancellationToken).ConfigureAwait(true);
+		await scope.RollbackAsync(TestCancellationToken);
 
 		// Assert
 		callbackInvoked.ShouldBeTrue();
@@ -257,13 +259,13 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task CommitMultipleOperationsAtomically()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
-		await ClearTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
+		await ClearTestTableAsync();
 
 		{
 			await using var scope = CreateTransactionScope();
 			var connection = new SqlConnection(_sqlFixture.ConnectionString);
-			await scope.EnlistConnectionAsync(connection, TestCancellationToken).ConfigureAwait(true);
+			await scope.EnlistConnectionAsync(connection, TestCancellationToken);
 
 			var transaction = GetEnlistedTransaction(scope);
 
@@ -271,21 +273,21 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 			await connection.ExecuteAsync(
 				"INSERT INTO [dbo].[TransactionTestTable] (Name, Value) VALUES (@Name, @Value)",
 				new { Name = "atomic-1", Value = 10 },
-				transaction).ConfigureAwait(true);
+				transaction);
 			await connection.ExecuteAsync(
 				"INSERT INTO [dbo].[TransactionTestTable] (Name, Value) VALUES (@Name, @Value)",
 				new { Name = "atomic-2", Value = 20 },
-				transaction).ConfigureAwait(true);
+				transaction);
 			await connection.ExecuteAsync(
 				"INSERT INTO [dbo].[TransactionTestTable] (Name, Value) VALUES (@Name, @Value)",
 				new { Name = "atomic-3", Value = 30 },
-				transaction).ConfigureAwait(true);
+				transaction);
 
-			await scope.CommitAsync(TestCancellationToken).ConfigureAwait(true);
+			await scope.CommitAsync(TestCancellationToken);
 		}
 
 		// Assert - All rows should be visible (scope fully disposed)
-		var totalCount = await CountAllRowsAsync().ConfigureAwait(true);
+		var totalCount = await CountAllRowsAsync();
 		totalCount.ShouldBe(3);
 	}
 
@@ -296,7 +298,7 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task CreateNestedTransactionScope()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
 		await using var parentScope = CreateTransactionScope();
 
 		// Act
@@ -318,10 +320,10 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	public async Task InvokeCompleteCallbackWithCorrectStatusOnCommit()
 	{
 		// Arrange
-		await InitializeTestTableAsync().ConfigureAwait(true);
+		await InitializeTestTableAsync();
 		await using var scope = CreateTransactionScope();
 		var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await scope.EnlistConnectionAsync(connection, TestCancellationToken).ConfigureAwait(true);
+		await scope.EnlistConnectionAsync(connection, TestCancellationToken);
 
 		TransactionStatus? reportedStatus = null;
 		scope.OnComplete(status =>
@@ -331,7 +333,7 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 		});
 
 		// Act
-		await scope.CommitAsync(TestCancellationToken).ConfigureAwait(true);
+		await scope.CommitAsync(TestCancellationToken);
 
 		// Assert
 		reportedStatus.ShouldBe(TransactionStatus.Committed);
@@ -365,25 +367,25 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 	private async Task<int> CountRowsAsync(string name)
 	{
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
 		return await connection.ExecuteScalarAsync<int>(
 			"SELECT COUNT(*) FROM [dbo].[TransactionTestTable] WHERE Name = @Name",
-			new { Name = name }).ConfigureAwait(true);
+			new { Name = name });
 	}
 
 	private async Task<int> CountAllRowsAsync()
 	{
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
 		return await connection.ExecuteScalarAsync<int>(
-			"SELECT COUNT(*) FROM [dbo].[TransactionTestTable]").ConfigureAwait(true);
+			"SELECT COUNT(*) FROM [dbo].[TransactionTestTable]");
 	}
 
 	private async Task ClearTestTableAsync()
 	{
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync("DELETE FROM [dbo].[TransactionTestTable]").ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync("DELETE FROM [dbo].[TransactionTestTable]");
 	}
 
 	private async Task InitializeTestTableAsync()
@@ -400,7 +402,7 @@ public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTest
 			""";
 
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
-		_ = await connection.ExecuteAsync(createTableSql).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
+		_ = await connection.ExecuteAsync(createTableSql);
 	}
 }

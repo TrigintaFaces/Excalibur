@@ -22,6 +22,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 /// </summary>
 [Collection("Observability Tests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ObservabilityValidationShould : IDisposable
 {
 	private readonly ObservabilityTestLoggerProvider _loggerProvider;

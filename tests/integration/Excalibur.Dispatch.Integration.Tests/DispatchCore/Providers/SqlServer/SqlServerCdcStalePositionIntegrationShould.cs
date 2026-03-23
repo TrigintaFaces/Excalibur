@@ -41,6 +41,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [Trait("Component", "CDC")]
 [Trait("Provider", "SqlServer")]
 [Trait("SubComponent", "StalePositionRecovery")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class SqlServerCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	private readonly SqlServerFixture _sqlFixture;
@@ -76,7 +78,7 @@ public sealed class SqlServerCdcStalePositionIntegrationShould : IntegrationTest
 	{
 		// Arrange: Verify database connectivity and set up test table
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
 
 		// Create a test table to verify database connectivity
 		_ = await connection.ExecuteAsync(
@@ -89,16 +91,16 @@ public sealed class SqlServerCdcStalePositionIntegrationShould : IntegrationTest
 			        CreatedAt DATETIME2 DEFAULT GETUTCDATE()
 			    );
 			END
-			""").ConfigureAwait(true);
+			""");
 
 		// Insert some test data to verify database is working
 		_ = await connection.ExecuteAsync(
 			"INSERT INTO dbo.CdcTestTable (Name) VALUES (@Name)",
-			new { Name = "Test Record 1" }).ConfigureAwait(true);
+			new { Name = "Test Record 1" });
 
 		// Act: Verify database connectivity - query should succeed
 		var count = await connection.ExecuteScalarAsync<int>(
-			"SELECT COUNT(*) FROM dbo.CdcTestTable").ConfigureAwait(true);
+			"SELECT COUNT(*) FROM dbo.CdcTestTable");
 		count.ShouldBeGreaterThan(0, "Database should have test data");
 
 		// Since CDC is not enabled in Docker containers, we test the detection logic
@@ -174,11 +176,11 @@ public sealed class SqlServerCdcStalePositionIntegrationShould : IntegrationTest
 
 		// Verify database connectivity
 		await using var connection = new SqlConnection(_sqlFixture.ConnectionString);
-		await connection.OpenAsync(TestCancellationToken).ConfigureAwait(true);
+		await connection.OpenAsync(TestCancellationToken);
 
 		// Verify we can query the database
 		var serverVersion = await connection.ExecuteScalarAsync<string>(
-			"SELECT @@VERSION").ConfigureAwait(true);
+			"SELECT @@VERSION");
 		_ = serverVersion.ShouldNotBeNull();
 		serverVersion.ShouldContain("Microsoft SQL Server");
 
@@ -198,7 +200,7 @@ public sealed class SqlServerCdcStalePositionIntegrationShould : IntegrationTest
 			captureInstance: "dbo_RestoredTable");
 
 		// Act: Invoke the callback (simulating what the processor would do)
-		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken).ConfigureAwait(true);
+		await recoveryOptions.OnPositionReset(eventArgs, TestCancellationToken);
 
 		// Assert: Verify callback was invoked with correct parameters
 		callbackInvoked.ShouldBeTrue("Recovery callback should be invoked");

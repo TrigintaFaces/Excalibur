@@ -173,7 +173,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		await _deduplicator.MarkProcessedAsync("msg-2", TimeSpan.FromHours(1), CancellationToken.None);
 
 		// Act
-		await _deduplicator.ClearAsync();
+		await _deduplicator.ClearAsync(CancellationToken.None);
 
 		// Assert
 		var stats = _deduplicator.GetStatistics();
@@ -211,4 +211,3 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		results.ShouldAllBe(r => r);
 	}
 }
-

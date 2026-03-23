@@ -71,57 +71,6 @@ public sealed class Uuid7ExtensionsShould
 		result1.ShouldNotBe(result2);
 	}
 
-	[Fact]
-	public void GenerateGuid_WithMatchGuidEndiannessTrue_ReturnsNonEmptyGuid()
-	{
-		// Act
-		var result = Uuid7Extensions.GenerateGuid(matchGuidEndianness: true);
-
-		// Assert
-		result.ShouldNotBe(Guid.Empty);
-	}
-
-	[Fact]
-	public void GenerateGuid_WithMatchGuidEndiannessFalse_ReturnsNonEmptyGuid()
-	{
-		// Act
-		var result = Uuid7Extensions.GenerateGuid(matchGuidEndianness: false);
-
-		// Assert
-		result.ShouldNotBe(Guid.Empty);
-	}
-
-	#endregion
-
-	#region GenerateGuidWithTimestamp Tests
-
-	[Fact]
-	public void GenerateGuidWithTimestamp_ReturnsNonEmptyGuid()
-	{
-		// Arrange
-		var timestamp = DateTimeOffset.UtcNow;
-
-		// Act
-		var result = Uuid7Extensions.GenerateGuidWithTimestamp(timestamp);
-
-		// Assert
-		result.ShouldNotBe(Guid.Empty);
-	}
-
-	[Fact]
-	public void GenerateGuidWithTimestamp_GeneratesUniqueGuids()
-	{
-		// Arrange
-		var timestamp = DateTimeOffset.UtcNow;
-
-		// Act
-		var result1 = Uuid7Extensions.GenerateGuidWithTimestamp(timestamp);
-		var result2 = Uuid7Extensions.GenerateGuidWithTimestamp(timestamp);
-
-		// Assert
-		result1.ShouldNotBe(result2);
-	}
-
 	#endregion
 
 	#region GenerateGuids Tests

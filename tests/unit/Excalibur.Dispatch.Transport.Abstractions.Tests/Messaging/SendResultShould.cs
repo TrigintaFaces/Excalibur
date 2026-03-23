@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Messaging;
 
-public class SendResultShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class SendResultShould
 {
     [Fact]
     public void Success_Should_Create_Successful_Result()

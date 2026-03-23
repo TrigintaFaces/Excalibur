@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-public sealed class EncryptingInboxStoreDecorator : IInboxStore
+public sealed class EncryptingInboxStoreDecorator : IInboxStore, IInboxStoreAdmin
 {
 	private readonly IInboxStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
@@ -116,7 +116,8 @@ public sealed class EncryptingInboxStoreDecorator : IInboxStore
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		var entries = await _inner.GetFailedEntriesAsync(maxRetries, olderThan, batchSize, cancellationToken)
+		var admin = (IInboxStoreAdmin)_inner;
+		var entries = await admin.GetFailedEntriesAsync(maxRetries, olderThan, batchSize, cancellationToken)
 			.ConfigureAwait(false);
 		return await DecryptEntriesAsync(entries, cancellationToken).ConfigureAwait(false);
 	}
@@ -124,20 +125,21 @@ public sealed class EncryptingInboxStoreDecorator : IInboxStore
 	/// <inheritdoc />
 	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
 	{
-		var entries = await _inner.GetAllEntriesAsync(cancellationToken).ConfigureAwait(false);
+		var admin = (IInboxStoreAdmin)_inner;
+		var entries = await admin.GetAllEntriesAsync(cancellationToken).ConfigureAwait(false);
 		return await DecryptEntriesAsync(entries, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	public ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
 	{
-		return _inner.GetStatisticsAsync(cancellationToken);
+		return ((IInboxStoreAdmin)_inner).GetStatisticsAsync(cancellationToken);
 	}
 
 	/// <inheritdoc />
-	public ValueTask<int> CleanupAsync(TimeSpan retentionPeriod, CancellationToken cancellationToken)
+	public ValueTask<int> CleanupAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
 	{
-		return _inner.CleanupAsync(retentionPeriod, cancellationToken);
+		return ((IInboxStoreAdmin)_inner).CleanupAsync(olderThan, cancellationToken);
 	}
 
 	private static byte[] SerializeEncryptedData(EncryptedData encryptedData)

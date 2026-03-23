@@ -90,9 +90,6 @@ Excalibur.Jobs.Core.JobConfigHostedWatcherService<TJob, TConfig>.StopAsync(Syste
 Excalibur.Jobs.Core.JobConfigHostedWatcherServiceFactory
 Excalibur.Jobs.Core.JobConfigHostedWatcherServiceFactory.CreateAsync<TJob, TConfig>() -> System.Threading.Tasks.Task<Excalibur.Jobs.Core.IJobConfigHostedWatcherService!>!
 Excalibur.Jobs.Core.JobConfigHostedWatcherServiceFactory.JobConfigHostedWatcherServiceFactory(System.IServiceProvider! serviceProvider) -> void
-Excalibur.Jobs.Core.JobHealthCheck
-Excalibur.Jobs.Core.JobHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Jobs.Core.JobHealthCheck.JobHealthCheck(string! jobName, Excalibur.Jobs.Core.JobConfig! config, Excalibur.Jobs.Core.JobHeartbeatTracker! heartbeatTracker) -> void
 Excalibur.Jobs.Core.JobHeartbeatTracker
 Excalibur.Jobs.Core.JobHeartbeatTracker.GetLastHeartbeat(string! jobName) -> System.DateTimeOffset?
 Excalibur.Jobs.Core.JobHeartbeatTracker.JobHeartbeatTracker() -> void

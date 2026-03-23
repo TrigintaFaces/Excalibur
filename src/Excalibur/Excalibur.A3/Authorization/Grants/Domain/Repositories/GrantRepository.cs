@@ -158,7 +158,7 @@ public partial class GrantRepository : IGrantRepository
 	}
 
 	/// <inheritdoc />
-	public async Task<IEnumerable<Grant>> MatchingAsync(GrantScope scope, string? userId = null)
+	public async Task<IEnumerable<Grant>> MatchingAsync(GrantScope scope, string? userId, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(scope);
 		ArgumentException.ThrowIfNullOrEmpty(userId);
@@ -175,19 +175,19 @@ public partial class GrantRepository : IGrantRepository
 			scope.TenantId,
 			scope.GrantType,
 			scope.Qualifier,
-			CancellationToken.None).ConfigureAwait(false);
+			cancellationToken).ConfigureAwait(false);
 
 		return storeGrants.Select(ToDomainGrant);
 	}
 
 	/// <inheritdoc />
-	public async Task<IEnumerable<Grant>> ReadAllAsync(string userId)
+	public async Task<IEnumerable<Grant>> ReadAllAsync(string userId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(userId);
 
 		try
 		{
-			var storeGrants = await _grantStore.GetAllGrantsAsync(userId, CancellationToken.None).ConfigureAwait(false);
+			var storeGrants = await _grantStore.GetAllGrantsAsync(userId, cancellationToken).ConfigureAwait(false);
 			return storeGrants.Select(ToDomainGrant);
 		}
 		catch (Exception ex)

@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// consolidated <see cref="MpkSerializer"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Serialization")]
 public sealed class DispatchMessagePackSerializerShould : UnitTestBase
 {
 	[Fact]

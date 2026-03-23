@@ -28,7 +28,7 @@ namespace Excalibur.EventSourcing.Services;
 /// graceful shutdown via <see cref="CancellationToken"/>.
 /// </para>
 /// </remarks>
-public sealed partial class MaterializedViewRefreshService : BackgroundService
+internal sealed partial class MaterializedViewRefreshService : BackgroundService
 {
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<MaterializedViewRefreshOptions> _options;
@@ -109,7 +109,7 @@ public sealed partial class MaterializedViewRefreshService : BackgroundService
 
 				await RefreshWithRetryAsync(stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				// Graceful shutdown
 				break;

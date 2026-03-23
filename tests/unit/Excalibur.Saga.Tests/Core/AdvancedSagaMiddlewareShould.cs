@@ -333,11 +333,13 @@ public sealed class AdvancedSagaMiddlewareShould
 		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = "saga-cancel" };
 		A.CallTo(() => context.Items).Returns(items);
 
+		// Configure stateStore to return null even with cancelled token (FakeItEasy default
+		// throws TaskCanceledException for cancelled tokens, which lacks a token in the exception).
+		A.CallTo(() => _stateStore.GetStateAsync("saga-cancel", A<CancellationToken>._))
+			.Returns(Task.FromResult<Excalibur.Saga.Models.SagaState?>(null));
+
 		DispatchRequestDelegate next = (_, _, ct) =>
-		{
-			ct.ThrowIfCancellationRequested();
-			return ValueTask.FromResult(MessageResult.Success());
-		};
+			throw new OperationCanceledException(ct);
 
 		// Act & Assert
 		await Should.ThrowAsync<OperationCanceledException>(async () =>
@@ -357,11 +359,13 @@ public sealed class AdvancedSagaMiddlewareShould
 		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = sagaId };
 		A.CallTo(() => context.Items).Returns(items);
 
+		// Configure stateStore to return null even with cancelled token (FakeItEasy default
+		// throws TaskCanceledException for cancelled tokens, which lacks a token in the exception).
+		A.CallTo(() => _stateStore.GetStateAsync(sagaId, A<CancellationToken>._))
+			.Returns(Task.FromResult<Excalibur.Saga.Models.SagaState?>(null));
+
 		DispatchRequestDelegate next = (_, _, ct) =>
-		{
-			ct.ThrowIfCancellationRequested();
-			return ValueTask.FromResult(MessageResult.Success());
-		};
+			throw new OperationCanceledException(ct);
 
 		// Act
 		try

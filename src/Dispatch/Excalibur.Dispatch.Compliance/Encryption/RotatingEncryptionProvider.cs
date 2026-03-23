@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Security.Cryptography;
+
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -82,18 +84,30 @@ public sealed partial class RotatingEncryptionProvider : IEncryptionProvider, ID
 
 		// The inner provider will use the key version from EncryptedData
 		// This provides automatic backward compatibility
-		var plaintext = await _inner.DecryptAsync(encryptedData, context, cancellationToken).ConfigureAwait(false);
+		var intermediate = await _inner.DecryptAsync(encryptedData, context, cancellationToken).ConfigureAwait(false);
 
-		// Check if we should re-encrypt with current key
-		if (_options.ReEncryptOnRead && await ShouldReEncryptAsync(encryptedData, cancellationToken).ConfigureAwait(false))
+		try
 		{
-			LogOldKeyVersionReencryptionHint(encryptedData.KeyId, encryptedData.KeyVersion);
+			// Check if we should re-encrypt with current key
+			if (_options.ReEncryptOnRead && await ShouldReEncryptAsync(encryptedData, cancellationToken).ConfigureAwait(false))
+			{
+				LogOldKeyVersionReencryptionHint(encryptedData.KeyId, encryptedData.KeyVersion);
 
-			// Note: Actual re-encryption would require the caller to persist the new ciphertext
-			// This is informational - the caller decides whether to re-encrypt and save
+				// Note: Actual re-encryption would require the caller to persist the new ciphertext
+				// This is informational - the caller decides whether to re-encrypt and save
+			}
+
+			// Return a copy so the intermediate can be securely zeroed
+			var result = new byte[intermediate.Length];
+			Buffer.BlockCopy(intermediate, 0, result, 0, intermediate.Length);
+			return result;
 		}
-
-		return plaintext;
+		finally
+		{
+			// Zero the intermediate buffer -- CryptographicOperations.ZeroMemory
+			// is guaranteed not to be optimized away by the JIT
+			CryptographicOperations.ZeroMemory(intermediate);
+		}
 	}
 
 	/// <inheritdoc/>
@@ -161,8 +175,9 @@ public sealed partial class RotatingEncryptionProvider : IEncryptionProvider, ID
 		}
 		finally
 		{
-			// Securely clear plaintext from memory
-			Array.Clear(plaintext);
+			// Securely clear plaintext from memory -- CryptographicOperations.ZeroMemory
+			// is guaranteed not to be optimized away by the JIT, unlike Array.Clear
+			CryptographicOperations.ZeroMemory(plaintext);
 		}
 	}
 
@@ -174,12 +189,12 @@ public sealed partial class RotatingEncryptionProvider : IEncryptionProvider, ID
 			return;
 		}
 
+		_disposed = true;
+
 		if (_inner is IDisposable disposable)
 		{
 			disposable.Dispose();
 		}
-
-		_disposed = true;
 	}
 
 	private async Task TryRotateIfNeededAsync(string? purpose, CancellationToken cancellationToken)

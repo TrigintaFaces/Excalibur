@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Decorators;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport")]
-public class OrderingTransportSenderShould
+public sealed class OrderingTransportSenderShould
 {
 	private readonly ITransportSender _innerSender = A.Fake<ITransportSender>();
 

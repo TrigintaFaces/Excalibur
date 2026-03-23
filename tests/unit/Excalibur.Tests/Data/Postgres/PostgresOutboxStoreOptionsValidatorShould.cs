@@ -9,6 +9,7 @@ namespace Excalibur.Tests.Data.Postgres;
 ///     Unit tests for PostgresOutboxStoreOptionsValidator.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class PostgresOutboxStoreOptionsValidatorShould
 {
 	private readonly PostgresOutboxStoreOptionsValidator _validator = new();

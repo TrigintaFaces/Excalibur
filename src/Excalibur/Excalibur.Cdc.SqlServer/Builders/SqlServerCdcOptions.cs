@@ -51,6 +51,7 @@ public sealed class SqlServerCdcOptions
 	/// <summary>
 	/// Gets or sets the connection string for the SQL Server database.
 	/// </summary>
+	[Required]
 	public string? ConnectionString { get; set; }
 
 	/// <summary>

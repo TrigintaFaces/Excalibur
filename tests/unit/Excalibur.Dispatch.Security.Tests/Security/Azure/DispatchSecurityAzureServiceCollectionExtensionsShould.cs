@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Security.Tests.Azure;
 /// Verifies Sprint 390 implementation: DI extensions for Azure security services.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class DispatchSecurityAzureServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

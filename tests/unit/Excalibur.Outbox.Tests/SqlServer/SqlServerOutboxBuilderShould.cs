@@ -12,6 +12,7 @@ namespace Excalibur.Outbox.Tests.SqlServer;
 /// Unit tests for <see cref="ISqlServerOutboxBuilder"/> implementation.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 {
 	private const string TestConnectionString = "Server=localhost;Database=Test;Integrated Security=True";

@@ -130,6 +130,17 @@ public sealed record ErasureExecutionResult
 	};
 
 	/// <summary>
+	/// Creates a partially succeeded execution result where some contributors or key deletions failed.
+	/// </summary>
+	public static ErasureExecutionResult PartiallySucceeded(int keysDeleted, int recordsAffected, string errorMessage) => new()
+	{
+		Success = false,
+		KeysDeleted = keysDeleted,
+		RecordsAffected = recordsAffected,
+		ErrorMessage = errorMessage,
+	};
+
+	/// <summary>
 	/// Creates a failed execution result.
 	/// </summary>
 	public static ErasureExecutionResult Failed(string errorMessage) => new()

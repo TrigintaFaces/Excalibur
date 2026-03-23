@@ -17,6 +17,21 @@ namespace Excalibur.Dispatch.Compliance;
 /// </summary>
 public sealed partial class AuditLogEncryptionService : IAuditLogEncryptor
 {
+	/// <summary>
+	/// AES-GCM nonce size in bytes (96-bit IV required by AES-GCM).
+	/// </summary>
+	private const int AesGcmIvSizeBytes = 12;
+
+	/// <summary>
+	/// AES-GCM authentication tag size in bytes (128-bit tag).
+	/// </summary>
+	private const int AesGcmAuthTagSizeBytes = 16;
+
+	/// <summary>
+	/// Minimum valid envelope size: IV + zero-length ciphertext + AuthTag.
+	/// </summary>
+	private const int MinEnvelopeSizeBytes = AesGcmIvSizeBytes + AesGcmAuthTagSizeBytes;
+
 	private readonly IEncryptionProvider _encryptionProvider;
 	private readonly IKeyManagementProvider _keyManagementProvider;
 	private readonly IOptions<AuditLogEncryptionOptions> _options;
@@ -71,7 +86,13 @@ public sealed partial class AuditLogEncryptionService : IAuditLogEncryptor
 					var context = new EncryptionContext { KeyId = keyId };
 					var encrypted = await _encryptionProvider.EncryptAsync(
 						plaintext, context, cancellationToken).ConfigureAwait(false);
-					encryptedFields[fieldName] = encrypted.Ciphertext;
+
+					// Envelope format: [IV:12][Ciphertext:N][AuthTag:16]
+					var envelope = new byte[encrypted.Iv.Length + encrypted.Ciphertext.Length + encrypted.AuthTag!.Length];
+					encrypted.Iv.CopyTo(envelope, 0);
+					encrypted.Ciphertext.CopyTo(envelope, encrypted.Iv.Length);
+					encrypted.AuthTag.CopyTo(envelope, encrypted.Iv.Length + encrypted.Ciphertext.Length);
+					encryptedFields[fieldName] = envelope;
 				}
 				else
 				{
@@ -108,16 +129,28 @@ public sealed partial class AuditLogEncryptionService : IAuditLogEncryptor
 		{
 			var decryptedValues = new Dictionary<string, string>(encryptedEntry.ClearFields);
 
-			foreach (var (fieldName, ciphertext) in encryptedEntry.EncryptedFields)
+			foreach (var (fieldName, envelope) in encryptedEntry.EncryptedFields)
 			{
+				if (envelope.Length < MinEnvelopeSizeBytes)
+				{
+					throw new EncryptionException(
+						$"Encrypted field '{fieldName}' data is too short for envelope format " +
+						$"(expected at least {MinEnvelopeSizeBytes} bytes, got {envelope.Length}).");
+				}
+
+				// Envelope format: [IV:12][Ciphertext:N][AuthTag:16]
+				var iv = envelope.AsSpan(0, AesGcmIvSizeBytes).ToArray();
+				var authTag = envelope.AsSpan(envelope.Length - AesGcmAuthTagSizeBytes, AesGcmAuthTagSizeBytes).ToArray();
+				var actualCiphertext = envelope.AsSpan(AesGcmIvSizeBytes, envelope.Length - AesGcmIvSizeBytes - AesGcmAuthTagSizeBytes).ToArray();
+
 				var encrypted = new EncryptedData
 				{
-					Ciphertext = ciphertext,
+					Ciphertext = actualCiphertext,
 					KeyId = encryptedEntry.KeyIdentifier,
 					KeyVersion = 1,
 					Algorithm = encryptedEntry.Algorithm,
-					Iv = [],
-					AuthTag = null
+					Iv = iv,
+					AuthTag = authTag
 				};
 
 				var context = new EncryptionContext { KeyId = encryptedEntry.KeyIdentifier };

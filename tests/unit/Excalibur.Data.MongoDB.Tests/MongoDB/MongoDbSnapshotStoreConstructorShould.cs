@@ -16,6 +16,7 @@ namespace Excalibur.Data.Tests.MongoDB.Snapshots;
 /// Verifies both simple (options-based) and advanced (IMongoClient) constructors.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class MongoDbSnapshotStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<MongoDbSnapshotStore> _logger;

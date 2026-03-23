@@ -7,6 +7,7 @@ namespace Excalibur.LeaderElection.Tests.SqlServer;
 /// Unit tests for <see cref="SqlServerLeaderElectionExtensions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 {
 	private const string TestConnectionString = "Server=localhost;Database=test;Integrated Security=true;";
@@ -27,6 +28,7 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 		services.Any(static sd =>
 			sd.ServiceType == typeof(ILeaderElection) &&
+			sd.IsKeyedService &&
 			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 	}
 
@@ -156,19 +158,30 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task AddSqlServerLeaderElection_ResolvesAsTelemetryWrapper()
+	public void AddSqlServerLeaderElection_ResolvesAsTelemetryWrapper()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
 		_ = services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource);
 
-		// Act
-		await using var sp = services.BuildServiceProvider();
-		var le = sp.GetRequiredService<ILeaderElection>();
+		// Assert — Verify keyed ILeaderElection("sqlserver") descriptor is registered with factory
+		// that produces TelemetryLeaderElection. Cannot resolve without real SQL Server,
+		// so check descriptor registration instead.
+		var descriptor = services.FirstOrDefault(sd =>
+			sd.ServiceType == typeof(ILeaderElection) &&
+			sd.IsKeyedService &&
+			sd.ServiceKey is string key &&
+			key == "sqlserver" &&
+			sd.Lifetime == ServiceLifetime.Singleton);
+		descriptor.ShouldNotBeNull("ILeaderElection should be registered as keyed 'sqlserver'");
 
-		// Assert — DI should auto-wrap with TelemetryLeaderElection (AD-536.1)
-		le.ShouldBeOfType<LeaderElection.Diagnostics.TelemetryLeaderElection>();
+		// Also verify the "default" fallback keyed registration exists
+		services.Any(sd =>
+			sd.ServiceType == typeof(ILeaderElection) &&
+			sd.IsKeyedService &&
+			sd.ServiceKey is string defaultKey &&
+			defaultKey == "default").ShouldBeTrue("ILeaderElection should have 'default' keyed registration");
 	}
 
 	[Fact]
@@ -197,9 +210,10 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 		// Act
 		_ = services.AddSqlServerLeaderElectionFactory(TestConnectionString);
 
-		// Assert - Check factory is registered
+		// Assert - Check factory is registered as keyed service
 		services.Any(static sd =>
 			sd.ServiceType == typeof(ILeaderElectionFactory) &&
+			sd.IsKeyedService &&
 			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 	}
 

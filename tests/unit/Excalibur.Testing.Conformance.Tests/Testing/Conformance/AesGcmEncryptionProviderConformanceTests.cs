@@ -42,7 +42,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Compliance")]
 [Trait("Pattern", "PROVIDER")]
-public class AesGcmEncryptionProviderConformanceTests : EncryptionProviderConformanceTestKit
+public sealed class AesGcmEncryptionProviderConformanceTests : EncryptionProviderConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override async Task<(IEncryptionProvider Provider, IKeyManagementProvider KeyManagement)> CreateProviderAsync()

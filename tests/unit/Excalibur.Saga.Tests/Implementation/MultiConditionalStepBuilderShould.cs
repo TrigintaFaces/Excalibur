@@ -327,7 +327,7 @@ public sealed class MultiConditionalStepBuilderShould
 	{
 		// Arrange
 		var builder = new MultiConditionalStepBuilder<MultiConditionalStepBuilderTestData>("TestStep");
-		var retryPolicy = new RetryPolicy { MaxAttempts = 3 };
+		var retryPolicy = new SagaRetryOptions { MaxAttempts = 3 };
 
 		// Act
 		var result = builder.WithRetryPolicy(retryPolicy);
@@ -342,7 +342,7 @@ public sealed class MultiConditionalStepBuilderShould
 		// Arrange
 		var builder = new MultiConditionalStepBuilder<MultiConditionalStepBuilderTestData>("TestStep");
 		var branchStep = A.Fake<ISagaStep<MultiConditionalStepBuilderTestData>>();
-		var retryPolicy = new RetryPolicy { MaxAttempts = 5 };
+		var retryPolicy = new SagaRetryOptions { MaxAttempts = 5 };
 
 		// Act
 		builder.EvaluateWith(_ => "branch1");
@@ -424,7 +424,7 @@ public sealed class MultiConditionalStepBuilderShould
 		// Arrange
 		var branchStep = A.Fake<ISagaStep<MultiConditionalStepBuilderTestData>>();
 		var defaultStep = A.Fake<ISagaStep<MultiConditionalStepBuilderTestData>>();
-		var retryPolicy = new RetryPolicy { MaxAttempts = 3 };
+		var retryPolicy = new SagaRetryOptions { MaxAttempts = 3 };
 
 		// Act
 		var step = new MultiConditionalStepBuilder<MultiConditionalStepBuilderTestData>("TestStep")

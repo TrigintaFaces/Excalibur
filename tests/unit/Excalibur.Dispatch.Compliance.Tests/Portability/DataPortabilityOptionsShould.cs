@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.Portability;
 
-public class DataPortabilityOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class DataPortabilityOptionsShould
 {
     [Fact]
     public void Have_exports_directory_by_default()

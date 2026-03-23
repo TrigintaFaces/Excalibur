@@ -30,6 +30,6 @@ public sealed class TestElasticRepository(ElasticsearchClient client)
 			},
 		};
 
-		await InitializeIndexAsync(request, cancellationToken).ConfigureAwait(true);
+		await InitializeIndexAsync(request, cancellationToken);
 	}
 }

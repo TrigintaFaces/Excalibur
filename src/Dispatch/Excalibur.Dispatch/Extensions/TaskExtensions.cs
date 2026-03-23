@@ -87,7 +87,7 @@ public static class TaskExtensions
 	{
 		ArgumentNullException.ThrowIfNull(task);
 
-		var tcs = new TaskCompletionSource<bool>();
+		var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		await using (cancellationToken.Register(() => tcs.TrySetResult(true)))
 		{
 			var completedTask = await Task.WhenAny(task, tcs.Task).ConfigureAwait(false);

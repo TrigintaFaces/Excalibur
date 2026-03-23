@@ -1,6 +1,8 @@
 namespace Excalibur.Dispatch.Compliance.Tests.Breach;
 
-public class BreachNotificationOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class BreachNotificationOptionsShould
 {
     [Fact]
     public void Have_72_hour_notification_deadline_by_default()

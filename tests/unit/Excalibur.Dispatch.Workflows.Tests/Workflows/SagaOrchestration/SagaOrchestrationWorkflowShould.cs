@@ -43,15 +43,15 @@ public sealed class SagaOrchestrationWorkflowShould
 			OrderId = "ORD-001",
 			CustomerId = "CUST-001",
 			Amount = 100.00m
-		}).ConfigureAwait(true);
+		});
 
 		// Simulate processing of each step
-		await saga.ProcessStepAsync("saga-001", SagaStep.ReserveInventory).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-001", SagaStep.ProcessPayment).ConfigureAwait(true);
-		await saga.ProcessStepAsync("saga-001", SagaStep.ShipOrder).ConfigureAwait(true);
+		await saga.ProcessStepAsync("saga-001", SagaStep.ReserveInventory);
+		await saga.ProcessStepAsync("saga-001", SagaStep.ProcessPayment);
+		await saga.ProcessStepAsync("saga-001", SagaStep.ShipOrder);
 
 		// Assert - Saga completed successfully
-		var state = await sagaStore.GetAsync("saga-001").ConfigureAwait(true);
+		var state = await sagaStore.GetAsync("saga-001");
 		_ = state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.Completed);
 
@@ -82,16 +82,16 @@ public sealed class SagaOrchestrationWorkflowShould
 			OrderId = "ORD-002",
 			CustomerId = "CUST-002",
 			Amount = 200.00m
-		}).ConfigureAwait(true);
+		});
 
 		// Step 1 succeeds
-		await saga.ProcessStepAsync("saga-002", SagaStep.ReserveInventory).ConfigureAwait(true);
+		await saga.ProcessStepAsync("saga-002", SagaStep.ReserveInventory);
 
 		// Step 2 fails - should trigger compensation
-		await saga.ProcessStepAsync("saga-002", SagaStep.ProcessPayment).ConfigureAwait(true);
+		await saga.ProcessStepAsync("saga-002", SagaStep.ProcessPayment);
 
 		// Assert - Saga is compensated
-		var state = await sagaStore.GetAsync("saga-002").ConfigureAwait(true);
+		var state = await sagaStore.GetAsync("saga-002");
 		_ = state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.Compensated);
 
@@ -123,16 +123,16 @@ public sealed class SagaOrchestrationWorkflowShould
 			OrderId = "ORD-003",
 			CustomerId = "CUST-003",
 			Amount = 300.00m
-		}).ConfigureAwait(true);
+		});
 
 		// Step 1 succeeds
-		await saga.ProcessStepAsync("saga-003", SagaStep.ReserveInventory).ConfigureAwait(true);
+		await saga.ProcessStepAsync("saga-003", SagaStep.ReserveInventory);
 
 		// Step 2 times out
-		await saga.ProcessStepAsync("saga-003", SagaStep.ProcessPayment).ConfigureAwait(true);
+		await saga.ProcessStepAsync("saga-003", SagaStep.ProcessPayment);
 
 		// Assert - Saga is in timeout/compensated state
-		var state = await sagaStore.GetAsync("saga-003").ConfigureAwait(true);
+		var state = await sagaStore.GetAsync("saga-003");
 		_ = state.ShouldNotBeNull();
 		(state.Status == SagaStatus.TimedOut || state.Status == SagaStatus.Compensated).ShouldBeTrue();
 
@@ -174,7 +174,7 @@ public sealed class SagaOrchestrationWorkflowShould
 			completedSagas.Add(sagaId);
 		}).ToArray();
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 
 		// Assert - All sagas completed
 		completedSagas.Count.ShouldBe(sagaCount);
@@ -182,13 +182,13 @@ public sealed class SagaOrchestrationWorkflowShould
 		// Assert - Each saga is in completed state
 		foreach (var sagaId in completedSagas)
 		{
-			var state = await sagaStore.GetAsync(sagaId).ConfigureAwait(true);
+			var state = await sagaStore.GetAsync(sagaId);
 			_ = state.ShouldNotBeNull();
 			state.Status.ShouldBe(SagaStatus.Completed);
 		}
 
 		// Assert - No saga interfered with another (isolated data)
-		var allStates = await sagaStore.GetAllAsync().ConfigureAwait(true);
+		var allStates = await sagaStore.GetAllAsync();
 		allStates.Count.ShouldBe(sagaCount);
 		allStates.Select(s => s.Data.OrderId).Distinct().Count().ShouldBe(sagaCount);
 	}
@@ -210,12 +210,12 @@ public sealed class SagaOrchestrationWorkflowShould
 			OrderId = "ORD-RECOVERY",
 			CustomerId = "CUST-RECOVERY",
 			Amount = 500.00m
-		}).ConfigureAwait(true);
+		});
 
-		await saga1.ProcessStepAsync("saga-recovery", SagaStep.ReserveInventory).ConfigureAwait(true);
+		await saga1.ProcessStepAsync("saga-recovery", SagaStep.ReserveInventory);
 
 		// Assert - Saga is in progress
-		var stateBeforeRestart = await sagaStore.GetAsync("saga-recovery").ConfigureAwait(true);
+		var stateBeforeRestart = await sagaStore.GetAsync("saga-recovery");
 		_ = stateBeforeRestart.ShouldNotBeNull();
 		stateBeforeRestart.Status.ShouldBe(SagaStatus.InProgress);
 		stateBeforeRestart.CurrentStep.ShouldBe(SagaStep.ReserveInventory);
@@ -225,12 +225,12 @@ public sealed class SagaOrchestrationWorkflowShould
 		var saga2 = new OrderFulfillmentSaga(sagaStore, executionLog2);
 
 		// Resume saga from persisted state
-		await saga2.ResumeAsync("saga-recovery").ConfigureAwait(true);
-		await saga2.ProcessStepAsync("saga-recovery", SagaStep.ProcessPayment).ConfigureAwait(true);
-		await saga2.ProcessStepAsync("saga-recovery", SagaStep.ShipOrder).ConfigureAwait(true);
+		await saga2.ResumeAsync("saga-recovery");
+		await saga2.ProcessStepAsync("saga-recovery", SagaStep.ProcessPayment);
+		await saga2.ProcessStepAsync("saga-recovery", SagaStep.ShipOrder);
 
 		// Assert - Saga recovered and completed
-		var stateAfterRecovery = await sagaStore.GetAsync("saga-recovery").ConfigureAwait(true);
+		var stateAfterRecovery = await sagaStore.GetAsync("saga-recovery");
 		_ = stateAfterRecovery.ShouldNotBeNull();
 		stateAfterRecovery.Status.ShouldBe(SagaStatus.Completed);
 

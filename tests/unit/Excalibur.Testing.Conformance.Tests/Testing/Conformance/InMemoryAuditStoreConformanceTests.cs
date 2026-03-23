@@ -34,7 +34,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Compliance")]
 [Trait("Pattern", "STORE")]
-public class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTestKit
+public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override IAuditStore CreateStore() => new InMemoryAuditStore();

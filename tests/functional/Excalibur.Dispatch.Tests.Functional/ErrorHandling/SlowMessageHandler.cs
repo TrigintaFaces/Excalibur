@@ -9,7 +9,7 @@ public sealed class SlowMessageHandler
 {
 	public static async Task<IMessageResult> HandleAsync(TestMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
-		await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(true);
+		await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
 		return MessageResult.Success();
 	}
 }

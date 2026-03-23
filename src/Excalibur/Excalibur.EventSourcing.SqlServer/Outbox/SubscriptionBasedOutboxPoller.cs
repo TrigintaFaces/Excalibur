@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.Abstractions.Validation;
 using Excalibur.EventSourcing.Outbox;
 
 using Microsoft.Data.SqlClient;
@@ -149,7 +150,7 @@ public sealed partial class SubscriptionBasedOutboxPoller : IAsyncDisposable
 		// Re-subscribe for query notifications after processing
 		if (_sqlDependencyStarted)
 		{
-			SubscribeToNotifications();
+			await SubscribeToNotificationsAsync(cancellationToken).ConfigureAwait(false);
 		}
 
 		return messages;
@@ -206,7 +207,7 @@ public sealed partial class SubscriptionBasedOutboxPoller : IAsyncDisposable
 		_notificationSignal.Dispose();
 	}
 
-	private void SubscribeToNotifications()
+	private async Task SubscribeToNotificationsAsync(CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrWhiteSpace(_options.ConnectionString))
 		{
@@ -216,11 +217,14 @@ public sealed partial class SubscriptionBasedOutboxPoller : IAsyncDisposable
 		try
 		{
 			using var connection = new SqlConnection(_options.ConnectionString);
-			connection.Open();
+			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+			SqlIdentifierValidator.ThrowIfInvalid(_options.SchemaName, nameof(_options.SchemaName));
+			SqlIdentifierValidator.ThrowIfInvalid(_options.TableName, nameof(_options.TableName));
 
 			var queryText = $"SELECT [Id] FROM [{_options.SchemaName}].[{_options.TableName}] WHERE [PublishedAt] IS NULL";
 
-#pragma warning disable CA2100 // SchemaName and TableName are validated via options; not user input
+#pragma warning disable CA2100 // SchemaName and TableName validated by SqlIdentifierValidator.ThrowIfInvalid above
 			using var command = new SqlCommand(queryText, connection);
 #pragma warning restore CA2100
 			command.Notification = null;
@@ -228,7 +232,7 @@ public sealed partial class SubscriptionBasedOutboxPoller : IAsyncDisposable
 			var dependency = new SqlDependency(command, null, (int)_options.NotificationTimeout.TotalSeconds);
 			dependency.OnChange += OnSqlDependencyChange;
 
-			using var reader = command.ExecuteReader();
+			using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 			// We just need to execute the query to register the notification
 		}
 		catch (Exception ex)

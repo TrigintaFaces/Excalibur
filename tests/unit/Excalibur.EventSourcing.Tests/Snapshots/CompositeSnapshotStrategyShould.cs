@@ -17,6 +17,7 @@ namespace Excalibur.EventSourcing.Tests.Snapshots;
 /// Unit tests for <see cref="CompositeSnapshotStrategy"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class CompositeSnapshotStrategyShould
 {
 	#region Constructor Tests

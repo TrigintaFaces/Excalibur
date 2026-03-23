@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Transport;
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.BatchProcessing;
 
 /// <summary>
-/// Unit tests for <see cref="ErrorSeverity"/> enum.
+/// Unit tests for <see cref="BatchErrorSeverity"/> enum.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport.Abstractions")]
@@ -16,74 +16,74 @@ public sealed class ErrorSeverityShould
 	public void HaveFourDistinctValues()
 	{
 		// Arrange
-		var values = Enum.GetValues<ErrorSeverity>();
+		var values = Enum.GetValues<BatchErrorSeverity>();
 
 		// Assert
 		values.Length.ShouldBe(4);
-		values.ShouldContain(ErrorSeverity.Info);
-		values.ShouldContain(ErrorSeverity.Warning);
-		values.ShouldContain(ErrorSeverity.Error);
-		values.ShouldContain(ErrorSeverity.Critical);
+		values.ShouldContain(BatchErrorSeverity.Info);
+		values.ShouldContain(BatchErrorSeverity.Warning);
+		values.ShouldContain(BatchErrorSeverity.Error);
+		values.ShouldContain(BatchErrorSeverity.Critical);
 	}
 
 	[Fact]
 	public void Info_HasExpectedValue()
 	{
 		// Assert
-		((int)ErrorSeverity.Info).ShouldBe(0);
+		((int)BatchErrorSeverity.Info).ShouldBe(0);
 	}
 
 	[Fact]
 	public void Warning_HasExpectedValue()
 	{
 		// Assert
-		((int)ErrorSeverity.Warning).ShouldBe(1);
+		((int)BatchErrorSeverity.Warning).ShouldBe(1);
 	}
 
 	[Fact]
 	public void Error_HasExpectedValue()
 	{
 		// Assert
-		((int)ErrorSeverity.Error).ShouldBe(2);
+		((int)BatchErrorSeverity.Error).ShouldBe(2);
 	}
 
 	[Fact]
 	public void Critical_HasExpectedValue()
 	{
 		// Assert
-		((int)ErrorSeverity.Critical).ShouldBe(3);
+		((int)BatchErrorSeverity.Critical).ShouldBe(3);
 	}
 
 	[Fact]
 	public void Info_IsDefaultValue()
 	{
 		// Arrange
-		ErrorSeverity defaultSeverity = default;
+		BatchErrorSeverity defaultSeverity = default;
 
 		// Assert
-		defaultSeverity.ShouldBe(ErrorSeverity.Info);
+		defaultSeverity.ShouldBe(BatchErrorSeverity.Info);
 	}
 
 	[Theory]
-	[InlineData(ErrorSeverity.Info)]
-	[InlineData(ErrorSeverity.Warning)]
-	[InlineData(ErrorSeverity.Error)]
-	[InlineData(ErrorSeverity.Critical)]
-	public void BeDefinedForAllValues(ErrorSeverity severity)
+	[InlineData(BatchErrorSeverity.Info)]
+	[InlineData(BatchErrorSeverity.Warning)]
+	[InlineData(BatchErrorSeverity.Error)]
+	[InlineData(BatchErrorSeverity.Critical)]
+	public void BeDefinedForAllValues(BatchErrorSeverity severity)
 	{
 		// Assert
 		Enum.IsDefined(severity).ShouldBeTrue();
 	}
 
 	[Theory]
-	[InlineData(0, ErrorSeverity.Info)]
-	[InlineData(1, ErrorSeverity.Warning)]
-	[InlineData(2, ErrorSeverity.Error)]
-	[InlineData(3, ErrorSeverity.Critical)]
-	public void CastFromInt_ReturnsCorrectValue(int value, ErrorSeverity expected)
+	[InlineData(0, BatchErrorSeverity.Info)]
+	[InlineData(1, BatchErrorSeverity.Warning)]
+	[InlineData(2, BatchErrorSeverity.Error)]
+	[InlineData(3, BatchErrorSeverity.Critical)]
+	public void CastFromInt_ReturnsCorrectValue(int value, BatchErrorSeverity expected)
 	{
 		// Act
-		var severity = (ErrorSeverity)value;
+		var severity = (BatchErrorSeverity)value;
 
 		// Assert
 		severity.ShouldBe(expected);
@@ -93,16 +93,16 @@ public sealed class ErrorSeverityShould
 	public void HaveCorrectSeverityOrder()
 	{
 		// Assert - values should increase with severity
-		((int)ErrorSeverity.Info).ShouldBeLessThan((int)ErrorSeverity.Warning);
-		((int)ErrorSeverity.Warning).ShouldBeLessThan((int)ErrorSeverity.Error);
-		((int)ErrorSeverity.Error).ShouldBeLessThan((int)ErrorSeverity.Critical);
+		((int)BatchErrorSeverity.Info).ShouldBeLessThan((int)BatchErrorSeverity.Warning);
+		((int)BatchErrorSeverity.Warning).ShouldBeLessThan((int)BatchErrorSeverity.Error);
+		((int)BatchErrorSeverity.Error).ShouldBeLessThan((int)BatchErrorSeverity.Critical);
 	}
 
 	[Fact]
 	public void Critical_IsHighestSeverity()
 	{
 		// Assert
-		var maxValue = Enum.GetValues<ErrorSeverity>().Max();
-		maxValue.ShouldBe(ErrorSeverity.Critical);
+		var maxValue = Enum.GetValues<BatchErrorSeverity>().Max();
+		maxValue.ShouldBe(BatchErrorSeverity.Critical);
 	}
 }

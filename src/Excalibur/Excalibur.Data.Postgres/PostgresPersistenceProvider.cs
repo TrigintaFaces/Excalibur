@@ -22,8 +22,13 @@ using Polly.Retry;
 namespace Excalibur.Data.Postgres;
 
 /// <summary>
-/// Postgres implementation of the persistence provider.
+/// Postgres implementation of the general persistence provider for health monitoring and transaction management.
 /// </summary>
+/// <remarks>
+/// This provider handles Postgres-specific health checks and transaction lifecycle. For SQL DataRequest
+/// execution with retry policies and metrics, see
+/// <see cref="Persistence.PostgresPersistenceProvider"/> which implements <see cref="ISqlPersistenceProvider"/>.
+/// </remarks>
 public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction
 {
 	private readonly PostgresProviderOptions _options;

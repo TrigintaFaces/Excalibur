@@ -12,6 +12,7 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// property defaults, disposed guard, and GetService behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 {
 	private readonly ILogger<CosmosDbPersistenceProvider> _logger;
@@ -161,7 +162,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 	{
 		var provider = new CosmosDbPersistenceProvider(_validOptions, _logger);
 
-		provider.CloudProvider.ShouldBe(Excalibur.Data.Abstractions.CloudNative.CloudProviderType.CosmosDb);
+		provider.CloudProvider.ShouldBe(Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType.CosmosDb);
 	}
 
 	[Fact]

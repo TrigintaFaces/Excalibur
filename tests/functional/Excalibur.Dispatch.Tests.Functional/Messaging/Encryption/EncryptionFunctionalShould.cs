@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Tests.Functional.Messaging.Encryption;
 ///     Functional tests verifying message bus encryption behavior.
 /// </summary>
 [Trait("Category", "Functional")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class EncryptionFunctionalShould
 {
 	public required string MessageId { get; set; } = Guid.NewGuid().ToString();
@@ -46,7 +47,7 @@ public sealed class EncryptionFunctionalShould
 						sp.GetRequiredService<IEncryptionProvider>()));
 
 		var provider = services.BuildServiceProvider();
-		await using var disposable = provider.ConfigureAwait(true);
+		await using var disposable = provider;
 		var bus = (RecordingBus)provider.GetRequiredKeyedService<IMessageBus>("test");
 		var encryption = (RecordingEncryptionProvider)provider.GetRequiredService<IEncryptionProvider>();
 		var serializer = provider.GetRequiredService<ISerializer>();
@@ -54,7 +55,7 @@ public sealed class EncryptionFunctionalShould
 		var context = new MessageContext(message, provider);
 
 		// Act
-		await bus.PublishAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+		await bus.PublishAsync(message, context, CancellationToken.None);
 
 		// Assert
 		encryption.EncryptCalls.ShouldBe(1);

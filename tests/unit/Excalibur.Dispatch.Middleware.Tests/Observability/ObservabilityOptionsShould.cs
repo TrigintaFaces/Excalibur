@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 /// Unit tests for ObservabilityOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ObservabilityOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -43,7 +43,7 @@ public static class DispatchBuilderOptionsExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configure"> Configuration action for inbox options. </param>
 	/// <returns> The builder for fluent configuration. </returns>
-	public static IDispatchBuilder WithInbox(this IDispatchBuilder builder, Action<InboxOptions> configure)
+	public static IDispatchBuilder WithInbox(this IDispatchBuilder builder, Action<InboxConfigurationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
@@ -57,7 +57,7 @@ public static class DispatchBuilderOptionsExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configure"> Configuration action for outbox options. </param>
 	/// <returns> The builder for fluent configuration. </returns>
-	public static IDispatchBuilder WithOutbox(this IDispatchBuilder builder, Action<OutboxOptions> configure)
+	public static IDispatchBuilder WithOutbox(this IDispatchBuilder builder, Action<OutboxConfigurationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
@@ -85,7 +85,7 @@ public static class DispatchBuilderOptionsExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configure"> Optional additional inbox configuration. </param>
 	/// <returns> The builder for fluent configuration. </returns>
-	public static IDispatchBuilder EnableInboxMode(this IDispatchBuilder builder, Action<InboxOptions>? configure = null)
+	public static IDispatchBuilder EnableInboxMode(this IDispatchBuilder builder, Action<InboxConfigurationOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 

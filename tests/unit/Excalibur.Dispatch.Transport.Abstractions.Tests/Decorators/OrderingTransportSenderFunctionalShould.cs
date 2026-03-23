@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Decorators;
 /// ordering key application on single and batch messages.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Transport")]
 public sealed class OrderingTransportSenderFunctionalShould
 {
 	[Fact]

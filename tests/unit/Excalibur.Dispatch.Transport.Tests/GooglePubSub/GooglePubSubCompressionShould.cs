@@ -6,6 +6,8 @@ using Excalibur.Dispatch.Transport.Google;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 
+using Shouldly;
+
 using Tests.Shared.Categories;
 
 using Xunit;
@@ -15,7 +17,7 @@ using TextEncoding = System.Text.Encoding;
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub;
 
 [Trait("Category", "Unit")]
-public class GooglePubSubCompressionShould
+public sealed class GooglePubSubCompressionShould
 {
 	[Fact]
 	[UnitTest]
@@ -35,9 +37,9 @@ public class GooglePubSubCompressionShould
 				out var decodedBody,
 				out var algorithm);
 
-		Assert.True(decoded);
-		Assert.Equal(CompressionAlgorithm.Gzip, algorithm);
-		Assert.Equal(payload, decodedBody.ToByteArray());
+		decoded.ShouldBeTrue();
+		algorithm.ShouldBe(CompressionAlgorithm.Gzip);
+		decodedBody.ToByteArray().ShouldBe(payload);
 	}
 
 	[Fact]
@@ -55,8 +57,8 @@ public class GooglePubSubCompressionShould
 		var decompressed = GooglePubSubCompression.Decompress(compressed, CompressionAlgorithm.Snappy);
 
 		// Assert
-		Assert.NotEqual(payload, compressed); // Should be different (compressed)
-		Assert.Equal(payload, decompressed); // Should roundtrip correctly
+		compressed.ShouldNotBe(payload); // Should be different (compressed)
+		decompressed.ShouldBe(payload); // Should roundtrip correctly
 	}
 
 	[Fact]
@@ -73,8 +75,8 @@ public class GooglePubSubCompressionShould
 		var detected = GooglePubSubCompression.TryDetectAlgorithm(compressed, out var algorithm);
 
 		// Assert
-		Assert.True(detected);
-		Assert.Equal(CompressionAlgorithm.Gzip, algorithm);
+		detected.ShouldBeTrue();
+		algorithm.ShouldBe(CompressionAlgorithm.Gzip);
 	}
 
 	[Fact]
@@ -90,8 +92,8 @@ public class GooglePubSubCompressionShould
 		var detected = GooglePubSubCompression.TryDetectAlgorithm(payload, out var algorithm);
 
 		// Assert
-		Assert.False(detected);
-		Assert.Equal(CompressionAlgorithm.None, algorithm);
+		detected.ShouldBeFalse();
+		algorithm.ShouldBe(CompressionAlgorithm.None);
 	}
 
 	[Fact]
@@ -114,9 +116,9 @@ public class GooglePubSubCompressionShould
 			out var algorithm);
 
 		// Assert
-		Assert.True(decoded);
-		Assert.Equal(CompressionAlgorithm.Gzip, algorithm);
-		Assert.Equal(payload, decodedBody.ToByteArray());
+		decoded.ShouldBeTrue();
+		algorithm.ShouldBe(CompressionAlgorithm.Gzip);
+		decodedBody.ToByteArray().ShouldBe(payload);
 	}
 
 	[Fact]
@@ -139,9 +141,9 @@ public class GooglePubSubCompressionShould
 			out var algorithm);
 
 		// Assert
-		Assert.False(decoded);
-		Assert.Null(algorithm);
-		Assert.Equal(compressed, decodedBody.ToByteArray()); // Returns compressed data as-is
+		decoded.ShouldBeFalse();
+		algorithm.ShouldBeNull();
+		decodedBody.ToByteArray().ShouldBe(compressed); // Returns compressed data as-is
 	}
 
 	[Fact]
@@ -159,9 +161,9 @@ public class GooglePubSubCompressionShould
 		};
 
 		// Act & Assert
-		Assert.False(options.ShouldCompress(500)); // Below threshold
-		Assert.True(options.ShouldCompress(1000)); // At threshold
-		Assert.True(options.ShouldCompress(2000)); // Above threshold
+		options.ShouldCompress(500).ShouldBeFalse(); // Below threshold
+		options.ShouldCompress(1000).ShouldBeTrue(); // At threshold
+		options.ShouldCompress(2000).ShouldBeTrue(); // Above threshold
 	}
 
 	[Fact]
@@ -180,10 +182,10 @@ public class GooglePubSubCompressionShould
 		};
 
 		// Act & Assert
-		Assert.False(options.ShouldCompress(2000, "image/png")); // Already compressed
-		Assert.False(options.ShouldCompress(2000, "application/gzip")); // Already compressed
-		Assert.True(options.ShouldCompress(2000, "application/json")); // Should compress
-		Assert.True(options.ShouldCompress(2000, "text/plain")); // Should compress
+		options.ShouldCompress(2000, "image/png").ShouldBeFalse(); // Already compressed
+		options.ShouldCompress(2000, "application/gzip").ShouldBeFalse(); // Already compressed
+		options.ShouldCompress(2000, "application/json").ShouldBeTrue(); // Should compress
+		options.ShouldCompress(2000, "text/plain").ShouldBeTrue(); // Should compress
 	}
 
 	[Fact]
@@ -200,7 +202,7 @@ public class GooglePubSubCompressionShould
 		var compressedSnappy = GooglePubSubCompression.Compress(emptyPayload, CompressionAlgorithm.Snappy);
 
 		// Assert
-		Assert.Empty(compressedGzip);
-		Assert.Empty(compressedSnappy);
+		compressedGzip.ShouldBeEmpty();
+		compressedSnappy.ShouldBeEmpty();
 	}
 }

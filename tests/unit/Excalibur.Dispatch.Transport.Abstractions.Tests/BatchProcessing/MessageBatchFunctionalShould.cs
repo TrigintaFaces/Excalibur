@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Transport.Abstractions.Tests.BatchProcessing;
 /// batch sizing, priority, metadata, and computed properties.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Transport")]
 public sealed class MessageBatchFunctionalShould
 {
 	[Fact]

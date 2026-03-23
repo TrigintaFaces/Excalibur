@@ -143,6 +143,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 	public Task SendAsync(
 		IDispatchMessage message,
 		string destination,
+		IMessageContext context,
 		CancellationToken cancellationToken)
 	{
 		// Cron timer is a trigger-only transport - SendAsync is a no-op
@@ -205,7 +206,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 			{
 				await _timerTask.WaitAsync(cancellationToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				// Expected during cancellation
 			}
@@ -369,7 +370,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 			await StopAsync(cts.Token).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			// Expected during cancellation
 		}
@@ -427,7 +428,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 				{
 					await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
 				}
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
 					break;
 				}

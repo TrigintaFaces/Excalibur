@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Auditing;
 /// Unit tests for SecurityEvent, SecurityEventType, and SecuritySeverity.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Security")]
 public sealed class SecurityEventShould
 {
 	#region SecurityEvent Property Tests

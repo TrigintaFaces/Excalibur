@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using AwsRetryPolicyOptions = Excalibur.Dispatch.Transport.Aws.RetryPolicyOptions;
+using AwsRetryPolicyOptions = Excalibur.Dispatch.Transport.Aws.AwsSqsRetryPolicyOptions;
 using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.ConnectionPooling;
@@ -70,7 +70,7 @@ public sealed class ConnectionModelsShould
 		var options = new AwsRetryPolicyOptions();
 
 		// Assert
-		options.MaxRetries.ShouldBe(3);
+		options.MaxRetryAttempts.ShouldBe(3);
 		options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
 		options.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
 		options.UseExponentialBackoff.ShouldBeTrue();
@@ -83,7 +83,7 @@ public sealed class ConnectionModelsShould
 		// Arrange & Act
 		var options = new AwsRetryPolicyOptions
 		{
-			MaxRetries = 5,
+			MaxRetryAttempts = 5,
 			BaseDelay = TimeSpan.FromSeconds(2),
 			MaxDelay = TimeSpan.FromMinutes(1),
 			UseExponentialBackoff = false,
@@ -91,7 +91,7 @@ public sealed class ConnectionModelsShould
 		};
 
 		// Assert
-		options.MaxRetries.ShouldBe(5);
+		options.MaxRetryAttempts.ShouldBe(5);
 		options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
 		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		options.UseExponentialBackoff.ShouldBeFalse();

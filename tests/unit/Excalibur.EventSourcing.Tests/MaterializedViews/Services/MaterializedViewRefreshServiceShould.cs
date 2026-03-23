@@ -22,6 +22,7 @@ namespace Excalibur.EventSourcing.Tests.MaterializedViews.Services;
 /// Sprint 517: Materialized Views provider tests.
 /// Tests verify background service behavior, scheduling modes, and retry logic.
 /// </remarks>
+[Collection("Performance Tests")]
 [Trait("Category", "Unit")]
 [Trait("Component", "MaterializedViews")]
 [Trait("Feature", "Services")]
@@ -51,10 +52,11 @@ public sealed class MaterializedViewRefreshServiceShould
 	}
 
 	[Fact]
-	public void BePublic()
+	public void BeInternalSealed()
 	{
-		// Assert
-		typeof(MaterializedViewRefreshService).IsPublic.ShouldBeTrue();
+		// Sprint 683 T.35: BackgroundServices changed to internal sealed
+		typeof(MaterializedViewRefreshService).IsPublic.ShouldBeFalse();
+		typeof(MaterializedViewRefreshService).IsSealed.ShouldBeTrue();
 	}
 
 	[Fact]

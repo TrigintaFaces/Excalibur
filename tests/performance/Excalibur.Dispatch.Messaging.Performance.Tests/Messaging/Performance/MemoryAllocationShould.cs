@@ -21,6 +21,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Performance;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Performance")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MemoryAllocationShould : IDisposable
 {
 	private readonly ILogger<UnifiedBatchingMiddleware> _logger;
@@ -62,10 +63,10 @@ public sealed class MemoryAllocationShould : IDisposable
 		// Act - Warm up first to exclude JIT allocations
 		for (var i = 0; i < 100; i++)
 		{
-			await processor.AddAsync($"warmup-{i}", CancellationToken.None).ConfigureAwait(true);
+			await processor.AddAsync($"warmup-{i}", CancellationToken.None);
 		}
 
-		await Task.Delay(100).ConfigureAwait(true); // Allow processing
+		await Task.Delay(100); // Allow processing
 		processedMessages.Clear();
 
 		// Force GC and measure baseline
@@ -78,10 +79,10 @@ public sealed class MemoryAllocationShould : IDisposable
 		var stopwatch = Stopwatch.StartNew();
 		for (var i = 0; i < messageCount; i++)
 		{
-			await processor.AddAsync($"message-{i}", CancellationToken.None).ConfigureAwait(true);
+			await processor.AddAsync($"message-{i}", CancellationToken.None);
 		}
 
-		await Task.Delay(1000).ConfigureAwait(true); // Allow all processing to complete
+		await Task.Delay(1000); // Allow all processing to complete
 		stopwatch.Stop();
 
 		var allocationsAfter = GC.GetTotalMemory(false);
@@ -127,10 +128,10 @@ public sealed class MemoryAllocationShould : IDisposable
 		// Warm up and establish baseline
 		for (var i = 0; i < 100; i++)
 		{
-			await processor.AddAsync($"warmup-{i}", CancellationToken.None).ConfigureAwait(true);
+			await processor.AddAsync($"warmup-{i}", CancellationToken.None);
 		}
 
-		await Task.Delay(200).ConfigureAwait(true);
+		await Task.Delay(200);
 
 		// Measure GC stats before sustained load
 		GC.Collect();
@@ -174,8 +175,8 @@ public sealed class MemoryAllocationShould : IDisposable
 			}
 		});
 
-		await loadTask.ConfigureAwait(true);
-		await Task.Delay(500).ConfigureAwait(true); // Allow final processing
+		await loadTask;
+		await Task.Delay(500); // Allow final processing
 
 		// Measure GC stats after load
 		var gen0CollectionsAfter = GC.CollectionCount(0);
@@ -223,7 +224,7 @@ public sealed class MemoryAllocationShould : IDisposable
 		// Warm up
 		for (var i = 0; i < 50; i++)
 		{
-			_ = await store.CreateEntryAsync($"warmup-{i}", "TestHandler", "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(true);
+			_ = await store.CreateEntryAsync($"warmup-{i}", "TestHandler", "TestMessage", payload, metadata, CancellationToken.None);
 		}
 
 		// Force GC and measure baseline
@@ -237,7 +238,7 @@ public sealed class MemoryAllocationShould : IDisposable
 		for (var i = 0; i < operationCount; i++)
 		{
 			var messageId = $"test-{i}";
-			_ = await store.CreateEntryAsync(messageId, "TestHandler", "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(true);
+			_ = await store.CreateEntryAsync(messageId, "TestHandler", "TestMessage", payload, metadata, CancellationToken.None);
 
 			// Randomly mark some as processed to test state transitions
 			if (i % 3 == 0)
@@ -290,10 +291,10 @@ public sealed class MemoryAllocationShould : IDisposable
 		{
 			var warmupMessage = new FakeDispatchMessage();
 			var warmupContext = new FakeMessageContext();
-			_ = await middleware.InvokeAsync(warmupMessage, warmupContext, NextDelegate, CancellationToken.None).ConfigureAwait(true);
+			_ = await middleware.InvokeAsync(warmupMessage, warmupContext, NextDelegate, CancellationToken.None);
 		}
 
-		await Task.Delay(100).ConfigureAwait(true);
+		await Task.Delay(100);
 		processedMessages.Clear();
 
 		// Force GC and measure baseline
@@ -311,9 +312,9 @@ public sealed class MemoryAllocationShould : IDisposable
 			tasks.Add(middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask());
 		}
 
-		_ = await Task.WhenAll(tasks).ConfigureAwait(true);
+		_ = await Task.WhenAll(tasks);
 
-		await Task.Delay(200).ConfigureAwait(true); // Allow final processing
+		await Task.Delay(200); // Allow final processing
 
 		var memoryAfter = GC.GetTotalMemory(false);
 		var totalAllocations = memoryAfter - memoryBefore;
@@ -463,10 +464,10 @@ public sealed class MemoryAllocationShould : IDisposable
 		// Warm up
 		for (var i = 0; i < 50; i++)
 		{
-			await processor.AddAsync($"warmup-{i}", CancellationToken.None).ConfigureAwait(true);
+			await processor.AddAsync($"warmup-{i}", CancellationToken.None);
 		}
 
-		await Task.Delay(100).ConfigureAwait(true);
+		await Task.Delay(100);
 		processedMessages.Clear();
 
 		// Force GC and measure baseline
@@ -491,8 +492,8 @@ public sealed class MemoryAllocationShould : IDisposable
 				}
 			});
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
-		await Task.Delay(500).ConfigureAwait(true); // Allow processing to complete
+		await Task.WhenAll(tasks);
+		await Task.Delay(500); // Allow processing to complete
 
 		var memoryAfter = GC.GetTotalMemory(false);
 		var totalAllocations = memoryAfter - memoryBefore;
@@ -527,7 +528,7 @@ public sealed class MemoryAllocationShould : IDisposable
 			}
 
 			return Task.FromResult(results.Count);
-		}).ConfigureAwait(true);
+		});
 
 		// Test with string interning (simulated pooling)
 		var allocationsWithPooling = await MeasureAllocationsAsync(() =>
@@ -541,7 +542,7 @@ public sealed class MemoryAllocationShould : IDisposable
 			}
 
 			return Task.FromResult(results.Count);
-		}).ConfigureAwait(true);
+		});
 
 		// Assert that string pooling reduces allocations
 		var allocationReduction = (allocationsWithoutPooling - allocationsWithPooling) / (double)allocationsWithoutPooling;

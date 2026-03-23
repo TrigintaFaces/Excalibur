@@ -14,7 +14,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// <summary>
 /// Provides methods to manage the CDC (Change Data Capture) processing state in a database.
 /// </summary>
-public class CdcStateStore : ICdcStateStore
+public class CdcStateStore : ISqlServerCdcStateStore
 {
 	private readonly IDbConnection _connection;
 	private readonly SqlServerCdcStateStoreOptions _options;

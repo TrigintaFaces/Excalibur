@@ -50,6 +50,11 @@ public static class SagaMetrics
 	private const int MaxSagaTypeCardinality = 128;
 
 	/// <summary>
+	/// Maximum number of entries for bounded caches.
+	/// </summary>
+	private const int MaxCacheEntries = 1024;
+
+	/// <summary>
 	/// Overflow sentinel for saga types that exceed the cardinality limit.
 	/// </summary>
 	private const string OverflowSagaType = "__other__";
@@ -111,7 +116,7 @@ public static class SagaMetrics
 
 	/// <summary>
 	/// Cached tag lists per saga type to avoid per-call allocation.
-	/// Bounded to <see cref="MaxSagaTypeCardinality"/> distinct values.
+	/// Bounded to <see cref="MaxCacheEntries"/> distinct values.
 	/// </summary>
 	private static readonly ConcurrentDictionary<string, KeyValuePair<string, object?>[]> CachedTagLists = new();
 
@@ -198,16 +203,28 @@ public static class SagaMetrics
 	/// Call when a saga starts processing.
 	/// </summary>
 	/// <param name="sagaType">The short type name of the saga (not assembly-qualified).</param>
-	public static void IncrementActive(string sagaType) =>
-		ActiveSagaCounts.AddOrUpdate(GuardSagaType(sagaType), 1, static (_, v) => v + 1);
+	public static void IncrementActive(string sagaType)
+	{
+		var guarded = GuardSagaType(sagaType);
+		if (ActiveSagaCounts.Count < MaxCacheEntries || ActiveSagaCounts.ContainsKey(guarded))
+		{
+			ActiveSagaCounts.AddOrUpdate(guarded, 1, static (_, v) => v + 1);
+		}
+	}
 
 	/// <summary>
 	/// Decrements the active saga count for the specified saga type.
 	/// Call when a saga completes, fails, or is compensated.
 	/// </summary>
 	/// <param name="sagaType">The short type name of the saga (not assembly-qualified).</param>
-	public static void DecrementActive(string sagaType) =>
-		ActiveSagaCounts.AddOrUpdate(GuardSagaType(sagaType), 0, static (_, v) => Math.Max(0, v - 1));
+	public static void DecrementActive(string sagaType)
+	{
+		var guarded = GuardSagaType(sagaType);
+		if (ActiveSagaCounts.TryGetValue(guarded, out _))
+		{
+			ActiveSagaCounts.AddOrUpdate(guarded, 0, static (_, v) => Math.Max(0, v - 1));
+		}
+	}
 
 	/// <summary>
 	/// Gets the current active saga count for the specified saga type.
@@ -259,9 +276,22 @@ public static class SagaMetrics
 	private static KeyValuePair<string, object?>[] GetOrCreateTags(string sagaType)
 	{
 		var guardedType = GuardSagaType(sagaType);
-		return CachedTagLists.GetOrAdd(guardedType, static key =>
-		[
-			new KeyValuePair<string, object?>("saga_type", key),
-		]);
+
+		if (CachedTagLists.TryGetValue(guardedType, out var cached))
+		{
+			return cached;
+		}
+
+		var tags = new KeyValuePair<string, object?>[]
+		{
+			new("saga_type", guardedType),
+		};
+
+		if (CachedTagLists.Count < MaxCacheEntries)
+		{
+			return CachedTagLists.GetOrAdd(guardedType, tags);
+		}
+
+		return tags;
 	}
 }

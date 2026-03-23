@@ -9,6 +9,8 @@ namespace Excalibur.Dispatch.ArchitectureTests;
 /// <summary>
 /// Enforces serialization boundary requirements for Excalibur.Dispatch.Patterns (R0.14).
 /// </summary>
+[Trait("Category", "Unit")]
+[Trait("Component", "Architecture")]
 public sealed class SerializationBoundaryTests
 {
     /// <summary>

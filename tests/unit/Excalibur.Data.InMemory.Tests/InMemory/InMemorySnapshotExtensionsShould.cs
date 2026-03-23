@@ -76,12 +76,11 @@ public sealed class InMemorySnapshotExtensionsShould : UnitTestBase
 
 		// Act
 		_ = services.AddInMemorySnapshotStore();
-		var provider = services.BuildServiceProvider();
 
-		// Assert
-		var store = provider.GetService<ISnapshotStore>();
-		store.ShouldNotBeNull();
-		store.ShouldBeOfType<InMemorySnapshotStore>();
+		// Assert - ISnapshotStore is now registered as a keyed service
+		var descriptor = services.FirstOrDefault(sd => sd.ServiceType == typeof(ISnapshotStore) && sd.IsKeyedService);
+		descriptor.ShouldNotBeNull();
+		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
 
 	[Fact]

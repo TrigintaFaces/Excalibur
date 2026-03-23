@@ -11,7 +11,7 @@ namespace Excalibur.Data.ElasticSearch;
 /// <summary>
 /// Provides health check functionality for Elasticsearch client.
 /// </summary>
-public sealed class ElasticClientHealthCheck(IElasticsearchHealthClient client) : IHealthCheck
+internal sealed class ElasticClientHealthCheck(IElasticsearchHealthClient client) : IHealthCheck
 {
 	/// <summary>
 	/// Performs the health check by querying the Elasticsearch cluster status.

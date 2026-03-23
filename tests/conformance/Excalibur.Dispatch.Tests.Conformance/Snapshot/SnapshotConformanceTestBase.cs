@@ -98,7 +98,7 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 			aggregateId,
 			aggregateType,
 			version,
-			DateTime.UtcNow,
+			DateTimeOffset.UtcNow,
 			data,
 			metadata != null ? new Dictionary<string, object>
 			{

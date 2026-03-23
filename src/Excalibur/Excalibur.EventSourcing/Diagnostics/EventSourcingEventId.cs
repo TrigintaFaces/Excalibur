@@ -13,7 +13,8 @@ namespace Excalibur.EventSourcing.Diagnostics;
 /// <item>111000-111999: Aggregate Repository</item>
 /// <item>112000-112999: Snapshots</item>
 /// <item>113000-113999: Projections</item>
-/// <item>114000-114999: Upcasting/Migration</item>
+/// <item>114000-114599: Upcasting/Migration</item>
+/// <item>114600-114699: Subscriptions</item>
 /// </list>
 /// </remarks>
 public static class EventSourcingEventId
@@ -192,6 +193,9 @@ public static class EventSourcingEventId
 	/// <summary>Projection batch processed.</summary>
 	public const int ProjectionBatchProcessed = 113104;
 
+	/// <summary>Error processing individual event during projection rebuild.</summary>
+	public const int ProjectionRebuildEventError = 113105;
+
 	// ========================================
 	// 114000-114099: Upcasting Core
 	// ========================================
@@ -345,4 +349,23 @@ public static class EventSourcingEventId
 
 	/// <summary>Event store erasure contributor completed.</summary>
 	public const int ErasureContributorCompleted = 114507;
+
+	// ========================================
+	// 114600-114699: Subscriptions
+	// ========================================
+
+	/// <summary>Live subscription started for a stream.</summary>
+	public const int SubscriptionStarted = 114600;
+
+	/// <summary>Live subscription stopped for a stream.</summary>
+	public const int SubscriptionStopped = 114601;
+
+	/// <summary>Events delivered to subscription handler.</summary>
+	public const int SubscriptionEventsDelivered = 114602;
+
+	/// <summary>Error polling for events during live subscription.</summary>
+	public const int SubscriptionPollingError = 114603;
+
+	/// <summary>Failed to deserialize event during live subscription.</summary>
+	public const int SubscriptionDeserializationFailed = 114604;
 }

@@ -14,6 +14,7 @@ namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 /// Verifies Sprint 389 fix: Dispose method properly releases resources.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class SchemaEvolutionHandlerDisposeShould : UnitTestBase
 {
 	[Fact]

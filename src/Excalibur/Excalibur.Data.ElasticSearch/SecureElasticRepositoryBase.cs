@@ -400,33 +400,34 @@ public abstract class SecureElasticRepositoryBase<TEntity>(
 	/// <summary>
 	/// Gets the current user identifier from the security context.
 	/// </summary>
-	private static string? GetCurrentUserId() =>
-
-		// This would typically retrieve the user ID from the current thread's security context For demonstration, returning a placeholder
-		Environment.UserName;
+	/// <remarks>
+	/// Implement this method to provide user identity from your application's authentication context
+	/// (e.g., <c>ClaimsPrincipal</c>, <c>IHttpContextAccessor</c>, or a custom identity provider).
+	/// </remarks>
+	/// <returns> The current user identifier, or <see langword="null"/> if not available. </returns>
+	protected abstract string? GetCurrentUserId();
 
 	/// <summary>
 	/// Gets the current source IP address from the request context.
 	/// </summary>
-	private static string? GetCurrentSourceIpAddress() =>
-
-		// This would typically retrieve the source IP from the current HTTP context For demonstration, returning localhost
-		"127.0.0.1";
+	/// <remarks>
+	/// Implement this method to provide the source IP from your application's HTTP context
+	/// (e.g., <c>IHttpContextAccessor.HttpContext.Connection.RemoteIpAddress</c>).
+	/// </remarks>
+	/// <returns> The current source IP address, or <see langword="null"/> if not available. </returns>
+	protected abstract string? GetCurrentSourceIpAddress();
 
 	/// <summary>
 	/// Checks if an IP address falls within a specified range or matches exactly.
 	/// </summary>
-	private static bool IsIpInRange(string ipAddress, string rangeOrIp)
-	{
-		// Simple implementation - would need proper CIDR range checking in production
-		if (rangeOrIp.Contains('/', StringComparison.Ordinal))
-		{
-			// CIDR notation - implement proper subnet checking
-			return false; // Placeholder
-		}
-
-		return ipAddress.Equals(rangeOrIp, StringComparison.OrdinalIgnoreCase);
-	}
+	/// <remarks>
+	/// Implement this method to provide proper CIDR subnet matching for your network security requirements.
+	/// This method is only called when <see cref="ElasticsearchSecurityOptions.NetworkSecurity"/> is enabled.
+	/// </remarks>
+	/// <param name="ipAddress"> The IP address to check. </param>
+	/// <param name="rangeOrIp"> The IP range or exact IP to match against. </param>
+	/// <returns> <see langword="true"/> if the IP address matches the range; otherwise, <see langword="false"/>. </returns>
+	protected abstract bool IsIpInRange(string ipAddress, string rangeOrIp);
 
 	/// <summary>
 	/// Validates the current security context for the requested operation.

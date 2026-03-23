@@ -30,7 +30,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	private readonly ILogger<HighThroughputSqsChannelProcessor> _logger;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly Channel<SqsMessageEnvelope> _channel;
-	private readonly ConcurrentBag<Task> _pollingTasks;
+	private ConcurrentBag<Task> _pollingTasks;
 	private readonly CancellationTokenSource _shutdownTokenSource;
 	private readonly SemaphoreSlim _concurrencyLimit;
 
@@ -51,6 +51,14 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	private readonly ConcurrentQueue<DeleteMessageBatchRequestEntry> _pendingDeletes;
 
 	private readonly Timer _batchDeleteTimer;
+
+	/// <summary>
+	/// Tracks in-flight receipt handles for visibility timeout extension.
+	/// Key: entry ID (MessageId), Value: receipt handle.
+	/// </summary>
+	private readonly ConcurrentDictionary<string, string> _inFlightReceipts;
+
+	private readonly Timer _visibilityExtensionTimer;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="HighThroughputSqsChannelProcessor" /> class.
@@ -119,7 +127,11 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 
 		// Initialize batch delete
 		_pendingDeletes = new ConcurrentQueue<DeleteMessageBatchRequestEntry>();
-		_batchDeleteTimer = new Timer(ProcessBatchDeletes, state: null, Timeout.Infinite, Timeout.Infinite);
+		_batchDeleteTimer = new Timer(_ => _ = ProcessBatchDeletesAsync(), state: null, Timeout.Infinite, Timeout.Infinite);
+
+		// Initialize visibility timeout extension
+		_inFlightReceipts = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+		_visibilityExtensionTimer = new Timer(_ => _ = ExtendVisibilityTimeoutsAsync(), state: null, Timeout.Infinite, Timeout.Infinite);
 	}
 
 	/// <summary>
@@ -157,10 +169,29 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 			_pollingTasks.Add(pollingTask);
 		}
 
+		// Atomic drain: swap the bag to avoid ToArray()+Clear() race
+		var drained = Interlocked.Exchange(ref _pollingTasks, new ConcurrentBag<Task>());
+		foreach (var t in drained)
+		{
+			if (!t.IsCompleted)
+			{
+				_pollingTasks.Add(t);
+			}
+		}
+
 		// Start batch delete timer
 		_ = _batchDeleteTimer.Change(
 			TimeSpan.FromMilliseconds(_options.BatchDeleteIntervalMs),
 			TimeSpan.FromMilliseconds(_options.BatchDeleteIntervalMs));
+
+		// Start visibility timeout extension timer at 75% of the visibility timeout interval
+		var extensionIntervalMs = (int)(_options.VisibilityTimeout * 1000 * 0.75);
+		if (extensionIntervalMs > 0)
+		{
+			_ = _visibilityExtensionTimer.Change(
+				TimeSpan.FromMilliseconds(extensionIntervalMs),
+				TimeSpan.FromMilliseconds(extensionIntervalMs));
+		}
 
 		return Task.CompletedTask;
 	}
@@ -180,8 +211,10 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 		await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
 		_ = _channel.Writer.TryComplete();
 
-		await Task.WhenAll(_pollingTasks).ConfigureAwait(false);
+		var finalTasks = Interlocked.Exchange(ref _pollingTasks, new ConcurrentBag<Task>());
+		await Task.WhenAll(finalTasks).ConfigureAwait(false);
 
+		await _visibilityExtensionTimer.DisposeAsync().ConfigureAwait(false);
 		await _batchDeleteTimer.DisposeAsync().ConfigureAwait(false);
 		_shutdownTokenSource.Dispose();
 		_concurrencyLimit.Dispose();
@@ -207,7 +240,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 
 					if (response.Messages.Count > 0)
 					{
-						Metrics.TotalMessagesProcessed += response.Messages.Count;
+						Metrics.AddTotalMessagesProcessed(response.Messages.Count);
 
 						foreach (var message in response.Messages)
 						{
@@ -251,6 +284,12 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 								pollerIndex);
 #pragma warning restore CA2000
 
+							// Track in-flight receipt handle for visibility extension
+							if (message.ReceiptHandle is not null)
+							{
+								_inFlightReceipts[message.MessageId] = message.ReceiptHandle;
+							}
+
 							await _channel.Writer.WriteAsync(envelope, cancellationToken).ConfigureAwait(false);
 						}
 					}
@@ -260,7 +299,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 					_receiveRequestPool.Return(request);
 				}
 			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
@@ -277,41 +316,133 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	/// <summary>
 	/// Processes batch deletes on a timer.
 	/// </summary>
-	private async void ProcessBatchDeletes(object? state)
+	private async Task ProcessBatchDeletesAsync()
 	{
-		if (_pendingDeletes.IsEmpty)
+		try
 		{
-			return;
-		}
+			if (_pendingDeletes.IsEmpty)
+			{
+				return;
+			}
 
-		var entries = new List<DeleteMessageBatchRequestEntry>();
+			var entries = new List<DeleteMessageBatchRequestEntry>();
 
-		while (entries.Count < 10 && _pendingDeletes.TryDequeue(out var entry))
-		{
-			entries.Add(entry);
-		}
+			while (entries.Count < 10 && _pendingDeletes.TryDequeue(out var entry))
+			{
+				entries.Add(entry);
+			}
 
-		if (entries.Count > 0)
-		{
-			try
+			if (entries.Count > 0)
 			{
 				var request = _deleteRequestPool.Get();
 				try
 				{
 					request.Entries = entries;
-					_ = await _sqsClient.DeleteMessageBatchAsync(request).ConfigureAwait(false);
-					Metrics.SuccessfulMessages += entries.Count;
+					var response = await _sqsClient.DeleteMessageBatchAsync(request).ConfigureAwait(false);
+
+					// Count only actually successful deletes and remove from in-flight tracking
+					Metrics.AddSuccessfulMessages(response.Successful.Count);
+					foreach (var successful in response.Successful)
+					{
+						_inFlightReceipts.TryRemove(successful.Id, out _);
+					}
+
+					// Re-queue failed entries so they are retried on the next timer tick
+					if (response.Failed.Count > 0)
+					{
+						Metrics.AddFailedMessages(response.Failed.Count);
+						foreach (var failed in response.Failed)
+						{
+							LogBatchDeletePartialFailure(failed.Id, failed.Code, failed.Message);
+
+							// Find the original entry and re-queue it for retry
+							var original = entries.Find(e => e.Id == failed.Id);
+							if (original is not null)
+							{
+								_pendingDeletes.Enqueue(original);
+							}
+						}
+					}
 				}
 				finally
 				{
 					_deleteRequestPool.Return(request);
 				}
 			}
-			catch (Exception ex)
+		}
+		catch (Exception ex)
+		{
+			LogBatchDeleteError(ex);
+		}
+	}
+
+	/// <summary>
+	/// Extends visibility timeout for all in-flight messages to prevent duplicate delivery.
+	/// </summary>
+	private async Task ExtendVisibilityTimeoutsAsync()
+	{
+		try
+		{
+			if (_inFlightReceipts.IsEmpty)
 			{
-				LogBatchDeleteError(ex);
-				Metrics.FailedMessages += entries.Count;
+				return;
 			}
+
+			// Snapshot current in-flight receipts (SQS max batch = 10)
+			var entries = new List<ChangeMessageVisibilityBatchRequestEntry>();
+			foreach (var kvp in _inFlightReceipts)
+			{
+				entries.Add(new ChangeMessageVisibilityBatchRequestEntry
+				{
+					Id = kvp.Key,
+					ReceiptHandle = kvp.Value,
+					VisibilityTimeout = _options.VisibilityTimeout,
+				});
+
+				if (entries.Count >= 10)
+				{
+					await SendVisibilityExtensionBatchAsync(entries).ConfigureAwait(false);
+					entries = [];
+				}
+			}
+
+			if (entries.Count > 0)
+			{
+				await SendVisibilityExtensionBatchAsync(entries).ConfigureAwait(false);
+			}
+		}
+		catch (Exception ex)
+		{
+			LogVisibilityExtensionError(ex);
+		}
+	}
+
+	private async Task SendVisibilityExtensionBatchAsync(List<ChangeMessageVisibilityBatchRequestEntry> entries)
+	{
+		try
+		{
+			var request = new ChangeMessageVisibilityBatchRequest
+			{
+				QueueUrl = _options.QueueUrl!.ToString(),
+				Entries = entries,
+			};
+
+			var response = await _sqsClient.ChangeMessageVisibilityBatchAsync(request).ConfigureAwait(false);
+
+			if (response.Failed.Count > 0)
+			{
+				foreach (var failed in response.Failed)
+				{
+					LogVisibilityExtensionFailed(failed.Id, failed.Code, failed.Message);
+					// Remove stale receipt handles that can no longer be extended
+					_inFlightReceipts.TryRemove(failed.Id, out _);
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			// Log but don't crash -- worst case is duplicate delivery, which consumers handle via idempotency
+			LogVisibilityExtensionError(ex);
 		}
 	}
 
@@ -335,4 +466,16 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	[LoggerMessage(AwsSqsEventId.HighThroughputBatchDeleteError, LogLevel.Error,
 		"Error processing batch deletes")]
 	private partial void LogBatchDeleteError(Exception ex);
+
+	[LoggerMessage(AwsSqsEventId.HighThroughputBatchDeletePartialFailure, LogLevel.Warning,
+		"Batch delete partial failure for entry {EntryId}: {ErrorCode} - {ErrorMessage}")]
+	private partial void LogBatchDeletePartialFailure(string entryId, string errorCode, string errorMessage);
+
+	[LoggerMessage(AwsSqsEventId.HighThroughputVisibilityExtensionFailed, LogLevel.Warning,
+		"Visibility extension failed for entry {EntryId}: {ErrorCode} - {ErrorMessage}")]
+	private partial void LogVisibilityExtensionFailed(string entryId, string errorCode, string errorMessage);
+
+	[LoggerMessage(AwsSqsEventId.HighThroughputVisibilityExtensionError, LogLevel.Warning,
+		"Error extending visibility timeouts for in-flight messages")]
+	private partial void LogVisibilityExtensionError(Exception ex);
 }

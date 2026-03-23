@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 /// Unit tests for MetricsMiddleware.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MetricsMiddlewareShould : UnitTestBase
 {
 	private readonly IDispatchMetrics _metrics;

@@ -9,6 +9,7 @@ namespace Excalibur.Hosting.Tests.AwsLambda;
 /// Unit tests for <see cref="ExcaliburAwsLambdaServiceCollectionExtensions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class AwsLambdaServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

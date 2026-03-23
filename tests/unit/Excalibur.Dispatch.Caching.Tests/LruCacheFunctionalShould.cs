@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Caching.Tests;
 /// eviction, TTL, statistics, and thread safety.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Caching")]
 public sealed class LruCacheFunctionalShould
 {
 	[Fact]

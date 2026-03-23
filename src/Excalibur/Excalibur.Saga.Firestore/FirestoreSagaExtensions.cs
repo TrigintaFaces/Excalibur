@@ -53,7 +53,9 @@ public static class FirestoreSagaExtensions
 			.ValidateOnStart();
 
 		services.TryAddSingleton<FirestoreSagaStore>();
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<FirestoreSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("firestore"));
 
 		return services;
 	}
@@ -106,7 +108,9 @@ public static class FirestoreSagaExtensions
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new FirestoreSagaStore(db, options, logger, serializer);
 		});
-		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<FirestoreSagaStore>());
+		services.AddKeyedSingleton<ISagaStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreSagaStore>());
+		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ISagaStore>("firestore"));
 
 		return services;
 	}

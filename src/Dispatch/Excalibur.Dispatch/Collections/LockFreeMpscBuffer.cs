@@ -4,6 +4,8 @@
 
 using System.Runtime.CompilerServices;
 
+using Microsoft.Extensions.ObjectPool;
+
 namespace Excalibur.Dispatch.Collections;
 
 /// <summary>
@@ -12,6 +14,8 @@ namespace Excalibur.Dispatch.Collections;
 /// <typeparam name="T"> The type of elements in the buffer. </typeparam>
 internal sealed class LockFreeMpscBuffer<T>
 {
+	private static readonly ObjectPool<Node> NodePool = ObjectPool.Create<Node>();
+
 	private volatile Node _head;
 
 	private volatile Node _tail;
@@ -21,7 +25,8 @@ internal sealed class LockFreeMpscBuffer<T>
 	/// </summary>
 	public LockFreeMpscBuffer()
 	{
-		var dummy = new Node();
+		var dummy = NodePool.Get();
+		dummy.Reset();
 		_head = dummy;
 		_tail = dummy;
 	}
@@ -39,20 +44,29 @@ internal sealed class LockFreeMpscBuffer<T>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Enqueue(T item)
 	{
-		var newNode = new Node { Value = item };
-		Node? prevTail;
+		var newNode = NodePool.Get();
+		newNode.Value = item;
+		newNode.Next = null;
+
+		Node prevTail;
 
 		do
 		{
 			prevTail = _tail;
 			while (prevTail.Next != null)
 			{
-				prevTail = prevTail.Next;
+				var next = prevTail.Next;
+				// Cooperatively advance _tail as we walk past lagging nodes.
+				// This is the Michael-Scott queue helping technique: each enqueuer
+				// helps advance _tail during the walk so it doesn't lag permanently.
+				_ = Interlocked.CompareExchange(ref _tail, next, prevTail);
+				prevTail = next;
 			}
 		}
 		while (Interlocked.CompareExchange(ref prevTail.Next, newNode, comparand: null) != null);
 
-		// Try to advance tail pointer
+		// Final tail advancement for our appended node.
+		// Uses prevTail (the actual predecessor of newNode) as comparand.
 		_ = Interlocked.CompareExchange(ref _tail, newNode, prevTail);
 	}
 
@@ -82,6 +96,11 @@ internal sealed class LockFreeMpscBuffer<T>
 
 		item = next.Value;
 		next.Value = default!; // Clear reference
+
+		// Return the old dummy head node to the pool -- it is no longer reachable from the queue.
+		head.Reset();
+		NodePool.Return(head);
+
 		return true;
 	}
 
@@ -99,5 +118,11 @@ internal sealed class LockFreeMpscBuffer<T>
 	{
 		public T Value = default!;
 		public volatile Node? Next;
+
+		public void Reset()
+		{
+			Value = default!;
+			Next = null;
+		}
 	}
 }

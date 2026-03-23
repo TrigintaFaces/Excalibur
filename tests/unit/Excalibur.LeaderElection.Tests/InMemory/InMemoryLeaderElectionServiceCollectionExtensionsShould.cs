@@ -7,6 +7,7 @@ namespace Excalibur.LeaderElection.Tests.InMemory;
 /// Unit tests for <see cref="InMemoryLeaderElectionServiceCollectionExtensions" />.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class InMemoryLeaderElectionServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
@@ -18,10 +19,10 @@ public sealed class InMemoryLeaderElectionServiceCollectionExtensionsShould : Un
 		// Act
 		_ = services.AddInMemoryLeaderElection();
 
-		// Assert - Check service is registered without building provider
+		// Assert - Check keyed service is registered
 		services.Any(static sd =>
 			sd.ServiceType == typeof(ILeaderElectionFactory) &&
-			sd.ImplementationType == typeof(InMemoryLeaderElectionFactory) &&
+			sd.IsKeyedService &&
 			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 	}
 
@@ -38,10 +39,10 @@ public sealed class InMemoryLeaderElectionServiceCollectionExtensionsShould : Un
 			options.LeaseDuration = TimeSpan.FromSeconds(30);
 		});
 
-		// Assert - Check service is registered
+		// Assert - Check keyed service is registered
 		services.Any(static sd =>
 			sd.ServiceType == typeof(ILeaderElectionFactory) &&
-			sd.ImplementationType == typeof(InMemoryLeaderElectionFactory) &&
+			sd.IsKeyedService &&
 			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 	}
 
@@ -123,9 +124,14 @@ public sealed class InMemoryLeaderElectionServiceCollectionExtensionsShould : Un
 		_ = services.AddInMemoryLeaderElection();
 		_ = services.AddInMemoryLeaderElection();
 
-		// Assert - Should only have one registration due to TryAddSingleton
+		// Assert - The "default" key uses TryAddKeyedSingleton so only one "default" registration
+		// but the "inmemory" key uses AddKeyedSingleton so it adds each time.
+		// Check "default" keyed registrations are deduplicated.
 		services.Count(static sd =>
-			sd.ServiceType == typeof(ILeaderElectionFactory)).ShouldBe(1);
+			sd.ServiceType == typeof(ILeaderElectionFactory) &&
+			sd.IsKeyedService &&
+			sd.ServiceKey is string key &&
+			key == "default").ShouldBe(1);
 	}
 
 	[Fact]
@@ -141,7 +147,7 @@ public sealed class InMemoryLeaderElectionServiceCollectionExtensionsShould : Un
 
 		// Act
 		using var provider = services.BuildServiceProvider();
-		var factory = provider.GetService<ILeaderElectionFactory>();
+		var factory = provider.GetKeyedService<ILeaderElectionFactory>("default");
 
 		// Assert
 		_ = factory.ShouldNotBeNull();
@@ -161,7 +167,7 @@ public sealed class InMemoryLeaderElectionServiceCollectionExtensionsShould : Un
 
 		// Act
 		using var provider = services.BuildServiceProvider();
-		var factory = provider.GetRequiredService<ILeaderElectionFactory>();
+		var factory = provider.GetRequiredKeyedService<ILeaderElectionFactory>("default");
 		var election = factory.CreateElection($"test-{Guid.NewGuid():N}", candidateId: null);
 
 		// Assert

@@ -39,7 +39,7 @@ public sealed partial class ContextTraceEnricher(
 	private readonly ILogger<ContextTraceEnricher> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly ContextObservabilityOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ITelemetrySanitizer _sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
-	private readonly ActivitySource _activitySource = new("Excalibur.Dispatch.Observability.Context.Enricher", "1.0.0");
+	private static readonly ActivitySource s_activitySource = new("Excalibur.Dispatch.Observability.Context.Enricher", "1.0.0");
 	private readonly TextMapPropagator _propagator = Propagators.DefaultTextMapPropagator;
 
 	/// <summary>
@@ -102,7 +102,7 @@ public sealed partial class ContextTraceEnricher(
 		IMessageContext context,
 		ActivityKind kind = ActivityKind.Internal)
 	{
-		var activity = _activitySource.StartActivity(
+		var activity = s_activitySource.StartActivity(
 			$"Context.{operationName}",
 			kind);
 
@@ -247,7 +247,10 @@ public sealed partial class ContextTraceEnricher(
 	}
 
 	/// <inheritdoc />
-	public void Dispose() => _activitySource?.Dispose();
+	public void Dispose()
+	{
+		// Static ActivitySource is process-lifetime; no instance resources to dispose.
+	}
 
 	private void AddStandardAttributes(Activity activity, IMessageContext context)
 	{

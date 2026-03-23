@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
 // AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -14,6 +15,7 @@ using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.Snapshots;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 // Use Excalibur.EventSourcing.Abstractions as canonical source (AD-251-2)
@@ -70,6 +72,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	private readonly bool _enableAutoSnapshotUpgrade;
 	private readonly int _targetSnapshotVersion;
 	private readonly Func<TKey, TAggregate> _aggregateFactory;
+	private readonly ILogger? _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate, TKey}" /> class.
@@ -84,6 +87,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <param name="outboxStore"> Optional outbox store for staging integration events. </param>
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
+	/// <param name="logger"> Optional logger for diagnostics. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
@@ -94,7 +98,8 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		IOptions<UpcastingOptions>? upcastingOptions = null,
 		IEventSourcedOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
-		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null)
+		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
+		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null)
 	{
 		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
@@ -107,6 +112,52 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		_enableAutoUpcast = upcastingOptions?.Value.EnableAutoUpcastOnReplay ?? false;
 		_enableAutoSnapshotUpgrade = snapshotUpgradingOptions?.Value.EnableAutoUpgradeOnLoad ?? false;
 		_targetSnapshotVersion = snapshotUpgradingOptions?.Value.CurrentSnapshotVersion ?? 1;
+		_logger = logger;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate, TKey}" /> class
+	/// using the Options pattern for configuration.
+	/// </summary>
+	/// <param name="eventStore"> The event store for persistence. </param>
+	/// <param name="eventSerializer"> The event serializer for deserialization. </param>
+	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a key. </param>
+	/// <param name="options"> Configuration options for the repository. </param>
+	/// <param name="upcastingPipeline"> Optional upcasting pipeline for version transformation. </param>
+	/// <param name="snapshotManager"> Optional snapshot manager. </param>
+	/// <param name="snapshotStrategy"> Optional snapshot strategy. </param>
+	/// <param name="outboxStore"> Optional outbox store for staging integration events. </param>
+	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
+	/// <param name="logger"> Optional logger for diagnostics. </param>
+	public EventSourcedRepository(
+		IEventStore eventStore,
+		IEventSerializer eventSerializer,
+		Func<TKey, TAggregate> aggregateFactory,
+		IOptions<EventSourcedRepositoryOptions> options,
+		IUpcastingPipeline? upcastingPipeline = null,
+		ISnapshotManager? snapshotManager = null,
+		ISnapshotStrategy? snapshotStrategy = null,
+		IEventSourcedOutboxStore? outboxStore = null,
+		SnapshotVersionManager? snapshotVersionManager = null,
+		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null)
+	{
+		ArgumentNullException.ThrowIfNull(eventStore);
+		ArgumentNullException.ThrowIfNull(eventSerializer);
+		ArgumentNullException.ThrowIfNull(aggregateFactory);
+		ArgumentNullException.ThrowIfNull(options);
+
+		_eventStore = eventStore;
+		_eventSerializer = eventSerializer;
+		_aggregateFactory = aggregateFactory;
+		_upcastingPipeline = upcastingPipeline;
+		_snapshotManager = snapshotManager;
+		_snapshotStrategy = snapshotStrategy;
+		_outboxStore = outboxStore;
+		_snapshotVersionManager = snapshotVersionManager;
+		_enableAutoUpcast = options.Value.EnableAutoUpcast;
+		_enableAutoSnapshotUpgrade = options.Value.EnableAutoSnapshotUpgrade;
+		_targetSnapshotVersion = options.Value.TargetSnapshotVersion;
+		_logger = logger;
 	}
 
 	/// <inheritdoc />
@@ -149,6 +200,16 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 			return null;
 		}
 
+		// Detect version gaps when loading from snapshot (T.9: version gap detection)
+		if (snapshotVersion > 0 && storedEvents.Count > 0 && storedEvents[0].Version > snapshotVersion)
+		{
+			_logger?.LogWarning(
+				"Version gap detected for aggregate '{AggregateId}' ({AggregateType}): " +
+				"snapshot at version {SnapshotVersion}, first event at version {FirstEventVersion}. " +
+				"Events between these versions may have been retired or compacted.",
+				stringId, aggregateType, snapshotVersion, storedEvents[0].Version);
+		}
+
 		// Deserialize, optionally upcast, and collect events for replay
 		var eventsToApply = new List<IDomainEvent>(storedEvents.Count);
 		foreach (var storedEvent in storedEvents)
@@ -186,42 +247,34 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		var stringId = aggregate.Id.ToString() ?? throw new InvalidOperationException(
 				Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
 
+		// Propagate CorrelationId/TenantId from current Activity into event metadata
+		EnrichEventsWithActivityContext(uncommittedEvents);
+
 		// Calculate expected version for optimistic concurrency: Version represents count of committed events (0 = none, 5 = five events
 		// committed) Event store expects the max version of stored events (-1 = no events, 4 = five events with versions 0-4)
 		// Formula: (committed event count) - 1 = max version
 		var expectedVersion = aggregate.Version - 1;
 
-		var result = await _eventStore.AppendAsync(
-			stringId,
-			aggregate.AggregateType,
-			uncommittedEvents,
-			expectedVersion,
-			cancellationToken).ConfigureAwait(false);
-
-		if (!result.Success)
+		// When the event store supports transactions and outbox is configured,
+		// append events and stage outbox messages in a single atomic transaction.
+		if (_outboxStore is not null && _eventStore is ITransactionalEventStore txStore)
 		{
-			if (result.IsConcurrencyConflict)
-			{
-				throw new ConcurrencyException(
-						string.Format(
-								CultureInfo.CurrentCulture,
-								SaveFailedFormat,
-								aggregate.Id,
-								result.ErrorMessage));
-			}
-
-			throw new ResourceException(
-					string.Format(
-							CultureInfo.CurrentCulture,
-							SaveFailedFormat,
-							aggregate.Id,
-							result.ErrorMessage));
+			await SaveWithTransactionalOutboxAsync(
+				txStore, stringId, aggregate, uncommittedEvents, expectedVersion, cancellationToken)
+				.ConfigureAwait(false);
 		}
-
-		// Stage integration events to outbox if configured
-		if (_outboxStore is not null)
+		else
 		{
-			// Outbox staging requires transaction support; intentionally deferred.
+			// Non-transactional path: append events only.
+			// Integration events are published via OutboxBackgroundService instead.
+			var result = await _eventStore.AppendAsync(
+				stringId,
+				aggregate.AggregateType,
+				uncommittedEvents,
+				expectedVersion,
+				cancellationToken).ConfigureAwait(false);
+
+			ThrowIfAppendFailed(result, aggregate);
 		}
 
 		aggregate.MarkEventsAsCommitted();
@@ -230,13 +283,24 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		// Format: "{AggregateType}:{Id}:v{Version}" provides deterministic, version-linked ETags
 		aggregate.ETag = $"{aggregate.AggregateType}:{aggregate.Id}:v{aggregate.Version}";
 
-		// Check if we should create a snapshot
+		// Check if we should create a snapshot (failure must not propagate as save failure)
 		if (_snapshotManager is not null && _snapshotStrategy is not null && _snapshotStrategy.ShouldCreateSnapshot(aggregate))
 		{
-			var snapshot = await _snapshotManager.CreateSnapshotAsync(aggregate, cancellationToken)
-				.ConfigureAwait(false);
-			await _snapshotManager.SaveSnapshotAsync(stringId, snapshot, cancellationToken)
-				.ConfigureAwait(false);
+			try
+			{
+				var snapshot = await _snapshotManager.CreateSnapshotAsync(aggregate, cancellationToken)
+					.ConfigureAwait(false);
+				await _snapshotManager.SaveSnapshotAsync(stringId, snapshot, cancellationToken)
+					.ConfigureAwait(false);
+			}
+			catch (Exception ex) when (ex is not OperationCanceledException)
+			{
+				_logger?.LogWarning(
+					ex,
+					"Snapshot creation failed after successful save for aggregate '{AggregateId}'. " +
+					"The aggregate was saved correctly; snapshot will be retried on next save.",
+					stringId);
+			}
 		}
 	}
 
@@ -314,7 +378,10 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		{
 			get
 			{
-				var metadata = _original.Metadata ?? new Dictionary<string, object>();
+				// Defensive copy to avoid mutating the original snapshot's metadata dictionary
+				var metadata = _original.Metadata is not null
+					? new Dictionary<string, object>(_original.Metadata)
+					: new Dictionary<string, object>();
 				metadata["SnapshotSchemaVersion"] = _schemaVersion;
 				return metadata;
 			}
@@ -336,7 +403,13 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		}
 		catch (Exception ex) when (ex is JsonException or TypeLoadException or InvalidOperationException)
 		{
-			// Fallback: event type may have changed or cannot be resolved
+			_logger?.LogWarning(
+				ex,
+				"Failed to deserialize event type '{EventType}' for aggregate '{AggregateId}' at version {Version}. " +
+				"The event will be skipped during replay, which may produce incorrect aggregate state.",
+				storedEvent.EventType,
+				storedEvent.AggregateId,
+				storedEvent.Version);
 			return null;
 		}
 	}
@@ -398,6 +471,152 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		var upcasted = _upcastingPipeline.Upcast(domainEvent);
 		return upcasted as IDomainEvent ?? domainEvent;
 	}
+
+	/// <summary>
+	/// Enriches uncommitted events with CorrelationId and TenantId from the current Activity context.
+	/// </summary>
+	/// <remarks>
+	/// Only sets metadata keys that are not already present, preserving explicitly set values.
+	/// Keys follow transport header conventions: <c>correlation-id</c>, <c>tenant-id</c>.
+	/// </remarks>
+	private static void EnrichEventsWithActivityContext(IReadOnlyList<IDomainEvent> events)
+	{
+		var activity = Activity.Current;
+		if (activity is null)
+		{
+			return;
+		}
+
+		var correlationId = activity.TraceId.ToString();
+		string? tenantId = null;
+
+		// Check Activity tags for tenant-id (set by middleware or upstream services)
+		foreach (var tag in activity.Tags)
+		{
+			if (string.Equals(tag.Key, "tenant-id", StringComparison.Ordinal)
+				|| string.Equals(tag.Key, "tenant.id", StringComparison.Ordinal))
+			{
+				tenantId = tag.Value;
+				break;
+			}
+		}
+
+		foreach (var @event in events)
+		{
+			if (@event.Metadata is null)
+			{
+				continue;
+			}
+
+			if (!@event.Metadata.ContainsKey("correlation-id"))
+			{
+				@event.Metadata["correlation-id"] = correlationId;
+			}
+
+			if (tenantId is not null && !@event.Metadata.ContainsKey("tenant-id"))
+			{
+				@event.Metadata["tenant-id"] = tenantId;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Appends events and stages outbox messages within a single database transaction.
+	/// </summary>
+	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
+	private async Task SaveWithTransactionalOutboxAsync(
+		ITransactionalEventStore txStore,
+		string aggregateId,
+		TAggregate aggregate,
+		IReadOnlyList<IDomainEvent> uncommittedEvents,
+		long expectedVersion,
+		CancellationToken cancellationToken)
+	{
+		using var transaction = await txStore.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			var result = await _eventStore.AppendAsync(
+				aggregateId,
+				aggregate.AggregateType,
+				uncommittedEvents,
+				expectedVersion,
+				cancellationToken).ConfigureAwait(false);
+
+			ThrowIfAppendFailed(result, aggregate);
+
+			// Stage integration events to outbox within the same transaction
+			foreach (var @event in uncommittedEvents)
+			{
+				if (@event is not IIntegrationEvent)
+				{
+					continue;
+				}
+
+				var eventData = JsonSerializer.Serialize<object>(@event);
+				var outboxMessage = new Outbox.OutboxMessage
+				{
+					Id = Guid.NewGuid(),
+					AggregateId = aggregateId,
+					AggregateType = aggregate.AggregateType,
+					EventType = @event.EventType,
+					EventData = eventData,
+					CreatedAt = DateTimeOffset.UtcNow,
+					MessageType = @event.EventType,
+				};
+
+				if (transaction is not null)
+				{
+					await _outboxStore!.AddAsync(outboxMessage, transaction, cancellationToken)
+						.ConfigureAwait(false);
+				}
+			}
+
+			transaction?.Commit();
+		}
+		catch
+		{
+			try
+			{
+				transaction?.Rollback();
+			}
+			catch
+			{
+				// Rollback failure should not mask the original exception
+			}
+
+			throw;
+		}
+	}
+
+	/// <summary>
+	/// Throws appropriate exception if the append result indicates failure.
+	/// </summary>
+	private void ThrowIfAppendFailed(Abstractions.AppendResult result, TAggregate aggregate)
+	{
+		if (result.Success)
+		{
+			return;
+		}
+
+		if (result.IsConcurrencyConflict)
+		{
+			throw new ConcurrencyException(
+				string.Format(
+					CultureInfo.CurrentCulture,
+					SaveFailedFormat,
+					aggregate.Id,
+					result.ErrorMessage));
+		}
+
+		throw new ResourceException(
+			string.Format(
+				CultureInfo.CurrentCulture,
+				SaveFailedFormat,
+				aggregate.Id,
+				result.ErrorMessage));
+	}
 }
 
 /// <summary>
@@ -428,6 +647,7 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 	/// <param name="outboxStore"> Optional outbox store for staging integration events. </param>
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
+	/// <param name="logger"> Optional logger for diagnostics. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
@@ -438,9 +658,10 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 		IOptions<UpcastingOptions>? upcastingOptions = null,
 		IEventSourcedOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
-		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null)
+		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
+		ILogger<EventSourcedRepository<TAggregate, string>>? logger = null)
 		: base(eventStore, eventSerializer, aggregateFactory, upcastingPipeline, snapshotManager, snapshotStrategy, upcastingOptions,
-			outboxStore, snapshotVersionManager, snapshotUpgradingOptions)
+			outboxStore, snapshotVersionManager, snapshotUpgradingOptions, logger)
 	{
 	}
 }

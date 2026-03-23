@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Versioning;
 
@@ -139,13 +140,13 @@ public sealed class ContractVersionExceptionShould
 	#region Inheritance Tests
 
 	[Fact]
-	public void InheritsFromInvalidOperationException()
+	public void InheritsFromApiException()
 	{
 		// Act
 		var exception = new ContractVersionException("test");
 
-		// Assert
-		_ = exception.ShouldBeAssignableTo<InvalidOperationException>();
+		// Assert -- Sprint 697 T.13: reparented to ApiException
+		_ = exception.ShouldBeAssignableTo<ApiException>();
 	}
 
 	[Fact]
@@ -159,10 +160,10 @@ public sealed class ContractVersionExceptionShould
 	}
 
 	[Fact]
-	public void CanBeCaughtAsInvalidOperationException()
+	public void CanBeCaughtAsApiException()
 	{
-		// Act & Assert
-		_ = Should.Throw<InvalidOperationException>(() => throw new ContractVersionException("test"));
+		// Act & Assert -- Sprint 697 T.13: reparented to ApiException
+		_ = Should.Throw<ApiException>(() => throw new ContractVersionException("test"));
 	}
 
 	[Fact]
@@ -230,12 +231,12 @@ public sealed class ContractVersionExceptionShould
 	}
 
 	[Fact]
-	public void CanBeCaughtSpecificallyNotAsInvalidOperationException()
+	public void CanBeCaughtSpecificallyNotAsApiException()
 	{
 		// Arrange
 		var caughtContractVersion = false;
 
-		// Act
+		// Act -- Sprint 697 T.13: reparented to ApiException
 		try
 		{
 			throw new ContractVersionException("test");
@@ -244,7 +245,7 @@ public sealed class ContractVersionExceptionShould
 		{
 			caughtContractVersion = true;
 		}
-		catch (InvalidOperationException)
+		catch (ApiException)
 		{
 			Assert.Fail("Should have caught ContractVersionException first");
 		}

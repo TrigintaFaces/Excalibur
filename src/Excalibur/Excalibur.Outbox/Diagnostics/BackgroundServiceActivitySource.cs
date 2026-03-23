@@ -55,6 +55,24 @@ public static class BackgroundServiceActivitySource
 	}
 
 	/// <summary>
+	/// Starts an activity for dispatching a single message.
+	/// </summary>
+	/// <param name="serviceType">The service type (e.g., "outbox", "inbox").</param>
+	/// <param name="messageId">The message identifier.</param>
+	/// <returns>The started activity, or null if no listeners are registered.</returns>
+	public static Activity? StartMessageDispatch(string serviceType, string messageId)
+	{
+		var activity = Source.StartActivity(
+			$"{serviceType}.dispatch_message",
+			ActivityKind.Internal);
+
+		_ = (activity?.SetTag("service.type", serviceType));
+		_ = (activity?.SetTag("messaging.message_id", messageId));
+
+		return activity;
+	}
+
+	/// <summary>
 	/// Starts an activity for a drain operation during shutdown.
 	/// </summary>
 	/// <param name="serviceType">The service type (e.g., "outbox", "inbox").</param>

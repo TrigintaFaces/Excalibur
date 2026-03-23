@@ -88,17 +88,19 @@ public sealed class HashingTelemetrySanitizer : ITelemetrySanitizer
 
 	private string HashValue(string value)
 	{
-		if (_hashCache.TryGetValue(value, out var cached))
+		// Compute hash first -- the hash is used as the cache key to avoid
+		// storing raw PII values in the dictionary keys.
+		var hash = ComputeSha256Hash(value);
+
+		if (_hashCache.TryGetValue(hash, out var cached))
 		{
 			return cached;
 		}
 
-		var hash = ComputeSha256Hash(value);
-
 		// Bounded cache: skip caching when full to prevent unbounded growth
 		if (_hashCache.Count < MaxCacheSize)
 		{
-			_hashCache.TryAdd(value, hash);
+			_hashCache.TryAdd(hash, hash);
 		}
 
 		return hash;

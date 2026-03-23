@@ -54,10 +54,11 @@ public sealed class MessageEncryptionMiddlewareShould
     }
 
     [Fact]
-    public void HaveSerializationStage()
+    public void HavePreProcessingStage()
     {
+        // Sprint 694 T.19: Encryption moved to PreProcessing stage
         var sut = CreateMiddleware();
-        sut.Stage.ShouldBe(DispatchMiddlewareStage.Serialization);
+        sut.Stage.ShouldBe(DispatchMiddlewareStage.PreProcessing);
     }
 
     [Fact]

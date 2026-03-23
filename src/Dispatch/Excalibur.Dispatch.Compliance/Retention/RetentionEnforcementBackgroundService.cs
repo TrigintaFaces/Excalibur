@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// <see cref="ErasureSchedulerBackgroundService"/>.
 /// </para>
 /// </remarks>
-public sealed partial class RetentionEnforcementBackgroundService : BackgroundService
+internal sealed partial class RetentionEnforcementBackgroundService : BackgroundService
 {
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<RetentionEnforcementOptions> _options;
@@ -75,7 +75,7 @@ public sealed partial class RetentionEnforcementBackgroundService : BackgroundSe
 			{
 				await Task.Delay(_options.Value.ScanInterval, stoppingToken).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
 				break;
 			}

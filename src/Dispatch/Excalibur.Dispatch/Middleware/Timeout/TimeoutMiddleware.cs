@@ -29,13 +29,13 @@ public sealed partial class TimeoutMiddleware(
 {
 	private readonly ILogger<TimeoutMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly TimeoutOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-	private readonly ActivitySource _activitySource = new("Excalibur.Dispatch.Middleware.Timeout", "1.0.0");
+	private static readonly ActivitySource s_activitySource = new("Excalibur.Dispatch.Middleware.Timeout", "1.0.0");
 
 	/// <summary>
 	/// Gets the stage in the dispatch pipeline where this middleware executes.
 	/// </summary>
 	/// <value>The current <see cref="Stage"/> value.</value>
-	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Processing;
+	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
 
 	/// <summary>
 	/// Gets the message kinds this middleware applies to.
@@ -67,7 +67,7 @@ public sealed partial class TimeoutMiddleware(
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var activity = _activitySource.StartActivity("timeout-processing");
+		using var activity = s_activitySource.StartActivity("timeout-processing");
 		_ = (activity?.SetTag("message.id", context.MessageId));
 		_ = (activity?.SetTag("message.type", message.GetType().Name));
 		_ = (activity?.SetTag("timeout.enabled", value: true));
@@ -151,7 +151,7 @@ public sealed partial class TimeoutMiddleware(
 	/// <inheritdoc />
 	public ValueTask DisposeAsync()
 	{
-		_activitySource.Dispose();
+		// Static ActivitySource is process-lifetime; no disposal needed.
 		return ValueTask.CompletedTask;
 	}
 

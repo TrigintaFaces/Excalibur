@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Transport.RabbitMQ;
 
-using RabbitMqDeadLetterStrategy = Excalibur.Dispatch.Transport.RabbitMQ.DeadLetterStrategy;
+using RabbitMqDeadLetterStrategy = Excalibur.Dispatch.Transport.RabbitMQ.QuorumDeadLetterStrategy;
 
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Quorum;
 

@@ -9,6 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 ///     Tests for the <see cref="LinearBackoffCalculator" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class LinearBackoffCalculatorShould
 {
 	[Fact]

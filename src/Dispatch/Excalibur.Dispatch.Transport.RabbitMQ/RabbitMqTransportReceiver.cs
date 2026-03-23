@@ -33,6 +33,13 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	private readonly string _queueName;
 	private readonly ILogger _logger;
 	private readonly ConcurrentDictionary<string, ulong> _deliveryTagCache = new(StringComparer.Ordinal);
+
+	/// <summary>
+	/// Maximum unsettled messages tracked in the delivery tag cache.
+	/// Prevents unbounded memory growth if messages are received but never settled.
+	/// </summary>
+	private const int MaxUnsettledMessages = 10_000;
+
 	private readonly int _maxBatchSize;
 	private volatile bool _disposed;
 
@@ -113,7 +120,10 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 		{
 			if (_deliveryTagCache.TryRemove(receiptHandle, out var deliveryTag))
 			{
-				await _channel.BasicAckAsync(deliveryTag, multiple: false, cancellationToken)
+				// Ack must complete even during shutdown to prevent redelivery;
+				// use dedicated timeout instead of caller's cancellation token
+				using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _channel.BasicAckAsync(deliveryTag, multiple: false, ackCts.Token)
 					.ConfigureAwait(false);
 				LogMessageAcknowledged(message.Id, Source);
 			}
@@ -144,7 +154,10 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 		{
 			if (_deliveryTagCache.TryRemove(receiptHandle, out var deliveryTag))
 			{
-				await _channel.BasicNackAsync(deliveryTag, multiple: false, requeue: requeue, cancellationToken)
+				// Reject must complete even during shutdown to prevent redelivery;
+				// use dedicated timeout instead of caller's cancellation token
+				using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _channel.BasicNackAsync(deliveryTag, multiple: false, requeue: requeue, rejectCts.Token)
 					.ConfigureAwait(false);
 
 				if (requeue)
@@ -204,6 +217,14 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	{
 		var receiptHandle = $"rabbitmq:{result.DeliveryTag}";
 		_deliveryTagCache[receiptHandle] = result.DeliveryTag;
+
+		// Warn if unsettled message count is growing beyond expected bounds.
+		// This cache is bounded by consumer behavior (settled on ack/reject),
+		// but if messages are received and never settled, it leaks.
+		if (_deliveryTagCache.Count > MaxUnsettledMessages)
+		{
+			LogDeliveryTagCacheOverflow(Source, _deliveryTagCache.Count);
+		}
 
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 		if (result.BasicProperties.Headers is not null)
@@ -283,4 +304,8 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	[LoggerMessage(RabbitMqEventId.TransportReceiverDisposed, LogLevel.Debug,
 		"RabbitMQ transport receiver disposed for {Source}")]
 	private partial void LogDisposed(string source);
+
+	[LoggerMessage(RabbitMqEventId.TransportReceiverDeliveryTagCacheOverflow, LogLevel.Warning,
+		"RabbitMQ transport receiver: delivery tag cache for {Source} has {Count} unsettled entries exceeding expected bounds. Messages may not be getting acknowledged.")]
+	private partial void LogDeliveryTagCacheOverflow(string source, int count);
 }

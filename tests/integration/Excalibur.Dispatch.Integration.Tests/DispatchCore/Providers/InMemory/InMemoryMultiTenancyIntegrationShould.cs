@@ -29,6 +29,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.InMemory;
 [IntegrationTest]
 [Trait("Component", "MultiTenancy")]
 [Trait("Provider", "InMemory")]
+[Trait("Category", "Integration")]
+[Trait("Component", "Core")]
 public sealed class InMemoryMultiTenancyIntegrationShould : IntegrationTestBase
 {
 	/// <summary>
@@ -208,7 +210,7 @@ public sealed class InMemoryMultiTenancyIntegrationShould : IntegrationTestBase
 		tenant2Data.Count.ShouldBe(3);
 
 		// Act - Get overall metrics
-		var globalMetrics = await provider.GetMetricsAsync(TestCancellationToken).ConfigureAwait(true);
+		var globalMetrics = await provider.GetMetricsAsync(TestCancellationToken);
 
 		// Assert - Global metrics reflect all tenants
 		globalMetrics.ShouldContainKey("Collections");
@@ -246,7 +248,7 @@ public sealed class InMemoryMultiTenancyIntegrationShould : IntegrationTestBase
 			}
 		}).ToArray();
 
-		await Task.WhenAll(tasks).ConfigureAwait(true);
+		await Task.WhenAll(tasks);
 
 		// Assert - Each tenant has correct data
 		for (var tenantNum = 0; tenantNum < tenantCount; tenantNum++)

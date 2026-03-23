@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Options.Resilience;
 namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class BackoffCalculatorsShould
 {
     // --- FixedBackoffCalculator ---

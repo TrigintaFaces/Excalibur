@@ -12,48 +12,43 @@ namespace Excalibur.Dispatch.Middleware.Batch;
 /// </summary>
 internal sealed class BulkContext : IMessageContext
 {
-	private static readonly IServiceProvider EmptyServiceProvider = new NullServiceProvider();
-
 	public BulkContext(IList<IMessageContext> contexts)
 	{
+		if (contexts.Count == 0)
+		{
+			throw new InvalidOperationException("Cannot create bulk context from empty context list.");
+		}
+
 		Contexts = contexts;
 		Items = new Dictionary<string, object>(StringComparer.Ordinal);
 		Features = new Dictionary<Type, object>();
 
 		// Use first context as primary context for bulk-level properties
-		var primaryContext = contexts.Count > 0 ? contexts[0] : null;
-		if (primaryContext != null)
-		{
-			MessageId = primaryContext.MessageId;
-			CorrelationId = primaryContext.CorrelationId;
-			CausationId = primaryContext.CausationId;
-			RequestServices = primaryContext.RequestServices;
+		var primaryContext = contexts[0];
+		MessageId = primaryContext.MessageId;
+		CorrelationId = primaryContext.CorrelationId;
+		CausationId = primaryContext.CausationId;
+		RequestServices = primaryContext.RequestServices;
 
-			// Copy features from primary context
-			foreach (var kvp in primaryContext.Features)
-			{
-				Features[kvp.Key] = kvp.Value;
-			}
-
-			// Copy Items metadata
-			SerializerVersion = primaryContext.SerializerVersion();
-			MessageVersion = primaryContext.MessageVersion();
-			ContractVersion = primaryContext.ContractVersion();
-			DesiredVersion = int.TryParse(primaryContext.DesiredVersion(), out var version) ? version : null;
-			PartitionKey = primaryContext.PartitionKey();
-			ReplyTo = primaryContext.ReplyTo();
-			MessageType = primaryContext.GetMessageType();
-			ContentType = primaryContext.GetContentType();
-			VersionMetadata = primaryContext.VersionMetadata() as IMessageVersionMetadata;
-			ValidationResult = primaryContext.ValidationResult() as IValidationResult;
-			AuthorizationResult = primaryContext.AuthorizationResult() as IAuthorizationResult;
-			Metadata = primaryContext.Metadata() as IMessageMetadata;
-		}
-		else
+		// Copy features from primary context
+		foreach (var kvp in primaryContext.Features)
 		{
-			MessageType = "BulkMessage";
-			RequestServices = EmptyServiceProvider;
+			Features[kvp.Key] = kvp.Value;
 		}
+
+		// Copy Items metadata
+		SerializerVersion = primaryContext.SerializerVersion();
+		MessageVersion = primaryContext.MessageVersion();
+		ContractVersion = primaryContext.ContractVersion();
+		DesiredVersion = int.TryParse(primaryContext.DesiredVersion(), out var version) ? version : null;
+		PartitionKey = primaryContext.PartitionKey();
+		ReplyTo = primaryContext.ReplyTo();
+		MessageType = primaryContext.GetMessageType();
+		ContentType = primaryContext.GetContentType();
+		VersionMetadata = primaryContext.VersionMetadata() as IMessageVersionMetadata;
+		ValidationResult = primaryContext.ValidationResult() as IValidationResult;
+		AuthorizationResult = primaryContext.AuthorizationResult() as IAuthorizationResult;
+		Metadata = primaryContext.Metadata() as IMessageMetadata;
 	}
 
 	public IList<IMessageContext> Contexts { get; }
@@ -157,12 +152,4 @@ internal sealed class BulkContext : IMessageContext
 	/// Gets or sets the message metadata.
 	/// </summary>
 	public IMessageMetadata? Metadata { get; set; }
-
-	/// <summary>
-	/// Lightweight service provider that returns null for all service requests.
-	/// </summary>
-	private sealed class NullServiceProvider : IServiceProvider
-	{
-		public object? GetService(Type serviceType) => null;
-	}
 }

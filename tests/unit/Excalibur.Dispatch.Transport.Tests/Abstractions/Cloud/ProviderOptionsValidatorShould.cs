@@ -19,7 +19,7 @@ public sealed class ProviderOptionsValidatorShould
         var options = new ProviderOptions
         {
             DefaultTimeoutMs = 5000,
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 BaseDelayMs = 100,
                 MaxDelayMs = 5000,
@@ -55,7 +55,7 @@ public sealed class ProviderOptionsValidatorShould
         var options = new ProviderOptions
         {
             DefaultTimeoutMs = 5000,
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 BaseDelayMs = 10000,
                 MaxDelayMs = 5000,
@@ -74,7 +74,7 @@ public sealed class ProviderOptionsValidatorShould
         var options = new ProviderOptions
         {
             DefaultTimeoutMs = 5000,
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 BaseDelayMs = 0,
                 MaxDelayMs = 5000,
@@ -92,7 +92,7 @@ public sealed class ProviderOptionsValidatorShould
         var options = new ProviderOptions
         {
             DefaultTimeoutMs = 5000,
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 BaseDelayMs = 0,
                 MaxDelayMs = 0,
@@ -123,7 +123,7 @@ public sealed class ProviderOptionsValidatorShould
         var options = new ProviderOptions
         {
             DefaultTimeoutMs = -1,
-            RetryPolicy = new RetryPolicyOptions
+            RetryPolicy = new TransportRetryPolicyOptions
             {
                 BaseDelayMs = -1,
                 MaxDelayMs = -2,

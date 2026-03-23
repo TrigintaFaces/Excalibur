@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
@@ -159,7 +160,7 @@ public sealed partial class MigrationService : IMigrationService, IMigrationInfo
 				_options.TargetVersion,
 				stopwatch.Elapsed);
 		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			throw;
 		}
@@ -363,7 +364,7 @@ public sealed partial class MigrationService : IMigrationService, IMigrationInfo
 /// <summary>
 /// Exception thrown when a migration operation fails.
 /// </summary>
-public sealed class MigrationException : Exception
+public sealed class MigrationException : ApiException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MigrationException"/> class.

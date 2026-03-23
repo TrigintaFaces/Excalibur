@@ -7,6 +7,7 @@ namespace Excalibur.Dispatch.Hosting.Tests.ServerlessAbstractions;
 /// Unit tests for TraceContext.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Hosting")]
 public sealed class TraceContextShould : UnitTestBase
 {
 	[Fact]

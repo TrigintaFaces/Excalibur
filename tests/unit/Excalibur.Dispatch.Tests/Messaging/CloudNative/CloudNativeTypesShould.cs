@@ -4,33 +4,48 @@
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Resilience;
 
-using CloudNativeCBException = Excalibur.Dispatch.CloudNative.CircuitBreakerOpenException;
-
 namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public sealed class CloudNativeTypesShould
 {
+	// Sprint 682 T.24: CloudNative.CircuitBreakerOpenException deleted.
+	// Tests now target canonical Resilience.CircuitBreakerOpenException.
+
 	[Fact]
 	public void CircuitBreakerOpenException_DefaultConstructor()
 	{
 		// Act
-		var ex = new CloudNativeCBException();
+		var ex = new CircuitBreakerOpenException();
 
 		// Assert
 		ex.Message.ShouldNotBeNull();
 		ex.InnerException.ShouldBeNull();
+		ex.CircuitName.ShouldBeNull();
+		ex.RetryAfter.ShouldBeNull();
 	}
 
 	[Fact]
-	public void CircuitBreakerOpenException_MessageConstructor()
+	public void CircuitBreakerOpenException_NameConstructor()
 	{
 		// Act
-		var ex = new CloudNativeCBException("circuit is open");
+		var ex = new CircuitBreakerOpenException("my-breaker");
 
 		// Assert
-		ex.Message.ShouldBe("circuit is open");
+		ex.CircuitName.ShouldBe("my-breaker");
+		ex.Message.ShouldContain("my-breaker");
+	}
+
+	[Fact]
+	public void CircuitBreakerOpenException_NameAndRetryAfterConstructor()
+	{
+		// Act
+		var ex = new CircuitBreakerOpenException("my-breaker", TimeSpan.FromSeconds(30));
+
+		// Assert
+		ex.CircuitName.ShouldBe("my-breaker");
+		ex.RetryAfter.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -40,46 +55,11 @@ public sealed class CloudNativeTypesShould
 		var inner = new InvalidOperationException("inner");
 
 		// Act
-		var ex = new CloudNativeCBException("circuit is open", inner);
+		var ex = new CircuitBreakerOpenException("circuit is open", inner);
 
 		// Assert
 		ex.Message.ShouldBe("circuit is open");
 		ex.InnerException.ShouldBe(inner);
-	}
-
-	[Fact]
-	public void CircuitBreakerOpenException_SetProperties()
-	{
-		// Arrange & Act
-		var ex = new CloudNativeCBException("test")
-		{
-			CircuitBreakerKey = "key-1",
-			CircuitBreakerName = "breaker-1",
-			RetryAfter = TimeSpan.FromSeconds(30),
-			FailureCount = 5,
-			State = CircuitState.Open,
-		};
-
-		// Assert
-		ex.CircuitBreakerKey.ShouldBe("key-1");
-		ex.CircuitBreakerName.ShouldBe("breaker-1");
-		ex.RetryAfter.ShouldBe(TimeSpan.FromSeconds(30));
-		ex.FailureCount.ShouldBe(5);
-		ex.State.ShouldBe(CircuitState.Open);
-	}
-
-	[Fact]
-	public void CircuitBreakerOpenException_DefaultPropertyValues()
-	{
-		// Act
-		var ex = new CloudNativeCBException();
-
-		// Assert
-		ex.CircuitBreakerKey.ShouldBeNull();
-		ex.CircuitBreakerName.ShouldBeNull();
-		ex.RetryAfter.ShouldBeNull();
-		ex.FailureCount.ShouldBe(0);
-		ex.State.ShouldBe(CircuitState.Closed);
 	}
 
 	[Fact]

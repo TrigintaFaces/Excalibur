@@ -5,7 +5,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.AuditLogging.Tests;
 
-public class DefaultAuditLoggerShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Compliance")]
+public sealed class DefaultAuditLoggerShould
 {
     private readonly IAuditStore _fakeStore = A.Fake<IAuditStore>();
     private readonly ILogger<DefaultAuditLogger> _logger = NullLogger<DefaultAuditLogger>.Instance;
@@ -142,12 +144,14 @@ public class DefaultAuditLoggerShould
     public async Task Rethrow_operation_canceled_exception()
     {
         var auditEvent = CreateValidEvent();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
 
         A.CallTo(() => _fakeStore.StoreAsync(auditEvent, A<CancellationToken>._))
             .Throws(new OperationCanceledException());
 
         await Should.ThrowAsync<OperationCanceledException>(
-            () => _sut.LogAsync(auditEvent, CancellationToken.None));
+            () => _sut.LogAsync(auditEvent, cts.Token));
     }
 
     [Fact]

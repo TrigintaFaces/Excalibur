@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Performance")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class SerializationPerformanceShould
 {
 	private readonly JsonSerializerOptions _jsonOptions;

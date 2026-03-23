@@ -16,51 +16,43 @@ internal sealed class BatchMessageContext : IMessageContext
 	private static readonly IMessageVersionMetadata DefaultVersionMetadata = new MessageVersionMetadata();
 	private static readonly IValidationResult DefaultValidationResult = SerializableValidationResult.Success();
 	private static readonly IAuthorizationResult DefaultAuthorizationResult = Abstractions.AuthorizationResult.Success();
-	private static readonly IServiceProvider EmptyServiceProvider = new NullServiceProvider();
-
 	public BatchMessageContext(IList<IMessageContext> contexts)
 	{
+		if (contexts.Count == 0)
+		{
+			throw new InvalidOperationException("Cannot create batch context from empty context list.");
+		}
+
 		Contexts = contexts;
 		Items = new Dictionary<string, object>(StringComparer.Ordinal);
 		Features = new Dictionary<Type, object>();
 
 		// Use first context as primary context for batch-level properties
-		var primaryContext = contexts.Count > 0 ? contexts[0] : null;
-		if (primaryContext != null)
-		{
-			MessageId = primaryContext.MessageId;
-			CorrelationId = primaryContext.CorrelationId;
-			CausationId = primaryContext.CausationId;
-			RequestServices = primaryContext.RequestServices;
+		var primaryContext = contexts[0];
+		MessageId = primaryContext.MessageId;
+		CorrelationId = primaryContext.CorrelationId;
+		CausationId = primaryContext.CausationId;
+		RequestServices = primaryContext.RequestServices;
 
-			// Copy features from primary context
-			foreach (var kvp in primaryContext.Features)
-			{
-				Features[kvp.Key] = kvp.Value;
-			}
-
-			// Copy Items metadata
-			SerializerVersion = primaryContext.SerializerVersion();
-			MessageVersion = primaryContext.MessageVersion();
-			ContractVersion = primaryContext.ContractVersion();
-			DesiredVersion = int.TryParse(primaryContext.DesiredVersion(), out var version) ? version : null;
-			PartitionKey = primaryContext.PartitionKey();
-			ReplyTo = primaryContext.ReplyTo();
-			MessageType = "BatchMessage";
-			ContentType = primaryContext.GetContentType();
-			VersionMetadata = primaryContext.VersionMetadata() as IMessageVersionMetadata;
-			ValidationResult = primaryContext.ValidationResult() as IValidationResult;
-			AuthorizationResult = primaryContext.AuthorizationResult() as IAuthorizationResult;
-			Metadata = primaryContext.Metadata() as IMessageMetadata;
-		}
-		else
+		// Copy features from primary context
+		foreach (var kvp in primaryContext.Features)
 		{
-			MessageType = "BatchMessage";
-			VersionMetadata = DefaultVersionMetadata;
-			ValidationResult = DefaultValidationResult;
-			AuthorizationResult = DefaultAuthorizationResult;
-			RequestServices = EmptyServiceProvider;
+			Features[kvp.Key] = kvp.Value;
 		}
+
+		// Copy Items metadata
+		SerializerVersion = primaryContext.SerializerVersion();
+		MessageVersion = primaryContext.MessageVersion();
+		ContractVersion = primaryContext.ContractVersion();
+		DesiredVersion = int.TryParse(primaryContext.DesiredVersion(), out var version) ? version : null;
+		PartitionKey = primaryContext.PartitionKey();
+		ReplyTo = primaryContext.ReplyTo();
+		MessageType = "BatchMessage";
+		ContentType = primaryContext.GetContentType();
+		VersionMetadata = primaryContext.VersionMetadata() as IMessageVersionMetadata;
+		ValidationResult = primaryContext.ValidationResult() as IValidationResult;
+		AuthorizationResult = primaryContext.AuthorizationResult() as IAuthorizationResult;
+		Metadata = primaryContext.Metadata() as IMessageMetadata;
 	}
 
 	public IList<IMessageContext> Contexts { get; }
@@ -268,11 +260,4 @@ internal sealed class BatchMessageContext : IMessageContext
 	/// </summary>
 	public TimeSpan? RateLimitRetryAfter { get; set; }
 
-	/// <summary>
-	/// Lightweight service provider that returns null for all service requests.
-	/// </summary>
-	private sealed class NullServiceProvider : IServiceProvider
-	{
-		public object? GetService(Type serviceType) => null;
-	}
 }

@@ -11,6 +11,7 @@ namespace Excalibur.EventSourcing.Tests.Abstractions;
 /// Tests for <see cref="FilterParser"/> to verify filter key parsing behavior.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class FilterParserShould
 {
 	[Fact]

@@ -10,20 +10,17 @@ namespace Excalibur.A3.Exceptions;
 /// Represents an exception that is thrown when authentication fails.
 /// </summary>
 /// <remarks> Inherits from <see cref="ApiException" /> to provide a more specific exception type for authentication failures. </remarks>
-[Serializable]
 public sealed class NotAuthenticatedException(int? statusCode = null, string? message = null, Exception? innerException = null)
 	: ApiException(statusCode ?? DefaultStatusCode, message ?? DefaultMessage, innerException)
 {
 	/// <summary>
 	/// The default HTTP status code for authentication failure (401).
 	/// </summary>
-	[NonSerialized]
 	public const int DefaultStatusCode = 401;
 
 	/// <summary>
 	/// The default error message for authentication failure.
 	/// </summary>
-	[NonSerialized]
 	public const string DefaultMessage = "Authentication failed.";
 
 	public NotAuthenticatedException()

@@ -13,7 +13,6 @@ namespace Excalibur.Data.ElasticSearch.Exceptions;
 /// This exception is designed to capture relevant information about the failed operation, including the document ID, document type, and
 /// API call details, to aid in diagnosing the failure.
 /// </remarks>
-[Serializable]
 public sealed class ElasticsearchDeleteException : ApiException
 {
 	/// <summary>

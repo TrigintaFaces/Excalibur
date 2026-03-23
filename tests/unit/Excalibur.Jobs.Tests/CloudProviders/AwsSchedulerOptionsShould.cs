@@ -6,6 +6,7 @@ namespace Excalibur.Jobs.Tests.CloudProviders;
 /// Unit tests for AwsSchedulerOptions configuration.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class AwsSchedulerOptionsShould : UnitTestBase
 {
 	[Fact]

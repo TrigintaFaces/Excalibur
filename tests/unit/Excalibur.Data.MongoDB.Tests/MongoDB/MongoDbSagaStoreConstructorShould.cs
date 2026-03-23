@@ -16,6 +16,7 @@ namespace Excalibur.Data.Tests.MongoDB.Saga;
 /// Verifies both simple (options-based) and advanced (IMongoClient) constructors.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<MongoDbSagaStore> _logger;

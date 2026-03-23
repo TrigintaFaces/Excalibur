@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Configuration;
 /// Unit tests for <see cref="EncryptionConfigurationBuilder"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class EncryptionConfigurationBuilderShould
 {
 	#region UseInMemoryKeyManagement Tests
@@ -110,7 +111,8 @@ public sealed class EncryptionConfigurationBuilderShould
 		// Arrange
 		var services = new ServiceCollection();
 		AddTestLogging(services);
-		_ = services.AddSingleton(A.Fake<IKeyManagementProvider>());
+		// Sprint 680 T.6: AesGcm validates IKeyMaterialProvider at construction
+		_ = services.AddSingleton(A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyMaterialProvider>()));
 
 		// Act
 		_ = services.AddEncryption(builder => builder

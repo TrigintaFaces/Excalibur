@@ -21,7 +21,6 @@ namespace Excalibur.Data.Abstractions;
 /// RFC 7807 problem details support.
 /// </para>
 /// </remarks>
-[Serializable]
 public class ResourceException : ApiException
 {
 	/// <summary>

@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Buffers;
 ///     Tests for the <see cref="PooledBufferService" /> class.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PooledBufferServiceShould
 {
 	[Fact]

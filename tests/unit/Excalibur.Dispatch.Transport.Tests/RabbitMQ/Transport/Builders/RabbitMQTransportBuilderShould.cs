@@ -681,13 +681,13 @@ public sealed class RabbitMQTransportBuilderShould : UnitTestBase
 		// Act
 		_ = builder.ConfigureDeadLetter(dlx =>
 		{
-			_ = dlx.Exchange("dead-letters").MaxRetries(5);
+			_ = dlx.Exchange("dead-letters").MaxRetryAttempts(5);
 		});
 
 		// Assert
 		options.EnableDeadLetter.ShouldBeTrue();
 		options.DeadLetter.Exchange.ShouldBe("dead-letters");
-		options.DeadLetter.MaxRetries.ShouldBe(5);
+		options.DeadLetter.MaxRetryAttempts.ShouldBe(5);
 	}
 
 	[Fact]
@@ -963,7 +963,7 @@ public sealed class RabbitMQTransportBuilderShould : UnitTestBase
 				   .ConfigureDeadLetter(dlx =>
 				   {
 					   _ = dlx.Exchange("dead-letters")
-						  .MaxRetries(3);
+						  .MaxRetryAttempts(3);
 				   })
 				   .MapExchange<TestMessage>("events")
 				   .MapQueue<AnotherMessage>("commands")

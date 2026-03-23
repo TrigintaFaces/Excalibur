@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.BatchProcessing;
 
-public class BatchProcessingResultShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class BatchProcessingResultShould
 {
     [Fact]
     public void TotalCount_Should_Be_Sum_Of_Success_Failure_Skipped()

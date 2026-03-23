@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for LruCache functionality including TTL, expiration, GetOrAdd, statistics, Clear, and Dispose.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class LruCacheShould : UnitTestBase
 {
 	[Fact]

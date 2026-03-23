@@ -15,6 +15,7 @@ namespace Excalibur.Data.Tests.InMemory;
 /// Unit tests for NullRetryPolicy.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Data")]
 public sealed class NullRetryPolicyShould : UnitTestBase
 {
 	private static IDataRequestRetryPolicy CreateNullRetryPolicy()

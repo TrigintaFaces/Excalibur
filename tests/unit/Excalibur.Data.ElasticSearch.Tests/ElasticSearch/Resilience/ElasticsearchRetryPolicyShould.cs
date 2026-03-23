@@ -22,7 +22,7 @@ public sealed class ElasticsearchRetryPolicyShould
 		{
 			Resilience = new ElasticsearchResilienceOptions
 			{
-				Retry = new RetryPolicyOptions
+				Retry = new ElasticSearchRetryPolicyOptions
 				{
 					Enabled = true,
 					MaxAttempts = 3,
@@ -98,7 +98,7 @@ public sealed class ElasticsearchRetryPolicyShould
 		{
 			Resilience = new ElasticsearchResilienceOptions
 			{
-				Retry = new RetryPolicyOptions
+				Retry = new ElasticSearchRetryPolicyOptions
 				{
 					Enabled = true,
 					MaxAttempts = 3,
@@ -128,7 +128,7 @@ public sealed class ElasticsearchRetryPolicyShould
 		{
 			Resilience = new ElasticsearchResilienceOptions
 			{
-				Retry = new RetryPolicyOptions { Enabled = false },
+				Retry = new ElasticSearchRetryPolicyOptions { Enabled = false },
 			},
 		});
 
@@ -185,7 +185,7 @@ public sealed class ElasticsearchRetryPolicyShould
 		{
 			Resilience = new ElasticsearchResilienceOptions
 			{
-				Retry = new RetryPolicyOptions { Enabled = false },
+				Retry = new ElasticSearchRetryPolicyOptions { Enabled = false },
 			},
 		});
 
@@ -224,7 +224,7 @@ public sealed class ElasticsearchRetryPolicyShould
 		{
 			Resilience = new ElasticsearchResilienceOptions
 			{
-				Retry = new RetryPolicyOptions
+				Retry = new ElasticSearchRetryPolicyOptions
 				{
 					Enabled = true,
 					MaxAttempts = 3,

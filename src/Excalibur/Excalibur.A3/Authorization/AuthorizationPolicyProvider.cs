@@ -53,7 +53,9 @@ internal sealed class AuthorizationPolicyProvider(
 				"Register ITenantId via TryAddTenantId() or ensure TenantIdentityMiddleware is configured.");
 		}
 
-		var authData = await LoadPolicyDataAsync(currentUser.UserId).ConfigureAwait(false);
+		// NOTE: IPolicyProvider<T>.GetPolicyAsync() does not accept CancellationToken.
+		// CancellationToken.None is used here because the interface contract does not support cancellation.
+		var authData = await LoadPolicyDataAsync(currentUser.UserId, CancellationToken.None).ConfigureAwait(false);
 
 		return new AuthorizationPolicy(
 			authData.Grants,
@@ -66,12 +68,13 @@ internal sealed class AuthorizationPolicyProvider(
 	/// Loads the policy data required for grant evaluation.
 	/// </summary>
 	/// <param name="userId"> The user identifier for which the policy data is being loaded. </param>
+	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> The authorization data containing grants, activity groups, and activities. </returns>
 	[RequiresDynamicCode("Creates DispatchJsonSerializer which uses dynamic code for JSON serialization")]
-	private async Task<AuthorizationData> LoadPolicyDataAsync(string userId)
+	private async Task<AuthorizationData> LoadPolicyDataAsync(string userId, CancellationToken cancellationToken)
 	{
-		var grantsTask = GetGrantsAsync(userId);
-		var activityGroupsTask = GetActivityGroupsAsync();
+		var grantsTask = GetGrantsAsync(userId, cancellationToken);
+		var activityGroupsTask = GetActivityGroupsAsync(cancellationToken);
 
 		await Task.WhenAll(grantsTask, activityGroupsTask).ConfigureAwait(false);
 
@@ -84,9 +87,10 @@ internal sealed class AuthorizationPolicyProvider(
 	/// Retrieves grants for the specified user, using a cached value if available.
 	/// </summary>
 	/// <param name="userId"> The user identifier. </param>
+	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> A dictionary of grants for the user. </returns>
 	[RequiresDynamicCode("Calls Excalibur.A3.Authorization.AuthorizationPolicyProvider.ReadFromCacheAsync(String)")]
-	private async Task<IDictionary<string, object>> GetGrantsAsync(string userId)
+	private async Task<IDictionary<string, object>> GetGrantsAsync(string userId, CancellationToken cancellationToken)
 	{
 		var cachedGrants = await ReadFromCacheAsync(AuthorizationCacheKey.ForGrants(userId)).ConfigureAwait(false);
 
@@ -95,7 +99,7 @@ internal sealed class AuthorizationPolicyProvider(
 			return cachedGrants;
 		}
 
-		cachedGrants = await userGrants.ValueAsync(userId).ConfigureAwait(false);
+		cachedGrants = await userGrants.ValueAsync(userId, cancellationToken).ConfigureAwait(false);
 		await WriteToCacheAsync(AuthorizationCacheKey.ForGrants(userId), cachedGrants, TimeSpan.FromMinutes(5)).ConfigureAwait(false);
 
 		return cachedGrants;
@@ -104,9 +108,10 @@ internal sealed class AuthorizationPolicyProvider(
 	/// <summary>
 	/// Retrieves activity groups, using a cached value if available.
 	/// </summary>
+	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> A dictionary of activity groups. </returns>
 	[RequiresDynamicCode("Calls Excalibur.A3.Authorization.AuthorizationPolicyProvider.ReadFromCacheAsync(String)")]
-	private async Task<IDictionary<string, object>> GetActivityGroupsAsync()
+	private async Task<IDictionary<string, object>> GetActivityGroupsAsync(CancellationToken cancellationToken)
 	{
 		var groups = await ReadFromCacheAsync(AuthorizationCacheKey.ForActivityGroups()).ConfigureAwait(false);
 
@@ -115,7 +120,7 @@ internal sealed class AuthorizationPolicyProvider(
 			return groups;
 		}
 
-		groups = await activityGroups.ValueAsync().ConfigureAwait(false);
+		groups = await activityGroups.ValueAsync(cancellationToken).ConfigureAwait(false);
 		await WriteToCacheAsync(AuthorizationCacheKey.ForActivityGroups(), groups, TimeSpan.FromHours(1)).ConfigureAwait(false);
 
 		return groups;

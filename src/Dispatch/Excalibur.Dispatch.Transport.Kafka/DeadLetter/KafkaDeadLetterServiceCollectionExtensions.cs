@@ -42,8 +42,22 @@ public static class KafkaDeadLetterServiceCollectionExtensions
 	public static IServiceCollection AddKafkaDeadLetterQueue(
 		this IServiceCollection services,
 		Action<KafkaDeadLetterOptions>? configure = null)
+		=> AddKafkaDeadLetterQueue(services, "default", configure);
+
+	/// <summary>
+	/// Adds Kafka dead letter queue support with the specified transport name and configuration.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="transportName"> The transport name used as the keyed service key. </param>
+	/// <param name="configure"> An optional action to configure the dead letter queue options. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddKafkaDeadLetterQueue(
+		this IServiceCollection services,
+		string transportName,
+		Action<KafkaDeadLetterOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 
 		if (configure is not null)
 		{
@@ -58,8 +72,10 @@ public static class KafkaDeadLetterServiceCollectionExtensions
 		services.TryAddSingleton<KafkaDeadLetterProducer>();
 		services.TryAddSingleton<KafkaDeadLetterConsumer>();
 
-		// Register the transport-agnostic IDeadLetterQueueManager
-		services.TryAddSingleton<IDeadLetterQueueManager, KafkaDeadLetterQueueManager>();
+		// Register the transport-agnostic IDeadLetterQueueManager (keyed by transport name)
+		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
+			(sp, _) => sp.GetRequiredService<KafkaDeadLetterQueueManager>());
+		services.TryAddSingleton<KafkaDeadLetterQueueManager>();
 
 		return services;
 	}

@@ -6,6 +6,8 @@ using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Bus;
 using Excalibur.Dispatch.Transport;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 // Alias to avoid ambiguity with Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult
 using TransportHealthCheckResult = Excalibur.Dispatch.Abstractions.Transport.HealthCheckResult;
 
@@ -17,6 +19,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// routing configuration, default transport fallback, and error handling.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MultiTransportIntegrationShould
 {
 	#region Multi-Transport Message Bus Adapter Tests
@@ -30,7 +33,7 @@ public sealed class MultiTransportIntegrationShould
 		var adapters = new[] { adapter1, adapter2 };
 
 		// Act
-		var multiAdapter = new MultiTransportMessageBusAdapter(adapters);
+		var multiAdapter = new MultiTransportMessageBusAdapter(adapters, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Assert
 		_ = multiAdapter.ShouldNotBeNull();
@@ -45,7 +48,7 @@ public sealed class MultiTransportIntegrationShould
 		var adapter2 = CreateMockAdapter("kafka", supportsPublishing: false);
 
 		// Act
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Assert
 		multiAdapter.SupportsPublishing.ShouldBeTrue();
@@ -59,7 +62,7 @@ public sealed class MultiTransportIntegrationShould
 		var adapter2 = CreateMockAdapter("kafka", supportsSubscription: false);
 
 		// Act
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Assert
 		multiAdapter.SupportsSubscription.ShouldBeTrue();
@@ -73,7 +76,7 @@ public sealed class MultiTransportIntegrationShould
 		var adapter2 = CreateMockAdapter("kafka", supportsPublishing: false);
 
 		// Act
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Assert
 		multiAdapter.SupportsPublishing.ShouldBeFalse();
@@ -88,7 +91,7 @@ public sealed class MultiTransportIntegrationShould
 		_ = A.CallTo(() => defaultAdapter.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(expectedResult);
 
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { defaultAdapter }, defaultAdapter);
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { defaultAdapter }, new NullLogger<MultiTransportMessageBusAdapter>(), defaultAdapter);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 
@@ -105,7 +108,7 @@ public sealed class MultiTransportIntegrationShould
 	public async Task Return_Failed_Result_When_No_Default_Adapter()
 	{
 		// Arrange - empty adapter list
-		var multiAdapter = new MultiTransportMessageBusAdapter(Array.Empty<IMessageBusAdapter>());
+		var multiAdapter = new MultiTransportMessageBusAdapter(Array.Empty<IMessageBusAdapter>(), new NullLogger<MultiTransportMessageBusAdapter>());
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 		_ = A.CallTo(() => context.MessageId).Returns("test-message-id");
@@ -122,7 +125,7 @@ public sealed class MultiTransportIntegrationShould
 	{
 		// Arrange
 		var defaultAdapter = CreateMockAdapter("rabbitmq");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { defaultAdapter }, defaultAdapter);
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { defaultAdapter }, new NullLogger<MultiTransportMessageBusAdapter>(), defaultAdapter);
 		var subscriptionName = "my-subscription";
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(msg, ctx, ct) => Task.FromResult(MessageResult.Success());
@@ -131,7 +134,7 @@ public sealed class MultiTransportIntegrationShould
 		await multiAdapter.SubscribeAsync(subscriptionName, handler, null, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => defaultAdapter.SubscribeAsync(subscriptionName, handler, A<IMessageBusOptions>._, A<CancellationToken>._))
+		_ = A.CallTo(() => defaultAdapter.SubscribeAsync(subscriptionName, handler, A<MessageBusOptions>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -141,7 +144,7 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var rabbitAdapter = CreateMockAdapter("rabbitmq");
 		var kafkaAdapter = CreateMockAdapter("kafka");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { rabbitAdapter, kafkaAdapter }, rabbitAdapter);
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { rabbitAdapter, kafkaAdapter }, new NullLogger<MultiTransportMessageBusAdapter>(), rabbitAdapter);
 		var subscriptionName = "kafka://my-topic";
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(msg, ctx, ct) => Task.FromResult(MessageResult.Success());
@@ -150,9 +153,9 @@ public sealed class MultiTransportIntegrationShould
 		await multiAdapter.SubscribeAsync(subscriptionName, handler, null, CancellationToken.None);
 
 		// Assert - should route to kafka adapter with subscription name "my-topic"
-		_ = A.CallTo(() => kafkaAdapter.SubscribeAsync("my-topic", handler, A<IMessageBusOptions>._, A<CancellationToken>._))
+		_ = A.CallTo(() => kafkaAdapter.SubscribeAsync("my-topic", handler, A<MessageBusOptions>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => rabbitAdapter.SubscribeAsync(A<string>._, A<Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>>>._, A<IMessageBusOptions>._, A<CancellationToken>._))
+		A.CallTo(() => rabbitAdapter.SubscribeAsync(A<string>._, A<Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>>>._, A<MessageBusOptions>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -161,7 +164,7 @@ public sealed class MultiTransportIntegrationShould
 	{
 		// Arrange
 		var rabbitAdapter = CreateMockAdapter("rabbitmq");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { rabbitAdapter }, rabbitAdapter);
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { rabbitAdapter }, new NullLogger<MultiTransportMessageBusAdapter>(), rabbitAdapter);
 		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
 			(msg, ctx, ct) => Task.FromResult(MessageResult.Success());
 
@@ -175,7 +178,7 @@ public sealed class MultiTransportIntegrationShould
 	{
 		// Arrange
 		var defaultAdapter = CreateMockAdapter("rabbitmq");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { defaultAdapter }, defaultAdapter);
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { defaultAdapter }, new NullLogger<MultiTransportMessageBusAdapter>(), defaultAdapter);
 		var subscriptionName = "my-subscription";
 
 		// Act
@@ -192,7 +195,7 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var rabbitAdapter = CreateMockAdapter("rabbitmq");
 		var kafkaAdapter = CreateMockAdapter("kafka");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { rabbitAdapter, kafkaAdapter }, rabbitAdapter);
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { rabbitAdapter, kafkaAdapter }, new NullLogger<MultiTransportMessageBusAdapter>(), rabbitAdapter);
 
 		// Act
 		await multiAdapter.UnsubscribeAsync("kafka://my-topic", CancellationToken.None);
@@ -207,7 +210,7 @@ public sealed class MultiTransportIntegrationShould
 	{
 		// Arrange
 		var rabbitAdapter = CreateMockAdapter("rabbitmq");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { rabbitAdapter }, rabbitAdapter);
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { rabbitAdapter }, new NullLogger<MultiTransportMessageBusAdapter>(), rabbitAdapter);
 
 		// Act - should not throw
 		await multiAdapter.UnsubscribeAsync("unknown://my-subscription", CancellationToken.None);
@@ -232,7 +235,7 @@ public sealed class MultiTransportIntegrationShould
 		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter2).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new TransportHealthCheckResult(true, "Kafka healthy"));
 
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Act
 		var result = await multiAdapter.CheckHealthAsync(CancellationToken.None);
@@ -253,7 +256,7 @@ public sealed class MultiTransportIntegrationShould
 		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter2).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new TransportHealthCheckResult(false, "Kafka disconnected"));
 
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Act
 		var result = await multiAdapter.CheckHealthAsync(CancellationToken.None);
@@ -271,7 +274,7 @@ public sealed class MultiTransportIntegrationShould
 		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter1).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new TransportHealthCheckResult(true, "RabbitMQ OK", healthData));
 
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Act
 		var result = await multiAdapter.CheckHealthAsync(CancellationToken.None);
@@ -290,8 +293,8 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var adapter1 = CreateMockAdapter("rabbitmq");
 		var adapter2 = CreateMockAdapter("kafka");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
-		var options = A.Fake<IMessageBusOptions>();
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
+		var options = A.Fake<MessageBusOptions>();
 
 		// Act
 		await multiAdapter.InitializeAsync(options, CancellationToken.None);
@@ -307,7 +310,7 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var adapter1 = CreateMockAdapter("rabbitmq");
 		var adapter2 = CreateMockAdapter("kafka");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Act
 		await multiAdapter.StartAsync(CancellationToken.None);
@@ -323,7 +326,7 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var adapter1 = CreateMockAdapter("rabbitmq");
 		var adapter2 = CreateMockAdapter("kafka");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Act
 		await multiAdapter.StopAsync(CancellationToken.None);
@@ -339,14 +342,14 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var adapter1 = CreateMockAdapter("rabbitmq");
 		var adapter2 = CreateMockAdapter("kafka");
-		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
+		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 }, new NullLogger<MultiTransportMessageBusAdapter>());
 
 		// Act
 		multiAdapter.Dispose();
 
 		// Assert
-		_ = A.CallTo(() => adapter1.Dispose()).MustHaveHappenedOnceExactly();
-		_ = A.CallTo(() => adapter2.Dispose()).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => ((IDisposable)adapter1).Dispose()).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => ((IDisposable)adapter2).Dispose()).MustHaveHappenedOnceExactly();
 	}
 
 	#endregion
@@ -459,7 +462,7 @@ public sealed class MultiTransportIntegrationShould
 		bool supportsTransactions = false,
 		bool isConnected = true)
 	{
-		var adapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
+		var adapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>().Implements<IDisposable>());
 		_ = A.CallTo(() => adapter.Name).Returns(name);
 		_ = A.CallTo(() => ((IMessageBusAdapterCapabilities)adapter).SupportsPublishing).Returns(supportsPublishing);
 		_ = A.CallTo(() => ((IMessageBusAdapterCapabilities)adapter).SupportsSubscription).Returns(supportsSubscription);

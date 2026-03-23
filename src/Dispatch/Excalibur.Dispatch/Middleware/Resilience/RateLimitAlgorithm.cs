@@ -5,9 +5,14 @@
 namespace Excalibur.Dispatch.Middleware.Resilience;
 
 /// <summary>
-/// Rate limiting algorithm types.
+/// Rate limiting algorithm types for middleware pipeline rate limiting.
 /// </summary>
-public enum RateLimitAlgorithm
+/// <remarks>
+/// Renamed from <c>RateLimitAlgorithm</c> to avoid collision with
+/// <c>Excalibur.Dispatch.Security.RateLimitAlgorithm</c> which includes
+/// an additional <c>Unknown</c> value and different integer assignments.
+/// </remarks>
+public enum MiddlewareRateLimitAlgorithm
 {
 	/// <summary>
 	/// Token bucket algorithm for smooth rate limiting.

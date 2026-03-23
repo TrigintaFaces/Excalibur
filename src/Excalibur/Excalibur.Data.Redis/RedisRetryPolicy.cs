@@ -15,7 +15,7 @@ namespace Excalibur.Data.Redis;
 /// <summary>
 /// Redis retry policy implementation.
 /// </summary>
-internal sealed partial class RedisRetryPolicy(int maxRetryAttempts, ILogger logger) : IDataRequestRetryPolicy
+internal sealed partial class RedisRetryPolicy(int maxRetryAttempts, ILogger logger) : IRelationalDataRequestRetryPolicy, IDocumentDataRequestRetryPolicy
 {
 	/// <inheritdoc />
 	public static TimeSpan InitialDelay => TimeSpan.FromSeconds(1);

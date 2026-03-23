@@ -140,6 +140,12 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			result = WriteStoreTelemetry.Results.NotFound;
 			return null;
 		}
+		catch (CosmosException ex) when (ex.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("load", aggregateType, aggregateId, ex);
+			throw;
+		}
 		catch (Exception)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
@@ -289,6 +295,12 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				LogSnapshotVersionSkipped(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
 			}
 		}
+		catch (CosmosException ex) when (ex.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("save", snapshot.AggregateType, snapshot.AggregateId, ex);
+			throw;
+		}
 		catch (Exception)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
@@ -333,6 +345,12 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		{
 			result = WriteStoreTelemetry.Results.NotFound;
 			// Already deleted or never existed, nothing to do
+		}
+		catch (CosmosException ex) when (ex.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("delete", aggregateType, aggregateId, ex);
+			throw;
 		}
 		catch (Exception)
 		{
@@ -398,6 +416,12 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			result = WriteStoreTelemetry.Results.Conflict;
 			// ETag mismatch - the snapshot was modified, which means a newer version exists
 			// In this case, we don't delete since a newer snapshot should be kept
+		}
+		catch (CosmosException ex) when (ex.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			LogTransientError("delete_older_than", aggregateType, aggregateId, ex);
+			throw;
 		}
 		catch (Exception)
 		{
@@ -515,4 +539,8 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	[LoggerMessage(DataCosmosDbEventId.SnapshotOlderDeleted, LogLevel.Debug,
 		"Deleted snapshot older than version {Version} for {AggregateType}/{AggregateId}")]
 	private partial void LogSnapshotOlderDeleted(string aggregateType, string aggregateId, long version);
+
+	[LoggerMessage(LogLevel.Warning,
+		"Cosmos DB transient error during {Operation} for {AggregateType}/{AggregateId}")]
+	private partial void LogTransientError(string operation, string aggregateType, string aggregateId, Exception ex);
 }

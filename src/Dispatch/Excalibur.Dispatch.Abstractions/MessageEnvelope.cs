@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch.Abstractions.Messaging;
 
 namespace Excalibur.Dispatch.Abstractions;
 
@@ -42,7 +43,7 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	/// </summary>
 	public MessageEnvelope()
 	{
-		MessageId = Guid.NewGuid().ToString();
+		MessageId = Uuid7Extensions.GenerateString();
 		ReceivedTimestampUtc = DateTimeOffset.UtcNow;
 	}
 
@@ -547,7 +548,7 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	public void Reset()
 	{
 		// Clear all properties
-		MessageId = Guid.NewGuid().ToString();
+		MessageId = Uuid7Extensions.GenerateString();
 		ExternalId = null;
 		UserId = null;
 		CorrelationId = null;

@@ -15,6 +15,7 @@ namespace Excalibur.Saga.Tests.DependencyInjection;
 /// Sprint 561 S561.51: ValidateOnStart registration tests.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Saga")]
 public sealed class SagaValidateOnStartRegistrationShould
 {
 	[Fact]

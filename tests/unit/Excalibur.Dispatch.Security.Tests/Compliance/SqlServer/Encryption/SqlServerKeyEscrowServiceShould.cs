@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.SqlServer.Encryption;
 /// Integration tests with TestContainers are required for full database operations.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class SqlServerKeyEscrowServiceShould : IDisposable
 {
 	private readonly IEncryptionProvider _encryptionProvider;

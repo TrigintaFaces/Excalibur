@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Contract.Tests;
 /// safely deserialize messages produced by any compatible version.
 /// </summary>
 [Trait("Category", "Contract")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class TransportMessageContractShould
 {
 	private static readonly JsonSerializerOptions SerializerOptions = new()

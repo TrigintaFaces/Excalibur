@@ -4,6 +4,7 @@
 using Confluent.Kafka;
 
 using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -71,7 +72,7 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 		ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
 		var sourceTopic = message.Properties.TryGetValue(
-			Diagnostics.TransportTelemetryConstants.Tags.Source, out var src)
+			TransportTelemetryConstants.Tags.Source, out var src)
 			? src?.ToString() ?? _defaultSourceTopic
 			: _defaultSourceTopic;
 

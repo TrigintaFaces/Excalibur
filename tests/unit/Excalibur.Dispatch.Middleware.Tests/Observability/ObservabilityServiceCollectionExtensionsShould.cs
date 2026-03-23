@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 /// Unit tests for <see cref="ObservabilityServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class ObservabilityServiceCollectionExtensionsShould : UnitTestBase
 {
 	private static void AddRequiredHosting(IServiceCollection services)

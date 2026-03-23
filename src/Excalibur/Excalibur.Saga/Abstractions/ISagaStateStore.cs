@@ -11,6 +11,11 @@ namespace Excalibur.Saga.Abstractions;
 /// <summary>
 /// Provides core CRUD operations for saga state persistence.
 /// </summary>
+/// <remarks>
+/// This is the advanced saga state store in the Excalibur.Saga layer, providing full CRUD and query operations.
+/// For the basic saga persistence contract (generic Load/Save), see
+/// <see cref="Excalibur.Dispatch.Abstractions.Messaging.ISagaStore"/> in Dispatch.Abstractions.
+/// </remarks>
 public interface ISagaStateStore
 {
 	/// <summary>

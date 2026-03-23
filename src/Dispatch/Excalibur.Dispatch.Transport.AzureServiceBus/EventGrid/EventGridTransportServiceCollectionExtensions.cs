@@ -5,8 +5,13 @@ using Azure;
 using Azure.Identity;
 using Azure.Messaging.EventGrid;
 
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Azure;
+using Excalibur.Dispatch.Transport.Builders;
+using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -80,12 +85,21 @@ public static class EventGridTransportServiceCollectionExtensions
 			return new EventGridPublisherClient(endpoint, new DefaultAzureCredential());
 		});
 
-		services.TryAddSingleton<ITransportSender>(sp =>
+		services.AddKeyedSingleton<ITransportSender>("eventgrid", (sp, _) =>
 		{
 			var client = sp.GetRequiredService<EventGridPublisherClient>();
 			var options = sp.GetRequiredService<IOptions<EventGridTransportOptions>>();
 			var logger = sp.GetRequiredService<ILogger<EventGridTransportSender>>();
-			return new EventGridTransportSender(client, options, logger);
+			var nativeSender = new EventGridTransportSender(client, options, logger);
+
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName("eventgrid"))
+				?? new Meter(TransportTelemetryConstants.MeterName("eventgrid"));
+			var activitySource = new ActivitySource(TransportTelemetryConstants.ActivitySourceName("eventgrid"));
+
+			return new TransportSenderBuilder(nativeSender)
+				.UseTelemetry("eventgrid", meter, activitySource)
+				.Build();
 		});
 
 		return services;

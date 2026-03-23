@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <summary>
 /// Configuration options for connection pool health monitoring, cleanup, and failure handling.
 /// </summary>
-public class ConnectionPoolHealthOptions
+public sealed class ConnectionPoolHealthOptions
 {
 	/// <summary>
 	/// Gets or sets how often to run health checks on pooled connections.
@@ -74,7 +74,7 @@ public class ConnectionPoolHealthOptions
 	/// Validates the health configuration and throws exceptions for invalid settings.
 	/// </summary>
 	/// <exception cref="ArgumentException">Thrown when configuration values are invalid.</exception>
-	public virtual void Validate()
+	public void Validate()
 	{
 		if (HealthCheckInterval <= TimeSpan.Zero)
 		{
@@ -101,7 +101,7 @@ public class ConnectionPoolHealthOptions
 	/// Creates a copy of these health options with the same configuration.
 	/// </summary>
 	/// <returns>A new instance with identical configuration.</returns>
-	public virtual ConnectionPoolHealthOptions Clone() =>
+	public ConnectionPoolHealthOptions Clone() =>
 		new()
 		{
 			HealthCheckInterval = HealthCheckInterval,

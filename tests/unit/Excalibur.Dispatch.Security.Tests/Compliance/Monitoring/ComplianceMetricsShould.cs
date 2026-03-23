@@ -6,6 +6,7 @@ using System.Diagnostics.Metrics;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Monitoring;
 
 [Trait("Category", TestCategories.Unit)]
+[Trait("Component", "Security")]
 public sealed class ComplianceMetricsShould : IDisposable
 {
 	private readonly ComplianceMetrics _sut;

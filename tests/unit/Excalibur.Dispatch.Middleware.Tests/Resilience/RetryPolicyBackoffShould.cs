@@ -277,10 +277,11 @@ public sealed class RetryPolicyBackoffShould
 	{
 		// Arrange
 		var attempts = 0;
+		// Sprint 695 T.4: MaxDelay >= BaseDelay constraint enforced
 		var policy = new RetryPolicy(new RetryOptions
 		{
 			MaxRetries = 2,
-			BaseDelay = TimeSpan.FromSeconds(10),
+			BaseDelay = TimeSpan.FromMilliseconds(10),
 			MaxDelay = TimeSpan.FromMilliseconds(50),
 			BackoffStrategy = BackoffStrategy.Exponential,
 			JitterStrategy = JitterStrategy.None,

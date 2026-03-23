@@ -46,7 +46,7 @@ public record OrderSnapshot : ISnapshot
 
 // ── Test aggregate ──
 
-public class OrderAggregate : AggregateRoot
+public sealed class OrderAggregate : AggregateRoot
 {
     public decimal Total { get; private set; }
     public int ItemCount { get; private set; }
@@ -136,7 +136,7 @@ public class OrderAggregate : AggregateRoot
 
 // ── Test aggregate with Guid key ──
 
-public class GuidAggregate : AggregateRoot<Guid>
+public sealed class GuidAggregate : AggregateRoot<Guid>
 {
     public string Name { get; private set; } = string.Empty;
 
@@ -147,7 +147,8 @@ public class GuidAggregate : AggregateRoot<Guid>
 }
 
 [Trait("Category", "Unit")]
-public class AggregateRootFunctionalShould
+[Trait("Component", "Domain")]
+public sealed class AggregateRootFunctionalShould
 {
     [Fact]
     public void RaiseEvent_ShouldApplyEventAndTrackAsUncommitted()

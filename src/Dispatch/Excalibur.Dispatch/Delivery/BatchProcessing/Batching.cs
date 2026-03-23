@@ -34,7 +34,7 @@ public static class Batching
 		using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		cts.CancelAfter(timeout);
 
-		var channel = Channel.CreateUnbounded<T>();
+		var channel = Channel.CreateBounded<T>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.Wait });
 
 		// Producer
 		var producerTask = Task.Factory.StartNew(

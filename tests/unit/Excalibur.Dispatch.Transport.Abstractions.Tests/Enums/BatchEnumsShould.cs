@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Enums;
 
-public class BatchEnumsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class BatchEnumsShould
 {
     [Theory]
     [InlineData(BatchCompletionStrategy.Size, 0)]
@@ -26,11 +28,11 @@ public class BatchEnumsShould
     }
 
     [Theory]
-    [InlineData(ErrorSeverity.Info, 0)]
-    [InlineData(ErrorSeverity.Warning, 1)]
-    [InlineData(ErrorSeverity.Error, 2)]
-    [InlineData(ErrorSeverity.Critical, 3)]
-    public void ErrorSeverity_Should_Have_Correct_Values(ErrorSeverity severity, int expected)
+    [InlineData(BatchErrorSeverity.Info, 0)]
+    [InlineData(BatchErrorSeverity.Warning, 1)]
+    [InlineData(BatchErrorSeverity.Error, 2)]
+    [InlineData(BatchErrorSeverity.Critical, 3)]
+    public void BatchErrorSeverity_Should_Have_Correct_Values(BatchErrorSeverity severity, int expected)
     {
         ((int)severity).ShouldBe(expected);
     }

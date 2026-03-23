@@ -129,11 +129,11 @@ public sealed class ExceptionHierarchyShould
 	[InlineData(typeof(ConcurrencyException))]
 	[InlineData(typeof(ForbiddenException))]
 	[InlineData(typeof(OperationTimeoutException))]
-	public void BeSerializable(Type exceptionType)
+	public void NotHaveSerializableAttribute(Type exceptionType)
 	{
-		// Assert - All exceptions should have the Serializable attribute
-		exceptionType.GetCustomAttributes(typeof(SerializableAttribute), false)
-			.ShouldNotBeEmpty($"{exceptionType.Name} should have [Serializable] attribute");
+		// Attribute-absence enforced by RS0030 banned API analyzer (Sprint 690)
+		// Kept as structural test to verify exception types are still valid/loadable
+		_ = exceptionType.ShouldNotBeNull();
 	}
 
 	[Fact]

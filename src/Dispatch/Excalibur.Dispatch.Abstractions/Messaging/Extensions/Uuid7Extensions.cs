@@ -13,15 +13,18 @@ namespace Excalibur.Dispatch.Abstractions.Messaging;
 /// Provides comprehensive extension methods for generating and working with UUID v7 strings and GUIDs.
 /// </summary>
 /// <remarks>
-/// UUID v7 is a time-ordered UUID format that includes a Unix timestamp with millisecond precision, making it suitable for use as a
-/// database primary key with natural time-based ordering.
+/// <para>
+/// UUID v7 is a time-ordered UUID format defined in RFC 9562. It includes a Unix timestamp
+/// with millisecond precision, making it suitable for use as a database primary key with
+/// natural time-based ordering. All UUIDs use big-endian byte order per the RFC specification.
+/// </para>
 /// </remarks>
 public static class Uuid7Extensions
 {
 	/// <summary>
 	/// Maximum cache size before clearing.
 	/// </summary>
-	private const int MaxCacheSize = 10000;
+	private const int MaxCacheEntries = 1024;
 
 	/// <summary>
 	/// Cache for parsed UUID v7 instances to avoid repeated parsing.
@@ -44,42 +47,18 @@ public static class Uuid7Extensions
 	/// <summary>
 	/// Generates a new UUID v7 as a <see cref="Guid" /> object.
 	/// </summary>
-	/// <param name="matchGuidEndianness">
-	/// If <c> true </c>, adjusts the endianness of the generated UUID so that its textual representation matches that of a
-	/// <see cref="Guid" />. Defaults to <c> true </c>.
-	/// </param>
 	/// <returns> A <see cref="Guid" /> representation of the UUID v7. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static Guid GenerateGuid(bool matchGuidEndianness = true)
-	{
-		_ = matchGuidEndianness; // Not yet implemented
-		return Uuid7.NewUuid7().ToGuid();
-	}
-
-	/// <summary>
-	/// Generates a new UUID v7 with a specific timestamp.
-	/// </summary>
-	/// <param name="timestamp"> The timestamp to use for the UUID v7. </param>
-	/// <param name="matchGuidEndianness"> Whether to match GUID endianness. </param>
-	/// <returns> A <see cref="Guid" /> with the specified timestamp. </returns>
-	public static Guid GenerateGuidWithTimestamp(DateTimeOffset timestamp, bool matchGuidEndianness = true)
-	{
-		_ = timestamp; // Not yet implemented
-		_ = matchGuidEndianness; // Not yet implemented
-		var uuid = Uuid7.NewUuid7();
-		return uuid.ToGuid();
-	}
+	public static Guid GenerateGuid() => Uuid7.NewUuid7().ToGuid();
 
 	/// <summary>
 	/// Generates multiple UUID v7 GUIDs efficiently.
 	/// </summary>
 	/// <param name="count"> The number of UUIDs to generate. </param>
-	/// <param name="matchGuidEndianness"> Whether to match GUID endianness. </param>
 	/// <returns> An array of generated GUIDs. </returns>
-	public static Guid[] GenerateGuids(int count, bool matchGuidEndianness = true)
+	public static Guid[] GenerateGuids(int count)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
-		_ = matchGuidEndianness; // Not yet implemented
 
 		var guids = new Guid[count];
 
@@ -138,11 +117,9 @@ public static class Uuid7Extensions
 	/// Extracts the timestamp from a UUID v7 Guid.
 	/// </summary>
 	/// <param name="uuid"> The UUID v7 Guid. </param>
-	/// <param name="assumeGuidEndianness"> Whether to assume GUID endianness. </param>
 	/// <returns> The timestamp embedded in the UUID, or null if extraction fails. </returns>
-	public static DateTimeOffset? ExtractTimestamp(Guid uuid, bool assumeGuidEndianness = true)
+	public static DateTimeOffset? ExtractTimestamp(Guid uuid)
 	{
-		_ = assumeGuidEndianness; // Not yet implemented
 		try
 		{
 			// Extract timestamp from UUID v7 manually UUID v7 has 48-bit timestamp in the first 6 bytes
@@ -209,11 +186,9 @@ public static class Uuid7Extensions
 	/// Validates whether a GUID is a valid UUID v7.
 	/// </summary>
 	/// <param name="guidValue"> The GUID to validate. </param>
-	/// <param name="assumeGuidEndianness"> Whether to assume GUID endianness. </param>
 	/// <returns> <c> true </c> if the GUID is a valid UUID v7; otherwise, <c> false </c>. </returns>
-	public static bool IsValidUuid7Guid(Guid guidValue, bool assumeGuidEndianness = true)
+	public static bool IsValidUuid7Guid(Guid guidValue)
 	{
-		_ = assumeGuidEndianness; // Not yet implemented
 		try
 		{
 			// Check version bits directly from Guid bytes (version 7 => 0b0111xxxx)
@@ -230,12 +205,10 @@ public static class Uuid7Extensions
 	/// Converts a UUID v7 string to a Guid.
 	/// </summary>
 	/// <param name="uuidString"> The UUID string to convert. </param>
-	/// <param name="matchGuidEndianness"> Whether to match GUID endianness. </param>
 	/// <returns> The converted GUID, or <see cref="Guid.Empty" /> if conversion fails. </returns>
-	public static Guid ToGuid(string uuidString, bool matchGuidEndianness = true)
+	public static Guid ToGuid(string uuidString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(uuidString);
-		_ = matchGuidEndianness; // Not yet implemented
 
 		// Support standard Guid format only; compact 25-char form is not parsed here
 		return Guid.TryParse(uuidString, out var guid) ? guid : Guid.Empty;
@@ -245,9 +218,8 @@ public static class Uuid7Extensions
 	/// Converts a GUID to a UUID v7 string.
 	/// </summary>
 	/// <param name="guidValue"> The GUID to convert. </param>
-	/// <param name="assumeGuidEndianness"> Whether to assume GUID endianness. </param>
 	/// <returns> The UUID v7 string, or null if conversion fails. </returns>
-	public static string? ToUuid7String(Guid guidValue, bool assumeGuidEndianness = true)
+	public static string? ToUuid7String(Guid guidValue)
 	{
 		if (guidValue == Guid.Empty)
 		{
@@ -255,37 +227,31 @@ public static class Uuid7Extensions
 		}
 
 		// If it is a valid v7 Guid, return the canonical Guid string form
-		return IsValidUuid7Guid(guidValue, assumeGuidEndianness)
+		return IsValidUuid7Guid(guidValue)
 			? guidValue.ToString()
 			: null;
 	}
 
 	/// <summary>
-	/// Generates a sequential range of UUID v7 GUIDs.
+	/// Generates a sequential range of UUID v7 GUIDs with millisecond spacing.
 	/// </summary>
 	/// <param name="count"> The number of UUIDs to generate. </param>
 	/// <param name="intervalMs"> The millisecond interval between UUIDs. </param>
-	/// <param name="startTime"> The starting timestamp (defaults to current time). </param>
-	/// <param name="matchGuidEndianness"> Whether to match GUID endianness. </param>
 	/// <returns> An enumerable of sequential GUIDs. </returns>
 	/// <remarks>
 	/// Iterator methods (yield return) cannot be async, so interval pacing uses a short spin-wait.
 	/// </remarks>
-	public static IEnumerable<Guid> GenerateSequentialGuids(int count, int intervalMs = 1, DateTimeOffset? startTime = null, bool matchGuidEndianness = true)
+	public static IEnumerable<Guid> GenerateSequentialGuids(int count, int intervalMs = 1)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 		ArgumentOutOfRangeException.ThrowIfNegative(intervalMs);
 
-		return GenerateSequentialGuids(count, intervalMs, startTime, matchGuidEndianness);
+		return GenerateSequentialGuidsCore(count, intervalMs);
 
-		IEnumerable<Guid> GenerateSequentialGuids(int count, int intervalMs, DateTimeOffset? startTime, bool matchGuidEndianness)
+		static IEnumerable<Guid> GenerateSequentialGuidsCore(int count, int intervalMs)
 		{
-			_ = startTime ?? DateTimeOffset.UtcNow;
-			_ = matchGuidEndianness; // Not yet implemented
-
 			for (var i = 0; i < count; i++)
 			{
-				// Note: Current Medo.Uuid7 version doesn't support custom timestamps This will use current time instead of the specified timestamp
 				yield return Uuid7.NewUuid7().ToGuid();
 
 				// Sleep to ensure different timestamps if intervalMs > 0
@@ -297,6 +263,25 @@ public static class Uuid7Extensions
 		}
 	}
 
+	/// <summary>
+	/// Compares two UUID v7 values by their timestamp.
+	/// </summary>
+	/// <param name="uuid1"> The first UUID. </param>
+	/// <param name="uuid2"> The second UUID. </param>
+	/// <returns> A value less than 0 if uuid1 is earlier, 0 if they have the same timestamp, or greater than 0 if uuid1 is later. </returns>
+	public static int CompareByTimestamp(Guid uuid1, Guid uuid2)
+	{
+		var time1 = ExtractTimestamp(uuid1);
+		var time2 = ExtractTimestamp(uuid2);
+
+		return time1 switch
+		{
+			null when time2 == null => 0,
+			null => -1,
+			_ => time2 == null ? 1 : time1.Value.CompareTo(time2.Value),
+		};
+	}
+
 	private static void WaitForInterval(int intervalMs)
 	{
 		var wait = Excalibur.Dispatch.Abstractions.Diagnostics.ValueStopwatch.StartNew();
@@ -305,26 +290,6 @@ public static class Uuid7Extensions
 		{
 			spinner.SpinOnce();
 		}
-	}
-
-	/// <summary>
-	/// Compares two UUID v7 values by their timestamp.
-	/// </summary>
-	/// <param name="uuid1"> The first UUID. </param>
-	/// <param name="uuid2"> The second UUID. </param>
-	/// <param name="assumeGuidEndianness"> Whether to assume GUID endianness. </param>
-	/// <returns> A value less than 0 if uuid1 is earlier, 0 if they have the same timestamp, or greater than 0 if uuid1 is later. </returns>
-	public static int CompareByTimestamp(Guid uuid1, Guid uuid2, bool assumeGuidEndianness = true)
-	{
-		var time1 = ExtractTimestamp(uuid1, assumeGuidEndianness);
-		var time2 = ExtractTimestamp(uuid2, assumeGuidEndianness);
-
-		return time1 switch
-		{
-			null when time2 == null => 0,
-			null => -1,
-			_ => time2 == null ? 1 : time1.Value.CompareTo(time2.Value),
-		};
 	}
 
 	/// <summary>
@@ -342,21 +307,26 @@ public static class Uuid7Extensions
 			return cached.valid;
 		}
 
-		if (ParseCache.Count > MaxCacheSize)
-		{
-			ParseCache.Clear();
-		}
+		var canCache = ParseCache.Count < MaxCacheEntries;
 
 		if (Guid.TryParse(uuidString, out _))
 		{
 			// We cannot construct a Uuid7 instance without Medo conversion; mark as valid format
 			uuid = default;
-			_ = ParseCache.TryAdd(uuidString, (true, null));
+			if (canCache)
+			{
+				_ = ParseCache.TryAdd(uuidString, (true, null));
+			}
+
 			return true;
 		}
 
 		uuid = default;
-		_ = ParseCache.TryAdd(uuidString, (false, null));
+		if (canCache)
+		{
+			_ = ParseCache.TryAdd(uuidString, (false, null));
+		}
+
 		return false;
 	}
 }

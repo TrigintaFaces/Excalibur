@@ -26,7 +26,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class CdcHealthCheck : IHealthCheck
+internal sealed class CdcHealthCheck : IHealthCheck
 {
 	private readonly CdcHealthState _state;
 	private readonly CdcHealthCheckOptions _options;

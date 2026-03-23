@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Performance;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class PerformanceMetricsCollectorShould : IDisposable
 {
 	private readonly PerformanceMetricsCollector _sut = new();

@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// <item><description>Maintains state to detect recurring and new gaps</description></item>
 /// </list>
 /// </remarks>
-public partial class ComplianceMonitoringService : BackgroundService
+internal sealed partial class ComplianceMonitoringService : BackgroundService
 {
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<Soc2Options> _options;
@@ -94,7 +94,7 @@ public partial class ComplianceMonitoringService : BackgroundService
 		LogMonitoringStopped();
 	}
 
-	private static async Task NotifyComplianceGapAsync(
+	private async Task NotifyComplianceGapAsync(
 		IReadOnlyList<IComplianceAlertHandler> handlers,
 		ComplianceGapAlert alert,
 		CancellationToken cancellationToken)
@@ -105,14 +105,18 @@ public partial class ComplianceMonitoringService : BackgroundService
 			{
 				await handler.HandleComplianceGapAsync(alert, cancellationToken).ConfigureAwait(false);
 			}
-			catch (Exception)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
-				// Continue to next handler - logging is done at the handler level
+				throw;
+			}
+			catch (Exception ex)
+			{
+				LogAlertHandlerFailed(handler.GetType().Name, "ComplianceGap", ex);
 			}
 		}
 	}
 
-	private static async Task NotifyValidationFailureAsync(
+	private async Task NotifyValidationFailureAsync(
 		IReadOnlyList<IComplianceAlertHandler> handlers,
 		ControlValidationFailureAlert alert,
 		CancellationToken cancellationToken)
@@ -123,14 +127,18 @@ public partial class ComplianceMonitoringService : BackgroundService
 			{
 				await handler.HandleValidationFailureAsync(alert, cancellationToken).ConfigureAwait(false);
 			}
-			catch (Exception)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
-				// Continue to next handler - logging is done at the handler level
+				throw;
+			}
+			catch (Exception ex)
+			{
+				LogAlertHandlerFailed(handler.GetType().Name, "ValidationFailure", ex);
 			}
 		}
 	}
 
-	private static async Task NotifyStatusChangeAsync(
+	private async Task NotifyStatusChangeAsync(
 		IReadOnlyList<IComplianceAlertHandler> handlers,
 		ComplianceStatusChangeNotification notification,
 		CancellationToken cancellationToken)
@@ -141,9 +149,13 @@ public partial class ComplianceMonitoringService : BackgroundService
 			{
 				await handler.HandleStatusChangeAsync(notification, cancellationToken).ConfigureAwait(false);
 			}
-			catch (Exception)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
-				// Continue to next handler - logging is done at the handler level
+				throw;
+			}
+			catch (Exception ex)
+			{
+				LogAlertHandlerFailed(handler.GetType().Name, "StatusChange", ex);
 			}
 		}
 	}
@@ -186,6 +198,10 @@ public partial class ComplianceMonitoringService : BackgroundService
 		"Control validation failure: {ControlId} - {ErrorMessage} (Consecutive failures: {Failures})")]
 	private partial void LogControlValidationFailure(string controlId, string errorMessage, int failures);
 
+	[LoggerMessage(LogLevel.Warning,
+		"Alert handler '{HandlerName}' failed during {AlertType} notification")]
+	private partial void LogAlertHandlerFailed(string handlerName, string alertType, Exception ex);
+
 	private async Task RunMonitoringCycleAsync(CancellationToken cancellationToken)
 	{
 		LogCycleStarting();
@@ -212,10 +228,16 @@ public partial class ComplianceMonitoringService : BackgroundService
 			{
 				foreach (var category in _options.Value.EnabledCategories)
 				{
+					using var enumerator = category.GetCriteria().GetEnumerator();
+					if (!enumerator.MoveNext())
+					{
+						continue;
+					}
+
 					await HandleValidationErrorAsync(
 						alertHandlers,
 						$"CAT-{category}",
-						category.GetCriteria().First(),
+						enumerator.Current,
 						ex.Message,
 						cancellationToken).ConfigureAwait(false);
 				}

@@ -22,7 +22,7 @@ public sealed partial class DefaultAuditAlertService : IAuditAlertService
 	private DateTimeOffset _currentMinuteStart = DateTimeOffset.UtcNow;
 
 #if NET9_0_OR_GREATER
-	private readonly Lock _rateLimitLock = new();
+	private readonly System.Threading.Lock _rateLimitLock = new();
 #else
 	private readonly object _rateLimitLock = new();
 #endif

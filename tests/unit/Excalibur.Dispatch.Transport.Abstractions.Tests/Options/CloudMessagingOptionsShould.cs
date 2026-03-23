@@ -2,7 +2,9 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Options;
 
-public class CloudMessagingOptionsShould
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
+public sealed class CloudMessagingOptionsShould
 {
     [Fact]
     public void Should_Default_DefaultProvider_To_Null()

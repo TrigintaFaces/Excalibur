@@ -17,6 +17,7 @@ namespace Excalibur.EventSourcing.Tests.DependencyInjection;
 /// Unit tests for <see cref="EventSourcingServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "EventSourcing")]
 public sealed class EventSourcingServiceCollectionExtensionsShould
 {
 	#region AddExcaliburEventSourcing Tests

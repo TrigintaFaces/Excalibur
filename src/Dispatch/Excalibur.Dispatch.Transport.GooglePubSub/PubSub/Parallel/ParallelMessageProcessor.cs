@@ -54,7 +54,7 @@ public sealed partial class ParallelMessageProcessor : IAsyncDisposable
 			? _options.MaxConcurrentMessages
 			: Environment.ProcessorCount * 2;
 
-		_workChannel = Channel.CreateUnbounded<ProcessingWork>(new UnboundedChannelOptions { SingleReader = false, SingleWriter = false });
+		_workChannel = Channel.CreateBounded<ProcessingWork>(new BoundedChannelOptions(10_000) { FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = false });
 
 		_workerTasks = new Task[parallelism];
 		_shutdownSemaphore = new SemaphoreSlim(0);
@@ -175,7 +175,7 @@ public sealed partial class ParallelMessageProcessor : IAsyncDisposable
 
 			LogProcessorShutdown(_processedCount.Value, _errorCount.Value);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			LogShutdownTimeout();
 		}

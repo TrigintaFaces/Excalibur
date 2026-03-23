@@ -19,6 +19,7 @@ namespace Excalibur.Dispatch.Tests.Functional.Messaging;
 ///     Functional tests for MessageContext testing complete scenarios end-to-end.
 /// </summary>
 [Trait("Category", "Functional")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class MessageContextFunctionalShould : FunctionalTestBase
 {
 	// Interfaces for the processing pipeline
@@ -77,7 +78,7 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 
 		// Act - Process message with timeout
 		var result = await RunWithTimeoutAsync(ct => processor.ProcessMessageAsync(testMessage, ct))
-			.ConfigureAwait(true);
+			;
 
 		// Assert
 		result.Success.ShouldBeTrue();
@@ -118,7 +119,7 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 
 		// Act - Process failing message with timeout
 		var result = await RunWithTimeoutAsync(ct => processor.ProcessMessageAsync(testMessage, ct))
-			.ConfigureAwait(true);
+			;
 
 		// Assert
 		result.Success.ShouldBeFalse();
@@ -159,8 +160,8 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 		var results = await RunWithTimeoutAsync(async ct =>
 		{
 			var tasks = messages.Select(msg => processor.ProcessMessageAsync(msg, ct));
-			return await Task.WhenAll(tasks).ConfigureAwait(true);
-		}).ConfigureAwait(true);
+			return await Task.WhenAll(tasks);
+		});
 		stopwatch.Stop();
 
 		// Assert
@@ -214,11 +215,11 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 			{
 				// Enrichment
 				var enricher = serviceProvider.GetRequiredService<IMessageEnricher>();
-				await enricher.EnrichAsync(context, message, cancellationToken).ConfigureAwait(true);
+				await enricher.EnrichAsync(context, message, cancellationToken);
 
 				// Validation
 				var validator = serviceProvider.GetRequiredService<IMessageValidator>();
-				var validationResult = await validator.ValidateAsync(context, message, cancellationToken).ConfigureAwait(true);
+				var validationResult = await validator.ValidateAsync(context, message, cancellationToken);
 				context.ValidationResult = validationResult;
 
 				if (!validationResult.IsValid)
@@ -235,7 +236,7 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 
 				// Authorization
 				var authorizer = serviceProvider.GetRequiredService<IMessageAuthorizer>();
-				var authResult = await authorizer.AuthorizeAsync(context, message, cancellationToken).ConfigureAwait(true);
+				var authResult = await authorizer.AuthorizeAsync(context, message, cancellationToken);
 				context.AuthorizationResult = authResult;
 
 				if (!authResult.IsAuthorized)
@@ -254,7 +255,7 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 				var router = serviceProvider.GetRequiredService<IDispatchRouter>();
 				var routingDecision = await router
 						.RouteAsync(message, context, cancellationToken)
-						.ConfigureAwait(true);
+						;
 				context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
 
 				if (!routingDecision.IsSuccess)
@@ -271,7 +272,7 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 
 				// Handling
 				var handler = serviceProvider.GetRequiredService<IMessageHandler>();
-				await handler.HandleAsync(context, message, cancellationToken).ConfigureAwait(true);
+				await handler.HandleAsync(context, message, cancellationToken);
 
 				return new ProcessingResult
 				{
@@ -437,7 +438,7 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 			context.SetItem("ProcessedContent", message.Content.ToUpperInvariant());
 
 			// Simulate some processing
-			await Task.Delay(10, cancellationToken).ConfigureAwait(true);
+			await Task.Delay(10, cancellationToken);
 		}
 	}
 

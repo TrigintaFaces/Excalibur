@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Decorators;
 /// deduplication ID assignment on single and batch messages.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Transport")]
 public sealed class DeduplicationTransportSenderFunctionalShould
 {
 	[Fact]

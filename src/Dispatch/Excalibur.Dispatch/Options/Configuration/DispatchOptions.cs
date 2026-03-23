@@ -4,8 +4,6 @@
 
 using System.ComponentModel.DataAnnotations;
 
-using Excalibur.Dispatch.Configuration;
-
 namespace Excalibur.Dispatch.Options.Configuration;
 
 /// <summary>
@@ -55,13 +53,13 @@ public sealed class DispatchOptions
 	/// Gets or sets inbox configuration options.
 	/// </summary>
 	/// <value> Inbox configuration options. </value>
-	public InboxOptions Inbox { get; set; } = new();
+	public InboxConfigurationOptions Inbox { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets outbox configuration options.
 	/// </summary>
 	/// <value> Outbox configuration options. </value>
-	public OutboxOptions Outbox { get; set; } = new();
+	public OutboxConfigurationOptions Outbox { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets consumer configuration options.
@@ -150,7 +148,7 @@ public sealed class DispatchCrossCuttingOptions
 	/// Gets or sets the default retry policy.
 	/// </summary>
 	/// <value> The default retry policy. </value>
-	public RetryPolicy DefaultRetryPolicy { get; set; } = new();
+	public DispatchRetryOptions DefaultRetryPolicy { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets performance optimization configuration.

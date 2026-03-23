@@ -46,8 +46,8 @@ public sealed class ConsistencyAlertConfigurationShould
 		};
 		var severities = new List<AlertSeverityThreshold>
 		{
-			new() { LagThreshold = TimeSpan.FromSeconds(30), Severity = AlertSeverity.Warning },
-			new() { LagThreshold = TimeSpan.FromMinutes(5), Severity = AlertSeverity.Critical },
+			new() { LagThreshold = TimeSpan.FromSeconds(30), Severity = ProjectionAlertSeverity.Warning },
+			new() { LagThreshold = TimeSpan.FromMinutes(5), Severity = ProjectionAlertSeverity.Critical },
 		};
 
 		var sut = new ConsistencyAlertConfiguration

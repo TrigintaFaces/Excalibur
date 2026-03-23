@@ -76,7 +76,34 @@ internal sealed partial class DlqProcessor(
 				};
 			}
 
-			// Delete from DLQ after processing
+			// Send to source queue FIRST (redrive), then delete from DLQ
+			// This prevents message loss: worst case on crash = duplicate in source queue (safe with idempotent consumers)
+			if (message.SourceQueueUrl is not null)
+			{
+				var sendRequest = new SendMessageRequest
+				{
+					QueueUrl = message.SourceQueueUrl.ToString(),
+					MessageBody = message.Body,
+				};
+
+				// Copy message attributes for redrive
+				if (message.Attributes.Count > 0)
+				{
+					sendRequest.MessageAttributes = new Dictionary<string, MessageAttributeValue>();
+					foreach (var attr in message.Attributes)
+					{
+						sendRequest.MessageAttributes[attr.Key] = new MessageAttributeValue
+						{
+							DataType = "String",
+							StringValue = attr.Value,
+						};
+					}
+				}
+
+				await _sqsClient.SendMessageAsync(sendRequest, cancellationToken).ConfigureAwait(false);
+			}
+
+			// Delete from DLQ only AFTER confirmed send to source queue
 			if (message.ReceiptHandle != null && _dlqOptions.DeadLetterQueueUrl != null)
 			{
 				await _sqsClient

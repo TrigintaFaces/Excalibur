@@ -8,6 +8,7 @@ using Tests.Shared;
 namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryCacheTagTrackerShould : UnitTestBase
 {
 	[Fact]

@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Testing.Builders;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class SagaStateBuilder<TSagaState>
+public class SagaStateBuilder<TSagaState>
 	where TSagaState : SagaState, new()
 {
 	private Guid? _sagaId;

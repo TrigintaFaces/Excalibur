@@ -190,6 +190,11 @@ internal sealed partial class EventGridTransportSender : ITransportSender
 			cloudEvent.ExtensionAttributes["correlationid"] = message.CorrelationId;
 		}
 
+		if (message.CausationId is not null)
+		{
+			cloudEvent.ExtensionAttributes["causationid"] = message.CausationId;
+		}
+
 		return cloudEvent;
 	}
 

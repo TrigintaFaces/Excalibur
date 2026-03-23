@@ -6,6 +6,7 @@ using ExcaliburConfigurationValidationError = Excalibur.Hosting.Configuration.Co
 namespace Excalibur.Tests.Hosting.Configuration;
 
 [Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class ExcaliburConfigurationValidationErrorShould
 {
 	[Fact]

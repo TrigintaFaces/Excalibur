@@ -6,7 +6,7 @@ using Excalibur.Data.ElasticSearch.Projections;
 namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 
 /// <summary>
-/// Unit tests for the <see cref="AlertSeverity"/> enum.
+/// Unit tests for the <see cref="ProjectionAlertSeverity"/> enum.
 /// </summary>
 /// <remarks>
 /// Sprint 513 (S513.2): Elasticsearch Phase 2 unit tests.
@@ -23,28 +23,28 @@ public sealed class AlertSeverityShould
 	public void DefineInfoAsZero()
 	{
 		// Assert
-		((int)AlertSeverity.Info).ShouldBe(0);
+		((int)ProjectionAlertSeverity.Info).ShouldBe(0);
 	}
 
 	[Fact]
 	public void DefineWarningAsOne()
 	{
 		// Assert
-		((int)AlertSeverity.Warning).ShouldBe(1);
+		((int)ProjectionAlertSeverity.Warning).ShouldBe(1);
 	}
 
 	[Fact]
 	public void DefineErrorAsTwo()
 	{
 		// Assert
-		((int)AlertSeverity.Error).ShouldBe(2);
+		((int)ProjectionAlertSeverity.Error).ShouldBe(2);
 	}
 
 	[Fact]
 	public void DefineCriticalAsThree()
 	{
 		// Assert
-		((int)AlertSeverity.Critical).ShouldBe(3);
+		((int)ProjectionAlertSeverity.Critical).ShouldBe(3);
 	}
 
 	#endregion
@@ -55,7 +55,7 @@ public sealed class AlertSeverityShould
 	public void HaveFourDefinedValues()
 	{
 		// Act
-		var values = Enum.GetValues<AlertSeverity>();
+		var values = Enum.GetValues<ProjectionAlertSeverity>();
 
 		// Assert
 		values.Length.ShouldBe(4);
@@ -65,13 +65,13 @@ public sealed class AlertSeverityShould
 	public void ContainAllExpectedSeverities()
 	{
 		// Act
-		var values = Enum.GetValues<AlertSeverity>();
+		var values = Enum.GetValues<ProjectionAlertSeverity>();
 
 		// Assert
-		values.ShouldContain(AlertSeverity.Info);
-		values.ShouldContain(AlertSeverity.Warning);
-		values.ShouldContain(AlertSeverity.Error);
-		values.ShouldContain(AlertSeverity.Critical);
+		values.ShouldContain(ProjectionAlertSeverity.Info);
+		values.ShouldContain(ProjectionAlertSeverity.Warning);
+		values.ShouldContain(ProjectionAlertSeverity.Error);
+		values.ShouldContain(ProjectionAlertSeverity.Critical);
 	}
 
 	#endregion
@@ -79,28 +79,28 @@ public sealed class AlertSeverityShould
 	#region Enum Parse Tests
 
 	[Theory]
-	[InlineData("Info", AlertSeverity.Info)]
-	[InlineData("Warning", AlertSeverity.Warning)]
-	[InlineData("Error", AlertSeverity.Error)]
-	[InlineData("Critical", AlertSeverity.Critical)]
-	public void ParseFromString_WithValidName(string name, AlertSeverity expected)
+	[InlineData("Info", ProjectionAlertSeverity.Info)]
+	[InlineData("Warning", ProjectionAlertSeverity.Warning)]
+	[InlineData("Error", ProjectionAlertSeverity.Error)]
+	[InlineData("Critical", ProjectionAlertSeverity.Critical)]
+	public void ParseFromString_WithValidName(string name, ProjectionAlertSeverity expected)
 	{
 		// Act
-		var result = Enum.Parse<AlertSeverity>(name);
+		var result = Enum.Parse<ProjectionAlertSeverity>(name);
 
 		// Assert
 		result.ShouldBe(expected);
 	}
 
 	[Theory]
-	[InlineData("info", AlertSeverity.Info)]
-	[InlineData("WARNING", AlertSeverity.Warning)]
-	[InlineData("error", AlertSeverity.Error)]
-	[InlineData("CRITICAL", AlertSeverity.Critical)]
-	public void ParseFromString_WithCaseInsensitiveMatch(string name, AlertSeverity expected)
+	[InlineData("info", ProjectionAlertSeverity.Info)]
+	[InlineData("WARNING", ProjectionAlertSeverity.Warning)]
+	[InlineData("error", ProjectionAlertSeverity.Error)]
+	[InlineData("CRITICAL", ProjectionAlertSeverity.Critical)]
+	public void ParseFromString_WithCaseInsensitiveMatch(string name, ProjectionAlertSeverity expected)
 	{
 		// Act
-		var result = Enum.Parse<AlertSeverity>(name, ignoreCase: true);
+		var result = Enum.Parse<ProjectionAlertSeverity>(name, ignoreCase: true);
 
 		// Assert
 		result.ShouldBe(expected);
@@ -114,23 +114,23 @@ public sealed class AlertSeverityShould
 	public void HaveSeverityValuesInIncreasingOrder()
 	{
 		// Assert - Verify severity values increase (Info < Warning < Error < Critical)
-		((int)AlertSeverity.Info).ShouldBeLessThan((int)AlertSeverity.Warning);
-		((int)AlertSeverity.Warning).ShouldBeLessThan((int)AlertSeverity.Error);
-		((int)AlertSeverity.Error).ShouldBeLessThan((int)AlertSeverity.Critical);
+		((int)ProjectionAlertSeverity.Info).ShouldBeLessThan((int)ProjectionAlertSeverity.Warning);
+		((int)ProjectionAlertSeverity.Warning).ShouldBeLessThan((int)ProjectionAlertSeverity.Error);
+		((int)ProjectionAlertSeverity.Error).ShouldBeLessThan((int)ProjectionAlertSeverity.Critical);
 	}
 
 	[Fact]
 	public void InfoShouldBeLowestSeverity()
 	{
 		// Assert
-		AlertSeverity.Info.ShouldBe(Enum.GetValues<AlertSeverity>().Min());
+		ProjectionAlertSeverity.Info.ShouldBe(Enum.GetValues<ProjectionAlertSeverity>().Min());
 	}
 
 	[Fact]
 	public void CriticalShouldBeHighestSeverity()
 	{
 		// Assert
-		AlertSeverity.Critical.ShouldBe(Enum.GetValues<AlertSeverity>().Max());
+		ProjectionAlertSeverity.Critical.ShouldBe(Enum.GetValues<ProjectionAlertSeverity>().Max());
 	}
 
 	#endregion

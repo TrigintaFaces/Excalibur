@@ -88,7 +88,9 @@ public static class DynamoDbEventStoreServiceCollectionExtensions
 	private static void RegisterServices(IServiceCollection services)
 	{
 		services.TryAddSingleton<DynamoDbEventStore>();
-		services.TryAddSingleton<IEventStore>(sp => sp.GetRequiredService<DynamoDbEventStore>());
+		services.AddKeyedSingleton<IEventStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbEventStore>());
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("dynamodb"));
 		services.TryAddSingleton<ICloudNativeEventStore>(sp => sp.GetRequiredService<DynamoDbEventStore>());
 	}
 }

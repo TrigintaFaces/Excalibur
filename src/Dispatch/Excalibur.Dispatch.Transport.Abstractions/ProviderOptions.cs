@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Dispatch.Transport;
@@ -27,6 +26,7 @@ public class ProviderOptions
 	/// Gets or sets the connection string or endpoint.
 	/// </summary>
 	/// <value>The current <see cref="ConnectionString"/> value.</value>
+	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>
@@ -48,7 +48,7 @@ public class ProviderOptions
 	/// <value>
 	/// The retry policy configuration.
 	/// </value>
-	public RetryPolicyOptions RetryPolicy { get; set; } = new();
+	public TransportRetryPolicyOptions RetryPolicy { get; set; } = new();
 
 	/// <summary>
 	/// Gets custom metadata for the provider.

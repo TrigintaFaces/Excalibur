@@ -71,6 +71,8 @@ public abstract class ProcessManager<TData>(
 	ILogger logger) : Orchestration.SagaBase<TData>(initialState, dispatcher, logger)
 	where TData : SagaState
 {
+	private const int MaxCacheEntries = 1024;
+
 	private static readonly ConcurrentDictionary<Type, HandlerReflectionInfo> HandlerReflectionCache = new();
 
 	private readonly Dictionary<string, StateDefinition<TData>> _states = new(StringComparer.OrdinalIgnoreCase);
@@ -256,29 +258,21 @@ public abstract class ProcessManager<TData>(
 	{
 		// Get the generic types from the handler
 		var handlerType = handler.GetType();
-		var reflectionInfo = HandlerReflectionCache.GetOrAdd(handlerType, static type =>
+
+		if (HandlerReflectionCache.TryGetValue(handlerType, out var reflectionInfo))
 		{
-			var genericArgs = type.GetGenericArguments();
-
-			if (genericArgs.Length != 2)
-			{
-				throw new InvalidOperationException(
-					Resources.ProcessManager_HandlerTypeMustHaveExactlyTwoGenericArguments);
-			}
-
-			var dataType = genericArgs[0];
-			var messageType = genericArgs[1];
-			var contextType = typeof(SagaContext<,>).MakeGenericType(dataType, messageType);
-
-			const BindingFlags nonPublicInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-
-			return new HandlerReflectionInfo(
-				ContextType: contextType,
-				ShouldHandle: type.GetMethod("ShouldHandle", nonPublicInstance)!,
-				ExecuteActions: type.GetMethod("ExecuteActions", nonPublicInstance)!,
-				TargetState: type.GetProperty("TargetState", nonPublicInstance)!,
-				ShouldComplete: type.GetProperty("ShouldComplete", nonPublicInstance)!);
-		});
+			// Cache hit -- use cached reflection info
+		}
+		else if (HandlerReflectionCache.Count >= MaxCacheEntries)
+		{
+			// Cache full -- compute without caching
+			reflectionInfo = ComputeHandlerReflectionInfo(handlerType);
+		}
+		else
+		{
+			// Cache not full -- compute and cache
+			reflectionInfo = HandlerReflectionCache.GetOrAdd(handlerType, static type => ComputeHandlerReflectionInfo(type));
+		}
 
 		// Create the context using cached type info
 		var context = Activator.CreateInstance(reflectionInfo.ContextType, State, message, this)!;
@@ -309,6 +303,32 @@ public abstract class ProcessManager<TData>(
 		{
 			await MarkCompletedAsync(cancellationToken).ConfigureAwait(false);
 		}
+	}
+
+	[RequiresDynamicCode("Process manager uses MakeGenericType to create SagaContext<,> at runtime")]
+	[RequiresUnreferencedCode("Process manager uses reflection (GetMethod, GetProperty) to discover handler members at runtime")]
+	private static HandlerReflectionInfo ComputeHandlerReflectionInfo(Type type)
+	{
+		var genericArgs = type.GetGenericArguments();
+
+		if (genericArgs.Length != 2)
+		{
+			throw new InvalidOperationException(
+				Resources.ProcessManager_HandlerTypeMustHaveExactlyTwoGenericArguments);
+		}
+
+		var dataType = genericArgs[0];
+		var messageType = genericArgs[1];
+		var contextType = typeof(SagaContext<,>).MakeGenericType(dataType, messageType);
+
+		const BindingFlags nonPublicInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+
+		return new HandlerReflectionInfo(
+			ContextType: contextType,
+			ShouldHandle: type.GetMethod("ShouldHandle", nonPublicInstance)!,
+			ExecuteActions: type.GetMethod("ExecuteActions", nonPublicInstance)!,
+			TargetState: type.GetProperty("TargetState", nonPublicInstance)!,
+			ShouldComplete: type.GetProperty("ShouldComplete", nonPublicInstance)!);
 	}
 
 	/// <summary>

@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for HybridCacheInvalidationService functionality.
 /// </summary>
 [Trait("Category", "Unit")]
+[Trait("Component", "Dispatch.Core")]
 public sealed class HybridCacheInvalidationServiceShould : UnitTestBase
 {
 	[Fact]

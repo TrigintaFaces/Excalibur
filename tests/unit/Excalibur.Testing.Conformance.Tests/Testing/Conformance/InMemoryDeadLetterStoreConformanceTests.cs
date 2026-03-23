@@ -33,7 +33,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "STORE")]
-public class InMemoryDeadLetterStoreConformanceTests : DeadLetterStoreConformanceTestKit
+public sealed class InMemoryDeadLetterStoreConformanceTests : DeadLetterStoreConformanceTestKit
 {
 	/// <inheritdoc />
 	protected override IDeadLetterStore CreateStore() =>
