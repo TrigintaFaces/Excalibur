@@ -16,4 +16,7 @@ README.md:sidekiq-secret:50
 # False positive: test dummy base64 value "bXktYXBpLWtleQ==" (decodes to "my-api-key") in ElasticSearch options test
 tests/unit/Excalibur.Data.ElasticSearch.Tests/ElasticSearch/ElasticsearchConnectionOptionsShould.cs:generic-api-key:59
 
+# False positive: test fixture string "valid-signing-key-12345" in SecurityHealthCheck unit test
+tests/unit/Excalibur.Dispatch.Security.Tests/Diagnostics/SecurityHealthCheckShould.cs:generic-api-key:39
+
 # End of file

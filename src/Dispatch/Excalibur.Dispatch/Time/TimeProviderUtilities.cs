@@ -38,7 +38,17 @@ public static class TimeProviderUtilities
 
 		var cts = new CancellationTokenSource();
 		var timer = timeProvider.CreateTimer(
-			_ => cts.Cancel(),
+			_ =>
+			{
+				try
+				{
+					cts.Cancel();
+				}
+				catch (ObjectDisposedException)
+				{
+					// CTS was disposed before the timer fired -- safe to ignore.
+				}
+			},
 			state: null,
 			delay,
 			Timeout.InfiniteTimeSpan);
