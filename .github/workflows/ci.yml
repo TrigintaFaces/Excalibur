@@ -108,7 +108,7 @@ jobs:
 
       - name: Upload build artifacts
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: |
@@ -200,7 +200,7 @@ jobs:
 
       - name: Upload build output for inspection
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docs-build-output
           path: docs-site/build-output.txt
@@ -346,7 +346,7 @@ jobs:
 
       - name: Upload governance report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: solution-governance-report
           path: |
@@ -383,7 +383,7 @@ jobs:
 
       - name: Upload dependency graph report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: package-dependency-report
           path: management/reports/PackageDependencyReport
@@ -440,7 +440,7 @@ jobs:
 
       - name: Upload smoke test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-smoke
           path: TestResults/*.trx
@@ -465,7 +465,7 @@ jobs:
 
       - name: Upload shard coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-shard-coverage-report
           path: management/reports/UnitShardReport
@@ -537,14 +537,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-unit-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
@@ -616,14 +616,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-async-risk-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-unit-async-risk-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
@@ -681,7 +681,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-windows-deterministic
           path: TestResults/*.trx
@@ -739,7 +739,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-windows-async-risk
           path: TestResults/*.trx
@@ -839,7 +839,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-integration-${{ matrix.os }}
           path: TestResults/*.trx
@@ -847,7 +847,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-integration-${{ matrix.os }}
           path: TestResults/**/coverage.cobertura.xml
@@ -905,7 +905,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-functional
           path: TestResults/*.trx
@@ -913,7 +913,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-functional
           path: TestResults/*/coverage.cobertura.xml
@@ -970,7 +970,7 @@ jobs:
           fi
       - name: Upload SAST log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sast-build
           path: sast-build.log
@@ -1023,7 +1023,7 @@ jobs:
 
       - name: Upload contract test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-contract
           path: TestResults/*.trx
@@ -1031,7 +1031,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-contract
           path: TestResults/*/coverage.cobertura.xml
@@ -1095,7 +1095,7 @@ jobs:
 
       - name: Upload architecture test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-architecture
           path: TestResults/*.trx
@@ -1103,7 +1103,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-architecture
           path: TestResults/*/coverage.cobertura.xml
@@ -1128,7 +1128,7 @@ jobs:
 
       - name: Upload quarantine governance report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flaky-quarantine-report
           path: management/reports/FlakyQuarantineReport
@@ -1201,7 +1201,7 @@ jobs:
 
       - name: Upload quarantined test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-flaky-quarantine
           path: TestResults/*.trx
@@ -1241,7 +1241,7 @@ jobs:
           ./eng/ci/serialization-boundary-audit.ps1 -OutDir management/reports/SerializationBoundaryReport
       - name: Upload serialization boundary report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: serialization-boundary-report
           path: management/reports/SerializationBoundaryReport
@@ -1269,7 +1269,7 @@ jobs:
           ./eng/ci/trim-aot-audit.ps1 -OutDir management/reports/TrimAotAuditReport
       - name: Upload trim/AOT audit
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trim-aot-audit
           path: management/reports/TrimAotAuditReport
@@ -1673,7 +1673,7 @@ jobs:
 
       - name: Upload security results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-analysis
           path: security-results.sarif
@@ -1755,7 +1755,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: management/reports/CoverageReport
@@ -1805,7 +1805,7 @@ jobs:
 
       - name: Upload ApiCompat report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: api-compat-report
           path: management/reports/ApiCompatReport
@@ -1829,7 +1829,7 @@ jobs:
 
       - name: Upload PublicAPI baseline report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: public-api-baseline-report
           path: management/reports/PublicApiBaselineReport
@@ -1867,7 +1867,7 @@ jobs:
 
       - name: Upload transitive bloat report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: transitive-bloat-report
           path: management/reports/TransitiveBloatReport
@@ -1900,7 +1900,7 @@ jobs:
 
       - name: Upload banned APIs report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: banned-apis-report
           path: management/reports/BannedApisReport
@@ -1976,7 +1976,7 @@ jobs:
 
       - name: Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-mediatr-parity
           path: BenchmarkDotNet.Artifacts.MediatRParity
@@ -2057,7 +2057,7 @@ jobs:
 
       - name: Upload transport benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-transport-comparison
           path: BenchmarkDotNet.Artifacts.TransportComparison
@@ -2138,7 +2138,7 @@ jobs:
 
       - name: Upload dispatch hot-path benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-dispatch-hotpath
           path: BenchmarkDotNet.Artifacts.DispatchHotPath
@@ -2216,7 +2216,7 @@ jobs:
 
       - name: Upload observability overhead benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-observability-overhead
           path: BenchmarkDotNet.Artifacts.ObservabilityOverhead
@@ -2295,7 +2295,7 @@ jobs:
 
       - name: Upload persistence/background benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-persistence-background-smoke
           path: BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke
@@ -2471,7 +2471,7 @@ jobs:
           ./eng/ci/oss-metadata-audit.ps1 -OutDir management/reports/OssMetadataReport -Catalog management/package-ids.yaml
       - name: Upload OSS metadata report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: oss-metadata-report
           path: management/reports/OssMetadataReport/oss-metadata.json
@@ -2514,7 +2514,7 @@ jobs:
 
       - name: Upload conformance results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: transport-conformance-results
           path: |
@@ -2667,7 +2667,7 @@ jobs:
             -MaxDependencyProjects 180 `
             -FailOnGuardrailBreach
       - name: Upload inventory report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-inventory
           path: management/reports/dependency-inventory.md
@@ -2730,7 +2730,7 @@ jobs:
             Write-Host "No vulnerabilities detected."
           }
       - name: Upload dependency audit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-audit
           path: management/reports/DependencyAuditReport
@@ -2757,7 +2757,7 @@ jobs:
         run: |
           ./eng/ci/pack-report.ps1 -OutDir management/reports/PackReport
       - name: Upload pack report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pack-report
           path: management/reports/PackReport
@@ -2849,7 +2849,7 @@ jobs:
         run: |
           ./eng/ci/warnings-scan.ps1 -OutDir management/reports/WarningsReport
       - name: Upload warnings report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: warnings-report
           path: management/reports/WarningsReport
@@ -2875,7 +2875,7 @@ jobs:
           echo "Artifacts contain Cobertura XML from CI test jobs." >> "$f"
           echo "See uploaded artifacts: code-coverage-*" >> "$f"
       - name: Upload coverage baseline
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-baseline
           path: management/reports/coverage-${{ github.run_id }}.md
@@ -2913,7 +2913,7 @@ jobs:
 
       - name: Upload specs guard report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: specs-location-violations
           path: management/reports/specs-location-violations-${{ github.run_id }}.md
@@ -3138,7 +3138,7 @@ jobs:
             --report-path gitleaks.sarif
       - name: Upload Gitleaks report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gitleaks-report
           path: gitleaks.sarif
@@ -3201,7 +3201,7 @@ jobs:
           echo "✅ SBOM generation successful"
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cyclonedx-sbom
           path: |
@@ -3379,7 +3379,7 @@ jobs:
 
       - name: Upload build output on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aot-sample-build-output
           path: aot-build-output.txt

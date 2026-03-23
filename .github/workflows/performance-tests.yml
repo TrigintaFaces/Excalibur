@@ -75,7 +75,7 @@ jobs:
 
       - name: Upload performance test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-test-results
           path: "**/performance-tests.trx"
@@ -149,7 +149,7 @@ jobs:
           & dotnet $benchmarkArgs
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hot-path-results-${{ matrix.os }}
           path: BenchmarkDotNet.Artifacts
@@ -293,7 +293,7 @@ jobs:
                --artifacts ./BenchmarkDotNet.Artifacts
 
       - name: Upload memory benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: memory-benchmark-results
           path: BenchmarkDotNet.Artifacts
@@ -367,7 +367,7 @@ jobs:
                --artifacts ./ThroughputBenchmarks
 
       - name: Upload throughput results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: throughput-benchmark-results
           path: |
@@ -516,7 +516,7 @@ jobs:
           EOF
 
       - name: Upload performance analysis
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-analysis
           path: |
