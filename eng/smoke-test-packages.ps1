@@ -53,9 +53,10 @@ $Script:SmokeTestVersion = "99.0.0-smoketest"  # Use prerelease version for all 
 # should be fixed separately - this smoke test validates isolation, not packability
 # Order matters for dependency resolution!
 $Script:DispatchPackages = @(
-    'Excalibur.Dispatch.Abstractions',          # Must be first (dependency of all others)
+    'Excalibur.Dispatch.Abstractions',              # Must be first (dependency of all others)
+    'Excalibur.Dispatch.Compliance.Abstractions',   # Dependency of Dispatch (depends on Abstractions)
     'Excalibur.Dispatch.Serialization.MemoryPack',  # Dependency of Dispatch
-    'Excalibur.Dispatch'              # Core dispatcher
+    'Excalibur.Dispatch'                            # Core dispatcher
 )
 
 # ============================================================================
