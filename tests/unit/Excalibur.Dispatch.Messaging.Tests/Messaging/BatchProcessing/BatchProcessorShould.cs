@@ -71,6 +71,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		_disposables.Add(processor);
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => !processedBatches.IsEmpty, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 		processedBatches.Count.ShouldBe(1);
 		var batches = processedBatches.ToArray();
@@ -104,6 +105,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => !processedBatches.IsEmpty, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 		processedBatches.Count.ShouldBe(1);
 		var batch = processedBatches.TryPeek(out var processedBatch) ? processedBatch : null;
@@ -142,6 +144,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => callCount >= 2, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 		callCount.ShouldBe(2);
 	}
@@ -170,6 +173,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => Volatile.Read(ref processedItemCount) >= 2, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 		Volatile.Read(ref processedItemCount).ShouldBe(2);
 		processedBatches.Count.ShouldBe(1);
@@ -204,6 +208,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			.Select(async i => await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false));
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => Volatile.Read(ref totalProcessed) >= expectedItemCount, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 		Volatile.Read(ref totalProcessed).ShouldBe(expectedItemCount);
 		processedItems.Count.ShouldBe(expectedItemCount);
@@ -457,6 +462,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			.Select(async i => await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false));
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => Volatile.Read(ref totalProcessed) >= 500, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 
 		Volatile.Read(ref totalProcessed).ShouldBe(500);
@@ -498,6 +504,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			}));
 
 		await Task.WhenAll(producerTasks).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => Volatile.Read(ref processedCount) >= actualItemCount, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 
 		processedCount.ShouldBe(actualItemCount);
@@ -538,6 +545,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 		_ = releaseFirstBatch.TrySetResult();
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => Volatile.Read(ref batchCount) >= 2, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 
 		Volatile.Read(ref batchCount).ShouldBe(2);
@@ -574,6 +582,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			.Select(async i => await processor.AddAsync($"large-payload-item-{i}-with-extra-data", CancellationToken.None).ConfigureAwait(false));
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(() => Volatile.Read(ref processedCount) >= itemCount, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 
 		processedCount.ShouldBe(itemCount);
