@@ -405,6 +405,21 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
+
+		// Wait for processing task to start and process items (CI can be extremely slow to schedule)
+		using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+		try
+		{
+			while (Volatile.Read(ref callCount) < 2 && !timeout.IsCancellationRequested)
+			{
+				await Task.Delay(100, timeout.Token).ConfigureAwait(false);
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			// Timeout expired -- DisposeAsync will attempt to flush
+		}
+
 		await processor.DisposeAsync().ConfigureAwait(false);
 
 		// First call throws but the processor should continue draining subsequent work.

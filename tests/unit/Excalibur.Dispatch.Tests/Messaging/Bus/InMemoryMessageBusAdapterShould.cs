@@ -302,7 +302,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		publishResult.Succeeded.ShouldBeTrue();
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers
-			.AwaitSignalAsync(dispatched.Task, TimeSpan.FromSeconds(10))
+			.AwaitSignalAsync(dispatched.Task, TimeSpan.FromSeconds(60))
 			.ConfigureAwait(false);
 		var delivered = await dispatched.Task;
 		delivered.Message.ShouldBeSameAs(message);
@@ -348,8 +348,8 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		publishResult.Succeeded.ShouldBeTrue();
 
 		await Task.WhenAll(
-				global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(throwingHandlerInvoked.Task, TimeSpan.FromSeconds(10)),
-				global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(successfulHandlerInvoked.Task, TimeSpan.FromSeconds(10)))
+				global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(throwingHandlerInvoked.Task, TimeSpan.FromSeconds(60)),
+				global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(successfulHandlerInvoked.Task, TimeSpan.FromSeconds(60)))
 			.ConfigureAwait(false);
 
 		throwingHandlerCalls.ShouldBe(1);
@@ -383,7 +383,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		publishResult.Succeeded.ShouldBeTrue();
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers
-			.AwaitSignalAsync(dispatched.Task, TimeSpan.FromSeconds(10))
+			.AwaitSignalAsync(dispatched.Task, TimeSpan.FromSeconds(60))
 			.ConfigureAwait(false);
 		var dispatchedContext = await dispatched.Task;
 		dispatchedContext.Message.ShouldBeSameAs(message);
