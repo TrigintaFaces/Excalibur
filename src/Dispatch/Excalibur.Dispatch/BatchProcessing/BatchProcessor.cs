@@ -40,6 +40,12 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	private int _disposed;
 
 	/// <summary>
+	/// One-shot signal that fires when <see cref="ProcessBatchesAsync"/> starts reading from the channel.
+	/// Awaited by <see cref="DisposeAsync"/> to prevent completing the channel before the processor starts.
+	/// </summary>
+	private readonly TaskCompletionSource _processingStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+	/// <summary>
 	/// ActivitySource for distributed tracing (instance-scoped to enable test listener registration).
 	/// </summary>
 	private readonly ActivitySource _activitySource;
@@ -187,6 +193,18 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		// Capture a local reference to avoid races with concurrent Dispose
 		var cts = Interlocked.Exchange(ref _shutdownTokenSource, null!);
 
+		// Wait for the processing task to start reading before completing the channel.
+		// Without this, under thread pool saturation the channel could be completed
+		// before ProcessBatchesAsync is scheduled, causing silent item loss.
+		try
+		{
+			await _processingStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		}
+		catch (TimeoutException)
+		{
+			LogProcessingTaskStartTimeout(_logger);
+		}
+
 		_ = _inputChannel.Writer.TryComplete();
 
 		try
@@ -323,6 +341,8 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	/// </summary>
 	private async Task ProcessBatchesAsync(CancellationToken cancellationToken)
 	{
+		_processingStarted.TrySetResult();
+
 		var pendingItems = new List<ItemWithToken>(_options.MaxBatchSize);
 		var activeBatch = new List<T>(_options.MaxBatchSize);
 		const int maxConcurrentBatches = 10; // Limit to prevent unbounded concurrency
@@ -443,6 +463,7 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		}
 		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
+			_processingStarted.TrySetResult(); // Ensure DisposeAsync doesn't hang
 			// Expected during shutdown
 		}
 		catch (TimeoutException)
@@ -564,6 +585,9 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	// Source-generated logging methods
 	[LoggerMessage(LogLevel.Debug, "CancellationTokenSource already disposed during shutdown signal")]
 	private static partial void LogShutdownCancellationTokenDisposed(ILogger logger);
+
+	[LoggerMessage(LogLevel.Warning, "BatchProcessor processing task did not start within 5 seconds during disposal")]
+	private static partial void LogProcessingTaskStartTimeout(ILogger logger);
 
 	[LoggerMessage(LogLevel.Warning, "BatchProcessor processing task did not complete within 30 seconds during disposal")]
 	private static partial void LogProcessingTaskTimeout(ILogger logger);

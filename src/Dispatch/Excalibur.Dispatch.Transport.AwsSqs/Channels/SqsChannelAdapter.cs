@@ -36,6 +36,12 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 	private readonly SemaphoreSlim _pollingSemaphore;
 
 	/// <summary>
+	/// One-shot signal that fires when <see cref="ProcessSendBatchesAsync"/> starts reading from the channel.
+	/// Awaited by <see cref="StopAsync"/> to prevent completing the channel before the processor starts.
+	/// </summary>
+	private readonly TaskCompletionSource _batchSendStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+	/// <summary>
 	/// Sending infrastructure.
 	/// </summary>
 	private readonly Task _batchSendTask;
@@ -300,6 +306,19 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 
 		// Stop accepting new messages
 		_ = _receiveChannel.Writer.TryComplete();
+
+		// Wait for batch send task to start reading before completing the send channel.
+		// Without this, under thread pool saturation the channel could be completed
+		// before ProcessSendBatchesAsync is scheduled, causing silent message loss.
+		try
+		{
+			await _batchSendStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		}
+		catch (TimeoutException)
+		{
+			LogBatchSendStartTimeout();
+		}
+
 		_ = _sendChannel.Writer.TryComplete();
 
 		// Wait for polling tasks
@@ -417,36 +436,54 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 
 	private async Task ProcessSendBatchesAsync(CancellationToken cancellationToken)
 	{
+		_batchSendStarted.TrySetResult();
+
 		var currentBatch = new List<SendMessageBatchRequestEntry>();
 
-		await foreach (var messageBatch in _sendChannel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+		try
+		{
+			await foreach (var messageBatch in _sendChannel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+			{
+				try
+				{
+					// Add messages to current batch
+					foreach (var entry in messageBatch.Entries)
+					{
+						currentBatch.Add(entry);
+
+						// Send when batch is full
+						if (currentBatch.Count >= 10) // SQS max batch size
+						{
+							await SendBatchAsync(currentBatch, cancellationToken).ConfigureAwait(false);
+							currentBatch.Clear();
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					_ = Interlocked.Increment(ref _sendErrors);
+					LogSendBatchError(ex);
+				}
+			}
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			_batchSendStarted.TrySetResult(); // Ensure StopAsync doesn't hang
+			// Expected during shutdown
+		}
+
+		// Send any remaining messages
+		if (currentBatch.Count > 0)
 		{
 			try
 			{
-				// Add messages to current batch
-				foreach (var entry in messageBatch.Entries)
-				{
-					currentBatch.Add(entry);
-
-					// Send when batch is full
-					if (currentBatch.Count >= 10) // SQS max batch size
-					{
-						await SendBatchAsync(currentBatch, cancellationToken).ConfigureAwait(false);
-						currentBatch.Clear();
-					}
-				}
+				await SendBatchAsync(currentBatch, CancellationToken.None).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
 				_ = Interlocked.Increment(ref _sendErrors);
 				LogSendBatchError(ex);
 			}
-		}
-
-		// Send any remaining messages
-		if (currentBatch.Count > 0)
-		{
-			await SendBatchAsync(currentBatch, cancellationToken).ConfigureAwait(false);
 		}
 	}
 
@@ -538,4 +575,8 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 	[LoggerMessage(AwsSqsEventId.ChannelMessageBatchSendError, LogLevel.Error,
 		"Error sending message batch of {Count} messages")]
 	private partial void LogMessageBatchSendError(int count, Exception ex);
+
+	[LoggerMessage(AwsSqsEventId.ChannelBatchSendStartTimeout, LogLevel.Warning,
+		"SqsChannelAdapter batch send task did not start within 5 seconds during stop")]
+	private partial void LogBatchSendStartTimeout();
 }

@@ -232,6 +232,13 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 		AwsSqsEventId.ChannelDeleteBatchError.ShouldBeInRange(25400, 25499);
 		AwsSqsEventId.ChannelDeleteMessageFailed.ShouldBeInRange(25400, 25499);
 		AwsSqsEventId.ChannelProcessingFailed.ShouldBeInRange(25400, 25499);
+		AwsSqsEventId.ChannelBatchSendStartTimeout.ShouldBeInRange(25400, 25499);
+	}
+
+	[Fact]
+	public void HaveChannelBatchSendStartTimeoutInChannelRange()
+	{
+		AwsSqsEventId.ChannelBatchSendStartTimeout.ShouldBe(25429);
 	}
 
 	#endregion
@@ -554,6 +561,7 @@ public sealed class AwsSqsEventIdShould : UnitTestBase
 			AwsSqsEventId.BatchProcessorDeleted,
 			AwsSqsEventId.BatchProcessorAccumulating,
 			AwsSqsEventId.BatchProcessorFlushTriggered,
+			AwsSqsEventId.ChannelBatchSendStartTimeout,
 
 			// SQS High Throughput (25500-25599)
 			AwsSqsEventId.HighThroughputStarted,

@@ -10,35 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.Parallel;
 public sealed class ParallelProcessingModelsShould
 {
 	[Fact]
-	public void CreateProcessingResultWithDefaults()
-	{
-		// Act
-		var result = new ProcessingResult();
-
-		// Assert
-		result.Success.ShouldBeFalse();
-		result.WorkerId.ShouldBe(0);
-		result.ProcessingTime.ShouldBe(TimeSpan.Zero);
-	}
-
-	[Fact]
-	public void SetProcessingResultProperties()
-	{
-		// Act
-		var result = new ProcessingResult
-		{
-			Success = true,
-			WorkerId = 3,
-			ProcessingTime = TimeSpan.FromMilliseconds(150),
-		};
-
-		// Assert
-		result.Success.ShouldBeTrue();
-		result.WorkerId.ShouldBe(3);
-		result.ProcessingTime.ShouldBe(TimeSpan.FromMilliseconds(150));
-	}
-
-	[Fact]
 	public void CreateUtilizationReportWithDefaults()
 	{
 		// Act
@@ -77,44 +48,6 @@ public sealed class ParallelProcessingModelsShould
 		report.AverageProcessingTime.ShouldBe(TimeSpan.FromMilliseconds(25));
 		report.ContextSwitchCount.ShouldBe(1500);
 		report.TotalTasksProcessed.ShouldBe(10000);
-	}
-
-	[Fact]
-	public void CreateWorkerStatisticsWithDefaults()
-	{
-		// Act
-		var stats = new WorkerStatistics();
-
-		// Assert
-		stats.TotalWorkers.ShouldBe(0);
-		stats.ActiveWorkers.ShouldBe(0);
-		stats.PendingWork.ShouldBe(0);
-		stats.ProcessedCount.ShouldBe(0);
-		stats.ErrorCount.ShouldBe(0);
-		stats.AverageProcessingTime.ShouldBe(0);
-	}
-
-	[Fact]
-	public void SetWorkerStatisticsProperties()
-	{
-		// Act
-		var stats = new WorkerStatistics
-		{
-			TotalWorkers = 4,
-			ActiveWorkers = 3,
-			PendingWork = 12,
-			ProcessedCount = 5000,
-			ErrorCount = 25,
-			AverageProcessingTime = 8.75,
-		};
-
-		// Assert
-		stats.TotalWorkers.ShouldBe(4);
-		stats.ActiveWorkers.ShouldBe(3);
-		stats.PendingWork.ShouldBe(12);
-		stats.ProcessedCount.ShouldBe(5000);
-		stats.ErrorCount.ShouldBe(25);
-		stats.AverageProcessingTime.ShouldBe(8.75);
 	}
 
 	[Fact]

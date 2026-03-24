@@ -1,1 +1,2 @@
 #nullable enable
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelBatchSendStartTimeout = 25429 -> int

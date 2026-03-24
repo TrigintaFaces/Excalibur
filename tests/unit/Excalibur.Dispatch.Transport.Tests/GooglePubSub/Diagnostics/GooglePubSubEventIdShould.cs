@@ -180,6 +180,13 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 		GooglePubSubEventId.OrderingKeyFailed.ShouldBeInRange(23300, 23399);
 		GooglePubSubEventId.OrderingKeyReset.ShouldBeInRange(23300, 23399);
 		GooglePubSubEventId.OrderingKeyCleanupCompleted.ShouldBeInRange(23300, 23399);
+		GooglePubSubEventId.OrderingWorkerStartTimeout.ShouldBeInRange(23300, 23399);
+	}
+
+	[Fact]
+	public void HaveOrderingWorkerStartTimeoutInOrderingRange()
+	{
+		GooglePubSubEventId.OrderingWorkerStartTimeout.ShouldBe(23319);
 	}
 
 	#endregion
@@ -241,39 +248,6 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 		GooglePubSubEventId.OutstandingMessagesLimit.ShouldBeInRange(23500, 23599);
 		GooglePubSubEventId.FlowControlledSubscriberCreated.ShouldBeInRange(23500, 23599);
 		GooglePubSubEventId.SubscriberMessageProcessingError.ShouldBeInRange(23500, 23599);
-	}
-
-	#endregion
-
-	#region Parallel Processing Event ID Tests (23600-23699)
-
-	[Fact]
-	public void HaveParallelProcessingStartedInParallelRange()
-	{
-		GooglePubSubEventId.ParallelProcessingStarted.ShouldBe(23600);
-	}
-
-	[Fact]
-	public void HaveParallelProcessingCompletedInParallelRange()
-	{
-		GooglePubSubEventId.ParallelProcessingCompleted.ShouldBe(23601);
-	}
-
-	[Fact]
-	public void HaveAllParallelProcessingEventIdsInExpectedRange()
-	{
-		GooglePubSubEventId.ParallelProcessingStarted.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelProcessingCompleted.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.WorkerThreadStarted.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.WorkerThreadStopped.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelProcessorStarted.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelProcessorShutdown.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelProcessorShutdownTimeout.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelWorkerStarted.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelWorkerStopped.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelWorkerError.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelMessageProcessingError.ShouldBeInRange(23600, 23699);
-		GooglePubSubEventId.ParallelOrderingKeyAssigned.ShouldBeInRange(23600, 23699);
 	}
 
 	#endregion
@@ -473,6 +447,7 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 			GooglePubSubEventId.OrderingKeyFailed,
 			GooglePubSubEventId.OrderingKeyReset,
 			GooglePubSubEventId.OrderingKeyCleanupCompleted,
+			GooglePubSubEventId.OrderingWorkerStartTimeout,
 
 			// Batch Receiving (23400-23499)
 			GooglePubSubEventId.BatchReceiveStarted,
@@ -496,20 +471,6 @@ public sealed class GooglePubSubEventIdShould : UnitTestBase
 			GooglePubSubEventId.OutstandingMessagesLimit,
 			GooglePubSubEventId.FlowControlledSubscriberCreated,
 			GooglePubSubEventId.SubscriberMessageProcessingError,
-
-			// Parallel Processing (23600-23699)
-			GooglePubSubEventId.ParallelProcessingStarted,
-			GooglePubSubEventId.ParallelProcessingCompleted,
-			GooglePubSubEventId.WorkerThreadStarted,
-			GooglePubSubEventId.WorkerThreadStopped,
-			GooglePubSubEventId.ParallelProcessorStarted,
-			GooglePubSubEventId.ParallelProcessorShutdown,
-			GooglePubSubEventId.ParallelProcessorShutdownTimeout,
-			GooglePubSubEventId.ParallelWorkerStarted,
-			GooglePubSubEventId.ParallelWorkerStopped,
-			GooglePubSubEventId.ParallelWorkerError,
-			GooglePubSubEventId.ParallelMessageProcessingError,
-			GooglePubSubEventId.ParallelOrderingKeyAssigned,
 
 			// Dead Letter (23700-23799)
 			GooglePubSubEventId.MovedToDeadLetter,

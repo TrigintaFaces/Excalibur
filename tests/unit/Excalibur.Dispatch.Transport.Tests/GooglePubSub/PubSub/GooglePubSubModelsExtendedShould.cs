@@ -10,41 +10,6 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.PubSub;
 public sealed class GooglePubSubModelsExtendedShould
 {
 	[Fact]
-	public void CreateOrderedProcessingResultWithDefaults()
-	{
-		// Arrange & Act
-		var result = new OrderedProcessingResult();
-
-		// Assert
-		result.Success.ShouldBeFalse();
-		result.WorkerId.ShouldBe(0);
-		result.ProcessingTime.ShouldBe(TimeSpan.Zero);
-		result.WasOrdered.ShouldBeFalse();
-		result.QueueTime.ShouldBe(TimeSpan.Zero);
-	}
-
-	[Fact]
-	public void CreateOrderedProcessingResultWithValues()
-	{
-		// Arrange & Act
-		var result = new OrderedProcessingResult
-		{
-			Success = true,
-			WorkerId = 5,
-			ProcessingTime = TimeSpan.FromMilliseconds(120),
-			WasOrdered = true,
-			QueueTime = TimeSpan.FromMilliseconds(30),
-		};
-
-		// Assert
-		result.Success.ShouldBeTrue();
-		result.WorkerId.ShouldBe(5);
-		result.ProcessingTime.ShouldBe(TimeSpan.FromMilliseconds(120));
-		result.WasOrdered.ShouldBeTrue();
-		result.QueueTime.ShouldBe(TimeSpan.FromMilliseconds(30));
-	}
-
-	[Fact]
 	public void CreateOrderingKeyStatisticsWithDefaults()
 	{
 		// Arrange & Act

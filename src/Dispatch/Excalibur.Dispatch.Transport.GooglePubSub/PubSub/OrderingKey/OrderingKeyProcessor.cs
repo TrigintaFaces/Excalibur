@@ -36,6 +36,12 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 	private volatile bool _disposed;
 
 	/// <summary>
+	/// One-shot signal that fires when at least one worker starts reading from the channel.
+	/// Awaited by <see cref="DisposeAsync"/> to prevent completing the channel before any worker starts.
+	/// </summary>
+	private readonly TaskCompletionSource _workersStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="OrderingKeyProcessor" /> class.
 	/// </summary>
 	/// <param name="options"> Configuration options. </param>
@@ -192,6 +198,19 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 		{
 			// Signal shutdown
 			await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
+
+			// Wait for at least one worker to start reading before completing the channel.
+			// Without this, under thread pool saturation the channel could be completed
+			// before any ProcessorWorkerAsync is scheduled, causing silent work loss.
+			try
+			{
+				await _workersStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+			}
+			catch (TimeoutException)
+			{
+				LogWorkerStartTimeout();
+			}
+
 			_ = _workChannel.Writer.TryComplete();
 
 			// Wait for all workers to complete
@@ -226,6 +245,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 
 	private async Task ProcessorWorkerAsync(int workerId, CancellationToken cancellationToken)
 	{
+		_workersStarted.TrySetResult();
 		LogWorkerStarted(workerId);
 
 		try
@@ -240,6 +260,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
+			_workersStarted.TrySetResult(); // Ensure DisposeAsync doesn't hang
 			// Expected during shutdown
 		}
 		catch (Exception ex)
@@ -432,6 +453,10 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 	[LoggerMessage(GooglePubSubEventId.UnorderedMessageError, LogLevel.Error,
 		"Failed to process unordered message {MessageId}")]
 	private partial void LogUnorderedMessageError(string messageId, Exception ex);
+
+	[LoggerMessage(GooglePubSubEventId.OrderingWorkerStartTimeout, LogLevel.Warning,
+		"OrderingKeyProcessor worker tasks did not start within 5 seconds during disposal")]
+	private partial void LogWorkerStartTimeout();
 
 	[LoggerMessage(GooglePubSubEventId.OrderingQueueRemoved, LogLevel.Debug,
 		"Removed empty queue for ordering key {OrderingKey}")]

@@ -327,6 +327,9 @@ public static class AwsSqsEventId
 	/// <summary>Message batch send error.</summary>
 	public const int ChannelMessageBatchSendError = 25428;
 
+	/// <summary>Batch send task start timeout during stop.</summary>
+	public const int ChannelBatchSendStartTimeout = 25429;
+
 	// SqsChannelMessageProcessor
 	/// <summary>Starting SQS channel processor.</summary>
 	public const int ChannelProcessorStarting = 25430;

@@ -109,32 +109,4 @@ public sealed class GooglePubSubModelsShould
 		metadata.Metadata.ShouldBeEmpty();
 	}
 
-	[Fact]
-	public void CreateProcessingResult()
-	{
-		// Arrange & Act
-		var result = new ProcessingResult
-		{
-			Success = true,
-			WorkerId = 3,
-			ProcessingTime = TimeSpan.FromMilliseconds(50),
-		};
-
-		// Assert
-		result.Success.ShouldBeTrue();
-		result.WorkerId.ShouldBe(3);
-		result.ProcessingTime.ShouldBe(TimeSpan.FromMilliseconds(50));
-	}
-
-	[Fact]
-	public void HaveCorrectProcessingResultDefaults()
-	{
-		// Arrange & Act
-		var result = new ProcessingResult();
-
-		// Assert
-		result.Success.ShouldBeFalse();
-		result.WorkerId.ShouldBe(0);
-		result.ProcessingTime.ShouldBe(TimeSpan.Zero);
-	}
 }

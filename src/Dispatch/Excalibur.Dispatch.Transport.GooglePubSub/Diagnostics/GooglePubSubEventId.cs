@@ -233,6 +233,9 @@ public static class GooglePubSubEventId
 	/// <summary>Ordering key queue removed.</summary>
 	public const int OrderingQueueRemoved = 23318;
 
+	/// <summary>Ordering key worker start timeout during disposal.</summary>
+	public const int OrderingWorkerStartTimeout = 23319;
+
 	// OrderingKeyManager
 	/// <summary>Ordering key manager initialized.</summary>
 	public const int OrderingManagerInitialized = 23320;
@@ -316,47 +319,6 @@ public static class GooglePubSubEventId
 
 	/// <summary>Message processing error in subscriber.</summary>
 	public const int SubscriberMessageProcessingError = 23511;
-
-	// ========================================
-	// 23600-23699: Parallel Processing
-	// ========================================
-
-	/// <summary>Parallel processing started.</summary>
-	public const int ParallelProcessingStarted = 23600;
-
-	/// <summary>Parallel processing completed.</summary>
-	public const int ParallelProcessingCompleted = 23601;
-
-	/// <summary>Worker thread started.</summary>
-	public const int WorkerThreadStarted = 23602;
-
-	/// <summary>Worker thread stopped.</summary>
-	public const int WorkerThreadStopped = 23603;
-
-	// ParallelMessageProcessor
-	/// <summary>Parallel processor started.</summary>
-	public const int ParallelProcessorStarted = 23610;
-
-	/// <summary>Parallel processor shutdown complete.</summary>
-	public const int ParallelProcessorShutdown = 23611;
-
-	/// <summary>Parallel processor shutdown timed out.</summary>
-	public const int ParallelProcessorShutdownTimeout = 23612;
-
-	/// <summary>Parallel worker started.</summary>
-	public const int ParallelWorkerStarted = 23613;
-
-	/// <summary>Parallel worker stopped.</summary>
-	public const int ParallelWorkerStopped = 23614;
-
-	/// <summary>Parallel worker error.</summary>
-	public const int ParallelWorkerError = 23615;
-
-	/// <summary>Parallel message processing error.</summary>
-	public const int ParallelMessageProcessingError = 23616;
-
-	/// <summary>Ordering key assigned to worker.</summary>
-	public const int ParallelOrderingKeyAssigned = 23617;
 
 	// ========================================
 	// 23700-23799: Dead Letter

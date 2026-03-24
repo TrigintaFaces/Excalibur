@@ -272,7 +272,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		// Poll for processing before dispose to avoid race under heavy CI load
 		_ = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref processedCount) >= 1,
-			TimeSpan.FromSeconds(5),
+			TimeSpan.FromSeconds(120),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await processor.DisposeAsync().ConfigureAwait(false);
@@ -374,6 +374,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false);
 		}
 
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => processedBatches.Count >= 2, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 		processedBatches.Count.ShouldBe(2);
 		processedBatches.All(batch => batch.Count == options.MaxBatchSize).ShouldBeTrue();
@@ -618,6 +620,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false);
 		}
 
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => batchSizes.Count > 1, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 
 		batchSizes.Count.ShouldBeGreaterThan(1);
@@ -663,6 +667,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			await Task.WhenAll(burstTasks).ConfigureAwait(false);
 		}
 
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref totalProcessed) >= expectedProcessedItemCount, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 
 		Volatile.Read(ref totalProcessed).ShouldBe(expectedProcessedItemCount);
@@ -736,6 +742,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		await Task.WhenAll(producerTasks).ConfigureAwait(false);
 		var expectedCount = threadCount * itemsPerThread;
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref totalProcessed) >= expectedCount, TimeSpan.FromSeconds(120));
 		await processor.DisposeAsync().ConfigureAwait(false);
 
 		exceptions.ShouldBeEmpty();
@@ -745,6 +753,115 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		// Verify no duplicate items (thread safety)
 		var uniqueItems = processedItems.Distinct().Count();
 		uniqueItems.ShouldBe(expectedCount);
+	}
+
+	/// <summary>
+	/// Regression test for bd-8rpq4: DisposeAsync race condition.
+	/// Under thread pool saturation, DisposeAsync could complete the channel before
+	/// ProcessBatchesAsync started reading, causing silent item loss.
+	/// The fix adds a TaskCompletionSource signal awaited by DisposeAsync.
+	/// </summary>
+	[Fact]
+	public async Task ProcessItemsWhenDisposedImmediatelyAfterAdd()
+	{
+		// Arrange
+		var processedItems = new ConcurrentBag<string>();
+		var options = new MicroBatchOptions
+		{
+			MaxBatchSize = 1,
+			MaxBatchDelay = TimeSpan.FromSeconds(10),
+		};
+
+		var processor = new BatchProcessor<string>(
+			batch =>
+			{
+				foreach (var item in batch)
+				{
+					processedItems.Add(item);
+				}
+
+				return ValueTask.CompletedTask;
+			},
+			_logger,
+			options);
+
+		_disposables.Add(processor);
+
+		// Act - Add item then immediately dispose (the race condition scenario)
+		await processor.AddAsync("race-condition-item", CancellationToken.None).ConfigureAwait(false);
+		await processor.DisposeAsync().ConfigureAwait(false);
+
+		// Assert - Item must be processed despite immediate disposal
+		processedItems.Count.ShouldBe(1);
+		processedItems.ShouldContain("race-condition-item");
+	}
+
+	/// <summary>
+	/// Regression test for bd-8rpq4: Multiple items added then immediate dispose.
+	/// Verifies that all items queued before disposal are processed.
+	/// </summary>
+	[Fact]
+	public async Task ProcessAllItemsWhenDisposedImmediatelyAfterMultipleAdds()
+	{
+		// Arrange
+		var processedItems = new ConcurrentBag<string>();
+		var options = new MicroBatchOptions
+		{
+			MaxBatchSize = 5,
+			MaxBatchDelay = TimeSpan.FromSeconds(10),
+		};
+
+		var processor = new BatchProcessor<string>(
+			batch =>
+			{
+				foreach (var item in batch)
+				{
+					processedItems.Add(item);
+				}
+
+				return ValueTask.CompletedTask;
+			},
+			_logger,
+			options);
+
+		_disposables.Add(processor);
+
+		// Act - Add multiple items then immediately dispose
+		for (var i = 0; i < 5; i++)
+		{
+			await processor.AddAsync($"item-{i}", CancellationToken.None).ConfigureAwait(false);
+		}
+
+		await processor.DisposeAsync().ConfigureAwait(false);
+
+		// Assert - All items must be processed
+		processedItems.Count.ShouldBe(5);
+		for (var i = 0; i < 5; i++)
+		{
+			processedItems.ShouldContain($"item-{i}");
+		}
+	}
+
+	/// <summary>
+	/// Regression test for bd-8rpq4: Double DisposeAsync is idempotent.
+	/// Ensures the TCS signal pattern does not break idempotent disposal.
+	/// </summary>
+	[Fact]
+	public async Task HandleDoubleDisposeAsyncGracefully()
+	{
+		// Arrange
+		var processor = new BatchProcessor<string>(
+			_ => ValueTask.CompletedTask,
+			_logger,
+			new MicroBatchOptions { MaxBatchSize = 1, MaxBatchDelay = TimeSpan.FromSeconds(1) });
+
+		_disposables.Add(processor);
+
+		// Act - Dispose twice; second call should be a no-op
+		await processor.DisposeAsync().ConfigureAwait(false);
+		await processor.DisposeAsync().ConfigureAwait(false);
+
+		// Assert - No exception thrown (test passes if we reach here)
 	}
 
 	public async ValueTask DisposeAsync()

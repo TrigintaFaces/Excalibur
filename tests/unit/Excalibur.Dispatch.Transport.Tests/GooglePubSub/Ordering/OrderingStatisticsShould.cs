@@ -116,41 +116,4 @@ public sealed class OrderingStatisticsShould
 		stats.ErrorCount.ShouldBe(42);
 	}
 
-	[Fact]
-	public void CreateOrderingPerformanceStatisticsWithDefaults()
-	{
-		// Act
-		var stats = new OrderingPerformanceStatistics();
-
-		// Assert
-		stats.TotalInSequence.ShouldBe(0);
-		stats.TotalOutOfSequence.ShouldBe(0);
-		stats.SequenceRatio.ShouldBe(0);
-		stats.AverageGapSize.ShouldBe(0);
-		stats.P95GapSize.ShouldBe(0);
-		stats.MaxGapSize.ShouldBe(0);
-	}
-
-	[Fact]
-	public void SetOrderingPerformanceStatisticsProperties()
-	{
-		// Act
-		var stats = new OrderingPerformanceStatistics
-		{
-			TotalInSequence = 950,
-			TotalOutOfSequence = 50,
-			SequenceRatio = 95.0,
-			AverageGapSize = 2.5,
-			P95GapSize = 10.0,
-			MaxGapSize = 25.0,
-		};
-
-		// Assert
-		stats.TotalInSequence.ShouldBe(950);
-		stats.TotalOutOfSequence.ShouldBe(50);
-		stats.SequenceRatio.ShouldBe(95.0);
-		stats.AverageGapSize.ShouldBe(2.5);
-		stats.P95GapSize.ShouldBe(10.0);
-		stats.MaxGapSize.ShouldBe(25.0);
-	}
 }
