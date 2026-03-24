@@ -392,6 +392,8 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 				Priority INT NOT NULL DEFAULT 0,
 				TargetTransports NVARCHAR(MAX) NULL,
 				IsMultiTransport BIT NOT NULL DEFAULT 0,
+				LeasedAt DATETIMEOFFSET NULL,
+				LeasedBy NVARCHAR(255) NULL,
 				INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt)
 			)
 			""";

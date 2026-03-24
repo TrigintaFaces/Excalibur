@@ -16,7 +16,8 @@ internal sealed class ComparativeBenchmarkConfig : ManualConfig
 			.WithToolchain(InProcessEmitToolchain.Instance)
 			.WithInvocationCount(1)
 			.WithUnrollFactor(1)
-			.WithIterationCount(3)
+			.WithIterationCount(10)
+			.WithWarmupCount(3)
 			.DontEnforcePowerPlan());
 	}
 }

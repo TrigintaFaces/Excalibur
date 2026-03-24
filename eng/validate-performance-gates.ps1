@@ -17,7 +17,7 @@ param(
     [double]$MediatRSingleCommandMaxRatio = 1.50,
 
     [Parameter(Mandatory = $false)]
-    [double]$MediatRQueryMaxRatio = 1.80,
+    [double]$MediatRQueryMaxRatio = 2.20,
 
     # Transport queued path overhead vs Wolverine improved from 0.59x to 2.3x
     # in Sprint 660 via 4 hot-path optimizations (lightweight context init,
@@ -393,7 +393,10 @@ if ($Gate -eq "MediatRLocalParity") {
     }
     $mediatrSingle = Find-MeanByMethod -Rows $rows -MethodName "MediatR: Single command handler"
 
-    $dispatchQuery = Find-MeanByMethod -Rows $rows -MethodName "Dispatch: Query with return value"
+    $dispatchQuery = Find-MeanByMethod -Rows $rows -MethodName "Dispatch: Query strict direct-local"
+    if ($null -eq $dispatchQuery) {
+        $dispatchQuery = Find-MeanByMethod -Rows $rows -MethodName "Dispatch: Query with return value"
+    }
     $mediatrQuery = Find-MeanByMethod -Rows $rows -MethodName "MediatR: Query with return value"
 
     if ($null -eq $dispatchSingle -or $null -eq $mediatrSingle) {

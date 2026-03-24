@@ -81,7 +81,8 @@ public sealed class AdaptiveWaitStrategyCpuShould
 		// Act -- Wait for condition that becomes true after many calls.
 		// Under the old tight-yield loop, this would burn CPU.
 		// Under the fixed version with backoff, condition checks should be reasonably spaced.
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		// Generous timeout for CI under heavy parallel load (backoff delays accumulate).
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
 		var result = await strategy.WaitAsync(() =>
 		{

@@ -266,6 +266,16 @@ public class MediatRComparisonBenchmarks
 	}
 
 	/// <summary>
+	/// Excalibur.Dispatch query via strict direct-local profile (no middleware, matching command direct-local).
+	/// </summary>
+	[Benchmark(Description = "Dispatch: Query strict direct-local")]
+	public async Task<IMessageResult> Dispatch_QueryWithReturnValue_StrictDirectLocal()
+	{
+		var query = new TestQuery { Id = 123 };
+		return await DispatchWithFreshContextAsync(_directDispatcher, _directContextFactory, query).ConfigureAwait(false);
+	}
+
+	/// <summary>
 	/// Excalibur.Dispatch typed query API path (IDispatchAction&lt;TResponse&gt;).
 	/// </summary>
 	[Benchmark(Description = "Dispatch: Query with return value (typed API)")]
