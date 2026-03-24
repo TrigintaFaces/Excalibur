@@ -341,8 +341,8 @@ public class OrderSummaryViewBuilder : IMaterializedViewBuilder<OrderSummaryView
 
 ```csharp
 // Register the materialized view store (choose one provider)
-services.AddSqlServerMaterializedViewStore(connectionString);
-// services.AddPostgresMaterializedViewStore(connectionString);
+services.AddSqlServerMaterializedViewStore(opts => opts.ConnectionString = connectionString);
+// services.AddPostgresMaterializedViewStore(opts => opts.ConnectionString = connectionString);
 
 services.AddMaterializedViews(builder =>
 {
@@ -412,7 +412,7 @@ public class GetOrderSummaryHandler : IActionHandler<GetOrderSummaryQuery, Order
 
 ```csharp
 // Simple registration
-services.AddSqlServerMaterializedViewStore(connectionString);
+services.AddSqlServerMaterializedViewStore(opts => opts.ConnectionString = connectionString);
 
 // Or with fluent builder
 services.AddMaterializedViews(builder =>
@@ -422,10 +422,12 @@ services.AddMaterializedViews(builder =>
 });
 
 // With custom table names
-services.AddSqlServerMaterializedViewStore(
-    connectionString,
-    viewTableName: "MyViews",
-    positionTableName: "MyViewPositions");
+services.AddSqlServerMaterializedViewStore(opts =>
+{
+    opts.ConnectionString = connectionString;
+    opts.ViewTableName = "MyViews";
+    opts.PositionTableName = "MyViewPositions";
+});
 ```
 
 **Storage:** JSON in `nvarchar(max)` column with MERGE upserts.
@@ -437,7 +439,7 @@ services.AddSqlServerMaterializedViewStore(
 ### PostgreSQL
 
 ```csharp
-services.AddPostgresMaterializedViewStore(connectionString);
+services.AddPostgresMaterializedViewStore(opts => opts.ConnectionString = connectionString);
 ```
 
 **Storage:** JSONB with `INSERT ON CONFLICT` upserts.

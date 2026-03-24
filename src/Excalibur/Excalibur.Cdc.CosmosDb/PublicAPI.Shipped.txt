@@ -228,9 +228,6 @@ Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.DatabaseId(string! databaseId) -> Exc
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ContainerId(string! containerId) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ChangeFeed(System.Action<Excalibur.Cdc.CosmosDb.CosmosDbChangeFeedOptions!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(string! connectionString) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(string! connectionString, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Microsoft.Azure.Cosmos.CosmosClient!>! clientFactory) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Microsoft.Azure.Cosmos.CosmosClient!>! clientFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, string! connectionString, System.Action<Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!

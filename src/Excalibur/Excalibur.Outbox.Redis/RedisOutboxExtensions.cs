@@ -44,25 +44,6 @@ public static class RedisOutboxExtensions
 	}
 
 	/// <summary>
-	/// Adds Redis outbox store to the service collection with connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Redis connection string.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddRedisOutboxStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddRedisOutboxStore(options =>
-		{
-			options.ConnectionString = connectionString;
-		});
-	}
-
-	/// <summary>
 	/// Adds Redis outbox store to the service collection with an existing connection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -112,25 +93,6 @@ public static class RedisOutboxExtensions
 		_ = builder.Services.AddRedisOutboxStore(configure);
 
 		return builder;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use Redis outbox store with connection string.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The Redis connection string.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UseRedisOutboxStore(
-		this IDispatchBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return builder.UseRedisOutboxStore(options =>
-		{
-			options.ConnectionString = connectionString;
-		});
 	}
 
 	/// <summary>

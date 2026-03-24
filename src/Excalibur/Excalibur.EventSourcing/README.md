@@ -21,7 +21,7 @@ dotnet add package Excalibur.EventSourcing
 
 ```csharp
 // Register event sourcing with a provider (SQL Server example)
-services.AddSqlServerEventSourcing(connectionString);
+services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 // Or use in-memory for testing
 services.AddInMemoryEventStore();

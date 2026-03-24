@@ -45,6 +45,7 @@ const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelAdapterStopping =
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelBatchDeleteCompleted = 25414 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelBatchDeleteFailed = 25415 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelBatchProduced = 25410 -> int
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelBatchSendStartTimeout = 25429 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelDeleteBatchError = 25438 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelDeleteMessageFailed = 25439 -> int
 const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.ChannelDeleteProcessorError = 25437 -> int

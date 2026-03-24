@@ -39,59 +39,6 @@ public static class MongoDbCdcExtensions
 	}
 
 	/// <summary>
-	/// Adds MongoDB CDC processor services with options from configuration.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The MongoDB connection string.</param>
-	/// <param name="processorId">The unique processor identifier.</param>
-	/// <param name="configure">Optional additional configuration.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMongoDbCdc(
-		this IServiceCollection services,
-		string connectionString,
-		string processorId,
-		Action<MongoDbCdcOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
-
-		return services.AddMongoDbCdc(options =>
-		{
-			options.Connection.ConnectionString = connectionString;
-			options.ProcessorId = processorId;
-			configure?.Invoke(options);
-		});
-	}
-
-	/// <summary>
-	/// Adds the MongoDB-based CDC state store with the specified connection string and options.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The MongoDB connection string.</param>
-	/// <param name="configureOptions">Optional action to configure CDC state store options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMongoDbCdcStateStore(
-		this IServiceCollection services,
-		string connectionString,
-		Action<MongoDbCdcStateStoreOptions>? configureOptions = null)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		// Register the IMongoClient singleton for the CDC state store
-		services.TryAddSingleton<IMongoClient>(_ => new MongoClient(connectionString));
-
-		RegisterCdcStateStoreOptions(services, configureOptions);
-
-		services.TryAddSingleton<IMongoDbCdcStateStore>(sp => new MongoDbCdcStateStore(
-			sp.GetRequiredService<IMongoClient>(),
-			sp.GetRequiredService<IOptions<MongoDbCdcStateStoreOptions>>()));
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds the MongoDB-based CDC state store using an <see cref="IMongoClient"/> from DI.
 	/// </summary>
 	/// <param name="services">The service collection.</param>

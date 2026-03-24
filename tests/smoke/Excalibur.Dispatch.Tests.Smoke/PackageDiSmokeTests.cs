@@ -79,6 +79,7 @@ public sealed class PackageDiSmokeTests
 		new ConfigurationBuilder().AddInMemoryCollection().Build();
 
 	private const string MockConnectionString = "Server=smoke-test;Database=smoke;Trusted_Connection=true";
+	private const string MockPostgresConnectionString = "Host=smoke-test;Database=smoke;Username=smoke;Password=smoke";
 
 	private static readonly Lazy<IReadOnlyDictionary<string, Action<IServiceCollection>>> RegistrationMap =
 		new(() => AllPackageRegistrations().ToDictionary(static x => x.PackageName, static x => x.Register, StringComparer.Ordinal));
@@ -334,9 +335,9 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.EventSourcing [TimeTravel]", s => s.AddTimeTravelQuery());
 		yield return Reg("Excalibur.EventSourcing.InMemory", s => s.AddInMemoryEventStore());
 		yield return Reg("Excalibur.EventSourcing.SqlServer", s =>
-			s.AddSqlServerEventStore(MockConnectionString));
+			s.AddSqlServerEventStore(() => new Microsoft.Data.SqlClient.SqlConnection(MockConnectionString)));
 		yield return Reg("Excalibur.EventSourcing.Postgres", s =>
-			s.AddPostgresEventStore(MockConnectionString));
+			s.AddPostgresEventStore(Npgsql.NpgsqlDataSource.Create(MockPostgresConnectionString)));
 		yield return Reg("Excalibur.EventSourcing.CosmosDb", s =>
 			s.AddCosmosDbEventStore(_ => { }));
 		yield return Reg("Excalibur.EventSourcing.DynamoDb", s =>
@@ -344,7 +345,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.EventSourcing.Firestore", s =>
 			s.AddFirestoreEventStore(_ => { }));
 		yield return Reg("Excalibur.EventSourcing.Redis", s =>
-			s.AddRedisEventStore("localhost:6379"));
+			s.AddRedisEventStore(opts => opts.ConnectionString = "localhost:6379"));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR OUTBOX
@@ -354,7 +355,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Outbox [HostedService]", s => s.AddOutboxHostedService());
 		yield return Reg("Excalibur.Outbox [InboxHostedService]", s => s.AddInboxHostedService());
 		yield return Reg("Excalibur.Outbox.SqlServer", s =>
-			s.AddSqlServerOutboxStore(MockConnectionString));
+			s.AddSqlServerOutboxStore(() => new Microsoft.Data.SqlClient.SqlConnection(MockConnectionString)));
 		yield return Reg("Excalibur.Outbox.CosmosDb", s =>
 			s.AddCosmosDbOutboxStore(_ => { }));
 		yield return Reg("Excalibur.Outbox.DynamoDb", s =>
@@ -390,7 +391,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Saga [TimeoutCleanup]", s => s.AddSagaTimeoutCleanup());
 		yield return Reg("Excalibur.Saga [Orchestration]", s => s.AddDispatchOrchestration());
 		yield return Reg("Excalibur.Saga.SqlServer", s =>
-			s.AddSqlServerSagaStore(MockConnectionString));
+			s.AddSqlServerSagaStore(sql => { sql.ConnectionString = MockConnectionString; }));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR A3 (Authentication, Authorization, Auditing)
@@ -421,7 +422,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Compliance.Postgres", s =>
 			s.AddPostgresErasureStore(MockConnectionString));
 		yield return Reg("Excalibur.Compliance.SqlServer", s =>
-			s.AddSqlServerKeyEscrow(MockConnectionString));
+			s.AddSqlServerKeyEscrow(opts => opts.ConnectionString = MockConnectionString));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR HOSTING

@@ -19,6 +19,28 @@ internal sealed class MongoDbCdcStateStoreBuilder : ICdcStateStoreBuilder
 	/// <summary>Gets the BindConfiguration section path, if set.</summary>
 	internal string? BindConfigurationPath { get; private set; }
 
+	/// <summary>Gets the connection string set via <see cref="ConnectionString"/>.</summary>
+	internal string? StateConnectionString { get; private set; }
+
+	/// <summary>Gets the connection string name to resolve from configuration, if set.</summary>
+	internal string? StateConnectionStringName { get; private set; }
+
+	/// <inheritdoc/>
+	public ICdcStateStoreBuilder ConnectionString(string connectionString)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		StateConnectionString = connectionString;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ICdcStateStoreBuilder ConnectionStringName(string name)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		StateConnectionStringName = name;
+		return this;
+	}
+
 	/// <inheritdoc/>
 	/// <remarks>Maps to <see cref="MongoDbCdcStateStoreOptions.DatabaseName"/>.</remarks>
 	public ICdcStateStoreBuilder SchemaName(string schema)

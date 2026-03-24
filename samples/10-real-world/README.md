@@ -117,7 +117,7 @@ These samples follow:
 
 ```csharp
 // Replace InMemoryOrderStore with:
-services.AddSqlServerEventSourcing(connectionString);
+services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 services.AddExcaliburEventSourcing(es =>
 {
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
@@ -132,7 +132,7 @@ services.AddDispatch(builder => builder
     }));
 
 // Add outbox for reliability
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerEventSourcingOutbox(opts => opts.ConnectionString = connectionString);
 services.AddDispatch(builder => builder.AddOutboxMiddleware());
 ```
 

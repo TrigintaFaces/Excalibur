@@ -247,9 +247,10 @@ services.AddSqlServerOutboxStore(options =>
 ```csharp
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UsePostgres(connectionString, postgres =>
+    outbox.UsePostgres(postgres =>
     {
-        postgres.SchemaName("outbox")
+        postgres.ConnectionString(connectionString)
+                .SchemaName("outbox")
                 .TableName("outbox_messages");
     });
 });
@@ -305,7 +306,7 @@ WHERE [ProcessedAt] IS NULL;
 services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
 
 // Add storage
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // Register the background service
 services.AddOutboxHostedService();
@@ -319,7 +320,7 @@ For enterprise scheduling needs, use `OutboxProcessorJob` from `Excalibur.Jobs`:
 // Install: dotnet add package Excalibur.Jobs
 
 services.AddExcaliburOutbox(OutboxOptions.Balanced().Build());
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // Register the Quartz.NET outbox processor job
 // Configure schedule in appsettings.json or via Quartz API
@@ -338,7 +339,7 @@ services.AddExcaliburOutbox(OutboxOptions.Custom()
     .WithMaxRetries(3)
     .Build());  // EnableBackgroundProcessing defaults to true in presets
 
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // Process manually (e.g., Azure Function timer trigger)
 public class OutboxProcessorFunction
@@ -361,7 +362,7 @@ The outbox uses the configured `IOutboxPublisher` to send messages. The default 
 
 ```csharp
 services.AddExcaliburOutbox();
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // Messages are dispatched through IDispatcher by default
 ```
@@ -380,7 +381,7 @@ services.AddDispatch(dispatch =>
 });
 
 services.AddExcaliburOutbox();
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // Register Kafka publisher for outbox
 services.AddSingleton<IOutboxPublisher, KafkaOutboxPublisher>();
@@ -457,7 +458,7 @@ public class WebhookOutboxPublisher : IOutboxPublisher
 }
 
 services.AddExcaliburOutbox();
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 services.AddSingleton<IOutboxPublisher, WebhookOutboxPublisher>();
 ```
 
@@ -491,7 +492,7 @@ services.AddSqlServerOutboxStore(options =>
 });
 
 // Add dead letter queue handler
-services.AddSqlServerDeadLetterQueue(connectionString);
+services.AddSqlServerDeadLetterQueue(opts => opts.ConnectionString = connectionString);
 ```
 
 ## Cleanup
@@ -513,7 +514,7 @@ services.AddExcaliburOutbox(OutboxOptions.Balanced()
     .WithCleanupInterval(TimeSpan.FromHours(2))
     .Build());
 
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 ```
 
 ### Manual Cleanup

@@ -11,6 +11,12 @@ namespace Excalibur.Saga.SqlServer;
 public sealed class SqlServerSagaStoreOptions
 {
 	/// <summary>
+	/// Gets or sets the SQL Server connection string.
+	/// </summary>
+	/// <value>The connection string. Required.</value>
+	public string? ConnectionString { get; set; }
+
+	/// <summary>
 	/// Gets or sets the schema name for the saga table.
 	/// </summary>
 	/// <value>The schema name. Defaults to "dispatch".</value>

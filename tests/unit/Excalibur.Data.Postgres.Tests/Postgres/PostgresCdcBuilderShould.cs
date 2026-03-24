@@ -28,11 +28,11 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgres(TestConnectionString));
+			builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString)));
 	}
 
 	[Fact]
-	public void UsePostgres_ThrowsOnNullConnectionString()
+	public void UsePostgres_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -41,12 +41,12 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres((string)null!);
+				_ = builder.UsePostgres((Action<IPostgresCdcBuilder>)null!);
 			}));
 	}
 
 	[Fact]
-	public void UsePostgres_ThrowsOnEmptyConnectionString()
+	public void ConnectionString_ThrowsOnNullValue()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -55,12 +55,12 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres("");
+				_ = builder.UsePostgres(pg => pg.ConnectionString(null!));
 			}));
 	}
 
 	[Fact]
-	public void UsePostgres_ThrowsOnWhitespaceConnectionString()
+	public void ConnectionString_ThrowsOnEmptyValue()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -69,7 +69,21 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres("   ");
+				_ = builder.UsePostgres(pg => pg.ConnectionString(""));
+			}));
+	}
+
+	[Fact]
+	public void ConnectionString_ThrowsOnWhitespaceValue()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentException>(() =>
+			services.AddCdcProcessor(builder =>
+			{
+				_ = builder.UsePostgres(pg => pg.ConnectionString("   "));
 			}));
 	}
 
@@ -83,7 +97,7 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			capturedResult = builder.UsePostgres(TestConnectionString);
+			capturedResult = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 		});
 
 		// Assert
@@ -100,7 +114,7 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString);
+			_ = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -121,7 +135,7 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString);
+			_ = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 		});
 
 		// Assert - service descriptor exists
@@ -140,7 +154,7 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString);
+			_ = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 		});
 
 		// Assert - service descriptor exists
@@ -159,9 +173,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.SchemaName("audit");
+				_ = pg.ConnectionString(TestConnectionString)
+				  .SchemaName("audit");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -181,9 +196,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.StateTableName("cdc_positions");
+				_ = pg.ConnectionString(TestConnectionString)
+				  .StateTableName("cdc_positions");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -203,9 +219,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.ReplicationSlotName("my_slot");
+				_ = pg.ConnectionString(TestConnectionString)
+				  .ReplicationSlotName("my_slot");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -225,9 +242,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.PublicationName("my_publication");
+				_ = pg.ConnectionString(TestConnectionString)
+				  .PublicationName("my_publication");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -248,9 +266,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.PollingInterval(expectedInterval);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .PollingInterval(expectedInterval);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -270,9 +289,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.BatchSize(500);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .BatchSize(500);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -293,9 +313,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.Timeout(expectedTimeout);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .Timeout(expectedTimeout);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -316,9 +337,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.ProcessorId(processorId);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .ProcessorId(processorId);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -338,9 +360,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.UseBinaryProtocol(true);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .UseBinaryProtocol(true);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -360,9 +383,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.AutoCreateSlot(false);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .AutoCreateSlot(false);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -382,9 +406,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.SchemaName("excalibur")
+				_ = pg.ConnectionString(TestConnectionString)
+				  .SchemaName("excalibur")
 				  .StateTableName("cdc_state")
 				  .ReplicationSlotName("my_slot")
 				  .PublicationName("my_pub")
@@ -425,9 +450,10 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		_ = services.AddCdcProcessor(builder =>
 		{
 			_ = builder
-				.UsePostgres(TestConnectionString, pg =>
+				.UsePostgres(pg =>
 				{
-					_ = pg.SchemaName("excalibur")
+					_ = pg.ConnectionString(TestConnectionString)
+					  .SchemaName("excalibur")
 					  .BatchSize(500);
 				})
 				.TrackTable("public.orders", table =>
@@ -463,7 +489,7 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString);
+			_ = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 		});
 		var provider = services.BuildServiceProvider();
 

@@ -30,7 +30,7 @@ builder.Services.AddExcaliburJobHost(
 			{
 				store.UseProperties = true;
 				store.PerformSchemaValidation = true;
-				// Note: This will need Quartz SQL Server package extensions to work store.UseSqlServer(connectionString);
+				// Note: This will need Quartz SQL Server package extensions to work store.UseSqlServer(opts => opts.ConnectionString = connectionString);
 			});
 		}
 

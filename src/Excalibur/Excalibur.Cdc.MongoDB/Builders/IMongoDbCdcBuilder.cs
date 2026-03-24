@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using MongoDB.Driver;
-
 namespace Excalibur.Cdc.MongoDB;
 
 /// <summary>
@@ -60,41 +58,19 @@ public interface IMongoDbCdcBuilder
 	IMongoDbCdcBuilder ReconnectInterval(TimeSpan interval);
 
 	/// <summary>
-	/// Configures a separate connection for CDC state persistence using a connection string.
+	/// Configures a separate connection for CDC state persistence.
 	/// </summary>
-	/// <param name="connectionString">The state store MongoDB connection string.</param>
+	/// <param name="configure">An action to configure state store settings including connection, database, and collection.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
 	/// When omitted, the source connection is used for state persistence (backward compatible).
 	/// </para>
 	/// </remarks>
-	IMongoDbCdcBuilder WithStateStore(string connectionString);
-
-	/// <summary>
-	/// Configures a separate connection for CDC state persistence with state store configuration.
-	/// </summary>
-	/// <param name="connectionString">The state store MongoDB connection string.</param>
-	/// <param name="configure">An action to configure state store database/collection settings.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IMongoDbCdcBuilder WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure);
-
-	/// <summary>
-	/// Configures a separate MongoDB client factory for CDC state persistence.
-	/// </summary>
-	/// <param name="clientFactory">A factory function that creates a MongoDB client for state storage.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IMongoDbCdcBuilder WithStateStore(Func<IServiceProvider, IMongoClient> clientFactory);
-
-	/// <summary>
-	/// Configures a separate MongoDB client factory for CDC state persistence with state store configuration.
-	/// </summary>
-	/// <param name="clientFactory">A factory function that creates a MongoDB client for state storage.</param>
-	/// <param name="configure">An action to configure state store database/collection settings.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IMongoDbCdcBuilder WithStateStore(
-		Func<IServiceProvider, IMongoClient> clientFactory,
-		Action<ICdcStateStoreBuilder> configure);
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="configure"/> is null.
+	/// </exception>
+	IMongoDbCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure);
 
 	/// <summary>
 	/// Binds MongoDB CDC source options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.

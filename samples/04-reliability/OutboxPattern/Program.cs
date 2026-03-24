@@ -245,8 +245,8 @@ logger.LogInformation("");
 logger.LogInformation("=== Production Considerations ===");
 logger.LogInformation("");
 logger.LogInformation("For production, replace InMemory stores with durable implementations:");
-logger.LogInformation("  services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(connectionString));");
-logger.LogInformation("  services.AddExcaliburInbox(inbox => inbox.UseSqlServer(connectionString));");
+logger.LogInformation("  services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString));");
+logger.LogInformation("  services.AddExcaliburInbox(inbox => inbox.UseSqlServer(opts => opts.ConnectionString = connectionString));");
 
 logger.LogInformation("");
 logger.LogInformation("Sample completed. Press Ctrl+C to exit...");

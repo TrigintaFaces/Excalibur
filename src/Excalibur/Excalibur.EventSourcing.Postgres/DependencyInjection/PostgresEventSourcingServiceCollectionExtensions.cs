@@ -27,37 +27,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class PostgresEventSourcingServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds Postgres event store implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="PostgresEventStore"/> as the <see cref="IEventStore"/> implementation.
-	/// For configuration via options, use <see cref="AddPostgresEventSourcing(IServiceCollection, Action{PostgresEventSourcingOptions})"/>.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresEventStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		services.TryAddSingleton(sp =>
-			new PostgresEventStore(
-				connectionString,
-				sp.GetRequiredService<ILogger<PostgresEventStore>>(),
-				sp.GetService<ISerializer>(),
-				sp.GetService<IPayloadSerializer>()));
-
-		RegisterEventStoreTelemetryWrapper(services);
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds Postgres event store implementation with an NpgsqlDataSource.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -89,34 +58,6 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds Postgres snapshot store implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="PostgresSnapshotStore"/> as the <see cref="ISnapshotStore"/> implementation.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresSnapshotStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		services.TryAddSingleton(sp =>
-			new PostgresSnapshotStore(
-				connectionString,
-				sp.GetRequiredService<ILogger<PostgresSnapshotStore>>()));
-
-		RegisterSnapshotStoreTelemetryWrapper(services);
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds Postgres snapshot store implementation with an NpgsqlDataSource.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -135,32 +76,6 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 				sp.GetRequiredService<ILogger<PostgresSnapshotStore>>()));
 
 		RegisterSnapshotStoreTelemetryWrapper(services);
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds Postgres event-sourced outbox store implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="PostgresEventSourcedOutboxStore"/> as the <see cref="IEventSourcedOutboxStore"/> implementation.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresOutboxStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		services.TryAddSingleton<IEventSourcedOutboxStore>(sp =>
-			new PostgresEventSourcedOutboxStore(
-				connectionString,
-				sp.GetRequiredService<ILogger<PostgresEventSourcedOutboxStore>>()));
 
 		return services;
 	}
@@ -227,10 +142,14 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 
 		_ = services.Configure(configure);
 
-		// Register stores
-		_ = services.AddPostgresEventStore(options.ConnectionString);
-		_ = services.AddPostgresSnapshotStore(options.ConnectionString);
-		_ = services.AddPostgresOutboxStore(options.ConnectionString);
+		// Register NpgsqlDataSource as singleton (DI container manages lifecycle)
+#pragma warning disable CA2000 // Dispose objects before losing scope -- managed by DI container
+		var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
+#pragma warning restore CA2000
+		services.TryAddSingleton(dataSource);
+		_ = services.AddPostgresEventStore(dataSource);
+		_ = services.AddPostgresSnapshotStore(dataSource);
+		_ = services.AddPostgresOutboxStore(dataSource);
 
 		// Register health checks if enabled
 		if (options.HealthChecks.RegisterHealthChecks)
@@ -251,31 +170,6 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		}
 
 		return services;
-	}
-
-	/// <summary>
-	/// Adds all Postgres event sourcing implementations with a connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <param name="registerHealthChecks">Whether to register health checks. Default: true.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Convenience method that registers event store, snapshot store, and outbox store
-	/// with a single connection string.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresEventSourcing(
-		this IServiceCollection services,
-		string connectionString,
-		bool registerHealthChecks = true)
-	{
-		return services.AddPostgresEventSourcing(options =>
-		{
-			options.ConnectionString = connectionString;
-			options.HealthChecks.RegisterHealthChecks = registerHealthChecks;
-		});
 	}
 
 	/// <summary>
@@ -305,56 +199,6 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Alias for <see cref="AddPostgresEventSourcing(IServiceCollection, string, bool)"/> to match template usage.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method exists for template compatibility where <c>es.UsePostgres(connectionString)</c> is expected.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection UsePostgres(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		return services.AddPostgresEventSourcing(connectionString);
-	}
-
-	/// <summary>
-	/// Adds Postgres materialized view store implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <param name="viewTableName">Optional view table name. Defaults to "materialized_views".</param>
-	/// <param name="positionTableName">Optional position table name. Defaults to "materialized_view_positions".</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="PostgresMaterializedViewStore"/> as the <see cref="IMaterializedViewStore"/> implementation.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresMaterializedViewStore(
-		this IServiceCollection services,
-		string connectionString,
-		string? viewTableName = null,
-		string? positionTableName = null)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		services.TryAddSingleton<IMaterializedViewStore>(sp =>
-			new PostgresMaterializedViewStore(
-				connectionString,
-				sp.GetRequiredService<ILogger<PostgresMaterializedViewStore>>(),
-				viewTableName,
-				positionTableName));
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds Postgres materialized view store implementation with an NpgsqlDataSource.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -377,50 +221,6 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 				sp.GetRequiredService<ILogger<PostgresMaterializedViewStore>>(),
 				viewTableName,
 				positionTableName));
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds Postgres schema migrator implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <param name="migrationAssembly">The assembly containing migration scripts as embedded resources.</param>
-	/// <param name="migrationNamespace">The namespace prefix for migration resources (e.g., "MyApp.Migrations").</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="PostgresMigrator"/> as the <see cref="IMigrator"/> implementation.
-	/// Migration scripts should be embedded resources named following the pattern: YYYYMMDDHHMMSS_MigrationName.sql
-	/// </para>
-	/// <para>
-	/// <b>Usage:</b>
-	/// <code>
-	/// services.AddPostgresMigrator(
-	///     connectionString,
-	///     typeof(Program).Assembly,
-	///     "MyApp.Migrations");
-	/// </code>
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddPostgresMigrator(
-		this IServiceCollection services,
-		string connectionString,
-		Assembly migrationAssembly,
-		string migrationNamespace)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-		ArgumentNullException.ThrowIfNull(migrationAssembly);
-		ArgumentNullException.ThrowIfNull(migrationNamespace);
-
-		services.TryAddSingleton<IMigrator>(sp =>
-			new PostgresMigrator(
-				connectionString,
-				migrationAssembly,
-				migrationNamespace,
-				sp.GetRequiredService<ILogger<PostgresMigrator>>()));
 
 		return services;
 	}
@@ -511,7 +311,14 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		}
 
 		_ = services.Configure(configure);
-		_ = services.AddPostgresMigrator(options.ConnectionString, options.MigrationAssembly, options.MigrationNamespace);
+#pragma warning disable CA2000 // Dispose objects before losing scope -- managed by DI container
+		var migratorDataSource = NpgsqlDataSource.Create(options.ConnectionString);
+#pragma warning restore CA2000
+		services.TryAddSingleton(migratorDataSource);
+		_ = services.AddPostgresMigrator(
+			migratorDataSource,
+			options.MigrationAssembly,
+			options.MigrationNamespace);
 
 		if (options.AutoMigrateOnStartup)
 		{

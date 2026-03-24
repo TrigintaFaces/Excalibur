@@ -168,7 +168,7 @@ app.Run();
 
 Datadog automatically instruments:
 - **ASP.NET Core**: HTTP requests, middleware
-- **Entity Framework Core**: Database queries (if used)
+- **ADO.NET/Dapper**: Database queries
 - **HttpClient**: Outgoing HTTP calls
 - **SQL Server**: ADO.NET and Dapper queries
 

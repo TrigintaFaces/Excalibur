@@ -36,13 +36,13 @@ builder.Services.AddExcalibur(excalibur =>
 
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(connectionString);
+        outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
         outbox.EnableBackgroundProcessing();
     });
 });
 
 // Add SQL Server event sourcing provider (event store, snapshot store, outbox store)
-builder.Services.AddSqlServerEventSourcing(connectionString);
+builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 // Add controllers or minimal APIs
 builder.Services.AddControllers();
@@ -330,15 +330,26 @@ app.Lifetime.ApplicationStopping.Register(() =>
 
 ### Connection Resiliency
 
+Excalibur uses Dapper and ADO.NET for all SQL operations. Configure retry policies with Polly:
+
 ```csharp
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddExcaliburOutbox(outbox =>
 {
-    options.UseSqlServer(connectionString, sql =>
+    outbox.UseSqlServer(sql =>
     {
-        sql.EnableRetryOnFailure(
-            maxRetryCount: 5,
-            maxRetryDelay: TimeSpan.FromSeconds(30),
-            errorNumbersToAdd: null);
+        sql.ConnectionString(connectionString);
+    });
+});
+
+// Add resilience via Polly
+builder.Services.AddResiliencePipeline("sql-retry", pipeline =>
+{
+    pipeline.AddRetry(new RetryStrategyOptions
+    {
+        MaxRetryAttempts = 5,
+        Delay = TimeSpan.FromSeconds(1),
+        BackoffType = DelayBackoffType.Exponential,
+        ShouldHandle = new PredicateBuilder().Handle<SqlException>()
     });
 });
 ```

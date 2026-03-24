@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc.Builders;
 
 /// <summary>
 /// Unit tests for <see cref="ISqlServerCdcBuilder.WithStateStore"/> and
-/// <see cref="ISqlServerCdcBuilder.BindConfiguration"/> methods added in Sprint 661 (CDC Phase 1).
+/// <see cref="ISqlServerCdcBuilder.BindConfiguration"/> methods.
 /// Validates the Microsoft Change Feed Processor pattern: separate source/state connections.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -21,7 +21,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 	private const string SourceConnectionString = "Server=source-db;Database=SourceDb;Encrypt=false;TrustServerCertificate=true";
 	private const string StateConnectionString = "Server=state-db;Database=StateDb;Encrypt=false;TrustServerCertificate=true";
 
-	// --- WithStateStore(string connectionString) ---
+	// --- WithStateStore(Action<ICdcStateStoreBuilder> configure) with ConnectionString ---
 
 	[Fact]
 	public void WithStateStore_ConnectionString_RegistersSeparateStateStore()
@@ -31,9 +31,10 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.DatabaseName("TestDb")
-				   .WithStateStore(StateConnectionString)));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .DatabaseName("TestDb")
+				   .WithStateStore(state => state.ConnectionString(StateConnectionString))));
 
 		// Assert -- ICdcStateStore should be registered (uses state connection)
 		services.ShouldContain(sd =>
@@ -49,9 +50,10 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.DatabaseName("TestDb")
-				   .WithStateStore(StateConnectionString)));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .DatabaseName("TestDb")
+				   .WithStateStore(state => state.ConnectionString(StateConnectionString))));
 
 		// Assert -- SqlServerCdcOptions still has source connection string
 		var provider = services.BuildServiceProvider();
@@ -71,11 +73,12 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(SourceConnectionString, sql =>
-					sql.WithStateStore(invalidValue!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(SourceConnectionString)
+					   .WithStateStore(state => state.ConnectionString(invalidValue!)))));
 	}
 
-	// --- WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure) ---
+	// --- WithStateStore(Action<ICdcStateStoreBuilder> configure) with SchemaName/TableName ---
 
 	[Fact]
 	public void WithStateStore_ConnectionStringWithConfigure_AppliesStateStoreOptions()
@@ -85,10 +88,12 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.DatabaseName("TestDb")
-				   .WithStateStore(StateConnectionString, state =>
-						state.SchemaName("custom_schema")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .DatabaseName("TestDb")
+				   .WithStateStore(state =>
+						state.ConnectionString(StateConnectionString)
+							 .SchemaName("custom_schema")
 							 .TableName("CustomState"))));
 
 		// Assert -- state store options reflect custom schema/table
@@ -99,7 +104,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public void WithStateStore_ConnectionStringWithConfigure_ThrowsOnNullConfigure()
+	public void WithStateStore_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -107,14 +112,15 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(SourceConnectionString, sql =>
-					sql.WithStateStore(StateConnectionString, null!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(SourceConnectionString)
+					   .WithStateStore(null!))));
 	}
 
-	// --- WithStateStore(Func<IServiceProvider, Func<SqlConnection>> stateConnectionFactory) ---
+	// --- StateConnectionFactory ---
 
 	[Fact]
-	public void WithStateStore_Factory_RegistersSeparateStateStore()
+	public void StateConnectionFactory_RegistersSeparateStateStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -123,9 +129,10 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.DatabaseName("TestDb")
-				   .WithStateStore(stateFactory)));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .DatabaseName("TestDb")
+				   .StateConnectionFactory(stateFactory)));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -134,7 +141,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public void WithStateStore_Factory_ThrowsOnNull()
+	public void StateConnectionFactory_ThrowsOnNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -142,14 +149,15 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(SourceConnectionString, sql =>
-					sql.WithStateStore((Func<IServiceProvider, Func<SqlConnection>>)null!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(SourceConnectionString)
+					   .StateConnectionFactory(null!))));
 	}
 
-	// --- WithStateStore(Func<...> factory, Action<ICdcStateStoreBuilder> configure) ---
+	// --- StateConnectionFactory + WithStateStore combined ---
 
 	[Fact]
-	public void WithStateStore_FactoryWithConfigure_AppliesStateStoreOptions()
+	public void StateConnectionFactory_WithStateStore_AppliesStateStoreOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -158,9 +166,11 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.DatabaseName("TestDb")
-				   .WithStateStore(stateFactory, state =>
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .DatabaseName("TestDb")
+				   .StateConnectionFactory(stateFactory)
+				   .WithStateStore(state =>
 						state.SchemaName("audit")
 							 .TableName("AuditState"))));
 
@@ -172,7 +182,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public void WithStateStore_FactoryWithConfigure_ThrowsOnNullFactory()
+	public void StateConnectionFactory_WithStateStore_ThrowsOnNullFactory()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -180,25 +190,9 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(SourceConnectionString, sql =>
-					sql.WithStateStore(
-						(Func<IServiceProvider, Func<SqlConnection>>)null!,
-						_ => { }))));
-	}
-
-	[Fact]
-	public void WithStateStore_FactoryWithConfigure_ThrowsOnNullConfigure()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		Func<IServiceProvider, Func<SqlConnection>> stateFactory =
-			_ => () => new SqlConnection(StateConnectionString);
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(SourceConnectionString, sql =>
-					sql.WithStateStore(stateFactory, null!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(SourceConnectionString)
+					   .StateConnectionFactory(null!))));
 	}
 
 	// --- Backward compatibility: omitting WithStateStore falls back to source ---
@@ -211,8 +205,9 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act -- no WithStateStore call
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.DatabaseName("TestDb")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .DatabaseName("TestDb")));
 
 		// Assert -- ICdcStateStore is still registered (uses source connection)
 		services.ShouldContain(sd =>
@@ -228,7 +223,8 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)));
 
 		// Assert -- state store options have defaults from source config
 		var provider = services.BuildServiceProvider();
@@ -247,8 +243,9 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act -- BindConfiguration is accepted without error
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.BindConfiguration("Cdc:SqlServer")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .BindConfiguration("Cdc:SqlServer")));
 
 		// Assert -- IOptions registration exists (BindConfiguration wires it)
 		var optionsDescriptors = services.Where(sd =>
@@ -271,8 +268,9 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(SourceConnectionString, sql =>
-					sql.BindConfiguration(invalidPath!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(SourceConnectionString)
+					   .BindConfiguration(invalidPath!))));
 	}
 
 	// --- State store BindConfiguration via ICdcStateStoreBuilder ---
@@ -285,10 +283,12 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.DatabaseName("TestDb")
-				   .WithStateStore(StateConnectionString, state =>
-						state.BindConfiguration("Cdc:State"))));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .DatabaseName("TestDb")
+				   .WithStateStore(state =>
+						state.ConnectionString(StateConnectionString)
+							 .BindConfiguration("Cdc:State"))));
 
 		// Assert -- state store options BindConfiguration is wired
 		var stateOptionsDescriptors = services.Where(sd =>
@@ -309,15 +309,17 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act -- exercise the full fluent chain without resolving services that need infra deps
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(SourceConnectionString, sql =>
-				sql.SchemaName("cdc")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(SourceConnectionString)
+				   .SchemaName("cdc")
 				   .StateTableName("CdcState")
 				   .BatchSize(200)
 				   .PollingInterval(TimeSpan.FromSeconds(10))
 				   .CommandTimeout(TimeSpan.FromSeconds(60))
 				   .DatabaseName("AuditDb")
-				   .WithStateStore(StateConnectionString, state =>
-						state.SchemaName("audit_state")
+				   .WithStateStore(state =>
+						state.ConnectionString(StateConnectionString)
+							 .SchemaName("audit_state")
 							 .TableName("AuditCheckpoints"))
 				   .BindConfiguration("Cdc:Source")));
 
@@ -354,11 +356,13 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(sourceFactory, sql =>
-				sql.SchemaName("cdc")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(sourceFactory)
+				   .SchemaName("cdc")
 				   .StateTableName("CdcState")
 				   .DatabaseName("TestDb")
-				   .WithStateStore(stateFactory, state =>
+				   .StateConnectionFactory(stateFactory)
+				   .WithStateStore(state =>
 						state.SchemaName("state_schema")
 							 .TableName("StateTable"))));
 
@@ -379,8 +383,9 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(sourceFactory, sql =>
-				sql.SchemaName("cdc")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(sourceFactory)
+				   .SchemaName("cdc")
 				   .StateTableName("CdcState")
 				   .BindConfiguration("Cdc:SqlServer")));
 

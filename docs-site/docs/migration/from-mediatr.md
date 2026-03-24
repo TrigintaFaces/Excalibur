@@ -559,7 +559,7 @@ builder.Services.AddDispatch(typeof(Program).Assembly);
 // Add outbox with SQL Server storage and processing options
 builder.Services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 });
 

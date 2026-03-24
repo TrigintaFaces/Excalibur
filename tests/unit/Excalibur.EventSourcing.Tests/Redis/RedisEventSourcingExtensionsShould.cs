@@ -31,16 +31,6 @@ public sealed class RedisEventSourcingExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddRedisEventStore_WithConnectionString_ValidatesArguments()
-	{
-		var services = new ServiceCollection();
-
-		Should.Throw<ArgumentNullException>(() => RedisEventSourcingExtensions.AddRedisEventStore(null!, "localhost:6379"));
-		Should.Throw<ArgumentException>(() => services.AddRedisEventStore((string)null!));
-		Should.Throw<ArgumentException>(() => services.AddRedisEventStore(" "));
-	}
-
-	[Fact]
 	public void AddRedisEventStore_WithConnectionInstance_ValidatesArguments()
 	{
 		var services = new ServiceCollection();
@@ -84,7 +74,6 @@ public sealed class RedisEventSourcingExtensionsShould : UnitTestBase
 
 		Should.Throw<ArgumentNullException>(() => RedisEventSourcingExtensions.AddRedisSnapshotStore(null!, _ => { }));
 		Should.Throw<ArgumentNullException>(() => services.AddRedisSnapshotStore((Action<RedisSnapshotStoreOptions>)null!));
-		Should.Throw<ArgumentException>(() => services.AddRedisSnapshotStore(" "));
 
 		var result = services.AddRedisSnapshotStore(options => options.ConnectionString = "localhost:6379");
 		result.ShouldBeSameAs(services);
@@ -99,14 +88,14 @@ public sealed class RedisEventSourcingExtensionsShould : UnitTestBase
 	{
 		var services = new ServiceCollection();
 
-		Should.Throw<ArgumentNullException>(() => RedisEventSourcingExtensions.AddRedisEventSourcing(null!, "localhost:6379"));
-		Should.Throw<ArgumentException>(() => services.AddRedisEventSourcing(" "));
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddRedisEventSourcing(null!, _ => { }));
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddRedisEventSourcing(_ => { }, null!));
 
-		var result = services.AddRedisEventSourcing("localhost:6379");
+		var result = services.AddRedisEventSourcing(
+			es => es.ConnectionString = "localhost:6379",
+			ss => ss.ConnectionString = "localhost:6379");
 		result.ShouldBeSameAs(services);
 		services.ShouldContain(sd => sd.ServiceType == typeof(IEventStore));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISnapshotStore));

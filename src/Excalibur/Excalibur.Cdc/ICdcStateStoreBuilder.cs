@@ -19,13 +19,15 @@ namespace Excalibur.Cdc;
 /// </remarks>
 /// <example>
 /// <code>
-/// cdc.UseSqlServer(sourceConnectionString, sql =&gt;
+/// cdc.UseSqlServer(sql =&gt;
 /// {
-///     sql.WithStateStore(stateConnectionString, state =&gt;
-///     {
-///         state.SchemaName("dbo")
-///              .TableName("CdcProcessingState");
-///     });
+///     sql.ConnectionString(sourceConnectionString)
+///        .WithStateStore(state =&gt;
+///        {
+///            state.ConnectionString(stateConnectionString)
+///                 .SchemaName("dbo")
+///                 .TableName("CdcProcessingState");
+///        });
 /// });
 /// </code>
 /// </example>
@@ -50,6 +52,27 @@ public interface ICdcStateStoreBuilder
 	/// Thrown when <paramref name="tableName"/> is null or whitespace.
 	/// </exception>
 	ICdcStateStoreBuilder TableName(string tableName);
+
+	/// <summary>
+	/// Sets the state store connection string directly.
+	/// </summary>
+	/// <param name="connectionString">The state store connection string.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
+	/// </exception>
+	ICdcStateStoreBuilder ConnectionString(string connectionString);
+
+	/// <summary>
+	/// Resolves the state store connection string from <c>IConfiguration.GetConnectionString(name)</c>
+	/// at DI resolution time.
+	/// </summary>
+	/// <param name="name">The connection string name in the <c>ConnectionStrings</c> section.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="name"/> is null or whitespace.
+	/// </exception>
+	ICdcStateStoreBuilder ConnectionStringName(string name);
 
 	/// <summary>
 	/// Binds state store options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.

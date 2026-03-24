@@ -127,25 +127,17 @@ CREATE TABLE eventsourcing.Outbox (
 ### Service Registration
 
 ```csharp
-// Option 1: Simple registration with connection string
-services.AddSqlServerEventSourcing(connectionString, registerHealthChecks: true);
-
-// Option 2: Full configuration
+// Option 1: Options-based registration
 services.AddSqlServerEventSourcing(options =>
 {
     options.ConnectionString = connectionString;
-    options.RegisterHealthChecks = true;
-    options.EventStoreHealthCheckName = "eventstore-sqlserver";
-    options.SnapshotStoreHealthCheckName = "snapshotstore-sqlserver";
-    options.OutboxStoreHealthCheckName = "outbox-sqlserver";
+    options.HealthChecks.RegisterHealthChecks = true;
+    options.HealthChecks.EventStoreHealthCheckName = "eventstore-sqlserver";
+    options.HealthChecks.SnapshotStoreHealthCheckName = "snapshotstore-sqlserver";
+    options.HealthChecks.OutboxStoreHealthCheckName = "outbox-sqlserver";
 });
 
-// Option 3: Individual store registration
-services.AddSqlServerEventStore(connectionString);
-services.AddSqlServerSnapshotStore(connectionString);
-services.AddSqlServerOutboxStore(connectionString);
-
-// Option 4: Connection factory (advanced)
+// Option 2: Connection factory (advanced)
 services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
 ```
 

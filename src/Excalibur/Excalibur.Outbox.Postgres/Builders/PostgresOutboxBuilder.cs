@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.Abstractions;
+
 namespace Excalibur.Outbox.Postgres;
 
 /// <summary>
@@ -17,6 +19,34 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	public PostgresOutboxBuilder(PostgresOutboxStoreOptions options)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+	}
+
+	/// <summary>
+	/// Gets the configured connection string, if set via <see cref="ConnectionString"/>.
+	/// </summary>
+	internal string? ConfiguredConnectionString { get; private set; }
+
+	/// <summary>
+	/// Gets the configured IDb factory, if set via <see cref="ConnectionFactory"/>.
+	/// </summary>
+	internal Func<IServiceProvider, IDb>? ConfiguredDbFactory { get; private set; }
+
+	/// <inheritdoc/>
+	public IPostgresOutboxBuilder ConnectionString(string connectionString)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ConfiguredConnectionString = connectionString;
+		ConfiguredDbFactory = null; // Last one wins
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IPostgresOutboxBuilder ConnectionFactory(Func<IServiceProvider, IDb> dbFactory)
+	{
+		ArgumentNullException.ThrowIfNull(dbFactory);
+		ConfiguredDbFactory = dbFactory;
+		ConfiguredConnectionString = null; // Last one wins
+		return this;
 	}
 
 	/// <inheritdoc/>

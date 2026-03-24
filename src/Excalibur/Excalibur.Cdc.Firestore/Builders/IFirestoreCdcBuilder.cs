@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Google.Cloud.Firestore;
-
 namespace Excalibur.Cdc.Firestore;
 
 /// <summary>
@@ -46,42 +44,21 @@ public interface IFirestoreCdcBuilder
 	IFirestoreCdcBuilder PollInterval(TimeSpan interval);
 
 	/// <summary>
-	/// Configures a separate connection for CDC state persistence using a project ID.
+	/// Configures a separate connection for CDC state persistence.
 	/// </summary>
-	/// <param name="projectId">The Google Cloud project ID for the state store.</param>
+	/// <param name="configure">An action to configure state store settings including project ID and collection.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
 	/// Firestore uses project IDs instead of connection strings.
+	/// Use <see cref="ICdcStateStoreBuilder.ConnectionString(string)"/> to set the project ID.
 	/// When omitted, the source FirestoreDb is used for state persistence.
 	/// </para>
 	/// </remarks>
-	IFirestoreCdcBuilder WithStateStore(string projectId);
-
-	/// <summary>
-	/// Configures a separate connection for CDC state persistence with state store configuration.
-	/// </summary>
-	/// <param name="projectId">The Google Cloud project ID for the state store.</param>
-	/// <param name="configure">An action to configure state store collection settings.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IFirestoreCdcBuilder WithStateStore(string projectId, Action<ICdcStateStoreBuilder> configure);
-
-	/// <summary>
-	/// Configures a separate FirestoreDb factory for CDC state persistence.
-	/// </summary>
-	/// <param name="dbFactory">A factory function that creates a FirestoreDb for state storage.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IFirestoreCdcBuilder WithStateStore(Func<IServiceProvider, FirestoreDb> dbFactory);
-
-	/// <summary>
-	/// Configures a separate FirestoreDb factory for CDC state persistence with state store configuration.
-	/// </summary>
-	/// <param name="dbFactory">A factory function that creates a FirestoreDb for state storage.</param>
-	/// <param name="configure">An action to configure state store collection settings.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IFirestoreCdcBuilder WithStateStore(
-		Func<IServiceProvider, FirestoreDb> dbFactory,
-		Action<ICdcStateStoreBuilder> configure);
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="configure"/> is null.
+	/// </exception>
+	IFirestoreCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure);
 
 	/// <summary>
 	/// Binds Firestore CDC source options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.

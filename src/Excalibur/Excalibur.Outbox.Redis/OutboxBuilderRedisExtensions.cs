@@ -54,36 +54,6 @@ public static class OutboxBuilderRedisExtensions
 	}
 
 	/// <summary>
-	/// Configures the outbox to use Redis storage with a connection string.
-	/// </summary>
-	/// <param name="builder">The outbox builder.</param>
-	/// <param name="connectionString">The Redis connection string.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> is null.
-	/// </exception>
-	/// <example>
-	/// <code>
-	/// services.AddExcaliburOutbox(outbox =&gt;
-	/// {
-	///     outbox.UseRedis("localhost:6379")
-	///           .EnableBackgroundProcessing();
-	/// });
-	/// </code>
-	/// </example>
-	public static IOutboxBuilder UseRedis(
-		this IOutboxBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		_ = builder.Services.AddRedisOutboxStore(connectionString);
-
-		return builder;
-	}
-
-	/// <summary>
 	/// Configures the outbox to use Redis storage with an existing connection.
 	/// </summary>
 	/// <param name="builder">The outbox builder.</param>

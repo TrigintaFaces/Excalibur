@@ -48,13 +48,13 @@ public sealed class SqlServerOutboxExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddSqlServerDeadLetterQueue_WithConnectionString_RegistersQueueAndOptions()
+	public void AddSqlServerDeadLetterQueue_WithOptions_RegistersQueueAndOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
 		const string connectionString = "Server=localhost;Database=DeadLetters;";
-		services.AddSqlServerDeadLetterQueue(connectionString);
+		services.AddSqlServerDeadLetterQueue(options => options.ConnectionString = connectionString);
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -73,7 +73,8 @@ public sealed class SqlServerOutboxExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddLogging();
 		const string connectionString = "Server=localhost;Database=DispatchOutbox;";
-		services.AddDispatch(builder => builder.UseSqlServerOutboxStore(connectionString));
+		services.AddDispatch(builder => builder.UseSqlServerOutboxStore(
+			options => options.ConnectionString = connectionString));
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -93,7 +94,8 @@ public sealed class SqlServerOutboxExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddLogging();
 		const string connectionString = "Server=localhost;Database=DispatchDeadLetters;";
-		services.AddDispatch(builder => builder.UseSqlServerDeadLetterQueue(connectionString));
+		services.AddDispatch(builder => builder.UseSqlServerDeadLetterQueue(
+			options => options.ConnectionString = connectionString));
 		var provider = services.BuildServiceProvider();
 
 		// Act

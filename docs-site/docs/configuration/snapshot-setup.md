@@ -45,7 +45,7 @@ services.AddExcaliburEventSourcing(builder =>
 });
 
 // Add the SQL Server event store and snapshot store
-services.AddSqlServerEventSourcing(connectionString);
+services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 ```
 
 ## Snapshot Strategies
@@ -118,7 +118,7 @@ Store snapshots in the same database as events (default):
 
 ```csharp
 // SQL Server stores snapshots in the Snapshots table alongside events
-services.AddSqlServerEventSourcing(connectionString);
+services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 ```
 
 ### Separate Store
@@ -127,7 +127,7 @@ Use a different storage backend for snapshots:
 
 ```csharp
 // Register event store and a custom snapshot store
-services.AddSqlServerEventStore(connectionString);
+services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
 
 // Use a custom snapshot manager
 services.AddExcaliburEventSourcing(builder =>

@@ -355,7 +355,7 @@ For applications that need to run migrations on startup:
 ### SQL Server
 
 ```csharp
-services.AddSqlServerEventStore(connectionString);
+services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
 services.AddHostedService<SqlServerMigrationHostedService>();
 
 // Or configure via options:
@@ -369,7 +369,7 @@ services.Configure<SqlServerMigratorOptions>(options =>
 ### PostgreSQL
 
 ```csharp
-services.AddPostgresEventStore(connectionString);
+services.AddPostgresEventStore(opts => opts.ConnectionString = connectionString);
 services.AddHostedService<PostgresMigrationHostedService>();
 
 services.Configure<PostgresMigratorOptions>(options =>

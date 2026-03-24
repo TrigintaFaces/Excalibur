@@ -207,23 +207,6 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 		result.ShouldBeSameAs(builder);
 	}
 
-	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUsePostgresConnectionString()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			((IInboxBuilder)null!).UsePostgres("Host=localhost;Database=test"));
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsNullOrEmpty_ForUsePostgres()
-	{
-		var builder = new TestInboxBuilder();
-		Should.Throw<ArgumentException>(() =>
-			builder.UsePostgres((string)null!));
-		Should.Throw<ArgumentException>(() =>
-			builder.UsePostgres(string.Empty));
-	}
-
 	#endregion
 
 	#region UseRedis
@@ -276,23 +259,6 @@ public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 		var builder = new TestInboxBuilder();
 		var result = builder.UseSqlServer(_ => { });
 		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseSqlServerConnectionString()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			((IInboxBuilder)null!).UseSqlServer("Server=localhost;Database=test"));
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsNullOrEmpty_ForUseSqlServer()
-	{
-		var builder = new TestInboxBuilder();
-		Should.Throw<ArgumentException>(() =>
-			builder.UseSqlServer((string)null!));
-		Should.Throw<ArgumentException>(() =>
-			builder.UseSqlServer(string.Empty));
 	}
 
 	#endregion

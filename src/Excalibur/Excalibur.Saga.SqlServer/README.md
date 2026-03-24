@@ -20,30 +20,44 @@ dotnet add package Excalibur.Saga.SqlServer
 ## Usage
 
 ```csharp
-// Register SQL Server saga store
-services.AddSqlServerSagaStore(connectionString);
+// Register SQL Server saga store via ISagaBuilder
+services.AddExcaliburSaga(saga =>
+{
+    saga.UseSqlServer(sql =>
+    {
+        sql.ConnectionString = connectionString;
+    });
+});
+
+// Or register individually
+services.AddSqlServerSagaStore(sql =>
+{
+    sql.ConnectionString = connectionString;
+});
 
 // Or with connection factory
 services.AddSqlServerSagaStore(sp =>
     () => new SqlConnection(GetConnectionString(sp)));
 
 // Or use with IDispatchBuilder
-builder.UseSqlServerSagaStore(connectionString);
+builder.UseSqlServerSagaStore(sql => { sql.ConnectionString = connectionString; });
 ```
 
 ## Configuration
 
 ```csharp
-services.AddSqlServerSagaStore(connectionString, options =>
+services.AddSqlServerSagaStore(sql =>
 {
-    options.SchemaName = "dispatch";
-    options.TableName = "sagas";
+    sql.ConnectionString = connectionString;
+    sql.SchemaName = "dispatch";
+    sql.TableName = "sagas";
 });
 
-services.AddSqlServerSagaTimeoutStore(connectionString, options =>
+services.AddSqlServerSagaTimeoutStore(sql =>
 {
-    options.SchemaName = "dbo";
-    options.TableName = "SagaTimeouts";
+    sql.ConnectionString = connectionString;
+    sql.SchemaName = "dbo";
+    sql.TableName = "SagaTimeouts";
 });
 ```
 

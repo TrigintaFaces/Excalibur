@@ -94,67 +94,6 @@ public sealed class FirestoreInboxExtensionsShould
 
 	#endregion
 
-	#region AddFirestoreInboxStore with ProjectId Tests
-
-	[Fact]
-	public void AddFirestoreInboxStore_WithProjectId_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestoreInboxStore("test-project"));
-	}
-
-	[Fact]
-	public void AddFirestoreInboxStore_WithProjectId_ThrowsArgumentException_WhenProjectIdIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddFirestoreInboxStore((string)null!));
-	}
-
-	[Fact]
-	public void AddFirestoreInboxStore_WithProjectId_ThrowsArgumentException_WhenProjectIdIsEmpty()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddFirestoreInboxStore(string.Empty));
-	}
-
-	[Fact]
-	public void AddFirestoreInboxStore_WithProjectId_ThrowsArgumentException_WhenProjectIdIsWhitespace()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddFirestoreInboxStore("   "));
-	}
-
-	[Fact]
-	public void AddFirestoreInboxStore_WithProjectId_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddFirestoreInboxStore("test-project");
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	#endregion
-
 	#region AddFirestoreInboxStore with DbProvider Tests
 
 	[Fact]

@@ -108,7 +108,7 @@ By default, handlers are registered as **scoped** (one instance per request).
 
 | Lifetime | Use When |
 |----------|----------|
-| **Scoped** | Handler depends on scoped services (DbContext, UnitOfWork) |
+| **Scoped** | Handler depends on scoped services (IUnitOfWork, IDb) |
 | **Transient** | Handler is stateless and lightweight |
 | **Singleton** | Handler is thread-safe with no scoped dependencies |
 
@@ -283,7 +283,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(connectionString))
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString))
         .AddSagas();
 });
 ```
@@ -307,7 +307,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(connectionString));
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString));
 });
 ```
 

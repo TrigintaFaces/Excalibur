@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using MongoDB.Driver;
-
 namespace Excalibur.Cdc.MongoDB;
 
 /// <summary>
@@ -16,12 +14,6 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 	}
-
-	/// <summary>Gets the state connection string if set via <see cref="WithStateStore(string)"/>.</summary>
-	internal string? StateConnectionString { get; private set; }
-
-	/// <summary>Gets the state client factory if set via <see cref="WithStateStore(Func{IServiceProvider, IMongoClient})"/>.</summary>
-	internal Func<IServiceProvider, IMongoClient>? StateClientFactory { get; private set; }
 
 	/// <summary>Gets the state store configure callback.</summary>
 	internal Action<ICdcStateStoreBuilder>? StateStoreConfigure { get; private set; }
@@ -78,39 +70,9 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 	}
 
 	/// <inheritdoc/>
-	public IMongoDbCdcBuilder WithStateStore(string connectionString)
+	public IMongoDbCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		StateConnectionString = connectionString;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMongoDbCdcBuilder WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ArgumentNullException.ThrowIfNull(configure);
-		StateConnectionString = connectionString;
-		StateStoreConfigure = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMongoDbCdcBuilder WithStateStore(Func<IServiceProvider, IMongoClient> clientFactory)
-	{
-		ArgumentNullException.ThrowIfNull(clientFactory);
-		StateClientFactory = clientFactory;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMongoDbCdcBuilder WithStateStore(
-		Func<IServiceProvider, IMongoClient> clientFactory,
-		Action<ICdcStateStoreBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(clientFactory);
-		ArgumentNullException.ThrowIfNull(configure);
-		StateClientFactory = clientFactory;
 		StateStoreConfigure = configure;
 		return this;
 	}

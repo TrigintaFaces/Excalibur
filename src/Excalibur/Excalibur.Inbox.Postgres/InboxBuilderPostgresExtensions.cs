@@ -29,21 +29,4 @@ public static class InboxBuilderPostgresExtensions
 		return builder;
 	}
 
-	/// <summary>
-	/// Configures the inbox to use Postgres storage with a connection string.
-	/// </summary>
-	/// <param name="builder">The inbox builder.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	public static IInboxBuilder UsePostgres(
-		this IInboxBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		_ = builder.Services.AddPostgresInboxStore(connectionString);
-
-		return builder;
-	}
 }

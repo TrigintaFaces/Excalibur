@@ -24,72 +24,6 @@ public sealed class EventSourcingBuilderPostgresExtensionsShould
 		return new ExcaliburEventSourcingBuilder(svc);
 	}
 
-	#region UsePostgres(connectionString) Tests
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForConnectionStringOverload()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			((IEventSourcingBuilder)null!).UsePostgres(TestConnectionString));
-	}
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenConnectionStringIsNull()
-	{
-		// Arrange
-		var builder = CreateBuilder();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgres(null!));
-	}
-
-	[Fact]
-	public void ReturnSameBuilder_ForFluentChaining_ConnectionStringOverload()
-	{
-		// Arrange
-		var builder = CreateBuilder();
-
-		// Act
-		var result = builder.UsePostgres(TestConnectionString);
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void RegisterPostgresEventSourcingOptions_WhenCalledWithConnectionString()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var builder = CreateBuilder(services);
-
-		// Act
-		builder.UsePostgres(TestConnectionString);
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var options = provider.GetService<IOptions<PostgresEventSourcingOptions>>();
-		options.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void RegisterEventStore_WhenCalledWithConnectionString()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var builder = CreateBuilder(services);
-
-		// Act
-		builder.UsePostgres(TestConnectionString);
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IEventStore));
-	}
-
-	#endregion
-
 	#region UsePostgres(Action<PostgresEventSourcingOptions>) Tests
 
 	[Fact]
@@ -147,6 +81,25 @@ public sealed class EventSourcingBuilderPostgresExtensionsShould
 	}
 
 	[Fact]
+	public void RegisterPostgresEventSourcingOptions_WhenCalledWithConfigure()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		var builder = CreateBuilder(services);
+
+		// Act
+		builder.UsePostgres(opts =>
+		{
+			opts.ConnectionString = TestConnectionString;
+		});
+
+		// Assert
+		var provider = services.BuildServiceProvider();
+		var options = provider.GetService<IOptions<PostgresEventSourcingOptions>>();
+		options.ShouldNotBeNull();
+	}
+
+	[Fact]
 	public void RegisterEventStore_WhenCalledWithConfigureAction()
 	{
 		// Arrange
@@ -176,7 +129,7 @@ public sealed class EventSourcingBuilderPostgresExtensionsShould
 
 		// Act
 		var result = builder
-			.UsePostgres(TestConnectionString)
+			.UsePostgres(opts => opts.ConnectionString = TestConnectionString)
 			.UseIntervalSnapshots(100);
 
 		// Assert

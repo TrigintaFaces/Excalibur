@@ -568,7 +568,7 @@ services.AddPollyCircuitBreaker("payment-cb", options =>
 });
 
 // Persistent DLQ store
-services.AddSqlServerDeadLetterStore(connectionString);
+services.AddSqlServerDeadLetterStore(opts => opts.ConnectionString = connectionString);
 
 // Idempotent consumer for critical handlers
 services.AddSqlServerInboxStore(options =>

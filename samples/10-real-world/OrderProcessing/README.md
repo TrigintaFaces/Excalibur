@@ -229,7 +229,7 @@ The sample demonstrates 6 scenarios:
 
 ```csharp
 // Replace InMemoryOrderStore with:
-services.AddSqlServerEventSourcing(connectionString);
+services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 services.AddExcaliburEventSourcing(es =>
 {
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
@@ -240,7 +240,7 @@ services.AddExcaliburEventSourcing(es =>
 
 ```csharp
 // Saga state persisted to database
-services.AddSqlServerSagaStore(connectionString);
+services.AddSqlServerSagaStore(opts => opts.ConnectionString = connectionString);
 services.AddExcaliburSagas(sagas =>
 {
     sagas.AddSaga<OrderProcessingSaga>();
@@ -263,7 +263,7 @@ services.AddDispatch(builder => builder
 
 ```csharp
 // Reliable messaging with transactional outbox
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 services.AddDispatch(builder => builder
     .AddOutboxMiddleware());
 ```

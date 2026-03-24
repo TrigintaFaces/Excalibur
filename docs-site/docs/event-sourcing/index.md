@@ -161,8 +161,8 @@ services.AddExcaliburEventSourcing(builder =>
 });
 
 // Add SQL Server event store (separate package)
-services.AddSqlServerEventStore(connectionString);
-services.AddSqlServerSnapshotStore(connectionString);
+services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
+services.AddSqlServerSnapshotStore(opts => opts.ConnectionString = connectionString);
 ```
 
 ### 4. Use in Handlers

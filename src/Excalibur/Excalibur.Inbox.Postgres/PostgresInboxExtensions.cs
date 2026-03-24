@@ -46,22 +46,6 @@ public static class PostgresInboxExtensions
 	}
 
 	/// <summary>
-	/// Adds Postgres inbox store to the service collection with connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddPostgresInboxStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddPostgresInboxStore(options => options.ConnectionString = connectionString);
-	}
-
-	/// <summary>
 	/// Adds Postgres inbox store to the service collection with a connection factory.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -126,22 +110,6 @@ public static class PostgresInboxExtensions
 		_ = builder.Services.AddPostgresInboxStore(configure);
 
 		return builder;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use Postgres inbox store with connection string.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UsePostgresInboxStore(
-		this IDispatchBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return builder.UsePostgresInboxStore(options => options.ConnectionString = connectionString);
 	}
 
 	/// <summary>

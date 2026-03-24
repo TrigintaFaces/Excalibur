@@ -32,7 +32,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.SchemaName(schema));
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).SchemaName(schema));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -51,7 +51,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.SchemaName(null!));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).SchemaName(null!));
 			}));
 	}
 
@@ -65,7 +65,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.SchemaName(""));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).SchemaName(""));
 			}));
 	}
 
@@ -79,7 +79,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.SchemaName("   "));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).SchemaName("   "));
 			}));
 	}
 
@@ -99,7 +99,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.TableName(tableName));
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).TableName(tableName));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -118,7 +118,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.TableName(null!));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).TableName(null!));
 			}));
 	}
 
@@ -132,7 +132,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.TableName(""));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).TableName(""));
 			}));
 	}
 
@@ -152,7 +152,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.TransportsTableName(tableName));
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).TransportsTableName(tableName));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -171,7 +171,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.TransportsTableName(null!));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).TransportsTableName(null!));
 			}));
 	}
 
@@ -191,7 +191,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.DeadLetterTableName(tableName));
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).DeadLetterTableName(tableName));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -210,7 +210,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.DeadLetterTableName(null!));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).DeadLetterTableName(null!));
 			}));
 	}
 
@@ -232,7 +232,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.CommandTimeout(timeout));
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).CommandTimeout(timeout));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -251,7 +251,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.CommandTimeout(TimeSpan.Zero));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).CommandTimeout(TimeSpan.Zero));
 			}));
 	}
 
@@ -265,7 +265,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.CommandTimeout(TimeSpan.FromSeconds(-1)));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).CommandTimeout(TimeSpan.FromSeconds(-1)));
 			}));
 	}
 
@@ -282,7 +282,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString);
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -300,7 +300,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.UseRowLocking(false));
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).UseRowLocking(false));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -318,7 +318,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.UseRowLocking(true));
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).UseRowLocking(true));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -336,7 +336,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.UseRowLocking());
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).UseRowLocking());
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -362,7 +362,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql.DefaultBatchSize(size));
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).DefaultBatchSize(size));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -384,7 +384,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(outbox =>
 			{
-				_ = outbox.UseSqlServer(TestConnectionString, sql => sql.DefaultBatchSize(size));
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString).DefaultBatchSize(size));
 			}));
 	}
 
@@ -401,7 +401,8 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString, sql => sql
+			_ = outbox.UseSqlServer(sql => sql
+				.ConnectionString(TestConnectionString)
 				.SchemaName("messaging")
 				.TableName("Messages")
 				.TransportsTableName("Deliveries")
@@ -436,13 +437,30 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(outbox =>
 		{
-			_ = outbox.UseSqlServer(TestConnectionString);
+			_ = outbox.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 		});
 		var provider = services.BuildServiceProvider();
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
 		options.ConnectionString.ShouldBe(TestConnectionString);
+	}
+
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("   ")]
+	public void ConnectionString_ThrowsOnInvalidValues(string? connectionString)
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentException>(() =>
+			services.AddExcaliburOutbox(outbox =>
+			{
+				_ = outbox.UseSqlServer(sql => sql.ConnectionString(connectionString!));
+			}));
 	}
 
 	#endregion

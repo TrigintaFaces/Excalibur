@@ -19,6 +19,25 @@ internal sealed class CosmosDbCdcStateStoreBuilder : ICdcStateStoreBuilder
 	/// <summary>Gets the BindConfiguration section path, if set.</summary>
 	internal string? BindConfigurationPath { get; private set; }
 
+	/// <summary>Gets the connection string name to resolve from configuration, if set.</summary>
+	internal string? StateConnectionStringName { get; private set; }
+
+	/// <inheritdoc/>
+	public ICdcStateStoreBuilder ConnectionString(string connectionString)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		_options.ConnectionString = connectionString;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ICdcStateStoreBuilder ConnectionStringName(string name)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		StateConnectionStringName = name;
+		return this;
+	}
+
 	/// <inheritdoc/>
 	/// <remarks>Maps to <see cref="CosmosDbCdcStateStoreOptions.DatabaseId"/>.</remarks>
 	public ICdcStateStoreBuilder SchemaName(string schema)

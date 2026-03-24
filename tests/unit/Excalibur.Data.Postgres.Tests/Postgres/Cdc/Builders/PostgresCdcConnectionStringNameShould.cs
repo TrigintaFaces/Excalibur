@@ -37,8 +37,9 @@ public sealed class PostgresCdcConnectionStringNameShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(TestConnectionString, pg =>
-				pg.ConnectionStringName("MyDb")));
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(TestConnectionString)
+				   .ConnectionStringName("MyDb")));
 
 		// Assert -- registration succeeds
 		var provider = services.BuildServiceProvider();
@@ -58,8 +59,9 @@ public sealed class PostgresCdcConnectionStringNameShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UsePostgres(TestConnectionString, pg =>
-					pg.ConnectionStringName(invalidName!))));
+				builder.UsePostgres(pg =>
+					pg.ConnectionString(TestConnectionString)
+					   .ConnectionStringName(invalidName!))));
 	}
 
 	[Fact]
@@ -79,8 +81,9 @@ public sealed class PostgresCdcConnectionStringNameShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(TestConnectionString, pg =>
-				pg.SchemaName("audit")
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(TestConnectionString)
+				   .SchemaName("audit")
 				   .BatchSize(200)
 				   .PollingInterval(TimeSpan.FromSeconds(2))
 				   .ReplicationSlotName("my_slot")
@@ -116,10 +119,12 @@ public sealed class PostgresCdcConnectionStringNameShould : UnitTestBase
 
 		// Act -- ConnectionStringName + WithStateStore
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(TestConnectionString, pg =>
-				pg.ConnectionStringName("SourceDb")
-				   .WithStateStore("Host=state;Database=StateDb;Username=test;Password=test;", state =>
-						state.SchemaName("cdc_state")
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(TestConnectionString)
+				   .ConnectionStringName("SourceDb")
+				   .WithStateStore(state =>
+						state.ConnectionString("Host=state;Database=StateDb;Username=test;Password=test;")
+							 .SchemaName("cdc_state")
 							 .TableName("checkpoints"))));
 
 		// Assert
@@ -146,8 +151,9 @@ public sealed class PostgresCdcConnectionStringNameShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(TestConnectionString, pg =>
-				pg.ConnectionStringName("TestDb")));
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(TestConnectionString)
+				   .ConnectionStringName("TestDb")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -176,8 +182,9 @@ public sealed class PostgresCdcConnectionStringNameShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(TestConnectionString, pg =>
-				pg.ConnectionStringName("PgDb")
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(TestConnectionString)
+				   .ConnectionStringName("PgDb")
 				   .BindConfiguration("Cdc:Postgres")));
 
 		// Assert -- BindConfiguration wires options

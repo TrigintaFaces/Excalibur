@@ -69,18 +69,19 @@ services.AddExcaliburEventSourcing(builder =>
 });
 
 // SQL Server event store is typically added via Excalibur.Hosting
-services.AddSqlServerEventStore(connectionString);
+services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
 ```
 
 ### PostgreSQL
 
 ```csharp
 // With connection string
-services.AddPostgresEventStore(connectionString);
+services.AddPostgresEventStore(opts => opts.ConnectionString = connectionString);
 
 // Or with options
-services.AddPostgresEventStore(connectionString, options =>
+services.AddPostgresEventStore(options =>
 {
+    options.ConnectionString = connectionString;
     options.SchemaName = "events";
 });
 ```

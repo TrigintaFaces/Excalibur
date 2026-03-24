@@ -41,22 +41,6 @@ public static class SqlServerInboxExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server inbox store to the service collection with connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSqlServerInboxStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddSqlServerInboxStore(options => options.ConnectionString = connectionString);
-	}
-
-	/// <summary>
 	/// Adds SQL Server inbox store to the service collection with a connection factory.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -116,22 +100,6 @@ public static class SqlServerInboxExtensions
 		_ = builder.Services.AddSqlServerInboxStore(configure);
 
 		return builder;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use SQL Server inbox store with connection string.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UseSqlServerInboxStore(
-		this IDispatchBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return builder.UseSqlServerInboxStore(options => options.ConnectionString = connectionString);
 	}
 
 	/// <summary>

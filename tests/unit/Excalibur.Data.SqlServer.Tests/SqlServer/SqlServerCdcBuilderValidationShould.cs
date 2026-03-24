@@ -23,18 +23,13 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[InlineData("   ")]
 	public void SchemaName_ThrowsOnInvalidValue(string? invalidValue)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
-				{
-					_ = sql.SchemaName(invalidValue);
-				});
-			}));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .SchemaName(invalidValue))));
 	}
 
 	[Theory]
@@ -43,20 +38,14 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[InlineData("audit")]
 	public void SchemaName_AcceptsValidValues(string validValue)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
 		_ = services.AddCdcProcessor(builder =>
-		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.SchemaName(validValue);
-			});
-		});
-		var provider = services.BuildServiceProvider();
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .SchemaName(validValue)));
 
-		// Assert
+		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		options.Value.SchemaName.ShouldBe(validValue);
 	}
@@ -67,18 +56,13 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[InlineData("   ")]
 	public void StateTableName_ThrowsOnInvalidValue(string? invalidValue)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
-				{
-					_ = sql.StateTableName(invalidValue);
-				});
-			}));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .StateTableName(invalidValue))));
 	}
 
 	[Theory]
@@ -87,20 +71,14 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[InlineData("CdcPositions")]
 	public void StateTableName_AcceptsValidValues(string validValue)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
 		_ = services.AddCdcProcessor(builder =>
-		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.StateTableName(validValue);
-			});
-		});
-		var provider = services.BuildServiceProvider();
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .StateTableName(validValue)));
 
-		// Assert
+		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		options.Value.StateTableName.ShouldBe(validValue);
 	}
@@ -108,35 +86,25 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[Fact]
 	public void PollingInterval_ThrowsOnZero()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act & Assert
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
-				{
-					_ = sql.PollingInterval(TimeSpan.Zero);
-				});
-			}));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .PollingInterval(TimeSpan.Zero))));
 	}
 
 	[Fact]
 	public void PollingInterval_ThrowsOnNegative()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act & Assert
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
-				{
-					_ = sql.PollingInterval(TimeSpan.FromSeconds(-1));
-				});
-			}));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .PollingInterval(TimeSpan.FromSeconds(-1)))));
 	}
 
 	[Theory]
@@ -146,21 +114,15 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[InlineData(60)]
 	public void PollingInterval_AcceptsValidSeconds(int seconds)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 		var expectedInterval = TimeSpan.FromSeconds(seconds);
 
-		// Act
 		_ = services.AddCdcProcessor(builder =>
-		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.PollingInterval(expectedInterval);
-			});
-		});
-		var provider = services.BuildServiceProvider();
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .PollingInterval(expectedInterval)));
 
-		// Assert
+		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		options.Value.PollingInterval.ShouldBe(expectedInterval);
 	}
@@ -171,18 +133,13 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[InlineData(-100)]
 	public void BatchSize_ThrowsOnInvalidValue(int invalidValue)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act & Assert
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
-				{
-					_ = sql.BatchSize(invalidValue);
-				});
-			}));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .BatchSize(invalidValue))));
 	}
 
 	[Theory]
@@ -192,20 +149,14 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[InlineData(10000)]
 	public void BatchSize_AcceptsValidValues(int validValue)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
 		_ = services.AddCdcProcessor(builder =>
-		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.BatchSize(validValue);
-			});
-		});
-		var provider = services.BuildServiceProvider();
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .BatchSize(validValue)));
 
-		// Assert
+		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		options.Value.BatchSize.ShouldBe(validValue);
 	}
@@ -213,35 +164,25 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[Fact]
 	public void CommandTimeout_ThrowsOnZero()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act & Assert
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
-				{
-					_ = sql.CommandTimeout(TimeSpan.Zero);
-				});
-			}));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .CommandTimeout(TimeSpan.Zero))));
 	}
 
 	[Fact]
 	public void CommandTimeout_ThrowsOnNegative()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act & Assert
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
-				{
-					_ = sql.CommandTimeout(TimeSpan.FromSeconds(-1));
-				});
-			}));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .CommandTimeout(TimeSpan.FromSeconds(-1)))));
 	}
 
 	[Theory]
@@ -251,21 +192,15 @@ public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 	[InlineData(300)]
 	public void CommandTimeout_AcceptsValidSeconds(int seconds)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 		var expectedTimeout = TimeSpan.FromSeconds(seconds);
 
-		// Act
 		_ = services.AddCdcProcessor(builder =>
-		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.CommandTimeout(expectedTimeout);
-			});
-		});
-		var provider = services.BuildServiceProvider();
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .CommandTimeout(expectedTimeout)));
 
-		// Assert
+		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		options.Value.CommandTimeout.ShouldBe(expectedTimeout);
 	}

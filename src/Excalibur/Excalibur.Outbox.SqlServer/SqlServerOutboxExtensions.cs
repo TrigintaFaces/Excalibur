@@ -26,6 +26,21 @@ public static class SqlServerOutboxExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Set <see cref="SqlServerOutboxOptions.ConnectionString"/> in the configure action
+	/// to specify the SQL Server connection string.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddSqlServerOutboxStore(options =>
+	/// {
+	///     options.ConnectionString = "Server=.;Database=MyDb;Trusted_Connection=True;";
+	///     options.SchemaName = "messaging";
+	/// });
+	/// </code>
+	/// </example>
 	public static IServiceCollection AddSqlServerOutboxStore(
 		this IServiceCollection services,
 		Action<SqlServerOutboxOptions> configure)
@@ -43,22 +58,6 @@ public static class SqlServerOutboxExtensions
 		services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 
 		return services;
-	}
-
-	/// <summary>
-	/// Adds SQL Server outbox store to the service collection with connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSqlServerOutboxStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddSqlServerOutboxStore(options => options.ConnectionString = connectionString);
 	}
 
 	/// <summary>
@@ -141,6 +140,20 @@ public static class SqlServerOutboxExtensions
 	/// <param name="builder">The dispatch builder.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
+	/// <remarks>
+	/// <para>
+	/// Set <see cref="SqlServerOutboxOptions.ConnectionString"/> in the configure action
+	/// to specify the SQL Server connection string.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// builder.UseSqlServerOutboxStore(options =>
+	/// {
+	///     options.ConnectionString = "Server=.;Database=MyDb;Trusted_Connection=True;";
+	/// });
+	/// </code>
+	/// </example>
 	public static IDispatchBuilder UseSqlServerOutboxStore(
 		this IDispatchBuilder builder,
 		Action<SqlServerOutboxOptions> configure)
@@ -151,22 +164,6 @@ public static class SqlServerOutboxExtensions
 		_ = builder.Services.AddSqlServerOutboxStore(configure);
 
 		return builder;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use SQL Server outbox store with connection string.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UseSqlServerOutboxStore(
-		this IDispatchBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return builder.UseSqlServerOutboxStore(options => options.ConnectionString = connectionString);
 	}
 
 	/// <summary>
@@ -198,6 +195,20 @@ public static class SqlServerOutboxExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Set <see cref="SqlServerDeadLetterQueueOptions.ConnectionString"/> in the configure action
+	/// to specify the SQL Server connection string.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddSqlServerDeadLetterQueue(options =>
+	/// {
+	///     options.ConnectionString = "Server=.;Database=MyDb;Trusted_Connection=True;";
+	/// });
+	/// </code>
+	/// </example>
 	public static IServiceCollection AddSqlServerDeadLetterQueue(
 		this IServiceCollection services,
 		Action<SqlServerDeadLetterQueueOptions> configure)
@@ -214,27 +225,25 @@ public static class SqlServerOutboxExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server dead letter queue to the service collection with connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSqlServerDeadLetterQueue(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddSqlServerDeadLetterQueue(options => options.ConnectionString = connectionString);
-	}
-
-	/// <summary>
 	/// Configures the dispatch builder to use SQL Server dead letter queue.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
+	/// <remarks>
+	/// <para>
+	/// Set <see cref="SqlServerDeadLetterQueueOptions.ConnectionString"/> in the configure action
+	/// to specify the SQL Server connection string.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// builder.UseSqlServerDeadLetterQueue(options =>
+	/// {
+	///     options.ConnectionString = "Server=.;Database=MyDb;Trusted_Connection=True;";
+	/// });
+	/// </code>
+	/// </example>
 	public static IDispatchBuilder UseSqlServerDeadLetterQueue(
 		this IDispatchBuilder builder,
 		Action<SqlServerDeadLetterQueueOptions> configure)
@@ -245,21 +254,5 @@ public static class SqlServerOutboxExtensions
 		_ = builder.Services.AddSqlServerDeadLetterQueue(configure);
 
 		return builder;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use SQL Server dead letter queue with connection string.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UseSqlServerDeadLetterQueue(
-		this IDispatchBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return builder.UseSqlServerDeadLetterQueue(options => options.ConnectionString = connectionString);
 	}
 }

@@ -29,7 +29,7 @@ services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(connectionString))
+        .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)))
         .AddCdc(cdc => cdc.TrackTable<Order>())
         .AddSagas(opts => opts.EnableTimeouts = true)
         .AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(30));
@@ -93,7 +93,7 @@ services.AddExcalibur(excalibur =>
     // Reliable messaging via outbox
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(connectionString)
+        outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
               .EnableBackgroundProcessing()
               .WithProcessing(p => p.BatchSize(100));
     });
@@ -101,7 +101,7 @@ services.AddExcalibur(excalibur =>
     // Change data capture for projections
     excalibur.AddCdc(cdc =>
     {
-        cdc.UseSqlServer(connectionString)
+        cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
            .TrackTable<Order>()
            .TrackTable<Customer>();
     });
@@ -126,7 +126,7 @@ services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(connectionString));
+        .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 });
 ```
 
@@ -176,7 +176,7 @@ services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es =>
     {
-        es.UseSqlServer(connectionString);
+        es.UseSqlServer(opts => opts.ConnectionString = connectionString);
     });
 });
 ```

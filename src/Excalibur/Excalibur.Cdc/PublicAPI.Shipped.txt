@@ -218,6 +218,8 @@ static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.A
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.ICdcBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.HasCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
 Excalibur.Cdc.ICdcStateStoreBuilder
+Excalibur.Cdc.ICdcStateStoreBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.ICdcStateStoreBuilder!
+Excalibur.Cdc.ICdcStateStoreBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.ICdcStateStoreBuilder!
 Excalibur.Cdc.ICdcStateStoreBuilder.SchemaName(string! schema) -> Excalibur.Cdc.ICdcStateStoreBuilder!
 Excalibur.Cdc.ICdcStateStoreBuilder.TableName(string! tableName) -> Excalibur.Cdc.ICdcStateStoreBuilder!
 Excalibur.Cdc.ICdcStateStoreBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.ICdcStateStoreBuilder!

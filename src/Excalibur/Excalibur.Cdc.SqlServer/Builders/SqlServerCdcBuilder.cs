@@ -22,11 +22,10 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	}
 
 	/// <summary>
-	/// Gets the state connection factory, if configured via <see cref="WithStateStore(string)"/>
-	/// or <see cref="WithStateStore(Func{IServiceProvider, Func{SqlConnection}})"/>.
+	/// Gets the state connection factory, if configured via <see cref="StateConnectionFactory(Func{IServiceProvider, Func{SqlConnection}})"/>.
 	/// When <see langword="null"/>, the source connection factory is used (backward compatible).
 	/// </summary>
-	internal Func<IServiceProvider, Func<SqlConnection>>? StateConnectionFactory { get; private set; }
+	internal Func<IServiceProvider, Func<SqlConnection>>? StateConnectionFactoryFunc { get; private set; }
 
 	/// <summary>
 	/// Gets the state store configure callback, if provided.
@@ -134,44 +133,20 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	}
 
 	/// <inheritdoc/>
-	public ISqlServerCdcBuilder WithStateStore(string connectionString)
+	public ISqlServerCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		StateConnectionFactory = _ => () => new SqlConnection(connectionString);
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ISqlServerCdcBuilder WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		StateConnectionFactory = _ => () => new SqlConnection(connectionString);
 		StateStoreConfigure = configure;
 		return this;
 	}
 
 	/// <inheritdoc/>
-	public ISqlServerCdcBuilder WithStateStore(Func<IServiceProvider, Func<SqlConnection>> stateConnectionFactory)
+	public ISqlServerCdcBuilder StateConnectionFactory(Func<IServiceProvider, Func<SqlConnection>> stateConnectionFactory)
 	{
 		ArgumentNullException.ThrowIfNull(stateConnectionFactory);
 
-		StateConnectionFactory = stateConnectionFactory;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ISqlServerCdcBuilder WithStateStore(
-		Func<IServiceProvider, Func<SqlConnection>> stateConnectionFactory,
-		Action<ICdcStateStoreBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(stateConnectionFactory);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		StateConnectionFactory = stateConnectionFactory;
-		StateStoreConfigure = configure;
+		StateConnectionFactoryFunc = stateConnectionFactory;
 		return this;
 	}
 
@@ -186,6 +161,27 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 
 	/// <summary>Gets the connection string name for resolution from IConfiguration.</summary>
 	internal string? SourceConnectionStringName { get; private set; }
+
+	/// <summary>Gets the source connection factory, if configured via <see cref="ConnectionFactory"/>.</summary>
+	internal Func<IServiceProvider, Func<SqlConnection>>? SourceConnectionFactory { get; private set; }
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder ConnectionString(string connectionString)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+		_options.ConnectionString = connectionString;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder ConnectionFactory(Func<IServiceProvider, Func<SqlConnection>> connectionFactory)
+	{
+		ArgumentNullException.ThrowIfNull(connectionFactory);
+
+		SourceConnectionFactory = connectionFactory;
+		return this;
+	}
 
 	/// <inheritdoc/>
 	public ISqlServerCdcBuilder ConnectionStringName(string name)

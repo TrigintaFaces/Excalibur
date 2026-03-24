@@ -36,25 +36,6 @@ public static class SqlServerLegalHoldStoreServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds the SQL Server legal hold store with a connection string.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="connectionString"> The SQL Server connection string. </param>
-	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddSqlServerLegalHoldStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddSqlServerLegalHoldStore(options =>
-		{
-			options.ConnectionString = connectionString;
-		});
-	}
-
-	/// <summary>
 	/// Adds the SQL Server legal hold store with connection string from configuration.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>

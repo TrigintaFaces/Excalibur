@@ -20,6 +20,14 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 	}
 
 	/// <inheritdoc/>
+	public ISqlServerOutboxBuilder ConnectionString(string connectionString)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		_options.ConnectionString = connectionString;
+		return this;
+	}
+
+	/// <inheritdoc/>
 	public ISqlServerOutboxBuilder SchemaName(string schema)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(schema);

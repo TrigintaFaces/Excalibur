@@ -32,7 +32,7 @@ using Microsoft.Extensions.DependencyInjection;
 // Recommended: Builder-integrated registration
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(connectionString)
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString)
       .AddRepository<OrderAggregate, Guid>();
 });
 
@@ -49,12 +49,12 @@ services.AddExcaliburEventSourcing(es =>
 });
 
 // Alternative: Direct IServiceCollection registration
-services.AddSqlServerEventSourcing(connectionString);
+services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 // Individual stores
-services.AddSqlServerEventStore(connectionString);
-services.AddSqlServerSnapshotStore(connectionString);
-services.AddSqlServerOutboxStore(connectionString);
+services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
+services.AddSqlServerSnapshotStore(opts => opts.ConnectionString = connectionString);
+services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // With connection factory
 services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
@@ -86,7 +86,7 @@ dotnet add package Excalibur.EventSourcing.Postgres
 // Recommended: Builder-integrated registration
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UsePostgres(connectionString)
+    es.UsePostgres(opts => opts.ConnectionString = connectionString)
       .AddRepository<OrderAggregate, Guid>();
 });
 
@@ -101,19 +101,16 @@ services.AddExcaliburEventSourcing(es =>
 });
 
 // Alternative: Direct IServiceCollection registration
-services.AddPostgresEventStore(connectionString, options =>
+services.AddPostgresEventStore(options =>
 {
+    options.ConnectionString = connectionString;
     options.SchemaName = "events";
     options.EventsTableName = "event_store_events";  // Default
 });
 
-// With connection factory (receives IServiceProvider)
-services.AddPostgresEventStore(
-    sp => new NpgsqlConnection(configuration.GetConnectionString("Postgres")),
-    options =>
-    {
-        options.SchemaName = "events";
-    });
+// With NpgsqlDataSource (recommended for connection pooling)
+var dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("Postgres")!);
+services.AddPostgresEventSourcing(dataSource);
 ```
 
 ---

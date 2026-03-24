@@ -24,25 +24,23 @@ public static class SqlServerSagaExtensions
 	/// Adds SQL Server saga store to the service collection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Action to configure saga store options (connection string, schema, table names).</param>
 	/// <returns>The service collection for chaining.</returns>
 	public static IServiceCollection AddSqlServerSagaStore(
 		this IServiceCollection services,
-		string connectionString,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		RegisterSagaStoreOptions(services, configureOptions);
+		RegisterSagaStoreOptions(services, configure);
 
 		services.TryAddSingleton(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new SqlServerSagaStore(connectionString, options, logger, serializer);
+			return new SqlServerSagaStore(options.Value.ConnectionString!, options, logger, serializer);
 		});
 		services.AddKeyedSingleton<ISagaStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
@@ -59,7 +57,7 @@ public static class SqlServerSagaExtensions
 	/// A factory function that creates <see cref="SqlConnection"/> instances from the service provider.
 	/// Useful for multi-database setups, custom connection pooling, or IDb integration.
 	/// </param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <remarks>
 	/// <para>
@@ -72,12 +70,12 @@ public static class SqlServerSagaExtensions
 	public static IServiceCollection AddSqlServerSagaStore(
 		this IServiceCollection services,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 
-		RegisterSagaStoreOptions(services, configureOptions);
+		RegisterSagaStoreOptions(services, configure);
 
 		services.TryAddSingleton(sp =>
 		{
@@ -99,7 +97,7 @@ public static class SqlServerSagaExtensions
 	/// </summary>
 	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
 	/// <param name="services">The service collection.</param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <remarks>
 	/// <para>
@@ -110,32 +108,30 @@ public static class SqlServerSagaExtensions
 	/// </remarks>
 	public static IServiceCollection AddSqlServerSagaStore<TDb>(
 		this IServiceCollection services,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions>? configure = null)
 		where TDb : class, Excalibur.Data.Abstractions.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		return services.AddSqlServerSagaStore(
 			sp => () => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
-			configureOptions);
+			configure);
 	}
 
 	/// <summary>
 	/// Configures the dispatch builder to use SQL Server saga store.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Action to configure saga store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
 	public static IDispatchBuilder UseSqlServerSagaStore(
 		this IDispatchBuilder builder,
-		string connectionString,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddSqlServerSagaStore(connectionString, configureOptions);
+		_ = builder.Services.AddSqlServerSagaStore(configure);
 
 		return builder;
 	}
@@ -147,17 +143,17 @@ public static class SqlServerSagaExtensions
 	/// <param name="connectionFactoryProvider">
 	/// A factory function that creates <see cref="SqlConnection"/> instances from the service provider.
 	/// </param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
 	public static IDispatchBuilder UseSqlServerSagaStore(
 		this IDispatchBuilder builder,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 
-		_ = builder.Services.AddSqlServerSagaStore(connectionFactoryProvider, configureOptions);
+		_ = builder.Services.AddSqlServerSagaStore(connectionFactoryProvider, configure);
 
 		return builder;
 	}
@@ -168,8 +164,7 @@ public static class SqlServerSagaExtensions
 	/// Adds SQL Server saga timeout store to the service collection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configureOptions">Optional action to configure saga timeout store options.</param>
+	/// <param name="configure">Action to configure saga timeout store options (connection string, schema, table names).</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <remarks>
 	/// <para>
@@ -183,19 +178,18 @@ public static class SqlServerSagaExtensions
 	/// </remarks>
 	public static IServiceCollection AddSqlServerSagaTimeoutStore(
 		this IServiceCollection services,
-		string connectionString,
-		Action<SqlServerSagaTimeoutStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaTimeoutStoreOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		RegisterSagaTimeoutStoreOptions(services, configureOptions);
+		RegisterSagaTimeoutStoreOptions(services, configure);
 
 		services.TryAddSingleton(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaTimeoutStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaTimeoutStore>>();
-			return new SqlServerSagaTimeoutStore(connectionString, options, logger);
+			return new SqlServerSagaTimeoutStore(options.Value.ConnectionString!, options, logger);
 		});
 		services.TryAddSingleton<ISagaTimeoutStore>(sp => sp.GetRequiredService<SqlServerSagaTimeoutStore>());
 
@@ -210,25 +204,17 @@ public static class SqlServerSagaExtensions
 	/// A factory function that creates <see cref="SqlConnection"/> instances from the service provider.
 	/// Useful for multi-database setups, custom connection pooling, or IDb integration.
 	/// </param>
-	/// <param name="configureOptions">Optional action to configure saga timeout store options.</param>
+	/// <param name="configure">Optional action to configure saga timeout store options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Example with IDb:
-	/// <code>
-	/// services.AddSqlServerSagaTimeoutStore(sp => () => (SqlConnection)sp.GetRequiredService&lt;IDomainDb&gt;().Connection);
-	/// </code>
-	/// </para>
-	/// </remarks>
 	public static IServiceCollection AddSqlServerSagaTimeoutStore(
 		this IServiceCollection services,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
-		Action<SqlServerSagaTimeoutStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaTimeoutStoreOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 
-		RegisterSagaTimeoutStoreOptions(services, configureOptions);
+		RegisterSagaTimeoutStoreOptions(services, configure);
 
 		services.TryAddSingleton(sp =>
 		{
@@ -246,18 +232,16 @@ public static class SqlServerSagaExtensions
 	/// Configures the dispatch builder to use SQL Server saga timeout store.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configureOptions">Optional action to configure saga timeout store options.</param>
+	/// <param name="configure">Action to configure saga timeout store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
 	public static IDispatchBuilder UseSqlServerSagaTimeoutStore(
 		this IDispatchBuilder builder,
-		string connectionString,
-		Action<SqlServerSagaTimeoutStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaTimeoutStoreOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddSqlServerSagaTimeoutStore(connectionString, configureOptions);
+		_ = builder.Services.AddSqlServerSagaTimeoutStore(configure);
 
 		return builder;
 	}
@@ -269,17 +253,17 @@ public static class SqlServerSagaExtensions
 	/// <param name="connectionFactoryProvider">
 	/// A factory function that creates <see cref="SqlConnection"/> instances from the service provider.
 	/// </param>
-	/// <param name="configureOptions">Optional action to configure saga timeout store options.</param>
+	/// <param name="configure">Optional action to configure saga timeout store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
 	public static IDispatchBuilder UseSqlServerSagaTimeoutStore(
 		this IDispatchBuilder builder,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
-		Action<SqlServerSagaTimeoutStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaTimeoutStoreOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 
-		_ = builder.Services.AddSqlServerSagaTimeoutStore(connectionFactoryProvider, configureOptions);
+		_ = builder.Services.AddSqlServerSagaTimeoutStore(connectionFactoryProvider, configure);
 
 		return builder;
 	}
@@ -292,8 +276,7 @@ public static class SqlServerSagaExtensions
 	/// Adds SQL Server saga monitoring service to the service collection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Action to configure saga store options (connection string, schema, table names).</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <remarks>
 	/// <para>
@@ -307,19 +290,18 @@ public static class SqlServerSagaExtensions
 	/// </remarks>
 	public static IServiceCollection AddSqlServerSagaMonitoringService(
 		this IServiceCollection services,
-		string connectionString,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		RegisterSagaStoreOptions(services, configureOptions);
+		RegisterSagaStoreOptions(services, configure);
 
 		services.TryAddSingleton(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaMonitoringService>>();
-			return new SqlServerSagaMonitoringService(connectionString, options, logger);
+			return new SqlServerSagaMonitoringService(options.Value.ConnectionString!, options, logger);
 		});
 		services.TryAddSingleton<ISagaMonitoringService>(sp => sp.GetRequiredService<SqlServerSagaMonitoringService>());
 
@@ -334,25 +316,17 @@ public static class SqlServerSagaExtensions
 	/// A factory function that creates <see cref="SqlConnection"/> instances from the service provider.
 	/// Useful for multi-database setups, custom connection pooling, or IDb integration.
 	/// </param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Example with IDb:
-	/// <code>
-	/// services.AddSqlServerSagaMonitoringService(sp => () => (SqlConnection)sp.GetRequiredService&lt;IDomainDb&gt;().Connection);
-	/// </code>
-	/// </para>
-	/// </remarks>
 	public static IServiceCollection AddSqlServerSagaMonitoringService(
 		this IServiceCollection services,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 
-		RegisterSagaStoreOptions(services, configureOptions);
+		RegisterSagaStoreOptions(services, configure);
 
 		services.TryAddSingleton(sp =>
 		{
@@ -370,18 +344,16 @@ public static class SqlServerSagaExtensions
 	/// Configures the dispatch builder to use SQL Server saga monitoring service.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Action to configure saga store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
 	public static IDispatchBuilder UseSqlServerSagaMonitoringService(
 		this IDispatchBuilder builder,
-		string connectionString,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddSqlServerSagaMonitoringService(connectionString, configureOptions);
+		_ = builder.Services.AddSqlServerSagaMonitoringService(configure);
 
 		return builder;
 	}
@@ -393,17 +365,17 @@ public static class SqlServerSagaExtensions
 	/// <param name="connectionFactoryProvider">
 	/// A factory function that creates <see cref="SqlConnection"/> instances from the service provider.
 	/// </param>
-	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <param name="configure">Optional action to configure saga store options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
 	public static IDispatchBuilder UseSqlServerSagaMonitoringService(
 		this IDispatchBuilder builder,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactoryProvider,
-		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		Action<SqlServerSagaStoreOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(connectionFactoryProvider);
 
-		_ = builder.Services.AddSqlServerSagaMonitoringService(connectionFactoryProvider, configureOptions);
+		_ = builder.Services.AddSqlServerSagaMonitoringService(connectionFactoryProvider, configure);
 
 		return builder;
 	}
@@ -412,14 +384,14 @@ public static class SqlServerSagaExtensions
 
 	private static void RegisterSagaStoreOptions(
 		IServiceCollection services,
-		Action<SqlServerSagaStoreOptions>? configureOptions)
+		Action<SqlServerSagaStoreOptions>? configure)
 	{
 		_ = services.AddOptions<SqlServerSagaStoreOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
-		if (configureOptions is not null)
+		if (configure is not null)
 		{
-			_ = services.Configure(configureOptions);
+			_ = services.Configure(configure);
 		}
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerSagaStoreOptions>, SqlServerSagaStoreOptionsValidator>());
@@ -427,14 +399,14 @@ public static class SqlServerSagaExtensions
 
 	private static void RegisterSagaTimeoutStoreOptions(
 		IServiceCollection services,
-		Action<SqlServerSagaTimeoutStoreOptions>? configureOptions)
+		Action<SqlServerSagaTimeoutStoreOptions>? configure)
 	{
 		_ = services.AddOptions<SqlServerSagaTimeoutStoreOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
-		if (configureOptions is not null)
+		if (configure is not null)
 		{
-			_ = services.Configure(configureOptions);
+			_ = services.Configure(configure);
 		}
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerSagaTimeoutStoreOptions>, SqlServerSagaTimeoutStoreOptionsValidator>());

@@ -28,8 +28,8 @@ public static class ExcaliburBuilderDispatchExtensions
 	///     .UseDispatch(dispatch => dispatch
 	///         .AddHandlersFromAssembly(typeof(Program).Assembly)
 	///         .WithDefaults())
-	///     .AddEventSourcing(es => es.UseSqlServer(connectionString))
-	///     .AddOutbox(outbox => outbox.UseSqlServer(connectionString)));
+	///     .AddEventSourcing(es => es.UseSqlServer(opts => opts.ConnectionString = connectionString))
+	///     .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 	/// </code>
 	/// <para>
 	/// If <paramref name="configure"/> is null, Dispatch is registered with default settings.

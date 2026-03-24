@@ -79,7 +79,7 @@ public sealed class CdcProcessingDiRegistrationShould : UnitTestBase
 		// Arrange & Act
 		_ = Services.AddCdcProcessor(cdc =>
 		{
-			_ = cdc.UseSqlServer("Server=localhost;Database=test;Trusted_Connection=true;")
+			_ = cdc.UseSqlServer(sql => sql.ConnectionString("Server=localhost;Database=test;Trusted_Connection=true;"))
 			   .EnableBackgroundProcessing();
 		});
 

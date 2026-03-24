@@ -35,7 +35,7 @@ services.AddSqlServerEventSourcing(options =>
 // Outbox - configure storage and processing via fluent builder
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.MaxRetryCount(5)
                                 .RetryDelay(TimeSpan.FromMinutes(5)))
           .EnableBackgroundProcessing();
@@ -66,8 +66,9 @@ The `PostgresRetryPolicy` handles PostgreSQL-specific transient failures automat
 
 ```csharp
 // Event sourcing with PostgreSQL - configure storage options
-services.AddPostgresEventStore(connectionString, options =>
+services.AddPostgresEventStore(options =>
 {
+    options.ConnectionString = connectionString;
     options.SchemaName = "public";
     options.EventsTableName = "event_store_events";
 });
@@ -110,9 +111,10 @@ CDC (Change Data Capture) processors maintain position state to resume after fai
 // SQL Server CDC with fluent builder configuration
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.SchemaName("Cdc")
+        sql.ConnectionString(connectionString)
+           .SchemaName("Cdc")
            .StateTableName("CdcProcessingState");
     })
     .WithRecovery(recovery =>

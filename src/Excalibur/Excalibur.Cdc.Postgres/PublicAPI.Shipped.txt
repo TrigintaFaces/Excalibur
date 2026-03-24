@@ -211,8 +211,7 @@ Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions
 override Excalibur.Cdc.Postgres.PostgresCdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.Postgres.PostgresCdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.Postgres.PostgresCdcPosition.ToString() -> string!
-static Excalibur.Cdc.Postgres.CdcBuilderPostgresExtensions.UsePostgres(this Excalibur.Cdc.ICdcBuilder! builder, string! connectionString, System.Action<Excalibur.Cdc.Postgres.IPostgresCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
-static Excalibur.Cdc.Postgres.CdcBuilderPostgresExtensions.UsePostgres(this Excalibur.Cdc.ICdcBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! connectionFactory, System.Action<Excalibur.Cdc.Postgres.IPostgresCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.Postgres.CdcBuilderPostgresExtensions.UsePostgres(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.Postgres.IPostgresCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.FromChangePosition(Excalibur.Dispatch.Abstractions.ChangePosition? position) -> Excalibur.Cdc.Postgres.PostgresCdcPosition
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.operator !=(Excalibur.Cdc.Postgres.PostgresCdcPosition left, Excalibur.Cdc.Postgres.PostgresCdcPosition right) -> bool
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.operator <(Excalibur.Cdc.Postgres.PostgresCdcPosition left, Excalibur.Cdc.Postgres.PostgresCdcPosition right) -> bool
@@ -239,9 +238,9 @@ static Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions.AddPostgre
 static Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions.AddPostgresCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.Postgres.PostgresCdcOptions!>! configure, System.Func<System.IServiceProvider!, Excalibur.Cdc.Postgres.IPostgresCdcStateStore!>! stateStoreFactory, System.Action<Excalibur.Cdc.Postgres.PostgresCdcStateStoreOptions!>? configureStateStoreOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions.AddPostgresCdcWithInMemoryState(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.Postgres.PostgresCdcOptions!>! configure, System.Action<Excalibur.Cdc.Postgres.PostgresCdcStateStoreOptions!>? configureStateStoreOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Cdc.Postgres.PostgresCdcPosition.Start -> Excalibur.Cdc.Postgres.PostgresCdcPosition
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.WithStateStore(string! connectionString) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.WithStateStore(string! connectionString, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! stateConnectionFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcBuilder.StateConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! connectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!

@@ -24,38 +24,6 @@ public static class EventSourcingBuilderSqlServerExtensions
 	/// snapshot store, and outbox store.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="registerHealthChecks">Whether to register health checks. Default: true.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> or <paramref name="connectionString"/> is null.
-	/// </exception>
-	/// <example>
-	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
-	/// {
-	///     es.UseSqlServer(connectionString)
-	///       .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
-	/// </code>
-	/// </example>
-	public static IEventSourcingBuilder UseSqlServer(
-		this IEventSourcingBuilder builder,
-		string connectionString,
-		bool registerHealthChecks = true)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		_ = builder.Services.AddSqlServerEventSourcing(connectionString, registerHealthChecks);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures the event sourcing builder to use SQL Server with detailed options.
-	/// </summary>
-	/// <param name="builder">The event sourcing builder.</param>
 	/// <param name="configure">Configuration action for SQL Server event sourcing options.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
@@ -67,7 +35,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 	/// {
 	///     es.UseSqlServer(options =&gt;
 	///     {
-	///         options.ConnectionString = connectionString;
+	///         options.ConnectionString = configuration.GetConnectionString("EventStore");
 	///         options.HealthChecks.RegisterHealthChecks = true;
 	///     })
 	///     .AddRepository&lt;OrderAggregate, Guid&gt;();

@@ -325,7 +325,7 @@ builder.Services.AddSingleton<IMessageSession>(endpointInstance);
 builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 });
 
@@ -376,7 +376,7 @@ public class NServiceBusBridgeHandler : IHandleMessages<OrderPlaced>
 // Use Dispatch outbox for reliable local messaging
 builder.Services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 });
 ```
@@ -395,7 +395,7 @@ Remove NServiceBus entirely, replace with Dispatch + external broker:
 builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 });
 builder.Services.AddOutboxHostedService();
@@ -445,7 +445,7 @@ var endpointInstance = await Endpoint.Start(endpointConfiguration);
 builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
 });
 builder.Services.AddOutboxHostedService();
@@ -591,7 +591,7 @@ persistence.ConnectionBuilder(() => new SqlConnection(connectionString));
 builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString);
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
 });
 ```
 

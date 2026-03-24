@@ -16,6 +16,11 @@ internal sealed class SqlServerSagaTimeoutStoreOptionsValidator : IValidateOptio
 			return ValidateOptionsResult.Fail("SQL Server saga timeout store options cannot be null.");
 		}
 
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			return ValidateOptionsResult.Fail("ConnectionString is required.");
+		}
+
 		if (string.IsNullOrWhiteSpace(options.SchemaName))
 		{
 			return ValidateOptionsResult.Fail("SchemaName is required.");

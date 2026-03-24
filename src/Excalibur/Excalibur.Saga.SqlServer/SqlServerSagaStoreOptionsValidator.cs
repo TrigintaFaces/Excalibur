@@ -16,6 +16,11 @@ internal sealed class SqlServerSagaStoreOptionsValidator : IValidateOptions<SqlS
 			return ValidateOptionsResult.Fail("SQL Server saga store options cannot be null.");
 		}
 
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			return ValidateOptionsResult.Fail("ConnectionString is required.");
+		}
+
 		if (string.IsNullOrWhiteSpace(options.SchemaName))
 		{
 			return ValidateOptionsResult.Fail("SchemaName is required.");

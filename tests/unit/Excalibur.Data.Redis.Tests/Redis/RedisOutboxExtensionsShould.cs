@@ -94,67 +94,6 @@ public sealed class RedisOutboxExtensionsShould
 
 	#endregion
 
-	#region AddRedisOutboxStore with ConnectionString Tests
-
-	[Fact]
-	public void AddRedisOutboxStore_WithConnectionString_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddRedisOutboxStore("localhost:6379"));
-	}
-
-	[Fact]
-	public void AddRedisOutboxStore_WithConnectionString_ThrowsArgumentException_WhenConnectionStringIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddRedisOutboxStore((string)null!));
-	}
-
-	[Fact]
-	public void AddRedisOutboxStore_WithConnectionString_ThrowsArgumentException_WhenConnectionStringIsEmpty()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddRedisOutboxStore(string.Empty));
-	}
-
-	[Fact]
-	public void AddRedisOutboxStore_WithConnectionString_ThrowsArgumentException_WhenConnectionStringIsWhitespace()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddRedisOutboxStore("   "));
-	}
-
-	[Fact]
-	public void AddRedisOutboxStore_WithConnectionString_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddRedisOutboxStore("localhost:6379");
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	#endregion
-
 	#region AddRedisOutboxStore with ConnectionProvider Tests
 
 	[Fact]

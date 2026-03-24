@@ -15,8 +15,8 @@ namespace Excalibur.Data.Tests.Postgres.Builders;
 /// Unit tests for <see cref="IPostgresOutboxBuilder"/> fluent API.
 /// </summary>
 /// <remarks>
-/// These tests validate the ADR-098 Microsoft-style fluent builder pattern implementation
-/// for the Postgres outbox provider.
+/// These tests validate the Microsoft-style fluent builder pattern implementation
+/// for the Postgres outbox provider, where connection is configured via the builder.
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -33,14 +33,45 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgres(TestConnectionString));
+			builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString)));
+	}
+
+	[Fact]
+	public void UsePostgres_ThrowsOnNullConfigure()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() =>
+			services.AddExcaliburOutbox(builder =>
+			{
+				_ = builder.UsePostgres(null!);
+			}));
+	}
+
+	[Fact]
+	public void UsePostgres_ThrowsWhenNoConnectionConfigured()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act & Assert
+		_ = Should.Throw<InvalidOperationException>(() =>
+			services.AddExcaliburOutbox(builder =>
+			{
+				_ = builder.UsePostgres(pg =>
+				{
+					_ = pg.SchemaName("messaging");
+				});
+			}));
 	}
 
 	[Theory]
 	[InlineData(null)]
 	[InlineData("")]
 	[InlineData("   ")]
-	public void UsePostgres_ThrowsOnInvalidConnectionString(string? connectionString)
+	public void ConnectionString_ThrowsOnInvalidValue(string? connectionString)
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -49,7 +80,21 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(connectionString);
+				_ = builder.UsePostgres(pg => pg.ConnectionString(connectionString));
+			}));
+	}
+
+	[Fact]
+	public void ConnectionFactory_ThrowsOnNull()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() =>
+			services.AddExcaliburOutbox(builder =>
+			{
+				_ = builder.UsePostgres(pg => pg.ConnectionFactory(null!));
 			}));
 	}
 
@@ -63,7 +108,7 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			capturedResult = builder.UsePostgres(TestConnectionString);
+			capturedResult = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 		});
 
 		// Assert
@@ -79,7 +124,7 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString);
+			_ = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -98,7 +143,7 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString);
+			_ = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 		});
 
 		// Assert - service descriptor exists
@@ -116,9 +161,10 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.SchemaName("messaging");
+				_ = pg.ConnectionString(TestConnectionString)
+					.SchemaName("messaging");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -137,9 +183,10 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.TableName("outbox_messages");
+				_ = pg.ConnectionString(TestConnectionString)
+					.TableName("outbox_messages");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -158,9 +205,10 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.DeadLetterTableName("dead_letter_queue");
+				_ = pg.ConnectionString(TestConnectionString)
+					.DeadLetterTableName("dead_letter_queue");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -180,9 +228,10 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.ReservationTimeout(expectedTimeout);
+				_ = pg.ConnectionString(TestConnectionString)
+					.ReservationTimeout(expectedTimeout);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -201,9 +250,10 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.MaxAttempts(10);
+				_ = pg.ConnectionString(TestConnectionString)
+					.MaxAttempts(10);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -222,9 +272,10 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.SchemaName("messaging")
+				_ = pg.ConnectionString(TestConnectionString)
+						.SchemaName("messaging")
 						.TableName("outbox")
 						.DeadLetterTableName("dead_letters")
 						.CommandTimeout(TimeSpan.FromSeconds(45))
@@ -254,9 +305,10 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		_ = services.AddExcaliburOutbox(builder =>
 		{
 			_ = builder
-				.UsePostgres(TestConnectionString, postgres =>
+				.UsePostgres(pg =>
 				{
-					_ = postgres.SchemaName("outbox");
+					_ = pg.ConnectionString(TestConnectionString)
+						.SchemaName("outbox");
 				})
 				.WithProcessing(p => p.BatchSize(150).PollingInterval(TimeSpan.FromSeconds(10)))
 				.WithCleanup(c => c.EnableAutoCleanup(true).RetentionPeriod(TimeSpan.FromDays(14)))

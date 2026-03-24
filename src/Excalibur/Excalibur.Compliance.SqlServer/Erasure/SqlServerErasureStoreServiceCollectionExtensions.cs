@@ -41,28 +41,6 @@ public static class SqlServerErasureStoreServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds the SQL Server erasure store to the service collection with a connection string.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="connectionString"> The SQL Server connection string. </param>
-	/// <returns> The service collection for chaining. </returns>
-	/// <remarks>
-	/// Uses default options with auto-schema creation enabled. For custom schema/table names, use the overload that accepts a configure delegate.
-	/// </remarks>
-	public static IServiceCollection AddSqlServerErasureStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddSqlServerErasureStore(options =>
-		{
-			options.ConnectionString = connectionString;
-		});
-	}
-
-	/// <summary>
 	/// Adds the SQL Server erasure store with connection string from configuration.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>

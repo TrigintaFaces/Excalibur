@@ -137,34 +137,6 @@ public sealed class OutboxBuilderElasticSearchRedisExtensionsShould
 
 	#endregion
 
-	#region UseRedis (connectionString)
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseRedisConnectionString()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			((IOutboxBuilder)null!).UseRedis("localhost:6379"));
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsNullOrEmpty_ForUseRedis()
-	{
-		var services = new ServiceCollection();
-		IOutboxBuilder? capturedBuilder = null;
-
-		services.AddExcaliburOutbox(outbox =>
-		{
-			capturedBuilder = outbox;
-		});
-
-		Should.Throw<ArgumentException>(() =>
-			capturedBuilder!.UseRedis((string)null!));
-		Should.Throw<ArgumentException>(() =>
-			capturedBuilder!.UseRedis(string.Empty));
-	}
-
-	#endregion
-
 	#region UseInMemory
 
 	[Fact]

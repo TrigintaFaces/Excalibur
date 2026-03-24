@@ -248,10 +248,12 @@ public interface IDocumentDataRequestRetryPolicy : IDataRequestRetryPolicy
 Configure resilience options per provider:
 
 ```csharp
-services.AddSqlServerPersistenceWithRetry(
-    connectionString,
-    maxRetryAttempts: 3,
-    retryDelayMilliseconds: 1000);
+services.AddSqlServerPersistenceWithRetry(opts =>
+{
+    opts.ConnectionString = connectionString;
+    opts.Resiliency.MaxRetryAttempts = 3;
+    opts.Resiliency.RetryDelayMilliseconds = 1000;
+});
 ```
 
 ## Transaction Scopes

@@ -23,7 +23,6 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 	[Fact]
 	public void ResolveConnectionStringFromIConfiguration()
 	{
-		// Arrange
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
@@ -34,15 +33,12 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddSingleton<IConfiguration>(config);
 
-		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
 				   .ConnectionStringName("MyDb")));
 
-		// Assert -- service provider should build without error;
-		// The ConnectionStringName is resolved lazily from IConfiguration when
-		// creating the SqlConnection factory. We verify registration succeeded.
 		var provider = services.BuildServiceProvider();
 		var cdcOptions = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		cdcOptions.ShouldNotBeNull();
@@ -54,21 +50,19 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 	[InlineData("   ")]
 	public void ThrowArgumentException_WhenNameIsNullEmptyOrWhitespace(string? invalidName)
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(TestConnectionString, sql =>
-					sql.DatabaseName("Db")
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .DatabaseName("Db")
 					   .ConnectionStringName(invalidName!))));
 	}
 
 	[Fact]
 	public void ThrowInvalidOperationException_WhenConnectionStringMissingInConfig()
 	{
-		// Arrange -- configuration without the expected connection string
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
@@ -80,15 +74,13 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 		services.AddSingleton<IConfiguration>(config);
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
 				   .ConnectionStringName("MissingDb")));
 
 		var provider = services.BuildServiceProvider();
 
-		// Act & Assert -- resolution happens lazily when the factory is invoked;
-		// ICdcStateStore or ICdcRepository resolve the factory which calls IConfiguration.
-		// The source factory throws InvalidOperationException for missing connection string.
 		var ex = Should.Throw<InvalidOperationException>(() =>
 			provider.GetRequiredService<ICdcRepository>());
 		ex.Message.ShouldContain("MissingDb");
@@ -98,7 +90,6 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 	[Fact]
 	public void CombineWithOtherBuilderMethods()
 	{
-		// Arrange
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
@@ -109,16 +100,15 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddSingleton<IConfiguration>(config);
 
-		// Act -- ConnectionStringName combined with other builder methods
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("OrdersDb")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("OrdersDb")
 				   .SchemaName("audit")
 				   .BatchSize(200)
 				   .PollingInterval(TimeSpan.FromSeconds(10))
 				   .ConnectionStringName("OrdersDb")));
 
-		// Assert
 		var provider = services.BuildServiceProvider();
 		var sqlOptions = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		sqlOptions.Value.SchemaName.ShouldBe("audit");
@@ -132,7 +122,6 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 	[Fact]
 	public void CombineWithTrackTable()
 	{
-		// Arrange
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
@@ -143,16 +132,15 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddSingleton<IConfiguration>(config);
 
-		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-					sql.DatabaseName("Db")
-					   .ConnectionStringName("MyDb"))
-				   .TrackTable("dbo.Orders", t => t.MapInsert<OrderCreatedEvent>()));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
+				   .ConnectionStringName("MyDb"))
+			       .TrackTable("dbo.Orders", t => t.MapInsert<OrderCreatedEvent>()));
 
 		var provider = services.BuildServiceProvider();
 
-		// Assert -- CdcOptions should have the tracked table configured
 		var cdcOptions = provider.GetRequiredService<IOptions<CdcOptions>>();
 		var tableConfig = cdcOptions.Value.TrackedTables.Single();
 		tableConfig.TableName.ShouldBe("dbo.Orders");
@@ -163,7 +151,6 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 	[Fact]
 	public void RegisterServiceDescriptorsSuccessfully()
 	{
-		// Arrange
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
@@ -174,13 +161,12 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddSingleton<IConfiguration>(config);
 
-		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
 				   .ConnectionStringName("TestDb")));
 
-		// Assert -- key CDC services should be registered
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(ISqlServerCdcStateStore) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
@@ -197,7 +183,6 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 	[Fact]
 	public void CombineWithCommandTimeout()
 	{
-		// Arrange
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
@@ -208,19 +193,17 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddSingleton<IConfiguration>(config);
 
-		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
 				   .CommandTimeout(TimeSpan.FromSeconds(120))
 				   .ConnectionStringName("TimeoutDb")));
 
-		// Assert
 		var provider = services.BuildServiceProvider();
 		var sqlOptions = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		sqlOptions.Value.CommandTimeout.ShouldBe(TimeSpan.FromSeconds(120));
 	}
 
-	// Test event types
 	private sealed class OrderCreatedEvent;
 }

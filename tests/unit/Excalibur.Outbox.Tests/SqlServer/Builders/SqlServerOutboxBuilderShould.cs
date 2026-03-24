@@ -32,23 +32,20 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			builder.UseSqlServer(TestConnectionString));
+			builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString)));
 	}
 
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void UseSqlServer_ThrowsOnInvalidConnectionString(string? connectionString)
+	[Fact]
+	public void UseSqlServer_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
+		_ = Should.Throw<ArgumentNullException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UseSqlServer(connectionString);
+				_ = builder.UseSqlServer((Action<ISqlServerOutboxBuilder>)null!);
 			}));
 	}
 
@@ -62,7 +59,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			capturedResult = builder.UseSqlServer(TestConnectionString);
+			capturedResult = builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 		});
 
 		// Assert
@@ -78,7 +75,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString);
+			_ = builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -97,7 +94,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString);
+			_ = builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 		});
 
 		// Assert - service descriptor exists
@@ -115,7 +112,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString);
+			_ = builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString));
 		});
 
 		// Assert - service descriptor exists
@@ -133,9 +130,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
-				_ = sql.SchemaName("Messaging");
+				sql.ConnectionString(TestConnectionString)
+				   .SchemaName("Messaging");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -154,9 +152,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
-				_ = sql.TableName("CustomOutbox");
+				sql.ConnectionString(TestConnectionString)
+				   .TableName("CustomOutbox");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -175,9 +174,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
-				_ = sql.TransportsTableName("CustomTransports");
+				sql.ConnectionString(TestConnectionString)
+				   .TransportsTableName("CustomTransports");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -196,9 +196,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
-				_ = sql.DeadLetterTableName("CustomDeadLetters");
+				sql.ConnectionString(TestConnectionString)
+				   .DeadLetterTableName("CustomDeadLetters");
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -218,9 +219,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
-				_ = sql.CommandTimeout(expectedTimeout);
+				sql.ConnectionString(TestConnectionString)
+				   .CommandTimeout(expectedTimeout);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -239,9 +241,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
-				_ = sql.UseRowLocking(false);
+				sql.ConnectionString(TestConnectionString)
+				   .UseRowLocking(false);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -260,9 +263,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
-				_ = sql.DefaultBatchSize(500);
+				sql.ConnectionString(TestConnectionString)
+				   .DefaultBatchSize(500);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -281,9 +285,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
-				_ = sql.SchemaName("Outbox")
+				_ = sql.ConnectionString(TestConnectionString)
+				   .SchemaName("Outbox")
 				   .TableName("Messages")
 				   .TransportsTableName("MessageTransports")
 				   .DeadLetterTableName("DeadLetters")
@@ -296,6 +301,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
+		options.Value.ConnectionString.ShouldBe(TestConnectionString);
 		options.Value.SchemaName.ShouldBe("Outbox");
 		options.Value.OutboxTableName.ShouldBe("Messages");
 		options.Value.TransportsTableName.ShouldBe("MessageTransports");
@@ -315,9 +321,10 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		_ = services.AddExcaliburOutbox(builder =>
 		{
 			_ = builder
-				.UseSqlServer(TestConnectionString, sql =>
+				.UseSqlServer(sql =>
 				{
-					_ = sql.SchemaName("Messaging");
+					sql.ConnectionString(TestConnectionString)
+					   .SchemaName("Messaging");
 				})
 				.WithProcessing(p => p.BatchSize(150).PollingInterval(TimeSpan.FromSeconds(10)))
 				.WithCleanup(c => c.EnableAutoCleanup(true).RetentionPeriod(TimeSpan.FromDays(14)))

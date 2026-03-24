@@ -38,7 +38,7 @@ public static class ServiceCollectionExtensions
 	/// {
 	///     excalibur
 	///         .AddEventSourcing(es => es.UseEventStore&lt;SqlServerEventStore&gt;())
-	///         .AddOutbox(outbox => outbox.UseSqlServer(connectionString))
+	///         .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)))
 	///         .AddCdc(cdc => cdc.TrackTable&lt;Order&gt;())
 	///         .AddSagas(opts => opts.EnableTimeouts = true)
 	///         .AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(30));
@@ -64,7 +64,7 @@ public static class ServiceCollectionExtensions
 	/// {
 	///     excalibur
 	///         .AddEventSourcing(es => es.UseEventStore&lt;SqlServerEventStore&gt;())
-	///         .AddOutbox(outbox => outbox.UseSqlServer(connectionString));
+	///         .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 	/// });
 	/// </code>
 	/// </para>

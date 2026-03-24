@@ -25,10 +25,10 @@ public static class InboxServiceCollectionExtensions
 	/// <example>
 	/// <code>
 	/// // SQL Server
-	/// services.AddExcaliburInbox(inbox => inbox.UseSqlServer(connectionString));
+	/// services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString = connectionString));
 	///
 	/// // Postgres
-	/// services.AddExcaliburInbox(inbox => inbox.UsePostgres(connectionString));
+	/// services.AddExcaliburInbox(inbox => inbox.UsePostgres(pg => pg.ConnectionString = connectionString));
 	///
 	/// // In-Memory (for testing)
 	/// services.AddExcaliburInbox(inbox => inbox.UseInMemory());

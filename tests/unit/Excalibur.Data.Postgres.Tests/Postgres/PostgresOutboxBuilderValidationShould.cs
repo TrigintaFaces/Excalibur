@@ -31,9 +31,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, postgres =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = postgres.SchemaName(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+						.SchemaName(invalidValue);
 				});
 			}));
 	}
@@ -50,9 +51,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.SchemaName(validValue);
+				_ = pg.ConnectionString(TestConnectionString)
+					.SchemaName(validValue);
 			});
 		});
 
@@ -72,9 +74,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, postgres =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = postgres.TableName(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+						.TableName(invalidValue);
 				});
 			}));
 	}
@@ -92,9 +95,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, postgres =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = postgres.DeadLetterTableName(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+						.DeadLetterTableName(invalidValue);
 				});
 			}));
 	}
@@ -109,9 +113,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, postgres =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = postgres.CommandTimeout(TimeSpan.Zero);
+					_ = pg.ConnectionString(TestConnectionString)
+						.CommandTimeout(TimeSpan.Zero);
 				});
 			}));
 	}
@@ -126,9 +131,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, postgres =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = postgres.CommandTimeout(TimeSpan.FromSeconds(-1));
+					_ = pg.ConnectionString(TestConnectionString)
+						.CommandTimeout(TimeSpan.FromSeconds(-1));
 				});
 			}));
 	}
@@ -145,9 +151,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.CommandTimeout(TimeSpan.FromSeconds(seconds));
+				_ = pg.ConnectionString(TestConnectionString)
+					.CommandTimeout(TimeSpan.FromSeconds(seconds));
 			});
 		});
 
@@ -164,9 +171,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, postgres =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = postgres.ReservationTimeout(TimeSpan.Zero);
+					_ = pg.ConnectionString(TestConnectionString)
+						.ReservationTimeout(TimeSpan.Zero);
 				});
 			}));
 	}
@@ -181,9 +189,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, postgres =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = postgres.ReservationTimeout(TimeSpan.FromMinutes(-1));
+					_ = pg.ConnectionString(TestConnectionString)
+						.ReservationTimeout(TimeSpan.FromMinutes(-1));
 				});
 			}));
 	}
@@ -200,9 +209,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.ReservationTimeout(TimeSpan.FromMinutes(minutes));
+				_ = pg.ConnectionString(TestConnectionString)
+					.ReservationTimeout(TimeSpan.FromMinutes(minutes));
 			});
 		});
 
@@ -222,9 +232,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, postgres =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = postgres.MaxAttempts(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+						.MaxAttempts(invalidValue);
 				});
 			}));
 	}
@@ -241,9 +252,10 @@ public sealed class PostgresOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, postgres =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = postgres.MaxAttempts(validValue);
+				_ = pg.ConnectionString(TestConnectionString)
+					.MaxAttempts(validValue);
 			});
 		});
 

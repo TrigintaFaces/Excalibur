@@ -79,7 +79,7 @@ Excalibur includes automatic stale position detection:
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .WithRecovery(recovery =>
        {
            recovery.Strategy(StalePositionRecoveryStrategy.FallbackToEarliest)

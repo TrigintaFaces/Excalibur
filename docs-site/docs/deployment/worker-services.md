@@ -44,7 +44,7 @@ builder.Services.AddExcalibur(excalibur =>
 
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(connectionString)
+        outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
               .EnableBackgroundProcessing()
               .WithProcessing(p =>
               {
@@ -56,7 +56,7 @@ builder.Services.AddExcalibur(excalibur =>
 });
 
 // Add SQL Server event sourcing provider separately
-builder.Services.AddSqlServerEventSourcing(connectionString);
+builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 var host = builder.Build();
 await host.RunAsync();
@@ -74,7 +74,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(connectionString)
+        outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
               .EnableBackgroundProcessing(options =>
               {
                   options.PollingInterval = TimeSpan.FromSeconds(1);
@@ -168,7 +168,7 @@ Excalibur provides `CdcProcessingHostedService`, a built-in `BackgroundService` 
 // Setup in your worker service
 builder.Services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
        .EnableBackgroundProcessing(options =>
        {

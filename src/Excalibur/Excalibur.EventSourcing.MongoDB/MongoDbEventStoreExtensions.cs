@@ -57,32 +57,6 @@ public static class MongoDbEventStoreExtensions
 	}
 
 	/// <summary>
-	/// Adds the MongoDB event store to the service collection with a connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The MongoDB connection string.</param>
-	/// <param name="databaseName">The database name.</param>
-	/// <param name="configureOptions">Optional action to further configure event store options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMongoDbEventStore(
-		this IServiceCollection services,
-		string connectionString,
-		string databaseName,
-		Action<MongoDbEventStoreOptions>? configureOptions = null)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-		return services.AddMongoDbEventStore(options =>
-		{
-			options.ConnectionString = connectionString;
-			options.DatabaseName = databaseName;
-			configureOptions?.Invoke(options);
-		});
-	}
-
-	/// <summary>
 	/// Adds the MongoDB event store to the service collection with an existing client.
 	/// </summary>
 	/// <param name="services">The service collection.</param>

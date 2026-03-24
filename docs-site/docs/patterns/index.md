@@ -49,7 +49,7 @@ services.AddDispatch(dispatch =>
 });
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)))
           .EnableBackgroundProcessing();
 });
@@ -58,7 +58,7 @@ services.AddExcaliburOutbox(outbox =>
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 {
     private readonly IOutbox _outbox;
-    private readonly IDbContext _db;
+    private readonly IDb _db;
 
     public async Task HandleAsync(CreateOrderAction action, CancellationToken ct)
     {
@@ -66,7 +66,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 
         // Save domain changes
         var order = new Order { /* ... */ };
-        await _db.Orders.AddAsync(order, ct);
+        await _db.ExecuteAsync(new InsertOrderRequest(order), ct);
 
         // Store message in outbox (same transaction)
         await _outbox.AddAsync(new OrderCreatedEvent(order.Id), ct);
@@ -85,7 +85,7 @@ The inbox pattern provides idempotent message processing by tracking processed m
 
 ```csharp
 // Register inbox store
-services.AddSqlServerInboxStore(connectionString);
+services.AddSqlServerInboxStore(opts => opts.ConnectionString = connectionString);
 // Or with options:
 services.AddSqlServerInboxStore(options =>
 {
@@ -146,12 +146,12 @@ services.AddDispatch(dispatch =>
 // Outbox for reliable publishing
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
 });
 
 // Inbox for idempotent processing
-services.AddSqlServerInboxStore(connectionString);
+services.AddSqlServerInboxStore(opts => opts.ConnectionString = connectionString);
 
 // Claim check for large messages
 services.AddClaimCheck<AzureBlobClaimCheckProvider>(options =>

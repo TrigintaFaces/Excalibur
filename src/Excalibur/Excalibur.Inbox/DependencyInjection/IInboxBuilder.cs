@@ -22,8 +22,8 @@ namespace Excalibur.Inbox.DependencyInjection;
 /// <example>
 /// <code>
 /// services.AddExcaliburInbox(inbox => inbox
-///     .UseSqlServer(connectionString)
-///     // or .UsePostgres(connectionString)
+///     .UseSqlServer(sql => sql.ConnectionString = connectionString)
+///     // or .UsePostgres(pg => pg.ConnectionString = connectionString)
 ///     // or .UseInMemory()
 /// );
 /// </code>

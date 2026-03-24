@@ -24,7 +24,7 @@ This guide covers configuring event stores and registering aggregate repositorie
 // Configure event sourcing with provider and repositories in one builder
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(connectionString)
+    es.UseSqlServer(options => options.ConnectionString = connectionString)
       .AddRepository<OrderAggregate, Guid>(id => new OrderAggregate())
       .UseIntervalSnapshots(100);
 });
@@ -42,17 +42,10 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 // Recommended: Builder-integrated registration
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(connectionString)
-      .AddRepository<OrderAggregate, Guid>();
-});
-
-// Or with detailed options
-services.AddExcaliburEventSourcing(es =>
-{
     es.UseSqlServer(options =>
     {
         options.ConnectionString = connectionString;
-        options.RegisterHealthChecks = true;
+        options.HealthChecks.RegisterHealthChecks = true;
     })
     .AddRepository<OrderAggregate, Guid>();
 });
@@ -67,9 +60,9 @@ services.AddExcaliburEventSourcing(es =>
 You can also register providers directly on `IServiceCollection` if you prefer separating provider setup from builder configuration:
 
 ```csharp
-services.AddSqlServerEventSourcing(connectionString);
-// or
-services.AddSqlServerEventStore(connectionString);
+services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
+// or with connection factory
+services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
 ```
 :::
 
@@ -83,18 +76,12 @@ dotnet add package Excalibur.Data.Postgres
 // Builder-integrated registration
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UsePostgres(connectionString)
-      .AddRepository<OrderAggregate, Guid>();
-});
-
-// Or with options
-services.AddExcaliburEventSourcing(es =>
-{
     es.UsePostgres(options =>
     {
         options.ConnectionString = connectionString;
-        options.RegisterHealthChecks = true;
-    });
+        options.HealthChecks.RegisterHealthChecks = true;
+    })
+      .AddRepository<OrderAggregate, Guid>();
 });
 ```
 

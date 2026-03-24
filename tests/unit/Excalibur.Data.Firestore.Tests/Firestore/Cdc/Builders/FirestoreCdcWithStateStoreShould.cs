@@ -4,14 +4,13 @@
 using Excalibur.Cdc;
 using Excalibur.Cdc.Firestore;
 
-using Google.Cloud.Firestore;
-
 namespace Excalibur.Data.Tests.Firestore.Cdc.Builders;
 
 /// <summary>
 /// Unit tests for <see cref="IFirestoreCdcBuilder.WithStateStore"/> and
-/// <see cref="IFirestoreCdcBuilder.BindConfiguration"/> methods added in Sprint 662 (CDC Phase 2).
-/// Firestore uses project IDs instead of connection strings.
+/// <see cref="IFirestoreCdcBuilder.BindConfiguration"/> methods.
+/// Validates the unified WithStateStore(Action&lt;ICdcStateStoreBuilder&gt;) pattern.
+/// Firestore uses project IDs via ConnectionString() instead of traditional connection strings.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -19,7 +18,7 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 {
 	private const string StateProjectId = "my-state-project";
 
-	// --- WithStateStore(string projectId) ---
+	// --- WithStateStore(Action<ICdcStateStoreBuilder>) ---
 
 	[Fact]
 	public void WithStateStore_ProjectId_AcceptsValidValue()
@@ -33,7 +32,8 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 			builder.UseFirestore(firestore =>
 				firestore.CollectionPath("orders")
 				         .ProcessorName("order-cdc")
-				         .WithStateStore(StateProjectId)));
+				         .WithStateStore(state =>
+					         state.ConnectionString(StateProjectId))));
 
 		// Assert -- FirestoreCdcStateStoreOptions should be registered
 		services.ShouldContain(sd =>
@@ -42,23 +42,20 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 			sd.ServiceType.GetGenericArguments()[0] == typeof(FirestoreCdcStateStoreOptions));
 	}
 
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void WithStateStore_ProjectId_ThrowsOnInvalidValue(string? invalidValue)
+	[Fact]
+	public void WithStateStore_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
+		Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
 				builder.UseFirestore(firestore =>
-					firestore.WithStateStore(invalidValue!))));
+					firestore.WithStateStore((Action<ICdcStateStoreBuilder>)null!))));
 	}
 
-	// --- WithStateStore(string projectId, Action<ICdcStateStoreBuilder> configure) ---
+	// --- WithStateStore with TableName ---
 
 	[Fact]
 	public void WithStateStore_ProjectIdWithConfigure_AppliesStateStoreOptions()
@@ -72,119 +69,14 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 			builder.UseFirestore(firestore =>
 				firestore.CollectionPath("orders")
 				         .ProcessorName("order-cdc")
-				         .WithStateStore(StateProjectId, state =>
-					         state.TableName("custom-positions"))));
+				         .WithStateStore(state =>
+					         state.ConnectionString(StateProjectId)
+					              .TableName("custom-positions"))));
 
 		// Assert -- state store options reflect custom collection name
 		var provider = services.BuildServiceProvider();
 		var stateOptions = provider.GetRequiredService<IOptions<FirestoreCdcStateStoreOptions>>();
 		stateOptions.Value.CollectionName.ShouldBe("custom-positions");
-	}
-
-	[Fact]
-	public void WithStateStore_ProjectIdWithConfigure_ThrowsOnNullConfigure()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddCdcProcessor(builder =>
-				builder.UseFirestore(firestore =>
-					firestore.WithStateStore(StateProjectId, (Action<ICdcStateStoreBuilder>)null!))));
-	}
-
-	// --- WithStateStore(Func<IServiceProvider, FirestoreDb> dbFactory) ---
-
-	[Fact]
-	public void WithStateStore_Factory_AcceptsValidFactory()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		Func<IServiceProvider, FirestoreDb> stateFactory =
-			_ => A.Fake<FirestoreDb>();
-
-		// Act
-		services.AddCdcProcessor(builder =>
-			builder.UseFirestore(firestore =>
-				firestore.CollectionPath("orders")
-				         .ProcessorName("order-cdc")
-				         .WithStateStore(stateFactory)));
-
-		// Assert -- state store options are registered
-		services.ShouldContain(sd =>
-			sd.ServiceType.IsGenericType &&
-			sd.ServiceType.GetGenericTypeDefinition() == typeof(IConfigureOptions<>) &&
-			sd.ServiceType.GetGenericArguments()[0] == typeof(FirestoreCdcStateStoreOptions));
-	}
-
-	[Fact]
-	public void WithStateStore_Factory_ThrowsOnNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddCdcProcessor(builder =>
-				builder.UseFirestore(firestore =>
-					firestore.WithStateStore((Func<IServiceProvider, FirestoreDb>)null!))));
-	}
-
-	// --- WithStateStore(Func<...> factory, Action<ICdcStateStoreBuilder> configure) ---
-
-	[Fact]
-	public void WithStateStore_FactoryWithConfigure_AppliesStateStoreOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		Func<IServiceProvider, FirestoreDb> stateFactory =
-			_ => A.Fake<FirestoreDb>();
-
-		// Act
-		services.AddCdcProcessor(builder =>
-			builder.UseFirestore(firestore =>
-				firestore.CollectionPath("orders")
-				         .ProcessorName("order-cdc")
-				         .WithStateStore(stateFactory, state =>
-					         state.TableName("audit-positions"))));
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var stateOptions = provider.GetRequiredService<IOptions<FirestoreCdcStateStoreOptions>>();
-		stateOptions.Value.CollectionName.ShouldBe("audit-positions");
-	}
-
-	[Fact]
-	public void WithStateStore_FactoryWithConfigure_ThrowsOnNullFactory()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddCdcProcessor(builder =>
-				builder.UseFirestore(firestore =>
-					firestore.WithStateStore(
-						(Func<IServiceProvider, FirestoreDb>)null!,
-						_ => { }))));
-	}
-
-	[Fact]
-	public void WithStateStore_FactoryWithConfigure_ThrowsOnNullConfigure()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		Func<IServiceProvider, FirestoreDb> stateFactory =
-			_ => A.Fake<FirestoreDb>();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddCdcProcessor(builder =>
-				builder.UseFirestore(firestore =>
-					firestore.WithStateStore(stateFactory, null!))));
 	}
 
 	// --- Backward compatibility: omitting WithStateStore ---
@@ -262,8 +154,9 @@ public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 			builder.UseFirestore(firestore =>
 				firestore.CollectionPath("orders")
 				         .ProcessorName("order-cdc")
-				         .WithStateStore(StateProjectId, state =>
-					         state.BindConfiguration("Cdc:State"))));
+				         .WithStateStore(state =>
+					         state.ConnectionString(StateProjectId)
+					              .BindConfiguration("Cdc:State"))));
 
 		// Assert -- state store options BindConfiguration is wired
 		var stateOptionsDescriptors = services.Where(sd =>

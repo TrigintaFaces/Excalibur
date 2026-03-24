@@ -17,9 +17,10 @@ namespace Excalibur.Cdc.Postgres;
 /// </remarks>
 /// <example>
 /// <code>
-/// cdc.UsePostgres(connectionString, pg =>
+/// cdc.UsePostgres(pg =>
 /// {
-///     pg.SchemaName("excalibur")
+///     pg.ConnectionString(connectionString)
+///       .SchemaName("excalibur")
 ///       .StateTableName("cdc_state")
 ///       .ReplicationSlotName("my_slot")
 ///       .PublicationName("my_publication")
@@ -101,9 +102,9 @@ public interface IPostgresCdcBuilder
 	IPostgresCdcBuilder AutoCreateSlot(bool autoCreate = true);
 
 	/// <summary>
-	/// Configures a separate connection for CDC state persistence using a connection string.
+	/// Configures a separate connection for CDC state persistence.
 	/// </summary>
-	/// <param name="connectionString">The state store connection string.</param>
+	/// <param name="configure">An action to configure state store connection, schema, and table settings.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
@@ -111,54 +112,65 @@ public interface IPostgresCdcBuilder
 	/// Follows the Microsoft Change Feed Processor pattern where lease/checkpoint storage
 	/// can be deployed to a separate database from the CDC source.
 	/// </para>
+	/// <para>
+	/// Use <c>state.ConnectionString(...)</c> or <c>state.ConnectionStringName(...)</c>
+	/// within the configure action to set the state store connection.
+	/// For provider-specific connection factories, use <see cref="StateConnectionFactory"/>.
+	/// </para>
 	/// </remarks>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
-	/// </exception>
-	IPostgresCdcBuilder WithStateStore(string connectionString);
-
-	/// <summary>
-	/// Configures a separate connection for CDC state persistence with state store configuration.
-	/// </summary>
-	/// <param name="connectionString">The state store connection string.</param>
-	/// <param name="configure">An action to configure state store schema and table settings.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
-	/// </exception>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="configure"/> is null.
 	/// </exception>
-	IPostgresCdcBuilder WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure);
+	IPostgresCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure);
 
 	/// <summary>
-	/// Configures a separate connection factory for CDC state persistence.
+	/// Sets a factory function that creates Postgres connections for the CDC state store.
 	/// </summary>
 	/// <param name="stateConnectionFactory">A factory function that creates state store Postgres connections.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// When omitted, the source connection factory is used for state persistence (backward compatible).
-	/// Use this overload for DI-integrated scenarios where connection management is handled externally.
+	/// Use this for DI-integrated scenarios where connection management is handled externally.
+	/// Can be combined with <see cref="WithStateStore"/> for schema/table configuration.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="stateConnectionFactory"/> is null.
 	/// </exception>
-	IPostgresCdcBuilder WithStateStore(Func<IServiceProvider, Func<NpgsqlConnection>> stateConnectionFactory);
+	IPostgresCdcBuilder StateConnectionFactory(Func<IServiceProvider, Func<NpgsqlConnection>> stateConnectionFactory);
 
 	/// <summary>
-	/// Configures a separate connection factory for CDC state persistence with state store configuration.
+	/// Sets the connection string for the Postgres CDC source database.
 	/// </summary>
-	/// <param name="stateConnectionFactory">A factory function that creates state store Postgres connections.</param>
-	/// <param name="configure">An action to configure state store schema and table settings.</param>
+	/// <param name="connectionString">The Postgres connection string.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// Mutually exclusive with <see cref="ConnectionStringName"/>, <see cref="ConnectionFactory"/>,
+	/// and <see cref="BindConfiguration"/>. The last one set wins for connection resolution.
+	/// </para>
+	/// </remarks>
+	IPostgresCdcBuilder ConnectionString(string connectionString);
+
+	/// <summary>
+	/// Sets a factory function that creates Postgres connections for the CDC source database.
+	/// </summary>
+	/// <param name="connectionFactory">A factory function that creates Postgres connections.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="stateConnectionFactory"/> or <paramref name="configure"/> is null.
+	/// Thrown when <paramref name="connectionFactory"/> is null.
 	/// </exception>
-	IPostgresCdcBuilder WithStateStore(
-		Func<IServiceProvider, Func<NpgsqlConnection>> stateConnectionFactory,
-		Action<ICdcStateStoreBuilder> configure);
+	/// <remarks>
+	/// <para>
+	/// Use this when you need custom connection management, such as
+	/// using dependency injection for connection pooling or custom connection strings.
+	/// Mutually exclusive with <see cref="ConnectionString"/> and <see cref="ConnectionStringName"/>.
+	/// </para>
+	/// </remarks>
+	IPostgresCdcBuilder ConnectionFactory(Func<IServiceProvider, Func<NpgsqlConnection>> connectionFactory);
 
 	/// <summary>
 	/// Binds Postgres CDC source options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.

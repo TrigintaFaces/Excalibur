@@ -22,9 +22,9 @@ public sealed class MongoDbCdcServiceCollectionExtensionsShould : UnitTestBase
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
+		// Act -- register IMongoClient so the state store can resolve it
+		services.AddSingleton(A.Fake<global::MongoDB.Driver.IMongoClient>());
 		_ = services.AddMongoDbCdcStateStore(
-				"mongodb://localhost",
 				options =>
 				{
 					options.DatabaseName = "custom_db";
@@ -47,7 +47,6 @@ public sealed class MongoDbCdcServiceCollectionExtensionsShould : UnitTestBase
 
 		// Act
 		_ = services.AddMongoDbCdcStateStore(
-				"mongodb://localhost",
 				options => options.CollectionName = " ");
 
 		using var provider = services.BuildServiceProvider();

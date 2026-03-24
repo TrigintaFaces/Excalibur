@@ -21,78 +21,6 @@ public sealed class EventSourcingBuilderRedisExtensionsShould
 		return new ExcaliburEventSourcingBuilder(svc);
 	}
 
-	#region UseRedis(connectionString) Tests
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenBuilderIsNull_ForConnectionStringOverload()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			((IEventSourcingBuilder)null!).UseRedis(TestConnectionString));
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsNull()
-	{
-		// Arrange
-		var builder = CreateBuilder();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			builder.UseRedis(null!));
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsEmpty()
-	{
-		// Arrange
-		var builder = CreateBuilder();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			builder.UseRedis(""));
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsWhitespace()
-	{
-		// Arrange
-		var builder = CreateBuilder();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			builder.UseRedis("   "));
-	}
-
-	[Fact]
-	public void ReturnSameBuilder_ForFluentChaining_ConnectionStringOverload()
-	{
-		// Arrange
-		var builder = CreateBuilder();
-
-		// Act
-		var result = builder.UseRedis(TestConnectionString);
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void RegisterEventStore_WhenCalledWithConnectionString()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var builder = CreateBuilder(services);
-
-		// Act
-		builder.UseRedis(TestConnectionString);
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IEventStore));
-	}
-
-	#endregion
-
 	#region UseRedis(Action<RedisEventStoreOptions>, Action<RedisSnapshotStoreOptions>) Tests
 
 	[Fact]
@@ -175,7 +103,9 @@ public sealed class EventSourcingBuilderRedisExtensionsShould
 
 		// Act -- verify chaining compiles and returns builder
 		var result = builder
-			.UseRedis(TestConnectionString)
+			.UseRedis(
+				es => es.ConnectionString = TestConnectionString,
+				ss => ss.ConnectionString = TestConnectionString)
 			.UseIntervalSnapshots(100);
 
 		// Assert

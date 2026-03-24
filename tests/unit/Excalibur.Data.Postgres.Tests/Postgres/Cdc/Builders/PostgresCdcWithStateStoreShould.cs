@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Postgres.Cdc.Builders;
 
 /// <summary>
 /// Unit tests for <see cref="IPostgresCdcBuilder.WithStateStore"/> and
-/// <see cref="IPostgresCdcBuilder.BindConfiguration"/> methods added in Sprint 661 (CDC Phase 1).
+/// <see cref="IPostgresCdcBuilder.BindConfiguration"/> methods.
 /// Validates the Microsoft Change Feed Processor pattern: separate source/state connections.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -21,7 +21,7 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 	private const string SourceConnectionString = "Host=source-db;Database=SourceDb;Username=test;Password=test;";
 	private const string StateConnectionString = "Host=state-db;Database=StateDb;Username=test;Password=test;";
 
-	// --- WithStateStore(string connectionString) ---
+	// --- WithStateStore(Action<ICdcStateStoreBuilder> configure) with ConnectionString ---
 
 	[Fact]
 	public void WithStateStore_ConnectionString_RegistersSeparateStateStore()
@@ -32,8 +32,9 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString, pg =>
-				pg.WithStateStore(StateConnectionString)));
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(SourceConnectionString)
+				   .WithStateStore(state => state.ConnectionString(StateConnectionString))));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -50,8 +51,9 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString, pg =>
-				pg.WithStateStore(StateConnectionString)));
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(SourceConnectionString)
+				   .WithStateStore(state => state.ConnectionString(StateConnectionString))));
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -71,11 +73,12 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UsePostgres(SourceConnectionString, pg =>
-					pg.WithStateStore(invalidValue!))));
+				builder.UsePostgres(pg =>
+					pg.ConnectionString(SourceConnectionString)
+					   .WithStateStore(state => state.ConnectionString(invalidValue!)))));
 	}
 
-	// --- WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure) ---
+	// --- WithStateStore with SchemaName/TableName ---
 
 	[Fact]
 	public void WithStateStore_ConnectionStringWithConfigure_AppliesStateStoreOptions()
@@ -86,9 +89,11 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString, pg =>
-				pg.WithStateStore(StateConnectionString, state =>
-					state.SchemaName("custom_schema")
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(SourceConnectionString)
+				   .WithStateStore(state =>
+					state.ConnectionString(StateConnectionString)
+						 .SchemaName("custom_schema")
 						 .TableName("custom_state"))));
 
 		// Assert
@@ -99,7 +104,7 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public void WithStateStore_ConnectionStringWithConfigure_ThrowsOnNullConfigure()
+	public void WithStateStore_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -107,14 +112,15 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UsePostgres(SourceConnectionString, pg =>
-					pg.WithStateStore(StateConnectionString, null!))));
+				builder.UsePostgres(pg =>
+					pg.ConnectionString(SourceConnectionString)
+					   .WithStateStore(null!))));
 	}
 
-	// --- WithStateStore(Func<IServiceProvider, Func<NpgsqlConnection>> stateConnectionFactory) ---
+	// --- StateConnectionFactory ---
 
 	[Fact]
-	public void WithStateStore_Factory_RegistersSeparateStateStore()
+	public void StateConnectionFactory_RegistersSeparateStateStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -124,8 +130,9 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString, pg =>
-				pg.WithStateStore(stateFactory)));
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(SourceConnectionString)
+				   .StateConnectionFactory(stateFactory)));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -134,7 +141,7 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public void WithStateStore_Factory_ThrowsOnNull()
+	public void StateConnectionFactory_ThrowsOnNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -142,14 +149,15 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UsePostgres(SourceConnectionString, pg =>
-					pg.WithStateStore((Func<IServiceProvider, Func<NpgsqlConnection>>)null!))));
+				builder.UsePostgres(pg =>
+					pg.ConnectionString(SourceConnectionString)
+					   .StateConnectionFactory(null!))));
 	}
 
-	// --- WithStateStore(Func<...> factory, Action<ICdcStateStoreBuilder> configure) ---
+	// --- StateConnectionFactory + WithStateStore combined ---
 
 	[Fact]
-	public void WithStateStore_FactoryWithConfigure_AppliesStateStoreOptions()
+	public void StateConnectionFactory_WithStateStore_AppliesStateStoreOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -159,8 +167,10 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString, pg =>
-				pg.WithStateStore(stateFactory, state =>
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(SourceConnectionString)
+				   .StateConnectionFactory(stateFactory)
+				   .WithStateStore(state =>
 					state.SchemaName("audit")
 						 .TableName("audit_state"))));
 
@@ -172,7 +182,7 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public void WithStateStore_FactoryWithConfigure_ThrowsOnNullFactory()
+	public void StateConnectionFactory_WithStateStore_ThrowsOnNullFactory()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -180,25 +190,9 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UsePostgres(SourceConnectionString, pg =>
-					pg.WithStateStore(
-						(Func<IServiceProvider, Func<NpgsqlConnection>>)null!,
-						_ => { }))));
-	}
-
-	[Fact]
-	public void WithStateStore_FactoryWithConfigure_ThrowsOnNullConfigure()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		Func<IServiceProvider, Func<NpgsqlConnection>> stateFactory =
-			_ => () => new NpgsqlConnection(StateConnectionString);
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddCdcProcessor(builder =>
-				builder.UsePostgres(SourceConnectionString, pg =>
-					pg.WithStateStore(stateFactory, null!))));
+				builder.UsePostgres(pg =>
+					pg.ConnectionString(SourceConnectionString)
+					   .StateConnectionFactory(null!))));
 	}
 
 	// --- Backward compatibility: omitting WithStateStore falls back to source ---
@@ -212,7 +206,7 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act -- no WithStateStore call
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString));
+			builder.UsePostgres(pg => pg.ConnectionString(SourceConnectionString)));
 
 		// Assert -- state store is still registered (uses source connection)
 		services.ShouldContain(sd =>
@@ -229,7 +223,7 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString));
+			builder.UsePostgres(pg => pg.ConnectionString(SourceConnectionString)));
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -249,8 +243,9 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString, pg =>
-				pg.BindConfiguration("Cdc:Postgres")));
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(SourceConnectionString)
+				   .BindConfiguration("Cdc:Postgres")));
 
 		// Assert
 		var optionsDescriptors = services.Where(sd =>
@@ -273,8 +268,9 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UsePostgres(SourceConnectionString, pg =>
-					pg.BindConfiguration(invalidPath!))));
+				builder.UsePostgres(pg =>
+					pg.ConnectionString(SourceConnectionString)
+					   .BindConfiguration(invalidPath!))));
 	}
 
 	// --- State store BindConfiguration via ICdcStateStoreBuilder ---
@@ -288,9 +284,11 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString, pg =>
-				pg.WithStateStore(StateConnectionString, state =>
-					state.BindConfiguration("Cdc:State"))));
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(SourceConnectionString)
+				   .WithStateStore(state =>
+					state.ConnectionString(StateConnectionString)
+						 .BindConfiguration("Cdc:State"))));
 
 		// Assert
 		var stateOptionsDescriptors = services.Where(sd =>
@@ -312,15 +310,17 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act -- exercise full fluent chain
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(SourceConnectionString, pg =>
-				pg.SchemaName("custom")
+			builder.UsePostgres(pg =>
+				pg.ConnectionString(SourceConnectionString)
+				   .SchemaName("custom")
 				   .StateTableName("custom_state")
 				   .ReplicationSlotName("my_slot")
 				   .PublicationName("my_pub")
 				   .BatchSize(500)
 				   .PollingInterval(TimeSpan.FromSeconds(2))
-				   .WithStateStore(StateConnectionString, state =>
-						state.SchemaName("state_schema")
+				   .WithStateStore(state =>
+						state.ConnectionString(StateConnectionString)
+							 .SchemaName("state_schema")
 							 .TableName("state_table"))
 				   .BindConfiguration("Cdc:Postgres")));
 
@@ -357,8 +357,10 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(sourceFactory, pg =>
-				pg.WithStateStore(stateFactory, state =>
+			builder.UsePostgres(pg =>
+				pg.ConnectionFactory(sourceFactory)
+				   .StateConnectionFactory(stateFactory)
+				   .WithStateStore(state =>
 					state.SchemaName("state_schema")
 						 .TableName("state_table"))));
 
@@ -380,8 +382,9 @@ public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 
 		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UsePostgres(sourceFactory, pg =>
-				pg.BindConfiguration("Cdc:Postgres")));
+			builder.UsePostgres(pg =>
+				pg.ConnectionFactory(sourceFactory)
+				   .BindConfiguration("Cdc:Postgres")));
 
 		// Assert
 		var optionsDescriptors = services.Where(sd =>

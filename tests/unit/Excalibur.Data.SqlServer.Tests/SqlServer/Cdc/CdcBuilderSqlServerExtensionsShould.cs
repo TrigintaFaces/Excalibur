@@ -21,22 +21,21 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 	private const string TestConnectionString = "Server=localhost;Database=TestDb;Encrypt=false;TrustServerCertificate=true";
 
 	[Fact]
-	public void UseSqlServer_ConnectionFactory_ThrowsOnNullBuilder()
+	public void UseSqlServer_ThrowsOnNullBuilder()
 	{
 		ICdcBuilder builder = null!;
-		Func<IServiceProvider, Func<SqlConnection>> factory = _ => () =>
-			new SqlConnection(TestConnectionString);
 
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseSqlServer(factory));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))));
 	}
 
 	[Fact]
-	public void UseSqlServer_ConnectionFactory_ThrowsOnNullFactory()
+	public void UseSqlServer_ThrowsOnNullConfigure()
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ServiceCollection().AddCdcProcessor(builder =>
-				builder.UseSqlServer((Func<IServiceProvider, Func<SqlConnection>>)null!)));
+				builder.UseSqlServer((Action<ISqlServerCdcBuilder>)null!)));
 	}
 
 	[Fact]
@@ -44,9 +43,10 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 	{
 		Should.Throw<ArgumentException>(() =>
 			new ServiceCollection().AddCdcProcessor(builder =>
-				builder.UseSqlServer(
-					_ => () => new SqlConnection(TestConnectionString),
-					sql => sql.SchemaName("").StateTableName("State"))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))
+					   .SchemaName("")
+					   .StateTableName("State"))));
 	}
 
 	[Fact]
@@ -54,9 +54,10 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 	{
 		Should.Throw<ArgumentException>(() =>
 			new ServiceCollection().AddCdcProcessor(builder =>
-				builder.UseSqlServer(
-					_ => () => new SqlConnection(TestConnectionString),
-					sql => sql.SchemaName("cdc").StateTableName(""))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))
+					   .SchemaName("cdc")
+					   .StateTableName(""))));
 	}
 
 	[Fact]
@@ -65,9 +66,10 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(
-				_ => () => new SqlConnection(TestConnectionString),
-				sql => sql.SchemaName("cdc").StateTableName("State")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))
+				   .SchemaName("cdc")
+				   .StateTableName("State")));
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISqlServerCdcStateStore));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ICdcRepository));
@@ -83,9 +85,11 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(
-				_ => () => new SqlConnection(TestConnectionString),
-				sql => sql.SchemaName("audit").StateTableName("CdcTracking").BatchSize(500)));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))
+				   .SchemaName("audit")
+				   .StateTableName("CdcTracking")
+				   .BatchSize(500)));
 
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
@@ -101,9 +105,10 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(
-				_ => () => new SqlConnection(TestConnectionString),
-				sql => sql.SchemaName("cdc").StateTableName("ProcessingState")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))
+				   .SchemaName("cdc")
+				   .StateTableName("ProcessingState")));
 
 		var provider = services.BuildServiceProvider();
 		var stateStoreOptions = provider.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
@@ -113,13 +118,14 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void UseSqlServer_ConnectionFactory_WorksWithoutConfigure()
+	public void UseSqlServer_ConnectionFactory_WorksWithoutAdditionalConfig()
 	{
 		var services = new ServiceCollection();
 
 		// Should use defaults (cdc schema, CdcProcessingState table)
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(_ => () => new SqlConnection(TestConnectionString)));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))));
 
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
@@ -132,7 +138,8 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)));
 
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(ICdcBackgroundProcessor) &&
@@ -146,9 +153,10 @@ public sealed class CdcBuilderSqlServerExtensionsShould : UnitTestBase
 
 		new ServiceCollection().AddCdcProcessor(builder =>
 		{
-			capturedResult = builder.UseSqlServer(
-				_ => () => new SqlConnection(TestConnectionString),
-				sql => sql.SchemaName("cdc").StateTableName("State"));
+			capturedResult = builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))
+				   .SchemaName("cdc")
+				   .StateTableName("State"));
 		});
 
 		capturedResult.ShouldNotBeNull();

@@ -76,36 +76,6 @@ public static class SqlServerPersistenceExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server persistence provider with connection string.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="connectionString"> The SQL Server connection string. </param>
-	/// <param name="configureOptions"> Optional action to configure additional options. </param>
-	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddSqlServerPersistence(
-		this IServiceCollection services,
-		string connectionString,
-		Action<SqlServerPersistenceOptions>? configureOptions = null)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		_ = services.AddOptions<SqlServerPersistenceOptions>()
-			.Configure(options =>
-			{
-				options.ConnectionString = connectionString;
-				configureOptions?.Invoke(options);
-			})
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
-
-		// Register core services
-		RegisterCoreServices(services);
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds SQL Server persistence health checks.
 	/// </summary>
 	/// <param name="builder"> The health checks builder. </param>
@@ -186,39 +156,30 @@ public static class SqlServerPersistenceExtensions
 	/// Adds SQL Server persistence with custom retry policy configuration.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="connectionString"> The connection string. </param>
-	/// <param name="maxRetryAttempts"> Maximum number of retry attempts. </param>
-	/// <param name="retryDelayMilliseconds"> Base delay between retries in milliseconds. </param>
+	/// <param name="configureOptions"> Action to configure persistence options including connection string and retry settings. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddSqlServerPersistenceWithRetry(
 		this IServiceCollection services,
-		string connectionString,
-		int maxRetryAttempts = 3,
-		int retryDelayMilliseconds = 1000) =>
-		services.AddSqlServerPersistence(connectionString, options =>
+		Action<SqlServerPersistenceOptions> configureOptions) =>
+		services.AddSqlServerPersistence(options =>
 		{
-			options.Resiliency.MaxRetryAttempts = maxRetryAttempts;
-			options.Resiliency.RetryDelayMilliseconds = retryDelayMilliseconds;
+			configureOptions(options);
 			options.Resiliency.EnableConnectionResiliency = true;
-			options.Resiliency.ConnectRetryCount = maxRetryAttempts;
-			options.Resiliency.ConnectRetryInterval = retryDelayMilliseconds / 1000;
 		});
 
 	/// <summary>
 	/// Adds SQL Server persistence with Always Encrypted support.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="connectionString"> The connection string. </param>
-	/// <param name="columnEncryptionSetting"> The column encryption setting. </param>
+	/// <param name="configureOptions"> Action to configure persistence options including connection string and encryption settings. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddSqlServerPersistenceWithEncryption(
 		this IServiceCollection services,
-		string connectionString,
-		SqlConnectionColumnEncryptionSetting columnEncryptionSetting = SqlConnectionColumnEncryptionSetting.Enabled) =>
-		services.AddSqlServerPersistence(connectionString, options =>
+		Action<SqlServerPersistenceOptions> configureOptions) =>
+		services.AddSqlServerPersistence(options =>
 		{
+			configureOptions(options);
 			options.Security.EnableAlwaysEncrypted = true;
-			options.Security.ColumnEncryptionSetting = columnEncryptionSetting;
 			options.Security.EncryptConnection = true;
 			options.Security.TrustServerCertificate = false;
 		});
@@ -227,13 +188,14 @@ public static class SqlServerPersistenceExtensions
 	/// Adds SQL Server persistence optimized for read-only workloads.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="connectionString"> The connection string. </param>
+	/// <param name="configureOptions"> Action to configure persistence options including connection string. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddSqlServerPersistenceReadOnly(
 		this IServiceCollection services,
-		string connectionString) =>
-		services.AddSqlServerPersistence(connectionString, static options =>
+		Action<SqlServerPersistenceOptions> configureOptions) =>
+		services.AddSqlServerPersistence(options =>
 		{
+			configureOptions(options);
 			options.Connection.ApplicationIntent = ApplicationIntent.ReadOnly;
 			options.Connection.EnableMars = false; // Not needed for read-only
 			options.CommandTimeout = 60; // Allow longer read queries
@@ -243,13 +205,14 @@ public static class SqlServerPersistenceExtensions
 	/// Adds SQL Server persistence with high availability configuration.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="connectionString"> The connection string. </param>
+	/// <param name="configureOptions"> Action to configure persistence options including connection string. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddSqlServerPersistenceHighAvailability(
 		this IServiceCollection services,
-		string connectionString) =>
-		services.AddSqlServerPersistence(connectionString, static options =>
+		Action<SqlServerPersistenceOptions> configureOptions) =>
+		services.AddSqlServerPersistence(options =>
 		{
+			configureOptions(options);
 			options.Connection.MultiSubnetFailover = true;
 			options.Resiliency.EnableConnectionResiliency = true;
 			options.Resiliency.ConnectRetryCount = 5;

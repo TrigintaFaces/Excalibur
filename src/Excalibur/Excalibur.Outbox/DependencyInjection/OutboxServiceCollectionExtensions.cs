@@ -32,9 +32,10 @@ public static class OutboxServiceCollectionExtensions
 	/// <code>
 	/// services.AddExcaliburOutbox(outbox =>
 	/// {
-	///     outbox.UseSqlServer(connectionString, sql =>
+	///     outbox.UseSqlServer(sql =>
 	///     {
-	///         sql.SchemaName("Outbox")
+	///         sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;")
+	///            .SchemaName("Outbox")
 	///            .TableName("Messages");
 	///     })
 	///     .WithProcessing(p => p.BatchSize(100).PollingInterval(TimeSpan.FromSeconds(5)))
@@ -49,16 +50,17 @@ public static class OutboxServiceCollectionExtensions
 	/// // Minimal configuration with SQL Server
 	/// services.AddExcaliburOutbox(outbox =>
 	/// {
-	///     outbox.UseSqlServer(connectionString)
+	///     outbox.UseSqlServer(sql => sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;"))
 	///           .EnableBackgroundProcessing();
 	/// });
 	///
 	/// // Full configuration with all options
 	/// services.AddExcaliburOutbox(outbox =>
 	/// {
-	///     outbox.UseSqlServer(connectionString, sql =>
+	///     outbox.UseSqlServer(sql =>
 	///     {
-	///         sql.SchemaName("Messaging")
+	///         sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;")
+	///            .SchemaName("Messaging")
 	///            .TableName("OutboxMessages")
 	///            .CommandTimeout(TimeSpan.FromSeconds(60))
 	///            .UseRowLocking(true);
@@ -169,7 +171,7 @@ public static class OutboxServiceCollectionExtensions
 	/// // Fluent builder
 	/// services.AddExcaliburOutbox(outbox =>
 	/// {
-	///     outbox.UseSqlServer(connectionString)
+	///     outbox.UseSqlServer(sql => sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;"))
 	///           .EnableBackgroundProcessing();
 	/// });
 	/// </code>

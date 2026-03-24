@@ -109,9 +109,10 @@ public static class CdcBuilderFirestoreExtensions
 	/// <remarks>
 	/// <para>
 	/// This overload provides the fluent builder pattern with
-	/// <see cref="IFirestoreCdcBuilder.WithStateStore(string)"/>
+	/// <see cref="IFirestoreCdcBuilder.WithStateStore(Action{ICdcStateStoreBuilder})"/>
 	/// support for configuring a separate Firestore project for state persistence.
-	/// Firestore uses project IDs instead of connection strings.
+	/// Firestore uses project IDs instead of connection strings;
+	/// use <see cref="ICdcStateStoreBuilder.ConnectionString(string)"/> to set the project ID.
 	/// </para>
 	/// </remarks>
 	/// <example>
@@ -123,9 +124,10 @@ public static class CdcBuilderFirestoreExtensions
 	///         firestore.CollectionPath("orders")
 	///                  .ProcessorName("order-cdc")
 	///                  .MaxBatchSize(200)
-	///                  .WithStateStore("my-state-project", state =&gt;
+	///                  .WithStateStore(state =&gt;
 	///                  {
-	///                      state.TableName("cdc-positions"); // maps to CollectionName
+	///                      state.ConnectionString("my-state-project") // maps to project ID
+	///                           .TableName("cdc-positions");           // maps to CollectionName
 	///                  });
 	///     });
 	/// });
@@ -162,18 +164,11 @@ public static class CdcBuilderFirestoreExtensions
 		}
 
 		// Configure state store if WithStateStore was called
-		if (firestoreBuilder.StateProjectId is not null || firestoreBuilder.StateDbFactory is not null)
+		if (firestoreBuilder.StateStoreConfigure is not null)
 		{
 			var stateStoreOptions = new FirestoreCdcStateStoreOptions();
-
-			// Apply state store configure callback
-			string? stateStoreBindConfigPath = null;
-			if (firestoreBuilder.StateStoreConfigure is not null)
-			{
-				var stateBuilder = new FirestoreCdcStateStoreBuilder(stateStoreOptions);
-				firestoreBuilder.StateStoreConfigure(stateBuilder);
-				stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
-			}
+			var stateBuilder = new FirestoreCdcStateStoreBuilder(stateStoreOptions);
+			firestoreBuilder.StateStoreConfigure(stateBuilder);
 
 			_ = builder.Services.AddFirestoreCdcStateStore(opt =>
 			{
@@ -181,10 +176,10 @@ public static class CdcBuilderFirestoreExtensions
 			});
 
 			// Register state store BindConfiguration if set
-			if (stateStoreBindConfigPath is not null)
+			if (stateBuilder.BindConfigurationPath is not null)
 			{
 				builder.Services.AddOptions<FirestoreCdcStateStoreOptions>()
-					.BindConfiguration(stateStoreBindConfigPath)
+					.BindConfiguration(stateBuilder.BindConfigurationPath)
 					.ValidateDataAnnotations()
 					.ValidateOnStart();
 			}

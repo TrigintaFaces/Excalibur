@@ -69,47 +69,6 @@ public sealed class SqlServerErasureStoreDIShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddSqlServerErasureStore_WithConnectionString_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		IServiceCollection? services = null;
-
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddSqlServerErasureStore("Server=test"));
-	}
-
-	[Fact]
-	public void AddSqlServerErasureStore_WithConnectionString_ThrowsArgumentException_WhenConnectionStringIsEmpty()
-	{
-		var services = new ServiceCollection();
-
-		Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerErasureStore(string.Empty));
-	}
-
-	[Fact]
-	public void AddSqlServerErasureStore_WithConnectionString_ThrowsArgumentException_WhenConnectionStringIsWhitespace()
-	{
-		var services = new ServiceCollection();
-
-		Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerErasureStore("   "));
-	}
-
-	[Fact]
-	public void AddSqlServerErasureStore_WithConnectionString_RegistersServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		services.AddLogging();
-
-		// Act
-		services.AddSqlServerErasureStore("Server=test;Database=testdb;Integrated Security=true");
-
-		// Assert
-		services.ShouldContain(s => s.ServiceType == typeof(IErasureStore));
-	}
-
-	[Fact]
 	public void AddSqlServerErasureStoreFromConfiguration_ThrowsArgumentNullException_WhenServicesIsNull()
 	{
 		IServiceCollection? services = null;

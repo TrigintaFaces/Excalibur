@@ -51,41 +51,6 @@ public static class CdcBuilderMongoDbExtensions
 	}
 
 	/// <summary>
-	/// Configures the CDC processor to use MongoDB Change Streams with a connection string.
-	/// </summary>
-	/// <param name="builder">The CDC builder.</param>
-	/// <param name="connectionString">The MongoDB connection string.</param>
-	/// <param name="processorId">The unique processor identifier.</param>
-	/// <param name="configure">Optional additional configuration.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> is null.
-	/// </exception>
-	/// <example>
-	/// <code>
-	/// services.AddCdcProcessor(cdc =&gt;
-	/// {
-	///     cdc.UseMongoDB("mongodb://localhost:27017", "order-cdc")
-	///        .EnableBackgroundProcessing();
-	/// });
-	/// </code>
-	/// </example>
-	public static ICdcBuilder UseMongoDB(
-		this ICdcBuilder builder,
-		string connectionString,
-		string processorId,
-		Action<MongoDbCdcOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
-
-		_ = builder.Services.AddMongoDbCdc(connectionString, processorId, configure);
-
-		return builder;
-	}
-
-	/// <summary>
 	/// Configures the CDC processor to use MongoDB Change Streams with a state store.
 	/// </summary>
 	/// <param name="builder">The CDC builder.</param>
@@ -132,33 +97,33 @@ public static class CdcBuilderMongoDbExtensions
 	/// Configures the CDC processor to use MongoDB Change Streams with fluent builder configuration.
 	/// </summary>
 	/// <param name="builder">The CDC builder.</param>
-	/// <param name="connectionString">The MongoDB connection string for the source.</param>
 	/// <param name="configure">Action to configure MongoDB CDC settings via the fluent builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// This overload provides the fluent builder pattern with <see cref="IMongoDbCdcBuilder.WithStateStore(string)"/>
+	/// This overload provides the fluent builder pattern with
+	/// <see cref="IMongoDbCdcBuilder.WithStateStore(Action{ICdcStateStoreBuilder})"/>
 	/// support for configuring a separate MongoDB connection for state persistence.
+	/// Use <see cref="IMongoDbCdcBuilder.ConnectionString(string)"/> to set the source connection string.
 	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
 	/// services.AddCdcProcessor(cdc =&gt;
 	/// {
-	///     cdc.UseMongoDB("mongodb://source:27017", mongo =&gt;
+	///     cdc.UseMongoDB(mongo =&gt;
 	///     {
-	///         mongo.DatabaseName("orders-db")
+	///         mongo.ConnectionString("mongodb://source:27017")
+	///              .DatabaseName("orders-db")
 	///              .CollectionNames("orders", "order_items")
 	///              .ProcessorId("order-cdc")
-	///              .WithStateStore("mongodb://state:27017", state =&gt;
+	///              .WithStateStore(state =&gt;
 	///              {
-	///                  state.SchemaName("cdc-state-db")   // maps to DatabaseName
+	///                  state.ConnectionString("mongodb://state:27017")
+	///                       .SchemaName("cdc-state-db")   // maps to DatabaseName
 	///                       .TableName("checkpoints");     // maps to CollectionName
 	///              });
 	///     });
@@ -167,17 +132,15 @@ public static class CdcBuilderMongoDbExtensions
 	/// </example>
 	public static ICdcBuilder UseMongoDB(
 		this ICdcBuilder builder,
-		string connectionString,
-		Action<IMongoDbCdcBuilder>? configure = null)
+		Action<IMongoDbCdcBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
 		// Create and configure MongoDB options
 		var mongoOptions = new MongoDbCdcOptions();
-		mongoOptions.Connection.ConnectionString = connectionString;
 		var mongoBuilder = new MongoDbCdcBuilder(mongoOptions);
-		configure?.Invoke(mongoBuilder);
+		configure(mongoBuilder);
 
 		// Register source CDC options
 		_ = builder.Services.AddMongoDbCdc(opt =>
@@ -197,44 +160,37 @@ public static class CdcBuilderMongoDbExtensions
 				.BindConfiguration(mongoBuilder.SourceBindConfigurationPath)
 				.ValidateDataAnnotations()
 				.ValidateOnStart();
+
+			// When ConnectionString() was explicitly called alongside BindConfiguration,
+			// re-apply via PostConfigure so the explicit value takes precedence over config.
+			if (!string.IsNullOrWhiteSpace(mongoOptions.Connection.ConnectionString))
+			{
+				var explicitConnectionString = mongoOptions.Connection.ConnectionString;
+				_ = builder.Services.PostConfigure<MongoDbCdcOptions>(opt =>
+				{
+					opt.Connection.ConnectionString = explicitConnectionString;
+				});
+			}
 		}
 
 		// Configure state store if WithStateStore was called
-		if (mongoBuilder.StateConnectionString is not null || mongoBuilder.StateClientFactory is not null)
+		if (mongoBuilder.StateStoreConfigure is not null)
 		{
 			var stateStoreOptions = new MongoDbCdcStateStoreOptions();
+			var stateBuilder = new MongoDbCdcStateStoreBuilder(stateStoreOptions);
+			mongoBuilder.StateStoreConfigure(stateBuilder);
 
-			// Apply state store configure callback
-			string? stateStoreBindConfigPath = null;
-			if (mongoBuilder.StateStoreConfigure is not null)
+			_ = builder.Services.AddMongoDbCdcStateStore(opt =>
 			{
-				var stateBuilder = new MongoDbCdcStateStoreBuilder(stateStoreOptions);
-				mongoBuilder.StateStoreConfigure(stateBuilder);
-				stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
-			}
-
-			if (mongoBuilder.StateConnectionString is not null)
-			{
-				_ = builder.Services.AddMongoDbCdcStateStore(mongoBuilder.StateConnectionString, opt =>
-				{
-					opt.DatabaseName = stateStoreOptions.DatabaseName;
-					opt.CollectionName = stateStoreOptions.CollectionName;
-				});
-			}
-			else
-			{
-				_ = builder.Services.AddMongoDbCdcStateStore(opt =>
-				{
-					opt.DatabaseName = stateStoreOptions.DatabaseName;
-					opt.CollectionName = stateStoreOptions.CollectionName;
-				});
-			}
+				opt.DatabaseName = stateStoreOptions.DatabaseName;
+				opt.CollectionName = stateStoreOptions.CollectionName;
+			});
 
 			// Register state store BindConfiguration if set
-			if (stateStoreBindConfigPath is not null)
+			if (stateBuilder.BindConfigurationPath is not null)
 			{
 				builder.Services.AddOptions<MongoDbCdcStateStoreOptions>()
-					.BindConfiguration(stateStoreBindConfigPath)
+					.BindConfiguration(stateBuilder.BindConfigurationPath)
 					.ValidateDataAnnotations()
 					.ValidateOnStart();
 			}

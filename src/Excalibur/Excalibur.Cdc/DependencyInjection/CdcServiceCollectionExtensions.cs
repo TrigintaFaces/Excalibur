@@ -31,9 +31,10 @@ public static class CdcServiceCollectionExtensions
 	/// <code>
 	/// services.AddCdcProcessor(cdc =&gt;
 	/// {
-	///     cdc.UseSqlServer(connectionString, sql =&gt;
+	///     cdc.UseSqlServer(sql =&gt;
 	///     {
-	///         sql.SchemaName("cdc")
+	///         sql.ConnectionString(connectionString)
+	///            .SchemaName("cdc")
 	///            .StateTableName("CdcProcessingState")
 	///            .PollingInterval(TimeSpan.FromSeconds(5))
 	///            .BatchSize(100);
@@ -55,7 +56,7 @@ public static class CdcServiceCollectionExtensions
 	/// // Minimal configuration with SQL Server
 	/// services.AddCdcProcessor(cdc =>
 	/// {
-	///     cdc.UseSqlServer(connectionString)
+	///     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
 	///        .TrackTable("dbo.Orders", t => t.MapAll&lt;OrderChangedEvent&gt;())
 	///        .EnableBackgroundProcessing();
 	/// });
@@ -63,9 +64,10 @@ public static class CdcServiceCollectionExtensions
 	/// // Full configuration with recovery options
 	/// services.AddCdcProcessor(cdc =>
 	/// {
-	///     cdc.UseSqlServer(connectionString, sql =>
+	///     cdc.UseSqlServer(sql =>
 	///     {
-	///         sql.SchemaName("audit")
+	///         sql.ConnectionString(connectionString)
+	///            .SchemaName("audit")
 	///            .PollingInterval(TimeSpan.FromSeconds(10))
 	///            .BatchSize(200);
 	///     })
@@ -174,7 +176,7 @@ public static class CdcServiceCollectionExtensions
 	/// <code>
 	/// services.AddCdcProcessor(cdc =>
 	/// {
-	///     cdc.UseSqlServer(connectionString)
+	///     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
 	///        .TrackTable("dbo.Orders", t => t.MapAll&lt;OrderChangedEvent&gt;())
 	///        .EnableBackgroundProcessing();
 	/// });

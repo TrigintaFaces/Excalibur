@@ -170,7 +170,7 @@ services.AddDispatch(dispatch =>
 By default, handlers are registered as **scoped** services. This means:
 
 - A new instance is created per HTTP request (in ASP.NET Core)
-- Handlers can safely depend on scoped services like `DbContext`
+- Handlers can safely depend on scoped services like `IUnitOfWork` or `IDb`
 - State is not shared between requests
 
 To change the lifetime:

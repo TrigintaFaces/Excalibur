@@ -44,29 +44,6 @@ public static class MongoDbInboxExtensions
 	}
 
 	/// <summary>
-	/// Adds MongoDB inbox store to the service collection with connection string and database.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The MongoDB connection string.</param>
-	/// <param name="databaseName">The database name.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMongoDbInboxStore(
-		this IServiceCollection services,
-		string connectionString,
-		string databaseName)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-		return services.AddMongoDbInboxStore(options =>
-		{
-			options.ConnectionString = connectionString;
-			options.DatabaseName = databaseName;
-		});
-	}
-
-	/// <summary>
 	/// Adds MongoDB inbox store to the service collection with an existing client.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -116,29 +93,6 @@ public static class MongoDbInboxExtensions
 		_ = builder.Services.AddMongoDbInboxStore(configure);
 
 		return builder;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use MongoDB inbox store with connection string and database.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="connectionString">The MongoDB connection string.</param>
-	/// <param name="databaseName">The database name.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UseMongoDbInboxStore(
-		this IDispatchBuilder builder,
-		string connectionString,
-		string databaseName)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-		return builder.UseMongoDbInboxStore(options =>
-		{
-			options.ConnectionString = connectionString;
-			options.DatabaseName = databaseName;
-		});
 	}
 
 	/// <summary>

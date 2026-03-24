@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc.Builders;
 
 /// <summary>
 /// Unit tests for the new <see cref="ISqlServerCdcBuilder"/> fluent methods
-/// added in the DX improvements sprint (DatabaseName, DatabaseConnectionIdentifier,
-/// StateConnectionIdentifier, CaptureInstances, StopOnMissingTableHandler).
+/// (DatabaseName, DatabaseConnectionIdentifier, StateConnectionIdentifier,
+/// CaptureInstances, StopOnMissingTableHandler).
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -28,15 +28,13 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 	[Fact]
 	public void DatabaseName_FlowsThroughIDatabaseConfig()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("MyDatabase")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("MyDatabase")));
 
-		// Assert - DatabaseName flows through IDatabaseConfig, not IOptions<SqlServerCdcOptions>
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
 		dbConfig.DatabaseName.ShouldBe("MyDatabase");
@@ -45,15 +43,13 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 	[Fact]
 	public void DatabaseName_RegistersIDatabaseConfigAutomatically()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("OrdersDb")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("OrdersDb")));
 
-		// Assert - IDatabaseConfig should be auto-registered
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IDatabaseConfig) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
@@ -62,15 +58,13 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 	[Fact]
 	public void DatabaseName_SetsDefaultConnectionIdentifiers()
 	{
-		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("OrdersDb")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("OrdersDb")));
 
-		// Assert - defaults derived from database name
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
 		dbConfig.DatabaseName.ShouldBe("OrdersDb");
@@ -88,8 +82,9 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(TestConnectionString, sql =>
-					sql.DatabaseName(invalidValue!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .DatabaseName(invalidValue!))));
 	}
 
 	// --- DatabaseConnectionIdentifier ---
@@ -100,8 +95,10 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db").DatabaseConnectionIdentifier("my-db-conn")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
+				   .DatabaseConnectionIdentifier("my-db-conn")));
 
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
@@ -118,8 +115,9 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(TestConnectionString, sql =>
-					sql.DatabaseConnectionIdentifier(invalidValue!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .DatabaseConnectionIdentifier(invalidValue!))));
 	}
 
 	// --- StateConnectionIdentifier ---
@@ -130,8 +128,10 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db").StateConnectionIdentifier("my-state-conn")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
+				   .StateConnectionIdentifier("my-state-conn")));
 
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
@@ -148,8 +148,9 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 
 		Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(TestConnectionString, sql =>
-					sql.StateConnectionIdentifier(invalidValue!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .StateConnectionIdentifier(invalidValue!))));
 	}
 
 	// --- CaptureInstances ---
@@ -160,8 +161,10 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db").CaptureInstances("dbo_Orders", "dbo_Customers")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
+				   .CaptureInstances("dbo_Orders", "dbo_Customers")));
 
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
@@ -175,8 +178,9 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
-				builder.UseSqlServer(TestConnectionString, sql =>
-					sql.CaptureInstances(null!))));
+				builder.UseSqlServer(sql =>
+					sql.ConnectionString(TestConnectionString)
+					   .CaptureInstances(null!))));
 	}
 
 	[Fact]
@@ -185,8 +189,9 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")));
 
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
@@ -201,8 +206,9 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db")));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")));
 
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
@@ -215,8 +221,10 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.DatabaseName("Db").StopOnMissingTableHandler(false)));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .DatabaseName("Db")
+				   .StopOnMissingTableHandler(false)));
 
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
@@ -231,8 +239,9 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.SchemaName("audit")
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .SchemaName("audit")
 				   .StateTableName("AuditState")
 				   .BatchSize(200)
 				   .PollingInterval(TimeSpan.FromSeconds(10))
@@ -245,7 +254,6 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 
 		var provider = services.BuildServiceProvider();
 
-		// Verify SQL Server options
 		var sqlOptions = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		sqlOptions.Value.SchemaName.ShouldBe("audit");
 		sqlOptions.Value.StateTableName.ShouldBe("AuditState");
@@ -253,7 +261,6 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		sqlOptions.Value.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
 		sqlOptions.Value.CommandTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 
-		// Verify IDatabaseConfig
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
 		dbConfig.DatabaseName.ShouldBe("AuditDb");
 		dbConfig.DatabaseConnectionIdentifier.ShouldBe("audit-conn");
@@ -270,10 +277,11 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(TestConnectionString, sql =>
-				sql.SchemaName("cdc").BatchSize(50)));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .SchemaName("cdc")
+				   .BatchSize(50)));
 
-		// Assert - no IDatabaseConfig registered (HasDatabaseConfig is false)
 		services.ShouldNotContain(sd =>
 			sd.ServiceType == typeof(IDatabaseConfig));
 	}
@@ -286,14 +294,13 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		services.AddCdcProcessor(builder =>
-			builder.UseSqlServer(
-				_ => () => new SqlConnection(TestConnectionString),
-				sql => sql
-					.DatabaseName("FactoryDb")
-					.DatabaseConnectionIdentifier("factory-conn")
-					.StateConnectionIdentifier("factory-state")
-					.CaptureInstances("dbo_Items")
-					.StopOnMissingTableHandler(false)));
+			builder.UseSqlServer(sql =>
+				sql.ConnectionFactory(_ => () => new SqlConnection(TestConnectionString))
+				   .DatabaseName("FactoryDb")
+				   .DatabaseConnectionIdentifier("factory-conn")
+				   .StateConnectionIdentifier("factory-state")
+				   .CaptureInstances("dbo_Items")
+				   .StopOnMissingTableHandler(false)));
 
 		var provider = services.BuildServiceProvider();
 		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();

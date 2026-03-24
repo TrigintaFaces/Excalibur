@@ -24,38 +24,6 @@ public static class EventSourcingBuilderPostgresExtensions
 	/// snapshot store, and outbox store.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <param name="registerHealthChecks">Whether to register health checks. Default: true.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> or <paramref name="connectionString"/> is null.
-	/// </exception>
-	/// <example>
-	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
-	/// {
-	///     es.UsePostgres(connectionString)
-	///       .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
-	/// </code>
-	/// </example>
-	public static IEventSourcingBuilder UsePostgres(
-		this IEventSourcingBuilder builder,
-		string connectionString,
-		bool registerHealthChecks = true)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		_ = builder.Services.AddPostgresEventSourcing(connectionString, registerHealthChecks);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures the event sourcing builder to use Postgres with detailed options.
-	/// </summary>
-	/// <param name="builder">The event sourcing builder.</param>
 	/// <param name="configure">Configuration action for Postgres event sourcing options.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
@@ -67,7 +35,7 @@ public static class EventSourcingBuilderPostgresExtensions
 	/// {
 	///     es.UsePostgres(options =&gt;
 	///     {
-	///         options.ConnectionString = connectionString;
+	///         options.ConnectionString = configuration.GetConnectionString("EventStore");
 	///         options.HealthChecks.RegisterHealthChecks = true;
 	///     })
 	///     .AddRepository&lt;OrderAggregate, Guid&gt;();

@@ -62,31 +62,6 @@ public static class PostgresSagaExtensions
 	}
 
 	/// <summary>
-	/// Adds Postgres saga store to the service collection with a connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <param name="schema">The schema name. Defaults to "dispatch".</param>
-	/// <param name="tableName">The table name. Defaults to "sagas".</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddPostgresSagaStore(
-		this IServiceCollection services,
-		string connectionString,
-		string schema = "dispatch",
-		string tableName = "sagas")
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddPostgresSagaStore(options =>
-		{
-			options.ConnectionString = connectionString;
-			options.Schema = schema;
-			options.TableName = tableName;
-		});
-	}
-
-	/// <summary>
 	/// Adds Postgres saga store to the service collection with a connection factory.
 	/// </summary>
 	/// <param name="services">The service collection.</param>

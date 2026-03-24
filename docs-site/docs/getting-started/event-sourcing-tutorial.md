@@ -384,8 +384,8 @@ builder.Services.AddExcaliburEventSourcing(es =>
 });
 
 // Register SQL Server persistence
-builder.Services.AddSqlServerEventSourcing(connectionString);
-builder.Services.AddSqlServerProjectionStore<OrderSummary>(connectionString);
+builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
+builder.Services.AddSqlServerProjectionStore<OrderSummary>(opts => opts.ConnectionString = connectionString);
 
 var app = builder.Build();
 

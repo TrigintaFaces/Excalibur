@@ -15,9 +15,10 @@ namespace Excalibur.Outbox.Postgres;
 /// </remarks>
 /// <example>
 /// <code>
-/// outbox.UsePostgres(connectionString, postgres =>
+/// outbox.UsePostgres(postgres =>
 /// {
-///     postgres.SchemaName("messaging")
+///     postgres.ConnectionString(connectionString)
+///             .SchemaName("messaging")
 ///             .TableName("outbox_messages")
 ///             .CommandTimeout(TimeSpan.FromSeconds(60))
 ///             .ReservationTimeout(TimeSpan.FromMinutes(5));
@@ -26,6 +27,39 @@ namespace Excalibur.Outbox.Postgres;
 /// </example>
 public interface IPostgresOutboxBuilder
 {
+	/// <summary>
+	/// Sets the connection string for the Postgres outbox database.
+	/// </summary>
+	/// <param name="connectionString">The Postgres connection string.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="connectionString"/> is null, empty, or whitespace.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This is the recommended way to provide a connection string for the outbox store.
+	/// Mutually exclusive with <see cref="ConnectionFactory"/>. The last one set wins.
+	/// </para>
+	/// </remarks>
+	IPostgresOutboxBuilder ConnectionString(string connectionString);
+
+	/// <summary>
+	/// Sets a factory function that provides an <see cref="Excalibur.Data.Abstractions.IDb"/> instance.
+	/// </summary>
+	/// <param name="dbFactory">A factory function that provides an <see cref="Excalibur.Data.Abstractions.IDb"/> instance.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="dbFactory"/> is null.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// Use this for advanced scenarios like multi-database setups,
+	/// custom connection pooling, or IDb integration.
+	/// Mutually exclusive with <see cref="ConnectionString"/>. The last one set wins.
+	/// </para>
+	/// </remarks>
+	IPostgresOutboxBuilder ConnectionFactory(Func<IServiceProvider, Excalibur.Data.Abstractions.IDb> dbFactory);
+
 	/// <summary>
 	/// Sets the schema name for the outbox tables.
 	/// </summary>

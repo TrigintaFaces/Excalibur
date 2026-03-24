@@ -199,9 +199,6 @@ Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.CollectionPath(string! collectionPa
 Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
 Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.MaxBatchSize(int maxBatchSize) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
 Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.PollInterval(System.TimeSpan interval) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
-Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.WithStateStore(string! projectId) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
-Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.WithStateStore(string! projectId, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
-Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! dbFactory) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
-Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! dbFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
+Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
 Excalibur.Cdc.Firestore.IFirestoreCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!
 static Excalibur.Cdc.Firestore.CdcBuilderFirestoreExtensions.UseFirestore(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.Firestore.IFirestoreCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!

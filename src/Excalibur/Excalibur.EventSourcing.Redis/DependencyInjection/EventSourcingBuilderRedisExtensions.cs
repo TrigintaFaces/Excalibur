@@ -19,41 +19,8 @@ namespace Excalibur.EventSourcing.Redis;
 public static class EventSourcingBuilderRedisExtensions
 {
 	/// <summary>
-	/// Configures the event sourcing builder to use Redis for event store and snapshot store.
-	/// </summary>
-	/// <param name="builder">The event sourcing builder.</param>
-	/// <param name="connectionString">The Redis connection string.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
-	/// </exception>
-	/// <example>
-	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
-	/// {
-	///     es.UseRedis("localhost:6379")
-	///       .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
-	/// </code>
-	/// </example>
-	public static IEventSourcingBuilder UseRedis(
-		this IEventSourcingBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		_ = builder.Services.AddRedisEventSourcing(connectionString);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures the event sourcing builder to use Redis with separate event store
-	/// and snapshot store configuration.
+	/// Configures the event sourcing builder to use Redis for event store and snapshot store
+	/// with separate event store and snapshot store configuration.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
 	/// <param name="configureEventStore">Configuration action for Redis event store options.</param>
@@ -68,8 +35,8 @@ public static class EventSourcingBuilderRedisExtensions
 	/// services.AddExcaliburEventSourcing(es =&gt;
 	/// {
 	///     es.UseRedis(
-	///         eventStore =&gt; eventStore.ConnectionString = "localhost:6379",
-	///         snapshotStore =&gt; snapshotStore.ConnectionString = "localhost:6379")
+	///         eventStore =&gt; eventStore.ConnectionString = configuration.GetConnectionString("Redis")!,
+	///         snapshotStore =&gt; snapshotStore.ConnectionString = configuration.GetConnectionString("Redis")!)
 	///       .AddRepository&lt;OrderAggregate, Guid&gt;();
 	/// });
 	/// </code>

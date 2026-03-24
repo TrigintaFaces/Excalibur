@@ -33,7 +33,7 @@ public static class SagaHealthCheckExtensions
 	/// <para>
 	/// Example usage:
 	/// <code>
-	/// services.AddSqlServerSagaMonitoringService(connectionString);
+	/// services.AddSqlServerSagaMonitoringService(opts => opts.ConnectionString = connectionString);
 	/// services.AddHealthChecks()
 	///     .AddSagaHealthCheck(configure: options =>
 	///     {

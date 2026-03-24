@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Microsoft.Azure.Cosmos;
-
 namespace Excalibur.Cdc.CosmosDb;
 
 /// <summary>
@@ -53,9 +51,9 @@ public interface ICosmosDbCdcBuilder
 	ICosmosDbCdcBuilder ChangeFeed(Action<CosmosDbChangeFeedOptions> configure);
 
 	/// <summary>
-	/// Configures a separate connection for CDC state persistence using a connection string.
+	/// Configures a separate connection for CDC state persistence.
 	/// </summary>
-	/// <param name="connectionString">The state store CosmosDB connection string.</param>
+	/// <param name="configure">An action to configure state store settings including connection, database, and container.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
@@ -64,32 +62,10 @@ public interface ICosmosDbCdcBuilder
 	/// can be deployed to a separate CosmosDB account.
 	/// </para>
 	/// </remarks>
-	ICosmosDbCdcBuilder WithStateStore(string connectionString);
-
-	/// <summary>
-	/// Configures a separate connection for CDC state persistence with state store configuration.
-	/// </summary>
-	/// <param name="connectionString">The state store CosmosDB connection string.</param>
-	/// <param name="configure">An action to configure state store database/container settings.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	ICosmosDbCdcBuilder WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure);
-
-	/// <summary>
-	/// Configures a separate CosmosDB client factory for CDC state persistence.
-	/// </summary>
-	/// <param name="clientFactory">A factory function that creates a CosmosDB client for state storage.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	ICosmosDbCdcBuilder WithStateStore(Func<IServiceProvider, CosmosClient> clientFactory);
-
-	/// <summary>
-	/// Configures a separate CosmosDB client factory for CDC state persistence with state store configuration.
-	/// </summary>
-	/// <param name="clientFactory">A factory function that creates a CosmosDB client for state storage.</param>
-	/// <param name="configure">An action to configure state store database/container settings.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	ICosmosDbCdcBuilder WithStateStore(
-		Func<IServiceProvider, CosmosClient> clientFactory,
-		Action<ICdcStateStoreBuilder> configure);
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="configure"/> is null.
+	/// </exception>
+	ICosmosDbCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure);
 
 	/// <summary>
 	/// Binds CosmosDB CDC source options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.

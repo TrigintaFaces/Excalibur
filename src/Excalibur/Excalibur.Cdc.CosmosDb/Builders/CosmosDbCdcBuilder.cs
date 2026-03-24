@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Microsoft.Azure.Cosmos;
-
 namespace Excalibur.Cdc.CosmosDb;
 
 /// <summary>
@@ -16,12 +14,6 @@ internal sealed class CosmosDbCdcBuilder : ICosmosDbCdcBuilder
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 	}
-
-	/// <summary>Gets the state connection string if set via <see cref="WithStateStore(string)"/>.</summary>
-	internal string? StateConnectionString { get; private set; }
-
-	/// <summary>Gets the state client factory if set via <see cref="WithStateStore(Func{IServiceProvider, CosmosClient})"/>.</summary>
-	internal Func<IServiceProvider, CosmosClient>? StateClientFactory { get; private set; }
 
 	/// <summary>Gets the state store configure callback.</summary>
 	internal Action<ICdcStateStoreBuilder>? StateStoreConfigure { get; private set; }
@@ -70,39 +62,9 @@ internal sealed class CosmosDbCdcBuilder : ICosmosDbCdcBuilder
 	}
 
 	/// <inheritdoc/>
-	public ICosmosDbCdcBuilder WithStateStore(string connectionString)
+	public ICosmosDbCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		StateConnectionString = connectionString;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ICosmosDbCdcBuilder WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ArgumentNullException.ThrowIfNull(configure);
-		StateConnectionString = connectionString;
-		StateStoreConfigure = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ICosmosDbCdcBuilder WithStateStore(Func<IServiceProvider, CosmosClient> clientFactory)
-	{
-		ArgumentNullException.ThrowIfNull(clientFactory);
-		StateClientFactory = clientFactory;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ICosmosDbCdcBuilder WithStateStore(
-		Func<IServiceProvider, CosmosClient> clientFactory,
-		Action<ICdcStateStoreBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(clientFactory);
-		ArgumentNullException.ThrowIfNull(configure);
-		StateClientFactory = clientFactory;
 		StateStoreConfigure = configure;
 		return this;
 	}

@@ -28,27 +28,32 @@ public static class CdcBuilderSqlServerExtensions
 	/// Configures the CDC processor to use SQL Server.
 	/// </summary>
 	/// <param name="builder">The CDC builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configure">Optional action to configure SQL Server-specific options.</param>
+	/// <param name="configure">Action to configure SQL Server-specific options including connection.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> or <paramref name="connectionString"/> is null.
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
 	/// <remarks>
 	/// <para>
 	/// This is the primary method for configuring SQL Server as the CDC provider.
 	/// It registers the <see cref="CdcProcessor"/>, <see cref="CdcStateStore"/>,
-	/// and related services.
+	/// and related services. Connection can be provided via the builder using
+	/// <see cref="ISqlServerCdcBuilder.ConnectionString"/>,
+	/// <see cref="ISqlServerCdcBuilder.ConnectionStringName"/>,
+	/// <see cref="ISqlServerCdcBuilder.ConnectionFactory"/>, or
+	/// <see cref="ISqlServerCdcBuilder.BindConfiguration"/>.
 	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
+	/// // Connection string
 	/// services.AddCdcProcessor(cdc =&gt;
 	/// {
-	///     cdc.UseSqlServer(connectionString, sql =&gt;
+	///     cdc.UseSqlServer(sql =&gt;
 	///     {
-	///         sql.SchemaName("cdc")
-	///            .StateTableName("CdcProcessingState")
+	///         sql.ConnectionString(connectionString)
+	///            .SchemaName("cdc")
+	///            .DatabaseName("MyDb")
 	///            .PollingInterval(TimeSpan.FromSeconds(5))
 	///            .BatchSize(100);
 	///     })
@@ -60,30 +65,187 @@ public static class CdcBuilderSqlServerExtensions
 	///     })
 	///     .EnableBackgroundProcessing();
 	/// });
+	///
+	/// // From appsettings.json
+	/// services.AddCdcProcessor(cdc =&gt;
+	/// {
+	///     cdc.UseSqlServer(sql =&gt;
+	///     {
+	///         sql.BindConfiguration("Cdc:SqlServer")
+	///            .DatabaseName("MyDb");
+	///     });
+	/// });
+	///
+	/// // Named connection string
+	/// services.AddCdcProcessor(cdc =&gt;
+	/// {
+	///     cdc.UseSqlServer(sql =&gt;
+	///     {
+	///         sql.ConnectionStringName("CdcDatabase")
+	///            .DatabaseName("MyDb");
+	///     });
+	/// });
+	///
+	/// // Connection factory
+	/// services.AddCdcProcessor(cdc =&gt;
+	/// {
+	///     cdc.UseSqlServer(sql =&gt;
+	///     {
+	///         sql.ConnectionFactory(sp =&gt;
+	///         {
+	///             var config = sp.GetRequiredService&lt;IConfiguration&gt;();
+	///             var connStr = config.GetConnectionString("CdcDatabase")!;
+	///             return () =&gt; new SqlConnection(connStr);
+	///         })
+	///         .DatabaseName("MyDb");
+	///     });
+	/// });
 	/// </code>
 	/// </example>
 	public static ICdcBuilder UseSqlServer(
 		this ICdcBuilder builder,
-		string connectionString,
-		Action<ISqlServerCdcBuilder>? configure = null)
+		Action<ISqlServerCdcBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		if (string.IsNullOrWhiteSpace(connectionString))
-		{
-			throw new ArgumentException("Connection string cannot be empty or whitespace.", nameof(connectionString));
-		}
+		ArgumentNullException.ThrowIfNull(configure);
 
 		// Create and configure SQL Server options
-		var sqlOptions = new SqlServerCdcOptions { ConnectionString = connectionString };
-
+		var sqlOptions = new SqlServerCdcOptions();
 		var sqlBuilder = new SqlServerCdcBuilder(sqlOptions);
-		configure?.Invoke(sqlBuilder);
+		configure(sqlBuilder);
 
-		// Validate options
-		sqlOptions.Validate();
+		// Determine source connection factory
+		var sourceFactory = ResolveSourceFactory(sqlBuilder);
 
+		// Validate options (connection string not required when using factory or ConnectionStringName)
+		var hasExplicitFactory = sqlBuilder.SourceConnectionFactory is not null
+			|| sqlBuilder.SourceConnectionStringName is not null;
+
+		if (!hasExplicitFactory)
+		{
+			sqlOptions.Validate();
+		}
+		else
+		{
+			// Still validate non-connection-string options
+			if (string.IsNullOrWhiteSpace(sqlOptions.SchemaName))
+			{
+				throw new InvalidOperationException("SchemaName is required.");
+			}
+
+			if (string.IsNullOrWhiteSpace(sqlOptions.StateTableName))
+			{
+				throw new InvalidOperationException("StateTableName is required.");
+			}
+		}
+
+		RegisterOptionsAndServices(builder, sqlBuilder, sqlOptions, sourceFactory);
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Resolves the source connection factory from the builder configuration.
+	/// </summary>
+	/// <remarks>
+	/// Priority order:
+	/// 1. Explicit <see cref="SqlServerCdcBuilder.SourceConnectionFactory"/> (set via <c>ConnectionFactory()</c>)
+	/// 2. <see cref="SqlServerCdcBuilder.SourceConnectionStringName"/> (resolved from IConfiguration at DI resolution)
+	/// 3. <see cref="SqlServerCdcOptions.ConnectionString"/> (set via <c>ConnectionString()</c> or <c>BindConfiguration()</c>)
+	/// </remarks>
+	private static Func<IServiceProvider, Func<SqlConnection>> ResolveSourceFactory(
+		SqlServerCdcBuilder sqlBuilder)
+	{
+		// 1. Explicit factory takes highest precedence
+		if (sqlBuilder.SourceConnectionFactory is not null)
+		{
+			return sqlBuilder.SourceConnectionFactory;
+		}
+
+		// 2. Named connection string resolved from IConfiguration
+		if (sqlBuilder.SourceConnectionStringName is not null)
+		{
+			var connStrName = sqlBuilder.SourceConnectionStringName;
+			return sp =>
+			{
+				var config = sp.GetRequiredService<IConfiguration>();
+				var resolved = config.GetConnectionString(connStrName)
+					?? throw new InvalidOperationException(
+						$"Connection string '{connStrName}' not found in IConfiguration. " +
+						$"Ensure it is defined in the ConnectionStrings section of your configuration.");
+				return () => new SqlConnection(resolved);
+			};
+		}
+
+		// 3. Connection string from options (direct or via BindConfiguration)
+		return sp =>
+		{
+			var opts = sp.GetRequiredService<IOptions<SqlServerCdcOptions>>();
+			return () => new SqlConnection(opts.Value.ConnectionString);
+		};
+	}
+
+	/// <summary>
+	/// Resolves the state connection factory from the builder configuration.
+	/// Returns <see langword="null"/> when no separate state store is configured (falls back to source).
+	/// </summary>
+	/// <remarks>
+	/// Priority order:
+	/// 1. Explicit <see cref="SqlServerCdcBuilder.StateConnectionFactoryFunc"/> (set via <c>StateConnectionFactory()</c>)
+	/// 2. <see cref="SqlServerCdcStateStoreBuilder.StateConnectionString"/> (set via <c>state.ConnectionString()</c>)
+	/// 3. <see cref="SqlServerCdcStateStoreBuilder.StateConnectionStringName"/> (resolved from IConfiguration at DI resolution)
+	/// 4. <see langword="null"/> -- fall back to source connection
+	/// </remarks>
+	private static Func<IServiceProvider, Func<SqlConnection>>? ResolveStateFactory(
+		SqlServerCdcBuilder sqlBuilder,
+		SqlServerCdcStateStoreBuilder? stateBuilder)
+	{
+		// 1. Explicit factory takes highest precedence
+		if (sqlBuilder.StateConnectionFactoryFunc is not null)
+		{
+			return sqlBuilder.StateConnectionFactoryFunc;
+		}
+
+		if (stateBuilder is null)
+		{
+			return null;
+		}
+
+		// 2. Connection string set directly on state store builder
+		if (stateBuilder.StateConnectionString is not null)
+		{
+			var connStr = stateBuilder.StateConnectionString;
+			return _ => () => new SqlConnection(connStr);
+		}
+
+		// 3. Named connection string resolved from IConfiguration
+		if (stateBuilder.StateConnectionStringName is not null)
+		{
+			var connStrName = stateBuilder.StateConnectionStringName;
+			return sp =>
+			{
+				var config = sp.GetRequiredService<IConfiguration>();
+				var resolved = config.GetConnectionString(connStrName)
+					?? throw new InvalidOperationException(
+						$"State store connection string '{connStrName}' not found in IConfiguration. " +
+						$"Ensure it is defined in the ConnectionStrings section of your configuration.");
+				return () => new SqlConnection(resolved);
+			};
+		}
+
+		// 4. No separate state connection -- fall back to source
+		return null;
+	}
+
+	/// <summary>
+	/// Registers options, services, and auto-mapping callbacks.
+	/// </summary>
+	private static void RegisterOptionsAndServices(
+		ICdcBuilder builder,
+		SqlServerCdcBuilder sqlBuilder,
+		SqlServerCdcOptions sqlOptions,
+		Func<IServiceProvider, Func<SqlConnection>> sourceFactory)
+	{
 		// Apply state store configure callback if present
 		var stateStoreOptions = new SqlServerCdcStateStoreOptions
 		{
@@ -92,9 +254,10 @@ public static class CdcBuilderSqlServerExtensions
 		};
 
 		string? stateStoreBindConfigPath = null;
+		SqlServerCdcStateStoreBuilder? stateBuilder = null;
 		if (sqlBuilder.StateStoreConfigure is not null)
 		{
-			var stateBuilder = new SqlServerCdcStateStoreBuilder(stateStoreOptions);
+			stateBuilder = new SqlServerCdcStateStoreBuilder(stateStoreOptions);
 			sqlBuilder.StateStoreConfigure(stateBuilder);
 			stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
 		}
@@ -117,6 +280,17 @@ public static class CdcBuilderSqlServerExtensions
 				.BindConfiguration(sqlBuilder.SourceBindConfigurationPath)
 				.ValidateDataAnnotations()
 				.ValidateOnStart();
+
+			// When ConnectionString() was explicitly called alongside BindConfiguration,
+			// re-apply via PostConfigure so the explicit value takes precedence over config.
+			if (!string.IsNullOrWhiteSpace(sqlOptions.ConnectionString))
+			{
+				var explicitConnectionString = sqlOptions.ConnectionString;
+				_ = builder.Services.PostConfigure<SqlServerCdcOptions>(opt =>
+				{
+					opt.ConnectionString = explicitConnectionString;
+				});
+			}
 		}
 
 		// Register CDC state store options
@@ -135,153 +309,13 @@ public static class CdcBuilderSqlServerExtensions
 				.ValidateOnStart();
 		}
 
-		// Source connection factory. If ConnectionStringName was set, resolve from IConfiguration.
-		Func<IServiceProvider, Func<SqlConnection>> sourceFactory;
-		if (sqlBuilder.SourceConnectionStringName is not null)
-		{
-			var connStrName = sqlBuilder.SourceConnectionStringName;
-			sourceFactory = sp =>
-			{
-				var config = sp.GetRequiredService<IConfiguration>();
-				var resolved = config.GetConnectionString(connStrName)
-					?? throw new InvalidOperationException(
-						$"Connection string '{connStrName}' not found in IConfiguration. " +
-						$"Ensure it is defined in the ConnectionStrings section of your configuration.");
-				return () => new SqlConnection(resolved);
-			};
-		}
-		else
-		{
-			sourceFactory = sp =>
-			{
-				var opts = sp.GetRequiredService<IOptions<SqlServerCdcOptions>>();
-				return () => new SqlConnection(opts.Value.ConnectionString);
-			};
-		}
-
-		// State factory: use separate factory if WithStateStore was called, else fall back to source
-		var stateFactory = sqlBuilder.StateConnectionFactory;
+		// State factory: resolve from state store builder, explicit factory, or fall back to source
+		var stateFactory = ResolveStateFactory(sqlBuilder, stateBuilder);
 
 		RegisterCdcServices(builder, sqlOptions, sourceFactory, stateFactory);
 
 		// Register post-configure callback for auto-mapping handler registration
 		RegisterAutoMappingCallback(builder);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures the CDC processor to use SQL Server with a connection factory.
-	/// </summary>
-	/// <param name="builder">The CDC builder.</param>
-	/// <param name="connectionFactory">A factory function that creates SQL connections.</param>
-	/// <param name="configure">Optional action to configure SQL Server-specific options.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> or <paramref name="connectionFactory"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Use this overload when you need custom connection management, such as
-	/// using dependency injection for connection pooling or custom connection strings.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddCdcProcessor(cdc =&gt;
-	/// {
-	///     cdc.UseSqlServer(sp =&gt; () =&gt; new SqlConnection(connectionString), sql =&gt;
-	///     {
-	///         sql.SchemaName("audit")
-	///            .BatchSize(200);
-	///     });
-	/// });
-	/// </code>
-	/// </example>
-	public static ICdcBuilder UseSqlServer(
-		this ICdcBuilder builder,
-		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
-		Action<ISqlServerCdcBuilder>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(connectionFactory);
-
-		// Create and configure SQL Server options
-		var sqlOptions = new SqlServerCdcOptions();
-
-		var sqlBuilder = new SqlServerCdcBuilder(sqlOptions);
-		configure?.Invoke(sqlBuilder);
-
-		// Validate options (connection string not required for factory overload)
-		if (string.IsNullOrWhiteSpace(sqlOptions.SchemaName))
-		{
-			throw new InvalidOperationException("SchemaName is required.");
-		}
-
-		if (string.IsNullOrWhiteSpace(sqlOptions.StateTableName))
-		{
-			throw new InvalidOperationException("StateTableName is required.");
-		}
-
-		// Apply state store configure callback if present
-		var stateStoreOptions = new SqlServerCdcStateStoreOptions
-		{
-			SchemaName = sqlOptions.SchemaName,
-			TableName = sqlOptions.StateTableName
-		};
-
-		string? stateStoreBindConfigPath = null;
-		if (sqlBuilder.StateStoreConfigure is not null)
-		{
-			var stateBuilder = new SqlServerCdcStateStoreBuilder(stateStoreOptions);
-			sqlBuilder.StateStoreConfigure(stateBuilder);
-			stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
-		}
-
-		// Register SQL Server CDC options
-		_ = builder.Services.Configure<SqlServerCdcOptions>(opt =>
-		{
-			opt.SchemaName = sqlOptions.SchemaName;
-			opt.StateTableName = sqlOptions.StateTableName;
-			opt.PollingInterval = sqlOptions.PollingInterval;
-			opt.BatchSize = sqlOptions.BatchSize;
-			opt.CommandTimeout = sqlOptions.CommandTimeout;
-		});
-
-		// Register source BindConfiguration if set
-		if (sqlBuilder.SourceBindConfigurationPath is not null)
-		{
-			builder.Services.AddOptions<SqlServerCdcOptions>()
-				.BindConfiguration(sqlBuilder.SourceBindConfigurationPath)
-				.ValidateDataAnnotations()
-				.ValidateOnStart();
-		}
-
-		// Register CDC state store options
-		_ = builder.Services.Configure<SqlServerCdcStateStoreOptions>(opt =>
-		{
-			opt.SchemaName = stateStoreOptions.SchemaName;
-			opt.TableName = stateStoreOptions.TableName;
-		});
-
-		// Register state store BindConfiguration if set
-		if (stateStoreBindConfigPath is not null)
-		{
-			builder.Services.AddOptions<SqlServerCdcStateStoreOptions>()
-				.BindConfiguration(stateStoreBindConfigPath)
-				.ValidateDataAnnotations()
-				.ValidateOnStart();
-		}
-
-		// State factory: use separate factory if WithStateStore was called, else fall back to source
-		var stateFactory = sqlBuilder.StateConnectionFactory;
-
-		RegisterCdcServices(builder, sqlOptions, connectionFactory, stateFactory);
-
-		// Register post-configure callback for auto-mapping handler registration
-		RegisterAutoMappingCallback(builder);
-
-		return builder;
 	}
 
 	private static void RegisterAutoMappingCallback(ICdcBuilder builder)

@@ -25,7 +25,7 @@ namespace Excalibur.Cdc.Processing;
 /// <code>
 /// services.AddCdcProcessor(cdc =>
 /// {
-///     cdc.UseSqlServer(connectionString)
+///     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
 ///        .TrackTable("dbo.Orders", t => t.MapAll&lt;OrderChangedEvent&gt;())
 ///        .EnableBackgroundProcessing();
 /// });

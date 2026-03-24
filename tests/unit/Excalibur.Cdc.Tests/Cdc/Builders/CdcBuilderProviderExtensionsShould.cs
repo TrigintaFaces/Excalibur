@@ -35,7 +35,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseCosmosDb()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((ICdcBuilder)null!).UseCosmosDb(_ => { }));
+			((ICdcBuilder)null!).UseCosmosDb((Action<CosmosDbCdcOptions>)(_ => { })));
 	}
 
 	[Fact]
@@ -50,7 +50,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ReturnSameBuilder_ForFluentChaining_UseCosmosDb()
 	{
 		var builder = new TestCdcBuilder();
-		var result = builder.UseCosmosDb(_ => { });
+		var result = builder.UseCosmosDb((Action<CosmosDbCdcOptions>)(_ => { }));
 		result.ShouldBeSameAs(builder);
 	}
 
@@ -103,7 +103,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseMongoDB()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((ICdcBuilder)null!).UseMongoDB(_ => { }));
+			((ICdcBuilder)null!).UseMongoDB((Action<MongoDbCdcOptions>)(_ => { })));
 	}
 
 	[Fact]
@@ -118,7 +118,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ReturnSameBuilder_ForFluentChaining_UseMongoDB()
 	{
 		var builder = new TestCdcBuilder();
-		var result = builder.UseMongoDB(_ => { });
+		var result = builder.UseMongoDB((Action<MongoDbCdcOptions>)(_ => { }));
 		result.ShouldBeSameAs(builder);
 	}
 

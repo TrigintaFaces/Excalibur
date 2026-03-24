@@ -42,7 +42,7 @@ flowchart LR
 
 ```csharp
 // Option 1: All-in-one SQL Server setup (recommended)
-services.AddSqlServerEventSourcing(connectionString);
+services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 // Option 2: Configure with options
 services.AddSqlServerEventSourcing(options =>
@@ -52,8 +52,8 @@ services.AddSqlServerEventSourcing(options =>
 });
 
 // Option 3: Register stores separately
-services.AddSqlServerEventStore(connectionString);
-services.AddSqlServerSnapshotStore(connectionString);
+services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
+services.AddSqlServerSnapshotStore(opts => opts.ConnectionString = connectionString);
 
 // Configure snapshot strategy via event sourcing builder
 services.AddExcaliburEventSourcing(builder =>

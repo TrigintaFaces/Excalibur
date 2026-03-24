@@ -311,7 +311,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(connectionString))
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString))
         .AddCdc(cdc => cdc.TrackTable<Order>())
         .AddSagas(opts => opts.EnableTimeouts = true)
         .AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(30));
@@ -334,7 +334,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(connectionString));
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString));
 });
 ```
 

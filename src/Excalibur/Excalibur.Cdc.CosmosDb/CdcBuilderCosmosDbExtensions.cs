@@ -109,18 +109,15 @@ public static class CdcBuilderCosmosDbExtensions
 	/// Configures the CDC processor to use Azure Cosmos DB with fluent builder configuration.
 	/// </summary>
 	/// <param name="builder">The CDC builder.</param>
-	/// <param name="connectionString">The CosmosDB connection string for the source container.</param>
 	/// <param name="configure">Action to configure CosmosDB CDC settings via the fluent builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// This overload provides the fluent builder pattern with <see cref="ICosmosDbCdcBuilder.WithStateStore(string)"/>
+	/// This overload provides the fluent builder pattern with
+	/// <see cref="ICosmosDbCdcBuilder.WithStateStore(Action{ICdcStateStoreBuilder})"/>
 	/// support for configuring a separate CosmosDB connection for state persistence.
 	/// Follows the Microsoft Change Feed Processor pattern where lease storage can be
 	/// in a separate CosmosDB account from the monitored container.
@@ -130,14 +127,16 @@ public static class CdcBuilderCosmosDbExtensions
 	/// <code>
 	/// services.AddCdcProcessor(cdc =&gt;
 	/// {
-	///     cdc.UseCosmosDb("AccountEndpoint=https://source/;AccountKey=...", cosmos =&gt;
+	///     cdc.UseCosmosDb(cosmos =&gt;
 	///     {
-	///         cosmos.DatabaseId("orders-db")
+	///         cosmos.ConnectionString("AccountEndpoint=https://source/;AccountKey=...")
+	///               .DatabaseId("orders-db")
 	///               .ContainerId("orders")
 	///               .ProcessorName("order-cdc")
-	///               .WithStateStore("AccountEndpoint=https://state/;AccountKey=...", state =&gt;
+	///               .WithStateStore(state =&gt;
 	///               {
-	///                   state.SchemaName("cdc-state-db")   // maps to DatabaseId
+	///                   state.ConnectionString("AccountEndpoint=https://state/;AccountKey=...")
+	///                        .SchemaName("cdc-state-db")   // maps to DatabaseId
 	///                        .TableName("checkpoints");     // maps to ContainerId
 	///               });
 	///     });
@@ -146,16 +145,15 @@ public static class CdcBuilderCosmosDbExtensions
 	/// </example>
 	public static ICdcBuilder UseCosmosDb(
 		this ICdcBuilder builder,
-		string connectionString,
-		Action<ICosmosDbCdcBuilder>? configure = null)
+		Action<ICosmosDbCdcBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
 		// Create and configure CosmosDB options
-		var cosmosOptions = new CosmosDbCdcOptions { ConnectionString = connectionString };
+		var cosmosOptions = new CosmosDbCdcOptions();
 		var cosmosBuilder = new CosmosDbCdcBuilder(cosmosOptions);
-		configure?.Invoke(cosmosBuilder);
+		configure(cosmosBuilder);
 
 		// Register source CDC options
 		_ = builder.Services.AddCosmosDbCdc(opt =>
@@ -176,31 +174,29 @@ public static class CdcBuilderCosmosDbExtensions
 				.BindConfiguration(cosmosBuilder.SourceBindConfigurationPath)
 				.ValidateDataAnnotations()
 				.ValidateOnStart();
+
+			// When ConnectionString() was explicitly called alongside BindConfiguration,
+			// re-apply via PostConfigure so the explicit value takes precedence over config.
+			if (!string.IsNullOrWhiteSpace(cosmosOptions.ConnectionString))
+			{
+				var explicitConnectionString = cosmosOptions.ConnectionString;
+				_ = builder.Services.PostConfigure<CosmosDbCdcOptions>(opt =>
+				{
+					opt.ConnectionString = explicitConnectionString;
+				});
+			}
 		}
 
 		// Configure state store if WithStateStore was called
-		if (cosmosBuilder.StateConnectionString is not null || cosmosBuilder.StateClientFactory is not null)
+		if (cosmosBuilder.StateStoreConfigure is not null)
 		{
 			var stateStoreOptions = new CosmosDbCdcStateStoreOptions();
-
-			// Set state connection string
-			if (cosmosBuilder.StateConnectionString is not null)
-			{
-				stateStoreOptions.ConnectionString = cosmosBuilder.StateConnectionString;
-			}
-
-			// Apply state store configure callback
-			string? stateStoreBindConfigPath = null;
-			if (cosmosBuilder.StateStoreConfigure is not null)
-			{
-				var stateBuilder = new CosmosDbCdcStateStoreBuilder(stateStoreOptions);
-				cosmosBuilder.StateStoreConfigure(stateBuilder);
-				stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
-			}
+			var stateBuilder = new CosmosDbCdcStateStoreBuilder(stateStoreOptions);
+			cosmosBuilder.StateStoreConfigure(stateBuilder);
 
 			_ = builder.Services.AddCosmosDbCdcStateStore(opt =>
 			{
-				if (stateStoreOptions.ConnectionString is not null)
+				if (!string.IsNullOrWhiteSpace(stateStoreOptions.ConnectionString))
 				{
 					opt.ConnectionString = stateStoreOptions.ConnectionString;
 				}
@@ -210,10 +206,10 @@ public static class CdcBuilderCosmosDbExtensions
 			});
 
 			// Register state store BindConfiguration if set
-			if (stateStoreBindConfigPath is not null)
+			if (stateBuilder.BindConfigurationPath is not null)
 			{
 				builder.Services.AddOptions<CosmosDbCdcStateStoreOptions>()
-					.BindConfiguration(stateStoreBindConfigPath)
+					.BindConfiguration(stateBuilder.BindConfigurationPath)
 					.ValidateDataAnnotations()
 					.ValidateOnStart();
 			}

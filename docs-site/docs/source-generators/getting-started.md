@@ -156,7 +156,7 @@ public class CreateOrderHandler : IDispatchHandler<CreateOrderCommand>
 ### Repository Services
 
 ```csharp
-// Repository with explicit Scoped lifetime (matches DbContext scope)
+// Repository with explicit Scoped lifetime (matches IUnitOfWork scope)
 [AutoRegister(Lifetime = ServiceLifetime.Scoped)]
 public class OrderRepository : IOrderRepository
 {

@@ -94,67 +94,6 @@ public sealed class RedisInboxExtensionsShould
 
 	#endregion
 
-	#region AddRedisInboxStore with ConnectionString Tests
-
-	[Fact]
-	public void AddRedisInboxStore_WithConnectionString_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddRedisInboxStore("localhost:6379"));
-	}
-
-	[Fact]
-	public void AddRedisInboxStore_WithConnectionString_ThrowsArgumentException_WhenConnectionStringIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddRedisInboxStore((string)null!));
-	}
-
-	[Fact]
-	public void AddRedisInboxStore_WithConnectionString_ThrowsArgumentException_WhenConnectionStringIsEmpty()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddRedisInboxStore(string.Empty));
-	}
-
-	[Fact]
-	public void AddRedisInboxStore_WithConnectionString_ThrowsArgumentException_WhenConnectionStringIsWhitespace()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddRedisInboxStore("   "));
-	}
-
-	[Fact]
-	public void AddRedisInboxStore_WithConnectionString_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddRedisInboxStore("localhost:6379");
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	#endregion
-
 	#region AddRedisInboxStore with ConnectionProvider Tests
 
 	[Fact]

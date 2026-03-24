@@ -542,7 +542,7 @@ public class CustomDeadLetterHandler
 using Microsoft.Extensions.DependencyInjection;
 
 // Simple registration with connection string
-builder.Services.AddSqlServerDeadLetterStore(connectionString);
+builder.Services.AddSqlServerDeadLetterStore(opts => opts.ConnectionString = connectionString);
 
 // Or with full configuration
 builder.Services.AddSqlServerDeadLetterStore(options =>

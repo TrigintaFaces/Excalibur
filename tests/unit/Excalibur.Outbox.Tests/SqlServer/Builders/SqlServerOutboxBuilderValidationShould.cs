@@ -30,8 +30,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
+				_ = builder.UseSqlServer(sql =>
 				{
+					sql.ConnectionString(TestConnectionString);
 					_ = sql.SchemaName(invalidValue);
 				});
 			}));
@@ -49,8 +50,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
+				sql.ConnectionString(TestConnectionString);
 				_ = sql.SchemaName(validValue);
 			});
 		});
@@ -71,8 +73,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
+				_ = builder.UseSqlServer(sql =>
 				{
+					sql.ConnectionString(TestConnectionString);
 					_ = sql.TableName(invalidValue);
 				});
 			}));
@@ -90,8 +93,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
+				sql.ConnectionString(TestConnectionString);
 				_ = sql.TableName(validValue);
 			});
 		});
@@ -112,8 +116,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
+				_ = builder.UseSqlServer(sql =>
 				{
+					sql.ConnectionString(TestConnectionString);
 					_ = sql.TransportsTableName(invalidValue);
 				});
 			}));
@@ -132,8 +137,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
+				_ = builder.UseSqlServer(sql =>
 				{
+					sql.ConnectionString(TestConnectionString);
 					_ = sql.DeadLetterTableName(invalidValue);
 				});
 			}));
@@ -149,8 +155,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
+				_ = builder.UseSqlServer(sql =>
 				{
+					sql.ConnectionString(TestConnectionString);
 					_ = sql.CommandTimeout(TimeSpan.Zero);
 				});
 			}));
@@ -166,8 +173,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
+				_ = builder.UseSqlServer(sql =>
 				{
+					sql.ConnectionString(TestConnectionString);
 					_ = sql.CommandTimeout(TimeSpan.FromSeconds(-1));
 				});
 			}));
@@ -185,8 +193,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
+				sql.ConnectionString(TestConnectionString);
 				_ = sql.CommandTimeout(TimeSpan.FromSeconds(seconds));
 			});
 		});
@@ -207,8 +216,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddExcaliburOutbox(builder =>
 			{
-				_ = builder.UseSqlServer(TestConnectionString, sql =>
+				_ = builder.UseSqlServer(sql =>
 				{
+					sql.ConnectionString(TestConnectionString);
 					_ = sql.DefaultBatchSize(invalidValue);
 				});
 			}));
@@ -226,8 +236,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
+				sql.ConnectionString(TestConnectionString);
 				_ = sql.DefaultBatchSize(validValue);
 			});
 		});
@@ -246,8 +257,9 @@ public sealed class SqlServerOutboxBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddExcaliburOutbox(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
+			_ = builder.UseSqlServer(sql =>
 			{
+				sql.ConnectionString(TestConnectionString);
 				_ = sql.UseRowLocking(enable);
 			});
 		});

@@ -65,15 +65,11 @@ services.AddCosmosDbSnapshotStore(options =>
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(connectionString, cosmos =>
+    cdc.UseCosmosDb(options =>
     {
-        cosmos.DatabaseId("MyApp")
-              .ContainerId("orders")
-              .WithStateStore(stateConnectionString, state =>
-              {
-                  state.SchemaName("cdc-state")    // Maps to DatabaseId
-                       .TableName("checkpoints");   // Maps to ContainerId
-              });
+        options.DatabaseName = "MyApp";
+        options.ContainerName = "orders";
+        options.LeaseContainerName = "leases";
     })
     .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();

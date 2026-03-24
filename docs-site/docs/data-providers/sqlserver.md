@@ -27,7 +27,10 @@ dotnet add package Excalibur.Data.SqlServer
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddSqlServerPersistence("Server=localhost;Database=MyApp;Trusted_Connection=true;");
+services.AddSqlServerPersistence(opts =>
+{
+    opts.ConnectionString = "Server=localhost;Database=MyApp;Trusted_Connection=true;";
+});
 ```
 
 ## Registration Options
@@ -35,43 +38,46 @@ services.AddSqlServerPersistence("Server=localhost;Database=MyApp;Trusted_Connec
 ### Basic Registration
 
 ```csharp
-// From connection string
-services.AddSqlServerPersistence("Server=...;Database=...;");
-
-// From configuration
-services.AddSqlServerPersistence(configuration, sectionName: "SqlServerPersistence");
-
 // With options callback
 services.AddSqlServerPersistence(options =>
 {
     options.ConnectionString = "Server=...;Database=...;";
     options.CommandTimeout = 60;
-    options.EnableConnectionResiliency = true;
 });
+
+// From configuration
+services.AddSqlServerPersistence(configuration, sectionName: "SqlServerPersistence");
 ```
 
 ### Specialized Registration
 
 ```csharp
-// With automatic retry (Polly-based)
-services.AddSqlServerPersistenceWithRetry(
-    connectionString,
-    maxRetryAttempts: 3,
-    retryDelayMilliseconds: 1000);
+// With automatic retry
+services.AddSqlServerPersistenceWithRetry(opts =>
+{
+    opts.ConnectionString = connectionString;
+    opts.Resiliency.MaxRetryAttempts = 3;
+    opts.Resiliency.RetryDelayMilliseconds = 1000;
+});
 
 // With Always Encrypted column support
-services.AddSqlServerPersistenceWithEncryption(
-    connectionString,
-    SqlConnectionColumnEncryptionSetting.Enabled);
+services.AddSqlServerPersistenceWithEncryption(opts =>
+{
+    opts.ConnectionString = connectionString;
+    opts.Security.ColumnEncryptionSetting = SqlConnectionColumnEncryptionSetting.Enabled;
+});
 
 // Read-only replica connection
-services.AddSqlServerPersistenceReadOnly(connectionString);
+services.AddSqlServerPersistenceReadOnly(opts =>
+{
+    opts.ConnectionString = connectionString;
+});
 
 // High-availability with failover support
-services.AddSqlServerPersistenceHighAvailability(connectionString);
-
-// With Change Data Capture integration
-services.AddSqlServerPersistenceWithCdc(configuration, typeof(Program).Assembly);
+services.AddSqlServerPersistenceHighAvailability(opts =>
+{
+    opts.ConnectionString = connectionString;
+});
 ```
 
 ### Health Checks
@@ -142,9 +148,6 @@ await sqlProvider.ExecuteBatchInTransactionAsync(requests, scope, cancellationTo
 For messages that fail processing:
 
 ```csharp
-services.AddSqlServerDeadLetterStore(connectionString);
-
-// Or with options
 services.AddSqlServerDeadLetterStore(options =>
 {
     options.ConnectionString = connectionString;

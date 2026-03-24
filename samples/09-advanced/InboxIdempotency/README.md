@@ -32,9 +32,9 @@ dotnet run
 Replace the in-memory store with a durable provider:
 
 ```csharp
-services.AddExcaliburInbox(inbox => inbox.UseSqlServer(connectionString));
+services.AddExcaliburInbox(inbox => inbox.UseSqlServer(opts => opts.ConnectionString = connectionString));
 // or
-services.AddExcaliburInbox(inbox => inbox.UsePostgres(connectionString));
+services.AddExcaliburInbox(inbox => inbox.UsePostgres(pg => pg.ConnectionString = connectionString));
 ```
 
 ## See Also

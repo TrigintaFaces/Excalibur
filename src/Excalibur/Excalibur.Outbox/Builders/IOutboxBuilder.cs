@@ -19,9 +19,10 @@ namespace Excalibur.Outbox;
 /// <code>
 /// services.AddExcaliburOutbox(outbox =>
 /// {
-///     outbox.UseSqlServer(connectionString, sql =>
+///     outbox.UseSqlServer(sql =>
 ///     {
-///         sql.SchemaName("Outbox")
+///         sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;")
+///            .SchemaName("Outbox")
 ///            .TableName("Messages")
 ///            .CommandTimeout(TimeSpan.FromSeconds(30))
 ///            .UseRowLocking(true);
@@ -121,7 +122,7 @@ public interface IOutboxBuilder
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// outbox.UseSqlServer(connectionString)
+	/// outbox.UseSqlServer(sql => sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;"))
 	///       .EnableBackgroundProcessing();
 	/// </code>
 	/// </example>

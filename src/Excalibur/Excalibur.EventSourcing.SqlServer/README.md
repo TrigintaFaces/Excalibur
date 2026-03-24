@@ -20,19 +20,15 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 ## Usage
 
 ```csharp
-// Register SQL Server event store
-services.AddSqlServerEventSourcing(connectionString);
-
-// With configuration options
-services.AddSqlServerEventSourcing(connectionString, options =>
+// Register SQL Server event store with options
+services.AddSqlServerEventSourcing(options =>
 {
-    options.Schema = "events";
-    options.RetryCount = 5;
+    options.ConnectionString = connectionString;
+    options.EventStoreSchema = "events";
 });
 
 // Or with connection factory for multi-tenant scenarios
-services.AddSqlServerEventSourcing(sp =>
-    () => new SqlConnection(GetTenantConnectionString(sp)));
+services.AddSqlServerEventSourcing(() => new SqlConnection(connectionString));
 ```
 
 ## Database Schema

@@ -77,61 +77,7 @@ public sealed class SqlServerProjectionStoreExtensionsShould : UnitTestBase
 		result.ShouldBeSameAs(services);
 	}
 
-	// --- Overload 2: Connection string ---
-
-	[Fact]
-	public void Register_ProjectionStore_With_ConnectionString_Overload()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddSqlServerProjectionStore<TestProjection>(TestConnectionString);
-
-		// Assert
-		services.Any(sd =>
-			sd.ServiceType == typeof(IProjectionStore<TestProjection>) &&
-			sd.Lifetime == ServiceLifetime.Scoped).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void Throw_When_ConnectionString_Null()
-	{
-		var services = new ServiceCollection();
-
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerProjectionStore<TestProjection>((string)null!));
-	}
-
-	[Fact]
-	public void Throw_When_ConnectionString_Empty()
-	{
-		var services = new ServiceCollection();
-
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerProjectionStore<TestProjection>(""));
-	}
-
-	[Fact]
-	public void Throw_When_ConnectionString_Whitespace()
-	{
-		var services = new ServiceCollection();
-
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerProjectionStore<TestProjection>("   "));
-	}
-
-	[Fact]
-	public void Return_Services_For_Chaining_On_ConnectionString_Overload()
-	{
-		var services = new ServiceCollection();
-
-		var result = services.AddSqlServerProjectionStore<TestProjection>(TestConnectionString);
-
-		result.ShouldBeSameAs(services);
-	}
-
-	// --- Overload 3: Connection factory ---
+	// --- Overload 2: Connection factory ---
 
 	[Fact]
 	public void Register_ProjectionStore_With_ConnectionFactory_Overload()
@@ -176,10 +122,10 @@ public sealed class SqlServerProjectionStoreExtensionsShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSqlServerProjectionStore<TestProjection>(TestConnectionString);
+		services.AddSqlServerProjectionStore<TestProjection>(opts => opts.ConnectionString = TestConnectionString);
 
 		// Act — register again with different connection string
-		services.AddSqlServerProjectionStore<TestProjection>("Server=other;Database=OtherDb;Integrated Security=true;");
+		services.AddSqlServerProjectionStore<TestProjection>(opts => opts.ConnectionString = "Server=other;Database=OtherDb;Integrated Security=true;");
 
 		// Assert — should still have exactly one registration (TryAddScoped)
 		services.Count(sd => sd.ServiceType == typeof(IProjectionStore<TestProjection>)).ShouldBe(1);

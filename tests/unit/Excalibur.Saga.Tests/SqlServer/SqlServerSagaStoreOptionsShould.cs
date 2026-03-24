@@ -77,13 +77,17 @@ public sealed class SqlServerSagaStoreOptionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddSqlServerSagaStore("Server=.;Database=Dispatch;Trusted_Connection=True;");
+		_ = services.AddSqlServerSagaStore(sql =>
+		{
+			sql.ConnectionString = "Server=.;Database=Dispatch;Trusted_Connection=True;";
+		});
 		using var provider = services.BuildServiceProvider();
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 		options.Value.SchemaName.ShouldBe("dispatch");
 		options.Value.TableName.ShouldBe("sagas");
+		options.Value.ConnectionString.ShouldBe("Server=.;Database=Dispatch;Trusted_Connection=True;");
 	}
 
 	[Fact]
@@ -93,9 +97,11 @@ public sealed class SqlServerSagaStoreOptionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddSqlServerSagaStore(
-				"Server=.;Database=Dispatch;Trusted_Connection=True;",
-				options => options.TableName = " ");
+		_ = services.AddSqlServerSagaStore(sql =>
+		{
+			sql.ConnectionString = "Server=.;Database=Dispatch;Trusted_Connection=True;";
+			sql.TableName = " ";
+		});
 		using var provider = services.BuildServiceProvider();
 
 		// Assert

@@ -31,6 +31,7 @@ public sealed class SqlServerSagaIdempotencyOptionsValidatorShould
 
 	private static SqlServerSagaIdempotencyOptions CreateValidOptions() => new()
 	{
+		ConnectionString = "Server=.;Database=TestDb;Trusted_Connection=True;",
 		SchemaName = "dispatch",
 		TableName = "saga_idempotency",
 		RetentionPeriod = TimeSpan.FromDays(7),

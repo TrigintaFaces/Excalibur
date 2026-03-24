@@ -32,24 +32,6 @@ public static class InboxBuilderSqlServerExtensions
 	}
 
 	/// <summary>
-	/// Configures the inbox to use SQL Server storage with a connection string.
-	/// </summary>
-	/// <param name="builder">The inbox builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	public static IInboxBuilder UseSqlServer(
-		this IInboxBuilder builder,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		_ = builder.Services.AddSqlServerInboxStore(connectionString);
-
-		return builder;
-	}
-
-	/// <summary>
 	/// Configures the inbox to use SQL Server storage with a connection factory.
 	/// </summary>
 	/// <param name="builder">The inbox builder.</param>

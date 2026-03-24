@@ -24,11 +24,19 @@ dotnet add package Excalibur.Outbox.SqlServer
 // Register via IOutboxBuilder (recommended)
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString);
+    outbox.UseSqlServer(sql =>
+    {
+        sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;")
+           .SchemaName("Messaging")
+           .TableName("OutboxMessages");
+    });
 });
 
 // Or use with IDispatchBuilder
-builder.UseSqlServerOutboxStore(connectionString);
+builder.UseSqlServerOutboxStore(options =>
+{
+    options.ConnectionString = "Server=.;Database=MyDb;Trusted_Connection=True;";
+});
 ```
 
 ## Database Schema

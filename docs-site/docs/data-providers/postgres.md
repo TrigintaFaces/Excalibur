@@ -42,11 +42,12 @@ services.AddPostgresDataExecutors(() => new NpgsqlConnection(connectionString));
 
 ```csharp
 // With connection string
-services.AddPostgresEventStore(connectionString);
+services.AddPostgresEventStore(opts => opts.ConnectionString = connectionString);
 
 // With connection string and options
-services.AddPostgresEventStore(connectionString, options =>
+services.AddPostgresEventStore(options =>
 {
+    options.ConnectionString = connectionString;
     options.SchemaName = "events";
 });
 ```
@@ -54,7 +55,7 @@ services.AddPostgresEventStore(connectionString, options =>
 ### Snapshot Store
 
 ```csharp
-services.AddPostgresSnapshotStore(connectionString);
+services.AddPostgresSnapshotStore(opts => opts.ConnectionString = connectionString);
 ```
 
 ### Inbox / Outbox

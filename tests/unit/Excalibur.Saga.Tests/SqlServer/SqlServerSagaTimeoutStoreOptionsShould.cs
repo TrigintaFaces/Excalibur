@@ -77,13 +77,17 @@ public sealed class SqlServerSagaTimeoutStoreOptionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddSqlServerSagaTimeoutStore("Server=.;Database=Dispatch;Trusted_Connection=True;");
+		_ = services.AddSqlServerSagaTimeoutStore(sql =>
+		{
+			sql.ConnectionString = "Server=.;Database=Dispatch;Trusted_Connection=True;";
+		});
 		using var provider = services.BuildServiceProvider();
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerSagaTimeoutStoreOptions>>();
 		options.Value.SchemaName.ShouldBe("dbo");
 		options.Value.TableName.ShouldBe("SagaTimeouts");
+		options.Value.ConnectionString.ShouldBe("Server=.;Database=Dispatch;Trusted_Connection=True;");
 	}
 
 	[Fact]
@@ -93,9 +97,11 @@ public sealed class SqlServerSagaTimeoutStoreOptionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddSqlServerSagaTimeoutStore(
-				"Server=.;Database=Dispatch;Trusted_Connection=True;",
-				options => options.TableName = " ");
+		_ = services.AddSqlServerSagaTimeoutStore(sql =>
+		{
+			sql.ConnectionString = "Server=.;Database=Dispatch;Trusted_Connection=True;";
+			sql.TableName = " ";
+		});
 		using var provider = services.BuildServiceProvider();
 
 		// Assert

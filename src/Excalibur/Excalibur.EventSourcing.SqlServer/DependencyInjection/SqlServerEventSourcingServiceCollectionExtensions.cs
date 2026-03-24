@@ -28,37 +28,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class SqlServerEventSourcingServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds SQL Server event store implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="SqlServerEventStore"/> as the <see cref="IEventStore"/> implementation.
-	/// For configuration via options, use <see cref="AddSqlServerEventSourcing(IServiceCollection, Action{SqlServerEventSourcingOptions})"/>.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddSqlServerEventStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		services.TryAddSingleton(sp =>
-			new SqlServerEventStore(
-				connectionString,
-				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
-				sp.GetService<ISerializer>(),
-				sp.GetService<IPayloadSerializer>()));
-
-		RegisterEventStoreTelemetryWrapper(services);
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds SQL Server event store implementation with a connection factory.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -89,34 +58,6 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server snapshot store implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="SqlServerSnapshotStore"/> as the <see cref="ISnapshotStore"/> implementation.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddSqlServerSnapshotStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		services.TryAddSingleton(sp =>
-			new SqlServerSnapshotStore(
-				connectionString,
-				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>()));
-
-		RegisterSnapshotStoreTelemetryWrapper(services);
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds SQL Server snapshot store implementation with a connection factory.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -135,32 +76,6 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>()));
 
 		RegisterSnapshotStoreTelemetryWrapper(services);
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds SQL Server event-sourced outbox store implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="SqlServerEventSourcedOutboxStore"/> as the <see cref="IEventSourcedOutboxStore"/> implementation.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddSqlServerOutboxStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		services.TryAddSingleton<IEventSourcedOutboxStore>(sp =>
-			new SqlServerEventSourcedOutboxStore(
-				connectionString,
-				sp.GetRequiredService<ILogger<SqlServerEventSourcedOutboxStore>>()));
 
 		return services;
 	}
@@ -230,10 +145,11 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		// Register subscription polling options validator for SQL injection prevention
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SubscriptionPollingOptions>, SubscriptionPollingOptionsValidator>());
 
-		// Register stores
-		_ = services.AddSqlServerEventStore(options.ConnectionString);
-		_ = services.AddSqlServerSnapshotStore(options.ConnectionString);
-		_ = services.AddSqlServerOutboxStore(options.ConnectionString);
+		// Register stores using connection factory from resolved connection string
+		Func<SqlConnection> connectionFactory = () => new SqlConnection(options.ConnectionString);
+		_ = services.AddSqlServerEventStore(connectionFactory);
+		_ = services.AddSqlServerSnapshotStore(connectionFactory);
+		_ = services.AddSqlServerOutboxStore(connectionFactory);
 
 		// Register health checks if enabled
 		if (options.HealthChecks.RegisterHealthChecks)
@@ -254,31 +170,6 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		}
 
 		return services;
-	}
-
-	/// <summary>
-	/// Adds all SQL Server event sourcing implementations with a connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="registerHealthChecks">Whether to register health checks. Default: true.</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Convenience method that registers event store, snapshot store, and outbox store
-	/// with a single connection string.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddSqlServerEventSourcing(
-		this IServiceCollection services,
-		string connectionString,
-		bool registerHealthChecks = true)
-	{
-		return services.AddSqlServerEventSourcing(options =>
-		{
-			options.ConnectionString = connectionString;
-			options.HealthChecks.RegisterHealthChecks = registerHealthChecks;
-		});
 	}
 
 	/// <summary>
@@ -308,38 +199,6 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server materialized view store implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="viewTableName">Optional view table name. Defaults to "MaterializedViews".</param>
-	/// <param name="positionTableName">Optional position table name. Defaults to "MaterializedViewPositions".</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="SqlServerMaterializedViewStore"/> as the <see cref="IMaterializedViewStore"/> implementation.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddSqlServerMaterializedViewStore(
-		this IServiceCollection services,
-		string connectionString,
-		string? viewTableName = null,
-		string? positionTableName = null)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-
-		services.TryAddSingleton<IMaterializedViewStore>(sp =>
-			new SqlServerMaterializedViewStore(
-				connectionString,
-				sp.GetRequiredService<ILogger<SqlServerMaterializedViewStore>>(),
-				viewTableName,
-				positionTableName));
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds SQL Server materialized view store implementation with a connection factory.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -362,50 +221,6 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 				sp.GetRequiredService<ILogger<SqlServerMaterializedViewStore>>(),
 				viewTableName,
 				positionTableName));
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds SQL Server schema migrator implementation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="migrationAssembly">The assembly containing migration scripts as embedded resources.</param>
-	/// <param name="migrationNamespace">The namespace prefix for migration resources (e.g., "MyApp.Migrations").</param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="SqlServerMigrator"/> as the <see cref="IMigrator"/> implementation.
-	/// Migration scripts should be embedded resources named following the pattern: YYYYMMDDHHMMSS_MigrationName.sql
-	/// </para>
-	/// <para>
-	/// <b>Usage:</b>
-	/// <code>
-	/// services.AddSqlServerMigrator(
-	///     connectionString,
-	///     typeof(Program).Assembly,
-	///     "MyApp.Migrations");
-	/// </code>
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddSqlServerMigrator(
-		this IServiceCollection services,
-		string connectionString,
-		Assembly migrationAssembly,
-		string migrationNamespace)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionString);
-		ArgumentNullException.ThrowIfNull(migrationAssembly);
-		ArgumentNullException.ThrowIfNull(migrationNamespace);
-
-		services.TryAddSingleton<IMigrator>(sp =>
-			new SqlServerMigrator(
-				connectionString,
-				migrationAssembly,
-				migrationNamespace,
-				sp.GetRequiredService<ILogger<SqlServerMigrator>>()));
 
 		return services;
 	}
@@ -496,7 +311,10 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		}
 
 		_ = services.Configure(configure);
-		_ = services.AddSqlServerMigrator(options.ConnectionString, options.MigrationAssembly, options.MigrationNamespace);
+		_ = services.AddSqlServerMigrator(
+			() => new SqlConnection(options.ConnectionString),
+			options.MigrationAssembly,
+			options.MigrationNamespace);
 
 		if (options.AutoMigrateOnStartup)
 		{

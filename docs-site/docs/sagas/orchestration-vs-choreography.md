@@ -224,7 +224,7 @@ services.AddExcaliburSaga(options =>
 });
 
 // Add SQL Server persistence
-services.AddSqlServerSagaStore(connectionString);
+services.AddSqlServerSagaStore(opts => opts.ConnectionString = connectionString);
 
 // Register the saga type
 services.AddScoped<OrderFulfillmentOrchestrator>();

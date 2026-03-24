@@ -54,18 +54,12 @@ var connectionString = builder.Configuration.GetConnectionString("EventStore")
 					   ?? throw new InvalidOperationException(
 						   "ConnectionString 'EventStore' not found. Ensure appsettings.json is configured.");
 
-// Option 1: Simple connection string registration
-builder.Services.AddSqlServerEventSourcing(connectionString, registerHealthChecks: true);
-
-// Option 2: Full configuration (alternative)
-// builder.Services.AddSqlServerEventSourcing(options =>
-// {
-//     options.ConnectionString = connectionString;
-//     options.RegisterHealthChecks = true;
-//     options.EventStoreHealthCheckName = "eventstore-sqlserver";
-//     options.SnapshotStoreHealthCheckName = "snapshotstore-sqlserver";
-//     options.OutboxStoreHealthCheckName = "outbox-sqlserver";
-// });
+// Register SQL Server event sourcing with options
+builder.Services.AddSqlServerEventSourcing(options =>
+{
+	options.ConnectionString = connectionString;
+	options.HealthChecks.RegisterHealthChecks = true;
+});
 
 // ============================================================
 // Configure Event Sourcing Repository

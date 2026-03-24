@@ -192,8 +192,9 @@ services.AddElasticSearchProjectionStore<OrderSummary>(options =>
 services.AddCosmosDbProjectionStore<OrderSummary>(cosmosConnectionString, "projections");
 
 // SQL Server projection store
-services.AddSqlServerProjectionStore<OrderSummary>(sqlConnectionString, options =>
+services.AddSqlServerProjectionStore<OrderSummary>(options =>
 {
+    options.ConnectionString = sqlConnectionString;
     options.TableName = "OrderSummaries";
 });
 
@@ -201,8 +202,9 @@ services.AddSqlServerProjectionStore<OrderSummary>(sqlConnectionString, options 
 services.AddSqlServerProjectionStore<OrderSummary, IOrderDb>();
 
 // PostgreSQL projection store
-services.AddPostgresProjectionStore<OrderSummary>(pgConnectionString, options =>
+services.AddPostgresProjectionStore<OrderSummary>(options =>
 {
+    options.ConnectionString = pgConnectionString;
     options.TableName = "order_summaries";
 });
 ```
@@ -335,7 +337,7 @@ For eventually-consistent projections, use CDC (Change Data Capture) rather than
 // Configure CDC for async projections
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", table =>
        {
            table.MapInsert<OrderCreatedEvent>()

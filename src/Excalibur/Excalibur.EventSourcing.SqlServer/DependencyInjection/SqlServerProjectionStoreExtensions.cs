@@ -51,30 +51,6 @@ public static class SqlServerProjectionStoreExtensions
 	}
 
 	/// <summary>
-	/// Adds the SQL Server projection store to the service collection with a connection string.
-	/// </summary>
-	/// <typeparam name="TProjection">The projection type to store.</typeparam>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configureOptions">Optional action to further configure projection store options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSqlServerProjectionStore<TProjection>(
-		this IServiceCollection services,
-		string connectionString,
-		Action<SqlServerProjectionStoreOptions>? configureOptions = null)
-		where TProjection : class
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddSqlServerProjectionStore<TProjection>(options =>
-		{
-			options.ConnectionString = connectionString;
-			configureOptions?.Invoke(options);
-		});
-	}
-
-	/// <summary>
 	/// Adds the SQL Server projection store to the service collection with a connection factory.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>

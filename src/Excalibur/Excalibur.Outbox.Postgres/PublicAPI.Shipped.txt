@@ -107,5 +107,6 @@ Excalibur.Outbox.Postgres.ReserveOutboxMessages
 Excalibur.Outbox.Postgres.ReserveOutboxMessages.ReserveOutboxMessages(string! dispatcherId, int batchSize, int reservationTimeout, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.ResetOutboxMessageReservation
 Excalibur.Outbox.Postgres.ResetOutboxMessageReservation.ResetOutboxMessageReservation(string! dispatcherId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
-static Excalibur.Outbox.Postgres.OutboxBuilderPostgresExtensions.UsePostgres(this Excalibur.Outbox.IOutboxBuilder! builder, string! connectionString, System.Action<Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!>? configure = null) -> Excalibur.Outbox.IOutboxBuilder!
-static Excalibur.Outbox.Postgres.OutboxBuilderPostgresExtensions.UsePostgres(this Excalibur.Outbox.IOutboxBuilder! builder, System.Func<System.IServiceProvider!, Excalibur.Data.Abstractions.IDb!>! dbFactory, System.Action<Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!>? configure = null) -> Excalibur.Outbox.IOutboxBuilder!
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, Excalibur.Data.Abstractions.IDb!>! dbFactory) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
+static Excalibur.Outbox.Postgres.OutboxBuilderPostgresExtensions.UsePostgres(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

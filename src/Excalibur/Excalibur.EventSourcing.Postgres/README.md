@@ -13,8 +13,8 @@ dotnet add package Excalibur.EventSourcing.Postgres
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddPostgresEventStore(connectionString);
-services.AddPostgresSnapshotStore(connectionString);
+services.AddPostgresEventStore(dataSource);
+services.AddPostgresSnapshotStore(dataSource);
 ```
 
 ## Features
@@ -29,7 +29,7 @@ services.AddPostgresSnapshotStore(connectionString);
 ## Configuration
 
 ```csharp
-services.AddPostgresEventStore(connectionString, options =>
+services.AddPostgresEventStore(dataSource, options =>
 {
     options.SchemaName = "events";
     options.TableName = "event_store";

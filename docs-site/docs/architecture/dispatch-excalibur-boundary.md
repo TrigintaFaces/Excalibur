@@ -60,7 +60,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(connectionString));
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString));
 });
 ```
 
@@ -80,7 +80,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur
         .AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>())
-        .AddOutbox(outbox => outbox.UseSqlServer(connectionString));
+        .AddOutbox(outbox => outbox.UseSqlServer(opts => opts.ConnectionString = connectionString));
 });
 ```
 

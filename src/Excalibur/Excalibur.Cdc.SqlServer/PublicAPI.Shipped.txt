@@ -299,8 +299,7 @@ override Excalibur.Cdc.SqlServer.CdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.SqlServer.CdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.SqlServer.CdcPosition.ToString() -> string!
 override Excalibur.Cdc.SqlServer.DataChange.ToString() -> string!
-static Excalibur.Cdc.SqlServer.CdcBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Cdc.ICdcBuilder! builder, string! connectionString, System.Action<Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
-static Excalibur.Cdc.SqlServer.CdcBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Cdc.ICdcBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory, System.Action<Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.SqlServer.CdcBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.SqlServer.CdcPosition.FromChangePosition(Excalibur.Dispatch.Abstractions.ChangePosition? position) -> Excalibur.Cdc.SqlServer.CdcPosition!
 static Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CreateEventArgs(System.Exception! exception, string! processorId, byte[]? stalePosition = null, byte[]? newPosition = null, string? captureInstance = null, string? databaseName = null) -> Excalibur.Cdc.CdcPositionResetEventArgs!
 static Excalibur.Cdc.SqlServer.CdcStalePositionDetector.GetReasonCode(Microsoft.Data.SqlClient.SqlException? exception) -> string!
@@ -343,9 +342,9 @@ Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.get -> boo
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.set -> void
 Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions.AddDataChangeHandlersFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(string! connectionString) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(string! connectionString, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! stateConnectionFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StateConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!

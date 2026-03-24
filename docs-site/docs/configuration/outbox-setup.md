@@ -40,7 +40,7 @@ With an outbox:
 ```csharp
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString)
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
 });
 ```
@@ -52,7 +52,7 @@ services.AddExcalibur(excalibur =>
 {
     excalibur.AddOutbox(outbox =>
     {
-        outbox.UseSqlServer(connectionString)
+        outbox.UseSqlServer(opts => opts.ConnectionString = connectionString)
               .EnableBackgroundProcessing();
     });
 });
@@ -65,9 +65,10 @@ services.AddExcalibur(excalibur =>
 ```csharp
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseSqlServer(connectionString, sql =>
+    outbox.UseSqlServer(sql =>
     {
-        sql.SchemaName("Messaging")
+        sql.ConnectionString(connectionString)
+           .SchemaName("Messaging")
            .TableName("OutboxMessages")
            .CommandTimeout(TimeSpan.FromSeconds(60));
     })
@@ -129,9 +130,10 @@ services.AddExcaliburOutbox(
 ### SQL Server
 
 ```csharp
-outbox.UseSqlServer(connectionString, sql =>
+outbox.UseSqlServer(sql =>
 {
-    sql.SchemaName("Outbox")
+    sql.ConnectionString(connectionString)
+       .SchemaName("Outbox")
        .TableName("Messages")
        .UseRowLocking(true);  // For high concurrency
 });
@@ -140,10 +142,11 @@ outbox.UseSqlServer(connectionString, sql =>
 ### Postgres
 
 ```csharp
-outbox.UsePostgres(connectionString, pg =>
+outbox.UsePostgres(pg =>
 {
-    pg.SchemaName("outbox")
-      .TableName("messages");
+    pg.ConnectionString(connectionString)
+       .SchemaName("outbox")
+       .TableName("messages");
 });
 ```
 
@@ -245,7 +248,7 @@ For serverless or custom scenarios:
 
 ```csharp
 // Don't enable background processing
-outbox.UseSqlServer(connectionString);
+outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
 
 // Manually trigger processing
 var processor = services.GetRequiredService<IOutboxProcessor>();

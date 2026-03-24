@@ -29,11 +29,11 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			builder.UseSqlServer(TestConnectionString));
+			builder.UseSqlServer(sql => sql.ConnectionString(TestConnectionString)));
 	}
 
 	[Fact]
-	public void UseSqlServer_ThrowsOnNullConnectionString()
+	public void UseSqlServer_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -42,35 +42,7 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UseSqlServer((string)null!);
-			}));
-	}
-
-	[Fact]
-	public void UseSqlServer_ThrowsOnEmptyConnectionString()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer("");
-			}));
-	}
-
-	[Fact]
-	public void UseSqlServer_ThrowsOnWhitespaceConnectionString()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddCdcProcessor(builder =>
-			{
-				_ = builder.UseSqlServer("   ");
+				_ = builder.UseSqlServer((Action<ISqlServerCdcBuilder>)null!);
 			}));
 	}
 
@@ -84,7 +56,8 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			capturedResult = builder.UseSqlServer(TestConnectionString);
+			capturedResult = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString));
 		});
 
 		// Assert
@@ -100,7 +73,8 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString);
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -120,7 +94,8 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString);
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString));
 		});
 
 		// Assert - service descriptor exists
@@ -138,7 +113,8 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString);
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString));
 		});
 
 		// Assert - service descriptor exists
@@ -156,7 +132,8 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString);
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString));
 		});
 
 		// Assert - service descriptor exists
@@ -174,10 +151,9 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.SchemaName("audit");
-			});
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .SchemaName("audit"));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -195,10 +171,9 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.StateTableName("CdcState");
-			});
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .StateTableName("CdcState"));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -217,10 +192,9 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.PollingInterval(expectedInterval);
-			});
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .PollingInterval(expectedInterval));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -238,10 +212,9 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.BatchSize(500);
-			});
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .BatchSize(500));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -260,10 +233,9 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.CommandTimeout(expectedTimeout);
-			});
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .CommandTimeout(expectedTimeout));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -281,14 +253,13 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString, sql =>
-			{
-				_ = sql.SchemaName("cdc")
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString)
+				   .SchemaName("cdc")
 				   .StateTableName("ProcessingState")
 				   .PollingInterval(TimeSpan.FromSeconds(5))
 				   .BatchSize(100)
-				   .CommandTimeout(TimeSpan.FromSeconds(30));
-			});
+				   .CommandTimeout(TimeSpan.FromSeconds(30)));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -311,9 +282,10 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		_ = services.AddCdcProcessor(builder =>
 		{
 			_ = builder
-				.UseSqlServer(TestConnectionString, sql =>
+				.UseSqlServer(sql =>
 				{
-					_ = sql.SchemaName("cdc")
+					_ = sql.ConnectionString(TestConnectionString)
+					   .SchemaName("cdc")
 					   .BatchSize(200);
 				})
 				.TrackTable("dbo.Orders", table =>
@@ -341,7 +313,7 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void UseSqlServer_WorksWithoutConfigure()
+	public void UseSqlServer_WorksWithConnectionStringOnly()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -349,7 +321,8 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UseSqlServer(TestConnectionString);
+			_ = builder.UseSqlServer(sql =>
+				sql.ConnectionString(TestConnectionString));
 		});
 		var provider = services.BuildServiceProvider();
 

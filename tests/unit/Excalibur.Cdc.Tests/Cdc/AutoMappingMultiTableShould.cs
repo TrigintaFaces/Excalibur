@@ -29,7 +29,7 @@ public sealed class AutoMappingMultiTableShould : UnitTestBase
 		// Act
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.UseSqlServer(ConnectionString, sql => sql.DatabaseName("Db"))
+			cdc.UseSqlServer(sql => sql.ConnectionString(ConnectionString).DatabaseName("Db"))
 				.TrackTable("dbo.Orders", t => t.MapInsert<OrderEvent, OrderMapper>())
 				.TrackTable("dbo.Products", t => t.MapInsert<ProductEvent, ProductMapper>());
 		});
@@ -48,7 +48,7 @@ public sealed class AutoMappingMultiTableShould : UnitTestBase
 		// Act
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.UseSqlServer(ConnectionString, sql => sql.DatabaseName("Db"))
+			cdc.UseSqlServer(sql => sql.ConnectionString(ConnectionString).DatabaseName("Db"))
 				.TrackTable("dbo.Orders", t => t.MapInsert<OrderEvent, OrderMapper>())
 				.TrackTable("dbo.Products", t => t.MapInsert<ProductEvent, ProductMapper>())
 				.TrackTable("dbo.Customers", t => t.MapDelete<OrderEvent, OrderMapper>());
@@ -68,7 +68,7 @@ public sealed class AutoMappingMultiTableShould : UnitTestBase
 		// Act -- MapInsert<T>() (no mapper) does NOT set HasEventMappers
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.UseSqlServer(ConnectionString, sql => sql.DatabaseName("Db"))
+			cdc.UseSqlServer(sql => sql.ConnectionString(ConnectionString).DatabaseName("Db"))
 				.TrackTable("dbo.Orders", t => t.MapInsert<OrderEvent, OrderMapper>())
 				.TrackTable("dbo.Products", t => t.MapInsert<ProductEvent>());
 		});
@@ -87,7 +87,7 @@ public sealed class AutoMappingMultiTableShould : UnitTestBase
 		// Act
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.UseSqlServer(ConnectionString, sql => sql.DatabaseName("Db"))
+			cdc.UseSqlServer(sql => sql.ConnectionString(ConnectionString).DatabaseName("Db"))
 				.TrackTable("dbo.Orders", t => t.MapInsert<OrderEvent, OrderMapper>());
 		});
 
@@ -105,7 +105,7 @@ public sealed class AutoMappingMultiTableShould : UnitTestBase
 		// Act -- old-style MapInsert<T>() without mapper type
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.UseSqlServer(ConnectionString, sql => sql.DatabaseName("Db"))
+			cdc.UseSqlServer(sql => sql.ConnectionString(ConnectionString).DatabaseName("Db"))
 				.TrackTable("dbo.Orders", t => t.MapInsert<OrderEvent>())
 				.TrackTable("dbo.Products", t => t.MapUpdate<ProductEvent>());
 		});
@@ -128,7 +128,7 @@ public sealed class AutoMappingMultiTableShould : UnitTestBase
 		// Act -- add auto-mapping for a different table
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.UseSqlServer(ConnectionString, sql => sql.DatabaseName("Db"))
+			cdc.UseSqlServer(sql => sql.ConnectionString(ConnectionString).DatabaseName("Db"))
 				.TrackTable("dbo.Orders", t => t.MapInsert<OrderEvent, OrderMapper>());
 		});
 
@@ -146,7 +146,7 @@ public sealed class AutoMappingMultiTableShould : UnitTestBase
 		// Act -- one table with insert+update+delete mappers should still be ONE handler
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.UseSqlServer(ConnectionString, sql => sql.DatabaseName("Db"))
+			cdc.UseSqlServer(sql => sql.ConnectionString(ConnectionString).DatabaseName("Db"))
 				.TrackTable("dbo.Orders", t =>
 					t.MapInsert<OrderEvent, OrderMapper>()
 					 .MapUpdate<OrderEvent, OrderMapper>()
@@ -167,7 +167,7 @@ public sealed class AutoMappingMultiTableShould : UnitTestBase
 		// Act
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.UseSqlServer(ConnectionString, sql => sql.DatabaseName("Db"))
+			cdc.UseSqlServer(sql => sql.ConnectionString(ConnectionString).DatabaseName("Db"))
 				.TrackTable("dbo.Orders", t => t.MapInsert<OrderEvent, OrderMapper>())
 				.TrackTable("dbo.Products", t => t.MapInsert<ProductEvent, ProductMapper>());
 		});

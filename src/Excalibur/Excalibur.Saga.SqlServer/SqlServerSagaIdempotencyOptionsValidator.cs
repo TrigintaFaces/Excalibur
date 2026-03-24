@@ -16,6 +16,11 @@ internal sealed class SqlServerSagaIdempotencyOptionsValidator : IValidateOption
 			return ValidateOptionsResult.Fail("SQL Server saga idempotency options cannot be null.");
 		}
 
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			return ValidateOptionsResult.Fail("ConnectionString is required.");
+		}
+
 		if (string.IsNullOrWhiteSpace(options.SchemaName))
 		{
 			return ValidateOptionsResult.Fail("SchemaName is required.");

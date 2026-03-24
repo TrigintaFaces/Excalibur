@@ -77,61 +77,7 @@ public sealed class PostgresProjectionStoreExtensionsShould : UnitTestBase
 		result.ShouldBeSameAs(services);
 	}
 
-	// --- Overload 2: Connection string ---
-
-	[Fact]
-	public void Register_ProjectionStore_With_ConnectionString_Overload()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddPostgresProjectionStore<SampleProjection>(TestConnectionString);
-
-		// Assert
-		services.Any(sd =>
-			sd.ServiceType == typeof(IProjectionStore<SampleProjection>) &&
-			sd.Lifetime == ServiceLifetime.Scoped).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void Throw_When_ConnectionString_Null()
-	{
-		var services = new ServiceCollection();
-
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddPostgresProjectionStore<SampleProjection>((string)null!));
-	}
-
-	[Fact]
-	public void Throw_When_ConnectionString_Empty()
-	{
-		var services = new ServiceCollection();
-
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddPostgresProjectionStore<SampleProjection>(""));
-	}
-
-	[Fact]
-	public void Throw_When_ConnectionString_Whitespace()
-	{
-		var services = new ServiceCollection();
-
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddPostgresProjectionStore<SampleProjection>("   "));
-	}
-
-	[Fact]
-	public void Return_Services_For_Chaining_On_ConnectionString_Overload()
-	{
-		var services = new ServiceCollection();
-
-		var result = services.AddPostgresProjectionStore<SampleProjection>(TestConnectionString);
-
-		result.ShouldBeSameAs(services);
-	}
-
-	// --- Overload 3: NpgsqlDataSource factory ---
+	// --- Overload 2: NpgsqlDataSource factory ---
 
 	[Fact]
 	public void Register_ProjectionStore_With_DataSourceFactory_Overload()
@@ -176,10 +122,10 @@ public sealed class PostgresProjectionStoreExtensionsShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddPostgresProjectionStore<SampleProjection>(TestConnectionString);
+		services.AddPostgresProjectionStore<SampleProjection>(opts => opts.ConnectionString = TestConnectionString);
 
 		// Act — register again with different connection string
-		services.AddPostgresProjectionStore<SampleProjection>("Host=other;Database=OtherDb");
+		services.AddPostgresProjectionStore<SampleProjection>(opts => opts.ConnectionString = "Host=other;Database=OtherDb");
 
 		// Assert — should still have exactly one registration (TryAddScoped)
 		services.Count(sd => sd.ServiceType == typeof(IProjectionStore<SampleProjection>)).ShouldBe(1);

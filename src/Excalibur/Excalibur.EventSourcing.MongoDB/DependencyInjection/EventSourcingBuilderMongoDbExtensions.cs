@@ -35,7 +35,7 @@ public static class EventSourcingBuilderMongoDbExtensions
 	/// {
 	///     es.UseMongoDB(options =&gt;
 	///     {
-	///         options.ConnectionString = connectionString;
+	///         options.ConnectionString = configuration.GetConnectionString("MongoDB")!;
 	///         options.DatabaseName = "events";
 	///     })
 	///     .AddRepository&lt;OrderAggregate, Guid&gt;();
@@ -50,41 +50,6 @@ public static class EventSourcingBuilderMongoDbExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = builder.Services.AddMongoDbEventStore(configure);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures the event sourcing builder to use MongoDB with a connection string and database name.
-	/// </summary>
-	/// <param name="builder">The event sourcing builder.</param>
-	/// <param name="connectionString">The MongoDB connection string.</param>
-	/// <param name="databaseName">The database name.</param>
-	/// <param name="configure">Optional action to further configure event store options.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/>, <paramref name="connectionString"/>, or <paramref name="databaseName"/> is null.
-	/// </exception>
-	/// <example>
-	/// <code>
-	/// services.AddExcaliburEventSourcing(es =&gt;
-	/// {
-	///     es.UseMongoDB("mongodb://localhost:27017", "events")
-	///       .AddRepository&lt;OrderAggregate, Guid&gt;();
-	/// });
-	/// </code>
-	/// </example>
-	public static IEventSourcingBuilder UseMongoDB(
-		this IEventSourcingBuilder builder,
-		string connectionString,
-		string databaseName,
-		Action<MongoDbEventStoreOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-		_ = builder.Services.AddMongoDbEventStore(connectionString, databaseName, configure);
 
 		return builder;
 	}

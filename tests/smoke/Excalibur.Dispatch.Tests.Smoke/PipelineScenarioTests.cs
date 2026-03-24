@@ -108,7 +108,7 @@ public sealed class PipelineScenarioTests
 		_output.WriteLine($"Order created with ID: {orderId}");
 
 		// Verify events were persisted in the in-memory event store
-		var eventStore = provider.GetRequiredService<IEventStore>();
+		var eventStore = provider.GetRequiredKeyedService<IEventStore>("default");
 		var storedEvents = await eventStore.LoadAsync(
 			orderId.ToString(), "PipelineOrder", CancellationToken.None).ConfigureAwait(false);
 
@@ -206,8 +206,8 @@ public sealed class PipelineScenarioTests
 		// Assert -- all key services resolve
 		provider.GetService<IDispatcher>()
 			.ShouldNotBeNull("IDispatcher should resolve");
-		provider.GetService<IEventStore>()
-			.ShouldNotBeNull("IEventStore should resolve");
+		provider.GetKeyedService<IEventStore>("default")
+			.ShouldNotBeNull("IEventStore should resolve (keyed 'default')");
 		provider.GetService<ISnapshotStrategy>()
 			.ShouldNotBeNull("ISnapshotStrategy should resolve");
 	}

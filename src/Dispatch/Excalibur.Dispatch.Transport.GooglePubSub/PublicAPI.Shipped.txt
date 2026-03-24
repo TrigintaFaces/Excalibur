@@ -91,6 +91,7 @@ const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingProc
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingQueueRemoved = 23318 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingWorkerError = 23315 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingWorkerStarted = 23313 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingWorkerStartTimeout = 23319 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingWorkerStopped = 23314 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OutOfOrderDetected = 23303 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OutOfSequenceMessage = 23321 -> int

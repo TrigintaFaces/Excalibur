@@ -52,30 +52,6 @@ public static class PostgresProjectionStoreExtensions
 	}
 
 	/// <summary>
-	/// Adds the Postgres projection store to the service collection with a connection string.
-	/// </summary>
-	/// <typeparam name="TProjection">The projection type to store.</typeparam>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Postgres connection string.</param>
-	/// <param name="configureOptions">Optional action to further configure projection store options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddPostgresProjectionStore<TProjection>(
-		this IServiceCollection services,
-		string connectionString,
-		Action<PostgresProjectionStoreOptions>? configureOptions = null)
-		where TProjection : class
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddPostgresProjectionStore<TProjection>(options =>
-		{
-			options.ConnectionString = connectionString;
-			configureOptions?.Invoke(options);
-		});
-	}
-
-	/// <summary>
 	/// Adds the Postgres projection store to the service collection with an NpgsqlDataSource factory.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>

@@ -63,9 +63,10 @@ using Excalibur.Cdc;
 // Register CDC processor with fluent builder
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.SchemaName("Cdc")
+        sql.ConnectionString(connectionString)
+           .SchemaName("Cdc")
            .StateTableName("CdcProcessingState")
            .PollingInterval(TimeSpan.FromSeconds(5))
            .BatchSize(100)
@@ -113,9 +114,10 @@ internal sealed class OrderCreatedEventMapper : ICdcEventMapper<OrderCreatedEven
 // 3. Register with the 2-type-param overload
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.SchemaName("Cdc")
+        sql.ConnectionString(connectionString)
+           .SchemaName("Cdc")
            .BatchSize(100);
     })
     .TrackTable("dbo.Orders", table =>
@@ -171,7 +173,7 @@ The single-type-param overloads (`MapInsert<TEvent>()`, `MapAll<TEvent>()`) regi
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable<Order>(table =>
            table.MapAll<OrderChangedEvent, OrderChangedEventMapper>())
        .TrackTable<Customer>(table =>
@@ -454,28 +456,31 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `CaptureInstances(params string[])` | CDC capture instances to process | -- |
 | `StopOnMissingTableHandler(bool)` | Stop processing on missing handler | `true` |
 | `ConnectionStringName(string)` | Resolve connection from `IConfiguration.GetConnectionString()` | -- |
-| `WithStateStore(string)` | Separate connection string for state persistence | Source connection |
-| `WithStateStore(string, Action<ICdcStateStoreBuilder>)` | State connection with schema/table config | Source connection |
-| `WithStateStore(Func<IServiceProvider, Func<SqlConnection>>)` | DI-integrated state connection factory | Source connection |
-| `WithStateStore(Func<...>, Action<ICdcStateStoreBuilder>)` | Factory with schema/table config | Source connection |
+| `ConnectionFactory(Func<IServiceProvider, Func<SqlConnection>>)` | DI-integrated source connection factory | -- |
+| `WithStateStore(Action<ICdcStateStoreBuilder>)` | Configure separate state store connection and schema | Source connection |
+| `StateConnectionFactory(Func<IServiceProvider, Func<SqlConnection>>)` | DI-integrated state connection factory | Source connection |
 | `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
 
 :::tip Auto-Registration of IDatabaseConfig
 When you call `DatabaseName()`, the builder automatically registers an `IDatabaseConfig` singleton with sensible defaults for connection identifiers. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseConfig` registration takes precedence.
 :::
 
-### Connection Factory Overload
+### Connection Factory
 
 For custom connection management (e.g., pooling or dynamic connection strings):
 
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(
-        sp => () => new SqlConnection(sp.GetRequiredService<IConfiguration>()["CdcConnectionString"]),
-        sql =>
+    cdc.UseSqlServer(sql =>
         {
-            sql.SchemaName("audit")
+            sql.ConnectionFactory(sp =>
+                {
+                    var config = sp.GetRequiredService<IConfiguration>();
+                    var connStr = config.GetConnectionString("CdcDatabase")!;
+                    return () => new SqlConnection(connStr);
+                })
+               .SchemaName("audit")
                .BatchSize(200)
                .DatabaseName("AuditDb");
         })
@@ -495,9 +500,13 @@ The `WithStateStore` method follows the [Microsoft Change Feed Processor](https:
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(sourceConnectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.WithStateStore(stateConnectionString);
+        sql.ConnectionString(sourceConnectionString)
+           .WithStateStore(state =>
+           {
+               state.ConnectionString(stateConnectionString);
+           });
     })
     .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();
@@ -509,13 +518,65 @@ services.AddCdcProcessor(cdc =>
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(sourceConnectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.WithStateStore(stateConnectionString, state =>
-        {
-            state.SchemaName("dbo")
-                 .TableName("CdcCheckpoints");
-        });
+        sql.ConnectionString(sourceConnectionString)
+           .WithStateStore(state =>
+           {
+               state.ConnectionString(stateConnectionString)
+                    .SchemaName("dbo")
+                    .TableName("CdcCheckpoints");
+           });
+    })
+    .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+```
+
+### Named Connection Strings
+
+Resolve connections from `IConfiguration.GetConnectionString()` at DI resolution time:
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql =>
+    {
+        sql.ConnectionStringName("CdcSource")
+           .WithStateStore(state =>
+           {
+               state.ConnectionStringName("CdcState");
+           });
+    })
+    .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+```
+
+### Configuration Binding
+
+Bind all options from `appsettings.json`:
+
+```json
+{
+  "Cdc": {
+    "SqlServer": {
+      "ConnectionString": "Server=.;Database=OrdersDb;...",
+      "SchemaName": "Cdc",
+      "PollingIntervalSeconds": 5,
+      "BatchSize": 100
+    }
+  }
+}
+```
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql =>
+    {
+        sql.BindConfiguration("Cdc:SqlServer")
+           .DatabaseName("OrdersDb");
     })
     .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();
@@ -529,16 +590,20 @@ For advanced scenarios (managed identity, dynamic connection strings):
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(sourceConnectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.WithStateStore(
-            sp => () => new SqlConnection(
-                sp.GetRequiredService<IConfiguration>().GetConnectionString("CdcState")),
-            state =>
+        sql.ConnectionFactory(sp =>
             {
-                state.SchemaName("cdc")
-                     .TableName("ProcessingState");
-            });
+                var config = sp.GetRequiredService<IConfiguration>();
+                return () => new SqlConnection(config.GetConnectionString("CdcSource")!);
+            })
+           .DatabaseName("OrdersDb")
+           .WithStateStore(state =>
+           {
+               state.ConnectionStringName("CdcState")
+                    .SchemaName("cdc")
+                    .TableName("ProcessingState");
+           });
     })
     .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();
@@ -552,13 +617,15 @@ The same pattern works with `IPostgresCdcBuilder`:
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UsePostgres(sourceConnectionString, pg =>
+    cdc.UsePostgres(pg =>
     {
-        pg.WithStateStore(stateConnectionString, state =>
-        {
-            state.SchemaName("excalibur")
-                 .TableName("cdc_state");
-        });
+        pg.ConnectionString(sourceConnectionString)
+          .WithStateStore(state =>
+          {
+              state.ConnectionString(stateConnectionString)
+                   .SchemaName("excalibur")
+                   .TableName("cdc_state");
+          });
     })
     .TrackTable("public.orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();
@@ -571,6 +638,8 @@ The `Action<ICdcStateStoreBuilder>` callback configures state store persistence:
 
 | Method | Description |
 |--------|-------------|
+| `ConnectionString(string)` | Set the state store connection string directly |
+| `ConnectionStringName(string)` | Resolve connection from `IConfiguration.GetConnectionString()` |
 | `SchemaName(string)` | Database schema for the checkpoint table |
 | `TableName(string)` | Table name for checkpoint persistence |
 | `BindConfiguration(string)` | Bind state store options from an `IConfiguration` section |
@@ -619,9 +688,10 @@ Configure the CDC state store via the fluent builder:
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.SchemaName("Cdc")
+        sql.ConnectionString(connectionString)
+           .SchemaName("Cdc")
            .StateTableName("CdcProcessingState");
     })
     .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
@@ -736,7 +806,7 @@ using Excalibur.Cdc;
 
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
        .WithRecovery(recovery =>
        {
@@ -765,7 +835,7 @@ For complex recovery scenarios, use `InvokeCallback` with a custom handler:
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
        .WithRecovery(recovery =>
        {
@@ -891,7 +961,7 @@ Call `EnableBackgroundProcessing()` on the CDC builder to register a `CdcProcess
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
        .EnableBackgroundProcessing();
 });
@@ -927,9 +997,10 @@ You can also configure processing inline via the SQL Server builder:
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.PollingInterval(TimeSpan.FromSeconds(10))
+        sql.ConnectionString(connectionString)
+           .PollingInterval(TimeSpan.FromSeconds(10))
            .BatchSize(200);
     })
     .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
@@ -946,7 +1017,7 @@ Use `CdcJob` from the `Excalibur.Jobs` package for cron-scheduled CDC processing
 
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>());
     // Don't call EnableBackgroundProcessing() — Quartz handles scheduling
 });
@@ -964,7 +1035,7 @@ For serverless environments, omit `EnableBackgroundProcessing()` and call `ICdcP
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>());
     // Don't call EnableBackgroundProcessing() — you'll trigger manually
 });
@@ -1007,7 +1078,7 @@ When you pass a connection string directly, the framework creates a factory inte
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
        .EnableBackgroundProcessing();
 });
@@ -1083,7 +1154,7 @@ CDC processors, outbox processors, and inbox stores are all registered as single
 
 ## Providers
 
-Excalibur CDC uses `ICdcBuilder` as its core abstraction with provider-specific builder interfaces for each database. All providers follow the same pattern: `AddCdcProcessor` + `UseXxx(connectionString, builder => { ... })`.
+Excalibur CDC uses `ICdcBuilder` as its core abstraction with provider-specific builder interfaces for each database. All providers follow the same pattern: `AddCdcProcessor` + `UseXxx(options => { ... })`.
 
 ### Core Registration
 
@@ -1093,20 +1164,21 @@ using Microsoft.Extensions.DependencyInjection;
 // SQL providers
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.WithStateStore(stateConnectionString); // Optional: separate state store
+        sql.ConnectionString(connectionString)
+           .WithStateStore(stateConnectionString); // Optional: separate state store
     });
 });
 
 // Cloud-native providers (same builder pattern)
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(connectionString, cosmos =>
+    cdc.UseCosmosDb(options =>
     {
-        cosmos.DatabaseId("mydb")
-              .ContainerId("orders")
-              .WithStateStore(stateConnectionString); // Optional: separate account
+        options.DatabaseName = "mydb";
+        options.ContainerName = "orders";
+        options.LeaseContainerName = "leases";
     });
 });
 ```
@@ -1118,8 +1190,9 @@ Uses SQL Server's native CDC feature with polling-based change capture.
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
+        sql.ConnectionString(connectionString);
         // Configure tracked tables, polling interval, etc.
     });
 });
@@ -1145,21 +1218,12 @@ Uses PostgreSQL logical replication for real-time change streaming.
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UsePostgres(connectionString, pg =>
+    cdc.UsePostgres(pg =>
     {
-        // Configure publication, replication slot, etc.
+        pg.ConnectionString(connectionString)
+          .ReplicationSlotName("my_slot")
+          .PublicationName("my_pub");
     });
-});
-
-// Or with a connection factory
-services.AddCdcProcessor(cdc =>
-{
-    cdc.UsePostgres(
-        sp => () => new NpgsqlConnection(connectionString),
-        pg =>
-        {
-            // Configure CDC options
-        });
 });
 ```
 
@@ -1176,9 +1240,10 @@ dotnet add package Excalibur.Cdc.MongoDB
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseMongoDB(connectionString, mongo =>
+    cdc.UseMongoDB(mongo =>
     {
-        mongo.DatabaseName("MyApp")
+        mongo.ConnectionString(connectionString)
+             .DatabaseName("MyApp")
              .CollectionNames("orders", "customers")
              .ProcessorId("order-processor")
              .BatchSize(100)
@@ -1191,9 +1256,10 @@ services.AddCdcProcessor(cdc =>
 // With separate state store (different MongoDB cluster)
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseMongoDB(connectionString, mongo =>
+    cdc.UseMongoDB(mongo =>
     {
-        mongo.DatabaseName("MyApp")
+        mongo.ConnectionString(connectionString)
+             .DatabaseName("MyApp")
              .WithStateStore("mongodb://state-cluster:27017", state =>
              {
                  state.SchemaName("cdc")       // Maps to DatabaseName
@@ -1218,29 +1284,12 @@ dotnet add package Excalibur.Cdc.CosmosDb
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(connectionString, cosmos =>
+    cdc.UseCosmosDb(options =>
     {
-        cosmos.DatabaseId("MyApp")
-              .ContainerId("orders")
-              .ProcessorName("order-processor")
-              .ChangeFeed(feed => { /* configure change feed options */ });
-    })
-    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
-    .EnableBackgroundProcessing();
-});
-
-// With separate state store (different Cosmos account)
-services.AddCdcProcessor(cdc =>
-{
-    cdc.UseCosmosDb(connectionString, cosmos =>
-    {
-        cosmos.DatabaseId("MyApp")
-              .ContainerId("orders")
-              .WithStateStore("AccountEndpoint=https://state-cosmos/...;AccountKey=...", state =>
-              {
-                  state.SchemaName("cdc-state")    // Maps to DatabaseId
-                       .TableName("checkpoints");   // Maps to ContainerId
-              });
+        options.DatabaseName = "MyApp";
+        options.ContainerName = "orders";
+        options.LeaseContainerName = "leases";
+        options.ProcessorName = "order-processor";
     })
     .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();
@@ -1356,7 +1405,7 @@ Call `EnableBackgroundProcessing()` on the CDC builder to register a `CdcProcess
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
        .EnableBackgroundProcessing();
 });
@@ -1364,7 +1413,7 @@ services.AddCdcProcessor(cdc =>
 // PostgreSQL follows the same pattern
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UsePostgres(connectionString)
+    cdc.UsePostgres(pg => pg.ConnectionString(connectionString))
        .TrackTable("public.orders", t => t.MapAll<OrderChangedEvent>())
        .EnableBackgroundProcessing();
 });

@@ -21,6 +21,34 @@ internal sealed class SqlServerCdcStateStoreBuilder : ICdcStateStoreBuilder
 	/// </summary>
 	internal string? BindConfigurationPath { get; private set; }
 
+	/// <summary>
+	/// Gets the state store connection string, if set via <see cref="ConnectionString"/>.
+	/// </summary>
+	internal string? StateConnectionString { get; private set; }
+
+	/// <summary>
+	/// Gets the connection string name for resolution from IConfiguration, if set via <see cref="ConnectionStringName"/>.
+	/// </summary>
+	internal string? StateConnectionStringName { get; private set; }
+
+	/// <inheritdoc/>
+	public ICdcStateStoreBuilder ConnectionString(string connectionString)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+		StateConnectionString = connectionString;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ICdcStateStoreBuilder ConnectionStringName(string name)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+		StateConnectionStringName = name;
+		return this;
+	}
+
 	/// <inheritdoc/>
 	public ICdcStateStoreBuilder SchemaName(string schema)
 	{

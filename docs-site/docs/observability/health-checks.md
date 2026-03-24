@@ -611,7 +611,7 @@ Monitor materialized view infrastructure health:
 services.AddMaterializedViews(builder =>
 {
     builder.AddBuilder<OrderSummaryView, OrderSummaryViewBuilder>()
-           .UseSqlServer(connectionString)
+           .UseSqlServer(opts => opts.ConnectionString = connectionString)
            .WithHealthChecks(options =>
            {
                options.Name = "materialized-views";

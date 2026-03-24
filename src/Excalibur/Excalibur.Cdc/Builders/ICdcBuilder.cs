@@ -19,9 +19,10 @@ namespace Excalibur.Cdc;
 /// <code>
 /// services.AddCdcProcessor(cdc =>
 /// {
-///     cdc.UseSqlServer(connectionString, sql =>
+///     cdc.UseSqlServer(sql =>
 ///     {
-///         sql.SchemaName("cdc")
+///         sql.ConnectionString(connectionString)
+///            .SchemaName("cdc")
 ///            .StateTableName("CdcProcessingState")
 ///            .PollingInterval(TimeSpan.FromSeconds(5))
 ///            .BatchSize(100);
@@ -157,7 +158,7 @@ public interface ICdcBuilder
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// cdc.UseSqlServer(connectionString)
+	/// cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
 	///    .TrackTable("dbo.Orders", t => t.MapAll&lt;OrderChangedEvent&gt;())
 	///    .EnableBackgroundProcessing();
 	/// </code>

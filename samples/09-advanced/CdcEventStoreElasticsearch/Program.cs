@@ -160,9 +160,10 @@ ILogger? cdcRecoveryLogger = null;
 // Configure CDC with fluent builder - per ADR-098 P1 (Single Entry Point)
 builder.Services.AddCdcProcessor(cdc =>
 {
-	cdc.UseSqlServer(cdcSourceConnectionString, sql =>
+	cdc.UseSqlServer(sql =>
 		{
-			sql.DatabaseName("LegacyDb")
+			sql.ConnectionString(cdcSourceConnectionString)
+				.DatabaseName("LegacyDb")
 				.DatabaseConnectionIdentifier("cdc-LegacyDb")
 				.StateConnectionIdentifier("state-LegacyDb")
 				.CaptureInstances("dbo_LegacyCustomers", "dbo_LegacyOrders", "dbo_LegacyOrderItems")

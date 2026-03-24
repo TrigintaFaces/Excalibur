@@ -29,9 +29,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.SchemaName(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+					  .SchemaName(invalidValue);
 				});
 			}));
 	}
@@ -49,9 +50,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.SchemaName(validValue);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .SchemaName(validValue);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -74,9 +76,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.StateTableName(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+					  .StateTableName(invalidValue);
 				});
 			}));
 	}
@@ -94,9 +97,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.StateTableName(validValue);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .StateTableName(validValue);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -119,9 +123,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.ReplicationSlotName(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+					  .ReplicationSlotName(invalidValue);
 				});
 			}));
 	}
@@ -139,9 +144,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.ReplicationSlotName(validValue);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .ReplicationSlotName(validValue);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -164,9 +170,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.PublicationName(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+					  .PublicationName(invalidValue);
 				});
 			}));
 	}
@@ -184,9 +191,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.PublicationName(validValue);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .PublicationName(validValue);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -206,9 +214,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.PollingInterval(TimeSpan.Zero);
+					_ = pg.ConnectionString(TestConnectionString)
+					  .PollingInterval(TimeSpan.Zero);
 				});
 			}));
 	}
@@ -223,9 +232,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.PollingInterval(TimeSpan.FromSeconds(-1));
+					_ = pg.ConnectionString(TestConnectionString)
+					  .PollingInterval(TimeSpan.FromSeconds(-1));
 				});
 			}));
 	}
@@ -245,9 +255,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.PollingInterval(expectedInterval);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .PollingInterval(expectedInterval);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -270,9 +281,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.BatchSize(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+					  .BatchSize(invalidValue);
 				});
 			}));
 	}
@@ -291,9 +303,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.BatchSize(validValue);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .BatchSize(validValue);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -313,9 +326,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.Timeout(TimeSpan.Zero);
+					_ = pg.ConnectionString(TestConnectionString)
+					  .Timeout(TimeSpan.Zero);
 				});
 			}));
 	}
@@ -330,9 +344,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.Timeout(TimeSpan.FromSeconds(-1));
+					_ = pg.ConnectionString(TestConnectionString)
+					  .Timeout(TimeSpan.FromSeconds(-1));
 				});
 			}));
 	}
@@ -352,9 +367,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.Timeout(expectedTimeout);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .Timeout(expectedTimeout);
 			});
 		});
 		var provider = services.BuildServiceProvider();
@@ -377,9 +393,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		_ = Should.Throw<ArgumentException>(() =>
 			services.AddCdcProcessor(builder =>
 			{
-				_ = builder.UsePostgres(TestConnectionString, pg =>
+				_ = builder.UsePostgres(pg =>
 				{
-					_ = pg.ProcessorId(invalidValue);
+					_ = pg.ConnectionString(TestConnectionString)
+					  .ProcessorId(invalidValue);
 				});
 			}));
 	}
@@ -397,9 +414,10 @@ public sealed class PostgresCdcBuilderValidationShould : UnitTestBase
 		// Act
 		_ = services.AddCdcProcessor(builder =>
 		{
-			_ = builder.UsePostgres(TestConnectionString, pg =>
+			_ = builder.UsePostgres(pg =>
 			{
-				_ = pg.ProcessorId(validValue);
+				_ = pg.ConnectionString(TestConnectionString)
+				  .ProcessorId(validValue);
 			});
 		});
 		var provider = services.BuildServiceProvider();

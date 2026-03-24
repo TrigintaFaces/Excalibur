@@ -42,25 +42,6 @@ public static class FirestoreInboxExtensions
 	}
 
 	/// <summary>
-	/// Adds Firestore inbox store to the service collection with project ID.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="projectId">The Google Cloud project ID.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddFirestoreInboxStore(
-		this IServiceCollection services,
-		string projectId)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
-
-		return services.AddFirestoreInboxStore(options =>
-		{
-			options.ProjectId = projectId;
-		});
-	}
-
-	/// <summary>
 	/// Adds Firestore inbox store to the service collection with an existing Firestore database.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -107,25 +88,6 @@ public static class FirestoreInboxExtensions
 		_ = builder.Services.AddFirestoreInboxStore(configure);
 
 		return builder;
-	}
-
-	/// <summary>
-	/// Configures the dispatch builder to use Firestore inbox store with project ID.
-	/// </summary>
-	/// <param name="builder">The dispatch builder.</param>
-	/// <param name="projectId">The Google Cloud project ID.</param>
-	/// <returns>The dispatch builder for fluent configuration.</returns>
-	public static IDispatchBuilder UseFirestoreInboxStore(
-		this IDispatchBuilder builder,
-		string projectId)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
-
-		return builder.UseFirestoreInboxStore(options =>
-		{
-			options.ProjectId = projectId;
-		});
 	}
 
 	/// <summary>

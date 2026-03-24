@@ -189,7 +189,7 @@ using Microsoft.Extensions.DependencyInjection;
 // Registration with SQL Server persistence
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseSqlServer(connectionString)
+    saga.UseSqlServer(sql => { sql.ConnectionString = connectionString; })
         .WithOrchestration()
         .WithTimeouts();
 });
@@ -197,7 +197,7 @@ services.AddExcaliburSaga(saga =>
 // Or with Postgres persistence
 services.AddExcaliburSaga(saga =>
 {
-    saga.UsePostgres(connectionString)
+    saga.UsePostgres(opts => opts.ConnectionString = connectionString)
         .WithOrchestration()
         .WithTimeouts();
 });
@@ -384,7 +384,7 @@ Persist saga state to SQL Server for durability:
 ```csharp
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseSqlServer(connectionString)
+    saga.UseSqlServer(sql => { sql.ConnectionString = connectionString; })
         .WithOrchestration()
         .WithTimeouts();
 });
@@ -413,7 +413,7 @@ Register the SQL Server correlation query via the builder:
 ```csharp
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseSqlServer(connectionString)
+    saga.UseSqlServer(sql => { sql.ConnectionString = connectionString; })
         .WithCorrelationQuery();
 });
 ```
@@ -442,8 +442,8 @@ For SQL Server persistence, register the idempotency provider:
 ```csharp
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseSqlServer(connectionString)
-        .WithSqlServerIdempotency();
+    saga.UseSqlServer(sql => { sql.ConnectionString = connectionString; })
+        .WithSqlServerIdempotency(sql => { sql.ConnectionString = connectionString; });
 });
 ```
 

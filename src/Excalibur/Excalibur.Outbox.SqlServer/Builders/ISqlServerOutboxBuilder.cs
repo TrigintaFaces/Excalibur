@@ -15,9 +15,10 @@ namespace Excalibur.Outbox.SqlServer;
 /// </remarks>
 /// <example>
 /// <code>
-/// outbox.UseSqlServer(connectionString, sql =>
+/// outbox.UseSqlServer(sql =>
 /// {
-///     sql.SchemaName("Messaging")
+///     sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;")
+///        .SchemaName("Messaging")
 ///        .TableName("OutboxMessages")
 ///        .CommandTimeout(TimeSpan.FromSeconds(60))
 ///        .UseRowLocking(true);
@@ -26,6 +27,23 @@ namespace Excalibur.Outbox.SqlServer;
 /// </example>
 public interface ISqlServerOutboxBuilder
 {
+	/// <summary>
+	/// Sets the SQL Server connection string.
+	/// </summary>
+	/// <param name="connectionString">The SQL Server connection string.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="connectionString"/> is null, empty, or whitespace.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This is the primary way to configure the connection string for the outbox store.
+	/// Alternatively, configure <see cref="SqlServerOutboxOptions.ConnectionString"/> directly
+	/// via the options pattern.
+	/// </para>
+	/// </remarks>
+	ISqlServerOutboxBuilder ConnectionString(string connectionString);
+
 	/// <summary>
 	/// Sets the schema name for the outbox tables.
 	/// </summary>

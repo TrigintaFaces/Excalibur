@@ -28,28 +28,26 @@ public static class OutboxBuilderSqlServerExtensions
 	/// Configures the outbox to use SQL Server as the storage provider.
 	/// </summary>
 	/// <param name="builder">The outbox builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configure">Optional action to configure SQL Server-specific options.</param>
+	/// <param name="configure">Action to configure SQL Server-specific options via the fluent builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null, empty, or whitespace.
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
 	/// <remarks>
 	/// <para>
 	/// This is the primary method for configuring SQL Server as the outbox storage provider.
 	/// It registers the <see cref="SqlServerOutboxStore"/> and related services.
+	/// Use <see cref="ISqlServerOutboxBuilder.ConnectionString"/> to set the connection string.
 	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
 	/// services.AddExcaliburOutbox(outbox =>
 	/// {
-	///     outbox.UseSqlServer(connectionString, sql =>
+	///     outbox.UseSqlServer(sql =>
 	///     {
-	///         sql.SchemaName("Messaging")
+	///         sql.ConnectionString("Server=.;Database=MyDb;Trusted_Connection=True;")
+	///            .SchemaName("Messaging")
 	///            .TableName("OutboxMessages")
 	///            .CommandTimeout(TimeSpan.FromSeconds(60))
 	///            .UseRowLocking(true);
@@ -60,20 +58,15 @@ public static class OutboxBuilderSqlServerExtensions
 	/// </example>
 	public static IOutboxBuilder UseSqlServer(
 		this IOutboxBuilder builder,
-		string connectionString,
-		Action<ISqlServerOutboxBuilder>? configure = null)
+		Action<ISqlServerOutboxBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
 		// Create and configure SQL Server options
-		var sqlOptions = new SqlServerOutboxOptions { ConnectionString = connectionString, };
-
-		if (configure is not null)
-		{
-			var sqlBuilder = new SqlServerOutboxBuilder(sqlOptions);
-			configure(sqlBuilder);
-		}
+		var sqlOptions = new SqlServerOutboxOptions();
+		var sqlBuilder = new SqlServerOutboxBuilder(sqlOptions);
+		configure(sqlBuilder);
 
 		// Register SQL Server options
 		_ = builder.Services.Configure<SqlServerOutboxOptions>(opt =>
@@ -181,48 +174,39 @@ public static class OutboxBuilderSqlServerExtensions
 	/// Configures the outbox to use SQL Server dead letter queue.
 	/// </summary>
 	/// <param name="builder">The outbox builder.</param>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="configure">Optional action to configure dead letter queue options.</param>
+	/// <param name="configure">Action to configure dead letter queue options.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="connectionString"/> is null, empty, or whitespace.
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
 	/// <remarks>
 	/// <para>
 	/// The dead letter queue stores messages that have exceeded their retry limit.
 	/// Call this method to enable dead letter functionality with SQL Server.
+	/// Set the connection string via <see cref="SqlServerDeadLetterQueueOptions.ConnectionString"/>.
 	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
 	/// services.AddExcaliburOutbox(outbox =>
 	/// {
-	///     outbox.UseSqlServer(connectionString)
-	///           .WithSqlServerDeadLetterQueue(connectionString)
+	///     outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
+	///           .WithSqlServerDeadLetterQueue(opts =>
+	///           {
+	///               opts.ConnectionString = connectionString;
+	///           })
 	///           .EnableBackgroundProcessing();
 	/// });
 	/// </code>
 	/// </example>
 	public static IOutboxBuilder WithSqlServerDeadLetterQueue(
 		this IOutboxBuilder builder,
-		string connectionString,
-		Action<SqlServerDeadLetterQueueOptions>? configure = null)
+		Action<SqlServerDeadLetterQueueOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.Configure<SqlServerDeadLetterQueueOptions>(opt =>
-		{
-			opt.ConnectionString = connectionString;
-		});
-
-		if (configure is not null)
-		{
-			_ = builder.Services.Configure(configure);
-		}
+		_ = builder.Services.Configure(configure);
 
 		builder.Services.TryAddSingleton<SqlServerDeadLetterQueue>();
 		builder.Services.TryAddSingleton<IDeadLetterQueue>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());

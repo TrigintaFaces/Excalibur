@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.DependencyInjection;
+using Excalibur.Saga.SqlServer;
 using Excalibur.Saga.SqlServer.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -31,40 +32,18 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((ISagaBuilder)null!).UseSqlServer(TestConnectionString));
+			((ISagaBuilder)null!).UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; }));
 	}
 
 	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsNull()
+	public void ThrowArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
 
 		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
+		Should.Throw<ArgumentNullException>(() =>
 			builder.UseSqlServer(null!));
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsEmpty()
-	{
-		// Arrange
-		var builder = new TestSagaBuilder();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			builder.UseSqlServer(string.Empty));
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenConnectionStringIsWhitespace()
-	{
-		// Arrange
-		var builder = new TestSagaBuilder();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			builder.UseSqlServer("   "));
 	}
 
 	#endregion
@@ -78,7 +57,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		var result = builder.UseSqlServer(TestConnectionString);
+		var result = builder.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; });
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -95,7 +74,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseSqlServer(TestConnectionString);
+		builder.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; });
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -109,7 +88,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseSqlServer(TestConnectionString);
+		builder.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; });
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -123,7 +102,7 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseSqlServer(TestConnectionString);
+		builder.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; });
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -135,29 +114,17 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 	#region Configure Actions Tests
 
 	[Fact]
-	public void AcceptConfigureActionsWithoutThrowing()
+	public void AcceptConfigureActionWithCustomOptions()
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
 
-		// Act & Assert -- configure actions should be accepted without throwing
-		var result = builder.UseSqlServer(TestConnectionString,
-			configureSagaStore: opts => { },
-			configureTimeoutStore: opts => { });
-
-		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void AcceptNullConfigureActions()
-	{
-		// Arrange
-		var builder = new TestSagaBuilder();
-
-		// Act & Assert -- should not throw
-		var result = builder.UseSqlServer(TestConnectionString,
-			configureSagaStore: null,
-			configureTimeoutStore: null);
+		// Act & Assert -- configure action with custom schema should be accepted without throwing
+		var result = builder.UseSqlServer(sql =>
+		{
+			sql.ConnectionString = TestConnectionString;
+			sql.SchemaName = "custom";
+		});
 
 		result.ShouldBeSameAs(builder);
 	}
@@ -174,9 +141,45 @@ public sealed class SagaBuilderSqlServerExtensionsShould
 
 		// Act -- verify chaining with existing saga builder extensions
 		var result = builder
-			.UseSqlServer(TestConnectionString)
+			.UseSqlServer(sql => { sql.ConnectionString = TestConnectionString; })
 			.WithOrchestration()
 			.WithTimeouts();
+
+		// Assert
+		result.ShouldBeSameAs(builder);
+	}
+
+	#endregion
+
+	#region WithSqlServerIdempotency Tests
+
+	[Fact]
+	public void ThrowArgumentNullException_WhenIdempotencyBuilderIsNull()
+	{
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() =>
+			((ISagaBuilder)null!).WithSqlServerIdempotency(sql => { sql.ConnectionString = TestConnectionString; }));
+	}
+
+	[Fact]
+	public void ThrowArgumentNullException_WhenIdempotencyConfigureIsNull()
+	{
+		// Arrange
+		var builder = new TestSagaBuilder();
+
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() =>
+			builder.WithSqlServerIdempotency(null!));
+	}
+
+	[Fact]
+	public void ReturnSameBuilder_ForIdempotencyFluentChaining()
+	{
+		// Arrange
+		var builder = new TestSagaBuilder();
+
+		// Act
+		var result = builder.WithSqlServerIdempotency(sql => { sql.ConnectionString = TestConnectionString; });
 
 		// Assert
 		result.ShouldBeSameAs(builder);

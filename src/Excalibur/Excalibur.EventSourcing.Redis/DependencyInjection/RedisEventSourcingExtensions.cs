@@ -49,22 +49,6 @@ public static class RedisEventSourcingExtensions
 	}
 
 	/// <summary>
-	/// Adds Redis event store to the service collection with a connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Redis connection string.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddRedisEventStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddRedisEventStore(options => options.ConnectionString = connectionString);
-	}
-
-	/// <summary>
 	/// Adds Redis event store to the service collection with an existing connection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -130,41 +114,6 @@ public static class RedisEventSourcingExtensions
 		services.AddKeyedSingleton<ISnapshotStore>("redis", (sp, _) => sp.GetRequiredService<RedisSnapshotStore>());
 		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISnapshotStore>("redis"));
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds Redis snapshot store to the service collection with a connection string.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Redis connection string.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddRedisSnapshotStore(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		return services.AddRedisSnapshotStore(options => options.ConnectionString = connectionString);
-	}
-
-	/// <summary>
-	/// Adds both Redis event store and snapshot store to the service collection.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The Redis connection string.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddRedisEventSourcing(
-		this IServiceCollection services,
-		string connectionString)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-		_ = services.AddRedisEventStore(connectionString);
-		_ = services.AddRedisSnapshotStore(connectionString);
 
 		return services;
 	}
