@@ -116,13 +116,12 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			{
 				DockerAvailable = false;
 				InitializationError = ex.Message;
-				throw;
+				return;
 			}
 		}
 
 		DockerAvailable = false;
 		InitializationError ??= "Container initialization failed after retries.";
-		throw new InvalidOperationException(InitializationError);
 	}
 
 	/// <summary>

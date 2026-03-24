@@ -38,9 +38,14 @@ public sealed class KafkaPartitioningIntegrationShould
 		_fixture = fixture;
 	}
 
-	[Fact]
+	private void EnsureKafkaAvailable() =>
+		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+
+	[SkippableFact]
 	public async Task SamePartitionKey_RoutesToSamePartition()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange - create topic with multiple partitions
 		var topic = $"test-partition-{Guid.NewGuid():N}";
 		await CreateTopicAsync(topic, partitions: 3).ConfigureAwait(false);
@@ -75,9 +80,11 @@ public sealed class KafkaPartitioningIntegrationShould
 		partitions.Count.ShouldBe(1, "All messages with the same partition key should go to the same partition");
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task DifferentPartitionKeys_CanRouteToMultiplePartitions()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange - create topic with multiple partitions
 		var topic = $"test-multi-part-{Guid.NewGuid():N}";
 		await CreateTopicAsync(topic, partitions: 6).ConfigureAwait(false);
@@ -112,9 +119,11 @@ public sealed class KafkaPartitioningIntegrationShould
 			"Messages with different partition keys should distribute across partitions");
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task OrderingKey_UsedAsKafkaMessageKey()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-ordering-key-{Guid.NewGuid():N}";
 
@@ -147,9 +156,11 @@ public sealed class KafkaPartitioningIntegrationShould
 		consumed.Message.Key.ShouldBe(orderingKey);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task MessagesWithSameKey_MaintainOrderWithinPartition()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange - single partition to guarantee ordering
 		var topic = $"test-order-{Guid.NewGuid():N}";
 		await CreateTopicAsync(topic, partitions: 1).ConfigureAwait(false);
@@ -206,9 +217,11 @@ public sealed class KafkaPartitioningIntegrationShould
 		}
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task DefaultKey_UsesMessageId_WhenNoPartitionKeySet()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-default-key-{Guid.NewGuid():N}";
 
@@ -237,9 +250,11 @@ public sealed class KafkaPartitioningIntegrationShould
 		consumed.Message.Key.ShouldBe(messageId);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task OrderingKey_TakesPrecedence_OverPartitionKey()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-key-precedence-{Guid.NewGuid():N}";
 

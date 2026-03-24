@@ -32,9 +32,14 @@ public sealed class KafkaTransportSenderIntegrationShould
 		_fixture = fixture;
 	}
 
-	[Fact]
+	private void EnsureKafkaAvailable() =>
+		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+
+	[SkippableFact]
 	public async Task SendSingleMessage_DeliversToTopic()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-send-single-{Guid.NewGuid():N}";
 		var producer = BuildProducer();
@@ -81,9 +86,11 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SendBatchMessages_AllDeliverSuccessfully()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-send-batch-{Guid.NewGuid():N}";
 		var producer = BuildProducer();
@@ -128,9 +135,11 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SendEmptyBatch_ReturnsZeroCounts()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-empty-batch-{Guid.NewGuid():N}";
 		var producer = BuildProducer();
@@ -147,9 +156,11 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SendToAutoCreatedTopic_Succeeds()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange - Kafka auto-creates topics by default
 		var topic = $"auto-create-{Guid.NewGuid():N}";
 		var producer = BuildProducer();
@@ -170,9 +181,11 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task FlushAsync_CompletesWithoutError()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-flush-{Guid.NewGuid():N}";
 		var producer = BuildProducer();
@@ -192,9 +205,11 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetService_ReturnsUnderlyingProducer()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = "test-getservice";
 		var producer = BuildProducer();
@@ -210,9 +225,11 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetService_ReturnsNullForUnknownType()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = "test-getservice-null";
 		var producer = BuildProducer();
@@ -227,9 +244,11 @@ public sealed class KafkaTransportSenderIntegrationShould
 		producer.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SendMessage_PreservesCustomProperties()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-custom-props-{Guid.NewGuid():N}";
 		var producer = BuildProducer();

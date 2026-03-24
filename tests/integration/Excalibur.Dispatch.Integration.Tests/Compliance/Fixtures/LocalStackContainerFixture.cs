@@ -42,13 +42,16 @@ public class LocalStackContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new LocalStackBuilder()
-			.WithImage("localstack/localstack:latest")
+			.WithImage("localstack/localstack:3.8")
 			.WithName($"localstack-compliance-test-{Guid.NewGuid():N}")
 			.WithEnvironment("SERVICES", "kms")
-			.WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(4566))
+			.WithEnvironment("EAGER_SERVICE_LOADING", "1")
+			.WithWaitStrategy(Wait.ForUnixContainer()
+				.UntilPortIsAvailable(4566)
+				.UntilHttpRequestIsSucceeded(r => r.ForPath("/_localstack/health").ForPort(4566)))
 			.Build();
 
-		await _container.StartAsync(cancellationToken);
+		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

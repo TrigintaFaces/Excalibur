@@ -1,5 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 using Excalibur.Dispatch.Compliance;
+
+using Tests.Shared.Fixtures;
+
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Fixtures;
 
 /// <summary>
@@ -53,12 +56,27 @@ public class ComplianceMultiContainerFixture : IAsyncLifetime
 	/// <inheritdoc/>
 	public async Task InitializeAsync()
 	{
-		// Start all containers in parallel for faster test startup
+		// Start all containers in parallel, catching failures so tests can skip gracefully
+		// instead of the entire collection failing with an unhandled exception.
 		await Task.WhenAll(
-			_sqlServer.InitializeAsync(),
-			_vault.InitializeAsync(),
-			_localStack.InitializeAsync()
+			SafeInitializeAsync(_sqlServer),
+			SafeInitializeAsync(_vault),
+			SafeInitializeAsync(_localStack)
 		);
+	}
+
+	private static async Task SafeInitializeAsync(ContainerFixtureBase fixture)
+	{
+		try
+		{
+			await fixture.InitializeAsync().ConfigureAwait(false);
+		}
+		catch
+		{
+			// ContainerFixtureBase already sets DockerAvailable=false and InitializationError.
+			// Swallow the exception so other containers can still start and
+			// tests can check AllContainersAvailable to skip gracefully.
+		}
 	}
 
 	/// <inheritdoc/>

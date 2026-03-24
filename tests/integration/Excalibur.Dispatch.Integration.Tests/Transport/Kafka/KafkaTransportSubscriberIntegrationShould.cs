@@ -34,9 +34,14 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		_fixture = fixture;
 	}
 
-	[Fact]
+	private void EnsureKafkaAvailable() =>
+		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+
+	[SkippableFact]
 	public async Task SubscribeAsync_ReceivesAndAcknowledgesMessages()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-sub-ack-{Guid.NewGuid():N}";
 		var groupId = $"test-group-sub-{Guid.NewGuid():N}";
@@ -84,9 +89,11 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		}
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SubscribeAsync_RejectAction_CommitsOffsetAndSkipsMessage()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-sub-reject-{Guid.NewGuid():N}";
 		var groupId = $"test-group-reject-{Guid.NewGuid():N}";
@@ -117,9 +124,11 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		rejected.ShouldBeTrue();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SubscribeAsync_StopsOnCancellation()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-sub-cancel-{Guid.NewGuid():N}";
 		var groupId = $"test-group-cancel-{Guid.NewGuid():N}";
@@ -145,9 +154,11 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		await subscriber.DisposeAsync().ConfigureAwait(false);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SubscribeAsync_HandlerExceptionDoesNotStopSubscription()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-sub-error-{Guid.NewGuid():N}";
 		var groupId = $"test-group-error-{Guid.NewGuid():N}";
@@ -188,9 +199,11 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		callCount.ShouldBeGreaterThanOrEqualTo(2);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SubscribeAsync_MessageHeadersArePreserved()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-sub-headers-{Guid.NewGuid():N}";
 		var groupId = $"test-group-headers-{Guid.NewGuid():N}";
@@ -243,9 +256,11 @@ public sealed class KafkaTransportSubscriberIntegrationShould
 		receivedMsg.Source.ShouldBe(topic);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetService_ReturnsUnderlyingConsumer()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = "test-sub-getservice";
 		var consumer = BuildConsumer(topic, "test-group-getservice-sub");

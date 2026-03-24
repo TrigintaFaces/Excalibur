@@ -40,6 +40,8 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 
 	public Task InitializeAsync()
 	{
+		Skip.IfNot(_fixture.AllContainersAvailable, _fixture.InitializationError ?? "One or more containers not available");
+
 		// Initialize AWS KMS via LocalStack
 		_kmsClient = _fixture.LocalStack.CreateKmsClient();
 		var awsOptions = Microsoft.Extensions.Options.Options.Create(new AwsKmsOptions
@@ -82,7 +84,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_cache?.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task CreateKeysAcrossMultipleProviders()
 	{
 		// Arrange
@@ -101,7 +103,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(vaultKeyId, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task MaintainConsistentKeyMetadataFormat()
 	{
 		// Arrange
@@ -129,7 +131,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(vaultKeyId, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SupportKeyRotationAcrossProviders()
 	{
 		// Arrange
@@ -154,7 +156,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(vaultKeyId, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task HandleProviderSpecificAlgorithms()
 	{
 		// Arrange - Vault supports AES-256-GCM algorithm
@@ -171,7 +173,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(aesKeyId, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task MaintainKeyVersionHistory()
 	{
 		// Arrange
@@ -201,7 +203,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SupportKeySuspensionAcrossProviders()
 	{
 		// Arrange
@@ -227,7 +229,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(vaultKeyId, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ListKeysFromMultipleProviders()
 	{
 		// Arrange - Create keys in both providers
@@ -249,7 +251,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(vaultKeyId, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task HandleConcurrentOperationsAcrossProviders()
 	{
 		// Arrange
@@ -272,7 +274,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		}
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ValidateCachingBehaviorAcrossProviders()
 	{
 		// Arrange
@@ -300,7 +302,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(vaultKeyId, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task HandleNonExistentKeysConsistently()
 	{
 		// Arrange
@@ -315,7 +317,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		vaultResult.ShouldBeNull();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SupportPurposeBasedKeySelectionAcrossProviders()
 	{
 		// Arrange
@@ -337,7 +339,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		_ = await _vaultProvider.DeleteKeyAsync(vaultPurposeKey, 30, CancellationToken.None);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task DeleteKeysAcrossProviders()
 	{
 		// Arrange
@@ -354,7 +356,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		vaultKey.ShouldBeNull();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task HandleDeleteNonExistentKeyConsistently()
 	{
 		// Arrange
@@ -369,7 +371,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		vaultResult.ShouldBeFalse();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task HandleSuspendNonExistentKeyConsistently()
 	{
 		// Arrange
@@ -384,7 +386,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		vaultResult.ShouldBeFalse();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetActiveKeyFromProviders()
 	{
 		// Arrange - Create keys in both providers

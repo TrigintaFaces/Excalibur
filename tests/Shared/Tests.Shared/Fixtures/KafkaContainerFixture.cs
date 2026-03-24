@@ -15,7 +15,7 @@ public sealed class KafkaContainerFixture : ContainerFixtureBase
 	/// Gets the bootstrap servers address for the Kafka container.
 	/// </summary>
 	public string BootstrapServers => _container?.GetBootstrapAddress()
-		?? throw new InvalidOperationException("Container not initialized");
+		?? "localhost:9092"; // Fallback when container unavailable; tests should check DockerAvailable first
 
 	/// <inheritdoc/>
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)

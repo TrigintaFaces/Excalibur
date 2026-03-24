@@ -38,9 +38,14 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		_fixture = fixture;
 	}
 
-	[Fact]
+	private void EnsureKafkaAvailable() =>
+		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
+
+	[SkippableFact]
 	public async Task ReceiveMessages_FromPopulatedTopic()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-receive-{Guid.NewGuid():N}";
 		var groupId = $"test-group-{Guid.NewGuid():N}";
@@ -98,9 +103,11 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		}
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ReceiveFromEmptyTopic_ReturnsEmptyList()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange - create a topic, then consume from "latest" offset so no messages are visible
 		var topic = $"test-empty-{Guid.NewGuid():N}";
 		var groupId = $"test-group-empty-{Guid.NewGuid():N}";
@@ -135,9 +142,11 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		received.Count.ShouldBe(0);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ReceiveRespectsCancellationToken()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-cancel-{Guid.NewGuid():N}";
 		var groupId = $"test-group-cancel-{Guid.NewGuid():N}";
@@ -168,9 +177,11 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		received.Count.ShouldBe(0);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task AcknowledgeMessage_CommitsOffset()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-ack-{Guid.NewGuid():N}";
 		var groupId = $"test-group-ack-{Guid.NewGuid():N}";
@@ -201,9 +212,11 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		secondReceive.Count.ShouldBe(0);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task RejectMessage_WithoutRequeue_CommitsOffset()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-reject-{Guid.NewGuid():N}";
 		var groupId = $"test-group-reject-{Guid.NewGuid():N}";
@@ -235,9 +248,11 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		secondReceive.Count.ShouldBe(0);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetService_ReturnsUnderlyingConsumer()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = "test-getservice-receiver";
 		var consumer = BuildConsumer(topic, "test-group-getservice");
@@ -251,9 +266,11 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		service.ShouldBeAssignableTo<IConsumer<string, byte[]>>();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetService_ReturnsNullForUnknownType()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = "test-getservice-null-receiver";
 		var consumer = BuildConsumer(topic, "test-group-getservice-null");
@@ -266,9 +283,11 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		service.ShouldBeNull();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ReceiveMessage_SetsEnqueuedAt()
 	{
+		EnsureKafkaAvailable();
+
 		// Arrange
 		var topic = $"test-enqueued-{Guid.NewGuid():N}";
 		var groupId = $"test-group-enqueued-{Guid.NewGuid():N}";

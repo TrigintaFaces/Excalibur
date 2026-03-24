@@ -36,6 +36,8 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 
 	public Task InitializeAsync()
 	{
+		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "LocalStack container not available");
+
 		_kmsClient = _fixture.CreateKmsClient();
 		var options = Microsoft.Extensions.Options.Options.Create(new AwsKmsOptions
 		{
@@ -65,7 +67,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		_cache?.Dispose();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task CreateNewKey_WhenKeyDoesNotExist()
 	{
 		// Arrange
@@ -82,7 +84,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		result.PreviousKey.ShouldBeNull();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetKey_AfterCreation()
 	{
 		// Arrange
@@ -99,7 +101,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		metadata.Algorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ReturnNull_WhenKeyDoesNotExist()
 	{
 		// Arrange
@@ -112,7 +114,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		metadata.ShouldBeNull();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ListKeys_ReturnsCreatedKeys()
 	{
 		// Arrange
@@ -130,7 +132,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		keys.ShouldContain(k => k.KeyId == keyId2);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ListKeys_FilterByStatus()
 	{
 		// Arrange
@@ -148,7 +150,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		activeKeys.ShouldNotContain(k => k.KeyId == suspendedKeyId);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SuspendKey_DisablesKey()
 	{
 		// Arrange
@@ -166,7 +168,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		metadata.Status.ShouldBe(KeyStatus.Suspended);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task SuspendKey_ReturnsFalse_WhenKeyNotFound()
 	{
 		// Arrange
@@ -179,7 +181,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		result.ShouldBeFalse();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task DeleteKey_SchedulesDeletion()
 	{
 		// Arrange
@@ -200,7 +202,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		}
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task DeleteKey_ReturnsFalse_WhenKeyNotFound()
 	{
 		// Arrange
@@ -213,7 +215,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		result.ShouldBeFalse();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task RotateKey_CreatesNewVersion()
 	{
 		// Arrange
@@ -231,7 +233,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		secondResult.PreviousKey.Status.ShouldBe(KeyStatus.DecryptOnly);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetActiveKey_ReturnsActiveKey()
 	{
 		// Arrange
@@ -246,7 +248,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		activeKey.Status.ShouldBe(KeyStatus.Active);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task GetActiveKey_CreatesKey_WhenNotExists()
 	{
 		// Act - GetActiveKey with no purpose should create default key
@@ -257,7 +259,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		activeKey.Status.ShouldBe(KeyStatus.Active);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task CacheKeyMetadata_ReducesApiCalls()
 	{
 		// Arrange
@@ -277,7 +279,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		second.KeyId.ShouldBe(third.KeyId);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task HandleConcurrentKeyCreation()
 	{
 		// Arrange
@@ -295,7 +297,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		successCount.ShouldBeGreaterThan(0);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task CreateKeyWithPurpose()
 	{
 		// Arrange
