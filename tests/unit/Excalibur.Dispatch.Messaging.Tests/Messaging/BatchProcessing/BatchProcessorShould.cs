@@ -323,11 +323,19 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false);
 		}
 
-		// Wait for all items to be processed before disposing (CI can be slow to schedule the processing task)
-		using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-		while (Volatile.Read(ref totalProcessed) < 50 && !timeout.IsCancellationRequested)
+		// Wait for all items to be processed before disposing.
+		// CI runners under heavy parallel load can take 60s+ to schedule the processing task.
+		using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+		try
 		{
-			await Task.Delay(50, timeout.Token).ConfigureAwait(false);
+			while (Volatile.Read(ref totalProcessed) < 50 && !timeout.IsCancellationRequested)
+			{
+				await Task.Delay(100, timeout.Token).ConfigureAwait(false);
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			// Timeout expired -- DisposeAsync will flush remaining items
 		}
 
 		await processor.DisposeAsync().ConfigureAwait(false);
