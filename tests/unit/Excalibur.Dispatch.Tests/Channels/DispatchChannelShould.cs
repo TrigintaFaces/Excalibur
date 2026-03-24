@@ -127,11 +127,12 @@ public sealed class DispatchChannelShould : IDisposable
 		await channel.Writer.WriteAsync(3, _cts.Token).ConfigureAwait(false);
 
 		// Next write should block (channel is full with capacity 3)
-		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		// Generous timeout for CI under load -- must survive long enough for drain + unblock.
+		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 		var writeTask = channel.Writer.WriteAsync(4, timeoutCts.Token).AsTask();
 
 		// Assert - The write should not complete immediately (backpressure)
-		var completedTask = await Task.WhenAny(writeTask, Task.Delay(100, _cts.Token)).ConfigureAwait(false);
+		var completedTask = await Task.WhenAny(writeTask, Task.Delay(200, _cts.Token)).ConfigureAwait(false);
 		completedTask.ShouldNotBe(writeTask, "Write should be blocked by backpressure");
 
 		// Drain one item to unblock
