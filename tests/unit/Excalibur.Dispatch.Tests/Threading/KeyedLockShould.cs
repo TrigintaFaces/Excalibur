@@ -80,8 +80,9 @@ public sealed class KeyedLockShould
 		});
 
 		// Assert -- both should complete (not deadlock)
-		var completed = await Task.WhenAny(Task.WhenAll(task1, task2), Task.Delay(5000));
-		(completed == Task.WhenAll(task1, task2) || (task1.IsCompleted && task2.IsCompleted))
+		var bothDone = Task.WhenAll(task1, task2);
+		var completed = await Task.WhenAny(bothDone, Task.Delay(5000));
+		(completed == bothDone || (task1.IsCompleted && task2.IsCompleted))
 			.ShouldBeTrue("Different keys should be acquirable concurrently");
 	}
 

@@ -17,79 +17,84 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AwsSqs;
 /// receive, delete, visibility timeout, attributes, max messages, encoding, and
 /// concurrent consumers.
 /// </summary>
+/// <remarks>
+/// Container lifecycle: a single static LocalStack container is shared across all
+/// test instances in this class. This avoids per-test container churn that causes
+/// resource exhaustion and disposal hangs on Ubuntu CI.
+/// </remarks>
 [Collection(ContainerCollections.AwsSqs)]
 [Trait("Category", "Integration")]
 [Trait("Provider", "AwsSqs")]
 [Trait("Component", "Transport")]
 public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, IDisposable
 {
-	// Cache Docker availability across all test instances in this class.
-	// Prevents redundant container creation attempts when Docker is unavailable.
-	private static volatile bool s_dockerChecked;
+	// Static container shared across all test instances in this class.
+	// Avoids per-test container creation that exhausts CI resources.
+	private static readonly SemaphoreSlim s_initLock = new(1, 1);
+	private static volatile bool s_initialized;
 	private static volatile bool s_dockerAvailable;
+	private static LocalStackContainer? s_container;
+	private static AmazonSQSClient? s_sqsClient;
 
-	private LocalStackContainer? _container;
-	private AmazonSQSClient? _sqsClient;
 	private bool _dockerAvailable;
 
 	public async Task InitializeAsync()
 	{
-		if (s_dockerChecked)
+		if (s_initialized)
 		{
 			_dockerAvailable = s_dockerAvailable;
-			if (!_dockerAvailable)
-			{
-				return;
-			}
+			return;
 		}
 
+		await s_initLock.WaitAsync().ConfigureAwait(false);
 		try
 		{
-			_container = new LocalStackBuilder()
-				.WithImage("localstack/localstack:latest")
-				.WithEnvironment("SERVICES", "sqs")
-				.Build();
-			await _container.StartAsync().ConfigureAwait(false);
-
-			var credentials = new BasicAWSCredentials("test", "test");
-			var config = new AmazonSQSConfig
+			// Double-check after acquiring lock
+			if (s_initialized)
 			{
-				ServiceURL = _container.GetConnectionString(),
-			};
-			_sqsClient = new AmazonSQSClient(credentials, config);
-			_dockerAvailable = true;
+				_dockerAvailable = s_dockerAvailable;
+				return;
+			}
+
+			try
+			{
+				s_container = new LocalStackBuilder()
+					.WithImage("localstack/localstack:latest")
+					.WithEnvironment("SERVICES", "sqs")
+					.Build();
+				await s_container.StartAsync().ConfigureAwait(false);
+
+				var credentials = new BasicAWSCredentials("test", "test");
+				var config = new AmazonSQSConfig
+				{
+					ServiceURL = s_container.GetConnectionString(),
+				};
+				s_sqsClient = new AmazonSQSClient(credentials, config);
+				s_dockerAvailable = true;
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Docker initialization failed: {ex.Message}");
+				s_dockerAvailable = false;
+			}
+
+			s_initialized = true;
 		}
-		catch (Exception ex)
+		finally
 		{
-			Console.WriteLine($"Docker initialization failed: {ex.Message}");
-			_dockerAvailable = false;
+			s_initLock.Release();
 		}
 
-		s_dockerAvailable = _dockerAvailable;
-		s_dockerChecked = true;
+		_dockerAvailable = s_dockerAvailable;
 	}
 
 	public void Dispose()
 	{
-		_sqsClient?.Dispose();
+		// Static resources are not disposed per-test; container lives for the class lifetime.
+		// xUnit disposes the process at the end, which cleans up the container.
 	}
 
-	public async Task DisposeAsync()
-	{
-		_sqsClient?.Dispose();
-
-		try
-		{
-			if (_container is not null)
-			{
-				await _container.DisposeAsync().ConfigureAwait(false);
-			}
-		}
-		catch
-		{
-			// Best effort cleanup
-		}
-	}
+	public Task DisposeAsync() => Task.CompletedTask;
 
 	private async Task<string> CreateStandardQueueAsync(string? queueName = null, int? visibilityTimeout = null)
 	{
@@ -107,11 +112,11 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 			};
 		}
 
-		var response = await _sqsClient!.CreateQueueAsync(request).ConfigureAwait(false);
+		var response = await s_sqsClient!.CreateQueueAsync(request).ConfigureAwait(false);
 		return response.QueueUrl;
 	}
 
-	private async Task SendMessageAsync(string queueUrl, string body, Dictionary<string, MessageAttributeValue>? attributes = null)
+	private static async Task SendMessageAsync(string queueUrl, string body, Dictionary<string, MessageAttributeValue>? attributes = null)
 	{
 		var request = new SendMessageRequest
 		{
@@ -124,7 +129,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 			request.MessageAttributes = attributes;
 		}
 
-		await _sqsClient!.SendMessageAsync(request).ConfigureAwait(false);
+		await s_sqsClient!.SendMessageAsync(request).ConfigureAwait(false);
 	}
 
 	[SkippableFact]
@@ -138,7 +143,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		await SendMessageAsync(queueUrl, expectedBody).ConfigureAwait(false);
 
 		// Act
-		var receiveResponse = await _sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -162,7 +167,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
 
 		// Act — short poll (no wait) on empty queue
-		var receiveResponse = await _sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -182,7 +187,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
 		await SendMessageAsync(queueUrl, "delete-me").ConfigureAwait(false);
 
-		var receiveResponse = await _sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -193,10 +198,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		var receiptHandle = receiveResponse.Messages[0].ReceiptHandle;
 
 		// Act — delete the message
-		await _sqsClient.DeleteMessageAsync(queueUrl, receiptHandle).ConfigureAwait(false);
+		await s_sqsClient.DeleteMessageAsync(queueUrl, receiptHandle).ConfigureAwait(false);
 
 		// Assert — queue should be empty now
-		var afterDelete = await _sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+		var afterDelete = await s_sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -216,7 +221,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		await SendMessageAsync(queueUrl, "visibility-test").ConfigureAwait(false);
 
 		// Receive the message (it becomes invisible for 30s)
-		var receiveResponse = await _sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -227,7 +232,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		var receiptHandle = receiveResponse.Messages[0].ReceiptHandle;
 
 		// Act — change visibility timeout to 0 to make it immediately visible again
-		await _sqsClient.ChangeMessageVisibilityAsync(new ChangeMessageVisibilityRequest
+		await s_sqsClient.ChangeMessageVisibilityAsync(new ChangeMessageVisibilityRequest
 		{
 			QueueUrl = queueUrl,
 			ReceiptHandle = receiptHandle,
@@ -235,7 +240,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		}).ConfigureAwait(false);
 
 		// Assert — message should be receivable again
-		var reReceive = await _sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+		var reReceive = await s_sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -270,7 +275,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		await SendMessageAsync(queueUrl, "{\"userId\": 1}", attributes).ConfigureAwait(false);
 
 		// Act
-		var receiveResponse = await _sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -300,7 +305,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		}
 
 		// Act — receive with max 3
-		var receiveResponse = await _sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 3,
@@ -323,7 +328,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		await SendMessageAsync(queueUrl, unicodeBody).ConfigureAwait(false);
 
 		// Act
-		var receiveResponse = await _sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -348,13 +353,13 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		}
 
 		// Act — two concurrent receive calls
-		var task1 = _sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var task1 = s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 2,
 			WaitTimeSeconds = 5,
 		});
-		var task2 = _sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+		var task2 = s_sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 2,
