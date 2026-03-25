@@ -110,7 +110,6 @@ Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationEx
 Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(string! message, System.Exception? innerException) -> void
 Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(string! setting, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Domain.Exceptions.InvalidConfigurationException.Setting.get -> string!
-Excalibur.Domain.Exceptions.InvalidConfigurationException.Setting.set -> void
 Excalibur.Domain.Extensions.ConfigurationExtensions
 Excalibur.Domain.Extensions.StringExtensions
 Excalibur.Domain.Extensions.TaskExtensions

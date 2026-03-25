@@ -17,13 +17,6 @@ Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionFactory
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionFactory.KubernetesLeaderElectionFactory(k8s.IKubernetes! kubernetesClient, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions!>! options, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionHostedService
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionHostedService.CurrentLeaderId.get -> string?
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionHostedService.Dispose() -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionHostedService.IsLeader.get -> bool
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionHostedService.KubernetesLeaderElectionHostedService(Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory! factory, string! resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionHostedService!>? logger) -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionHostedService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.CandidateId.get -> string?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.CandidateId.set -> void

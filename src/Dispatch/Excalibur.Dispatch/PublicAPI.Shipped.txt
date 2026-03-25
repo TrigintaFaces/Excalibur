@@ -667,12 +667,6 @@ const Excalibur.Dispatch.Transport.TransportAdapterHostedServiceOptions.DefaultD
 const Microsoft.Extensions.DependencyInjection.InMemoryTransportServiceCollectionExtensions.DefaultTransportName = "inmemory" -> string!
 const Microsoft.Extensions.DependencyInjection.TransportHealthChecksBuilderExtensions.DefaultHealthCheckName = "transports" -> string!
 Excalibur.Dispatch.Abstractions.DispatcherContextExtensions
-Excalibur.Dispatch.BatchProcessing.BatchProcessor<T>
-Excalibur.Dispatch.BatchProcessing.BatchProcessor<T>.AddAsync(T! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.BatchProcessing.BatchProcessor<T>.BatchProcessor(System.Func<System.Collections.Generic.IReadOnlyList<T!>!, System.Threading.Tasks.ValueTask>! batchProcessor, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.BatchProcessing.BatchProcessor<T!>!>! logger, Excalibur.Dispatch.Options.Performance.MicroBatchOptions? options = null) -> void
-Excalibur.Dispatch.BatchProcessing.BatchProcessor<T>.BatchProcessor(System.Func<System.Collections.Generic.IReadOnlyList<T!>!, System.Threading.Tasks.ValueTask>! batchProcessor, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.BatchProcessing.BatchProcessor<T!>!>! logger, System.Diagnostics.Metrics.IMeterFactory? meterFactory, Excalibur.Dispatch.Options.Performance.MicroBatchOptions? options = null) -> void
-Excalibur.Dispatch.BatchProcessing.BatchProcessor<T>.Dispose() -> void
-Excalibur.Dispatch.BatchProcessing.BatchProcessor<T>.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Buffers.BclBufferPoolAdapter
 Excalibur.Dispatch.Buffers.BclBufferPoolAdapter.BclBufferPoolAdapter(bool clearBuffers = false, bool trackAllocations = false, System.Buffers.ArrayPool<byte>? arrayPool = null) -> void
 Excalibur.Dispatch.Buffers.BclBufferPoolAdapter.GetStatistics() -> Excalibur.Dispatch.Abstractions.BufferPoolStatistics!
@@ -747,7 +741,6 @@ Excalibur.Dispatch.Bus.MultiTransportMessageBusAdapter.CheckHealthAsync(System.T
 Excalibur.Dispatch.Bus.MultiTransportMessageBusAdapter.Dispose() -> void
 Excalibur.Dispatch.Bus.MultiTransportMessageBusAdapter.InitializeAsync(Excalibur.Dispatch.Abstractions.Transport.MessageBusOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Bus.MultiTransportMessageBusAdapter.IsConnected.get -> bool
-Excalibur.Dispatch.Bus.MultiTransportMessageBusAdapter.MultiTransportMessageBusAdapter(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter!>! adapters, Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter? defaultAdapter = null) -> void
 Excalibur.Dispatch.Bus.MultiTransportMessageBusAdapter.Name.get -> string!
 Excalibur.Dispatch.Bus.MultiTransportMessageBusAdapter.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!
 Excalibur.Dispatch.Bus.MultiTransportMessageBusAdapter.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -1381,13 +1374,6 @@ Excalibur.Dispatch.Delivery.InMemoryCronJobStore.RemoveJobAsync(string! jobId, S
 Excalibur.Dispatch.Delivery.InMemoryCronJobStore.SetJobEnabledAsync(string! jobId, bool enabled, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Delivery.InMemoryCronJobStore.UpdateJobAsync(Excalibur.Dispatch.Delivery.RecurringCronJob! job, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Delivery.InMemoryCronJobStore.UpdateNextRunTimeAsync(string! jobId, System.DateTimeOffset? nextRunUtc, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryDeduplicator
-Excalibur.Dispatch.Delivery.InMemoryDeduplicator.CleanupExpiredEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Dispatch.Delivery.InMemoryDeduplicator.Dispose() -> void
-Excalibur.Dispatch.Delivery.InMemoryDeduplicator.GetStatistics() -> Excalibur.Dispatch.Abstractions.DeduplicationStatistics!
-Excalibur.Dispatch.Delivery.InMemoryDeduplicator.InMemoryDeduplicator(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.InMemoryDeduplicator!>! logger, System.TimeSpan? cleanupInterval = null) -> void
-Excalibur.Dispatch.Delivery.InMemoryDeduplicator.IsDuplicateAsync(string! messageId, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.Delivery.InMemoryDeduplicator.MarkProcessedAsync(string! messageId, System.TimeSpan expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Delivery.InMemoryEventStoreDispatcher
 Excalibur.Dispatch.Delivery.InMemoryEventStoreDispatcher.DispatchAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Delivery.InMemoryEventStoreDispatcher.Init(string! dispatcherId) -> void
@@ -5059,9 +5045,6 @@ Excalibur.Dispatch.Serialization.PreWarmStrategy.Global = 1 -> Excalibur.Dispatc
 Excalibur.Dispatch.Serialization.PreWarmStrategy.ThreadLocal = 0 -> Excalibur.Dispatch.Serialization.PreWarmStrategy
 Excalibur.Dispatch.Serialization.SerializationBuilderExtensions
 Excalibur.Dispatch.Serialization.SerializationDispatchBuilderExtensions
-Excalibur.Dispatch.Serialization.SerializationHealthCheck
-Excalibur.Dispatch.Serialization.SerializationHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
-Excalibur.Dispatch.Serialization.SerializationHealthCheck.SerializationHealthCheck(Excalibur.Dispatch.Abstractions.Serialization.ISerializerRegistry! registry, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Serialization.SerializationHealthCheck!>! logger) -> void
 Excalibur.Dispatch.Serialization.SerializerMigrationService
 Excalibur.Dispatch.Serialization.SerializerMigrationService.MigrateStoreAsync(Excalibur.Dispatch.Serialization.IMigrationStore! store, byte sourceSerializerId, byte targetSerializerId, System.Threading.CancellationToken cancellationToken, System.IProgress<Excalibur.Dispatch.Serialization.EncryptionMigrationProgress!>? progress = null, Excalibur.Dispatch.Serialization.MigrationOptions? options = null) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Serialization.EncryptionMigrationProgress!>!
 Excalibur.Dispatch.Serialization.SerializerMigrationService.SerializerMigrationService(Excalibur.Dispatch.Abstractions.Serialization.ISerializerRegistry! registry, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Serialization.SerializerMigrationService!>! logger) -> void
@@ -5675,8 +5658,6 @@ override Excalibur.Dispatch.Delivery.ScheduledMessageService.StopAsync(System.Th
 override Excalibur.Dispatch.Delivery.TimeAwareScheduledMessageService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
 override Excalibur.Dispatch.Delivery.TimeAwareScheduledMessageService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 override Excalibur.Dispatch.Exceptions.DispatchException.ToProblemDetails() -> Excalibur.Dispatch.Abstractions.MessageProblemDetails!
-override Excalibur.Dispatch.Exceptions.ForbiddenException.GetProblemDetailsExtensions() -> System.Collections.Generic.IDictionary<string!, object?>?
-override Excalibur.Dispatch.Exceptions.OperationTimeoutException.GetProblemDetailsExtensions() -> System.Collections.Generic.IDictionary<string!, object?>?
 override Excalibur.Dispatch.Exceptions.ValidationException.ToDispatchProblemDetails() -> Excalibur.Dispatch.Exceptions.DispatchProblemDetails!
 override Excalibur.Dispatch.Messages.GenericDispatchMessage.ToString() -> string!
 override Excalibur.Dispatch.Messaging.MessageEnvelopeBuilder.Equals(object? obj) -> bool
@@ -5710,8 +5691,6 @@ override Excalibur.Dispatch.Serialization.MessageHeader.Equals(object? obj) -> b
 override Excalibur.Dispatch.Serialization.MessageHeader.GetHashCode() -> int
 override Excalibur.Dispatch.Serialization.PooledSerializationResult.Equals(object? obj) -> bool
 override Excalibur.Dispatch.Serialization.PooledSerializationResult.GetHashCode() -> int
-override Excalibur.Dispatch.Transport.KafkaToRabbitMqMapper.CopyTransportProperties(Excalibur.Dispatch.Abstractions.Transport.ITransportMessageContext! source, Excalibur.Dispatch.Transport.TransportMessageContext! target) -> void
-override Excalibur.Dispatch.Transport.RabbitMqToKafkaMapper.CopyTransportProperties(Excalibur.Dispatch.Abstractions.Transport.ITransportMessageContext! source, Excalibur.Dispatch.Transport.TransportMessageContext! target) -> void
 override Excalibur.Dispatch.ZeroAlloc.StructMessageResult.Equals(object? obj) -> bool
 override Excalibur.Dispatch.ZeroAlloc.StructMessageResult.GetHashCode() -> int
 override Excalibur.Dispatch.ZeroAlloc.StructMessageResult<T>.Equals(object? obj) -> bool
@@ -6309,5 +6288,4 @@ Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions.ConsistencyMode.set -
 static Excalibur.Dispatch.Middleware.Outbox.OutboxPipelineExtensions.UseOutbox(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions.ProcessingTimeout.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions.ProcessingTimeout.set -> void
-Excalibur.Dispatch.Delivery.InMemoryDeduplicator.ClearAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 const Excalibur.Dispatch.Diagnostics.CoreEventId.OrphanedItemProcessingError = 10709 -> int

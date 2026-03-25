@@ -171,10 +171,6 @@ Excalibur.Hosting.Configuration.ConfigurationValidationResult
 Excalibur.Hosting.Configuration.ConfigurationValidationResult.ConfigurationValidationResult(bool isValid, System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError!>? errors = null) -> void
 Excalibur.Hosting.Configuration.ConfigurationValidationResult.Errors.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError!>!
 Excalibur.Hosting.Configuration.ConfigurationValidationResult.IsValid.get -> bool
-Excalibur.Hosting.Configuration.ConfigurationValidationService
-Excalibur.Hosting.Configuration.ConfigurationValidationService.ConfigurationValidationService(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Collections.Generic.IEnumerable<Excalibur.Hosting.Configuration.IConfigurationValidator!>! validators, Microsoft.Extensions.Hosting.IHostApplicationLifetime! applicationLifetime, Microsoft.Extensions.Logging.ILogger<Excalibur.Hosting.Configuration.ConfigurationValidationService!>! logger, Excalibur.Hosting.Configuration.ConfigurationValidationOptions? options = null) -> void
-Excalibur.Hosting.Configuration.ConfigurationValidationService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Hosting.Configuration.ConfigurationValidationService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Hosting.Configuration.ConfigurationValidatorBase
 Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ConfigurationName.get -> string!
 Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ConfigurationValidatorBase(string! configurationName, int priority = 100) -> void

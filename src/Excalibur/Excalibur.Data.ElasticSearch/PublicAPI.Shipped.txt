@@ -916,14 +916,6 @@ Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Critical = 3 ->
 Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Error = 2 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
 Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Info = 0 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
 Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Warning = 1 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold.AlertSeverityThreshold() -> void
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold.LagThreshold.get -> System.TimeSpan
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold.LagThreshold.init -> void
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold.MessageTemplate.get -> string?
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold.MessageTemplate.init -> void
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold.Severity.get -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold.Severity.init -> void
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext.BulkOperationErrorContext() -> void
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext.Failures.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Data.ElasticSearch.Projections.BulkOperationFailure!>!
@@ -968,7 +960,6 @@ Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.Projectio
 Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.ProjectionSpecificThresholds.init -> void
 Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.RequiredSLAPercentage.get -> double
 Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.RequiredSLAPercentage.init -> void
-Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.SeverityThresholds.get -> System.Collections.Generic.IList<Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverityThreshold!>?
 Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.SeverityThresholds.init -> void
 Excalibur.Data.ElasticSearch.Projections.ConsistencyLag
 Excalibur.Data.ElasticSearch.Projections.ConsistencyLag.AverageLagMs.get -> double
@@ -2062,16 +2053,6 @@ Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Internal =
 Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.PersonallyIdentifiable = 4 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
 Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Public = 0 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
 Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Restricted = 3 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.Classification.get -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.Classification.init -> void
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.DataClassificationRule() -> void
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.Enabled.get -> bool
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.Enabled.init -> void
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.EncryptionAlgorithm.get -> string?
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.EncryptionAlgorithm.init -> void
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.FieldPattern.get -> string!
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule.FieldPattern.init -> void
 Excalibur.Data.ElasticSearch.Security.DetectedThreat
 Excalibur.Data.ElasticSearch.Security.DetectedThreat.Confidence.get -> double
 Excalibur.Data.ElasticSearch.Security.DetectedThreat.Confidence.set -> void
@@ -2165,7 +2146,6 @@ Excalibur.Data.ElasticSearch.Security.EncryptionKeyType.Ecc = 2 -> Excalibur.Dat
 Excalibur.Data.ElasticSearch.Security.EncryptionKeyType.Hmac = 3 -> Excalibur.Data.ElasticSearch.Security.EncryptionKeyType
 Excalibur.Data.ElasticSearch.Security.EncryptionKeyType.Rsa = 1 -> Excalibur.Data.ElasticSearch.Security.EncryptionKeyType
 Excalibur.Data.ElasticSearch.Security.EncryptionOptions
-Excalibur.Data.ElasticSearch.Security.EncryptionOptions.ClassificationRules.get -> System.Collections.Generic.List<Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassificationRule!>!
 Excalibur.Data.ElasticSearch.Security.EncryptionOptions.ClassificationRules.init -> void
 Excalibur.Data.ElasticSearch.Security.EncryptionOptions.DocumentLevelSecurity.get -> bool
 Excalibur.Data.ElasticSearch.Security.EncryptionOptions.DocumentLevelSecurity.init -> void
@@ -3010,7 +2990,6 @@ Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions
 Microsoft.Extensions.DependencyInjection.ElasticsearchSecurityServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions
-override Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchHealthMonitor.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
 static Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.ActivitySource.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.Meter.get -> System.Diagnostics.Metrics.Meter!
 static Excalibur.Data.ElasticSearch.HealthChecksBuilderExtensions.AddElasticHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

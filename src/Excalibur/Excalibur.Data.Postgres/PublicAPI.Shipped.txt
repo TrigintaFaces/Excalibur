@@ -196,7 +196,6 @@ Excalibur.Data.Postgres.Persistence.PostgresConnectionOptions.TcpKeepAliveTime.s
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.Dispose() -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.GetCurrentMetrics() -> System.Collections.Generic.IDictionary<string!, object!>!
-Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.PostgresPersistenceMetrics() -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.RecordCacheHit(string! cacheType) -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.RecordCacheMiss(string! cacheType) -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.RecordCommand(double durationMs, int affectedRows, params System.Collections.Generic.KeyValuePair<string!, object?>[]! tags) -> void
@@ -382,14 +381,6 @@ Excalibur.Data.Postgres.PostgresProviderOptions.RetryCount.get -> int
 Excalibur.Data.Postgres.PostgresProviderOptions.RetryCount.set -> void
 Excalibur.Data.Postgres.PostgresProviderOptions.UseDataSource.get -> bool
 Excalibur.Data.Postgres.PostgresProviderOptions.UseDataSource.set -> void
-Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>
-Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
-Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
-Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.PostgresProjectionStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection!>!>! logger, string? tableName = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
-Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.PostgresProjectionStore(System.Func<Npgsql.NpgsqlConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection!>!>! logger, string? tableName = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
-Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
-Excalibur.Data.Postgres.Projections.PostgresProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.Postgres.RequestProviders.CreateActivityGroupRequest
 Excalibur.Data.Postgres.RequestProviders.CreateActivityGroupRequest.CreateActivityGroupRequest(string? tenantId, string! name, string! activityName, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Data.Postgres.RequestProviders.DeleteActivityGroupGrantsByUserIdRequest

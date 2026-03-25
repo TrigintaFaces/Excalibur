@@ -161,12 +161,8 @@ Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.CosmosDbStalePositionExcep
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.CosmosDbStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.CosmosDbStalePositionException(string! message, System.Exception! innerException) -> void
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.DatabaseName.get -> string?
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.HttpStatusCode.get -> int?
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.PartitionKeyRangeId.get -> string?
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.ProcessorId.get -> string?
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.ReasonCode.get -> string?
-Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.StalePosition.get -> byte[]?
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

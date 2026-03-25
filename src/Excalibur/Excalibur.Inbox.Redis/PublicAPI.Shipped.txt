@@ -21,7 +21,6 @@ Excalibur.Inbox.Redis.RedisInboxOptions.UseSsl.get -> bool
 Excalibur.Inbox.Redis.RedisInboxOptions.UseSsl.set -> void
 Excalibur.Inbox.Redis.RedisInboxOptions.Validate() -> void
 Excalibur.Inbox.Redis.RedisInboxStore
-Excalibur.Inbox.Redis.RedisInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.Redis.RedisInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.Redis.RedisInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Redis.RedisInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>

@@ -333,14 +333,6 @@ Excalibur.Data.Abstractions.ConflictException.Field.get -> string?
 Excalibur.Data.Abstractions.ConflictException.Field.init -> void
 Excalibur.Data.Abstractions.ConflictException.Reason.get -> string?
 Excalibur.Data.Abstractions.ConflictException.Reason.init -> void
-Excalibur.Data.Abstractions.ConsistencyConfiguration
-Excalibur.Data.Abstractions.ConsistencyConfiguration.ConsistencyConfiguration() -> void
-Excalibur.Data.Abstractions.ConsistencyConfiguration.DefaultConsistencyLevel.get -> Excalibur.Data.Abstractions.CloudNative.ConsistencyLevel
-Excalibur.Data.Abstractions.ConsistencyConfiguration.DefaultConsistencyLevel.set -> void
-Excalibur.Data.Abstractions.ConsistencyConfiguration.ReadConsistencyLevel.get -> Excalibur.Data.Abstractions.CloudNative.ConsistencyLevel
-Excalibur.Data.Abstractions.ConsistencyConfiguration.ReadConsistencyLevel.set -> void
-Excalibur.Data.Abstractions.ConsistencyConfiguration.WriteConsistencyLevel.get -> Excalibur.Data.Abstractions.CloudNative.ConsistencyLevel
-Excalibur.Data.Abstractions.ConsistencyConfiguration.WriteConsistencyLevel.set -> void
 Excalibur.Data.Abstractions.DataRequest<TModel>
 Excalibur.Data.Abstractions.DataRequest<TModel>.DataRequest() -> void
 Excalibur.Data.Abstractions.DataRequestBase<TConnection, TModel>
@@ -803,10 +795,6 @@ static Excalibur.Data.Abstractions.ConcurrencyException.ForAggregate<TAggregate>
 static Excalibur.Data.Abstractions.ConflictException.AlreadyExists(string! resource, string! identifier) -> Excalibur.Data.Abstractions.ConflictException!
 static Excalibur.Data.Abstractions.ConflictException.InvalidStateTransition(string! resource, string! currentState, string! targetState) -> Excalibur.Data.Abstractions.ConflictException!
 static Excalibur.Data.Abstractions.ConflictException.WithReason(string! resource, string! reason) -> Excalibur.Data.Abstractions.ConflictException!
-static Excalibur.Data.Abstractions.ConsistencyConfiguration.Eventual.get -> Excalibur.Data.Abstractions.ConsistencyConfiguration!
-static Excalibur.Data.Abstractions.ConsistencyConfiguration.ReadOptimized.get -> Excalibur.Data.Abstractions.ConsistencyConfiguration!
-static Excalibur.Data.Abstractions.ConsistencyConfiguration.Session.get -> Excalibur.Data.Abstractions.ConsistencyConfiguration!
-static Excalibur.Data.Abstractions.ConsistencyConfiguration.Strong.get -> Excalibur.Data.Abstractions.ConsistencyConfiguration!
 static Excalibur.Data.Abstractions.DataRequestExtensions.ResolveAsync<TConnection, TModel>(this Excalibur.Data.Abstractions.IDataRequest<TConnection, TModel>! request, TConnection connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TModel>!
 static Excalibur.Data.Abstractions.DataRequestExtensions.ResolveAsync<TConnection, TModel>(this Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TModel>! request, TConnection connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TModel>!
 static Excalibur.Data.Abstractions.DbConnectionExtensions.Ready(this System.Data.IDbConnection! connection) -> System.Data.IDbConnection!

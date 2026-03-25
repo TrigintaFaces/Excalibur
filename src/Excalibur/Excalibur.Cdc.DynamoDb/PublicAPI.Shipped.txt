@@ -123,12 +123,8 @@ Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionExcep
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message) -> void
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message, System.Exception! innerException) -> void
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.ProcessorId.get -> string?
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.ReasonCode.get -> string?
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.SequenceNumber.get -> string?
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.ShardId.get -> string?
-Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.StalePosition.get -> byte[]?
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.StreamArn.get -> string?
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.TableName.get -> string?
 Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes

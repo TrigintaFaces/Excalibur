@@ -151,10 +151,11 @@ public sealed class DataProcessingHostedServiceShould : UnitTestBase
 			UnhealthyThreshold = 2,
 		});
 
-		// Act
+		// Act -- wait for errors to accumulate past the threshold, not for IsHealthy
+		// (IsHealthy also becomes false on normal shutdown, causing a race).
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => !service.IsHealthy, TimeSpan.FromSeconds(10));
+			() => service.ConsecutiveErrors >= 2, TimeSpan.FromSeconds(10));
 		await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert

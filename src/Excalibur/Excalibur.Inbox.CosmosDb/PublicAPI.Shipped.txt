@@ -13,7 +13,6 @@ Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.PartitionKeyPath.get -> string!
 Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.PartitionKeyPath.set -> void
 Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.Validate() -> void
 Excalibur.Inbox.CosmosDb.CosmosDbInboxStore
-Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.CosmosDbInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.CosmosDb.CosmosDbInboxStore!>! logger) -> void
 Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.Dispose() -> void

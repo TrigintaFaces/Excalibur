@@ -18,7 +18,6 @@ Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.UseConsistentReads.get -> bool
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.UseConsistentReads.set -> void
 Excalibur.Inbox.DynamoDb.DynamoDbInboxOptions.Validate() -> void
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore
-Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.Dispose() -> void
 Excalibur.Inbox.DynamoDb.DynamoDbInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask

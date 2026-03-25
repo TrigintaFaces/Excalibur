@@ -129,17 +129,13 @@ Excalibur.Cdc.Firestore.FirestoreStalePositionDetector
 Excalibur.Cdc.Firestore.FirestoreStalePositionException
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.CollectionPath.get -> string?
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.DocumentId.get -> string?
-Excalibur.Cdc.Firestore.FirestoreStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException() -> void
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException(string! message) -> void
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException(string! message, System.Exception! innerException) -> void
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.GrpcStatusCode.get -> int?
-Excalibur.Cdc.Firestore.FirestoreStalePositionException.ProcessorId.get -> string?
 Excalibur.Cdc.Firestore.FirestoreStalePositionException.ProjectId.get -> string?
-Excalibur.Cdc.Firestore.FirestoreStalePositionException.ReasonCode.get -> string?
-Excalibur.Cdc.Firestore.FirestoreStalePositionException.StalePositionBytes.get -> byte[]?
 Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes
 Excalibur.Cdc.Firestore.IFirestoreCdcProcessor
 Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

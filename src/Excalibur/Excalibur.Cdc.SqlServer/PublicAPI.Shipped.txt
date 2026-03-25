@@ -138,16 +138,6 @@ Excalibur.Cdc.SqlServer.CdcRow.SeqVal.init -> void
 Excalibur.Cdc.SqlServer.CdcRow.TableName.get -> string!
 Excalibur.Cdc.SqlServer.CdcRow.TableName.init -> void
 Excalibur.Cdc.SqlServer.CdcStalePositionDetector
-Excalibur.Cdc.SqlServer.CdcStalePositionException
-Excalibur.Cdc.SqlServer.CdcStalePositionException.CaptureInstance.get -> string?
-Excalibur.Cdc.SqlServer.CdcStalePositionException.CdcStalePositionException() -> void
-Excalibur.Cdc.SqlServer.CdcStalePositionException.CdcStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs, string? message = null, System.Exception? innerException = null) -> void
-Excalibur.Cdc.SqlServer.CdcStalePositionException.CdcStalePositionException(int statusCode, string? message, System.Exception? innerException) -> void
-Excalibur.Cdc.SqlServer.CdcStalePositionException.CdcStalePositionException(string! message) -> void
-Excalibur.Cdc.SqlServer.CdcStalePositionException.CdcStalePositionException(string! message, System.Exception? innerException) -> void
-Excalibur.Cdc.SqlServer.CdcStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
-Excalibur.Cdc.SqlServer.CdcStalePositionException.ReasonCode.get -> string?
-Excalibur.Cdc.SqlServer.CdcStalePositionException.StalePosition.get -> byte[]?
 Excalibur.Cdc.SqlServer.CdcStateStore
 Excalibur.Cdc.SqlServer.CdcStateStore.CdcStateStore(Excalibur.Data.Abstractions.IDb! db) -> void
 Excalibur.Cdc.SqlServer.CdcStateStore.CdcStateStore(Excalibur.Data.Abstractions.IDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions!>! options) -> void

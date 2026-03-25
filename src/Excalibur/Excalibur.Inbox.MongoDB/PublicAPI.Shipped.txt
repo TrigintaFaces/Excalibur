@@ -19,7 +19,6 @@ Excalibur.Inbox.MongoDB.MongoDbInboxOptions.UseSsl.get -> bool
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.UseSsl.set -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.Validate() -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxStore
-Excalibur.Inbox.MongoDB.MongoDbInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>

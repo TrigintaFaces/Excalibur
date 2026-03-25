@@ -410,7 +410,6 @@ Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.
 Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.Threading.Tasks.Task!>! operation, System.Threading.CancellationToken cancellationToken, string? operationName = null) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken, string? operationName = null) -> System.Threading.Tasks.Task<T>!
 Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
-Excalibur.Dispatch.Resilience.Polly.RetryPolicy.RetryPolicy(Excalibur.Dispatch.Resilience.Polly.RetryOptions! options, Microsoft.Extensions.Logging.ILogger? logger = null, Excalibur.Dispatch.Resilience.Polly.ITimeoutManager? timeoutManager = null) -> void
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.Dispose() -> void
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!

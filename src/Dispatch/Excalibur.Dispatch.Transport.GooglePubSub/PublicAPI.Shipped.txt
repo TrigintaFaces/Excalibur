@@ -578,11 +578,6 @@ Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseExactlyOnce
 Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseExactlyOnceDelivery.set -> void
 Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseOrderingKeys.get -> bool
 Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseOrderingKeys.set -> void
-Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus
-Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus.GooglePubSubMessageBus(Google.Cloud.PubSub.V1.PublisherClient! client, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Transport.Google.GooglePubSubOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus!>! logger) -> void
-Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Google.GooglePubSubOptions
 Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.Compression.get -> Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions!
 Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.EnableEncryption.get -> bool
@@ -998,7 +993,6 @@ Excalibur.Dispatch.Transport.Google.ProcessedMessage.Duration.get -> System.Time
 Excalibur.Dispatch.Transport.Google.ProcessedMessage.MessageId.get -> string!
 Excalibur.Dispatch.Transport.Google.ProcessedMessage.ProcessedMessage(string! messageId, string! ackId, object! result, System.TimeSpan duration) -> void
 Excalibur.Dispatch.Transport.Google.ProcessedMessage.Result.get -> object!
-Excalibur.Dispatch.Transport.Google.ProcessingResult
 Excalibur.Dispatch.Transport.Google.ProcessorStatistics
 Excalibur.Dispatch.Transport.Google.ProcessorStatistics.ActiveProcessingThreads.get -> int
 Excalibur.Dispatch.Transport.Google.ProcessorStatistics.ActiveProcessingThreads.set -> void

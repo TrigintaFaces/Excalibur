@@ -196,16 +196,12 @@ Excalibur.Cdc.Postgres.PostgresDataChangeType.Update = 2 -> Excalibur.Cdc.Postgr
 Excalibur.Cdc.Postgres.PostgresDataChangeTypeExtensions
 Excalibur.Cdc.Postgres.PostgresStalePositionDetector
 Excalibur.Cdc.Postgres.PostgresStalePositionException
-Excalibur.Cdc.Postgres.PostgresStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
 Excalibur.Cdc.Postgres.PostgresStalePositionException.PostgresStalePositionException() -> void
 Excalibur.Cdc.Postgres.PostgresStalePositionException.PostgresStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
 Excalibur.Cdc.Postgres.PostgresStalePositionException.PostgresStalePositionException(string! message) -> void
 Excalibur.Cdc.Postgres.PostgresStalePositionException.PostgresStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
 Excalibur.Cdc.Postgres.PostgresStalePositionException.PostgresStalePositionException(string! message, System.Exception! innerException) -> void
-Excalibur.Cdc.Postgres.PostgresStalePositionException.ProcessorId.get -> string?
-Excalibur.Cdc.Postgres.PostgresStalePositionException.ReasonCode.get -> string?
 Excalibur.Cdc.Postgres.PostgresStalePositionException.ReplicationSlotName.get -> string?
-Excalibur.Cdc.Postgres.PostgresStalePositionException.StalePosition.get -> Excalibur.Cdc.Postgres.PostgresCdcPosition?
 Excalibur.Cdc.Postgres.PostgresStalePositionReasonCodes
 Microsoft.Extensions.DependencyInjection.PostgresCdcExtensions
 override Excalibur.Cdc.Postgres.PostgresCdcPosition.Equals(object? obj) -> bool

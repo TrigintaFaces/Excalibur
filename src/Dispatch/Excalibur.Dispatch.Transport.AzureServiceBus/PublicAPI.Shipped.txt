@@ -257,12 +257,6 @@ Excalibur.Dispatch.Transport.Azure.AzureAuthenticationOptions.TenantId.get -> st
 Excalibur.Dispatch.Transport.Azure.AzureAuthenticationOptions.TenantId.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureAuthenticationOptions.UseManagedIdentity.get -> bool
 Excalibur.Dispatch.Transport.Azure.AzureAuthenticationOptions.UseManagedIdentity.set -> void
-Excalibur.Dispatch.Transport.Azure.AzureEventHubMessageBus
-Excalibur.Dispatch.Transport.Azure.AzureEventHubMessageBus.AzureEventHubMessageBus(Azure.Messaging.EventHubs.Producer.EventHubProducerClient! producer, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Transport.Azure.AzureEventHubOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Azure.AzureEventHubMessageBus!>! logger) -> void
-Excalibur.Dispatch.Transport.Azure.AzureEventHubMessageBus.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Azure.AzureEventHubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.AzureEventHubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.AzureEventHubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Azure.AzureEventHubOptions
 Excalibur.Dispatch.Transport.Azure.AzureEventHubOptions.AzureEventHubOptions() -> void
 Excalibur.Dispatch.Transport.Azure.AzureEventHubOptions.ConnectionString.get -> string?
@@ -375,12 +369,6 @@ Excalibur.Dispatch.Transport.Azure.AzureServiceBusCloudEventOptions.UsePartition
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusCloudEventOptions.UseSessionsForOrdering.get -> bool
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusCloudEventOptions.UseSessionsForOrdering.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusEventSource
-Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus
-Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus.AzureServiceBusMessageBus(Azure.Messaging.ServiceBus.ServiceBusClient! client, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions! serviceBusOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus!>! logger) -> void
-Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions.AzureServiceBusOptions() -> void
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusOptions.CloudEventsMode.get -> Excalibur.Dispatch.CloudEvents.CloudEventMode

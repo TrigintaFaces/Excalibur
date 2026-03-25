@@ -346,12 +346,6 @@ Excalibur.Dispatch.Transport.Aws.AwsSnsConnectionOptions.Timeout.get -> System.T
 Excalibur.Dispatch.Transport.Aws.AwsSnsConnectionOptions.Timeout.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsSnsConnectionOptions.UseHttp.get -> bool
 Excalibur.Dispatch.Transport.Aws.AwsSnsConnectionOptions.UseHttp.set -> void
-Excalibur.Dispatch.Transport.Aws.AwsSnsMessageBus
-Excalibur.Dispatch.Transport.Aws.AwsSnsMessageBus.AwsSnsMessageBus(Amazon.SimpleNotificationService.IAmazonSimpleNotificationService! client, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Transport.Aws.AwsSnsOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Aws.AwsSnsMessageBus!>! logger) -> void
-Excalibur.Dispatch.Transport.Aws.AwsSnsMessageBus.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Aws.AwsSnsMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Aws.AwsSnsMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Aws.AwsSnsMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Aws.AwsSnsOptions
 Excalibur.Dispatch.Transport.Aws.AwsSnsOptions.AwsSnsOptions() -> void
 Excalibur.Dispatch.Transport.Aws.AwsSnsOptions.Connection.get -> Excalibur.Dispatch.Transport.Aws.AwsSnsConnectionOptions!
@@ -457,12 +451,6 @@ Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyOptions.ToJson() -> string!
 Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyScope
 Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyScope.MessageAttributes = 0 -> Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyScope
 Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyScope.MessageBody = 1 -> Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyScope
-Excalibur.Dispatch.Transport.Aws.AwsSqsMessageBus
-Excalibur.Dispatch.Transport.Aws.AwsSqsMessageBus.AwsSqsMessageBus(Amazon.SQS.IAmazonSQS! client, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Transport.Aws.AwsSqsOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Aws.AwsSqsMessageBus!>! logger) -> void
-Excalibur.Dispatch.Transport.Aws.AwsSqsMessageBus.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Aws.AwsSqsMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Aws.AwsSqsMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Aws.AwsSqsMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.AwsSqsOptions() -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.BatchConfig.get -> Excalibur.Dispatch.Transport.Aws.BatchConfiguration?

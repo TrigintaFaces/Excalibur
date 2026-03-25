@@ -511,8 +511,6 @@ Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.EnableVerboseLogging.set -> voi
 Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.SagaTimeoutCleanupOptions() -> void
 Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.TimeoutThreshold.get -> System.TimeSpan
 Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.TimeoutThreshold.set -> void
-Excalibur.Saga.Hosting.SagaTimeoutCleanupService
-Excalibur.Saga.Hosting.SagaTimeoutCleanupService.SagaTimeoutCleanupService(Excalibur.Saga.Abstractions.ISagaStateStore! stateStore, Excalibur.Saga.Abstractions.ISagaStateStoreQuery! stateStoreQuery, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Hosting.SagaTimeoutCleanupService!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions!>! options) -> void
 Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider
 Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider.Clear() -> void
 Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider.Count.get -> int
@@ -957,8 +955,6 @@ Excalibur.Saga.SagaTimeoutOptions.PollInterval.set -> void
 Excalibur.Saga.SagaTimeoutOptions.SagaTimeoutOptions() -> void
 Excalibur.Saga.SagaTimeoutOptions.ShutdownTimeout.get -> System.TimeSpan
 Excalibur.Saga.SagaTimeoutOptions.ShutdownTimeout.set -> void
-Excalibur.Saga.Services.SagaTimeoutDeliveryService
-Excalibur.Saga.Services.SagaTimeoutDeliveryService.SagaTimeoutDeliveryService(Excalibur.Saga.Abstractions.ISagaTimeoutStore! timeoutStore, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Services.SagaTimeoutDeliveryService!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.SagaTimeoutOptions!>! options) -> void
 Excalibur.Saga.Snapshots.ISagaSnapshotStore
 Excalibur.Saga.Snapshots.ISagaSnapshotStore.DeleteSnapshotAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Saga.Snapshots.ISagaSnapshotStore.LoadSnapshotAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Models.SagaState?>!
@@ -1068,7 +1064,6 @@ Microsoft.Extensions.DependencyInjection.SagasDispatchBuilderExtensions
 Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SagaTelemetryExtensions
 Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions
-override Excalibur.Saga.Services.SagaTimeoutDeliveryService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
 override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandlesEvent(object! eventMessage) -> bool
 static Excalibur.Saga.Abstractions.StepResult.Failure(string! errorMessage, System.Exception? exception = null) -> Excalibur.Saga.Abstractions.StepResult!

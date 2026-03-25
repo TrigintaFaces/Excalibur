@@ -174,11 +174,6 @@ Excalibur.Cdc.InMemory.InMemoryCdcStore.GetPendingCount() -> int
 Excalibur.Cdc.InMemory.InMemoryCdcStore.InMemoryCdcStore() -> void
 Excalibur.Cdc.InMemory.InMemoryCdcStore.InMemoryCdcStore(Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.InMemory.InMemoryCdcOptions!>! options) -> void
 Excalibur.Cdc.InMemory.InMemoryCdcStore.MarkAsProcessed(System.Collections.Generic.IEnumerable<Excalibur.Cdc.InMemory.InMemoryCdcChange!>! changes) -> void
-Excalibur.Cdc.Processing.CdcProcessingHostedService
-Excalibur.Cdc.Processing.CdcProcessingHostedService.CdcProcessingHostedService(Excalibur.Cdc.Processing.ICdcBackgroundProcessor! processor, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.Processing.CdcProcessingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Processing.CdcProcessingHostedService!>! logger) -> void
-Excalibur.Cdc.Processing.CdcProcessingHostedService.ConsecutiveErrors.get -> int
-Excalibur.Cdc.Processing.CdcProcessingHostedService.IsHealthy.get -> bool
-Excalibur.Cdc.Processing.CdcProcessingHostedService.LastSuccessfulProcessing.get -> System.DateTimeOffset
 Excalibur.Cdc.Processing.CdcProcessingOptions
 Excalibur.Cdc.Processing.CdcProcessingOptions.CdcProcessingOptions() -> void
 Excalibur.Cdc.Processing.CdcProcessingOptions.DrainTimeout.get -> System.TimeSpan
@@ -205,8 +200,6 @@ Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions
 override Excalibur.Cdc.CdcDataChange.ToString() -> string!
 override Excalibur.Cdc.CdcPositionResetEventArgs.ToString() -> string!
 override Excalibur.Cdc.InMemory.InMemoryCdcChange.ToString() -> string!
-override Excalibur.Cdc.Processing.CdcProcessingHostedService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
-override Excalibur.Cdc.Processing.CdcProcessingHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static Excalibur.Cdc.CdcReasonCodes.IsRecoverable(string? reasonCode) -> bool
 static Excalibur.Cdc.InMemory.CdcBuilderInMemoryExtensions.UseInMemory(this Excalibur.Cdc.ICdcBuilder! builder, Excalibur.Cdc.InMemory.IInMemoryCdcStore! store, System.Action<Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.InMemory.CdcBuilderInMemoryExtensions.UseInMemory(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
@@ -254,7 +247,4 @@ static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartApplyChangeActivity(stri
 static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartCheckpointActivity(string! provider) -> System.Diagnostics.Activity?
 static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartPollActivity(string! provider) -> System.Diagnostics.Activity?
 static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartProcessBatchActivity(string! provider, int batchSize) -> System.Diagnostics.Activity?
-Excalibur.Cdc.ICdcBuilder.BindTrackedTables(string\! configSectionPath) -> Excalibur.Cdc.ICdcBuilder\!
-Excalibur.Cdc.ICdcBuilder.TrackTablesFromHandlers() -> Excalibur.Cdc.ICdcBuilder\!
 Excalibur.Cdc.ICdcTableProvider
-Excalibur.Cdc.ICdcTableProvider.TableNames.get -> string\![]\!

@@ -496,7 +496,6 @@ Excalibur.A3.IAccessToken.UserId.get -> string!
 Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions
 override Excalibur.A3.Audit.AuditableResult<TResult>.ToString() -> string!
-override Excalibur.A3.Authorization.Grants.Grant.ApplyEventInternal(Excalibur.Dispatch.Abstractions.IDomainEvent! event) -> void
 override Excalibur.A3.Authorization.Grants.GrantKey.ToString() -> string!
 override Excalibur.A3.Authorization.Grants.GrantScope.ToString() -> string!
 static Excalibur.A3.AccessToken.FromValues(string? userId, string! tenantId) -> Excalibur.A3.AccessToken!

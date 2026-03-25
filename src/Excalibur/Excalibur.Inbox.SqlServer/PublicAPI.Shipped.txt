@@ -13,7 +13,6 @@ Excalibur.Inbox.SqlServer.SqlServerInboxOptions.SqlServerInboxOptions() -> void
 Excalibur.Inbox.SqlServer.SqlServerInboxOptions.TableName.get -> string!
 Excalibur.Inbox.SqlServer.SqlServerInboxOptions.TableName.set -> void
 Excalibur.Inbox.SqlServer.SqlServerInboxStore
-Excalibur.Inbox.SqlServer.SqlServerInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.SqlServer.SqlServerInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.SqlServer.SqlServerInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
 Excalibur.Inbox.SqlServer.SqlServerInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry?>

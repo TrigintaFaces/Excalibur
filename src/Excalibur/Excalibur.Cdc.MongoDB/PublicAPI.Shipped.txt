@@ -181,15 +181,11 @@ Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector
 Excalibur.Cdc.MongoDB.MongoDbStalePositionException
 Excalibur.Cdc.MongoDB.MongoDbStalePositionException.CollectionName.get -> string?
 Excalibur.Cdc.MongoDB.MongoDbStalePositionException.DatabaseName.get -> string?
-Excalibur.Cdc.MongoDB.MongoDbStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
 Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException() -> void
 Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
 Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException(string! message) -> void
 Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
 Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException(string! message, System.Exception! innerException) -> void
-Excalibur.Cdc.MongoDB.MongoDbStalePositionException.ProcessorId.get -> string?
-Excalibur.Cdc.MongoDB.MongoDbStalePositionException.ReasonCode.get -> string?
-Excalibur.Cdc.MongoDB.MongoDbStalePositionException.StalePosition.get -> byte[]?
 Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes
 Excalibur.Cdc.MongoDB.MongoDbUpdateDescription
 Excalibur.Cdc.MongoDB.MongoDbUpdateDescription.MongoDbUpdateDescription() -> void
