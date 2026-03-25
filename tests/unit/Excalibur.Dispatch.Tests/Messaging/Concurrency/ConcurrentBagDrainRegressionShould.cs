@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 namespace Excalibur.Dispatch.Tests.Messaging.Concurrency;
 
 /// <summary>
-/// Regression tests for T.2 (bd-4fww0): ConcurrentBag&lt;Task&gt; drain: ToArray()+Clear() race condition.
+/// Regression tests for ConcurrentBag&lt;Task&gt; drain: ToArray()+Clear() race condition.
 /// Verifies that the atomic drain pattern (Interlocked.Exchange or equivalent) does not lose items
 /// when concurrent add and drain operations occur simultaneously.
 /// </summary>
@@ -32,9 +32,12 @@ public sealed class ConcurrentBagDrainRegressionShould
 		const int totalItems = 10_000;
 		const int drainInterval = 100;
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
-		// Act -- Run producer and consumer concurrently
+		// Act -- Run producer and consumer concurrently.
+		// Do NOT pass cts.Token to Task.Run -- the producer is a finite loop that
+		// doesn't need cancellation. Passing the token causes TaskCanceledException
+		// if the thread pool doesn't schedule the task before the timeout fires.
 		var producerTask = Task.Run(() =>
 		{
 			for (var i = 0; i < totalItems; i++)
@@ -54,9 +57,9 @@ public sealed class ConcurrentBagDrainRegressionShould
 					Interlocked.Increment(ref drainCount);
 				}
 			}
-		}, cts.Token);
+		});
 
-		// Concurrent drain consumer
+		// Concurrent drain consumer -- only the consumer uses the CTS for shutdown.
 		var consumerTask = Task.Run(() =>
 		{
 			while (!cts.IsCancellationRequested)
@@ -75,7 +78,7 @@ public sealed class ConcurrentBagDrainRegressionShould
 
 				Interlocked.Increment(ref drainCount);
 			}
-		}, cts.Token);
+		});
 
 		await producerTask.ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
@@ -124,10 +127,10 @@ public sealed class ConcurrentBagDrainRegressionShould
 		var producerCount = 8;
 		var totalExpected = itemsPerProducer * producerCount;
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 		var producersDone = 0;
 
-		// Act -- Start producers
+		// Act -- Start producers (finite loops, no cancellation token needed)
 		var producers = Enumerable.Range(0, producerCount).Select(producerIdx => Task.Run(() =>
 		{
 			for (var i = 0; i < itemsPerProducer; i++)
@@ -136,7 +139,7 @@ public sealed class ConcurrentBagDrainRegressionShould
 			}
 
 			Interlocked.Increment(ref producersDone);
-		}, cts.Token)).ToArray();
+		})).ToArray();
 
 		// Drainer runs concurrently
 		var drainer = Task.Run(() =>
@@ -166,7 +169,7 @@ public sealed class ConcurrentBagDrainRegressionShould
 			{
 				allDrainedItems.Add(item);
 			}
-		}, cts.Token);
+		});
 
 		await Task.WhenAll([.. producers, drainer]).ConfigureAwait(false);
 
