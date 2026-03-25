@@ -29,7 +29,7 @@ public sealed class SelectPendingDataTasks : DataRequest<IEnumerable<DataTaskReq
 		var sql = $"""
 		SELECT DataTaskId, CreatedAt, RecordType, Attempts, MaxAttempts, CompletedCount
 		           FROM
-		           {configuration.TableName}
+		           {configuration.QualifiedTableName}
 		           WHERE
 		           Attempts < MaxAttempts
 		           ORDER BY

@@ -15,7 +15,9 @@ public sealed class DataProcessingOptionsShould : UnitTestBase
 		var config = new DataProcessingOptions();
 
 		// Assert
-		config.TableName.ShouldBe("DataProcessor.DataTaskRequests");
+		config.SchemaName.ShouldBe("DataProcessor");
+		config.TableName.ShouldBe("DataTaskRequests");
+		config.QualifiedTableName.ShouldBe("[DataProcessor].[DataTaskRequests]");
 		config.DispatcherTimeoutMilliseconds.ShouldBe(60000);
 		config.MaxAttempts.ShouldBe(3);
 		config.QueueSize.ShouldBe(5000);
@@ -24,16 +26,31 @@ public sealed class DataProcessingOptionsShould : UnitTestBase
 	}
 
 	[Fact]
+	public void SchemaName_CanBeCustomized()
+	{
+		// Arrange & Act
+		var config = new DataProcessingOptions
+		{
+			SchemaName = "custom"
+		};
+
+		// Assert
+		config.SchemaName.ShouldBe("custom");
+		config.QualifiedTableName.ShouldBe("[custom].[DataTaskRequests]");
+	}
+
+	[Fact]
 	public void TableName_CanBeCustomized()
 	{
 		// Arrange & Act
 		var config = new DataProcessingOptions
 		{
-			TableName = "Custom.TaskTable"
+			TableName = "TaskTable"
 		};
 
 		// Assert
-		config.TableName.ShouldBe("Custom.TaskTable");
+		config.TableName.ShouldBe("TaskTable");
+		config.QualifiedTableName.ShouldBe("[DataProcessor].[TaskTable]");
 	}
 
 	[Fact]

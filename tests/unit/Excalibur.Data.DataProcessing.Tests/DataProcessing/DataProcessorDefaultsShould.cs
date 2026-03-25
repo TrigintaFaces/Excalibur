@@ -14,9 +14,15 @@ namespace Excalibur.Data.Tests.DataProcessing;
 public sealed class DataProcessorDefaultsShould : UnitTestBase
 {
 	[Fact]
+	public void HaveExpectedDefaultSchemaName()
+	{
+		DataProcessorDefaults.DataProcessorDefaultSchemaName.ShouldBe("DataProcessor");
+	}
+
+	[Fact]
 	public void HaveExpectedDefaultTableName()
 	{
-		DataProcessorDefaults.DataProcessorDefaultTableName.ShouldBe("DataProcessor.DataTaskRequests");
+		DataProcessorDefaults.DataProcessorDefaultTableName.ShouldBe("DataTaskRequests");
 	}
 
 	[Fact]

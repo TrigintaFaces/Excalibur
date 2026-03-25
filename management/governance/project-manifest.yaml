@@ -66,6 +66,7 @@ projects:
   - path: samples/09-advanced/SnapshotStrategies/SnapshotStrategies.csproj
   - path: samples/09-advanced/SqlServerEventStore/SqlServerEventStore.csproj
   - path: samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj
+  - path: samples/09-advanced/DataProcessingBackgroundService/DataProcessingBackgroundService.csproj
   - path: samples/09-advanced/TransactionalHandlers/TransactionalHandlers.csproj
   - path: samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj
   - path: samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj

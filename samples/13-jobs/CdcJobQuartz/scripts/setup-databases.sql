@@ -115,6 +115,43 @@ PRINT 'Capture instance: dbo_LegacyCustomers';
 PRINT '============================================================================';
 GO
 
+-- ============================================================================
+-- CDC Processing State Table
+-- ============================================================================
+-- The Excalibur CDC processor tracks its position per table using this table.
+-- Without it, the processor cannot resume after restarts.
+--
+-- Default schema: [Cdc]    (configurable via SqlServerCdcStateStoreOptions.SchemaName)
+-- Default table:  [CdcProcessingState] (configurable via SqlServerCdcStateStoreOptions.TableName)
+-- ============================================================================
+
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'Cdc')
+BEGIN
+    EXEC('CREATE SCHEMA [Cdc]');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[Cdc].[CdcProcessingState]') AND type = N'U')
+BEGIN
+    CREATE TABLE [Cdc].[CdcProcessingState]
+    (
+        [MessageId]                     BIGINT IDENTITY(1,1)    NOT NULL,
+        [DatabaseConnectionIdentifier]  NVARCHAR(256)           NOT NULL,
+        [DatabaseName]                  NVARCHAR(256)           NOT NULL,
+        [TableName]                     NVARCHAR(256)           NOT NULL,
+        [LastProcessedLsn]              BINARY(10)              NOT NULL,
+        [LastProcessedSequenceValue]    BINARY(10)              NULL,
+        [LastCommitTime]                DATETIME2               NULL,
+        [ProcessedAt]                   DATETIMEOFFSET          NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+
+        CONSTRAINT [PK_CdcProcessingState] PRIMARY KEY CLUSTERED ([MessageId]),
+        CONSTRAINT [UQ_CdcProcessingState_Key] UNIQUE ([DatabaseConnectionIdentifier], [DatabaseName], [TableName])
+    );
+
+    PRINT 'Created [Cdc].[CdcProcessingState] table';
+END
+GO
+
 
 -- ============================================================================
 -- SECTION 2: Run on SQL Server #2 (port 1434) - Event Store

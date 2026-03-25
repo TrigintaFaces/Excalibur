@@ -14,9 +14,14 @@ namespace Excalibur.Data.DataProcessing;
 public static class DataProcessorDefaults
 {
 	/// <summary>
+	/// Default schema name for data task requests.
+	/// </summary>
+	public const string DataProcessorDefaultSchemaName = "DataProcessor";
+
+	/// <summary>
 	/// Default table name for data task requests.
 	/// </summary>
-	public const string DataProcessorDefaultTableName = "DataProcessor.DataTaskRequests";
+	public const string DataProcessorDefaultTableName = "DataTaskRequests";
 
 	/// <summary>
 	/// Default dispatcher timeout in milliseconds.

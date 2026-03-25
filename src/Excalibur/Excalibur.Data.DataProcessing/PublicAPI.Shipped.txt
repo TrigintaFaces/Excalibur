@@ -5,7 +5,8 @@ const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultDi
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultMaxAttempts = 3 -> int
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultProducerBatchSize = 100 -> int
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultQueueSize = 5000 -> int
-const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultTableName = "DataProcessor.DataTaskRequests" -> string!
+const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultSchemaName = "DataProcessor" -> string!
+const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultTableName = "DataTaskRequests" -> string!
 const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ApplicationStopping = 107306 -> int
 const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.CompletedBatch = 107205 -> int
 const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.CompletedProcessing = 107206 -> int
@@ -53,6 +54,9 @@ Excalibur.Data.DataProcessing.DataProcessingOptions.ProducerBatchSize.get -> int
 Excalibur.Data.DataProcessing.DataProcessingOptions.ProducerBatchSize.init -> void
 Excalibur.Data.DataProcessing.DataProcessingOptions.QueueSize.get -> int
 Excalibur.Data.DataProcessing.DataProcessingOptions.QueueSize.init -> void
+Excalibur.Data.DataProcessing.DataProcessingOptions.QualifiedTableName.get -> string!
+Excalibur.Data.DataProcessing.DataProcessingOptions.SchemaName.get -> string!
+Excalibur.Data.DataProcessing.DataProcessingOptions.SchemaName.init -> void
 Excalibur.Data.DataProcessing.DataProcessingOptions.TableName.get -> string!
 Excalibur.Data.DataProcessing.DataProcessingOptions.TableName.init -> void
 Excalibur.Data.DataProcessing.DataProcessor<TRecord>

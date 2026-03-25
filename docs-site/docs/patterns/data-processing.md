@@ -165,6 +165,7 @@ builder.Services.AddRecordHandler<CustomerMigrationHandler, CustomerRecord>(
 | `AddRecordHandler<T,R>(DataProcessingOptions)` | Inline object | `ValidateDataAnnotations` + `ValidateOnStart` + cross-property |
 | `AddRecordHandler<T,R>(IConfiguration, string)` | Bind from section | `ValidateDataAnnotations` + `ValidateOnStart` |
 | `AddDataProcessing(Func, IConfig, string, Assembly[])` | Assembly scanning + bind | `ValidateDataAnnotations` + `ValidateOnStart` |
+| `EnableDataProcessingBackgroundService(Action?)` | Optional configure action | `ValidateDataAnnotations` + `ValidateOnStart` + cross-property |
 
 ## Configuration
 
@@ -172,7 +173,9 @@ builder.Services.AddRecordHandler<CustomerMigrationHandler, CustomerRecord>(
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `TableName` | `string` | `"DataProcessor.DataTaskRequests"` | SQL table for orchestration task records |
+| `SchemaName` | `string` | `"DataProcessor"` | SQL schema for the orchestration table |
+| `TableName` | `string` | `"DataTaskRequests"` | SQL table name for orchestration task records |
+| `QualifiedTableName` | `string` | (computed) | Read-only `[SchemaName].[TableName]` with bracket-escaping |
 | `QueueSize` | `int` | 5000 | In-memory channel capacity between producer and consumer |
 | `ProducerBatchSize` | `int` | 100 | Records fetched per producer iteration |
 | `ConsumerBatchSize` | `int` | 10 | Records dequeued per consumer iteration |
@@ -186,7 +189,8 @@ All numeric properties require values > 0 (enforced by `[Range(1, int.MaxValue)]
 ```json
 {
   "DataProcessing": {
-    "TableName": "DataProcessor.DataTaskRequests",
+    "SchemaName": "DataProcessor",
+    "TableName": "DataTaskRequests",
     "QueueSize": 128,
     "ProducerBatchSize": 50,
     "ConsumerBatchSize": 20,
@@ -207,6 +211,45 @@ An `IValidateOptions<DataProcessingOptions>` validator enforces inter-property c
 | `DispatcherTimeoutMilliseconds` must be 1,000–3,600,000 | Enforces 1 second to 1 hour range |
 
 If any constraint fails, the application throws `OptionsValidationException` at startup (fail-fast).
+
+## Database Setup
+
+The data processing system requires one table in your SQL Server database. Create the schema and table before starting the application:
+
+```sql
+-- Create the schema (if it doesn't exist)
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'DataProcessor')
+BEGIN
+    EXEC('CREATE SCHEMA [DataProcessor]');
+END
+GO
+
+-- Create the data task requests table
+IF NOT EXISTS (SELECT 1 FROM sys.objects
+    WHERE object_id = OBJECT_ID(N'[DataProcessor].[DataTaskRequests]') AND type = N'U')
+BEGIN
+    CREATE TABLE [DataProcessor].[DataTaskRequests]
+    (
+        [DataTaskId]     UNIQUEIDENTIFIER  NOT NULL,
+        [CreatedAt]      DATETIMEOFFSET    NOT NULL,
+        [RecordType]     NVARCHAR(256)     NOT NULL,
+        [Attempts]       INT               NOT NULL DEFAULT 0,
+        [MaxAttempts]    INT               NOT NULL DEFAULT 3,
+        [CompletedCount] INT               NOT NULL DEFAULT 0,
+
+        CONSTRAINT [PK_DataTaskRequests] PRIMARY KEY CLUSTERED ([DataTaskId])
+    );
+
+    -- Index for the polling query (WHERE Attempts < MaxAttempts ORDER BY CreatedAt)
+    CREATE NONCLUSTERED INDEX [IX_DataTaskRequests_Pending]
+        ON [DataProcessor].[DataTaskRequests] ([Attempts], [MaxAttempts])
+        INCLUDE ([DataTaskId], [CreatedAt], [RecordType], [CompletedCount])
+        WHERE [Attempts] < [MaxAttempts];
+END
+GO
+```
+
+If you customize `SchemaName` or `TableName` in `DataProcessingOptions`, update the script accordingly. A complete setup script is included in the [DataProcessingBackgroundService sample](https://github.com/nickniverson/Excalibur.Dispatch/tree/main/samples/09-advanced/DataProcessingBackgroundService/setup-database.sql).
 
 ## Orchestration Connection
 
@@ -337,6 +380,159 @@ public interface IRecordHandler<in TRecord>
 | Batch sizes | Set `ProducerBatchSize` and `ConsumerBatchSize` at or below `QueueSize` (validated at startup) |
 | Timeouts | Keep `DispatcherTimeoutMilliseconds` at 1000ms or above; default 60s is suitable for most cases |
 | Error handling | Implement retry logic in `IRecordHandler<T>.ProcessAsync`; `MaxAttempts` controls task-level retries |
+
+## Background Processing
+
+Instead of scheduling data processing via Quartz jobs, you can use the built-in `BackgroundService` that polls for pending data tasks on a configurable interval.
+
+### Enable Background Service
+
+```csharp
+// Enable with defaults (5s polling interval)
+builder.Services.EnableDataProcessingBackgroundService();
+
+// Enable with custom options
+builder.Services.EnableDataProcessingBackgroundService(options =>
+{
+    options.PollingInterval = TimeSpan.FromSeconds(10);
+    options.DrainTimeoutSeconds = 60;
+    options.UnhealthyThreshold = 5;
+});
+```
+
+The hosted service calls `IDataOrchestrationManager.ProcessDataTasksAsync()` on each polling cycle. It works with both the assembly-scanning registration path (`AddDataProcessing`) and the AOT-safe explicit registration path (`AddDataProcessor<T>`).
+
+:::info Two Separate Options Classes
+Configuration is split into two concerns:
+
+- **`DataProcessingOptions`** -- pipeline tuning: `SchemaName`, `TableName`, `QueueSize`, `ProducerBatchSize`, `ConsumerBatchSize`, `MaxAttempts`
+- **`DataProcessingHostedServiceOptions`** -- polling lifecycle: `PollingInterval`, `Enabled`, `DrainTimeoutSeconds`, `UnhealthyThreshold`
+
+```csharp
+// Pipeline tuning (queue sizes, batching, table config)
+builder.Services.AddDataProcessor<OrderDataProcessor>(new DataProcessingOptions
+{
+    SchemaName = "DataProcessor",
+    TableName = "DataTaskRequests",
+    QueueSize = 500,
+    ProducerBatchSize = 50,
+    ConsumerBatchSize = 10,
+    MaxAttempts = 3,
+});
+builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
+
+// Or bind pipeline options from appsettings.json:
+// builder.Services.AddDataProcessor<OrderDataProcessor>(
+//     builder.Configuration, "DataProcessing");
+
+// Polling/lifecycle tuning (separate concern)
+builder.Services.EnableDataProcessingBackgroundService(options =>
+{
+    options.PollingInterval = TimeSpan.FromSeconds(10);
+    options.DrainTimeoutSeconds = 60;
+});
+```
+
+Both can also be configured entirely via `appsettings.json`:
+
+```json
+{
+  "DataProcessing": {
+    "SchemaName": "DataProcessor",
+    "TableName": "DataTaskRequests",
+    "QueueSize": 500,
+    "ProducerBatchSize": 50,
+    "ConsumerBatchSize": 10,
+    "MaxAttempts": 3
+  }
+}
+```
+
+:::
+
+### DataProcessingHostedServiceOptions
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `PollingInterval` | `TimeSpan` | 5 seconds | Interval between polling cycles |
+| `Enabled` | `bool` | `true` | Whether the background processor is active |
+| `DrainTimeoutSeconds` | `int` | 30 | Seconds to wait for in-flight processing during shutdown |
+| `UnhealthyThreshold` | `int` | 3 | Consecutive errors before the service is considered unhealthy |
+
+:::tip Computed Property
+`DrainTimeout` is a read-only `TimeSpan` computed from `DrainTimeoutSeconds`. Use `DrainTimeoutSeconds` in configuration.
+:::
+
+### Cross-Property Validation
+
+An `IValidateOptions<DataProcessingHostedServiceOptions>` validator enforces at startup:
+
+| Rule | Constraint |
+|------|-----------|
+| `PollingInterval` must be positive | Prevents zero or negative polling |
+| `DrainTimeout` must exceed `PollingInterval` | Ensures the drain window covers at least one full cycle |
+| `UnhealthyThreshold` must be >= 1 | At least one error before marking unhealthy |
+
+### Health Tracking
+
+The hosted service tracks health state internally:
+- **Healthy** on startup and after each successful processing cycle
+- **Unhealthy** after `UnhealthyThreshold` consecutive errors
+- **Error counter resets** to zero on any successful cycle
+
+Access health state programmatically by resolving the `DataProcessingHostedService` from DI (it exposes `IsHealthy`, `ConsecutiveErrors`, and `LastSuccessfulProcessing` properties).
+
+### Configuration via appsettings.json
+
+```json
+{
+  "DataProcessingHostedService": {
+    "PollingInterval": "00:00:10",
+    "Enabled": true,
+    "DrainTimeoutSeconds": 60,
+    "UnhealthyThreshold": 5
+  }
+}
+```
+
+### Complete Example
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+
+// 1. Register orchestration connection
+builder.Services.AddKeyedSingleton(
+    DataProcessingKeys.OrchestrationConnection,
+    (_, _) => (Func<IDbConnection>)(() => new SqlConnection(connectionString)));
+
+// 2. Register processor and handler (AOT-safe)
+builder.Services.AddDataProcessor<OrderDataProcessor>(
+    builder.Configuration, "DataProcessing");
+builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
+
+// 3. Enable background service
+builder.Services.EnableDataProcessingBackgroundService(options =>
+{
+    options.PollingInterval = TimeSpan.FromSeconds(10);
+    options.DrainTimeoutSeconds = 60;
+    options.UnhealthyThreshold = 5;
+});
+
+var app = builder.Build();
+app.Run();
+```
+
+### Quartz vs Background Service
+
+| Aspect | Quartz Job | Background Service |
+|--------|-----------|-------------------|
+| Scheduling | Cron expressions, complex schedules | Fixed polling interval |
+| Dependencies | Requires `Excalibur.Jobs` + Quartz.NET | Built-in, no extra packages |
+| Concurrency control | Job disallow concurrent execution | Single hosted service instance |
+| Health monitoring | Via Quartz job listeners | Built-in `IsHealthy` / `UnhealthyThreshold` |
+| Graceful shutdown | Quartz scheduler shutdown | `DrainTimeout` with linked cancellation |
+| Best for | Complex schedules, multi-job orchestration | Simple polling, minimal dependencies |
 
 ## See Also
 

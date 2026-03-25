@@ -33,7 +33,7 @@ public sealed class DeleteDataTask : DataRequest<int>
 		var sql = $"""
 		DELETE
 		           FROM
-		           {configuration.TableName}
+		           {configuration.QualifiedTableName}
 		           WHERE
 		           DataTaskId = @DataTaskId
 		""";

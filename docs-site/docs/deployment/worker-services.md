@@ -25,6 +25,7 @@ Worker Services are ideal for dedicated background processing tasks like outbox 
 | Outbox processing | ✅ Dedicated | ✅ Integrated |
 | Projections | ✅ Best choice | ⚠️ Possible |
 | CDC handlers | ✅ Best choice | ⚠️ Possible |
+| Data processing | ✅ Best choice | ✅ Integrated |
 | Saga orchestration | ✅ Best choice | ✅ Integrated |
 | Long-running tasks | ✅ Best choice | ❌ Avoid |
 
@@ -202,6 +203,38 @@ public class OrderCdcHandler : ICdcChangeHandler<OrderChangedEvent>
     }
 }
 ```
+
+## Data Processing Worker
+
+For batch data processing pipelines, use the built-in background service instead of Quartz jobs:
+
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+
+// Register orchestration connection
+builder.Services.AddKeyedSingleton(
+    DataProcessingKeys.OrchestrationConnection,
+    (_, _) => (Func<IDbConnection>)(() => new SqlConnection(connectionString)));
+
+// Register processor and handler
+builder.Services.AddDataProcessor<OrderDataProcessor>(
+    builder.Configuration, "DataProcessing");
+builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
+
+// Enable background polling service
+builder.Services.EnableDataProcessingBackgroundService(options =>
+{
+    options.PollingInterval = TimeSpan.FromSeconds(10);
+    options.DrainTimeoutSeconds = 60;
+    options.UnhealthyThreshold = 5;
+});
+
+var host = builder.Build();
+await host.RunAsync();
+```
+
+The hosted service polls `IDataOrchestrationManager.ProcessDataTasksAsync()` on each interval, with built-in health tracking and graceful drain on shutdown. See [Data Processing](../patterns/data-processing.md#background-processing) for full configuration options and [Database Setup](../patterns/data-processing.md#database-setup) for the required SQL schema.
 
 ## Leader Election
 

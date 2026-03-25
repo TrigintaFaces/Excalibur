@@ -33,7 +33,7 @@ public sealed class InsertDataTask : DataRequest<int>
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		var sql = $"""
-		INSERT INTO {configuration.TableName}
+		INSERT INTO {configuration.QualifiedTableName}
 		           (DataTaskId, CreatedAt, RecordType, Attempts, MaxAttempts)
 		           VALUES
 		           (@DataTaskId, @CreatedAt, @RecordType, @Attempts, @MaxAttempts)

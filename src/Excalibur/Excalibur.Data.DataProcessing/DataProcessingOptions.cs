@@ -12,15 +12,32 @@ public sealed class DataProcessingOptions
 {
 	private readonly int _dispatcherTimeoutMilliseconds = DataProcessorDefaultDispatcherTimeout;
 	private readonly int _maxAttempts = DataProcessorDefaultMaxAttempts;
+	private readonly string _schemaName = DataProcessorDefaultSchemaName;
 	private readonly string _tableName = DataProcessorDefaultTableName;
 	private readonly int _queueSize = DataProcessorDefaultQueueSize;
 	private readonly int _producerBatchSize = DataProcessorDefaultProducerBatchSize;
 	private readonly int _consumerBatchSize = DataProcessorDefaultConsumerBatchSize;
 
 	/// <summary>
+	/// Gets the schema name for the data task requests table.
+	/// </summary>
+	/// <value>The default schema name is "DataProcessor".</value>
+	[Required]
+	public string SchemaName
+	{
+		get => _schemaName;
+		init
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(value, nameof(SchemaName));
+
+			_schemaName = value;
+		}
+	}
+
+	/// <summary>
 	/// Gets the name of the table used to store data task requests.
 	/// </summary>
-	/// <value> The default table name is "DataProcessor.DataTaskRequests". </value>
+	/// <value>The default table name is "DataTaskRequests".</value>
 	[Required]
 	public string TableName
 	{
@@ -32,6 +49,11 @@ public sealed class DataProcessingOptions
 			_tableName = value;
 		}
 	}
+
+	/// <summary>
+	/// Gets the fully qualified table name (schema + table) with bracket-escaping.
+	/// </summary>
+	public string QualifiedTableName => $"[{SchemaName}].[{TableName}]";
 
 	/// <summary>
 	/// Gets the timeout, in milliseconds, for a dispatcher to process data tasks.

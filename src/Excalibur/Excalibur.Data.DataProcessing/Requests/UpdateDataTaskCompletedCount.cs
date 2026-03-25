@@ -34,7 +34,7 @@ public sealed class UpdateDataTaskCompletedCount : DataRequest<int>
 
 		var sql = $"""
 		UPDATE
-		           {configuration.TableName}
+		           {configuration.QualifiedTableName}
 		           SET
 		           CompletedCount = @CompletedCount
 		           WHERE

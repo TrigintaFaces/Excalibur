@@ -1,1 +1,19 @@
 #nullable enable
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceDisabled = 107400 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceDrainTimeout = 107405 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceError = 107402 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceProcessedTasks = 107404 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceStarting = 107401 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.BackgroundServiceStopped = 107403 -> int
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.DataProcessingHostedServiceOptions() -> void
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.DrainTimeout.get -> System.TimeSpan
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.DrainTimeoutSeconds.get -> int
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.DrainTimeoutSeconds.set -> void
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.Enabled.get -> bool
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.Enabled.set -> void
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.PollingInterval.set -> void
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.UnhealthyThreshold.get -> int
+Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions.UnhealthyThreshold.set -> void
+static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.EnableDataProcessingBackgroundService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -13,6 +13,7 @@ namespace Excalibur.Data.DataProcessing.Diagnostics;
 /// <item>107100-107199: Data Processor Core</item>
 /// <item>107200-107299: Data Processor Consumer</item>
 /// <item>107300-107399: Data Processor Producer</item>
+/// <item>107400-107499: Data Processing Background Service</item>
 /// </list>
 /// </remarks>
 public static class DataProcessingEventId
@@ -122,4 +123,26 @@ public static class DataProcessingEventId
 
 	/// <summary>Waiting for consumer to finish.</summary>
 	public const int WaitingForConsumer = 107308;
+
+	// ========================================
+	// 107400-107499: Data Processing Background Service
+	// ========================================
+
+	/// <summary>Background service is disabled.</summary>
+	public const int BackgroundServiceDisabled = 107400;
+
+	/// <summary>Background service starting.</summary>
+	public const int BackgroundServiceStarting = 107401;
+
+	/// <summary>Error in background service processing cycle.</summary>
+	public const int BackgroundServiceError = 107402;
+
+	/// <summary>Background service stopped.</summary>
+	public const int BackgroundServiceStopped = 107403;
+
+	/// <summary>Background service completed a processing cycle.</summary>
+	public const int BackgroundServiceProcessedTasks = 107404;
+
+	/// <summary>Background service drain timeout exceeded during shutdown.</summary>
+	public const int BackgroundServiceDrainTimeout = 107405;
 }

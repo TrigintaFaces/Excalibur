@@ -47,6 +47,7 @@
       "samples\\09-advanced\\SessionManagement\\SessionManagementExample.csproj",
       "samples\\09-advanced\\SnapshotStrategies\\SnapshotStrategies.csproj",
       "samples\\09-advanced\\SqlServerEventStore\\SqlServerEventStore.csproj",
+      "samples\\09-advanced\\DataProcessingBackgroundService\\DataProcessingBackgroundService.csproj",
       "samples\\09-advanced\\StreamingHandlers\\StreamingHandlers.csproj",
       "samples\\09-advanced\\Versioning.Examples\\EcommerceOrderVersioning\\EcommerceOrderVersioning.csproj",
       "samples\\09-advanced\\Versioning.Examples\\IntegrationEventVersioning\\IntegrationEventVersioning.csproj",

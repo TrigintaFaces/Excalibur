@@ -7,9 +7,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Excalibur.Data.DataProcessing;
+using Excalibur.Data.DataProcessing.Processing;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -314,6 +316,64 @@ public static class DataProcessingServiceCollectionExtensions
 			return new DataProcessorRegistry(processors);
 		});
 		services.TryAddScoped<IDataOrchestrationManager, DataOrchestrationManager>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Enables a background hosted service that polls for pending data tasks
+	/// and processes them through the registered <see cref="IDataOrchestrationManager"/>.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Optional configuration action for hosted service options.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is the alternative to running data processing via Quartz jobs
+	/// (<c>DataProcessingJob</c>). It registers a <see cref="BackgroundService"/>
+	/// that polls on a configurable interval.
+	/// </para>
+	/// <para>
+	/// This method works with both the assembly-scanning registration path
+	/// (<see cref="AddDataProcessing"/>) and the AOT-safe explicit registration
+	/// path (<see cref="AddDataProcessor{TProcessor}(IServiceCollection)"/>).
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// // Enable with defaults (5s polling interval)
+	/// services.EnableDataProcessingBackgroundService();
+	///
+	/// // Enable with custom options
+	/// services.EnableDataProcessingBackgroundService(options =>
+	/// {
+	///     options.PollingInterval = TimeSpan.FromSeconds(10);
+	///     options.DrainTimeoutSeconds = 60;
+	///     options.UnhealthyThreshold = 5;
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection EnableDataProcessingBackgroundService(
+		this IServiceCollection services,
+		Action<DataProcessingHostedServiceOptions>? configure = null)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		var optionsBuilder = services.AddOptions<DataProcessingHostedServiceOptions>()
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		if (configure is not null)
+		{
+			_ = optionsBuilder.Configure(configure);
+		}
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingHostedServiceOptions>,
+				DataProcessingHostedServiceOptionsValidator>());
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, DataProcessingHostedService>());
 
 		return services;
 	}

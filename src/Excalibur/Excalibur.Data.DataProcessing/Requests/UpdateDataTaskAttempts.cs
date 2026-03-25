@@ -34,7 +34,7 @@ public sealed class UpdateDataTaskAttempts : DataRequest<int>
 
 		var sql = $"""
 		UPDATE
-		           {configuration.TableName}
+		           {configuration.QualifiedTableName}
 		           SET
 		           Attempts = @Attempts
 		           WHERE

@@ -649,6 +649,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProductionPipeline", "sampl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransactionalHandlers", "samples\09-advanced\TransactionalHandlers\TransactionalHandlers.csproj", "{91A995FA-406F-40BB-9F6F-289F92822A62}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataProcessingBackgroundService", "samples\09-advanced\DataProcessingBackgroundService\DataProcessingBackgroundService.csproj", "{43E76EAB-BCF8-4815-875E-A625B6B21460}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -4139,6 +4141,18 @@ Global
 		{91A995FA-406F-40BB-9F6F-289F92822A62}.Release|x64.Build.0 = Release|Any CPU
 		{91A995FA-406F-40BB-9F6F-289F92822A62}.Release|x86.ActiveCfg = Release|Any CPU
 		{91A995FA-406F-40BB-9F6F-289F92822A62}.Release|x86.Build.0 = Release|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Debug|x64.Build.0 = Debug|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Debug|x86.Build.0 = Debug|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Release|Any CPU.Build.0 = Release|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Release|x64.ActiveCfg = Release|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Release|x64.Build.0 = Release|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Release|x86.ActiveCfg = Release|Any CPU
+		{43E76EAB-BCF8-4815-875E-A625B6B21460}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -4460,6 +4474,7 @@ Global
 		{129927BC-9CC7-4162-A540-E06677438030} = {DD0D8EC9-178F-0F9E-CF87-1E0AF95A3722}
 		{8BCF95E9-ABEE-4237-A9E9-27680779A936} = {DD0D8EC9-178F-0F9E-CF87-1E0AF95A3722}
 		{91A995FA-406F-40BB-9F6F-289F92822A62} = {DD0D8EC9-178F-0F9E-CF87-1E0AF95A3722}
+		{43E76EAB-BCF8-4815-875E-A625B6B21460} = {DD0D8EC9-178F-0F9E-CF87-1E0AF95A3722}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {EFE5908E-B239-4D01-92E0-08B7EA4A95B2}

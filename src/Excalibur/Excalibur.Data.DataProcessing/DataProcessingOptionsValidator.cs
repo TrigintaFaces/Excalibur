@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.Abstractions.Validation;
+
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.DataProcessing;
@@ -37,6 +39,18 @@ internal sealed class DataProcessingOptionsValidator : IValidateOptions<DataProc
 		ArgumentNullException.ThrowIfNull(options);
 
 		var failures = new List<string>();
+
+		if (!SqlIdentifierValidator.IsValid(options.SchemaName))
+		{
+			failures.Add(
+				$"SchemaName contains invalid characters. Only alphanumeric characters and underscores are allowed: '{options.SchemaName}'.");
+		}
+
+		if (!SqlIdentifierValidator.IsValid(options.TableName))
+		{
+			failures.Add(
+				$"TableName contains invalid characters. Only alphanumeric characters and underscores are allowed: '{options.TableName}'.");
+		}
 
 		if (options.ProducerBatchSize > options.QueueSize)
 		{
