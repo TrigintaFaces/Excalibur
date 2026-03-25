@@ -4,6 +4,8 @@
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 
+using Tests.Shared.Fixtures;
+
 using ServiceBusContainerBuilder = Testcontainers.ServiceBus.ServiceBusBuilder;
 using ServiceBusEmulatorContainer = Testcontainers.ServiceBus.ServiceBusContainer;
 
@@ -14,12 +16,19 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AzureServiceBus;
 /// Verifies message consumption from a real Service Bus emulator container, including
 /// receive, complete, abandon, dead-letter, peek, and property preservation.
 /// </summary>
+[Collection(ContainerCollections.AzureServiceBus)]
 [Trait("Category", "Integration")]
 [Trait("Provider", "AzureServiceBus")]
 [Trait("Component", "Transport")]
 public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLifetime, IDisposable
 {
 	private const string TestQueueName = "receiver-test-queue";
+
+	// Cache Docker/emulator availability across all test instances in this class.
+	// Without this, each test instance attempts container creation and times out (~20s each),
+	// accumulating ~140s of wasted time that exhausts CI resources and crashes subsequent shards.
+	private static volatile bool s_dockerChecked;
+	private static volatile bool s_dockerAvailable;
 
 	private ServiceBusEmulatorContainer? _container;
 	private ServiceBusClient? _client;
@@ -28,6 +37,16 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 
 	public async Task InitializeAsync()
 	{
+		// Fast path: if a previous test already determined availability, skip container creation
+		if (s_dockerChecked)
+		{
+			_dockerAvailable = s_dockerAvailable;
+			if (!_dockerAvailable)
+			{
+				return;
+			}
+		}
+
 		try
 		{
 			_container = new ServiceBusContainerBuilder()
@@ -54,6 +73,9 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 			Console.WriteLine($"Docker initialization failed: {ex.Message}");
 			_dockerAvailable = false;
 		}
+
+		s_dockerAvailable = _dockerAvailable;
+		s_dockerChecked = true;
 	}
 
 	public async Task DisposeAsync()

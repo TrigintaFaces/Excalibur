@@ -166,6 +166,7 @@ builder.Services.AddRecordHandler<CustomerMigrationHandler, CustomerRecord>(
 | `AddRecordHandler<T,R>(IConfiguration, string)` | Bind from section | `ValidateDataAnnotations` + `ValidateOnStart` |
 | `AddDataProcessing(Func, IConfig, string, Assembly[])` | Assembly scanning + bind | `ValidateDataAnnotations` + `ValidateOnStart` |
 | `EnableDataProcessingBackgroundService(Action?)` | Optional configure action | `ValidateDataAnnotations` + `ValidateOnStart` + cross-property |
+| `EnableDataProcessingBackgroundService(IConfiguration, string)` | Bind from section | `ValidateDataAnnotations` + `ValidateOnStart` + cross-property |
 
 ## Configuration
 
@@ -391,13 +392,17 @@ Instead of scheduling data processing via Quartz jobs, you can use the built-in 
 // Enable with defaults (5s polling interval)
 builder.Services.EnableDataProcessingBackgroundService();
 
-// Enable with custom options
+// Enable with custom options via delegate
 builder.Services.EnableDataProcessingBackgroundService(options =>
 {
     options.PollingInterval = TimeSpan.FromSeconds(10);
     options.DrainTimeoutSeconds = 60;
     options.UnhealthyThreshold = 5;
 });
+
+// Or bind from appsettings.json section (AOT-safe)
+builder.Services.EnableDataProcessingBackgroundService(
+    builder.Configuration, "DataProcessingService");
 ```
 
 The hosted service calls `IDataOrchestrationManager.ProcessDataTasksAsync()` on each polling cycle. It works with both the assembly-scanning registration path (`AddDataProcessing`) and the AOT-safe explicit registration path (`AddDataProcessor<T>`).
@@ -425,12 +430,16 @@ builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
 // builder.Services.AddDataProcessor<OrderDataProcessor>(
 //     builder.Configuration, "DataProcessing");
 
-// Polling/lifecycle tuning (separate concern)
+// Polling/lifecycle tuning (separate concern) -- delegate
 builder.Services.EnableDataProcessingBackgroundService(options =>
 {
     options.PollingInterval = TimeSpan.FromSeconds(10);
     options.DrainTimeoutSeconds = 60;
 });
+
+// Or bind polling/lifecycle from appsettings.json:
+// builder.Services.EnableDataProcessingBackgroundService(
+//     builder.Configuration, "DataProcessingService");
 ```
 
 Both can also be configured entirely via `appsettings.json`:
@@ -444,6 +453,12 @@ Both can also be configured entirely via `appsettings.json`:
     "ProducerBatchSize": 50,
     "ConsumerBatchSize": 10,
     "MaxAttempts": 3
+  },
+  "DataProcessingService": {
+    "PollingInterval": "00:00:10",
+    "Enabled": true,
+    "DrainTimeoutSeconds": 60,
+    "UnhealthyThreshold": 5
   }
 }
 ```
@@ -486,13 +501,18 @@ Access health state programmatically by resolving the `DataProcessingHostedServi
 
 ```json
 {
-  "DataProcessingHostedService": {
+  "DataProcessingService": {
     "PollingInterval": "00:00:10",
     "Enabled": true,
     "DrainTimeoutSeconds": 60,
     "UnhealthyThreshold": 5
   }
 }
+```
+
+```csharp
+builder.Services.EnableDataProcessingBackgroundService(
+    builder.Configuration, "DataProcessingService");
 ```
 
 ### Complete Example
@@ -511,13 +531,9 @@ builder.Services.AddDataProcessor<OrderDataProcessor>(
     builder.Configuration, "DataProcessing");
 builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
 
-// 3. Enable background service
-builder.Services.EnableDataProcessingBackgroundService(options =>
-{
-    options.PollingInterval = TimeSpan.FromSeconds(10);
-    options.DrainTimeoutSeconds = 60;
-    options.UnhealthyThreshold = 5;
-});
+// 3. Enable background service (bind from appsettings.json)
+builder.Services.EnableDataProcessingBackgroundService(
+    builder.Configuration, "DataProcessingService");
 
 var app = builder.Build();
 app.Run();

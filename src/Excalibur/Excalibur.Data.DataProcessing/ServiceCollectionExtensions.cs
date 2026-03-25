@@ -377,4 +377,50 @@ public static class DataProcessingServiceCollectionExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// Enables a background hosted service with options bound from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The application configuration.</param>
+	/// <param name="sectionPath">The configuration section path to bind (e.g., "DataProcessingService").</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is the AOT-safe, appsettings-driven alternative. Uses
+	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>ValidateDataAnnotations</c>
+	/// and <c>ValidateOnStart</c> for fail-fast validation.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// // appsettings.json:
+	/// // { "DataProcessingService": { "PollingInterval": "00:00:10", "DrainTimeoutSeconds": 60 } }
+	///
+	/// services.EnableDataProcessingBackgroundService(configuration, "DataProcessingService");
+	/// </code>
+	/// </example>
+	public static IServiceCollection EnableDataProcessingBackgroundService(
+		this IServiceCollection services,
+		IConfiguration configuration,
+		string sectionPath)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+
+		services.AddOptions<DataProcessingHostedServiceOptions>()
+			.BindConfiguration(sectionPath)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingHostedServiceOptions>,
+				DataProcessingHostedServiceOptionsValidator>());
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, DataProcessingHostedService>());
+
+		return services;
+	}
 }

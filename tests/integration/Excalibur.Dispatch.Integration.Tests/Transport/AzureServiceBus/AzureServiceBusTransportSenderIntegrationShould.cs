@@ -6,6 +6,8 @@ using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 
+using Tests.Shared.Fixtures;
+
 using ServiceBusContainerBuilder = Testcontainers.ServiceBus.ServiceBusBuilder;
 using ServiceBusEmulatorContainer = Testcontainers.ServiceBus.ServiceBusContainer;
 
@@ -16,6 +18,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AzureServiceBus;
 /// Verifies message publishing to a real Service Bus emulator container, including
 /// single sends, batch sends, scheduled messages, and message property mapping.
 /// </summary>
+[Collection(ContainerCollections.AzureServiceBus)]
 [Trait("Category", "Integration")]
 [Trait("Provider", "AzureServiceBus")]
 [Trait("Component", "Transport")]
@@ -24,6 +27,12 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 	private const string TestQueueName = "test-queue";
 	private const string SessionQueueName = "session-queue";
 
+	// Cache Docker/emulator availability across all test instances in this class.
+	// Without this, each test instance attempts container creation and times out (~20s each),
+	// accumulating ~140s of wasted time that exhausts CI resources and crashes subsequent shards.
+	private static volatile bool s_dockerChecked;
+	private static volatile bool s_dockerAvailable;
+
 	private ServiceBusEmulatorContainer? _container;
 	private ServiceBusClient? _client;
 	private ServiceBusAdministrationClient? _adminClient;
@@ -31,6 +40,16 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 
 	public async Task InitializeAsync()
 	{
+		// Fast path: if a previous test already determined availability, skip container creation
+		if (s_dockerChecked)
+		{
+			_dockerAvailable = s_dockerAvailable;
+			if (!_dockerAvailable)
+			{
+				return;
+			}
+		}
+
 		try
 		{
 			_container = new ServiceBusContainerBuilder()
@@ -63,6 +82,9 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 			Console.WriteLine($"Docker initialization failed: {ex.Message}");
 			_dockerAvailable = false;
 		}
+
+		s_dockerAvailable = _dockerAvailable;
+		s_dockerChecked = true;
 	}
 
 	public async Task DisposeAsync()

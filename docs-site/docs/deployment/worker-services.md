@@ -222,13 +222,9 @@ builder.Services.AddDataProcessor<OrderDataProcessor>(
     builder.Configuration, "DataProcessing");
 builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
 
-// Enable background polling service
-builder.Services.EnableDataProcessingBackgroundService(options =>
-{
-    options.PollingInterval = TimeSpan.FromSeconds(10);
-    options.DrainTimeoutSeconds = 60;
-    options.UnhealthyThreshold = 5;
-});
+// Enable background polling service (bind from appsettings.json)
+builder.Services.EnableDataProcessingBackgroundService(
+    builder.Configuration, "DataProcessingService");
 
 var host = builder.Build();
 await host.RunAsync();

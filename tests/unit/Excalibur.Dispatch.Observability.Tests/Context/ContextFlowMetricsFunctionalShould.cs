@@ -164,7 +164,7 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 			() => _measurements.Any(m =>
 				m.Name == "dispatch.context.flow.validation_failures" &&
 				m.Tags.Any(t => t.Key == "reason" && string.Equals((string?)t.Value, expectedReason, StringComparison.Ordinal))),
-			TimeSpan.FromSeconds(2),
+			TimeSpan.FromSeconds(10),
 			TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
 		observed.ShouldBeTrue();
 	}

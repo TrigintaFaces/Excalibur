@@ -111,13 +111,16 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             exclusive: false,
             autoDelete: true).ConfigureAwait(false);
 
-        var receivedMessages = new ConcurrentBag<BasicDeliverEventArgs>();
+        // IMPORTANT: In RabbitMQ.Client 7.x, BasicDeliverEventArgs.Body is a ReadOnlyMemory<byte>
+        // backed by a pooled PipeReader buffer. The buffer is recycled after the callback returns,
+        // so we must copy body data inside the callback -- not store args and read Body later.
+        var receivedMessages = new ConcurrentBag<(string MessageId, byte[] Body)>();
         var messageReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.ReceivedAsync += (_, args) =>
         {
-            receivedMessages.Add(args);
+            receivedMessages.Add((args.BasicProperties.MessageId ?? string.Empty, args.Body.ToArray()));
             messageReceived.TrySetResult(true);
             return Task.CompletedTask;
         };
@@ -145,8 +148,8 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         receivedMessages.Count.ShouldBe(1);
 
         var msg = receivedMessages.First();
-        msg.BasicProperties.MessageId.ShouldBe("sub-msg-1");
-        Encoding.UTF8.GetString(msg.Body.ToArray()).ShouldBe("subscriber test");
+        msg.MessageId.ShouldBe("sub-msg-1");
+        Encoding.UTF8.GetString(msg.Body).ShouldBe("subscriber test");
     }
 
     [SkippableFact]
@@ -163,14 +166,17 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             autoDelete: true).ConfigureAwait(false);
 
         const int expectedCount = 5;
-        var receivedMessages = new ConcurrentBag<BasicDeliverEventArgs>();
+        // Copy body inside callback -- RabbitMQ.Client 7.x Body is pooled ReadOnlyMemory<byte>
+        var receivedCount = 0;
         var allReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.ReceivedAsync += (_, args) =>
         {
-            receivedMessages.Add(args);
-            if (receivedMessages.Count >= expectedCount)
+            // Touch body inside callback to ensure it's valid
+            _ = args.Body.ToArray();
+            var count = Interlocked.Increment(ref receivedCount);
+            if (count >= expectedCount)
             {
                 allReceived.TrySetResult(true);
             }
@@ -199,7 +205,7 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         await _channel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        receivedMessages.Count.ShouldBe(expectedCount);
+        receivedCount.ShouldBe(expectedCount);
     }
 
     [SkippableFact]
@@ -368,13 +374,26 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             exclusive: false,
             autoDelete: true).ConfigureAwait(false);
 
-        BasicDeliverEventArgs? receivedArgs = null;
+        // Copy all needed data inside callback -- RabbitMQ.Client 7.x Body is pooled ReadOnlyMemory<byte>
+        string? messageId = null;
+        string? contentType = null;
+        string? correlationId = null;
+        string? type = null;
+        IDictionary<string, object?>? headers = null;
+        byte[]? body = null;
         var messageReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.ReceivedAsync += (_, args) =>
         {
-            receivedArgs = args;
+            messageId = args.BasicProperties.MessageId;
+            contentType = args.BasicProperties.ContentType;
+            correlationId = args.BasicProperties.CorrelationId;
+            type = args.BasicProperties.Type;
+            headers = args.BasicProperties.Headers != null
+                ? new Dictionary<string, object?>(args.BasicProperties.Headers)
+                : null;
+            body = args.Body.ToArray();
             messageReceived.TrySetResult(true);
             return Task.CompletedTask;
         };
@@ -407,15 +426,15 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         await _channel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        receivedArgs.ShouldNotBeNull();
-        receivedArgs!.BasicProperties.MessageId.ShouldBe("props-msg");
-        receivedArgs.BasicProperties.ContentType.ShouldBe("application/json");
-        receivedArgs.BasicProperties.CorrelationId.ShouldBe("corr-456");
-        receivedArgs.BasicProperties.Type.ShouldBe("OrderCreated");
-        receivedArgs.BasicProperties.Headers.ShouldNotBeNull();
-        receivedArgs.BasicProperties.Headers.ShouldContainKey("subject");
-        receivedArgs.BasicProperties.Headers.ShouldContainKey("custom-key");
-        Encoding.UTF8.GetString(receivedArgs.Body.ToArray()).ShouldBe("{\"orderId\": 1}");
+        messageId.ShouldBe("props-msg");
+        contentType.ShouldBe("application/json");
+        correlationId.ShouldBe("corr-456");
+        type.ShouldBe("OrderCreated");
+        headers.ShouldNotBeNull();
+        headers!.ShouldContainKey("subject");
+        headers.ShouldContainKey("custom-key");
+        body.ShouldNotBeNull();
+        Encoding.UTF8.GetString(body!).ShouldBe("{\"orderId\": 1}");
     }
 
     [SkippableFact]
@@ -444,13 +463,16 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             exchange: exchangeName,
             routingKey: "events.#").ConfigureAwait(false);
 
-        BasicDeliverEventArgs? receivedArgs = null;
+        // Copy data inside callback -- RabbitMQ.Client 7.x uses pooled buffers
+        string? receivedExchange = null;
+        string? receivedRoutingKey = null;
         var messageReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.ReceivedAsync += (_, args) =>
         {
-            receivedArgs = args;
+            receivedExchange = args.Exchange;
+            receivedRoutingKey = args.RoutingKey;
             messageReceived.TrySetResult(true);
             return Task.CompletedTask;
         };
@@ -472,9 +494,8 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
         await _channel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        receivedArgs.ShouldNotBeNull();
-        receivedArgs!.Exchange.ShouldBe(exchangeName);
-        receivedArgs.RoutingKey.ShouldBe("events.order.created");
+        receivedExchange.ShouldBe(exchangeName);
+        receivedRoutingKey.ShouldBe("events.order.created");
     }
 
     private static Task<BasicGetResult?> WaitForBasicGetAsync(

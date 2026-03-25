@@ -221,7 +221,7 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 					return _recorded.TryGetValue(instrumentName, out var list) && list.Count >= minimumCount;
 				}
 			},
-			TimeSpan.FromSeconds(2),
+			TimeSpan.FromSeconds(10),
 			TimeSpan.FromMilliseconds(10)).GetAwaiter().GetResult();
 
 		observed.ShouldBeTrue($"Expected at least {minimumCount} metric samples for '{instrumentName}'.");

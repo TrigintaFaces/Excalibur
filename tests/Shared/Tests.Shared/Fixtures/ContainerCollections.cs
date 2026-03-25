@@ -41,6 +41,16 @@ public static class ContainerCollections
 	/// Elasticsearch container shared across all tests in this collection.
 	/// </summary>
 	public const string Elasticsearch = "Elasticsearch";
+
+	/// <summary>
+	/// Azure Service Bus emulator shared across all tests in this collection.
+	/// </summary>
+	public const string AzureServiceBus = "Azure Service Bus";
+
+	/// <summary>
+	/// AWS SQS (LocalStack) container shared across all tests in this collection.
+	/// </summary>
+	public const string AwsSqs = "AWS SQS";
 }
 
 // Collection definitions - these register fixtures for sharing

@@ -65,13 +65,10 @@ builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
 
 // This replaces the need for Quartz job scheduling.
 // The hosted service polls IDataOrchestrationManager.ProcessDataTasksAsync()
-// on the configured interval.
-builder.Services.EnableDataProcessingBackgroundService(options =>
-{
-	options.PollingInterval = TimeSpan.FromSeconds(10);
-	options.DrainTimeoutSeconds = 60;
-	options.UnhealthyThreshold = 5;
-});
+// on the configured interval, bound from appsettings.json.
+builder.Services.EnableDataProcessingBackgroundService(
+	builder.Configuration,
+	"DataProcessingService");
 
 var app = builder.Build();
 

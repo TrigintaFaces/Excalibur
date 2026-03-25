@@ -12,3 +12,17 @@ namespace Excalibur.Dispatch.Integration.Tests.Fixtures;
 /// </summary>
 [CollectionDefinition(ContainerCollections.Kafka)]
 public sealed class KafkaCollection : ICollectionFixture<KafkaContainerFixture>;
+
+/// <summary>
+/// Collection definition for Azure Service Bus integration tests.
+/// Serializes execution across test classes that share the emulator container.
+/// </summary>
+[CollectionDefinition(ContainerCollections.AzureServiceBus)]
+public sealed class AzureServiceBusCollection;
+
+/// <summary>
+/// Collection definition for AWS SQS integration tests.
+/// Serializes execution across test classes that share the LocalStack container.
+/// </summary>
+[CollectionDefinition(ContainerCollections.AwsSqs)]
+public sealed class AwsSqsCollection;

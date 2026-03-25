@@ -5,6 +5,8 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
+using Tests.Shared.Fixtures;
+
 using Testcontainers.LocalStack;
 
 namespace Excalibur.Dispatch.Integration.Tests.Transport.AwsSqs;
@@ -14,17 +16,32 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AwsSqs;
 /// Verifies message sending to a real SQS queue via LocalStack, including
 /// single sends, batch sends, message attributes, FIFO queues, and body round-tripping.
 /// </summary>
+[Collection(ContainerCollections.AwsSqs)]
 [Trait("Category", "Integration")]
 [Trait("Provider", "AwsSqs")]
 [Trait("Component", "Transport")]
 public sealed class AwsSqsTransportSenderIntegrationShould : IAsyncLifetime, IDisposable
 {
+	// Cache Docker availability across all test instances in this class.
+	// Prevents redundant container creation attempts when Docker is unavailable.
+	private static volatile bool s_dockerChecked;
+	private static volatile bool s_dockerAvailable;
+
 	private LocalStackContainer? _container;
 	private AmazonSQSClient? _sqsClient;
 	private bool _dockerAvailable;
 
 	public async Task InitializeAsync()
 	{
+		if (s_dockerChecked)
+		{
+			_dockerAvailable = s_dockerAvailable;
+			if (!_dockerAvailable)
+			{
+				return;
+			}
+		}
+
 		try
 		{
 			_container = new LocalStackBuilder()
@@ -46,6 +63,9 @@ public sealed class AwsSqsTransportSenderIntegrationShould : IAsyncLifetime, IDi
 			Console.WriteLine($"Docker initialization failed: {ex.Message}");
 			_dockerAvailable = false;
 		}
+
+		s_dockerAvailable = _dockerAvailable;
+		s_dockerChecked = true;
 	}
 
 	public void Dispose()
