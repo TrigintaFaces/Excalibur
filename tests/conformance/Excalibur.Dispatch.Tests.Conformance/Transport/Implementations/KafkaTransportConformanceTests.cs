@@ -3,7 +3,11 @@
 
 using Confluent.Kafka;
 
+using DotNet.Testcontainers.Builders;
+
 using Testcontainers.Kafka;
+
+using Tests.Shared.Fixtures;
 
 using Xunit;
 
@@ -28,9 +32,14 @@ public sealed class KafkaTransportConformanceTests
 
 	protected override async Task<KafkaChannelSender> CreateSenderAsync()
 	{
-		// Start Kafka container
+		// Start Kafka container with pinned image and proper wait strategy
 		_kafkaContainer = new KafkaBuilder()
-			.WithImage("confluentinc/cp-kafka:latest")
+			.WithImage(KafkaContainerFixture.DefaultImage)
+			.WithName($"kafka-conformance-{Guid.NewGuid():N}")
+			.WithWaitStrategy(Wait.ForUnixContainer()
+				.UntilMessageIsLogged(".*Kafka Server started.*")
+				.UntilPortIsAvailable(9093))
+			.WithCleanUp(true)
 			.Build();
 
 		await _kafkaContainer.StartAsync();

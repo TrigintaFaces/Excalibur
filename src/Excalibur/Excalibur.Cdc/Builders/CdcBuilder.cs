@@ -90,4 +90,35 @@ internal sealed class CdcBuilder : ICdcBuilder
 		_options.EnableBackgroundProcessing = enable;
 		return this;
 	}
+
+	/// <summary>
+	/// Gets the configuration section path for tracked tables binding, if set.
+	/// </summary>
+	internal string? TrackedTablesConfigSectionPath { get; private set; }
+
+	/// <summary>
+	/// Gets a value indicating whether handler-based table auto-discovery is enabled.
+	/// </summary>
+	internal bool AutoDiscoverFromHandlers { get; private set; }
+
+	/// <inheritdoc/>
+	public ICdcBuilder BindTrackedTables(string configSectionPath)
+	{
+		ArgumentNullException.ThrowIfNull(configSectionPath);
+
+		if (string.IsNullOrWhiteSpace(configSectionPath))
+		{
+			throw new ArgumentException("Configuration section path cannot be empty or whitespace.", nameof(configSectionPath));
+		}
+
+		TrackedTablesConfigSectionPath = configSectionPath;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ICdcBuilder TrackTablesFromHandlers()
+	{
+		AutoDiscoverFromHandlers = true;
+		return this;
+	}
 }

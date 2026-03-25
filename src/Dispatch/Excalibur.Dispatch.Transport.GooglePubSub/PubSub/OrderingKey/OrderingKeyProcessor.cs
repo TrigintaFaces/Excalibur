@@ -204,11 +204,27 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 			// before any ProcessorWorkerAsync is scheduled, causing silent work loss.
 			try
 			{
-				await _workersStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+				await _workersStarted.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 			}
 			catch (TimeoutException)
 			{
 				LogWorkerStartTimeout();
+
+				// Safety net: drain any buffered work items before completing the channel.
+				// When no worker started, these items would be silently lost.
+				while (_workChannel.Reader.TryRead(out var orphanedWork))
+				{
+					try
+					{
+						await orphanedWork.Handler(orphanedWork.Message, CancellationToken.None).ConfigureAwait(false);
+						orphanedWork.CompletionSource.TrySetResult();
+					}
+					catch (Exception ex)
+					{
+						LogOrphanedWorkProcessingError(ex);
+						orphanedWork.CompletionSource.TrySetException(ex);
+					}
+				}
 			}
 
 			_ = _workChannel.Writer.TryComplete();
@@ -455,8 +471,12 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 	private partial void LogUnorderedMessageError(string messageId, Exception ex);
 
 	[LoggerMessage(GooglePubSubEventId.OrderingWorkerStartTimeout, LogLevel.Warning,
-		"OrderingKeyProcessor worker tasks did not start within 5 seconds during disposal")]
+		"OrderingKeyProcessor worker tasks did not start within 30 seconds during disposal")]
 	private partial void LogWorkerStartTimeout();
+
+	[LoggerMessage(GooglePubSubEventId.OrphanedWorkProcessingError, LogLevel.Error,
+		"Error processing orphaned work item during OrderingKeyProcessor shutdown drain")]
+	private partial void LogOrphanedWorkProcessingError(Exception exception);
 
 	[LoggerMessage(GooglePubSubEventId.OrderingQueueRemoved, LogLevel.Debug,
 		"Removed empty queue for ordering key {OrderingKey}")]

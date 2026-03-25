@@ -236,6 +236,9 @@ public static class GooglePubSubEventId
 	/// <summary>Ordering key worker start timeout during disposal.</summary>
 	public const int OrderingWorkerStartTimeout = 23319;
 
+	/// <summary>Error processing orphaned work item during OrderingKeyProcessor shutdown drain.</summary>
+	public const int OrphanedWorkProcessingError = 23928;
+
 	// OrderingKeyManager
 	/// <summary>Ordering key manager initialized.</summary>
 	public const int OrderingManagerInitialized = 23320;

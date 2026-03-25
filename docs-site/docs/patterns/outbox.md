@@ -256,6 +256,27 @@ services.AddExcaliburOutbox(outbox =>
 });
 ```
 
+### Redis
+
+```csharp
+services.AddExcaliburOutbox(outbox =>
+{
+    outbox.UseRedis(options =>
+    {
+        options.ConnectionString = "localhost:6379";
+        options.KeyPrefix = "outbox:";
+    });
+});
+
+// Or with an existing ConnectionMultiplexer
+services.AddExcaliburOutbox(outbox =>
+{
+    outbox.UseRedis(
+        sp => sp.GetRequiredService<ConnectionMultiplexer>(),
+        options => options.KeyPrefix = "outbox:");
+});
+```
+
 ### MongoDB
 
 ```csharp
@@ -265,7 +286,60 @@ services.AddExcaliburOutbox(outbox =>
     {
         options.ConnectionString = connectionString;
         options.DatabaseName = "myapp";
+        options.CollectionName = "outbox_messages";
+    });
+});
+```
+
+### Elasticsearch
+
+```csharp
+services.AddExcaliburOutbox(outbox =>
+{
+    outbox.UseElasticSearch(options =>
+    {
+        options.IndexName = "excalibur-outbox";
+        options.DefaultBatchSize = 100;
+    });
+});
+```
+
+### Firestore
+
+```csharp
+services.AddExcaliburOutbox(outbox =>
+{
+    outbox.UseFirestore(options =>
+    {
+        options.ProjectId = "my-gcp-project";
         options.CollectionName = "outbox";
+    });
+});
+```
+
+### Cosmos DB
+
+```csharp
+services.AddExcaliburOutbox(outbox =>
+{
+    outbox.UseCosmosDb(options =>
+    {
+        options.Connection.ConnectionString = connectionString;
+        options.DatabaseName = "myapp";
+        options.ContainerName = "outbox";
+    });
+});
+```
+
+### DynamoDB
+
+```csharp
+services.AddExcaliburOutbox(outbox =>
+{
+    outbox.UseDynamoDb(options =>
+    {
+        options.Connection.Region = "us-east-1";
+        options.TableName = "outbox";
     });
 });
 ```

@@ -330,6 +330,9 @@ public static class AwsSqsEventId
 	/// <summary>Batch send task start timeout during stop.</summary>
 	public const int ChannelBatchSendStartTimeout = 25429;
 
+	/// <summary>Error sending orphaned message batch during SqsChannelAdapter shutdown drain.</summary>
+	public const int OrphanedBatchSendError = 26128;
+
 	// SqsChannelMessageProcessor
 	/// <summary>Starting SQS channel processor.</summary>
 	public const int ChannelProcessorStarting = 25430;

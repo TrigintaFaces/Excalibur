@@ -7,7 +7,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// <summary>
 /// Defines a handler for processing data change events for specific database tables.
 /// </summary>
-public interface IDataChangeHandler
+public interface IDataChangeHandler : ICdcTableProvider
 {
 	/// <summary>
 	/// Gets the names of the tables that this handler is responsible for processing.
@@ -19,7 +19,7 @@ public interface IDataChangeHandler
 	/// Each table name corresponds to a database table that the handler can process. Table names should match the names in the CDC
 	/// configuration exactly.
 	/// </remarks>
-	string[] TableNames { get; }
+	new string[] TableNames { get; }
 
 	/// <summary>
 	/// Processes a data change event for a specific table.

@@ -756,7 +756,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	}
 
 	/// <summary>
-	/// Regression test for bd-8rpq4: DisposeAsync race condition.
+	/// Regression test for S699: DisposeAsync race condition.
 	/// Under thread pool saturation, DisposeAsync could complete the channel before
 	/// ProcessBatchesAsync started reading, causing silent item loss.
 	/// The fix adds a TaskCompletionSource signal awaited by DisposeAsync.
@@ -791,13 +791,14 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		await processor.AddAsync("race-condition-item", CancellationToken.None).ConfigureAwait(false);
 		await processor.DisposeAsync().ConfigureAwait(false);
 
-		// Assert - Item must be processed despite immediate disposal
+		// Assert - Item must be processed despite immediate disposal.
+		// DisposeAsync guarantees channel drain (30s timeout + safety net, S701).
 		processedItems.Count.ShouldBe(1);
 		processedItems.ShouldContain("race-condition-item");
 	}
 
 	/// <summary>
-	/// Regression test for bd-8rpq4: Multiple items added then immediate dispose.
+	/// Regression test for S699: Multiple items added then immediate dispose.
 	/// Verifies that all items queued before disposal are processed.
 	/// </summary>
 	[Fact]
@@ -834,7 +835,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		await processor.DisposeAsync().ConfigureAwait(false);
 
-		// Assert - All items must be processed
+		// Assert - All items must be processed.
+		// DisposeAsync guarantees channel drain (30s timeout + safety net, S701).
 		processedItems.Count.ShouldBe(5);
 		for (var i = 0; i < 5; i++)
 		{
@@ -843,7 +845,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	}
 
 	/// <summary>
-	/// Regression test for bd-8rpq4: Double DisposeAsync is idempotent.
+	/// Regression test for S699: Double DisposeAsync is idempotent.
 	/// Ensures the TCS signal pattern does not break idempotent disposal.
 	/// </summary>
 	[Fact]

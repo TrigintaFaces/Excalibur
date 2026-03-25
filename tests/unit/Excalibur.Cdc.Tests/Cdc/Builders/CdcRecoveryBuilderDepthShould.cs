@@ -225,5 +225,7 @@ public sealed class CdcRecoveryBuilderDepthShould
 		}
 
 		public ICdcBuilder EnableBackgroundProcessing(bool enable = true) => this;
+		public ICdcBuilder BindTrackedTables(string configSectionPath) => this;
+		public ICdcBuilder TrackTablesFromHandlers() => this;
 	}
 }

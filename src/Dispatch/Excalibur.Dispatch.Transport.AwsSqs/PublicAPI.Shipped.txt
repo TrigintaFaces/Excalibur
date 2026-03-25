@@ -1577,3 +1577,4 @@ static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.MaxMessageRe
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.MaxVisibilityTimeout -> System.TimeSpan
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.MinMessageRetentionPeriod -> System.TimeSpan
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.MinVisibilityTimeout -> System.TimeSpan
+const Excalibur.Dispatch.Transport.AwsSqs.AwsSqsEventId.OrphanedBatchSendError = 26128 -> int

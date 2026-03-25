@@ -287,7 +287,7 @@ public partial class CdcProcessor : ICdcProcessor
 
 				try
 				{
-					using var disposalCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+					using var disposalCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 					_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), disposalCts.Token).ConfigureAwait(false);
 				}
 				catch (TimeoutException ex)
@@ -305,7 +305,7 @@ public partial class CdcProcessor : ICdcProcessor
 			{
 				try
 				{
-					await task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+					await task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 				}
 				catch (TimeoutException)
 				{

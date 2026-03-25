@@ -489,6 +489,48 @@ services.AddCdcProcessor(cdc =>
 });
 ```
 
+## Postgres Builder Reference
+
+The `IPostgresCdcBuilder` interface provides fluent configuration for Postgres CDC:
+
+| Method | Description | Default |
+|--------|-------------|---------|
+| `SchemaName(string)` | Schema for CDC state tables | `"excalibur"` |
+| `StateTableName(string)` | Table name for CDC processing state | `"cdc_state"` |
+| `PollingInterval(TimeSpan)` | How often to poll for changes | 1 second |
+| `BatchSize(int)` | Changes per processing batch | 1000 |
+| `Timeout(TimeSpan)` | Replication operation timeout | 30 seconds |
+| `ProcessorId(string)` | Identifier for this CDC processor instance | Machine name |
+| `ReplicationSlotName(string)` | Postgres logical replication slot name | `"excalibur_cdc_slot"` |
+| `PublicationName(string)` | Postgres publication name | `"excalibur_cdc_publication"` |
+| `UseBinaryProtocol(bool)` | Use binary protocol for logical replication | `false` |
+| `AutoCreateSlot(bool)` | Auto-create replication slot if missing | `false` |
+| `ConnectionString(string)` | Postgres source connection string | -- |
+| `ConnectionStringName(string)` | Resolve connection from `IConfiguration.GetConnectionString()` | -- |
+| `ConnectionFactory(Func<IServiceProvider, Func<NpgsqlConnection>>)` | DI-integrated source connection factory | -- |
+| `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
+| `WithStateStore(Action<ICdcStateStoreBuilder>)` | Configure separate state store connection and schema | Source connection |
+| `StateConnectionFactory(Func<IServiceProvider, Func<NpgsqlConnection>>)` | DI-integrated state connection factory | Source connection |
+
+### Postgres Example
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UsePostgres(pg =>
+    {
+        pg.ConnectionString(connectionString)
+           .ReplicationSlotName("orders_cdc_slot")
+           .PublicationName("orders_publication")
+           .AutoCreateSlot()
+           .PollingInterval(TimeSpan.FromSeconds(1))
+           .BatchSize(500);
+    })
+    .TrackTable("public.orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+```
+
 ## Separate State Store Connection
 
 By default, CDC uses the same connection for reading changes and persisting checkpoints. In production, you may want to separate these concerns — for example, when your CDC source is a read-replica that should not carry checkpoint write load, or when the state store lives on a different tier.
@@ -563,7 +605,7 @@ Bind all options from `appsettings.json`:
     "SqlServer": {
       "ConnectionString": "Server=.;Database=OrdersDb;...",
       "SchemaName": "Cdc",
-      "PollingIntervalSeconds": 5,
+      "PollingInterval": "00:00:05",
       "BatchSize": 100
     }
   }
@@ -670,7 +712,7 @@ services.AddCdcProcessor(cdc =>
     "SqlServer": {
       "SchemaName": "Cdc",
       "StateTableName": "CdcProcessingState",
-      "PollingIntervalSeconds": 5,
+      "PollingInterval": "00:00:05",
       "BatchSize": 100
     }
   }
@@ -678,6 +720,116 @@ services.AddCdcProcessor(cdc =>
 ```
 
 `BindConfiguration` uses `OptionsBuilder<T>.BindConfiguration()` with `ValidateDataAnnotations` and `ValidateOnStart` for fail-fast startup validation.
+
+## Config-Driven Table Binding
+
+Instead of (or in addition to) registering tables in code, you can declare tracked tables in `appsettings.json` and bind them with `BindTrackedTables`:
+
+```json
+{
+  "Cdc": {
+    "Tables": [
+      { "TableName": "dbo.Orders", "CaptureInstance": "dbo_Orders_v2" },
+      { "TableName": "dbo.Customers" }
+    ]
+  }
+}
+```
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .BindTrackedTables("Cdc:Tables")
+       .EnableBackgroundProcessing();
+});
+```
+
+Config-bound tables merge additively with code-registered tables. Duplicate table names (case-insensitive) are skipped — code-registered tables always take precedence. Event mappings cannot be expressed in configuration and remain code-only via `TrackTable()`.
+
+### Combining Code and Config
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       // Code-registered table with event mappings (takes precedence)
+       .TrackTable("dbo.Orders", table =>
+       {
+           table.MapInsert<OrderCreatedEvent, OrderCreatedMapper>()
+                .MapUpdate<OrderUpdatedEvent, OrderUpdatedMapper>();
+       })
+       // Config-bound tables (additively merged, duplicates skipped)
+       .BindTrackedTables("Cdc:Tables")
+       .EnableBackgroundProcessing();
+});
+```
+
+## Handler Auto-Discovery
+
+Use `TrackTablesFromHandlers()` to automatically discover tracked tables from registered handler implementations without listing each table explicitly:
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .TrackTablesFromHandlers()
+       .EnableBackgroundProcessing();
+});
+
+// Register your handlers (or use assembly scanning)
+services.AddDataChangeHandlersFromAssembly(typeof(OrderCdcHandler).Assembly);
+```
+
+At startup, the framework resolves all `ICdcTableProvider` services from DI and registers their declared `TableNames` as tracked tables. Provider-specific handlers like `IDataChangeHandler` (SQL Server) implement `ICdcTableProvider`, so they are discovered automatically.
+
+### ICdcTableProvider Interface
+
+Any type implementing `ICdcTableProvider` participates in auto-discovery:
+
+```csharp
+public interface ICdcTableProvider
+{
+    string[] TableNames { get; }
+}
+```
+
+`IDataChangeHandler` extends `ICdcTableProvider`, so existing SQL Server handlers are discovered without changes.
+
+### Precedence Rules
+
+When combining all three table registration methods, the precedence order is:
+
+1. **Code-registered** (`TrackTable()`) — highest priority
+2. **Config-bound** (`BindTrackedTables()`)
+3. **Handler-discovered** (`TrackTablesFromHandlers()`) — lowest priority
+
+Duplicates by table name (case-insensitive) are skipped at each level.
+
+### Full Example
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sql =>
+    {
+        sql.ConnectionStringName("CdcSource")
+           .DatabaseName("OrdersDb");
+    })
+    // Explicit table with event mappings
+    .TrackTable("dbo.Orders", table =>
+    {
+        table.MapInsert<OrderCreatedEvent, OrderCreatedMapper>()
+             .MapUpdate<OrderUpdatedEvent, OrderUpdatedMapper>()
+             .MapDelete<OrderDeletedEvent, OrderDeletedMapper>();
+    })
+    // Additional tables from config
+    .BindTrackedTables("Cdc:Tables")
+    // Remaining tables from registered handlers
+    .TrackTablesFromHandlers()
+    .EnableBackgroundProcessing();
+});
+```
 
 ## Checkpointing
 

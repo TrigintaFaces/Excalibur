@@ -198,11 +198,25 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		// before ProcessBatchesAsync is scheduled, causing silent item loss.
 		try
 		{
-			await _processingStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+			await _processingStarted.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 		}
 		catch (TimeoutException)
 		{
 			LogProcessingTaskStartTimeout(_logger);
+
+			// Safety net: drain any buffered items before completing the channel.
+			// When ProcessBatchesAsync never started, these items would be silently lost.
+			while (_inputChannel.Reader.TryRead(out var orphanedItem))
+			{
+				try
+				{
+					await _batchProcessor([orphanedItem.Item]).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					LogOrphanedItemProcessingError(_logger, ex);
+				}
+			}
 		}
 
 		_ = _inputChannel.Writer.TryComplete();
@@ -586,8 +600,11 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	[LoggerMessage(LogLevel.Debug, "CancellationTokenSource already disposed during shutdown signal")]
 	private static partial void LogShutdownCancellationTokenDisposed(ILogger logger);
 
-	[LoggerMessage(LogLevel.Warning, "BatchProcessor processing task did not start within 5 seconds during disposal")]
+	[LoggerMessage(LogLevel.Warning, "BatchProcessor processing task did not start within 30 seconds during disposal")]
 	private static partial void LogProcessingTaskStartTimeout(ILogger logger);
+
+	[LoggerMessage(CoreEventId.OrphanedItemProcessingError, LogLevel.Error, "Error processing orphaned item during BatchProcessor shutdown drain")]
+	private static partial void LogOrphanedItemProcessingError(ILogger logger, Exception exception);
 
 	[LoggerMessage(LogLevel.Warning, "BatchProcessor processing task did not complete within 30 seconds during disposal")]
 	private static partial void LogProcessingTaskTimeout(ILogger logger);

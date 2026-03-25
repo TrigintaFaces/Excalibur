@@ -122,7 +122,7 @@ services.AddExcaliburOutbox(
 | BatchSize | 1000 | 100 | 10 |
 | PollingInterval | 100ms | 1s | 5s |
 | MaxRetryCount | 3 | 5 | 10 |
-| RetryDelay | 30s | 1min | 5min |
+| RetryDelay | 1min | 5min | 15min |
 | Parallelism | 8 | 4 | 1 |
 
 ## Database Providers
@@ -149,6 +149,143 @@ outbox.UsePostgres(pg =>
        .TableName("messages");
 });
 ```
+
+### Redis
+
+```csharp
+// With connection string
+outbox.UseRedis(options =>
+{
+    options.ConnectionString = "localhost:6379";
+    options.KeyPrefix = "outbox:";
+    options.DatabaseId = 0;
+});
+
+// With existing ConnectionMultiplexer from DI
+outbox.UseRedis(
+    sp => sp.GetRequiredService<ConnectionMultiplexer>(),
+    options =>
+    {
+        options.KeyPrefix = "outbox:";
+    });
+```
+
+`RedisOutboxOptions` properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `ConnectionString` | `string` | `"localhost:6379"` | Redis connection string |
+| `DatabaseId` | `int` | `0` | Redis database ID |
+| `KeyPrefix` | `string` | `"outbox"` | Key prefix for outbox entries |
+| `SentMessageTtlSeconds` | `int` | `604800` (7 days) | TTL for sent messages (0 = no expiration) |
+| `ConnectTimeoutMs` | `int` | `5000` | Connection timeout in milliseconds |
+| `SyncTimeoutMs` | `int` | `5000` | Sync operation timeout in milliseconds |
+| `AbortOnConnectFail` | `bool` | `false` | Whether to abort on connect failure |
+| `UseSsl` | `bool` | `false` | Whether to use SSL/TLS |
+| `Password` | `string?` | `null` | Redis authentication password |
+
+### MongoDB
+
+```csharp
+outbox.UseMongoDB(options =>
+{
+    options.ConnectionString = "mongodb://localhost:27017";
+    options.DatabaseName = "myapp";
+    options.CollectionName = "outbox_messages";
+});
+```
+
+Key `MongoDbOutboxOptions` properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `ConnectionString` | `string` | `"mongodb://localhost:27017"` | MongoDB connection string |
+| `DatabaseName` | `string` | `"excalibur"` | Database name |
+| `CollectionName` | `string` | `"outbox_messages"` | Collection name |
+| `SentMessageTtlSeconds` | `int` | `604800` (7 days) | TTL for sent messages |
+| `MaxPoolSize` | `int` | `100` | Max connection pool size |
+
+### Elasticsearch
+
+```csharp
+outbox.UseElasticSearch(options =>
+{
+    options.IndexName = "excalibur-outbox";
+    options.DefaultBatchSize = 100;
+});
+```
+
+Key `ElasticsearchOutboxOptions` properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `IndexName` | `string` | `"excalibur-outbox"` | Elasticsearch index name |
+| `DefaultBatchSize` | `int` | `100` | Default batch size for operations |
+| `RefreshPolicy` | `string` | `"wait_for"` | Index refresh policy |
+| `SentMessageRetentionDays` | `int` | `7` | Retention period for sent messages |
+
+### Firestore
+
+```csharp
+outbox.UseFirestore(options =>
+{
+    options.ProjectId = "my-gcp-project";
+    options.CollectionName = "outbox";
+});
+```
+
+Key `FirestoreOutboxOptions` properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `ProjectId` | `string?` | `null` | GCP project ID (required unless using emulator) |
+| `CollectionName` | `string` | `"outbox"` | Firestore collection name |
+| `EmulatorHost` | `string?` | `null` | Firestore emulator host for development |
+| `MaxBatchSize` | `int` | `500` | Max batch size (Firestore limit: 500) |
+| `CreateCollectionIfNotExists` | `bool` | `true` | Auto-create collection |
+
+### Cosmos DB
+
+```csharp
+outbox.UseCosmosDb(options =>
+{
+    options.Connection.ConnectionString = connectionString;
+    options.DatabaseName = "myapp";
+    options.ContainerName = "outbox";
+});
+```
+
+Key `CosmosDbOutboxOptions` properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DatabaseName` | `string?` | Required | Cosmos DB database name |
+| `ContainerName` | `string` | `"outbox"` | Container name |
+| `Connection.ConnectionString` | `string?` | Required | Cosmos DB connection string |
+| `CreateContainerIfNotExists` | `bool` | `true` | Auto-create container |
+| `ContainerThroughput` | `int` | `400` | Provisioned RU/s for container |
+| `UseDirectMode` | `bool` | `true` | Use direct connection mode |
+
+### DynamoDB
+
+```csharp
+outbox.UseDynamoDb(options =>
+{
+    options.Connection.Region = "us-east-1";
+    options.TableName = "outbox";
+});
+```
+
+Key `DynamoDbOutboxOptions` properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `TableName` | `string` | `"outbox"` | DynamoDB table name |
+| `Connection.Region` | `string?` | Required (AWS) | AWS region |
+| `Connection.ServiceUrl` | `string?` | `null` | Service URL (for local DynamoDB) |
+| `CreateTableIfNotExists` | `bool` | `true` | Auto-create table |
+| `EnableStreams` | `bool` | `true` | Enable DynamoDB Streams |
+| `DefaultTimeToLiveSeconds` | `int` | `604800` (7 days) | TTL for items |
 
 ### In-Memory (Testing)
 

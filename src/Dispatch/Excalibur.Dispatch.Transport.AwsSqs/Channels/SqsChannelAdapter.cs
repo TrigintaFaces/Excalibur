@@ -312,11 +312,29 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 		// before ProcessSendBatchesAsync is scheduled, causing silent message loss.
 		try
 		{
-			await _batchSendStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+			await _batchSendStarted.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 		}
 		catch (TimeoutException)
 		{
 			LogBatchSendStartTimeout();
+
+			// Safety net: drain any buffered send batches before completing the channel.
+			// When ProcessSendBatchesAsync never started, these messages would be silently lost.
+			while (_sendChannel.Reader.TryRead(out var orphanedBatch))
+			{
+				try
+				{
+					var entries = orphanedBatch.Entries.ToList();
+					if (entries.Count > 0)
+					{
+						await SendBatchAsync(entries, CancellationToken.None).ConfigureAwait(false);
+					}
+				}
+				catch (Exception ex)
+				{
+					LogOrphanedBatchSendError(ex);
+				}
+			}
 		}
 
 		_ = _sendChannel.Writer.TryComplete();
@@ -576,7 +594,11 @@ internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message
 		"Error sending message batch of {Count} messages")]
 	private partial void LogMessageBatchSendError(int count, Exception ex);
 
+	[LoggerMessage(AwsSqsEventId.OrphanedBatchSendError, LogLevel.Error,
+		"Error sending orphaned message batch during SqsChannelAdapter shutdown drain")]
+	private partial void LogOrphanedBatchSendError(Exception exception);
+
 	[LoggerMessage(AwsSqsEventId.ChannelBatchSendStartTimeout, LogLevel.Warning,
-		"SqsChannelAdapter batch send task did not start within 5 seconds during stop")]
+		"SqsChannelAdapter batch send task did not start within 30 seconds during stop")]
 	private partial void LogBatchSendStartTimeout();
 }

@@ -313,6 +313,9 @@ public static class CoreEventId
 	/// <summary>Batch flush error.</summary>
 	public const int BatchFlushError = 10708;
 
+	/// <summary>Error processing an orphaned item during shutdown channel drain.</summary>
+	public const int OrphanedItemProcessingError = 10709;
+
 	// ========================================
 	// 10800-10899: Object Pooling
 	// ========================================

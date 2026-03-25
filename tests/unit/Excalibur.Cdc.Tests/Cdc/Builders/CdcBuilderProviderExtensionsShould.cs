@@ -27,6 +27,8 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 		public ICdcBuilder TrackTable<TEntity>(Action<ICdcTableBuilder>? configure = null) where TEntity : class => this;
 		public ICdcBuilder WithRecovery(Action<ICdcRecoveryBuilder> configure) => this;
 		public ICdcBuilder EnableBackgroundProcessing(bool enable = true) => this;
+		public ICdcBuilder BindTrackedTables(string configSectionPath) => this;
+		public ICdcBuilder TrackTablesFromHandlers() => this;
 	}
 
 	#region UseCosmosDb

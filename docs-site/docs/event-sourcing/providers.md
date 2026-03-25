@@ -113,6 +113,35 @@ var dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("Post
 services.AddPostgresEventSourcing(dataSource);
 ```
 
+### Projection Store
+
+Register a Postgres-backed projection store for read models:
+
+```csharp
+// With connection string
+services.AddPostgresProjectionStore<OrderSummaryProjection>(options =>
+{
+    options.ConnectionString = connectionString;
+    options.TableName = "order_summaries"; // Optional: defaults to snake_case type name
+});
+
+// With NpgsqlDataSource (recommended for connection pooling)
+services.AddPostgresProjectionStore<OrderSummaryProjection>(
+    dataSourceFactory: sp => sp.GetRequiredService<NpgsqlDataSource>(),
+    configureOptions: options =>
+    {
+        options.TableName = "order_summaries";
+    });
+```
+
+`PostgresProjectionStoreOptions` properties:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `ConnectionString` | `string?` | Required | Postgres connection string |
+| `TableName` | `string?` | Type name (snake_case) | Table name for projections |
+| `JsonSerializerOptions` | `JsonSerializerOptions?` | camelCase, no indent | JSON serializer options for projection data |
+
 ---
 
 ## Azure Cosmos DB

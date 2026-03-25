@@ -11,7 +11,7 @@ using Excalibur.Dispatch.Transport.Kafka;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Testcontainers.Kafka;
+using Tests.Shared.Fixtures;
 using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
@@ -22,38 +22,33 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 /// reflection (MethodInfo.Invoke) to invoke their methods — dynamic dispatch cannot resolve
 /// methods on internal types across assembly boundaries.
 /// </summary>
+/// <remarks>
+/// Uses the shared <see cref="KafkaContainerFixture"/> via xUnit collection fixture to avoid
+/// starting a new container per test class, which reduces Docker resource contention and prevents
+/// rdkafka native lib crashes when containers die mid-run.
+/// </remarks>
+[Collection(ContainerCollections.Kafka)]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Kafka")]
 [Trait("Component", "Transport")]
-public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
+public sealed class KafkaDeadLetterIntegrationShould
 {
 	private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(30));
 
-	private KafkaContainer? _container;
-	private string? _bootstrapServers;
+	private readonly KafkaContainerFixture _fixture;
 
-	public async Task InitializeAsync()
+	public KafkaDeadLetterIntegrationShould(KafkaContainerFixture fixture)
 	{
-		_container = new KafkaBuilder()
-			.WithImage("confluentinc/cp-kafka:7.5.0")
-			.WithName($"kafka-dlq-test-{Guid.NewGuid():N}")
-			.Build();
-
-		await _container.StartAsync().ConfigureAwait(false);
-		_bootstrapServers = _container.GetBootstrapAddress();
+		_fixture = fixture;
 	}
 
-	public async Task DisposeAsync()
-	{
-		if (_container is not null)
-		{
-			await _container.DisposeAsync().ConfigureAwait(false);
-		}
-	}
+	private void EnsureKafkaAvailable() =>
+		Skip.IfNot(_fixture.DockerAvailable, _fixture.InitializationError ?? "Kafka container not available");
 
-	[Fact]
+	[SkippableFact]
 	public async Task ProduceAsync_SendsMessageToDlqTopic()
 	{
+		EnsureKafkaAvailable();
 		// Arrange
 		var sourceTopic = $"test-source-{Guid.NewGuid():N}";
 		var dlqTopic = $"{sourceTopic}.dead-letter";
@@ -111,9 +106,10 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		GetHeaderValue(consumed.Message.Headers, "dlq_stack_trace").ShouldNotBeNull();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ProduceAsync_WithoutException_OmitsExceptionHeaders()
 	{
+		EnsureKafkaAvailable();
 		// Arrange
 		var sourceTopic = $"test-no-exc-{Guid.NewGuid():N}";
 		var dlqTopic = $"{sourceTopic}.dead-letter";
@@ -150,9 +146,10 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		GetHeaderValue(consumed.Message.Headers, "dlq_exception_message").ShouldBeNull();
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task DlqConsumer_ConsumesFromDlqTopic()
 	{
+		EnsureKafkaAvailable();
 		// Arrange
 		var sourceTopic = $"test-consume-dlq-{Guid.NewGuid():N}";
 		var dlqTopic = $"{sourceTopic}.dead-letter";
@@ -211,9 +208,10 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		dlqMessage.Metadata.ShouldContainKey("kafka_offset");
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task DlqConsumer_PeekDoesNotCommitOffset()
 	{
+		EnsureKafkaAvailable();
 		// Arrange
 		var sourceTopic = $"test-peek-dlq-{Guid.NewGuid():N}";
 		var dlqTopic = $"{sourceTopic}.dead-letter";
@@ -280,7 +278,7 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		consumed[0].Reason.ShouldBe("Peek test");
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task DlqTopicNaming_UsesConfiguredSuffix()
 	{
 		// Arrange
@@ -298,9 +296,10 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		await Task.CompletedTask.ConfigureAwait(false);
 	}
 
-	[Fact]
+	[SkippableFact]
 	public async Task ProduceToOriginalTopicAsync_ReprocessesMessage()
 	{
+		EnsureKafkaAvailable();
 		// Arrange
 		var originalTopic = $"test-reprocess-{Guid.NewGuid():N}";
 
@@ -338,7 +337,7 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 	{
 		var config = new ProducerConfig
 		{
-			BootstrapServers = _bootstrapServers,
+			BootstrapServers = _fixture.BootstrapServers,
 			AllowAutoCreateTopics = true,
 		};
 
@@ -349,7 +348,7 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 	{
 		var config = new ConsumerConfig
 		{
-			BootstrapServers = _bootstrapServers,
+			BootstrapServers = _fixture.BootstrapServers,
 			GroupId = groupId,
 			AutoOffsetReset = AutoOffsetReset.Earliest,
 			EnableAutoCommit = true,
@@ -399,7 +398,7 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 
 		var kafkaOptions = Microsoft.Extensions.Options.Options.Create(new KafkaOptions
 		{
-			BootstrapServers = _bootstrapServers!,
+			BootstrapServers = _fixture.BootstrapServers!,
 		});
 
 		var dlqOptions = Microsoft.Extensions.Options.Options.Create(new KafkaDeadLetterOptions

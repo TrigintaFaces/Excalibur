@@ -126,6 +126,23 @@ public static class CdcServiceCollectionExtensions
 			callback(services, options);
 		}
 
+		// Register IPostConfigureOptions for config-driven tracked tables (T.8: BindTrackedTables).
+		if (builder.TrackedTablesConfigSectionPath is not null)
+		{
+			var sectionPath = builder.TrackedTablesConfigSectionPath;
+			services.AddSingleton<IPostConfigureOptions<CdcOptions>>(sp =>
+				new CdcTrackedTablesPostConfigureOptions(
+					sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>(),
+					sectionPath));
+		}
+
+		// Register IPostConfigureOptions for handler-based table auto-discovery (T.9: TrackTablesFromHandlers).
+		if (builder.AutoDiscoverFromHandlers)
+		{
+			services.AddSingleton<IPostConfigureOptions<CdcOptions>>(sp =>
+				new CdcHandlerDiscoveryPostConfigureOptions(sp));
+		}
+
 		// Register the configured options
 		_ = services.AddOptions<CdcOptions>()
 			.Configure(opt =>

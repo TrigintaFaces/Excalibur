@@ -6310,3 +6310,4 @@ static Excalibur.Dispatch.Middleware.Outbox.OutboxPipelineExtensions.UseOutbox(t
 Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions.ProcessingTimeout.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions.ProcessingTimeout.set -> void
 Excalibur.Dispatch.Delivery.InMemoryDeduplicator.ClearAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+const Excalibur.Dispatch.Diagnostics.CoreEventId.OrphanedItemProcessingError = 10709 -> int

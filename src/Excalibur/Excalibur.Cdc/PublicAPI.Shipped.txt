@@ -254,3 +254,7 @@ static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartApplyChangeActivity(stri
 static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartCheckpointActivity(string! provider) -> System.Diagnostics.Activity?
 static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartPollActivity(string! provider) -> System.Diagnostics.Activity?
 static Excalibur.Cdc.Diagnostics.CdcActivitySource.StartProcessBatchActivity(string! provider, int batchSize) -> System.Diagnostics.Activity?
+Excalibur.Cdc.ICdcBuilder.BindTrackedTables(string\! configSectionPath) -> Excalibur.Cdc.ICdcBuilder\!
+Excalibur.Cdc.ICdcBuilder.TrackTablesFromHandlers() -> Excalibur.Cdc.ICdcBuilder\!
+Excalibur.Cdc.ICdcTableProvider
+Excalibur.Cdc.ICdcTableProvider.TableNames.get -> string\![]\!

@@ -173,7 +173,7 @@ builder.Services.AddCdcProcessor(cdc =>
        .EnableBackgroundProcessing(options =>
        {
            options.PollingInterval = TimeSpan.FromSeconds(1);
-           options.DrainTimeout = TimeSpan.FromSeconds(30);
+           options.DrainTimeoutSeconds = 30;
        });
 });
 ```
