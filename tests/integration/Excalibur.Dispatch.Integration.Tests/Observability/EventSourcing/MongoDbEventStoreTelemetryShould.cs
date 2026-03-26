@@ -117,63 +117,6 @@ public sealed class MongoDbEventStoreTelemetryShould : IClassFixture<MongoDbEven
 		loadActivity.GetTagItem(EventSourcingTags.FromVersion).ShouldBe(1L);
 	}
 
-	[Fact]
-	public async Task CreateActivitySpanForGetUndispatchedEvents()
-	{
-		// Arrange
-		_fixture.ClearRecordedActivities();
-		var eventStore = _fixture.CreateEventStore();
-		var aggregateId = Guid.NewGuid().ToString();
-
-		// Append an event (will be undispatched by default)
-		var events = new List<IDomainEvent> { CreateTestEvent() };
-		_ = await eventStore.AppendAsync(aggregateId, "TestAggregate", events, -1, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		_fixture.ClearRecordedActivities();
-
-		// Act
-		_ = await eventStore.GetUndispatchedEventsAsync(100, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var activities = _fixture.GetRecordedActivities();
-		var getUndispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.GetUndispatched);
-
-		_ = getUndispatchedActivity.ShouldNotBeNull();
-		getUndispatchedActivity.GetTagItem(EventSourcingTags.BatchSize).ShouldBe(100);
-	}
-
-	[Fact]
-	public async Task CreateActivitySpanForMarkEventAsDispatched()
-	{
-		// Arrange
-		_fixture.ClearRecordedActivities();
-		var eventStore = _fixture.CreateEventStore();
-		var aggregateId = Guid.NewGuid().ToString();
-		var testEvent = CreateTestEvent();
-
-		// Append an event
-		var events = new List<IDomainEvent> { testEvent };
-		_ = await eventStore.AppendAsync(aggregateId, "TestAggregate", events, -1, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		_fixture.ClearRecordedActivities();
-
-		// Act
-		await eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var activities = _fixture.GetRecordedActivities();
-		var markDispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.MarkDispatched);
-
-		_ = markDispatchedActivity.ShouldNotBeNull();
-		markDispatchedActivity.GetTagItem(EventSourcingTags.EventId).ShouldBe(testEvent.EventId);
-	}
-
 	#endregion Event Store Span Creation Tests
 
 	#region Tag Verification Tests
@@ -361,52 +304,6 @@ public sealed class MongoDbEventStoreTelemetryShould : IClassFixture<MongoDbEven
 		appendActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.ConcurrencyConflict);
 	}
 
-	[Fact]
-	public async Task SetSuccessResultOnGetUndispatched()
-	{
-		// Arrange
-		_fixture.ClearRecordedActivities();
-		var eventStore = _fixture.CreateEventStore();
-
-		// Act
-		_ = await eventStore.GetUndispatchedEventsAsync(100, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var activities = _fixture.GetRecordedActivities();
-		var getUndispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.GetUndispatched);
-
-		_ = getUndispatchedActivity.ShouldNotBeNull();
-		getUndispatchedActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
-	}
-
-	[Fact]
-	public async Task SetSuccessResultOnMarkDispatched()
-	{
-		// Arrange
-		var eventStore = _fixture.CreateEventStore();
-		var aggregateId = Guid.NewGuid().ToString();
-		var testEvent = CreateTestEvent();
-
-		_ = await eventStore.AppendAsync(aggregateId, "TestAggregate", new List<IDomainEvent> { testEvent }, -1, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		_fixture.ClearRecordedActivities();
-
-		// Act
-		await eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var activities = _fixture.GetRecordedActivities();
-		var markDispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.MarkDispatched);
-
-		_ = markDispatchedActivity.ShouldNotBeNull();
-		markDispatchedActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
-	}
-
 	#endregion Operation Result Tests
 
 	#region Multiple Operations Sequence Tests
@@ -420,17 +317,11 @@ public sealed class MongoDbEventStoreTelemetryShould : IClassFixture<MongoDbEven
 		var aggregateId = Guid.NewGuid().ToString();
 		var testEvent = CreateTestEvent();
 
-		// Act - Perform sequence: Append -> Load -> GetUndispatched -> MarkDispatched
+		// Act - Perform sequence: Append -> Load
 		_ = await eventStore.AppendAsync(aggregateId, "TestAggregate", new List<IDomainEvent> { testEvent }, -1, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		_ = await eventStore.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
-			.ConfigureAwait(false);
-
-		_ = await eventStore.GetUndispatchedEventsAsync(100, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		await eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -438,11 +329,9 @@ public sealed class MongoDbEventStoreTelemetryShould : IClassFixture<MongoDbEven
 			.Where(a => a.Source.Name == EventSourcingActivitySource.Name)
 			.ToList();
 
-		activities.Count.ShouldBe(4);
+		activities.Count.ShouldBe(2);
 		activities.ShouldContain(a => a.OperationName == EventSourcingActivities.Append);
 		activities.ShouldContain(a => a.OperationName == EventSourcingActivities.Load);
-		activities.ShouldContain(a => a.OperationName == EventSourcingActivities.GetUndispatched);
-		activities.ShouldContain(a => a.OperationName == EventSourcingActivities.MarkDispatched);
 
 		// All operations should have Success result
 		foreach (var activity in activities)

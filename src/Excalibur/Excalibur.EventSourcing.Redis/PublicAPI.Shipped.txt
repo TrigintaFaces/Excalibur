@@ -1,6 +1,5 @@
 #nullable enable
 const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.ConcurrencyConflict = 115200 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventMarkedDispatched = 115003 -> int
 const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventsAppended = 115001 -> int
 const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventsLoaded = 115000 -> int
 const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventStoreOperationFailed = 115004 -> int
@@ -9,15 +8,12 @@ const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.Snapsh
 const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotNotFound = 115103 -> int
 const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotSaved = 115101 -> int
 const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotsDeleted = 115102 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.UndispatchedEventsRetrieved = 115002 -> int
 Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId
 Excalibur.EventSourcing.Redis.EventSourcingBuilderRedisExtensions
 Excalibur.EventSourcing.Redis.RedisEventStore
 Excalibur.EventSourcing.Redis.RedisEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
-Excalibur.EventSourcing.Redis.RedisEventStore.GetUndispatchedEventsAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 Excalibur.EventSourcing.Redis.RedisEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 Excalibur.EventSourcing.Redis.RedisEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
-Excalibur.EventSourcing.Redis.RedisEventStore.MarkEventAsDispatchedAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.Redis.RedisEventStore.RedisEventStore(StackExchange.Redis.ConnectionMultiplexer! connection, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Redis.RedisEventStore!>! logger) -> void
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.ConnectionString.get -> string!
@@ -29,8 +25,6 @@ Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DefaultBatchSize.set -> voi
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.RedisEventStoreOptions() -> void
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.StreamKeyPrefix.get -> string!
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.StreamKeyPrefix.set -> void
-Excalibur.EventSourcing.Redis.RedisEventStoreOptions.UndispatchedSetKey.get -> string!
-Excalibur.EventSourcing.Redis.RedisEventStoreOptions.UndispatchedSetKey.set -> void
 Excalibur.EventSourcing.Redis.RedisSnapshotStore
 Excalibur.EventSourcing.Redis.RedisSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.Redis.RedisSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

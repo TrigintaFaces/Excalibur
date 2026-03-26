@@ -32,9 +32,9 @@ public sealed class EventStoreTimeTravelQueryDepthShould
 		var baseTime = DateTimeOffset.UtcNow.AddHours(-3);
 		var events = new List<StoredEvent>
 		{
-			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, baseTime, false),
-			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, baseTime.AddHours(1), false),
-			new("e3", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 2, baseTime.AddHours(2), false),
+			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, baseTime),
+			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, baseTime.AddHours(1)),
+			new("e3", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 2, baseTime.AddHours(2)),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", "Test", A<CancellationToken>._))
@@ -56,7 +56,7 @@ public sealed class EventStoreTimeTravelQueryDepthShould
 		// Arrange
 		var events = new List<StoredEvent>
 		{
-			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false),
+			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", "Test", A<CancellationToken>._))
@@ -76,8 +76,8 @@ public sealed class EventStoreTimeTravelQueryDepthShould
 		// Arrange
 		var events = new List<StoredEvent>
 		{
-			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false),
-			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, DateTimeOffset.UtcNow, false),
+			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow),
+			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, DateTimeOffset.UtcNow),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", "Test", A<CancellationToken>._))
@@ -111,10 +111,10 @@ public sealed class EventStoreTimeTravelQueryDepthShould
 		// Arrange
 		var events = new List<StoredEvent>
 		{
-			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false),
-			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, DateTimeOffset.UtcNow, false),
-			new("e3", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 2, DateTimeOffset.UtcNow, false),
-			new("e4", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 3, DateTimeOffset.UtcNow, false),
+			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow),
+			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, DateTimeOffset.UtcNow),
+			new("e3", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 2, DateTimeOffset.UtcNow),
+			new("e4", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 3, DateTimeOffset.UtcNow),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", "Test", A<CancellationToken>._))
@@ -135,8 +135,8 @@ public sealed class EventStoreTimeTravelQueryDepthShould
 		// Arrange
 		var events = new List<StoredEvent>
 		{
-			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false),
-			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, DateTimeOffset.UtcNow, false),
+			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow),
+			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, DateTimeOffset.UtcNow),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", "Test", A<CancellationToken>._))
@@ -170,11 +170,11 @@ public sealed class EventStoreTimeTravelQueryDepthShould
 		var baseTime = DateTimeOffset.UtcNow.AddHours(-5);
 		var events = new List<StoredEvent>
 		{
-			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, baseTime, false),
-			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, baseTime.AddHours(1), false),
-			new("e3", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 2, baseTime.AddHours(2), false),
-			new("e4", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 3, baseTime.AddHours(3), false),
-			new("e5", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 4, baseTime.AddHours(4), false),
+			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, baseTime),
+			new("e2", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 1, baseTime.AddHours(1)),
+			new("e3", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 2, baseTime.AddHours(2)),
+			new("e4", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 3, baseTime.AddHours(3)),
+			new("e5", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 4, baseTime.AddHours(4)),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", "Test", A<CancellationToken>._))
@@ -200,7 +200,7 @@ public sealed class EventStoreTimeTravelQueryDepthShould
 		// Arrange
 		var events = new List<StoredEvent>
 		{
-			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false),
+			new("e1", "agg-1", "Test", "Evt", "d"u8.ToArray(), null, 0, DateTimeOffset.UtcNow),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", "Test", A<CancellationToken>._))

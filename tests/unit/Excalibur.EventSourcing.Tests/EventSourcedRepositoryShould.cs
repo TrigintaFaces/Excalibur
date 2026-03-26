@@ -132,8 +132,7 @@ public sealed class EventSourcedRepositoryShould
 			EventData: JsonSerializer.SerializeToUtf8Bytes(domainEvent),
 			Metadata: null,
 			Version: domainEvent.Version,
-			Timestamp: domainEvent.OccurredAt,
-			IsDispatched: false);
+			Timestamp: domainEvent.OccurredAt);
 	}
 
 	private static IEventSerializer CreateMockSerializer(params IDomainEvent[] events)
@@ -412,8 +411,7 @@ public sealed class EventSourcedRepositoryShould
 			EventData: [],
 			Metadata: null,
 			Version: 0,
-			Timestamp: DateTimeOffset.UtcNow,
-			IsDispatched: false);
+			Timestamp: DateTimeOffset.UtcNow);
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "TestAggregate", A<CancellationToken>._))
 			.Returns(new List<StoredEvent> { dummyEvent });
 

@@ -180,66 +180,6 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 	}
 
 	/// <summary>
-	/// Verifies that undispatched events can be retrieved in batches (pagination).
-	/// </summary>
-	[Fact]
-	public async Task PaginateThroughUndispatchedEvents()
-	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
-
-		await ClearAllEventsAsync();
-
-		var eventStore = CreateEventStore();
-		var aggregateId = Guid.NewGuid().ToString();
-		var aggregateType = "TestAggregate";
-
-		// Append 8 events (all undispatched)
-		var events = Enumerable.Range(0, 8)
-			.Select(i => new TestDomainEvent(aggregateId, i))
-			.Cast<IDomainEvent>()
-			.ToList();
-
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
-
-		// Retrieve in batches of 3
-		var batch1 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
-		batch1.Count.ShouldBe(3);
-
-		// Mark first batch as dispatched
-		foreach (var evt in batch1)
-		{
-			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None);
-		}
-
-		// Next batch should return next 3
-		var batch2 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
-		batch2.Count.ShouldBe(3);
-
-		// Mark second batch as dispatched
-		foreach (var evt in batch2)
-		{
-			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None);
-		}
-
-		// Final batch should return remaining 2
-		var batch3 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
-		batch3.Count.ShouldBe(2);
-
-		// Mark remaining as dispatched
-		foreach (var evt in batch3)
-		{
-			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None);
-		}
-
-		// Should be empty now
-		var batch4 = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
-		batch4.Count.ShouldBe(0);
-	}
-
-	/// <summary>
 	/// Verifies that events maintain their aggregate association through load-from-version reads.
 	/// </summary>
 	[Fact]
@@ -346,7 +286,6 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 		storedEvent.AggregateId.ShouldBe(aggregateId);
 		storedEvent.AggregateType.ShouldBe(aggregateType);
 		storedEvent.Version.ShouldBe(0);
-		storedEvent.IsDispatched.ShouldBeFalse();
 		storedEvent.EventData.ShouldNotBeNull();
 		storedEvent.EventData.Length.ShouldBeGreaterThan(0);
 	}
@@ -379,7 +318,6 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 				Metadata VARBINARY(MAX) NULL,
 				Version BIGINT NOT NULL,
 				Timestamp DATETIMEOFFSET NOT NULL,
-				IsDispatched BIT NOT NULL DEFAULT 0,
 				INDEX IX_EventStoreEvents_Aggregate (AggregateId, AggregateType, Version)
 			)
 			""";

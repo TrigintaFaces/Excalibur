@@ -46,8 +46,6 @@ public sealed class RedisEventStoreShould : UnitTestBase
 		await Should.ThrowAsync<ArgumentException>(() => sut.AppendAsync("", "Order", [], 0, CancellationToken.None).AsTask());
 		await Should.ThrowAsync<ArgumentException>(() => sut.AppendAsync("agg-1", " ", [], 0, CancellationToken.None).AsTask());
 		await Should.ThrowAsync<ArgumentNullException>(() => sut.AppendAsync("agg-1", "Order", null!, 0, CancellationToken.None).AsTask());
-		await Should.ThrowAsync<ArgumentOutOfRangeException>(() => sut.GetUndispatchedEventsAsync(0, CancellationToken.None).AsTask());
-		await Should.ThrowAsync<ArgumentException>(() => sut.MarkEventAsDispatchedAsync(" ", CancellationToken.None).AsTask());
 	}
 
 	[Fact]
@@ -73,8 +71,7 @@ public sealed class RedisEventStoreShould : UnitTestBase
 			EventData: JsonSerializer.SerializeToUtf8Bytes(new { Id = 42 }),
 			Metadata: null,
 			Version: 5,
-			Timestamp: DateTimeOffset.UtcNow,
-			IsDispatched: false);
+			Timestamp: DateTimeOffset.UtcNow);
 
 		var json = JsonSerializer.Serialize(stored);
 		var entries = new[]

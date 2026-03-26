@@ -160,61 +160,6 @@ public sealed class InMemoryEventStoreTelemetryShould : IDisposable
 		loadActivity.GetTagItem(EventSourcingTags.FromVersion).ShouldBe(1L);
 	}
 
-	[Fact]
-	public async Task CreateActivitySpanForGetUndispatchedEvents()
-	{
-		// Arrange
-		ClearRecordedActivities();
-		var aggregateId = Guid.NewGuid().ToString();
-
-		// Append an event (will be undispatched by default)
-		var events = new List<IDomainEvent> { CreateTestEvent() };
-		_ = await _eventStore.AppendAsync(aggregateId, "TestAggregate", events, -1, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		ClearRecordedActivities();
-
-		// Act
-		_ = await _eventStore.GetUndispatchedEventsAsync(100, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var activities = GetRecordedActivities();
-		var getUndispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.GetUndispatched);
-
-		_ = getUndispatchedActivity.ShouldNotBeNull();
-		getUndispatchedActivity.GetTagItem(EventSourcingTags.BatchSize).ShouldBe(100);
-	}
-
-	[Fact]
-	public async Task CreateActivitySpanForMarkEventAsDispatched()
-	{
-		// Arrange
-		ClearRecordedActivities();
-		var aggregateId = Guid.NewGuid().ToString();
-		var testEvent = CreateTestEvent();
-
-		// Append an event
-		var events = new List<IDomainEvent> { testEvent };
-		_ = await _eventStore.AppendAsync(aggregateId, "TestAggregate", events, -1, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		ClearRecordedActivities();
-
-		// Act
-		await _eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var activities = GetRecordedActivities();
-		var markDispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.MarkDispatched);
-
-		_ = markDispatchedActivity.ShouldNotBeNull();
-		markDispatchedActivity.GetTagItem(EventSourcingTags.EventId).ShouldBe(testEvent.EventId);
-	}
-
 	#endregion Event Store Span Creation Tests
 
 	#region Tag Verification Tests
@@ -397,50 +342,6 @@ public sealed class InMemoryEventStoreTelemetryShould : IDisposable
 		appendActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.ConcurrencyConflict);
 	}
 
-	[Fact]
-	public async Task SetSuccessResultOnGetUndispatched()
-	{
-		// Arrange
-		ClearRecordedActivities();
-
-		// Act
-		_ = await _eventStore.GetUndispatchedEventsAsync(100, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var activities = GetRecordedActivities();
-		var getUndispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.GetUndispatched);
-
-		_ = getUndispatchedActivity.ShouldNotBeNull();
-		getUndispatchedActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
-	}
-
-	[Fact]
-	public async Task SetSuccessResultOnMarkDispatched()
-	{
-		// Arrange
-		var aggregateId = Guid.NewGuid().ToString();
-		var testEvent = CreateTestEvent();
-
-		_ = await _eventStore.AppendAsync(aggregateId, "TestAggregate", new List<IDomainEvent> { testEvent }, -1, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		ClearRecordedActivities();
-
-		// Act
-		await _eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var activities = GetRecordedActivities();
-		var markDispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.MarkDispatched);
-
-		_ = markDispatchedActivity.ShouldNotBeNull();
-		markDispatchedActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
-	}
-
 	#endregion Operation Result Tests
 
 	#region Multiple Operations Sequence Tests
@@ -453,17 +354,11 @@ public sealed class InMemoryEventStoreTelemetryShould : IDisposable
 		var aggregateId = Guid.NewGuid().ToString();
 		var testEvent = CreateTestEvent();
 
-		// Act - Perform sequence: Append -> Load -> GetUndispatched -> MarkDispatched
+		// Act - Perform sequence: Append -> Load
 		_ = await _eventStore.AppendAsync(aggregateId, "TestAggregate", new List<IDomainEvent> { testEvent }, -1, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		_ = await _eventStore.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
-			.ConfigureAwait(false);
-
-		_ = await _eventStore.GetUndispatchedEventsAsync(100, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		await _eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -471,11 +366,9 @@ public sealed class InMemoryEventStoreTelemetryShould : IDisposable
 			.Where(a => a.Source.Name == EventSourcingActivitySource.Name)
 			.ToList();
 
-		activities.Count.ShouldBe(4);
+		activities.Count.ShouldBe(2);
 		activities.ShouldContain(a => a.OperationName == EventSourcingActivities.Append);
 		activities.ShouldContain(a => a.OperationName == EventSourcingActivities.Load);
-		activities.ShouldContain(a => a.OperationName == EventSourcingActivities.GetUndispatched);
-		activities.ShouldContain(a => a.OperationName == EventSourcingActivities.MarkDispatched);
 
 		// All operations should have Success result
 		foreach (var activity in activities)
@@ -565,29 +458,6 @@ public sealed class InMemoryEventStoreTelemetryShould : IDisposable
 
 		// Empty append should not create an activity span
 		appendActivity.ShouldBeNull();
-	}
-
-	[Fact]
-	public async Task HandleEmptyUndispatchedResultGracefully()
-	{
-		// Arrange
-		ClearRecordedActivities();
-		_eventStore.Clear(); // Ensure no events exist
-
-		// Act - Get undispatched from empty store
-		var result = await _eventStore.GetUndispatchedEventsAsync(100, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		result.ShouldBeEmpty();
-
-		var activities = GetRecordedActivities();
-		var getUndispatchedActivity = activities.FirstOrDefault(a =>
-			a.OperationName == EventSourcingActivities.GetUndispatched);
-
-		_ = getUndispatchedActivity.ShouldNotBeNull();
-		getUndispatchedActivity.GetTagItem(EventSourcingTags.EventCount).ShouldBe(0);
-		getUndispatchedActivity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(EventSourcingTagValues.Success);
 	}
 
 	#endregion Empty Result Tests

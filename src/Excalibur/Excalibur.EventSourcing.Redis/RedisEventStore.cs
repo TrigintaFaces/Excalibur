@@ -21,7 +21,6 @@ namespace Excalibur.EventSourcing.Redis;
 /// <para>
 /// Uses Redis Streams for the event log: one stream per aggregate (<c>es:{aggregateType}:{aggregateId}</c>).
 /// Optimistic concurrency is enforced via a Lua script that checks stream length before appending.
-/// Undispatched events are tracked in a Redis Sorted Set scored by timestamp.
 /// </para>
 /// </remarks>
 public sealed partial class RedisEventStore : IEventStore
@@ -36,14 +35,10 @@ public sealed partial class RedisEventStore : IEventStore
 	/// Returns the new stream length on success, or -1 on concurrency conflict.
 	/// </summary>
 	/// <remarks>
-	/// KEYS[1] = stream key, KEYS[2] = undispatched sorted set, KEYS[3] = undispatched data hash.
-	/// The data hash stores serialized StoredEvent JSON keyed by event ID so that
-	/// <see cref="GetUndispatchedEventsAsync"/> can retrieve full event data efficiently.
+	/// KEYS[1] = stream key.
 	/// </remarks>
 	private static readonly string AppendScript = """
 		local stream_key = KEYS[1]
-		local undispatched_key = KEYS[2]
-		local undispatched_data_key = KEYS[3]
 		local expected_version = tonumber(ARGV[1])
 		local event_count = tonumber(ARGV[2])
 
@@ -53,7 +48,7 @@ public sealed partial class RedisEventStore : IEventStore
 			return {-1, current_length}
 		end
 
-		-- Append each event to the stream and track as undispatched
+		-- Append each event to the stream
 		local first_id = nil
 		for i = 1, event_count do
 			local base = 2 + (i - 1) * 2
@@ -63,11 +58,6 @@ public sealed partial class RedisEventStore : IEventStore
 			if not first_id then
 				first_id = id
 			end
-			-- Add to undispatched sorted set with current timestamp as score
-			local event_id = ARGV[base + 1]
-			redis.call('ZADD', undispatched_key, redis.call('TIME')[1], event_id)
-			-- Store full event data in hash for efficient retrieval
-			redis.call('HSET', undispatched_data_key, event_id, value)
 		end
 
 		local new_length = redis.call('XLEN', stream_key)
@@ -154,7 +144,6 @@ public sealed partial class RedisEventStore : IEventStore
 
 		var db = GetDatabase();
 		var streamKey = GetStreamKey(aggregateType, aggregateId);
-		var undispatchedKey = (RedisKey)_options.UndispatchedSetKey;
 
 		// Build Lua script arguments: expectedVersion, eventCount, then pairs of (eventId, serializedEvent)
 		var args = new List<RedisValue>
@@ -175,19 +164,16 @@ public sealed partial class RedisEventStore : IEventStore
 				JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType()),
 				null,
 				nextVersion,
-				evt.OccurredAt,
-				false);
+				evt.OccurredAt);
 
 			var serialized = JsonSerializer.Serialize(storedEvent);
 			args.Add(evt.EventId);
 			args.Add(serialized);
 		}
 
-		var undispatchedDataKey = (RedisKey)GetUndispatchedDataKey();
-
 		var result = (RedisResult[]?)await db.ScriptEvaluateAsync(
 			AppendScript,
-			[streamKey, undispatchedKey, undispatchedDataKey],
+			[streamKey],
 			args.ToArray()).ConfigureAwait(false);
 
 		if (result == null || result.Length < 2)
@@ -208,68 +194,6 @@ public sealed partial class RedisEventStore : IEventStore
 		return AppendResult.CreateSuccess(nextVersion, expectedVersion + 1);
 	}
 
-	/// <inheritdoc/>
-	public async ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
-
-		var db = GetDatabase();
-		var undispatchedKey = (RedisKey)_options.UndispatchedSetKey;
-		var undispatchedDataKey = (RedisKey)GetUndispatchedDataKey();
-
-		// Get the oldest undispatched event IDs from the sorted set
-		var eventIds = await db.SortedSetRangeByRankAsync(undispatchedKey, 0, batchSize - 1)
-			.ConfigureAwait(false);
-
-		if (eventIds.Length == 0)
-		{
-			return [];
-		}
-
-		LogUndispatchedEventsRetrieved(eventIds.Length);
-
-		// Retrieve full event data from the companion hash
-		var hashFields = eventIds;
-		var values = await db.HashGetAsync(undispatchedDataKey, hashFields).ConfigureAwait(false);
-
-		var events = new List<StoredEvent>(eventIds.Length);
-		for (var i = 0; i < values.Length; i++)
-		{
-			if (values[i].IsNullOrEmpty)
-			{
-				continue;
-			}
-
-			var storedEvent = JsonSerializer.Deserialize<StoredEvent>(values[i].ToString());
-			if (storedEvent is not null)
-			{
-				events.Add(storedEvent);
-			}
-		}
-
-		return events;
-	}
-
-	/// <inheritdoc/>
-	public async ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
-
-		var db = GetDatabase();
-		var undispatchedKey = (RedisKey)_options.UndispatchedSetKey;
-		var undispatchedDataKey = (RedisKey)GetUndispatchedDataKey();
-
-		// Remove from both the sorted set and the companion data hash
-		await db.SortedSetRemoveAsync(undispatchedKey, eventId).ConfigureAwait(false);
-		await db.HashDeleteAsync(undispatchedDataKey, eventId).ConfigureAwait(false);
-
-		LogEventMarkedDispatched(eventId);
-	}
-
 	private IDatabase GetDatabase() =>
 		_options.DatabaseIndex >= 0
 			? _connection.GetDatabase(_options.DatabaseIndex)
@@ -277,9 +201,6 @@ public sealed partial class RedisEventStore : IEventStore
 
 	private string GetStreamKey(string aggregateType, string aggregateId) =>
 		$"{_options.StreamKeyPrefix}:{aggregateType}:{aggregateId}";
-
-	private string GetUndispatchedDataKey() =>
-		$"{_options.UndispatchedSetKey}:data";
 
 	private static List<StoredEvent> ParseStreamEntries(StreamEntry[] entries)
 	{
@@ -312,14 +233,6 @@ public sealed partial class RedisEventStore : IEventStore
 	[LoggerMessage(RedisEventSourcingEventId.EventsAppended, LogLevel.Debug,
 		"Appended {EventCount} events for aggregate {AggregateId} of type {AggregateType}, new version {NewVersion}")]
 	private partial void LogEventsAppended(string aggregateId, string aggregateType, int eventCount, long newVersion);
-
-	[LoggerMessage(RedisEventSourcingEventId.UndispatchedEventsRetrieved, LogLevel.Debug,
-		"Retrieved {Count} undispatched event IDs")]
-	private partial void LogUndispatchedEventsRetrieved(int count);
-
-	[LoggerMessage(RedisEventSourcingEventId.EventMarkedDispatched, LogLevel.Debug,
-		"Marked event {EventId} as dispatched")]
-	private partial void LogEventMarkedDispatched(string eventId);
 
 	[LoggerMessage(RedisEventSourcingEventId.ConcurrencyConflict, LogLevel.Warning,
 		"Concurrency conflict for aggregate {AggregateId} of type {AggregateType}: expected version {ExpectedVersion}, actual {ActualVersion}")]

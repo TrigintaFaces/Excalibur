@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Excalibur.Testing\Excalibur.Testing.csproj" />
     <ProjectReference Include="..\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\Excalibur.Saga\Excalibur.Saga.csproj" />
   </ItemGroup>
   <!-- Development mode: Dispatch ProjectReferences -->

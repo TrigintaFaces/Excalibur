@@ -17,8 +17,8 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 public sealed class InsertEventRequest : DataRequestBase<IDbConnection, long>
 {
 	private const string Sql = """
-		INSERT INTO events (event_id, aggregate_id, aggregate_type, event_type, event_data, metadata, version, timestamp, is_dispatched)
-		VALUES (@EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp, false)
+		INSERT INTO events (event_id, aggregate_id, aggregate_type, event_type, event_data, metadata, version, timestamp)
+		VALUES (@EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp)
 		RETURNING position
 		""";
 

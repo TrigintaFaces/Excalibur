@@ -26,6 +26,7 @@ public sealed class GlobalStreamProjectionHostShould
 	private readonly IGlobalStreamProjection<GlobalStreamTestState> _projection = A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
 	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
+	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
 
 	[Fact]
 	public void ThrowWhenGlobalStreamQueryIsNull()
@@ -36,7 +37,8 @@ public sealed class GlobalStreamProjectionHostShould
 			_eventSerializer,
 			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider));
 	}
 
 	[Fact]
@@ -48,7 +50,8 @@ public sealed class GlobalStreamProjectionHostShould
 			_eventSerializer,
 			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider));
 	}
 
 	[Fact]
@@ -60,7 +63,8 @@ public sealed class GlobalStreamProjectionHostShould
 			null!,
 			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider));
 	}
 
 	[Fact]
@@ -72,7 +76,8 @@ public sealed class GlobalStreamProjectionHostShould
 			_eventSerializer,
 			_checkpointStore,
 			null!,
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider));
 	}
 
 	[Fact]
@@ -84,7 +89,8 @@ public sealed class GlobalStreamProjectionHostShould
 			_eventSerializer,
 			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
-			null!));
+			null!,
+			_serviceProvider));
 	}
 
 	[Fact]
@@ -103,7 +109,8 @@ public sealed class GlobalStreamProjectionHostShould
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 			}),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance);
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider);
 
 		using var cts = new CancellationTokenSource();
 
@@ -121,7 +128,7 @@ public sealed class GlobalStreamProjectionHostShould
 	{
 #pragma warning restore CA1506
 		// Arrange
-		var storedEvent = new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false);
+		var storedEvent = new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow);
 		var domainEvent = A.Fake<IDomainEvent>();
 		var applyObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -153,7 +160,8 @@ public sealed class GlobalStreamProjectionHostShould
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 			}),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance);
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider);
 
 		using var cts = new CancellationTokenSource();
 
@@ -190,7 +198,8 @@ public sealed class GlobalStreamProjectionHostShould
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 			}),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance);
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider);
 
 		using var cts = new CancellationTokenSource();
 
@@ -227,7 +236,7 @@ public sealed class GlobalStreamProjectionHostShould
 		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
-		var storedEvent = new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false);
+		var storedEvent = new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow);
 		var domainEvent = A.Fake<IDomainEvent>();
 		var checkpointStored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -262,7 +271,8 @@ public sealed class GlobalStreamProjectionHostShould
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 				CheckpointInterval = 1, // Checkpoint after every event
 			}),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance);
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider);
 
 		using var cts = new CancellationTokenSource();
 
@@ -287,7 +297,8 @@ public sealed class GlobalStreamProjectionHostShould
 			_eventSerializer,
 			null!,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance));
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider));
 	}
 
 	private static Task AwaitApplyObservedAsync(Task signal)

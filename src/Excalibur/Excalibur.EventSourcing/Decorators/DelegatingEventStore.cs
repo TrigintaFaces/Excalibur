@@ -55,16 +55,4 @@ public abstract class DelegatingEventStore : IEventStore
 		long expectedVersion,
 		CancellationToken cancellationToken)
 		=> Inner.AppendAsync(aggregateId, aggregateType, events, expectedVersion, cancellationToken);
-
-	/// <inheritdoc />
-	public virtual ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-		=> Inner.GetUndispatchedEventsAsync(batchSize, cancellationToken);
-
-	/// <inheritdoc />
-	public virtual ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken)
-		=> Inner.MarkEventAsDispatchedAsync(eventId, cancellationToken);
 }

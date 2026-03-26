@@ -46,7 +46,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 
 	private static StoredEvent CreatePlaintextStoredEvent(string eventId, byte[] data, byte[]? metadata = null)
 	{
-		return new StoredEvent(eventId, "agg-1", "Order", "OrderCreated", data, metadata, 1, DateTimeOffset.UtcNow, false);
+		return new StoredEvent(eventId, "agg-1", "Order", "OrderCreated", data, metadata, 1, DateTimeOffset.UtcNow);
 	}
 
 	#region Constructor Tests
@@ -230,65 +230,6 @@ public sealed class EncryptingEventStoreDecoratorShould
 
 	#endregion
 
-	#region GetUndispatchedEventsAsync Tests
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_ShouldReturnUnchanged_WhenModeIsDisabled()
-	{
-		// Arrange
-		var decorator = CreateDecorator(EncryptionMode.Disabled);
-		var events = new List<StoredEvent>
-		{
-			CreatePlaintextStoredEvent("evt-1", new byte[] { 5, 6, 7 })
-		};
-		A.CallTo(() => _innerStore.GetUndispatchedEventsAsync(10, _ct))
-			.Returns(events);
-
-		// Act
-		var result = await decorator.GetUndispatchedEventsAsync(10, _ct);
-
-		// Assert
-		result.Count.ShouldBe(1);
-		result[0].EventData.ShouldBe(new byte[] { 5, 6, 7 });
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_ShouldDelegateToInner()
-	{
-		// Arrange
-		var decorator = CreateDecorator(EncryptionMode.Disabled);
-		A.CallTo(() => _innerStore.GetUndispatchedEventsAsync(25, _ct))
-			.Returns(new List<StoredEvent>());
-
-		// Act
-		var result = await decorator.GetUndispatchedEventsAsync(25, _ct);
-
-		// Assert
-		result.Count.ShouldBe(0);
-		A.CallTo(() => _innerStore.GetUndispatchedEventsAsync(25, _ct))
-			.MustHaveHappenedOnceExactly();
-	}
-
-	#endregion
-
-	#region MarkEventAsDispatchedAsync Tests
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_ShouldDelegateToInner()
-	{
-		// Arrange
-		var decorator = CreateDecorator();
-
-		// Act
-		await decorator.MarkEventAsDispatchedAsync("evt-1", _ct);
-
-		// Assert
-		A.CallTo(() => _innerStore.MarkEventAsDispatchedAsync("evt-1", _ct))
-			.MustHaveHappenedOnceExactly();
-	}
-
-	#endregion
-
 	#region Decrypt with Null Metadata Tests
 
 	[Fact]
@@ -298,7 +239,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		var decorator = CreateDecorator(EncryptionMode.EncryptAndDecrypt);
 		var events = new List<StoredEvent>
 		{
-			new StoredEvent("evt-1", "agg-1", "Order", "OrderCreated", new byte[] { 1, 2, 3 }, null, 1, DateTimeOffset.UtcNow, false)
+			new StoredEvent("evt-1", "agg-1", "Order", "OrderCreated", new byte[] { 1, 2, 3 }, null, 1, DateTimeOffset.UtcNow)
 		};
 		A.CallTo(() => _innerStore.LoadAsync("agg-1", "Order", _ct))
 			.Returns(events);

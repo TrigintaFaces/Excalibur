@@ -15,7 +15,7 @@ namespace Excalibur.EventSourcing.Abstractions;
 /// <list type="bullet">
 /// <item>Loading events for aggregate hydration</item>
 /// <item>Appending events with optimistic concurrency control</item>
-/// <item>Outbox pattern support via undispatched event tracking</item>
+/// <item>For reliable event publishing, use the transactional outbox pattern</item>
 /// </list>
 /// </para>
 /// <para>
@@ -71,23 +71,4 @@ public interface IEventStore
 		long expectedVersion,
 		CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Gets all undispatched events for outbox pattern processing.
-	/// </summary>
-	/// <param name="batchSize">Maximum number of events to return.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>Undispatched events in order of creation.</returns>
-	ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Marks an event as dispatched for outbox pattern processing.
-	/// </summary>
-	/// <param name="eventId">The event identifier to mark as dispatched.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>A task representing the asynchronous operation.</returns>
-	ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken);
 }

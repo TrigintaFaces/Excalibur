@@ -76,18 +76,6 @@ internal sealed class MongoDbEventDocument
 	public DateTimeOffset OccurredAt { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether the event has been dispatched.
-	/// </summary>
-	[BsonElement("isDispatched")]
-	public bool IsDispatched { get; set; }
-
-	/// <summary>
-	/// Gets or sets when the event was dispatched.
-	/// </summary>
-	[BsonElement("dispatchedAt")]
-	public DateTimeOffset? DispatchedAt { get; set; }
-
-	/// <summary>
 	/// Gets or sets the global sequence number for ordering.
 	/// </summary>
 	[BsonElement("globalSequence")]
@@ -106,8 +94,7 @@ internal sealed class MongoDbEventDocument
 			Payload,
 			Metadata,
 			Version,
-			OccurredAt,
-			IsDispatched);
+			OccurredAt);
 }
 
 /// <summary>

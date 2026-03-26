@@ -179,8 +179,7 @@ public sealed class CosmosDbEventStoreChangeFeedSubscription : IChangeFeedSubscr
 			Metadata = doc.Metadata,
 			PartitionKeyValue = doc.StreamId,
 			DocumentId = doc.Id,
-			ETag = doc.ETag,
-			IsDispatched = doc.IsDispatched
+			ETag = doc.ETag
 		};
 
 	private async Task PollChangeFeedAsync(CancellationToken cancellationToken)

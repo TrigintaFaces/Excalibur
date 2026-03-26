@@ -84,9 +84,18 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 				return;
 			}
 
-			// Resolve the multi-stream projection
-			if (_serviceProvider.GetService(typeof(MultiStreamProjection<TProjection>))
-				is not MultiStreamProjection<TProjection> projection)
+			// Resolve the multi-stream projection -- check DI first, then IProjectionRegistry (for inline projections)
+			var projection = _serviceProvider.GetService(typeof(MultiStreamProjection<TProjection>))
+				as MultiStreamProjection<TProjection>;
+
+			if (projection is null
+				&& _serviceProvider.GetService(typeof(IProjectionRegistry)) is IProjectionRegistry registry)
+			{
+				var registration = registry.GetRegistration(typeof(TProjection));
+				projection = registration?.Projection as MultiStreamProjection<TProjection>;
+			}
+
+			if (projection is null)
 			{
 				LogNoProjectionRegistered(projectionName);
 

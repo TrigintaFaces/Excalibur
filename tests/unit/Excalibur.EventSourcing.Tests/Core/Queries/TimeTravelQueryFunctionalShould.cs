@@ -40,8 +40,7 @@ public sealed class TimeTravelQueryFunctionalShould
 			EventData: [],
 			Metadata: null,
 			Version: version,
-			Timestamp: BaseTime.AddMinutes(minutesOffset),
-			IsDispatched: false);
+			Timestamp: BaseTime.AddMinutes(minutesOffset));
 	}
 
 	[Fact]

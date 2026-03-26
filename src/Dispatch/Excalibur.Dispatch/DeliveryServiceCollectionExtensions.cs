@@ -7,7 +7,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Delivery;
-using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Options.Scheduling;
 
 using Microsoft.Extensions.Configuration;
@@ -195,29 +194,6 @@ public static class DeliveryServiceCollectionExtensions
 
 		_ = services.AddDispatchScheduling();
 		_ = services.Replace(ServiceDescriptor.Singleton<IDispatchScheduler, TScheduler>());
-
-		return services;
-	}
-
-	/// <summary>
-	/// Binds <see cref="EventStoreDispatcherOptions" /> from configuration.
-	/// </summary>
-	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
-	[RequiresUnreferencedCode("Uses reflection which may break with AOT compilation")]
-	public static IServiceCollection AddEventStoreDispatcherOptions(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = services.AddOptions<EventStoreDispatcherOptions>()
-			.Bind(configuration)
-			.Validate(
-				static options => options.PollInterval > TimeSpan.Zero,
-				"EventStoreDispatcherOptions.PollInterval must be greater than zero.")
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
 
 		return services;
 	}

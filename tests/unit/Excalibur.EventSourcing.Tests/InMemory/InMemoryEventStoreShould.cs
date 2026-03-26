@@ -115,71 +115,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task GetUndispatchedEventCount_ReturnsCorrectCount()
-	{
-		// Arrange
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = new[]
-		{
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId)
-		};
-
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			events,
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// All events are undispatched initially
-		_store.GetUndispatchedEventCount().ShouldBe(3);
-
-		// Mark one as dispatched
-		var undispatched = await _store.GetUndispatchedEventsAsync(1, CancellationToken.None)
-			.ConfigureAwait(false);
-		await _store.MarkEventAsDispatchedAsync(undispatched[0].EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Act
-		var count = _store.GetUndispatchedEventCount();
-
-		// Assert
-		count.ShouldBe(2);
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventCount_ReturnsZero_WhenAllDispatched()
-	{
-		// Arrange
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = new[] { CreateTestEvent(aggregateId), CreateTestEvent(aggregateId) };
-
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			events,
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		var undispatched = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		foreach (var evt in undispatched)
-		{
-			await _store.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None)
-				.ConfigureAwait(false);
-		}
-
-		// Act
-		var count = _store.GetUndispatchedEventCount();
-
-		// Assert
-		count.ShouldBe(0);
-	}
-
-	[Fact]
 	public void GetEventCount_ReturnsZero_OnEmptyStore()
 	{
 		// Act
@@ -187,29 +122,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 		// Assert
 		count.ShouldBe(0);
-	}
-
-	[Fact]
-	public void GetUndispatchedEventCount_ReturnsZero_OnEmptyStore()
-	{
-		// Act
-		var count = _store.GetUndispatchedEventCount();
-
-		// Assert
-		count.ShouldBe(0);
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_NonExistentEvent_NoOp()
-	{
-		// Arrange - nothing to arrange, store is empty
-
-		// Act - should not throw
-		await _store.MarkEventAsDispatchedAsync("non-existent-id", CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert - no exception thrown
-		_store.GetEventCount().ShouldBe(0);
 	}
 
 	[Fact]
@@ -235,30 +147,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 		// Act & Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
 			await _store.AppendAsync("test", "TestAggregate", events, -1, cts.Token).ConfigureAwait(false));
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_WithCancellationToken_ThrowsWhenCancelled()
-	{
-		// Arrange
-		using var cts = new CancellationTokenSource();
-		cts.Cancel();
-
-		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
-			await _store.GetUndispatchedEventsAsync(10, cts.Token).ConfigureAwait(false));
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_WithCancellationToken_ThrowsWhenCancelled()
-	{
-		// Arrange
-		using var cts = new CancellationTokenSource();
-		cts.Cancel();
-
-		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
-			await _store.MarkEventAsDispatchedAsync("any-id", cts.Token).ConfigureAwait(false));
 	}
 
 	[Fact]
@@ -409,100 +297,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 	#endregion Coverage gap: LoadAsync fromVersion edge cases (lines 115-121)
 
-	#region Coverage gap: GetUndispatchedEventsAsync Array.Resize path (lines 262-266)
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_WhenUndispatchedExceedsPreAllocatedArray_ResizesAndReturnsCorrectBatch()
-	{
-		// Arrange - Create events across multiple aggregates so _eventsById has many entries.
-		// Use a small batchSize so that Math.Min(batchSize, _eventsById.Count) is small,
-		// but the actual undispatched count exceeds the pre-allocated array size.
-		// With batchSize=2 and 10 total events (all undispatched):
-		//   pre-allocated = Math.Min(2, 10) = 2
-		//   The loop finds 10 undispatched events, exceeding the 2-slot array -> triggers Array.Resize
-		for (var i = 0; i < 10; i++)
-		{
-			var aggregateId = Guid.NewGuid().ToString();
-			_ = await _store.AppendAsync(
-				aggregateId,
-				"TestAggregate",
-				new[] { CreateTestEvent(aggregateId) },
-				expectedVersion: -1,
-				CancellationToken.None).ConfigureAwait(false);
-		}
-
-		_store.GetEventCount().ShouldBe(10);
-		_store.GetUndispatchedEventCount().ShouldBe(10);
-
-		// Act - Use a batch size smaller than total undispatched events to trigger the resize path
-		var undispatched = await _store.GetUndispatchedEventsAsync(
-			2,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Assert - Should still respect batchSize even after resize
-		undispatched.Count.ShouldBe(2);
-		undispatched.ShouldAllBe(e => !e.IsDispatched);
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_WhenUndispatchedExceedsPreAllocatedArray_ReturnsEventsOrderedByTimestamp()
-	{
-		// Arrange - Create events with different timestamps to verify sort after resize
-		for (var i = 0; i < 8; i++)
-		{
-			var aggregateId = Guid.NewGuid().ToString();
-			_ = await _store.AppendAsync(
-				aggregateId,
-				"TestAggregate",
-				new[] { CreateTestEvent(aggregateId) },
-				expectedVersion: -1,
-				CancellationToken.None).ConfigureAwait(false);
-		}
-
-		// Act - batchSize=3, total=8, pre-allocated=3, triggers resize at the 4th undispatched event
-		var undispatched = await _store.GetUndispatchedEventsAsync(
-			3,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Assert - Events should be sorted by timestamp
-		undispatched.Count.ShouldBe(3);
-		for (var i = 0; i < undispatched.Count - 1; i++)
-		{
-			undispatched[i].Timestamp.ShouldBeLessThanOrEqualTo(undispatched[i + 1].Timestamp);
-		}
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_LargeBatchSize_ReturnsAllUndispatched()
-	{
-		// Arrange - Batch size larger than total events means pre-allocated = _eventsById.Count
-		// No resize should occur, but this verifies the non-resize path works correctly
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = new[]
-		{
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId)
-		};
-
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			events,
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Act - batchSize=100 > 3 total events, so pre-allocated=3, no resize needed
-		var undispatched = await _store.GetUndispatchedEventsAsync(
-			100,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Assert
-		undispatched.Count.ShouldBe(3);
-	}
-
-	#endregion Coverage gap: GetUndispatchedEventsAsync Array.Resize path (lines 262-266)
-
 	#region Coverage gap: AppendAsync with IEnumerable (not IReadOnlyCollection) input
 
 	[Fact]
@@ -606,49 +400,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 	#endregion Coverage gap: LoadAsync overload without fromVersion delegates to fromVersion=-1
 
-	#region Coverage gap: GetUndispatchedEventsAsync with mix of dispatched and undispatched
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_WithMixedDispatchStatus_OnlyReturnsUndispatched()
-	{
-		// Arrange
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = new[]
-		{
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId)
-		};
-
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			events,
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Mark the first two events as dispatched
-		var allUndispatched = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		await _store.MarkEventAsDispatchedAsync(allUndispatched[0].EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-		await _store.MarkEventAsDispatchedAsync(allUndispatched[1].EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Act
-		var remaining = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert - Only 3 undispatched should remain
-		remaining.Count.ShouldBe(3);
-		remaining.ShouldAllBe(e => !e.IsDispatched);
-	}
-
-	#endregion Coverage gap: GetUndispatchedEventsAsync with mix of dispatched and undispatched
-
 	#region Coverage gap: AppendAsync position tracking
 
 	[Fact]
@@ -741,37 +492,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 	}
 
 	#endregion Coverage gap: LoadAsync with fromVersion on specific boundary
-
-	#region Coverage gap: MarkEventAsDispatchedAsync updates both dictionaries
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_UpdatesEventInLoadedStream()
-	{
-		// Arrange
-		var aggregateId = Guid.NewGuid().ToString();
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			new[] { CreateTestEvent(aggregateId) },
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		var undispatched = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-		var eventId = undispatched[0].EventId;
-
-		// Act - Mark as dispatched
-		await _store.MarkEventAsDispatchedAsync(eventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert - Event should still be loadable via LoadAsync and show IsDispatched = true
-		var loaded = await _store.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
-			.ConfigureAwait(false);
-		loaded.Count.ShouldBe(1);
-		loaded[0].IsDispatched.ShouldBeTrue();
-	}
-
-	#endregion Coverage gap: MarkEventAsDispatchedAsync updates both dictionaries
 
 	#region Coverage gap: LoadAsync with fromVersion on non-existent aggregate
 
@@ -889,96 +609,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 	#endregion Coverage gap: AppendAsync empty lazy enumerable
 
-	#region Coverage gap: GetUndispatchedEventsAsync when all events are dispatched
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_WhenAllEventsDispatched_ReturnsEmpty()
-	{
-		// Arrange - Add events and dispatch them all
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = new[]
-		{
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId),
-			CreateTestEvent(aggregateId)
-		};
-
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			events,
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Dispatch all events
-		var allEvents = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-		foreach (var evt in allEvents)
-		{
-			await _store.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None)
-				.ConfigureAwait(false);
-		}
-
-		// Act - All dispatched, so the count == 0 path at line 271 should be hit
-		var undispatched = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		undispatched.ShouldBeEmpty();
-	}
-
-	#endregion Coverage gap: GetUndispatchedEventsAsync when all events are dispatched
-
-	#region Coverage gap: GetUndispatchedEventsAsync on empty store
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_OnEmptyStore_ReturnsEmpty()
-	{
-		// Arrange - store is empty
-
-		// Act - batchSize doesn't matter, store has no events
-		var undispatched = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		undispatched.ShouldBeEmpty();
-	}
-
-	#endregion Coverage gap: GetUndispatchedEventsAsync on empty store
-
-	#region Coverage gap: MarkEventAsDispatchedAsync idempotency
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_CalledTwice_IsIdempotent()
-	{
-		// Arrange
-		var aggregateId = Guid.NewGuid().ToString();
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			new[] { CreateTestEvent(aggregateId) },
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		var undispatched = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-		var eventId = undispatched[0].EventId;
-
-		// Act - Mark as dispatched twice
-		await _store.MarkEventAsDispatchedAsync(eventId, CancellationToken.None)
-			.ConfigureAwait(false);
-		await _store.MarkEventAsDispatchedAsync(eventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert - Should still be dispatched, no errors
-		_store.GetUndispatchedEventCount().ShouldBe(0);
-		var loaded = await _store.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
-			.ConfigureAwait(false);
-		loaded[0].IsDispatched.ShouldBeTrue();
-	}
-
-	#endregion Coverage gap: MarkEventAsDispatchedAsync idempotency
-
 	#region Coverage gap: AppendAsync concurrency conflict returns correct actual version
 
 	[Fact]
@@ -1076,42 +706,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 	}
 
 	#endregion Coverage gap: Multiple aggregates with different types
-
-	#region Coverage gap: GetUndispatchedEventsAsync multiple resizes
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_MultipleResizes_HandlesCorrectly()
-	{
-		// Arrange - Create enough events across many aggregates to trigger multiple
-		// Array.Resize calls. With batchSize=1, pre-allocated = Math.Min(1, N) = 1,
-		// so first undispatched fills slot 0, second triggers resize to 2, third to 4, etc.
-		for (var i = 0; i < 20; i++)
-		{
-			var aggregateId = Guid.NewGuid().ToString();
-			_ = await _store.AppendAsync(
-				aggregateId,
-				"TestAggregate",
-				new[] { CreateTestEvent(aggregateId) },
-				expectedVersion: -1,
-				CancellationToken.None).ConfigureAwait(false);
-		}
-
-		// Act - Use batchSize=5 but 20 undispatched events with pre-allocated=5
-		// Forces multiple resizes: 5 -> 10 -> 20
-		var undispatched = await _store.GetUndispatchedEventsAsync(
-			5,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Assert
-		undispatched.Count.ShouldBe(5);
-		// Verify timestamp ordering
-		for (var i = 0; i < undispatched.Count - 1; i++)
-		{
-			undispatched[i].Timestamp.ShouldBeLessThanOrEqualTo(undispatched[i + 1].Timestamp);
-		}
-	}
-
-	#endregion Coverage gap: GetUndispatchedEventsAsync multiple resizes
 
 	#region Coverage gap: AppendAsync stores correct EventType name
 
@@ -1212,45 +806,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 	#endregion Coverage gap: Clear resets position counter
 
-	#region Coverage gap: MarkEventAsDispatchedAsync with multiple events in same aggregate
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_MarkMiddleEvent_OnlyThatEventIsDispatched()
-	{
-		// Arrange - Append 3 events
-		var aggregateId = Guid.NewGuid().ToString();
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			new[]
-			{
-				CreateTestEvent(aggregateId),
-				CreateTestEvent(aggregateId),
-				CreateTestEvent(aggregateId)
-			},
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Get the middle event
-		var loaded = await _store.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
-			.ConfigureAwait(false);
-		var middleEventId = loaded[1].EventId;
-
-		// Act - Mark only the middle event
-		await _store.MarkEventAsDispatchedAsync(middleEventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		var reloaded = await _store.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
-			.ConfigureAwait(false);
-		reloaded[0].IsDispatched.ShouldBeFalse();
-		reloaded[1].IsDispatched.ShouldBeTrue();
-		reloaded[2].IsDispatched.ShouldBeFalse();
-		_store.GetUndispatchedEventCount().ShouldBe(2);
-	}
-
-	#endregion Coverage gap: MarkEventAsDispatchedAsync with multiple events in same aggregate
-
 	#region Coverage gap: AppendAsync preserves event data across serialization
 
 	[Fact]
@@ -1327,35 +882,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 	}
 
 	#endregion Coverage gap: LoadAsync with fromVersion cancellation
-
-	#region Coverage gap: GetUndispatchedEventsAsync batch exactly equals undispatched count
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_BatchSizeEqualsUndispatchedCount_ReturnsAll()
-	{
-		// Arrange
-		var aggregateId = Guid.NewGuid().ToString();
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			new[]
-			{
-				CreateTestEvent(aggregateId),
-				CreateTestEvent(aggregateId),
-				CreateTestEvent(aggregateId)
-			},
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Act - batchSize exactly equals total undispatched
-		var undispatched = await _store.GetUndispatchedEventsAsync(3, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		undispatched.Count.ShouldBe(3);
-	}
-
-	#endregion Coverage gap: GetUndispatchedEventsAsync batch exactly equals undispatched count
 
 	#region Coverage gap: AppendAsync with metadata containing complex types
 
@@ -1515,53 +1041,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 	#endregion Coverage gap: Multiple sequential appends to same aggregate
 
-	#region Coverage gap: GetUndispatchedEventsAsync with dispatched events mixed across aggregates
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_DispatchedAndUndispatchedAcrossAggregates_FiltersCorrectly()
-	{
-		// Arrange - Two aggregates, dispatch some events from each
-		var aggId1 = Guid.NewGuid().ToString();
-		var aggId2 = Guid.NewGuid().ToString();
-
-		_ = await _store.AppendAsync(
-			aggId1,
-			"TestAggregate",
-			new[] { CreateTestEvent(aggId1), CreateTestEvent(aggId1) },
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		_ = await _store.AppendAsync(
-			aggId2,
-			"TestAggregate",
-			new[] { CreateTestEvent(aggId2), CreateTestEvent(aggId2) },
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Dispatch one event from each aggregate
-		var all = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Find one event from each aggregate and dispatch
-		var fromAgg1 = all.First(e => e.AggregateId == aggId1);
-		var fromAgg2 = all.First(e => e.AggregateId == aggId2);
-
-		await _store.MarkEventAsDispatchedAsync(fromAgg1.EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-		await _store.MarkEventAsDispatchedAsync(fromAgg2.EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Act
-		var remaining = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		remaining.Count.ShouldBe(2);
-		remaining.ShouldAllBe(e => !e.IsDispatched);
-	}
-
-	#endregion Coverage gap: GetUndispatchedEventsAsync with dispatched events mixed across aggregates
-
 	#region Coverage gap: Observability with ActivitySource active
 
 	[Fact]
@@ -1618,67 +1097,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 		// Assert
 		result.Success.ShouldBeTrue();
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_WithActivityListener_ExercisesTracingCodePath()
-	{
-		// Arrange - Add an activity listener
-		using var listener = new ActivityListener
-		{
-			ShouldListenTo = source => source.Name.Contains("EventSourcing", StringComparison.Ordinal),
-			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-			ActivityStarted = _ => { },
-			ActivityStopped = _ => { }
-		};
-		ActivitySource.AddActivityListener(listener);
-
-		var aggregateId = Guid.NewGuid().ToString();
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			new[] { CreateTestEvent(aggregateId) },
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Act
-		var undispatched = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		undispatched.Count.ShouldBe(1);
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_WithActivityListener_ExercisesTracingCodePath()
-	{
-		// Arrange - Add an activity listener
-		using var listener = new ActivityListener
-		{
-			ShouldListenTo = source => source.Name.Contains("EventSourcing", StringComparison.Ordinal),
-			Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-			ActivityStarted = _ => { },
-			ActivityStopped = _ => { }
-		};
-		ActivitySource.AddActivityListener(listener);
-
-		var aggregateId = Guid.NewGuid().ToString();
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			new[] { CreateTestEvent(aggregateId) },
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		var undispatched = await _store.GetUndispatchedEventsAsync(10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Act
-		await _store.MarkEventAsDispatchedAsync(undispatched[0].EventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		_store.GetUndispatchedEventCount().ShouldBe(0);
 	}
 
 	#endregion Coverage gap: Observability with ActivitySource active
@@ -1785,72 +1203,6 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 	}
 
 	#endregion Coverage gap: LoadAsync fromVersion finds event mid-loop
-
-	#region Coverage gap: GetUndispatchedEventsAsync when pre-allocated fits exactly
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_PreAllocatedFitsExactly_NoResizeNeeded()
-	{
-		// Arrange - Add exactly as many events as batchSize
-		// With batchSize=5 and 5 events, pre-allocated = Math.Min(5, 5) = 5
-		// All 5 undispatched events fit without resize
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = Enumerable.Range(0, 5).Select(_ => CreateTestEvent(aggregateId)).ToArray();
-
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			events,
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Act
-		var undispatched = await _store.GetUndispatchedEventsAsync(5, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		undispatched.Count.ShouldBe(5);
-	}
-
-	#endregion Coverage gap: GetUndispatchedEventsAsync when pre-allocated fits exactly
-
-	#region Coverage gap: MarkEventAsDispatchedAsync updates aggregate list correctly
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_UpdatesEventAtCorrectIndexInAggregateList()
-	{
-		// Arrange - Create 5 events to ensure FindIndex works on middle elements
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = Enumerable.Range(0, 5).Select(_ => CreateTestEvent(aggregateId)).ToArray();
-
-		_ = await _store.AppendAsync(
-			aggregateId,
-			"TestAggregate",
-			events,
-			expectedVersion: -1,
-			CancellationToken.None).ConfigureAwait(false);
-
-		// Get the event at index 2 (middle)
-		var loaded = await _store.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
-			.ConfigureAwait(false);
-		var targetEventId = loaded[2].EventId;
-
-		// Act - Mark the middle event
-		await _store.MarkEventAsDispatchedAsync(targetEventId, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert - Reload and verify only index 2 is dispatched
-		var reloaded = await _store.LoadAsync(aggregateId, "TestAggregate", CancellationToken.None)
-			.ConfigureAwait(false);
-
-		reloaded[0].IsDispatched.ShouldBeFalse();
-		reloaded[1].IsDispatched.ShouldBeFalse();
-		reloaded[2].IsDispatched.ShouldBeTrue();
-		reloaded[3].IsDispatched.ShouldBeFalse();
-		reloaded[4].IsDispatched.ShouldBeFalse();
-	}
-
-	#endregion Coverage gap: MarkEventAsDispatchedAsync updates aggregate list correctly
 
 	#region Coverage gap: AppendAsync firstPosition is set correctly for first event
 

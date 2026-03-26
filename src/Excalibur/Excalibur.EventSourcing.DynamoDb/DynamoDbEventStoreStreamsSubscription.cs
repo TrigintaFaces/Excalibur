@@ -291,8 +291,7 @@ public sealed class DynamoDbEventStoreStreamsSubscription : IChangeFeedSubscript
 				? Convert.FromBase64String(metaAttr.S)
 				: null,
 			PartitionKeyValue = item[_options.PartitionKeyAttribute].S,
-			DocumentId = $"{item[_options.PartitionKeyAttribute].S}:{item[_options.SortKeyAttribute].N}",
-			IsDispatched = item.TryGetValue("isDispatched", out var dispatchedAttr) && dispatchedAttr.BOOL == true
+			DocumentId = $"{item[_options.PartitionKeyAttribute].S}:{item[_options.SortKeyAttribute].N}"
 		};
 	}
 }

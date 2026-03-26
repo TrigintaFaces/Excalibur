@@ -468,8 +468,6 @@ virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.AppendAsync_W
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.CleanupAsync() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.CreateTestEvents(string! aggregateId, int count, long startVersion = 1) -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent!>!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.GenerateAggregateId() -> string!
-virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.GetUndispatchedEventsAsync_ShouldRespectBatchSize() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.GetUndispatchedEventsAsync_ShouldReturnNewEvents() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_EmptyStream_ShouldReturnEmpty() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_ExistingStream_ShouldReturnAllEvents() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_FromVersionBeyondStream_ShouldReturnEmpty() -> System.Threading.Tasks.Task!
@@ -477,7 +475,6 @@ virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_Fro
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_ShouldIsolateByAggregateId() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_ShouldIsolateByAggregateType() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.LoadAsync_ShouldReturnEventsInVersionOrder() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.EventStoreConformanceTestKit.MarkEventAsDispatchedAsync_ShouldRemoveFromUndispatched() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.FipsDetectorConformanceTestKit.FipsDetectionResult_Disabled_ShouldCreateCorrectResult() -> void
 virtual Excalibur.Testing.Conformance.FipsDetectorConformanceTestKit.FipsDetectionResult_Enabled_ShouldCreateCorrectResult() -> void
 virtual Excalibur.Testing.Conformance.FipsDetectorConformanceTestKit.GetStatus_MultipleCalls_ShouldReturnConsistentDetectedAt() -> void

@@ -24,22 +24,16 @@ public sealed class RedisEventStoreOptions
 	public string StreamKeyPrefix { get; set; } = "es";
 
 	/// <summary>
-	/// Gets or sets the key for the undispatched events sorted set.
-	/// </summary>
-	/// <value>The undispatched sorted set key. Defaults to "es:undispatched".</value>
-	public string UndispatchedSetKey { get; set; } = "es:undispatched";
-
-	/// <summary>
-	/// Gets or sets the default batch size for undispatched event retrieval.
-	/// </summary>
-	/// <value>The default batch size. Defaults to 100.</value>
-	[Range(1, 10000)]
-	public int DefaultBatchSize { get; set; } = 100;
-
-	/// <summary>
 	/// Gets or sets the Redis database index.
 	/// </summary>
 	/// <value>The database index. Defaults to -1 (default database).</value>
 	[Range(-1, 15)]
 	public int DatabaseIndex { get; set; } = -1;
+
+	/// <summary>
+	/// Gets or sets the default batch size for reading events from Redis streams.
+	/// </summary>
+	/// <value>The default batch size. Defaults to 100.</value>
+	[Range(1, int.MaxValue)]
+	public int DefaultBatchSize { get; set; } = 100;
 }

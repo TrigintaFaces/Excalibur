@@ -11,7 +11,7 @@ namespace Excalibur.EventSourcing.Tests.Postgres.Requests;
 
 /// <summary>
 /// Unit tests for Postgres Request classes.
-/// Validates constructor argument validation and command creation for all 14 request types.
+/// Validates constructor argument validation and command creation for all request types.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "EventSourcing")]
@@ -182,29 +182,6 @@ public sealed class PostgresRequestsShould
 
 	#endregion
 
-	#region MarkEventDispatchedRequest
-
-	[Fact]
-	public void MarkEventDispatchedRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new MarkEventDispatchedRequest("event-1", Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("is_dispatched = true");
-	}
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void MarkEventDispatchedRequest_ThrowOnInvalidEventId(string? eventId)
-	{
-		Should.Throw<ArgumentException>(() =>
-			new MarkEventDispatchedRequest(eventId, Ct));
-	}
-
-	#endregion
-
 	#region DeleteSnapshotsRequest
 
 	[Fact]
@@ -363,20 +340,6 @@ public sealed class PostgresRequestsShould
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("published_at IS NULL");
-		request.Command.CommandText.ShouldContain("LIMIT @BatchSize");
-	}
-
-	#endregion
-
-	#region GetUndispatchedEventsRequest
-
-	[Fact]
-	public void GetUndispatchedEventsRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new GetUndispatchedEventsRequest(50, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("is_dispatched = false");
 		request.Command.CommandText.ShouldContain("LIMIT @BatchSize");
 	}
 

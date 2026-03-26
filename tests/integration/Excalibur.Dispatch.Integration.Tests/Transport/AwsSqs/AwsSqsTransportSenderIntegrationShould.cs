@@ -61,7 +61,8 @@ public sealed class AwsSqsTransportSenderIntegrationShould : IAsyncLifetime, IDi
 					.WithImage("localstack/localstack:latest")
 					.WithEnvironment("SERVICES", "sqs")
 					.Build();
-				await s_container.StartAsync().ConfigureAwait(false);
+				using var startCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+				await s_container.StartAsync(startCts.Token).ConfigureAwait(false);
 
 				var credentials = new BasicAWSCredentials("test", "test");
 				var config = new AmazonSQSConfig

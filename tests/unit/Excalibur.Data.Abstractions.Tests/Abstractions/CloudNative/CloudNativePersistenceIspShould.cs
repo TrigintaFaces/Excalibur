@@ -321,8 +321,7 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 			Timestamp = timestamp,
 			PartitionKeyValue = "Order:agg-1",
 			ETag = "etag-1",
-			DocumentId = "doc-1",
-			IsDispatched = true
+			DocumentId = "doc-1"
 		};
 
 		evt.EventId.ShouldBe("evt-1");
@@ -336,7 +335,6 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 		evt.PartitionKeyValue.ShouldBe("Order:agg-1");
 		evt.ETag.ShouldBe("etag-1");
 		evt.DocumentId.ShouldBe("doc-1");
-		evt.IsDispatched.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -357,7 +355,6 @@ public sealed class CloudNativePersistenceIspShould : UnitTestBase
 		evt.Metadata.ShouldBeNull();
 		evt.ETag.ShouldBeNull();
 		evt.DocumentId.ShouldBeNull();
-		evt.IsDispatched.ShouldBeFalse();
 	}
 
 	#endregion

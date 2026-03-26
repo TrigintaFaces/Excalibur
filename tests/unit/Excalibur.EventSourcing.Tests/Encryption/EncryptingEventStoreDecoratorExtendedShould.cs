@@ -75,7 +75,7 @@ public sealed class EncryptingEventStoreDecoratorExtendedShould
 		string eventId, byte[] data, byte[]? metadata = null, long version = 1)
 	{
 		return new StoredEvent(eventId, "agg-1", "Order", "OrderCreated",
-			data, metadata, version, DateTimeOffset.UtcNow, false);
+			data, metadata, version, DateTimeOffset.UtcNow);
 	}
 
 	private void SetupDecryption(byte[] plainData)
@@ -281,57 +281,6 @@ public sealed class EncryptingEventStoreDecoratorExtendedShould
 		result.Count.ShouldBe(1);
 		result[0].EventData.ShouldBe(plainData);
 		A.CallTo(() => _registry.FindDecryptionProvider(A<EncryptedData>._)).MustNotHaveHappened();
-	}
-
-	#endregion
-
-	#region GetUndispatchedEventsAsync - Encryption Modes
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_ShouldDecryptEvents_WhenModeIsEncryptAndDecrypt()
-	{
-		// Arrange
-		var decorator = CreateDecorator(EncryptionMode.EncryptAndDecrypt);
-		var plainData = new byte[] { 10, 20, 30 };
-		var encryptedBytes = CreateEncryptedBytes(new byte[] { 55 });
-
-		var events = new List<StoredEvent>
-		{
-			CreateStoredEvent("evt-1", encryptedBytes)
-		};
-
-		A.CallTo(() => _innerStore.GetUndispatchedEventsAsync(10, _ct))
-			.Returns(events);
-		SetupDecryption(plainData);
-
-		// Act
-		var result = await decorator.GetUndispatchedEventsAsync(10, _ct);
-
-		// Assert
-		result.Count.ShouldBe(1);
-		result[0].EventData.ShouldBe(plainData);
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_ShouldPassthroughPlaintext()
-	{
-		// Arrange
-		var decorator = CreateDecorator(EncryptionMode.EncryptAndDecrypt);
-		var plainData = new byte[] { 5, 6, 7 }; // Not encrypted
-		var events = new List<StoredEvent>
-		{
-			CreateStoredEvent("evt-1", plainData)
-		};
-
-		A.CallTo(() => _innerStore.GetUndispatchedEventsAsync(10, _ct))
-			.Returns(events);
-
-		// Act
-		var result = await decorator.GetUndispatchedEventsAsync(10, _ct);
-
-		// Assert
-		result.Count.ShouldBe(1);
-		result[0].EventData.ShouldBe(plainData);
 	}
 
 	#endregion

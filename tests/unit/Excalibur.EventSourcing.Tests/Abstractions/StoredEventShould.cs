@@ -26,7 +26,6 @@ public sealed class StoredEventShould
 		var metadata = new byte[] { 5, 6, 7 };
 		var version = 1L;
 		var timestamp = DateTimeOffset.UtcNow;
-		var isDispatched = false;
 
 		// Act
 		var storedEvent = new StoredEvent(
@@ -37,8 +36,7 @@ public sealed class StoredEventShould
 			eventData,
 			metadata,
 			version,
-			timestamp,
-			isDispatched);
+			timestamp);
 
 		// Assert
 		storedEvent.EventId.ShouldBe(eventId);
@@ -49,7 +47,6 @@ public sealed class StoredEventShould
 		storedEvent.Metadata.ShouldBe(metadata);
 		storedEvent.Version.ShouldBe(version);
 		storedEvent.Timestamp.ShouldBe(timestamp);
-		storedEvent.IsDispatched.ShouldBe(isDispatched);
 	}
 
 	[Fact]
@@ -64,8 +61,7 @@ public sealed class StoredEventShould
 			new byte[] { 1 },
 			null,
 			1,
-			DateTimeOffset.UtcNow,
-			false);
+			DateTimeOffset.UtcNow);
 
 		// Assert
 		storedEvent.Metadata.ShouldBeNull();
@@ -79,9 +75,9 @@ public sealed class StoredEventShould
 		var eventData = new byte[] { 1, 2, 3 };
 
 		var event1 = new StoredEvent(
-			"event-1", "agg-1", "Agg", "Type", eventData, null, 1, timestamp, false);
+			"event-1", "agg-1", "Agg", "Type", eventData, null, 1, timestamp);
 		var event2 = new StoredEvent(
-			"event-1", "agg-1", "Agg", "Type", eventData, null, 1, timestamp, false);
+			"event-1", "agg-1", "Agg", "Type", eventData, null, 1, timestamp);
 
 		// Assert - Records with same values should be equal
 		event1.ShouldBe(event2);
@@ -95,9 +91,9 @@ public sealed class StoredEventShould
 		var eventData = new byte[] { 1, 2, 3 };
 
 		var event1 = new StoredEvent(
-			"event-1", "agg-1", "Agg", "Type", eventData, null, 1, timestamp, false);
+			"event-1", "agg-1", "Agg", "Type", eventData, null, 1, timestamp);
 		var event2 = new StoredEvent(
-			"event-1", "agg-1", "Agg", "Type", eventData, null, 2, timestamp, false);
+			"event-1", "agg-1", "Agg", "Type", eventData, null, 2, timestamp);
 
 		// Assert
 		event1.ShouldNotBe(event2);
@@ -108,14 +104,14 @@ public sealed class StoredEventShould
 	{
 		// Arrange
 		var original = new StoredEvent(
-			"event-1", "agg-1", "Agg", "Type", new byte[] { 1 }, null, 1, DateTimeOffset.UtcNow, false);
+			"event-1", "agg-1", "Agg", "Type", new byte[] { 1 }, null, 1, DateTimeOffset.UtcNow);
 
 		// Act
-		var updated = original with { IsDispatched = true };
+		var updated = original with { Version = 2 };
 
 		// Assert
-		updated.IsDispatched.ShouldBeTrue();
-		original.IsDispatched.ShouldBeFalse();
+		updated.Version.ShouldBe(2);
+		original.Version.ShouldBe(1);
 		updated.EventId.ShouldBe(original.EventId);
 	}
 
@@ -131,8 +127,7 @@ public sealed class StoredEventShould
 			Array.Empty<byte>(),
 			null,
 			1,
-			DateTimeOffset.UtcNow,
-			false);
+			DateTimeOffset.UtcNow);
 
 		// Assert
 		storedEvent.EventData.ShouldBeEmpty();

@@ -43,16 +43,6 @@ public interface IEventStore
         IEnumerable<IDomainEvent> events,
         long expectedVersion,
         CancellationToken cancellationToken);
-
-    // Get events for outbox pattern
-    ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-        int batchSize,
-        CancellationToken cancellationToken);
-
-    // Mark event as published
-    ValueTask MarkEventAsDispatchedAsync(
-        string eventId,
-        CancellationToken cancellationToken);
 }
 ```
 

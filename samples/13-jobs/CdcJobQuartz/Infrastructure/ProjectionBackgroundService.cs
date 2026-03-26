@@ -42,10 +42,10 @@ public sealed class ProjectionOptions
 /// </summary>
 /// <remarks>
 /// <para>
-/// This service provides asynchronous projection updates using the outbox pattern:
+/// This service provides asynchronous projection updates using event store dispatch tracking:
 /// </para>
 /// <list type="bullet">
-/// <item>Polls event store for undispatched events (outbox pattern)</item>
+/// <item>Polls event store for undispatched events</item>
 /// <item>Processes events in order</item>
 /// <item>Updates Elasticsearch projections (materialized views)</item>
 /// <item>Marks events as dispatched after successful projection update</item>
@@ -60,7 +60,7 @@ public sealed class ProjectionOptions
 /// </remarks>
 public sealed class ProjectionBackgroundService : BackgroundService
 {
-	private readonly IEventStore _eventStore;
+	private readonly IEventStoreDispatchTracking _dispatchTracking;
 	private readonly CustomerSearchProjectionHandler _searchHandler;
 	private readonly CustomerTierSummaryProjectionHandler _tierHandler;
 	private readonly ProjectionOptions _options;
@@ -73,13 +73,13 @@ public sealed class ProjectionBackgroundService : BackgroundService
 	/// Initializes a new instance of the <see cref="ProjectionBackgroundService"/> class.
 	/// </summary>
 	public ProjectionBackgroundService(
-		IEventStore eventStore,
+		IEventStoreDispatchTracking dispatchTracking,
 		CustomerSearchProjectionHandler searchHandler,
 		CustomerTierSummaryProjectionHandler tierHandler,
 		IOptions<ProjectionOptions> options,
 		ILogger<ProjectionBackgroundService> logger)
 	{
-		_eventStore = eventStore;
+		_dispatchTracking = dispatchTracking;
 		_searchHandler = searchHandler;
 		_tierHandler = tierHandler;
 		_options = options.Value;
@@ -123,8 +123,8 @@ public sealed class ProjectionBackgroundService : BackgroundService
 
 	private async Task<int> ProcessUndispatchedEventsAsync(CancellationToken cancellationToken)
 	{
-		// Use the outbox pattern: get events that haven't been dispatched yet
-		var events = await _eventStore.GetUndispatchedEventsAsync(
+		// Get events that haven't been dispatched yet
+		var events = await _dispatchTracking.GetUndispatchedEventsAsync(
 			_options.BatchSize,
 			cancellationToken).ConfigureAwait(false);
 
@@ -149,7 +149,7 @@ public sealed class ProjectionBackgroundService : BackgroundService
 						storedEvent.Version);
 
 					// Mark as dispatched to avoid reprocessing
-					await _eventStore.MarkEventAsDispatchedAsync(storedEvent.EventId, cancellationToken)
+					await _dispatchTracking.MarkEventAsDispatchedAsync(storedEvent.EventId, cancellationToken)
 						.ConfigureAwait(false);
 					continue;
 				}
@@ -160,8 +160,8 @@ public sealed class ProjectionBackgroundService : BackgroundService
 				// Update tier summary projection (materialized view for analytics)
 				await UpdateTierSummaryAsync(domainEvent, cancellationToken).ConfigureAwait(false);
 
-				// Mark the event as dispatched (outbox pattern)
-				await _eventStore.MarkEventAsDispatchedAsync(storedEvent.EventId, cancellationToken)
+				// Mark the event as dispatched
+				await _dispatchTracking.MarkEventAsDispatchedAsync(storedEvent.EventId, cancellationToken)
 					.ConfigureAwait(false);
 
 				_logger.LogDebug(

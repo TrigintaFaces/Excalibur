@@ -1771,9 +1771,6 @@ Excalibur.Dispatch.Abstractions.Messaging.CacheStatistics.TotalSize.get -> long
 Excalibur.Dispatch.Abstractions.Messaging.CacheStatistics.TotalSize.set -> void
 Excalibur.Dispatch.Abstractions.Messaging.CacheStatistics.TotalSizeBytes.get -> long
 Excalibur.Dispatch.Abstractions.Messaging.CacheStatistics.TotalSizeBytes.set -> void
-Excalibur.Dispatch.Abstractions.Messaging.IEventStoreDispatcher
-Excalibur.Dispatch.Abstractions.Messaging.IEventStoreDispatcher.DispatchAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Abstractions.Messaging.IEventStoreDispatcher.Init(string! dispatcherId) -> void
 Excalibur.Dispatch.Abstractions.Messaging.IEventStoreMessage
 Excalibur.Dispatch.Abstractions.Messaging.IEventStoreMessage.Attempts.get -> int
 Excalibur.Dispatch.Abstractions.Messaging.IEventStoreMessage.Attempts.set -> void

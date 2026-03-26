@@ -109,22 +109,6 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task GetUndispatchedEventsAsync_Throw_WhenDatabaseObjectIsUnavailable()
-	{
-		var sut = CreateInitializedStore(withDatabase: true);
-		await Should.ThrowAsync<Exception>(() =>
-			sut.GetUndispatchedEventsAsync(10, CancellationToken.None).AsTask());
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_Throw_WhenDatabaseObjectIsUnavailable()
-	{
-		var sut = CreateInitializedStore(withDatabase: true);
-		await Should.ThrowAsync<Exception>(() =>
-			sut.MarkEventAsDispatchedAsync("evt-1", CancellationToken.None).AsTask());
-	}
-
-	[Fact]
 	public async Task SubscribeToChangesAsync_ReturnSubscription_WhenInitialized()
 	{
 		var sut = CreateInitializedStore(withDatabase: true);
@@ -207,7 +191,6 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 			Metadata = [4, 5],
 			Version = 8,
 			Timestamp = DateTimeOffset.UtcNow,
-			IsDispatched = true,
 			PartitionKeyValue = "Order:agg-1"
 		};
 
@@ -215,7 +198,6 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 		stored.EventId.ShouldBe("evt-1");
 		stored.AggregateType.ShouldBe("Order");
 		stored.Version.ShouldBe(8);
-		stored.IsDispatched.ShouldBeTrue();
 	}
 
 	private static FirestoreEventStore CreateInitializedStore(bool withDatabase)

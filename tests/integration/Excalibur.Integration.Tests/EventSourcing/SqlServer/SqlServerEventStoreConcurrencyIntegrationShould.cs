@@ -347,7 +347,6 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 				Metadata VARBINARY(MAX) NULL,
 				Version BIGINT NOT NULL,
 				Timestamp DATETIMEOFFSET NOT NULL,
-				IsDispatched BIT NOT NULL DEFAULT 0,
 				INDEX IX_EventStoreEvents_Aggregate (AggregateId, AggregateType, Version)
 			)
 			""";

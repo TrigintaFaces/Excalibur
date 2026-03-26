@@ -12,7 +12,7 @@ namespace Excalibur.EventSourcing.Tests.SqlServer.Requests;
 /// <summary>
 /// Unit tests for SQL Server Request classes in Excalibur.EventSourcing.SqlServer.
 /// Validates constructor argument validation, command creation, SQL structure,
-/// parameter setup, table names, and DataRequestBase property behavior for all 14 request types.
+/// parameter setup, table names, and DataRequestBase property behavior for all request types.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "EventSourcing")]
@@ -50,7 +50,6 @@ public sealed class SqlServerRequestsShould
 		request.Command.CommandText.ShouldContain("Metadata");
 		request.Command.CommandText.ShouldContain("Version");
 		request.Command.CommandText.ShouldContain("Timestamp");
-		request.Command.CommandText.ShouldContain("IsDispatched");
 	}
 
 	[Fact]
@@ -246,7 +245,6 @@ public sealed class SqlServerRequestsShould
 
 		request.Command.CommandText.ShouldContain("EventId");
 		request.Command.CommandText.ShouldContain("EventData");
-		request.Command.CommandText.ShouldContain("IsDispatched");
 	}
 
 	[Theory]
@@ -448,70 +446,6 @@ public sealed class SqlServerRequestsShould
 	{
 		Should.Throw<ArgumentException>(() =>
 			new GetLatestSnapshotRequest("agg-1", aggregateType, Ct));
-	}
-
-	#endregion
-
-	#region MarkEventDispatchedRequest
-
-	[Fact]
-	public void MarkEventDispatchedRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new MarkEventDispatchedRequest("event-1", Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("IsDispatched = 1");
-	}
-
-	[Fact]
-	public void MarkEventDispatchedRequest_TargetEventStoreEventsTable()
-	{
-		var request = new MarkEventDispatchedRequest("event-1", Ct);
-
-		request.Command.CommandText.ShouldContain("UPDATE EventStoreEvents");
-	}
-
-	[Fact]
-	public void MarkEventDispatchedRequest_FilterByEventId()
-	{
-		var request = new MarkEventDispatchedRequest("event-1", Ct);
-
-		request.Command.CommandText.ShouldContain("EventId = @EventId");
-	}
-
-	[Fact]
-	public void MarkEventDispatchedRequest_SetParameterNames()
-	{
-		var request = new MarkEventDispatchedRequest("event-1", Ct);
-
-		var paramNames = request.Parameters.ParameterNames.ToList();
-		paramNames.ShouldContain("EventId");
-	}
-
-	[Fact]
-	public void MarkEventDispatchedRequest_HaveCorrectRequestType()
-	{
-		var request = new MarkEventDispatchedRequest("event-1", Ct);
-
-		request.RequestType.ShouldBe("MarkEventDispatchedRequest");
-	}
-
-	[Fact]
-	public void MarkEventDispatchedRequest_HaveResolveAsync()
-	{
-		var request = new MarkEventDispatchedRequest("event-1", Ct);
-
-		request.ResolveAsync.ShouldNotBeNull();
-	}
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void MarkEventDispatchedRequest_ThrowOnInvalidEventId(string? eventId)
-	{
-		Should.Throw<ArgumentException>(() =>
-			new MarkEventDispatchedRequest(eventId, Ct));
 	}
 
 	#endregion
@@ -912,79 +846,6 @@ public sealed class SqlServerRequestsShould
 	public void GetPendingOutboxMessagesRequest_AcceptLargeBatchSize()
 	{
 		var request = new GetPendingOutboxMessagesRequest(10000, Ct);
-
-		request.ShouldNotBeNull();
-	}
-
-	#endregion
-
-	#region GetUndispatchedEventsRequest
-
-	[Fact]
-	public void GetUndispatchedEventsRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new GetUndispatchedEventsRequest(50, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("IsDispatched = 0");
-		request.Command.CommandText.ShouldContain("TOP (@BatchSize)");
-	}
-
-	[Fact]
-	public void GetUndispatchedEventsRequest_TargetEventStoreEventsTable()
-	{
-		var request = new GetUndispatchedEventsRequest(50, Ct);
-
-		request.Command.CommandText.ShouldContain("FROM EventStoreEvents");
-	}
-
-	[Fact]
-	public void GetUndispatchedEventsRequest_OrderByPositionAsc()
-	{
-		var request = new GetUndispatchedEventsRequest(50, Ct);
-
-		request.Command.CommandText.ShouldContain("ORDER BY Position ASC");
-	}
-
-	[Fact]
-	public void GetUndispatchedEventsRequest_SetParameterNames()
-	{
-		var request = new GetUndispatchedEventsRequest(50, Ct);
-
-		var paramNames = request.Parameters.ParameterNames.ToList();
-		paramNames.ShouldContain("BatchSize");
-	}
-
-	[Fact]
-	public void GetUndispatchedEventsRequest_HaveCorrectRequestType()
-	{
-		var request = new GetUndispatchedEventsRequest(50, Ct);
-
-		request.RequestType.ShouldBe("GetUndispatchedEventsRequest");
-	}
-
-	[Fact]
-	public void GetUndispatchedEventsRequest_HaveResolveAsync()
-	{
-		var request = new GetUndispatchedEventsRequest(50, Ct);
-
-		request.ResolveAsync.ShouldNotBeNull();
-	}
-
-	[Theory]
-	[InlineData(0)]
-	[InlineData(-1)]
-	[InlineData(-100)]
-	public void GetUndispatchedEventsRequest_ThrowOnInvalidBatchSize(int batchSize)
-	{
-		Should.Throw<ArgumentOutOfRangeException>(() =>
-			new GetUndispatchedEventsRequest(batchSize, Ct));
-	}
-
-	[Fact]
-	public void GetUndispatchedEventsRequest_AcceptBatchSizeOfOne()
-	{
-		var request = new GetUndispatchedEventsRequest(1, Ct);
 
 		request.ShouldNotBeNull();
 	}

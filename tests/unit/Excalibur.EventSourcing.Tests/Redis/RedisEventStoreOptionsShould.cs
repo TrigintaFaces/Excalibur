@@ -16,8 +16,6 @@ public sealed class RedisEventStoreOptionsShould : UnitTestBase
 
 		options.ConnectionString.ShouldBe(string.Empty);
 		options.StreamKeyPrefix.ShouldBe("es");
-		options.UndispatchedSetKey.ShouldBe("es:undispatched");
-		options.DefaultBatchSize.ShouldBe(100);
 		options.DatabaseIndex.ShouldBe(-1);
 	}
 
@@ -28,15 +26,11 @@ public sealed class RedisEventStoreOptionsShould : UnitTestBase
 		{
 			ConnectionString = "localhost:6379",
 			StreamKeyPrefix = "events",
-			UndispatchedSetKey = "events:pending",
-			DefaultBatchSize = 500,
 			DatabaseIndex = 3
 		};
 
 		options.ConnectionString.ShouldBe("localhost:6379");
 		options.StreamKeyPrefix.ShouldBe("events");
-		options.UndispatchedSetKey.ShouldBe("events:pending");
-		options.DefaultBatchSize.ShouldBe(500);
 		options.DatabaseIndex.ShouldBe(3);
 	}
 }

@@ -207,8 +207,7 @@ public sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 							EventData: SerializeEvent(@event),
 							Metadata: @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null,
 							Version: version,
-							Timestamp: @event.OccurredAt,
-							IsDispatched: false);
+							Timestamp: @event.OccurredAt);
 
 						aggregateEvents.Add(storedEvent);
 						_eventsById[storedEvent.EventId] = storedEvent;
@@ -219,121 +218,6 @@ public sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 					return new ValueTask<AppendResult>(AppendResult.CreateSuccess(version, firstPosition));
 				}
 			}
-		}
-		catch (Exception ex)
-		{
-			activity.RecordException(ex);
-			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			throw;
-		}
-	}
-
-	/// <inheritdoc/>
-	public ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		cancellationToken.ThrowIfCancellationRequested();
-
-		using var activity = EventSourcingActivitySource.StartGetUndispatchedActivity(batchSize);
-
-		try
-		{
-			lock (_lock)
-			{
-				// Performance optimization: AD-250-1, AD-250-3 - avoid LINQ materializations
-				// Pre-allocate array with max expected size to avoid List resizing
-				var undispatched = new StoredEvent[Math.Min(batchSize, _eventsById.Count)];
-				var count = 0;
-
-				// Single pass through events, collecting undispatched ones
-				// Note: We need ordering by timestamp, so we collect first then sort
-				foreach (var storedEvent in _eventsById.Values)
-				{
-					if (!storedEvent.IsDispatched)
-					{
-						if (count < undispatched.Length)
-						{
-							undispatched[count++] = storedEvent;
-						}
-						else
-						{
-							// Need more space - resize (rare case)
-							Array.Resize(ref undispatched, undispatched.Length * 2);
-							undispatched[count++] = storedEvent;
-						}
-					}
-				}
-
-				if (count == 0)
-				{
-					_ = (activity?.SetTag(EventSourcingTags.EventCount, 0));
-					activity.SetOperationResult(EventSourcingTagValues.Success);
-					// Performance optimization: AD-250-5 - ValueTask avoids heap allocation for sync completions
-					return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
-				}
-
-				// Sort by timestamp and take batchSize
-				var resultSpan = undispatched.AsSpan(0, count);
-				resultSpan.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-
-				var resultCount = Math.Min(count, batchSize);
-				var result = new StoredEvent[resultCount];
-				resultSpan[..resultCount].CopyTo(result);
-
-				_ = (activity?.SetTag(EventSourcingTags.EventCount, resultCount));
-				activity.SetOperationResult(EventSourcingTagValues.Success);
-
-				return new ValueTask<IReadOnlyList<StoredEvent>>(result);
-			}
-		}
-		catch (Exception ex)
-		{
-			activity.RecordException(ex);
-			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			throw;
-		}
-	}
-
-	/// <inheritdoc/>
-	public ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken)
-	{
-		cancellationToken.ThrowIfCancellationRequested();
-
-		using var activity = EventSourcingActivitySource.StartMarkDispatchedActivity(eventId);
-
-		try
-		{
-			if (_eventsById.TryGetValue(eventId, out var storedEvent))
-			{
-				lock (_lock)
-				{
-					// Create updated event with IsDispatched = true
-					var updatedEvent = storedEvent with { IsDispatched = true };
-
-					// Update in both dictionaries
-					_eventsById[eventId] = updatedEvent;
-
-					var key = (storedEvent.AggregateId, storedEvent.AggregateType);
-					if (_events.TryGetValue(key, out var aggregateEvents))
-					{
-						lock (aggregateEvents)
-						{
-							var index = aggregateEvents.FindIndex(e => e.EventId == eventId);
-							if (index >= 0)
-							{
-								aggregateEvents[index] = updatedEvent;
-							}
-						}
-					}
-				}
-			}
-
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-			// Performance optimization: AD-250-5 - ValueTask avoids heap allocation for sync completions
-			return ValueTask.CompletedTask;
 		}
 		catch (Exception ex)
 		{
@@ -429,28 +313,6 @@ public sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 		lock (_lock)
 		{
 			return _eventsById.Count;
-		}
-	}
-
-	/// <summary>
-	/// Gets the count of undispatched events.
-	/// </summary>
-	/// <returns>The number of events that have not been dispatched.</returns>
-	public int GetUndispatchedEventCount()
-	{
-		lock (_lock)
-		{
-			// AD-251-3: Avoid LINQ Count - use manual iteration
-			var count = 0;
-			foreach (var e in _eventsById.Values)
-			{
-				if (!e.IsDispatched)
-				{
-					count++;
-				}
-			}
-
-			return count;
 		}
 	}
 

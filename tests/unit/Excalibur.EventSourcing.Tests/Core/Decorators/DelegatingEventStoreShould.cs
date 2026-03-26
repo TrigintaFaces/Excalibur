@@ -70,34 +70,6 @@ public sealed class DelegatingEventStoreShould
 	}
 
 	[Fact]
-	public async Task DelegateGetUndispatchedEventsAsync_ToInner()
-	{
-		// Arrange
-		var expected = new List<StoredEvent> { CreateStoredEvent() };
-#pragma warning disable CA2012
-		A.CallTo(() => _inner.GetUndispatchedEventsAsync(100, A<CancellationToken>._))
-			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(expected));
-#pragma warning restore CA2012
-
-		// Act
-		var result = await _sut.GetUndispatchedEventsAsync(100, CancellationToken.None).ConfigureAwait(false);
-
-		// Assert
-		result.ShouldBeSameAs(expected);
-	}
-
-	[Fact]
-	public async Task DelegateMarkEventAsDispatchedAsync_ToInner()
-	{
-		// Act
-		await _sut.MarkEventAsDispatchedAsync("event-1", CancellationToken.None).ConfigureAwait(false);
-
-		// Assert
-		A.CallTo(() => _inner.MarkEventAsDispatchedAsync("event-1", A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
-	}
-
-	[Fact]
 	public void ThrowOnNullInner()
 	{
 		Should.Throw<ArgumentNullException>(() => new TestDelegatingEventStore(null!));
@@ -118,8 +90,7 @@ public sealed class DelegatingEventStoreShould
 			Array.Empty<byte>(),
 			null,
 			1,
-			DateTimeOffset.UtcNow,
-			false);
+			DateTimeOffset.UtcNow);
 
 	private sealed class TestDelegatingEventStore : DelegatingEventStore
 	{

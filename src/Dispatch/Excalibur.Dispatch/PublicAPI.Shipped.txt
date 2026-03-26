@@ -1248,8 +1248,6 @@ Excalibur.Dispatch.Delivery.CronScheduler.TryParse(string! expression, out Excal
 Excalibur.Dispatch.Delivery.CronScheduler.TryParse(string! expression, System.TimeZoneInfo! timeZone, out Excalibur.Dispatch.Delivery.ICronExpression? cronExpression) -> bool
 Excalibur.Dispatch.Delivery.CronScheduler.WouldTriggerAt(Excalibur.Dispatch.Delivery.ICronExpression! cronExpression, System.DateTimeOffset time) -> bool
 Excalibur.Dispatch.Delivery.DeliveryMessageEnvelopeExtensions
-Excalibur.Dispatch.Delivery.EventStoreDispatcherService
-Excalibur.Dispatch.Delivery.EventStoreDispatcherService.EventStoreDispatcherService(Excalibur.Dispatch.Abstractions.Messaging.IEventStoreDispatcher! eventStoreDispatcher, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.EventStoreDispatcherOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.EventStoreDispatcherService!>! logger) -> void
 Excalibur.Dispatch.Delivery.EventStoreMessage<TAggregateKey>
 Excalibur.Dispatch.Delivery.EventStoreMessage<TAggregateKey>.AggregateId.get -> TAggregateKey
 Excalibur.Dispatch.Delivery.EventStoreMessage<TAggregateKey>.AggregateId.init -> void
@@ -1374,10 +1372,6 @@ Excalibur.Dispatch.Delivery.InMemoryCronJobStore.RemoveJobAsync(string! jobId, S
 Excalibur.Dispatch.Delivery.InMemoryCronJobStore.SetJobEnabledAsync(string! jobId, bool enabled, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Delivery.InMemoryCronJobStore.UpdateJobAsync(Excalibur.Dispatch.Delivery.RecurringCronJob! job, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Delivery.InMemoryCronJobStore.UpdateNextRunTimeAsync(string! jobId, System.DateTimeOffset? nextRunUtc, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryEventStoreDispatcher
-Excalibur.Dispatch.Delivery.InMemoryEventStoreDispatcher.DispatchAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryEventStoreDispatcher.Init(string! dispatcherId) -> void
-Excalibur.Dispatch.Delivery.InMemoryEventStoreDispatcher.InMemoryEventStoreDispatcher(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.InMemoryEventStoreDispatcher!>! logger) -> void
 Excalibur.Dispatch.Delivery.InMemoryScheduleStore
 Excalibur.Dispatch.Delivery.InMemoryScheduleStore.AddOrUpdateAsync(Excalibur.Dispatch.Delivery.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Delivery.InMemoryScheduleStore.CompleteAsync(System.Guid scheduleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -3477,10 +3471,6 @@ Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions.Guarantee.get -> Ex
 Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions.Guarantee.set -> void
 Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions.IdempotencyKeyRetention.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions.IdempotencyKeyRetention.set -> void
-Excalibur.Dispatch.Options.Delivery.EventStoreDispatcherOptions
-Excalibur.Dispatch.Options.Delivery.EventStoreDispatcherOptions.EventStoreDispatcherOptions() -> void
-Excalibur.Dispatch.Options.Delivery.EventStoreDispatcherOptions.PollInterval.get -> System.TimeSpan
-Excalibur.Dispatch.Options.Delivery.EventStoreDispatcherOptions.PollInterval.set -> void
 Excalibur.Dispatch.Options.Delivery.FilteredInvokerOptions
 Excalibur.Dispatch.Options.Delivery.FilteredInvokerOptions.EnableCaching.get -> bool
 Excalibur.Dispatch.Options.Delivery.FilteredInvokerOptions.EnableCaching.set -> void
@@ -5642,7 +5632,6 @@ override Excalibur.Dispatch.Channels.DispatchChannelWriter<T>.TryWrite(T item) -
 override Excalibur.Dispatch.Channels.DispatchChannelWriter<T>.WaitToWriteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 override Excalibur.Dispatch.Channels.DispatchChannelWriter<T>.WriteAsync(T item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 override Excalibur.Dispatch.Delivery.CausationId.ToString() -> string!
-override Excalibur.Dispatch.Delivery.EventStoreDispatcherService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
 override Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.Equals(object? obj) -> bool
 override Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.GetHashCode() -> int
 override Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage>.Equals(object? obj) -> bool
@@ -6142,7 +6131,6 @@ static Microsoft.Extensions.DependencyInjection.ContextValidationServiceCollecti
 static Microsoft.Extensions.DependencyInjection.DataAnnotationsServiceCollectionExtensions.WithDataAnnotationsValidation(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions.AddDispatchScheduler<TScheduler>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions.AddDispatchScheduling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions.AddEventStoreDispatcherOptions(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions.AddInbox<TStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.Delivery.InboxOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions.AddInboxOptions(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions.AddOutbox<TStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

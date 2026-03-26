@@ -206,8 +206,7 @@ public sealed class FirestoreEventStoreListenerSubscription : IChangeFeedSubscri
 				? Convert.FromBase64String(doc.GetValue<string>("metadata"))
 				: null,
 			PartitionKeyValue = streamId,
-			DocumentId = doc.Id,
-			IsDispatched = doc.ContainsField("isDispatched") && doc.GetValue<bool>("isDispatched")
+			DocumentId = doc.Id
 		};
 	}
 

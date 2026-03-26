@@ -119,63 +119,6 @@ public sealed class TelemetryEventStoreShould : IDisposable
 	}
 
 	[Fact]
-	public async Task GetUndispatchedEventsAsync_DelegateToInner()
-	{
-		// Arrange
-		var expected = new List<StoredEvent> { CreateStoredEvent() };
-#pragma warning disable CA2012
-		A.CallTo(() => _inner.GetUndispatchedEventsAsync(100, A<CancellationToken>._))
-			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(expected));
-#pragma warning restore CA2012
-
-		// Act
-		var result = await _sut.GetUndispatchedEventsAsync(100, CancellationToken.None);
-
-		// Assert
-		result.ShouldBeSameAs(expected);
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_PropagateException()
-	{
-		// Arrange
-#pragma warning disable CA2012
-		A.CallTo(() => _inner.GetUndispatchedEventsAsync(100, A<CancellationToken>._))
-			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(
-				Task.FromException<IReadOnlyList<StoredEvent>>(new TimeoutException())));
-#pragma warning restore CA2012
-
-		// Act & Assert
-		await Should.ThrowAsync<TimeoutException>(
-			() => _sut.GetUndispatchedEventsAsync(100, CancellationToken.None).AsTask());
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_DelegateToInner()
-	{
-		// Act
-		await _sut.MarkEventAsDispatchedAsync("event-1", CancellationToken.None);
-
-		// Assert
-		A.CallTo(() => _inner.MarkEventAsDispatchedAsync("event-1", A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_PropagateException()
-	{
-		// Arrange
-#pragma warning disable CA2012
-		A.CallTo(() => _inner.MarkEventAsDispatchedAsync("event-1", A<CancellationToken>._))
-			.Returns(new ValueTask(Task.FromException(new InvalidOperationException("mark failed"))));
-#pragma warning restore CA2012
-
-		// Act & Assert
-		await Should.ThrowAsync<InvalidOperationException>(
-			() => _sut.MarkEventAsDispatchedAsync("event-1", CancellationToken.None).AsTask());
-	}
-
-	[Fact]
 	public void ThrowOnNullConstructorArgs()
 	{
 		Should.Throw<ArgumentNullException>(() =>
@@ -195,6 +138,5 @@ public sealed class TelemetryEventStoreShould : IDisposable
 			Array.Empty<byte>(),
 			null,
 			1,
-			DateTimeOffset.UtcNow,
-			false);
+			DateTimeOffset.UtcNow);
 }

@@ -200,11 +200,6 @@ public sealed record CloudStoredEvent
 	/// Gets the document ID in the store.
 	/// </summary>
 	public string? DocumentId { get; init; }
-
-	/// <summary>
-	/// Gets a value indicating whether the event has been dispatched via outbox.
-	/// </summary>
-	public bool IsDispatched { get; init; }
 }
 
 /// <summary>

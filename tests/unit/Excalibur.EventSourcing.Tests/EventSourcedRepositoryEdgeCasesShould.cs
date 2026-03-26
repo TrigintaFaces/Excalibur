@@ -265,8 +265,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			EventData: new byte[] { 0x01, 0x02, 0x03 },
 			Metadata: null,
 			Version: 0,
-			Timestamp: DateTimeOffset.UtcNow,
-			IsDispatched: false);
+			Timestamp: DateTimeOffset.UtcNow);
 
 		var eventStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
@@ -308,8 +307,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			EventData: new byte[] { 0x01, 0x02 },
 			Metadata: null,
 			Version: 0,
-			Timestamp: DateTimeOffset.UtcNow,
-			IsDispatched: false);
+			Timestamp: DateTimeOffset.UtcNow);
 
 		var eventStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
@@ -347,8 +345,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			EventData: new byte[] { 0x01, 0x02, 0x03 },
 			Metadata: null,
 			Version: 0,
-			Timestamp: DateTimeOffset.UtcNow,
-			IsDispatched: false);
+			Timestamp: DateTimeOffset.UtcNow);
 
 		var eventStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
@@ -392,8 +389,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			EventData: JsonSerializer.SerializeToUtf8Bytes(originalEvent),
 			Metadata: null,
 			Version: 0,
-			Timestamp: DateTimeOffset.UtcNow,
-			IsDispatched: false);
+			Timestamp: DateTimeOffset.UtcNow);
 
 		var eventStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
@@ -553,8 +549,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 				EventData: JsonSerializer.SerializeToUtf8Bytes(new TestDomainEvent { AggregateId = aggregateId, Data = "gap-event" }),
 				Metadata: null,
 				Version: 10,
-				Timestamp: DateTimeOffset.UtcNow,
-				IsDispatched: false),
+				Timestamp: DateTimeOffset.UtcNow),
 		};
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
 			.Returns(gapEvents);
@@ -610,8 +605,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 				EventData: JsonSerializer.SerializeToUtf8Bytes(new TestDomainEvent { AggregateId = aggregateId, Data = "contiguous" }),
 				Metadata: null,
 				Version: 5,
-				Timestamp: DateTimeOffset.UtcNow,
-				IsDispatched: false),
+				Timestamp: DateTimeOffset.UtcNow),
 		};
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
 			.Returns(contiguousEvents);

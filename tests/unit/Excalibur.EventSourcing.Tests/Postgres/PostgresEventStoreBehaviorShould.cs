@@ -65,24 +65,6 @@ public sealed class PostgresEventStoreBehaviorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task GetUndispatchedEventsAsync_Throw_WhenConnectionCannotBeOpened()
-	{
-		var sut = new PostgresEventStore(InvalidConnectionString, Logger);
-
-		await Should.ThrowAsync<Exception>(() =>
-			sut.GetUndispatchedEventsAsync(100, CancellationToken.None).AsTask());
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_Throw_WhenConnectionCannotBeOpened()
-	{
-		var sut = new PostgresEventStore(InvalidConnectionString, Logger);
-
-		await Should.ThrowAsync<Exception>(() =>
-			sut.MarkEventAsDispatchedAsync("evt-1", CancellationToken.None).AsTask());
-	}
-
-	[Fact]
 	public void SerializeEvent_UsePayloadSerializer_WhenProvided()
 	{
 		var payloadSerializer = new StubPayloadSerializer([7, 8, 9]);

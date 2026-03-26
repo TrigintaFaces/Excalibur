@@ -17,9 +17,9 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 public sealed class InsertEventRequest : DataRequestBase<IDbConnection, long>
 {
 	private const string Sql = """
-		INSERT INTO EventStoreEvents (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, IsDispatched)
+		INSERT INTO EventStoreEvents (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp)
 		OUTPUT INSERTED.Position
-		VALUES (@EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp, 0)
+		VALUES (@EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp)
 		""";
 
 	/// <summary>

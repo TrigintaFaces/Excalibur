@@ -82,14 +82,6 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void EventStoreDispatcherOptions_HaveDefaults()
-	{
-		var opts = new EventStoreDispatcherOptions();
-
-		opts.PollInterval.ShouldBe(TimeSpan.FromSeconds(15));
-	}
-
-	[Fact]
 	public void FilteredInvokerOptions_HaveDefaults()
 	{
 		var opts = new FilteredInvokerOptions();

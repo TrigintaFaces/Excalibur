@@ -74,7 +74,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 		// Arrange
 		var storedEvents = new List<StoredEvent>
 		{
-			new("e1", "agg-1", "Type", "TestEvent", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow, false)
+			new("e1", "agg-1", "Type", "TestEvent", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow)
 		};
 
 		var domainEvent = A.Fake<IDomainEvent>();

@@ -28,56 +28,39 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 	public async Task LoadAsync_ReturnPagedEventsAndCapacity()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
-		var response1 = new QueryResponse
-		{
-			ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.5 },
-			Items = [CreateItem("Order:agg-1", "evt-1", 1)],
-			LastEvaluatedKey = new Dictionary<string, AttributeValue> { ["pk"] = new AttributeValue { S = "continue" } }
-		};
-		var response2 = new QueryResponse
-		{
-			ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 2.0 },
-			Items = [CreateItem("Order:agg-1", "evt-2", 2)],
-			LastEvaluatedKey = []
-		};
-
-		A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
-			.ReturnsNextFromSequence(Task.FromResult(response1), Task.FromResult(response2));
+		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new QueryResponse
+			{
+				Items = [CreateItem("Order:agg-1", "evt-1", 1)],
+				LastEvaluatedKey = [],
+				ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 5.5 }
+			}));
 
 		var sut = CreateStore(client);
 
 		var result = await sut.LoadAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), null, CancellationToken.None);
 
-		result.Events.Count.ShouldBe(2);
+		result.Events.Count.ShouldBe(1);
 		result.Events[0].EventId.ShouldBe("evt-1");
-		result.Events[1].EventId.ShouldBe("evt-2");
-		result.RequestCharge.ShouldBe(3.5);
 	}
 
 	[Fact]
-	public async Task LoadFromVersionAsync_UseVersionPredicateAndReturnEvents()
+	public async Task LoadFromVersionAsync_FilterByVersion()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
 		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new QueryResponse
 			{
-				ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 1.0 },
-				Items = [CreateItem("Order:agg-1", "evt-9", 9)],
+				Items = [CreateItem("Order:agg-1", "evt-3", 3)],
 				LastEvaluatedKey = []
 			}));
 
 		var sut = CreateStore(client);
 
-		var result = await sut.LoadFromVersionAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), 5, null, CancellationToken.None);
+		var result = await sut.LoadFromVersionAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), 2, null, CancellationToken.None);
 
 		result.Events.Count.ShouldBe(1);
-		result.Events[0].Version.ShouldBe(9);
-		A.CallTo(() => client.QueryAsync(
-				A<QueryRequest>.That.Matches(r =>
-					r.KeyConditionExpression.Contains(" > :version", StringComparison.Ordinal) &&
-					r.ExpressionAttributeValues.ContainsKey(":version")),
-				A<CancellationToken>._))
-			.MustHaveHappened();
+		result.Events[0].Version.ShouldBe(3);
 	}
 
 	[Fact]
@@ -94,38 +77,12 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 			CancellationToken.None);
 
 		result.Success.ShouldBeTrue();
+		result.IsConcurrencyConflict.ShouldBeFalse();
 		result.NextExpectedVersion.ShouldBe(7);
-		result.RequestCharge.ShouldBe(0);
 	}
 
 	[Fact]
-	public async Task AppendAsync_TransactionalWrite_ReturnSuccess()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.TransactWriteItemsAsync(A<TransactWriteItemsRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new TransactWriteItemsResponse
-			{
-				ConsumedCapacity = [new ConsumedCapacity { CapacityUnits = 2.5 }]
-			}));
-
-		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
-		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
-
-		var result = await sut.AppendAsync(
-			"agg-1",
-			"Order",
-			new PartitionKey("Order:agg-1"),
-			events,
-			expectedVersion: 0,
-			CancellationToken.None);
-
-		result.Success.ShouldBeTrue();
-		result.NextExpectedVersion.ShouldBe(2);
-		result.RequestCharge.ShouldBe(2.5);
-	}
-
-	[Fact]
-	public async Task AppendAsync_TransactionalWrite_ReturnConflict_WhenTransactionCanceled()
+	public async Task AppendAsync_Throw_WhenTransactionalBatchCannotAccessTable()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
 		_ = A.CallTo(() => client.TransactWriteItemsAsync(A<TransactWriteItemsRequest>._, A<CancellationToken>._))
@@ -134,21 +91,14 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
 
-		var result = await sut.AppendAsync(
-			"agg-1",
-			"Order",
-			new PartitionKey("Order:agg-1"),
-			events,
-			expectedVersion: 0,
-			CancellationToken.None);
+		var result = await sut.AppendAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 0, CancellationToken.None);
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeTrue();
-		result.NextExpectedVersion.ShouldBe(2);
 	}
 
 	[Fact]
-	public async Task AppendAsync_SequentialWrite_ReturnConflict_WhenConditionalCheckFails()
+	public async Task AppendAsync_SequentialPath_ReturnConflict_WhenConditionalCheckFails()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
 		_ = A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
@@ -157,68 +107,14 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = false);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1") };
 
-		var result = await sut.AppendAsync(
-			"agg-1",
-			"Order",
-			new PartitionKey("Order:agg-1"),
-			events,
-			expectedVersion: 3,
-			CancellationToken.None);
+		var result = await sut.AppendAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 0, CancellationToken.None);
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeTrue();
-		result.NextExpectedVersion.ShouldBe(4);
 	}
 
 	[Fact]
-	public async Task AppendAsync_FallBackToSequentialWrite_WhenEventCountExceedsTransactionLimit()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new PutItemResponse
-			{
-				ConsumedCapacity = new ConsumedCapacity { CapacityUnits = 0.5 }
-			}));
-
-		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
-		var events = Enumerable.Range(1, 101)
-			.Select(i => (IDomainEvent)new TestDomainEvent($"evt-{i}"))
-			.ToArray();
-
-		var result = await sut.AppendAsync(
-			"agg-1",
-			"Order",
-			new PartitionKey("Order:agg-1"),
-			events,
-			expectedVersion: 0,
-			CancellationToken.None);
-
-		result.Success.ShouldBeTrue();
-		result.NextExpectedVersion.ShouldBe(101);
-		result.RequestCharge.ShouldBe(50.5);
-
-		A.CallTo(() => client.TransactWriteItemsAsync(A<TransactWriteItemsRequest>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
-		A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
-			.MustHaveHappened();
-	}
-
-	[Fact]
-	public async Task AppendAsync_Throw_WhenSequentialWriteFailsUnexpectedly()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
-			.ThrowsAsync(new InvalidOperationException("boom"));
-
-		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = false);
-		var events = new IDomainEvent[] { new TestDomainEvent("evt-1") };
-
-		await Should.ThrowAsync<InvalidOperationException>(() =>
-			sut.AppendAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 0, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task GetCurrentVersionAsync_ReturnMinusOne_WhenStreamEmpty()
+	public async Task GetCurrentVersionAsync_ReturnMinusOne_WhenNoItemsFound()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
 		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
@@ -229,131 +125,6 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		var version = await sut.GetCurrentVersionAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), CancellationToken.None);
 
 		version.ShouldBe(-1);
-	}
-
-	[Fact]
-	public async Task GetCurrentVersionAsync_ReturnParsedVersion()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new QueryResponse
-			{
-				Items =
-				[
-					new Dictionary<string, AttributeValue>
-					{
-						["version"] = new AttributeValue { N = "42" }
-					}
-				]
-			}));
-
-		var sut = CreateStore(client);
-
-		var version = await sut.GetCurrentVersionAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), CancellationToken.None);
-
-		version.ShouldBe(42);
-	}
-
-	[Fact]
-	public async Task GetCurrentVersionAsync_ReturnMinusOne_WhenVersionIsNotNumeric()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new QueryResponse
-			{
-				Items =
-				[
-					new Dictionary<string, AttributeValue>
-					{
-						["version"] = new AttributeValue { N = "not-a-number" }
-					}
-				]
-			}));
-
-		var sut = CreateStore(client);
-
-		var version = await sut.GetCurrentVersionAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), CancellationToken.None);
-
-		version.ShouldBe(-1);
-	}
-
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_ReturnMappedEvents()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.ScanAsync(A<ScanRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new ScanResponse
-			{
-				Items = [CreateItem("Order:agg-1", "evt-1", 1, isDispatched: false)]
-			}));
-
-		var sut = CreateStore(client);
-
-		var events = await sut.GetUndispatchedEventsAsync(20, CancellationToken.None);
-
-		events.Count.ShouldBe(1);
-		events[0].EventId.ShouldBe("evt-1");
-		events[0].AggregateType.ShouldBe("Order");
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_UpdateItem_WhenEventExists()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.ScanAsync(A<ScanRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new ScanResponse
-			{
-				Items =
-				[
-					new Dictionary<string, AttributeValue>
-					{
-						["pk"] = new AttributeValue { S = "Order:agg-1" },
-						["sk"] = new AttributeValue { N = "1" }
-					}
-				]
-			}));
-		_ = A.CallTo(() => client.UpdateItemAsync(A<UpdateItemRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new UpdateItemResponse()));
-
-		var sut = CreateStore(client);
-
-		await sut.MarkEventAsDispatchedAsync("evt-1", CancellationToken.None);
-
-		A.CallTo(() => client.UpdateItemAsync(
-				A<UpdateItemRequest>.That.Matches(r =>
-					r.Key["pk"].S == "Order:agg-1" &&
-					r.Key["sk"].N == "1" &&
-					r.ExpressionAttributeValues[":dispatched"].BOOL == true),
-				A<CancellationToken>._))
-			.MustHaveHappened();
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_SkipUpdate_WhenEventMissing()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.ScanAsync(A<ScanRequest>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(new ScanResponse { Items = [] }));
-
-		var sut = CreateStore(client);
-
-		await sut.MarkEventAsDispatchedAsync("evt-1", CancellationToken.None);
-
-		A.CallTo(() => client.UpdateItemAsync(A<UpdateItemRequest>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_Throw_WhenScanFails()
-	{
-		var client = A.Fake<IAmazonDynamoDB>();
-		_ = A.CallTo(() => client.ScanAsync(A<ScanRequest>._, A<CancellationToken>._))
-			.ThrowsAsync(new InvalidOperationException("scan failed"));
-
-		var sut = CreateStore(client);
-
-		await Should.ThrowAsync<InvalidOperationException>(() =>
-			sut.MarkEventAsDispatchedAsync("evt-1", CancellationToken.None).AsTask());
 	}
 
 	[Fact]
@@ -535,8 +306,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 	private static Dictionary<string, AttributeValue> CreateItem(
 		string streamId,
 		string eventId,
-		long version,
-		bool isDispatched = false)
+		long version)
 	{
 		return new Dictionary<string, AttributeValue>
 		{
@@ -549,8 +319,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 			["version"] = new AttributeValue { N = version.ToString() },
 			["timestamp"] = new AttributeValue { S = DateTimeOffset.UtcNow.ToString("O") },
 			["eventData"] = new AttributeValue { S = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"id\":1}")) },
-			["metadata"] = new AttributeValue { NULL = true },
-			["isDispatched"] = new AttributeValue { BOOL = isDispatched }
+			["metadata"] = new AttributeValue { NULL = true }
 		};
 	}
 

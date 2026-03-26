@@ -164,7 +164,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 	{
 		// Arrange
 		var storedEvent = new StoredEvent(
-			"evt-1", "agg-1", "TestAgg", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false);
+			"evt-1", "agg-1", "TestAgg", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow);
 
 		var domainEvent = A.Fake<IDomainEvent>();
 		var callCount = 0;
@@ -210,7 +210,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 	{
 		// Arrange
 		var storedEvent = new StoredEvent(
-			"evt-1", "agg-1", "TestAgg", "BadEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false);
+			"evt-1", "agg-1", "TestAgg", "BadEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow);
 
 		var loadCalls = 0;
 		var secondPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -23,6 +23,8 @@ using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
 using ISnapshotManager = Excalibur.EventSourcing.Abstractions.ISnapshotManager;
 using ISnapshotStrategy = Excalibur.EventSourcing.Abstractions.ISnapshotStrategy;
 using StoredEvent = Excalibur.EventSourcing.Abstractions.StoredEvent;
+using EventNotificationContext = Excalibur.EventSourcing.Abstractions.EventNotificationContext;
+using IEventNotificationBroker = Excalibur.EventSourcing.Abstractions.IEventNotificationBroker;
 
 namespace Excalibur.EventSourcing.Implementation;
 
@@ -72,6 +74,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	private readonly bool _enableAutoSnapshotUpgrade;
 	private readonly int _targetSnapshotVersion;
 	private readonly Func<TKey, TAggregate> _aggregateFactory;
+	private readonly IEventNotificationBroker? _eventNotificationBroker;
 	private readonly ILogger? _logger;
 
 	/// <summary>
@@ -88,6 +91,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
+	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
@@ -99,7 +103,8 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		IEventSourcedOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
 		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
-		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null)
+		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null,
+		IEventNotificationBroker? eventNotificationBroker = null)
 	{
 		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
@@ -112,6 +117,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		_enableAutoUpcast = upcastingOptions?.Value.EnableAutoUpcastOnReplay ?? false;
 		_enableAutoSnapshotUpgrade = snapshotUpgradingOptions?.Value.EnableAutoUpgradeOnLoad ?? false;
 		_targetSnapshotVersion = snapshotUpgradingOptions?.Value.CurrentSnapshotVersion ?? 1;
+		_eventNotificationBroker = eventNotificationBroker;
 		_logger = logger;
 	}
 
@@ -129,6 +135,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <param name="outboxStore"> Optional outbox store for staging integration events. </param>
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
+	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
@@ -139,7 +146,8 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		ISnapshotStrategy? snapshotStrategy = null,
 		IEventSourcedOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
-		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null)
+		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null,
+		IEventNotificationBroker? eventNotificationBroker = null)
 	{
 		ArgumentNullException.ThrowIfNull(eventStore);
 		ArgumentNullException.ThrowIfNull(eventSerializer);
@@ -157,6 +165,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		_enableAutoUpcast = options.Value.EnableAutoUpcast;
 		_enableAutoSnapshotUpgrade = options.Value.EnableAutoSnapshotUpgrade;
 		_targetSnapshotVersion = options.Value.TargetSnapshotVersion;
+		_eventNotificationBroker = eventNotificationBroker;
 		_logger = logger;
 	}
 
@@ -282,6 +291,22 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		// Update ETag to reflect the new version
 		// Format: "{AggregateType}:{Id}:v{Version}" provides deterministic, version-linked ETags
 		aggregate.ETag = $"{aggregate.AggregateType}:{aggregate.Id}:v{aggregate.Version}";
+
+		// Notify inline projections and event notification handlers (R27.2, R27.3).
+		// Events are already committed -- the broker handles failure per the configured policy.
+		// When no broker is registered in DI, this is a no-op (zero behavioral change).
+		if (_eventNotificationBroker is not null)
+		{
+			var context = new EventNotificationContext(
+				stringId,
+				aggregate.AggregateType,
+				aggregate.Version,
+				DateTimeOffset.UtcNow);
+
+			await _eventNotificationBroker.NotifyAsync(
+				uncommittedEvents, context, cancellationToken)
+				.ConfigureAwait(false);
+		}
 
 		// Check if we should create a snapshot (failure must not propagate as save failure)
 		if (_snapshotManager is not null && _snapshotStrategy is not null && _snapshotStrategy.ShouldCreateSnapshot(aggregate))
@@ -648,6 +673,7 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
+	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
@@ -659,9 +685,10 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 		IEventSourcedOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
 		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
-		ILogger<EventSourcedRepository<TAggregate, string>>? logger = null)
+		ILogger<EventSourcedRepository<TAggregate, string>>? logger = null,
+		IEventNotificationBroker? eventNotificationBroker = null)
 		: base(eventStore, eventSerializer, aggregateFactory, upcastingPipeline, snapshotManager, snapshotStrategy, upcastingOptions,
-			outboxStore, snapshotVersionManager, snapshotUpgradingOptions, logger)
+			outboxStore, snapshotVersionManager, snapshotUpgradingOptions, logger, eventNotificationBroker)
 	{
 	}
 }

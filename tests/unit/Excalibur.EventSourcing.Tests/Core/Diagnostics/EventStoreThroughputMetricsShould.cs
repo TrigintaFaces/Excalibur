@@ -137,6 +137,5 @@ public sealed class EventStoreThroughputMetricsShould : IDisposable
 			Array.Empty<byte>(),
 			null,
 			1,
-			DateTimeOffset.UtcNow,
-			false);
+			DateTimeOffset.UtcNow);
 }

@@ -19,6 +19,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Testing.Conformance" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">

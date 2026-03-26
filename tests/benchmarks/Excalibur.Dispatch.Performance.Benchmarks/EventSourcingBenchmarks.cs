@@ -258,8 +258,7 @@ public class EventSourcingBenchmarks
 						EventData: Encoding.UTF8.GetBytes($"benchmark-{version}"),
 						Metadata: null,
 						Version: version,
-						Timestamp: evt.OccurredAt,
-						IsDispatched: true);
+						Timestamp: evt.OccurredAt);
 
 					stream.Add(stored);
 					version++;
@@ -303,20 +302,6 @@ public class EventSourcingBenchmarks
 
 				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
 			}
-		}
-
-		public ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-			int batchSize,
-			CancellationToken cancellationToken)
-		{
-			return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
-		}
-
-		public ValueTask MarkEventAsDispatchedAsync(
-			string eventId,
-			CancellationToken cancellationToken)
-		{
-			return ValueTask.CompletedTask;
 		}
 	}
 }

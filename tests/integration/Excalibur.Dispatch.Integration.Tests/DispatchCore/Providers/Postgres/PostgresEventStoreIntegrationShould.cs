@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 /// </para>
 /// <para>
 /// These tests verify the PostgresEventStore implementation against a real Postgres
-/// database using TestContainers. Tests cover append, load, concurrency, and dispatch marking.
+/// database using TestContainers. Tests cover append, load, and concurrency.
 /// </para>
 /// </remarks>
 [IntegrationTest]
@@ -135,29 +135,6 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 	}
 
 	/// <summary>
-	/// Tests that events can be marked as dispatched.
-	/// </summary>
-	[Fact]
-	public async Task MarkEventAsDispatched()
-	{
-		// Arrange
-		await InitializeEventTableAsync();
-		var store = CreateEventStore();
-		var aggregateId = Guid.NewGuid().ToString();
-		var testEvent = CreateTestEvent(aggregateId, 1);
-		var events = new List<IDomainEvent> { testEvent };
-
-		_ = await store.AppendAsync(aggregateId, TestAggregateType, events, -1, TestCancellationToken);
-
-		// Act
-		await store.MarkEventAsDispatchedAsync(testEvent.EventId, TestCancellationToken);
-
-		// Assert - Undispatched query should return empty
-		var undispatched = await store.GetUndispatchedEventsAsync(10, TestCancellationToken);
-		undispatched.ShouldBeEmpty();
-	}
-
-	/// <summary>
 	/// Tests that events are isolated across aggregates.
 	/// </summary>
 	[Fact]
@@ -228,12 +205,10 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 			    metadata BYTEA,
 			    version BIGINT NOT NULL,
 			    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			    is_dispatched BOOLEAN NOT NULL DEFAULT FALSE,
 			    CONSTRAINT uq_aggregate_version UNIQUE (aggregate_id, aggregate_type, version)
 			);
 
 			CREATE INDEX IF NOT EXISTS idx_events_aggregate ON public.events (aggregate_id, aggregate_type, version);
-			CREATE INDEX IF NOT EXISTS idx_events_undispatched ON public.events (is_dispatched) WHERE is_dispatched = FALSE;
 			""";
 
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);

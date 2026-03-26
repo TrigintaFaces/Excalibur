@@ -42,11 +42,15 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	private readonly IGlobalStreamProjection<TState> _projection;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly ISubscriptionCheckpointStore _checkpointStore;
+	private readonly ICursorMapStore? _cursorMapStore;
 	private readonly IOptions<GlobalStreamProjectionOptions> _options;
 	private readonly ILogger<GlobalStreamProjectionHost<TState>> _logger;
+	private readonly Diagnostics.ProjectionObservability? _observability;
+	private readonly ProjectionHealthState? _healthState;
 
 	private GlobalStreamPosition _currentPosition = GlobalStreamPosition.Start;
 	private long _eventsSinceCheckpoint;
+	private readonly Dictionary<string, long> _pendingCursorUpdates = new(StringComparer.Ordinal);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GlobalStreamProjectionHost{TState}"/> class.
@@ -57,13 +61,21 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	/// <param name="checkpointStore">The checkpoint store for persisting and restoring position.</param>
 	/// <param name="options">The projection host options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="serviceProvider">The service provider for resolving internal observability services.</param>
+	/// <param name="cursorMapStore">
+	/// Optional cursor map store for multi-stream projections. When provided,
+	/// per-stream positions are tracked in addition to the single checkpoint.
+	/// Null means single-stream checkpoint mode (unchanged behavior).
+	/// </param>
 	public GlobalStreamProjectionHost(
 		IGlobalStreamQuery globalStreamQuery,
 		IGlobalStreamProjection<TState> projection,
 		IEventSerializer eventSerializer,
 		ISubscriptionCheckpointStore checkpointStore,
 		IOptions<GlobalStreamProjectionOptions> options,
-		ILogger<GlobalStreamProjectionHost<TState>> logger)
+		ILogger<GlobalStreamProjectionHost<TState>> logger,
+		IServiceProvider serviceProvider,
+		ICursorMapStore? cursorMapStore = null)
 	{
 		_globalStreamQuery = globalStreamQuery ?? throw new ArgumentNullException(nameof(globalStreamQuery));
 		_projection = projection ?? throw new ArgumentNullException(nameof(projection));
@@ -71,6 +83,14 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		_checkpointStore = checkpointStore ?? throw new ArgumentNullException(nameof(checkpointStore));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_cursorMapStore = cursorMapStore;
+
+		// Resolve internal observability types from DI (optional, never fails)
+		ArgumentNullException.ThrowIfNull(serviceProvider);
+		_observability = serviceProvider.GetService(typeof(Diagnostics.ProjectionObservability))
+			as Diagnostics.ProjectionObservability;
+		_healthState = serviceProvider.GetService(typeof(ProjectionHealthState))
+			as ProjectionHealthState;
 	}
 
 	/// <inheritdoc />
@@ -123,7 +143,18 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					catch (Exception ex) when (ex is not OperationCanceledException)
 					{
 						LogEventProcessingError(opts.ProjectionName, storedEvent.EventId, ex);
+
+						// Fire-and-forget observability
+						try { _observability?.RecordError(typeof(TState).Name, ex.GetType().Name); } catch { /* swallow */ }
+
 						// Continue processing other events
+					}
+
+					// Track per-stream position for cursor map (R27.55)
+					if (_cursorMapStore is not null)
+					{
+						var streamKey = $"{storedEvent.AggregateType}:{storedEvent.AggregateId}";
+						_pendingCursorUpdates[streamKey] = storedEvent.Version;
 					}
 
 					_eventsSinceCheckpoint++;
@@ -141,9 +172,22 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					await _checkpointStore.StoreCheckpointAsync(
 						opts.ProjectionName, _currentPosition.Position, stoppingToken)
 						.ConfigureAwait(false);
+
+					// Save cursor map after projection apply (phase ordering, R27.55)
+					if (_cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
+					{
+						await _cursorMapStore.SaveCursorMapAsync(
+							opts.ProjectionName, _pendingCursorUpdates, stoppingToken)
+							.ConfigureAwait(false);
+						_pendingCursorUpdates.Clear();
+					}
+
 					LogCheckpointSaved(opts.ProjectionName, _currentPosition.Position);
 					_eventsSinceCheckpoint = 0;
 				}
+
+				// Report lag as current position (consumers compute actual lag externally)
+				try { _healthState?.AsyncLag = _currentPosition.Position; } catch { /* swallow */ }
 
 				LogBatchProcessed(opts.ProjectionName, events.Count, _currentPosition.Position);
 			}
@@ -168,6 +212,15 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				await _checkpointStore.StoreCheckpointAsync(
 					opts.ProjectionName, _currentPosition.Position, CancellationToken.None)
 					.ConfigureAwait(false);
+
+				// Save remaining cursor map entries on shutdown
+				if (_cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
+				{
+					await _cursorMapStore.SaveCursorMapAsync(
+						opts.ProjectionName, _pendingCursorUpdates, CancellationToken.None)
+						.ConfigureAwait(false);
+				}
+
 				LogCheckpointSaved(opts.ProjectionName, _currentPosition.Position);
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)

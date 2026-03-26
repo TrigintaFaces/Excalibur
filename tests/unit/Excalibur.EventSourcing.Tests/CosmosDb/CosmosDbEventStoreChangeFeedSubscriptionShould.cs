@@ -152,7 +152,6 @@ public sealed class CosmosDbEventStoreChangeFeedSubscriptionShould : UnitTestBas
 		eventDocumentType.GetProperty("Timestamp")!.SetValue(doc, DateTimeOffset.UtcNow);
 		eventDocumentType.GetProperty("EventData")!.SetValue(doc, new byte[] { 1, 2, 3 });
 		eventDocumentType.GetProperty("Metadata")!.SetValue(doc, new byte[] { 9, 8, 7 });
-		eventDocumentType.GetProperty("IsDispatched")!.SetValue(doc, true);
 		eventDocumentType.GetProperty("ETag")!.SetValue(doc, "etag-1");
 
 		var mapMethod = typeof(CosmosDbEventStoreChangeFeedSubscription).GetMethod(
@@ -166,7 +165,6 @@ public sealed class CosmosDbEventStoreChangeFeedSubscriptionShould : UnitTestBas
 		mapped.EventId.ShouldBe("evt-1");
 		mapped.EventType.ShouldBe("OrderCreated");
 		mapped.Version.ShouldBe(3);
-		mapped.IsDispatched.ShouldBeTrue();
 		mapped.ETag.ShouldBe("etag-1");
 	}
 

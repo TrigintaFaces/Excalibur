@@ -17,7 +17,7 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnlyList<StoredEvent>>
 {
 	private const string Sql = """
-		SELECT EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, IsDispatched
+		SELECT EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp
 		FROM EventStoreEvents
 		WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType AND Version > @FromVersion
 		ORDER BY Version ASC

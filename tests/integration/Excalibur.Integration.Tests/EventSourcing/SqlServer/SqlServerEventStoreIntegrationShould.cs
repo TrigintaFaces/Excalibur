@@ -160,35 +160,6 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	}
 
 	/// <summary>
-	/// Verifies that events can be marked as dispatched for outbox pattern.
-	/// </summary>
-	[Fact]
-	public async Task MarkEventAsDispatched()
-	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
-
-		var eventStore = CreateEventStore();
-		var aggregateId = Guid.NewGuid().ToString();
-		var aggregateType = "TestAggregate";
-
-		var testEvent = new TestDomainEvent(aggregateId, 0);
-		var events = new List<IDomainEvent> { testEvent };
-
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
-
-		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None);
-		undispatched.ShouldContain(e => e.EventId == testEvent.EventId);
-
-		await eventStore.MarkEventAsDispatchedAsync(testEvent.EventId, CancellationToken.None);
-
-		var afterMark = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None);
-		afterMark.ShouldNotContain(e => e.EventId == testEvent.EventId);
-	}
-
-	/// <summary>
 	/// Verifies that loading events for a non-existent aggregate returns empty list.
 	/// </summary>
 	[Fact]
@@ -288,98 +259,6 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 		}
 	}
 
-	/// <summary>
-	/// Verifies that getting undispatched events from empty store returns empty list.
-	/// </summary>
-	[Fact]
-	public async Task ReturnEmptyListForUndispatchedWhenNoneExist()
-	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
-
-		var eventStore = CreateEventStore();
-
-		// Mark all events as dispatched first by clearing the table
-		await ClearAllEventsAsync();
-
-		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None);
-
-		_ = undispatched.ShouldNotBeNull();
-		undispatched.Count.ShouldBe(0);
-	}
-
-	/// <summary>
-	/// Verifies that multiple events can be marked as dispatched sequentially.
-	/// </summary>
-	[Fact]
-	public async Task MarkMultipleEventsAsDispatchedSequentially()
-	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
-
-		var eventStore = CreateEventStore();
-		var aggregateId = Guid.NewGuid().ToString();
-		var aggregateType = "TestAggregate";
-
-		var events = new List<IDomainEvent>
-		{
-			new TestDomainEvent(aggregateId, 0),
-			new TestDomainEvent(aggregateId, 1),
-			new TestDomainEvent(aggregateId, 2),
-		};
-
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
-
-		// Mark each event as dispatched one by one
-		foreach (var evt in events)
-		{
-			await eventStore.MarkEventAsDispatchedAsync(evt.EventId, CancellationToken.None);
-		}
-
-		var undispatched = await eventStore.GetUndispatchedEventsAsync(10, CancellationToken.None);
-		undispatched.ShouldNotContain(e => events.Any(evt => evt.EventId == e.EventId));
-	}
-
-	/// <summary>
-	/// Verifies that batch size limit is respected when getting undispatched events.
-	/// </summary>
-	[Fact]
-	public async Task RespectBatchSizeLimitForUndispatchedEvents()
-	{
-		if (!_dockerAvailable)
-		{
-			return;
-		}
-
-		var eventStore = CreateEventStore();
-		var aggregateId = Guid.NewGuid().ToString();
-		var aggregateType = "TestAggregate";
-
-		// Clear any existing events first
-		await ClearAllEventsAsync();
-
-		// Append 5 events
-		var events = new List<IDomainEvent>
-		{
-			new TestDomainEvent(aggregateId, 0),
-			new TestDomainEvent(aggregateId, 1),
-			new TestDomainEvent(aggregateId, 2),
-			new TestDomainEvent(aggregateId, 3),
-			new TestDomainEvent(aggregateId, 4),
-		};
-
-		_ = await eventStore.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
-
-		// Request only 3 undispatched events
-		var undispatched = await eventStore.GetUndispatchedEventsAsync(3, CancellationToken.None);
-
-		undispatched.Count.ShouldBe(3);
-	}
-
 	private IEventStore CreateEventStore()
 	{
 		var logger = NullLogger<SqlServerEventStore>.Instance;
@@ -408,7 +287,6 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 				Metadata VARBINARY(MAX) NULL,
 				Version BIGINT NOT NULL,
 				Timestamp DATETIMEOFFSET NOT NULL,
-				IsDispatched BIT NOT NULL DEFAULT 0,
 				INDEX IX_EventStoreEvents_Aggregate (AggregateId, AggregateType, Version)
 			)
 			""";

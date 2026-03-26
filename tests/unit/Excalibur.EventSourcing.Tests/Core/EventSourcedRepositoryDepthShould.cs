@@ -81,7 +81,7 @@ public sealed class EventSourcedRepositoryDepthShould
 		// Arrange
 		var storedEvents = new List<StoredEvent>
 		{
-			new("ev-1", "agg-1", "TestRepoAggregate", "TestCreated", [1], null, 0, DateTimeOffset.UtcNow, false),
+			new("ev-1", "agg-1", "TestRepoAggregate", "TestCreated", [1], null, 0, DateTimeOffset.UtcNow),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", A<string>._, A<long>._, A<CancellationToken>._))
@@ -257,7 +257,7 @@ public sealed class EventSourcedRepositoryDepthShould
 	{
 		// Arrange
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", A<string>._, A<CancellationToken>._))
-			.Returns(new List<StoredEvent> { new("ev-1", "agg-1", "Test", "Test", [1], null, 0, DateTimeOffset.UtcNow, false) });
+			.Returns(new List<StoredEvent> { new("ev-1", "agg-1", "Test", "Test", [1], null, 0, DateTimeOffset.UtcNow) });
 
 		var repo = CreateRepository();
 
@@ -314,8 +314,8 @@ public sealed class EventSourcedRepositoryDepthShould
 		// Arrange
 		var storedEvents = new List<StoredEvent>
 		{
-			new("ev-1", "agg-1", "TestRepoAggregate", "UnknownType", [1], null, 0, DateTimeOffset.UtcNow, false),
-			new("ev-2", "agg-1", "TestRepoAggregate", "TestCreated", [2], null, 1, DateTimeOffset.UtcNow, false),
+			new("ev-1", "agg-1", "TestRepoAggregate", "UnknownType", [1], null, 0, DateTimeOffset.UtcNow),
+			new("ev-2", "agg-1", "TestRepoAggregate", "TestCreated", [2], null, 1, DateTimeOffset.UtcNow),
 		};
 
 		A.CallTo(() => _eventStore.LoadAsync("agg-1", A<string>._, A<long>._, A<CancellationToken>._))

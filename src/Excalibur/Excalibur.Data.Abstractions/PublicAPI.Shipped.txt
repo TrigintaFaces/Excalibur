@@ -207,8 +207,6 @@ Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.EventId.get -> string!
 Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.EventId.init -> void
 Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.EventType.get -> string!
 Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.EventType.init -> void
-Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.IsDispatched.get -> bool
-Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.IsDispatched.init -> void
 Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.Metadata.get -> byte[]?
 Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.Metadata.init -> void
 Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent.PartitionKeyValue.get -> string!

@@ -26,12 +26,6 @@ public static class RedisEventSourcingEventId
 	/// <summary>Events appended to stream.</summary>
 	public const int EventsAppended = 115001;
 
-	/// <summary>Undispatched events retrieved.</summary>
-	public const int UndispatchedEventsRetrieved = 115002;
-
-	/// <summary>Event marked as dispatched.</summary>
-	public const int EventMarkedDispatched = 115003;
-
 	/// <summary>Event store operation failed.</summary>
 	public const int EventStoreOperationFailed = 115004;
 

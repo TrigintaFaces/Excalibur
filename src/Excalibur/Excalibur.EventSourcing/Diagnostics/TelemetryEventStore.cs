@@ -25,8 +25,8 @@ namespace Excalibur.EventSourcing.Diagnostics;
 /// <para>
 /// Two metrics are recorded:
 /// <list type="bullet">
-/// <item><description><c>excalibur.eventsourcing.eventstore.operations</c> — Counter of store operations</description></item>
-/// <item><description><c>excalibur.eventsourcing.eventstore.duration</c> — Histogram of operation durations in seconds</description></item>
+/// <item><description><c>excalibur.eventsourcing.eventstore.operations</c> -- Counter of store operations</description></item>
+/// <item><description><c>excalibur.eventsourcing.eventstore.duration</c> -- Histogram of operation durations in seconds</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -150,55 +150,6 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		catch (Exception ex)
 		{
 			RecordFailure("append", guardedType, sw, activity, ex);
-			throw;
-		}
-	}
-
-	/// <inheritdoc />
-	public override async ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		using var activity = _activitySource.StartActivity(EventSourcingActivities.GetUndispatched);
-		activity?.SetTag(EventSourcingTags.BatchSize, batchSize);
-		activity?.SetTag(EventSourcingTags.Provider, _providerName);
-
-		var sw = ValueStopwatch.StartNew();
-		try
-		{
-			var result = await base.GetUndispatchedEventsAsync(batchSize, cancellationToken).ConfigureAwait(false);
-			RecordSuccess("get_undispatched", null, sw);
-			activity?.SetTag(EventSourcingTags.EventCount, result.Count);
-			return result;
-		}
-		catch (Exception ex)
-		{
-			RecordFailure("get_undispatched", null, sw, activity, ex);
-			throw;
-		}
-	}
-
-	/// <inheritdoc />
-	public override async ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken)
-	{
-		using var activity = _activitySource.StartActivity(EventSourcingActivities.MarkDispatched);
-		// EventId is high-cardinality (unique per event) — not guarded on activity spans
-		// because traces benefit from unique identifiers for correlation.
-		// Only metric tags must be guarded; EventId is NOT used in metric TagLists.
-		activity?.SetTag(EventSourcingTags.EventId, eventId);
-		activity?.SetTag(EventSourcingTags.Provider, _providerName);
-
-		var sw = ValueStopwatch.StartNew();
-		try
-		{
-			await base.MarkEventAsDispatchedAsync(eventId, cancellationToken).ConfigureAwait(false);
-			RecordSuccess("mark_dispatched", null, sw);
-		}
-		catch (Exception ex)
-		{
-			RecordFailure("mark_dispatched", null, sw, activity, ex);
 			throw;
 		}
 	}

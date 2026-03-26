@@ -239,12 +239,142 @@ services.AddDispatch(builder =>
 
 ### Projection Modes
 
-Projections run in two modes:
+Projections support three modes, configured per projection via `IProjectionBuilder<T>`:
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
-| **Inline** | Handlers run synchronously during event dispatch | Read models requiring immediate consistency |
-| **Async** | Handlers run via CDC (Change Data Capture) | Eventually-consistent read models, reporting |
+| **Inline** | Updated synchronously during `SaveAsync()`, before returning to caller | Read models requiring immediate read-after-write consistency |
+| **Async** | Updated by `GlobalStreamProjectionHost` (background, checkpoint-based) | Eventually-consistent read models, reporting |
+| **Ephemeral** | Built on-demand by replaying events, no persistence | Ad-hoc queries, debugging, auditing |
+
+## Inline Projections (Projection Builder API)
+
+Inline projections run during `SaveAsync()` and guarantee that the read model is up-to-date **before** the call returns. Configure them with the fluent `IProjectionBuilder<T>` API:
+
+```csharp
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.AddAggregate<OrderAggregate>(agg => agg.UseInMemoryStore());
+
+    // Inline: updated synchronously during SaveAsync()
+    builder.AddProjection<OrderSummary>(p => p
+        .Inline()
+        .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; proj.Total = e.Total; })
+        .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
+
+    // Async: updated by GlobalStreamProjectionHost (default mode)
+    builder.AddProjection<OrderSearchIndex>(p => p
+        .Async()
+        .When<OrderPlaced>((proj, e) => { /* index update */ }));
+});
+```
+
+After `SaveAsync`, inline projections are immediately consistent:
+
+```csharp
+await repository.SaveAsync(order, cancellationToken);
+var summary = await projectionStore.GetByIdAsync(order.Id, cancellationToken);
+// summary.Status == "Placed" -- guaranteed, not eventual
+```
+
+### IProjectionBuilder&lt;T&gt; API
+
+| Method | Description |
+|--------|-------------|
+| `.Inline()` | Run during `SaveAsync()` for immediate consistency |
+| `.Async()` | Run via background host (default if neither is called) |
+| `.When<TEvent>(Action<TProjection, TEvent>)` | Register an event handler for a specific domain event type |
+| `.WithCacheTtl(TimeSpan)` | Optional caching for ephemeral projection results |
+
+:::tip
+A second `AddProjection<T>()` call for the same projection type **replaces** the first registration. This is useful for testing and conditional reconfiguration.
+:::
+
+### Execution Order
+
+When `SaveAsync()` completes event persistence, the notification broker runs in two strict phases:
+
+1. **Phase 1 -- Inline projections:** All registered inline projections run concurrently via `Task.WhenAll` (different projection types in parallel, events applied sequentially within each type).
+2. **Phase 2 -- Notification handlers:** All `IEventNotificationHandler<T>` handlers run sequentially, only after ALL projections complete.
+
+Projections and handlers **never overlap**, so handlers can safely read updated projection state.
+
+### Failure Handling
+
+Since events are already committed when inline projections run, failure handling is critical:
+
+```csharp
+services.Configure<EventNotificationOptions>(options =>
+{
+    // Default: surface projection failures to the caller
+    options.FailurePolicy = NotificationFailurePolicy.Propagate;
+
+    // Alternative: log and continue (async path catches up)
+    // options.FailurePolicy = NotificationFailurePolicy.LogAndContinue;
+
+    // Warn when inline processing exceeds this threshold
+    options.InlineProjectionWarningThreshold = TimeSpan.FromMilliseconds(100);
+});
+```
+
+| Policy | Behavior |
+|--------|----------|
+| `Propagate` (default) | Failed projections throw `InlineProjectionException`. Events remain committed. **Do NOT retry `SaveAsync`**. |
+| `LogAndContinue` | Failures logged at Error level. Processing continues. Async path catches up. |
+
+:::warning
+When `FailurePolicy` is `Propagate` and an inline projection fails, the events **are already committed** to the event store. Never retry `SaveAsync()` -- this would duplicate events. Use `IProjectionRecovery` instead.
+:::
+
+### Recovery
+
+Use `IProjectionRecovery` to recover failed inline projections without re-appending events:
+
+```csharp
+try
+{
+    await repository.SaveAsync(order, cancellationToken);
+}
+catch (InlineProjectionException ex)
+{
+    // Events ARE committed -- recover the failed projection
+    logger.LogError(ex, "Projection {Type} failed for {AggregateId}",
+        ex.FailedProjectionType.Name, ex.AggregateId);
+
+    // Re-apply all events to the projection (no re-append)
+    var recovery = serviceProvider.GetRequiredService<IProjectionRecovery>();
+    await recovery.ReapplyAsync<OrderSummary>(ex.AggregateId, cancellationToken);
+}
+```
+
+`IProjectionRecovery` is automatically registered when you call `UseEventNotification()` or `AddProjection<T>()`. You can also register it standalone via `UseProjectionRecovery()`.
+
+### Event Notification Handlers
+
+For in-process event handling after `SaveAsync()` (without transport round-trips), implement `IEventNotificationHandler<T>`:
+
+```csharp
+public class OrderPlacedNotificationHandler : IEventNotificationHandler<OrderPlaced>
+{
+    public Task HandleAsync(
+        OrderPlaced @event,
+        EventNotificationContext context,
+        CancellationToken cancellationToken)
+    {
+        // Runs after ALL inline projections complete (Phase 2)
+        // context.AggregateId, context.CommittedVersion available
+        return Task.CompletedTask;
+    }
+}
+```
+
+:::note
+`IEventNotificationHandler<T>` is distinct from `IEventHandler<T>` in the Dispatch layer. Dispatch handlers are transport-aware and participate in the messaging pipeline. Notification handlers are EventSourcing-level, in-process only, and invoked during `SaveAsync`.
+:::
+
+### Zero-Overhead Opt-In
+
+If you never call `AddProjection<T>()` or `UseEventNotification()`, the broker is not registered in DI. `SaveAsync` behaves identically to pre-notification behavior with zero overhead.
 
 See [Async Projection Processing](#async-projection-processing) for CDC configuration.
 
@@ -594,6 +724,104 @@ public class InMemoryProjectionStore<T> : IProjectionStore<T> where T : class
 }
 ```
 
+## Ephemeral Projections (On-Demand)
+
+Ephemeral projections build a read model by replaying events on-demand **without persisting** the result. Equivalent to Marten's "Live" projection mode. Useful for ad-hoc queries, debugging, and audit trails.
+
+```csharp
+// Register an ephemeral projection (same handlers as inline/async)
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.AddProjection<OrderAuditTrail>(p => p
+        .Ephemeral()
+        .When<OrderPlaced>((proj, e) => { proj.Events.Add($"Placed: {e.Total}"); })
+        .When<OrderShipped>((proj, e) => { proj.Events.Add($"Shipped: {e.ShippedAt}"); }));
+});
+
+// Build the projection on-demand (not persisted)
+var engine = serviceProvider.GetRequiredService<IEphemeralProjectionEngine>();
+var auditTrail = await engine.BuildAsync<OrderAuditTrail>(
+    orderId, "OrderAggregate", cancellationToken);
+// auditTrail.Events contains the full history, built fresh from events
+```
+
+### Key Characteristics
+
+- Uses the **same `When<T>` handlers** as inline and async projections
+- Returns a **fresh instance** on every call (no shared mutable state)
+- **Never invoked** by the notification broker -- consumer-initiated only
+- Optional caching via `IDistributedCache` when configured with `.WithCacheTtl()`
+
+## Incremental Snapshots
+
+Incremental snapshots reduce storage overhead by saving only the **delta** (changes) since the last full snapshot, rather than the complete aggregate state on every save.
+
+:::info Unique Feature
+No competing .NET event sourcing framework offers incremental snapshots. This is a unique competitive advantage of Excalibur.
+:::
+
+```csharp
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.AddAggregate<OrderAggregate>(agg =>
+    {
+        agg.UseInMemoryStore();
+        // Use incremental snapshot strategy -- saves a delta on every commit
+        agg.UseSnapshotStrategy(new IncrementalSnapshotStrategy(compactionThreshold: 10));
+    });
+});
+```
+
+### How It Works
+
+1. **Every commit:** A delta snapshot is saved (only changes, not full state)
+2. **On load:** Base snapshot + ordered deltas are merged to reconstruct full state
+3. **Compaction:** After `CompactionThreshold` deltas (default 10), a full snapshot replaces the base and deletes prior deltas
+
+### IIncrementalSnapshotStore&lt;T&gt;
+
+```csharp
+public interface IIncrementalSnapshotStore<TState> where TState : class
+{
+    // Load base + merge deltas to reconstruct full state
+    Task<TState?> LoadAsync(string aggregateId, string aggregateType,
+        CancellationToken cancellationToken);
+
+    // Save only the delta (changes since last save)
+    Task SaveDeltaAsync(string aggregateId, string aggregateType,
+        TState delta, long version, CancellationToken cancellationToken);
+
+    // Compact: save full state, delete prior deltas
+    Task SaveFullAsync(string aggregateId, string aggregateType,
+        TState state, long version, CancellationToken cancellationToken);
+}
+```
+
+## Projection Observability
+
+The projection system exposes OpenTelemetry-compatible metrics and an ASP.NET Core health check for production monitoring. All observability services are automatically registered when you call `UseEventNotification()` or `AddProjection<T>()`.
+
+### Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `excalibur.projection.lag.events` | UpDownCounter | Events an async projection is behind the global stream head |
+| `excalibur.projection.error.count` | Counter | Total projection processing errors |
+| `excalibur.projection.rebuild.duration` | Histogram (ms) | Duration of projection rebuild operations |
+| `excalibur.projection.cursor_map.positions` | Observable Gauge | Current cursor map position per stream per projection |
+
+All metrics use the shared `Excalibur.EventSourcing.Projections` Meter via `IMeterFactory`.
+
+### Health Check
+
+The built-in `ProjectionHealthCheck` is automatically registered as an ASP.NET Core health check named `"projections"`. It reports:
+
+- **Healthy:** No inline errors in window AND async lag below thresholds
+- **Degraded:** Inline projection error within the last 5 minutes, or lag > 100 events
+- **Unhealthy:** Async projection lag > 1000 events
+
+The health check reads from `ProjectionHealthState`, which is updated in real-time by the inline projection processor and async projection host.
+
 ## Best Practices
 
 | Practice | Recommendation |
@@ -602,12 +830,15 @@ public class InMemoryProjectionStore<T> : IProjectionStore<T> where T : class
 | Denormalization | Don't be afraid to duplicate data for query optimization |
 | Indexing | Index read model tables for your query patterns |
 | Batch processing | Process events in batches for async projections |
-| Monitoring | Track projection lag and processing time |
+| Monitoring | Use projection observability metrics and health check |
+| Mode selection | Use **inline** for immediate consistency, **async** for eventual, **ephemeral** for ad-hoc |
+| Failure recovery | Use `IProjectionRecovery.ReapplyAsync<T>()` for failed inline projections |
 
 ## Next Steps
 
 - [Event Store](event-store.md) — Understand event persistence
 - [Event Versioning](versioning.md) — Handle schema evolution
+- [Snapshots](snapshots.md) — Snapshot strategies including incremental snapshots
 - [Handlers](../handlers.md) — React to events
 
 ## See Also

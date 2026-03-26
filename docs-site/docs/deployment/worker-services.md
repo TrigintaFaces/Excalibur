@@ -99,66 +99,42 @@ The built-in `OutboxBackgroundService` provides:
 
 ## Projection Worker
 
-Excalibur provides `EventStoreDispatcherService`, a built-in `BackgroundService` that dispatches events to projection handlers:
+Excalibur supports two projection processing modes. Choose based on your consistency requirements:
+
+### Inline Projections (Immediate Consistency)
+
+Inline projections run during `SaveAsync()` and guarantee read-after-write consistency without a background worker:
 
 ```csharp
-// Setup in your worker service
-builder.Services.AddExcalibur(excalibur =>
+builder.Services.AddExcaliburEventSourcing(es =>
 {
-    excalibur.AddEventSourcing(es =>
-    {
-        es.UseEventStore<SqlServerEventStore>();
-    });
-});
+    es.AddAggregate<OrderAggregate>(agg => agg.UseSqlServerStore(connectionString));
 
-// Register projection handlers via standard DI
-builder.Services.AddSingleton<IProjectionEventProcessor, OrderProjectionHandler>();
-builder.Services.AddSingleton<IProjectionEventProcessor, CustomerProjectionHandler>();
-
-// Enable background dispatching
-builder.Services.AddHostedService<EventStoreDispatcherService>();
-builder.Services.Configure<EventStoreDispatcherOptions>(options =>
-{
-    options.PollInterval = TimeSpan.FromSeconds(1);
+    // Inline: updated synchronously during SaveAsync()
+    es.AddProjection<OrderProjection>(p => p
+        .Inline()
+        .When<OrderCreated>((proj, e) => { proj.Status = "Created"; proj.CustomerId = e.CustomerId; })
+        .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
 });
 ```
 
-### Custom Projection Handler
+See [Projections -- Inline Projections](../event-sourcing/projections.md#inline-projections-projection-builder-api) for failure handling and recovery.
 
-Implement `IProjectionEventProcessor` to handle events:
+### Async Projections (Background Processing)
+
+For eventually-consistent projections, use `GlobalStreamProjectionHost` which processes events via checkpoint-based background polling:
 
 ```csharp
-public class OrderProjectionHandler : IProjectionEventProcessor
+builder.Services.AddExcaliburEventSourcing(es =>
 {
-    private readonly IProjectionStore<OrderProjection> _store;
+    es.AddAggregate<OrderAggregate>(agg => agg.UseSqlServerStore(connectionString));
 
-    public OrderProjectionHandler(IProjectionStore<OrderProjection> store)
-        => _store = store;
-
-    public async Task HandleAsync(object eventData, CancellationToken ct)
-    {
-        switch (eventData)
-        {
-            case OrderCreated e:
-                await _store.UpsertAsync(e.OrderId.ToString(), new OrderProjection
-                {
-                    OrderId = e.OrderId,
-                    CustomerId = e.CustomerId,
-                    Status = "Created"
-                }, ct);
-                break;
-
-            case OrderShipped e:
-                var projection = await _store.GetByIdAsync(e.OrderId.ToString(), ct);
-                if (projection != null)
-                {
-                    projection.Status = "Shipped";
-                    await _store.UpsertAsync(e.OrderId.ToString(), projection, ct);
-                }
-                break;
-        }
-    }
-}
+    // Async: updated by background host
+    es.AddProjection<OrderProjection>(p => p
+        .Async()
+        .When<OrderCreated>((proj, e) => { proj.Status = "Created"; })
+        .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
+});
 ```
 
 ## CDC Worker

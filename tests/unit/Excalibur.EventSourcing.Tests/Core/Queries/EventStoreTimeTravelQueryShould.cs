@@ -148,5 +148,5 @@ public sealed class EventStoreTimeTravelQueryShould
 	}
 
 	private static StoredEvent CreateEvent(string eventId, long version, DateTimeOffset timestamp) =>
-		new(eventId, "agg-1", "Type", "TestEvent", Array.Empty<byte>(), null, version, timestamp, false);
+		new(eventId, "agg-1", "Type", "TestEvent", Array.Empty<byte>(), null, version, timestamp);
 }

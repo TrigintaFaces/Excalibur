@@ -15,7 +15,6 @@ namespace Excalibur.EventSourcing.Abstractions;
 /// <param name="Metadata">The serialized event metadata.</param>
 /// <param name="Version">The event version within the aggregate.</param>
 /// <param name="Timestamp">When the event occurred.</param>
-/// <param name="IsDispatched">Whether the event has been dispatched via outbox.</param>
 public sealed record StoredEvent(
 	string EventId,
 	string AggregateId,
@@ -24,5 +23,4 @@ public sealed record StoredEvent(
 	byte[] EventData,
 	byte[]? Metadata,
 	long Version,
-	DateTimeOffset Timestamp,
-	bool IsDispatched);
+	DateTimeOffset Timestamp);

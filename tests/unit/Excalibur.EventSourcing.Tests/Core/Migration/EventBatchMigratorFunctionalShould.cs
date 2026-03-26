@@ -45,8 +45,7 @@ public sealed class EventBatchMigratorFunctionalShould
 			EventData: [],
 			Metadata: null,
 			Version: version,
-			Timestamp: DateTimeOffset.UtcNow.AddMinutes(version),
-			IsDispatched: false);
+			Timestamp: DateTimeOffset.UtcNow.AddMinutes(version));
 	}
 
 	[Fact]
@@ -212,7 +211,7 @@ public sealed class EventBatchMigratorFunctionalShould
 			TransformFunc: e => new StoredEvent(
 				e.EventId, e.AggregateId, e.AggregateType,
 				"NewEvent", e.EventData, e.Metadata,
-				e.Version, e.Timestamp, e.IsDispatched));
+				e.Version, e.Timestamp));
 
 		var sut = CreateSut();
 

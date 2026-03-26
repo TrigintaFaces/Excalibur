@@ -273,7 +273,6 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 					Metadata = metadata,
 					Version = version,
 					OccurredAt = @event.OccurredAt,
-					IsDispatched = false,
 					GlobalSequence = globalSequence
 				});
 			}
@@ -333,97 +332,6 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				WriteStoreTelemetry.Stores.EventStore,
 				WriteStoreTelemetry.Providers.MongoDb,
 				"append",
-				result,
-				stopwatch.Elapsed);
-		}
-	}
-
-	/// <inheritdoc/>
-	public async ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
-		using var activity = EventSourcingActivitySource.StartGetUndispatchedActivity(batchSize);
-
-		try
-		{
-			await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-			var filter = Builders<MongoDbEventDocument>.Filter.Eq(d => d.IsDispatched, false);
-			var sort = Builders<MongoDbEventDocument>.Sort.Ascending(d => d.GlobalSequence);
-
-			var documents = await _eventsCollection
-				.Find(filter)
-				.Sort(sort)
-				.Limit(batchSize)
-				.ToListAsync(cancellationToken)
-				.ConfigureAwait(false);
-
-			var undispatchedEvents = documents.Select(d => d.ToStoredEvent()).ToList();
-
-			_ = (activity?.SetTag(EventSourcingTags.EventCount, undispatchedEvents.Count));
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-
-			return undispatchedEvents;
-		}
-		catch (Exception ex)
-		{
-			result = WriteStoreTelemetry.Results.Failure;
-			activity.RecordException(ex);
-			throw;
-		}
-		finally
-		{
-			WriteStoreTelemetry.RecordOperation(
-				WriteStoreTelemetry.Stores.EventStore,
-				WriteStoreTelemetry.Providers.MongoDb,
-				"get_undispatched",
-				result,
-				stopwatch.Elapsed);
-		}
-	}
-
-	/// <inheritdoc/>
-	public async ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
-		using var activity = EventSourcingActivitySource.StartMarkDispatchedActivity(eventId);
-
-		try
-		{
-			await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-			var filter = Builders<MongoDbEventDocument>.Filter.Eq(d => d.EventId, eventId);
-			var update = Builders<MongoDbEventDocument>.Update
-				.Set(d => d.IsDispatched, true)
-				.Set(d => d.DispatchedAt, DateTimeOffset.UtcNow);
-
-			_ = await _eventsCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-			LogEventDispatched(eventId);
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-		}
-		catch (Exception ex)
-		{
-			result = WriteStoreTelemetry.Results.Failure;
-			activity.RecordException(ex);
-			throw;
-		}
-		finally
-		{
-			WriteStoreTelemetry.RecordOperation(
-				WriteStoreTelemetry.Stores.EventStore,
-				WriteStoreTelemetry.Providers.MongoDb,
-				"mark_dispatched",
 				result,
 				stopwatch.Elapsed);
 		}
@@ -566,22 +474,13 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			indexBuilder.Ascending(d => d.GlobalSequence),
 			new CreateIndexOptions { Name = "ix_global_sequence" });
 
-		// Partial index for undispatched events
-		var undispatchedIndex = new CreateIndexModel<MongoDbEventDocument>(
-			indexBuilder.Ascending(d => d.IsDispatched),
-			new CreateIndexOptions<MongoDbEventDocument>
-			{
-				Name = "ix_undispatched",
-				PartialFilterExpression = Builders<MongoDbEventDocument>.Filter.Eq(d => d.IsDispatched, false)
-			});
-
-		// Index on eventId for dispatch marking
+		// Index on eventId for lookups
 		var eventIdIndex = new CreateIndexModel<MongoDbEventDocument>(
 			indexBuilder.Ascending(d => d.EventId),
 			new CreateIndexOptions { Name = "ix_event_id" });
 
 		_ = await _eventsCollection.Indexes.CreateManyAsync(
-			[uniqueVersionIndex, globalSequenceIndex, undispatchedIndex, eventIdIndex],
+			[uniqueVersionIndex, globalSequenceIndex, eventIdIndex],
 			cancellationToken).ConfigureAwait(false);
 
 		_initialized = true;
@@ -652,9 +551,6 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 
 	[LoggerMessage(DataMongoDbEventId.AppendError, LogLevel.Error, "Failed to append events to {AggregateType}/{AggregateId}")]
 	private partial void LogAppendError(string aggregateType, string aggregateId, Exception ex);
-
-	[LoggerMessage(DataMongoDbEventId.EventDispatched, LogLevel.Debug, "Marked event {EventId} as dispatched")]
-	private partial void LogEventDispatched(string eventId);
 
 	/// <inheritdoc/>
 	public async Task<int> EraseEventsAsync(

@@ -19,7 +19,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 	private const string Sql = """
 		SELECT event_id AS EventId, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
 		       event_type AS EventType, event_data AS EventData, metadata AS Metadata,
-		       version AS Version, timestamp AS Timestamp, is_dispatched AS IsDispatched
+		       version AS Version, timestamp AS Timestamp
 		FROM events
 		WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType AND version > @FromVersion
 		ORDER BY version ASC

@@ -83,7 +83,6 @@ public sealed class CosmosDbEventStoreHelpersShould : UnitTestBase
 		storedEvent.AggregateId.ShouldBe("agg-1");
 		storedEvent.AggregateType.ShouldBe("Order");
 		storedEvent.Version.ShouldBe(8);
-		storedEvent.IsDispatched.ShouldBeFalse();
 		storedEvent.Metadata.ShouldNotBeNull();
 	}
 

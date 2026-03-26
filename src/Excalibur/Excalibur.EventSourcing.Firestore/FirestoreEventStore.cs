@@ -338,8 +338,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 						["eventType"] = eventTypeName,
 						["version"] = version,
 						["timestamp"] = evt.OccurredAt.ToString("O"),
-						["eventData"] = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt)),
-						["isDispatched"] = false
+						["eventData"] = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt))
 					};
 
 					if (evt.Metadata != null)
@@ -495,102 +494,6 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		return AppendResult.CreateFailure(result.ErrorMessage ?? "Unknown error");
 	}
 
-	/// <inheritdoc />
-	public async ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-		using var activity = EventSourcingActivitySource.StartGetUndispatchedActivity(batchSize);
-
-		try
-		{
-			var query = _db.Collection(_options.EventsCollectionName)
-				.WhereEqualTo("isDispatched", false)
-				.OrderBy("timestamp")
-				.Limit(batchSize);
-
-			var snapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-			var events = new List<StoredEvent>();
-
-			foreach (var doc in snapshot.Documents)
-			{
-				events.Add(ToStoredEvent(ToCloudStoredEvent(doc)));
-			}
-
-			_ = (activity?.SetTag(EventSourcingTags.EventCount, events.Count));
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-
-			return events;
-		}
-		catch (Exception ex)
-		{
-			result = WriteStoreTelemetry.Results.Failure;
-			activity.RecordException(ex);
-			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			throw;
-		}
-		finally
-		{
-			WriteStoreTelemetry.RecordOperation(
-				WriteStoreTelemetry.Stores.EventStore,
-				WriteStoreTelemetry.Providers.Firestore,
-				"get_undispatched",
-				result,
-				stopwatch.Elapsed);
-		}
-	}
-
-	/// <inheritdoc />
-	public async ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken)
-	{
-		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
-		using var activity = EventSourcingActivitySource.StartMarkDispatchedActivity(eventId);
-
-		try
-		{
-			await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-			// Query for the event by eventId
-			var query = _db.Collection(_options.EventsCollectionName)
-				.WhereEqualTo("eventId", eventId)
-				.Limit(1);
-
-			var snapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-			if (snapshot.Count > 0)
-			{
-				var docRef = snapshot.Documents[0].Reference;
-				_ = await docRef.UpdateAsync("isDispatched", true, cancellationToken: cancellationToken)
-					.ConfigureAwait(false);
-			}
-
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-		}
-		catch (Exception ex)
-		{
-			result = WriteStoreTelemetry.Results.Failure;
-			activity.RecordException(ex);
-			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			throw;
-		}
-		finally
-		{
-			WriteStoreTelemetry.RecordOperation(
-				WriteStoreTelemetry.Stores.EventStore,
-				WriteStoreTelemetry.Providers.Firestore,
-				"mark_dispatched",
-				result,
-				stopwatch.Elapsed);
-		}
-	}
-
 	#endregion IEventStore Explicit Implementation
 
 	/// <inheritdoc />
@@ -651,8 +554,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			cloudEvent.EventData,
 			cloudEvent.Metadata,
 			cloudEvent.Version,
-			cloudEvent.Timestamp,
-			cloudEvent.IsDispatched);
+			cloudEvent.Timestamp);
 
 	private static CloudStoredEvent ToCloudStoredEvent(DocumentSnapshot doc)
 	{
@@ -671,8 +573,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				? Convert.FromBase64String(doc.GetValue<string>("metadata"))
 				: null,
 			PartitionKeyValue = streamId,
-			DocumentId = doc.Id,
-			IsDispatched = doc.ContainsField("isDispatched") && doc.GetValue<bool>("isDispatched")
+			DocumentId = doc.Id
 		};
 	}
 

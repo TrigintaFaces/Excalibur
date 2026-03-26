@@ -420,129 +420,6 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		return AppendResult.CreateFailure(result.ErrorMessage ?? "Unknown error");
 	}
 
-	/// <inheritdoc />
-	public async ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-		using var activity = EventSourcingActivitySource.StartGetUndispatchedActivity(batchSize);
-
-		try
-		{
-			// DynamoDB scan with filter - not efficient but works for moderate volumes
-			var request = new ScanRequest
-			{
-				TableName = _options.EventsTableName,
-				FilterExpression = "isDispatched = :dispatched",
-				ExpressionAttributeValues = new Dictionary<string, AttributeValue>
-				{
-					[":dispatched"] = new AttributeValue { BOOL = false }
-				},
-				Limit = batchSize
-			};
-
-			var response = await _client.ScanAsync(request, cancellationToken).ConfigureAwait(false);
-
-			var events = response.Items
-				.Select(item => ToStoredEvent(ToCloudStoredEvent(item)))
-				.ToList();
-
-			_ = (activity?.SetTag(EventSourcingTags.EventCount, events.Count));
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-
-			return events;
-		}
-		catch (Exception ex)
-		{
-			result = WriteStoreTelemetry.Results.Failure;
-			activity.RecordException(ex);
-			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			throw;
-		}
-		finally
-		{
-			WriteStoreTelemetry.RecordOperation(
-				WriteStoreTelemetry.Stores.EventStore,
-				WriteStoreTelemetry.Providers.DynamoDb,
-				"get_undispatched",
-				result,
-				stopwatch.Elapsed);
-		}
-	}
-
-	/// <inheritdoc />
-	public async ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken)
-	{
-		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-		using var activity = EventSourcingActivitySource.StartMarkDispatchedActivity(eventId);
-
-		try
-		{
-			// Need to find the event first since we need partition key
-			var request = new ScanRequest
-			{
-				TableName = _options.EventsTableName,
-				FilterExpression = "eventId = :eventId",
-				ExpressionAttributeValues =
-					new Dictionary<string, AttributeValue> { [":eventId"] = new AttributeValue { S = eventId } },
-				Limit = 1
-			};
-
-			var response = await _client.ScanAsync(request, cancellationToken).ConfigureAwait(false);
-
-			if (response.Items.Count > 0)
-			{
-				var item = response.Items[0];
-				var pk = item[_options.PartitionKeyAttribute].S;
-				var sk = item[_options.SortKeyAttribute].N;
-
-				var updateRequest = new UpdateItemRequest
-				{
-					TableName = _options.EventsTableName,
-					Key = new Dictionary<string, AttributeValue>
-					{
-						[_options.PartitionKeyAttribute] = new AttributeValue { S = pk },
-						[_options.SortKeyAttribute] = new AttributeValue { N = sk }
-					},
-					UpdateExpression = "SET isDispatched = :dispatched",
-					ExpressionAttributeValues = new Dictionary<string, AttributeValue>
-					{
-						[":dispatched"] = new AttributeValue { BOOL = true }
-					}
-				};
-
-				_ = await _client.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
-			}
-
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-		}
-		catch (Exception ex)
-		{
-			result = WriteStoreTelemetry.Results.Failure;
-			activity.RecordException(ex);
-			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			throw;
-		}
-		finally
-		{
-			WriteStoreTelemetry.RecordOperation(
-				WriteStoreTelemetry.Stores.EventStore,
-				WriteStoreTelemetry.Providers.DynamoDb,
-				"mark_dispatched",
-				result,
-				stopwatch.Elapsed);
-		}
-	}
-
 	#endregion IEventStore Implementation
 
 	/// <inheritdoc />
@@ -607,8 +484,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			cloudEvent.EventData,
 			cloudEvent.Metadata,
 			cloudEvent.Version,
-			cloudEvent.Timestamp,
-			cloudEvent.IsDispatched);
+			cloudEvent.Timestamp);
 
 	private async Task<CloudAppendResult> AppendWithTransactionAsync(
 		string streamId,
@@ -725,8 +601,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			["eventData"] = new AttributeValue { S = Convert.ToBase64String(SerializeEvent(evt)) },
 			["metadata"] = evt.Metadata != null
 				? new AttributeValue { S = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata)) }
-				: new AttributeValue { NULL = true },
-			["isDispatched"] = new AttributeValue { BOOL = false }
+				: new AttributeValue { NULL = true }
 		};
 	}
 
@@ -745,8 +620,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 				? Convert.FromBase64String(metaAttr.S)
 				: null,
 			PartitionKeyValue = item[_options.PartitionKeyAttribute].S,
-			DocumentId = $"{item[_options.PartitionKeyAttribute].S}:{item[_options.SortKeyAttribute].N}",
-			IsDispatched = item.TryGetValue("isDispatched", out var dispatchedAttr) && dispatchedAttr.BOOL == true
+			DocumentId = $"{item[_options.PartitionKeyAttribute].S}:{item[_options.SortKeyAttribute].N}"
 		};
 	}
 

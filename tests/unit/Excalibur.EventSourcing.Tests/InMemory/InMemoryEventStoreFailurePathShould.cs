@@ -48,28 +48,6 @@ public sealed class InMemoryEventStoreFailurePathShould
 			store.AppendAsync("agg-1", "Order", [evt], expectedVersion: -1, CancellationToken.None).AsTask());
 	}
 
-	[Fact]
-	public async Task GetUndispatchedEventsAsync_Rethrows_WhenCorruptedEventIndexContainsNull()
-	{
-		var store = new InMemoryEventStore();
-		var eventsById = GetPrivateField<ConcurrentDictionary<string, StoredEvent>>(store, "_eventsById");
-		eventsById["evt-null"] = null!;
-
-		await Should.ThrowAsync<NullReferenceException>(() =>
-			store.GetUndispatchedEventsAsync(10, CancellationToken.None).AsTask());
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_Rethrows_WhenCorruptedEventIndexContainsNull()
-	{
-		var store = new InMemoryEventStore();
-		var eventsById = GetPrivateField<ConcurrentDictionary<string, StoredEvent>>(store, "_eventsById");
-		eventsById["evt-null"] = null!;
-
-		await Should.ThrowAsync<NullReferenceException>(() =>
-			store.MarkEventAsDispatchedAsync("evt-null", CancellationToken.None).AsTask());
-	}
-
 	private static T GetPrivateField<T>(object instance, string fieldName)
 	{
 		var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!;

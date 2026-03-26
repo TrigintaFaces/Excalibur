@@ -65,7 +65,8 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 				s_container = new ServiceBusContainerBuilder()
 					.WithAcceptLicenseAgreement(true)
 					.Build();
-				await s_container.StartAsync().ConfigureAwait(false);
+				using var startCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+				await s_container.StartAsync(startCts.Token).ConfigureAwait(false);
 
 				var connectionString = s_container.GetConnectionString();
 

@@ -107,24 +107,6 @@ public sealed class CosmosDbEventStoreBehaviorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task GetUndispatchedEventsAsync_Throw_WhenContainerIsMissing()
-	{
-		var sut = CreateInitializedStore();
-
-		await Should.ThrowAsync<NullReferenceException>(() =>
-			sut.GetUndispatchedEventsAsync(10, CancellationToken.None).AsTask());
-	}
-
-	[Fact]
-	public async Task MarkEventAsDispatchedAsync_Throw_WhenContainerIsMissing()
-	{
-		var sut = CreateInitializedStore();
-
-		await Should.ThrowAsync<NullReferenceException>(() =>
-			sut.MarkEventAsDispatchedAsync("evt-1", CancellationToken.None).AsTask());
-	}
-
-	[Fact]
 	public async Task SubscribeToChangesAsync_Throw_WhenContainerIsMissing()
 	{
 		var sut = CreateInitializedStore();

@@ -112,21 +112,6 @@ public sealed class EncryptingEventStoreDecorator : IEventStore
 			.ConfigureAwait(false);
 	}
 
-	/// <inheritdoc/>
-	public async ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		var events = await _inner.GetUndispatchedEventsAsync(batchSize, cancellationToken).ConfigureAwait(false);
-		return await DecryptEventsAsync(events, cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <inheritdoc/>
-	public ValueTask MarkEventAsDispatchedAsync(string eventId, CancellationToken cancellationToken)
-	{
-		return _inner.MarkEventAsDispatchedAsync(eventId, cancellationToken);
-	}
-
 	private ValueTask<IEnumerable<IDomainEvent>> EncryptEventsAsync(
 		IEnumerable<IDomainEvent> events,
 		CancellationToken cancellationToken)
@@ -134,7 +119,7 @@ public sealed class EncryptingEventStoreDecorator : IEventStore
 		_ = cancellationToken; // reserved for future async encryption
 
 		// Mark events with encryption context so the inner store's serializer can
-		// encrypt field data during the IDomainEvent → StoredEvent conversion.
+		// encrypt field data during the IDomainEvent -> StoredEvent conversion.
 		// The decorator operates on IDomainEvent (pre-serialization), so actual byte-level
 		// encryption must happen at the serialization boundary where the event payload
 		// is converted to byte[].

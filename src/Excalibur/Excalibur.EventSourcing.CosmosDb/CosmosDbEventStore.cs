@@ -396,113 +396,6 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<IReadOnlyList<StoredEvent>> GetUndispatchedEventsAsync(
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-		using var activity = EventSourcingActivitySource.StartGetUndispatchedActivity(batchSize);
-
-		try
-		{
-			var query = new QueryDefinition(
-					"SELECT TOP @batchSize * FROM c WHERE c.isDispatched = false ORDER BY c.timestamp")
-				.WithParameter("@batchSize", batchSize);
-
-			var events = new List<StoredEvent>();
-
-			using var iterator = _container.GetItemQueryIterator<EventDocument>(query);
-
-			while (iterator.HasMoreResults)
-			{
-				var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-
-				foreach (var doc in response)
-				{
-					events.Add(ToStoredEvent(ToCloudStoredEvent(doc)));
-				}
-			}
-
-			_ = (activity?.SetTag(EventSourcingTags.EventCount, events.Count));
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-
-			return events;
-		}
-		catch (Exception ex)
-		{
-			result = WriteStoreTelemetry.Results.Failure;
-			activity.RecordException(ex);
-			throw;
-		}
-		finally
-		{
-			WriteStoreTelemetry.RecordOperation(
-				WriteStoreTelemetry.Stores.EventStore,
-				WriteStoreTelemetry.Providers.CosmosDb,
-				"get_undispatched",
-				result,
-				stopwatch.Elapsed);
-		}
-	}
-
-	/// <inheritdoc/>
-	public async ValueTask MarkEventAsDispatchedAsync(
-		string eventId,
-		CancellationToken cancellationToken)
-	{
-		var stopwatch = ValueStopwatch.StartNew();
-		var result = WriteStoreTelemetry.Results.Success;
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-		using var activity = EventSourcingActivitySource.StartMarkDispatchedActivity(eventId);
-
-		try
-		{
-			// We need to find and update the event
-			var query = new QueryDefinition("SELECT * FROM c WHERE c.eventId = @eventId")
-				.WithParameter("@eventId", eventId);
-
-			using var iterator = _container.GetItemQueryIterator<EventDocument>(query);
-
-			if (iterator.HasMoreResults)
-			{
-				var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-				var doc = response.FirstOrDefault();
-
-				if (doc != null)
-				{
-					doc.IsDispatched = true;
-					_ = await _container.ReplaceItemAsync(
-						doc,
-						doc.Id,
-						new Microsoft.Azure.Cosmos.PartitionKey(doc.StreamId),
-						cancellationToken: cancellationToken).ConfigureAwait(false);
-				}
-			}
-
-			activity.SetOperationResult(EventSourcingTagValues.Success);
-		}
-		catch (Exception ex)
-		{
-			result = WriteStoreTelemetry.Results.Failure;
-			activity.RecordException(ex);
-			throw;
-		}
-		finally
-		{
-			WriteStoreTelemetry.RecordOperation(
-				WriteStoreTelemetry.Stores.EventStore,
-				WriteStoreTelemetry.Providers.CosmosDb,
-				"mark_dispatched",
-				result,
-				stopwatch.Elapsed);
-		}
-	}
-
-	/// <inheritdoc/>
 	public async ValueTask DisposeAsync()
 	{
 		if (_disposed)
@@ -534,8 +427,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			Version = version,
 			Timestamp = evt.OccurredAt,
 			EventData = JsonSerializer.SerializeToUtf8Bytes(evt),
-			Metadata = evt.Metadata != null ? JsonSerializer.SerializeToUtf8Bytes(evt.Metadata) : null,
-			IsDispatched = false
+			Metadata = evt.Metadata != null ? JsonSerializer.SerializeToUtf8Bytes(evt.Metadata) : null
 		};
 	}
 
@@ -587,8 +479,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			Metadata = doc.Metadata,
 			PartitionKeyValue = doc.StreamId,
 			DocumentId = doc.Id,
-			ETag = doc.ETag,
-			IsDispatched = doc.IsDispatched
+			ETag = doc.ETag
 		};
 
 	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent) =>
@@ -600,8 +491,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			cloudEvent.EventData,
 			cloudEvent.Metadata,
 			cloudEvent.Version,
-			cloudEvent.Timestamp,
-			cloudEvent.IsDispatched);
+			cloudEvent.Timestamp);
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{
@@ -767,12 +657,6 @@ internal sealed class EventDocument
 	/// </summary>
 	[System.Text.Json.Serialization.JsonPropertyName("metadata")]
 	public byte[]? Metadata { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether the event has been dispatched.
-	/// </summary>
-	[System.Text.Json.Serialization.JsonPropertyName("isDispatched")]
-	public bool IsDispatched { get; set; }
 
 	/// <summary>
 	/// Gets or sets the ETag for concurrency control.

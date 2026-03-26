@@ -113,8 +113,8 @@ public sealed class ProjectionRebuildServiceShould
 
 		IReadOnlyList<StoredEvent> batch1 =
 		[
-			new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data1"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false),
-			new StoredEvent("evt-2", "agg-1", "TestAggregate", "TestEvent", "data2"u8.ToArray(), null, 1, DateTimeOffset.UtcNow, false),
+			new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data1"u8.ToArray(), null, 0, DateTimeOffset.UtcNow),
+			new StoredEvent("evt-2", "agg-1", "TestAggregate", "TestEvent", "data2"u8.ToArray(), null, 1, DateTimeOffset.UtcNow),
 		];
 
 		var callCount = 0;

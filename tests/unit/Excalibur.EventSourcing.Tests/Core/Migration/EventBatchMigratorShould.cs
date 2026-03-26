@@ -281,7 +281,7 @@ public sealed class EventBatchMigratorShould
 		{
 			events.Add(new StoredEvent(
 				$"evt-{i}", "agg-1", "TestAggregate", "TestEvent",
-				Array.Empty<byte>(), null, i, DateTimeOffset.UtcNow, false));
+				Array.Empty<byte>(), null, i, DateTimeOffset.UtcNow));
 		}
 
 		return events;
