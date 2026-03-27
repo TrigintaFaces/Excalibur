@@ -23,6 +23,6 @@ namespace Excalibur.Jobs;
 [JsonSerializable(typeof(JobInstanceStatus))]
 [JsonSerializable(typeof(HashSet<string>))]
 [JsonSerializable(typeof(IReadOnlySet<string>))]
-public sealed partial class JobsJsonSerializerContext : JsonSerializerContext
+internal sealed partial class JobsJsonSerializerContext : JsonSerializerContext
 {
 }
