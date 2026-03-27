@@ -16,6 +16,8 @@
 
 **Dispatch messaging core + Excalibur CQRS/hosting wrapper for .NET**
 
+**[Read the full documentation](https://docs.excalibur-dispatch.dev/)**
+
 ---
 
 ## Overview

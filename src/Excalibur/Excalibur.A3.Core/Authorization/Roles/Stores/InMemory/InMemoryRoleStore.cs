@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 
 using Excalibur.A3.Abstractions.Authorization;
 
-namespace Excalibur.A3.Authorization.Roles.Stores.InMemory;
+namespace Excalibur.A3.Authorization.Stores.InMemory;
 
 /// <summary>
 /// In-memory implementation of <see cref="IRoleStore"/> backed by

@@ -4,7 +4,7 @@
 using Excalibur.A3;
 using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.A3.Authorization.Roles;
-using Excalibur.A3.Authorization.Roles.Stores.InMemory;
+using Excalibur.A3.Authorization.Stores.InMemory;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

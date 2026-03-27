@@ -3,7 +3,7 @@
 
 using Excalibur.A3;
 using Excalibur.A3.Abstractions.Authorization;
-using Excalibur.A3.Authorization.Roles.Stores.InMemory;
+using Excalibur.A3.Authorization.Stores.InMemory;
 
 namespace Excalibur.Tests.A3.Authorization.Roles;
 
