@@ -735,7 +735,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          dotnet test eng/ci/shards/UnitTests-AsyncRisk.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFilePrefix=unit-tests-windows-async-risk" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000 RunConfiguration.MaxCpuCount=1
+          dotnet test eng/ci/shards/UnitTests-AsyncRisk.slnf -m:1 --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFilePrefix=unit-tests-windows-async-risk" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000 RunConfiguration.MaxCpuCount=1
 
       - name: Upload test results
         if: always()

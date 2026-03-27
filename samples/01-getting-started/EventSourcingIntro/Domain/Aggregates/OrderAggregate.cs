@@ -151,42 +151,40 @@ public class OrderAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		OrderCreated e => ApplyOrderCreated(e),
-		OrderItemAdded e => ApplyOrderItemAdded(e),
-		OrderConfirmed e => ApplyOrderConfirmed(e),
-		OrderShipped e => ApplyOrderShipped(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case OrderCreated e: Apply(e); break;
+			case OrderItemAdded e: Apply(e); break;
+			case OrderConfirmed e: Apply(e); break;
+			case OrderShipped e: Apply(e); break;
+		}
+	}
 
-	private bool ApplyOrderCreated(OrderCreated e)
+	private void Apply(OrderCreated e)
 	{
 		Id = e.OrderId;
 		Status = OrderStatus.Created;
 		_items.Add(new OrderItem(e.ProductId, e.Quantity));
-		return true;
 	}
 
-	private bool ApplyOrderItemAdded(OrderItemAdded e)
+	private void Apply(OrderItemAdded e)
 	{
 		_items.Add(new OrderItem(e.ProductId, e.Quantity));
-		return true;
 	}
 
-	private bool ApplyOrderConfirmed(OrderConfirmed e)
+	private void Apply(OrderConfirmed e)
 	{
 		Status = OrderStatus.Confirmed;
 		ConfirmedAt = e.ConfirmedAt;
-		return true;
 	}
 
-	private bool ApplyOrderShipped(OrderShipped e)
+	private void Apply(OrderShipped e)
 	{
 		Status = OrderStatus.Shipped;
 		TrackingNumber = e.TrackingNumber;
 		ShippedAt = e.ShippedAt;
-		return true;
 	}
 }
 

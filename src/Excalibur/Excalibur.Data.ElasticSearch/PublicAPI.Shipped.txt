@@ -1,89 +1,4 @@
 #nullable enable
-abstract Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.InitializeIndexAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.ActivitySourceName = "Excalibur.Data.Audit" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MeterName = "Excalibur.Data.Audit" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MetricNames.BulkStoreSize = "excalibur.audit.bulk_store.size" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MetricNames.EventsFailed = "excalibur.audit.events.failed" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MetricNames.EventsRecorded = "excalibur.audit.events.recorded" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MetricNames.ReportDuration = "excalibur.audit.report.duration" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.Tags.ErrorType = "error.type" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.Tags.EventType = "audit.event_type" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.Tags.Severity = "audit.severity" -> string!
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.AggregationExecuted = 106400 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkAllHelperExecuting = 106504 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkItemFailed = 106503 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkItemSucceeded = 106502 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkOperationCompleted = 106501 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkOperationStarted = 106500 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.CacheWarmingError = 106801 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.CircuitBreakerTriggered = 106605 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ClientCreated = 106000 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ClientDisposed = 106001 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ClusterHealthChecked = 106002 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ConnectionPoolConfigured = 106004 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.CreatingLifecyclePolicy = 106106 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DateHistogramExecuted = 106402 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DeletingLifecyclePolicy = 106110 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentDeleted = 106203 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentExistsChecked = 106205 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentIndexed = 106200 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentNotFound = 106601 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentRetrieved = 106201 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentSourceRetrieved = 106204 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentUpdated = 106202 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ElasticsearchException = 106603 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.GettingLifecycleStatus = 106119 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexAliasCreated = 106105 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexAlreadyInFinalPhase = 106126 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexCreated = 106100 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexDeleted = 106101 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexExistsChecked = 106102 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexHasNoPolicy = 106125 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexMappingUpdated = 106103 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexMovedToNextPhase = 106127 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexMoveToNextPhaseFailed = 106128 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexNotFound = 106600 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexRolledOver = 106116 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexRolloverException = 106118 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexRolloverFailed = 106117 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexSettingsUpdated = 106104 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyCreated = 106107 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyCreationException = 106109 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyCreationFailed = 106108 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyDeleted = 106111 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyDeletionException = 106114 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyDeletionFailed = 106113 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyNotFound = 106112 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecycleStatusException = 106122 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecycleStatusFailed = 106121 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecycleStatusRetrieved = 106120 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.MoveToNextPhaseException = 106129 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.MovingToNextPhase = 106123 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.MultiSearchExecuted = 106302 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.NestedAggregationExecuted = 106403 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.NodeDiscovered = 106003 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.NoIndicesFoundForPhaseMove = 106124 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ProjectionDeleted = 106912 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ProjectionIndexCreationFailed = 106913 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ProjectionStoreInitialized = 106910 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ProjectionUpserted = 106911 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.QueryExecutionAnalysisFailed = 106901 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.RepositorySlowQuery = 106800 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.RequestTimeout = 106604 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.RollingOverIndex = 106115 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ScrollSearchCleared = 106305 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ScrollSearchContinued = 106304 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ScrollSearchStarted = 106303 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SearchExecuted = 106301 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SearchExecuting = 106300 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SearchRequestOptimizationFailed = 106900 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SecurityMonitoringStarted = 106700 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SecurityMonitoringStopped = 106701 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SlowQueryDetected = 106902 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.TermsAggregationExecuted = 106401 -> int
-const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.VersionConflict = 106602 -> int
-const Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewStoreOptions.DefaultPositionsIndexName = "materialized-view-positions" -> string!
-const Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewStoreOptions.DefaultViewsIndexName = "materialized-views" -> string!
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions.BreakDuration.get -> System.TimeSpan
 Excalibur.Data.ElasticSearch.CircuitBreakerOptions.BreakDuration.init -> void
@@ -132,6 +47,20 @@ Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId
 Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>
 Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.ElasticRepositoryBase(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, string! indexName) -> void
 Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.InitializeIndexAsync(Elastic.Clients.Elasticsearch.IndexManagement.CreateIndexRequest! createIndexRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.BaseDelay.get -> System.TimeSpan
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.BaseDelay.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.ElasticSearchRetryPolicyOptions() -> void
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.Enabled.get -> bool
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.Enabled.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.JitterFactor.get -> double
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.JitterFactor.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxAttempts.get -> int
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxAttempts.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxDelay.get -> System.TimeSpan
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxDelay.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.UseExponentialBackoff.get -> bool
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.UseExponentialBackoff.init -> void
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.CloudId.get -> string?
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.CloudId.init -> void
@@ -742,8 +671,8 @@ Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.Perf
 Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceMetrics.MinDurationMs.get -> double
 Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceMetrics.OperationType.get -> string!
 Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceMetrics.PerformanceMetrics(string! operationType, System.TimeSpan initialDuration, bool initialSuccess) -> void
-Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceMetrics.SuccessfulOperations.get -> long
 Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceMetrics.SuccessRate.get -> double
+Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceMetrics.SuccessfulOperations.get -> long
 Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceMetrics.TotalOperations.get -> long
 Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.ResetMetrics() -> void
 Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.StartOperation(string! operationType, string? indexName = null) -> Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchPerformanceDiagnostics.PerformanceContext!
@@ -911,11 +840,14 @@ Excalibur.Data.ElasticSearch.ProjectionRetryOptions.MaxIndexAttempts.init -> voi
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.ProjectionRetryOptions() -> void
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.UseExponentialBackoff.get -> bool
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.UseExponentialBackoff.init -> void
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Critical = 3 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Error = 2 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Info = 0 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
-Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Warning = 1 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
+Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold
+Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold.AlertSeverityThreshold() -> void
+Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold.LagThreshold.get -> System.TimeSpan
+Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold.LagThreshold.init -> void
+Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold.MessageTemplate.get -> string?
+Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold.MessageTemplate.init -> void
+Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold.Severity.get -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
+Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold.Severity.init -> void
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext.BulkOperationErrorContext() -> void
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext.Failures.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Data.ElasticSearch.Projections.BulkOperationFailure!>!
@@ -960,6 +892,7 @@ Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.Projectio
 Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.ProjectionSpecificThresholds.init -> void
 Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.RequiredSLAPercentage.get -> double
 Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.RequiredSLAPercentage.init -> void
+Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.SeverityThresholds.get -> System.Collections.Generic.IList<Excalibur.Data.ElasticSearch.Projections.AlertSeverityThreshold!>?
 Excalibur.Data.ElasticSearch.Projections.ConsistencyAlertConfiguration.SeverityThresholds.init -> void
 Excalibur.Data.ElasticSearch.Projections.ConsistencyLag
 Excalibur.Data.ElasticSearch.Projections.ConsistencyLag.AverageLagMs.get -> double
@@ -1029,25 +962,36 @@ Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions.Pass
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions.Password.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions.Username.get -> string?
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions.Username.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexConvention
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar.Add<TProjection>(System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.ElasticSearchProjectionStore(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptionsMonitor<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! optionsMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection!>!>! logger) -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.ElasticSearchProjectionStore(Microsoft.Extensions.Options.IOptionsMonitor<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! optionsMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection!>!>! logger) -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Auth.get -> Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Auth.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.ConnectionPoolType.get -> Excalibur.Data.ElasticSearch.ConnectionPoolType
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.ConnectionPoolType.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.CreateIndexOnInitialize.get -> bool
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.CreateIndexOnInitialize.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.ElasticSearchProjectionStoreOptions() -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.EnableDebugMode.get -> bool
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.EnableDebugMode.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexName.get -> string?
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexName.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexPrefix.get -> string!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexPrefix.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUri.get -> string!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUri.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUris.get -> System.Collections.Generic.IReadOnlyList<System.Uri!>?
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUris.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NumberOfReplicas.get -> int
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NumberOfReplicas.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NumberOfShards.get -> int
@@ -1153,6 +1097,11 @@ Excalibur.Data.ElasticSearch.Projections.MigrationStrategy.AliasSwitch = 2 -> Ex
 Excalibur.Data.ElasticSearch.Projections.MigrationStrategy.DualWrite = 3 -> Excalibur.Data.ElasticSearch.Projections.MigrationStrategy
 Excalibur.Data.ElasticSearch.Projections.MigrationStrategy.Reindex = 0 -> Excalibur.Data.ElasticSearch.Projections.MigrationStrategy
 Excalibur.Data.ElasticSearch.Projections.MigrationStrategy.UpdateInPlace = 1 -> Excalibur.Data.ElasticSearch.Projections.MigrationStrategy
+Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
+Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Critical = 3 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
+Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Error = 2 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
+Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Info = 0 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
+Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity.Warning = 1 -> Excalibur.Data.ElasticSearch.Projections.ProjectionAlertSeverity
 Excalibur.Data.ElasticSearch.Projections.ProjectionErrorContext
 Excalibur.Data.ElasticSearch.Projections.ProjectionErrorContext.AttemptCount.get -> int
 Excalibur.Data.ElasticSearch.Projections.ProjectionErrorContext.AttemptCount.init -> void
@@ -1552,20 +1501,6 @@ Excalibur.Data.ElasticSearch.Resilience.ResilientElasticsearchClient.IsHealthyAs
 Excalibur.Data.ElasticSearch.Resilience.ResilientElasticsearchClient.ResilientElasticsearchClient(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Excalibur.Data.ElasticSearch.Resilience.IElasticsearchRetryPolicy! retryPolicy, Excalibur.Data.ElasticSearch.Resilience.IElasticsearchCircuitBreaker! circuitBreaker, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Resilience.ResilientElasticsearchClient!>! logger) -> void
 Excalibur.Data.ElasticSearch.Resilience.ResilientElasticsearchClient.SearchAsync<TDocument>(Elastic.Clients.Elasticsearch.SearchRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.SearchResponse<TDocument>!>!
 Excalibur.Data.ElasticSearch.Resilience.ResilientElasticsearchClient.UpdateAsync<TDocument>(Elastic.Clients.Elasticsearch.UpdateRequest<TDocument, object!>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.UpdateResponse<TDocument>!>!
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.BaseDelay.get -> System.TimeSpan
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.BaseDelay.init -> void
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.Enabled.get -> bool
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.Enabled.init -> void
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.JitterFactor.get -> double
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.JitterFactor.init -> void
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxAttempts.get -> int
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxAttempts.init -> void
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxDelay.get -> System.TimeSpan
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxDelay.init -> void
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.ElasticSearchRetryPolicyOptions() -> void
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.UseExponentialBackoff.get -> bool
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.UseExponentialBackoff.init -> void
 Excalibur.Data.ElasticSearch.SchemaEvolutionOptions
 Excalibur.Data.ElasticSearch.SchemaEvolutionOptions.AllowBreakingChanges.get -> bool
 Excalibur.Data.ElasticSearch.SchemaEvolutionOptions.AllowBreakingChanges.init -> void
@@ -1591,11 +1526,11 @@ Excalibur.Data.ElasticSearch.Security.AnomalyDetectedEventArgs.AnomalyType.get -
 Excalibur.Data.ElasticSearch.Security.AnomalyDetectedEventArgs.Description.get -> string!
 Excalibur.Data.ElasticSearch.Security.AnomalyDetectedEventArgs.DetectedAt.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs
-Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.ArchivedCount.get -> long
 Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.ArchiveDestination.get -> string?
 Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.ArchiveDestination.init -> void
 Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.ArchiveSize.get -> long?
 Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.ArchiveSize.init -> void
+Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.ArchivedCount.get -> long
 Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.AuditArchiveCompletedEventArgs(long archivedCount, System.DateTimeOffset startTime, System.DateTimeOffset endTime) -> void
 Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.CompressionRatio.get -> double?
 Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs.CompressionRatio.init -> void
@@ -1611,14 +1546,14 @@ Excalibur.Data.ElasticSearch.Security.AuditArchiveRequest.AuditArchiveRequest() 
 Excalibur.Data.ElasticSearch.Security.AuditArchiveRequest.CutoffDate.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Security.AuditArchiveRequest.CutoffDate.set -> void
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult
-Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchivedAt.get -> System.DateTimeOffset
-Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchivedAt.set -> void
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchiveId.get -> System.Guid
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchiveId.set -> void
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchiveLocation.get -> string!
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchiveLocation.set -> void
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchiveSize.get -> long
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchiveSize.set -> void
+Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchivedAt.get -> System.DateTimeOffset
+Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.ArchivedAt.set -> void
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.AuditArchiveResult() -> void
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.CutoffDate.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Security.AuditArchiveResult.CutoffDate.set -> void
@@ -1786,8 +1721,8 @@ Excalibur.Data.ElasticSearch.Security.AuditSearchResult.IsTruncated.get -> bool
 Excalibur.Data.ElasticSearch.Security.AuditSearchResult.IsTruncated.init -> void
 Excalibur.Data.ElasticSearch.Security.AuditSearchResult.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
 Excalibur.Data.ElasticSearch.Security.AuditSearchResult.Metadata.init -> void
-Excalibur.Data.ElasticSearch.Security.AuditSearchResult.SearchedAt.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Security.AuditSearchResult.SearchId.get -> System.Guid
+Excalibur.Data.ElasticSearch.Security.AuditSearchResult.SearchedAt.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Security.AuditSearchResult.TotalMatches.get -> long
 Excalibur.Data.ElasticSearch.Security.AuditSearchResult.Warnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Excalibur.Data.ElasticSearch.Security.AuditSearchResult.Warnings.init -> void
@@ -1977,12 +1912,12 @@ Excalibur.Data.ElasticSearch.Security.ComplianceViolationEventArgs.ViolationType
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.AdditionalData.get -> System.Collections.Generic.Dictionary<string!, object!>!
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.AdditionalData.set -> void
-Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ChangedBy.get -> string!
-Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ChangedBy.set -> void
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ChangeReason.get -> string?
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ChangeReason.set -> void
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ChangeType.get -> Excalibur.Data.ElasticSearch.Security.ConfigurationChangeType
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ChangeType.set -> void
+Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ChangedBy.get -> string!
+Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ChangedBy.set -> void
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ConfigurationChangeEvent() -> void
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ConfigurationSection.get -> string!
 Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent.ConfigurationSection.set -> void
@@ -2046,13 +1981,16 @@ Excalibur.Data.ElasticSearch.Security.DataAccessOperation.Query = 6 -> Excalibur
 Excalibur.Data.ElasticSearch.Security.DataAccessOperation.Read = 0 -> Excalibur.Data.ElasticSearch.Security.DataAccessOperation
 Excalibur.Data.ElasticSearch.Security.DataAccessOperation.Update = 2 -> Excalibur.Data.ElasticSearch.Security.DataAccessOperation
 Excalibur.Data.ElasticSearch.Security.DataAccessOperation.Write = 1 -> Excalibur.Data.ElasticSearch.Security.DataAccessOperation
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Confidential = 2 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.HealthInformation = 5 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Internal = 1 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.PersonallyIdentifiable = 4 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Public = 0 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
-Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Restricted = 3 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.Classification.get -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.Classification.init -> void
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.DataClassificationRule() -> void
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.Enabled.get -> bool
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.Enabled.init -> void
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.EncryptionAlgorithm.get -> string?
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.EncryptionAlgorithm.init -> void
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.FieldPattern.get -> string!
+Excalibur.Data.ElasticSearch.Security.DataClassificationRule.FieldPattern.init -> void
 Excalibur.Data.ElasticSearch.Security.DetectedThreat
 Excalibur.Data.ElasticSearch.Security.DetectedThreat.Confidence.get -> double
 Excalibur.Data.ElasticSearch.Security.DetectedThreat.Confidence.set -> void
@@ -2071,6 +2009,13 @@ Excalibur.Data.ElasticSearch.Security.DetectedThreat.ThreatId.get -> System.Guid
 Excalibur.Data.ElasticSearch.Security.DetectedThreat.ThreatId.set -> void
 Excalibur.Data.ElasticSearch.Security.DetectedThreat.ThreatType.get -> string!
 Excalibur.Data.ElasticSearch.Security.DetectedThreat.ThreatType.set -> void
+Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
+Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Confidential = 2 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
+Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.HealthInformation = 5 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
+Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Internal = 1 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
+Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.PersonallyIdentifiable = 4 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
+Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Public = 0 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
+Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Restricted = 3 -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
 Excalibur.Data.ElasticSearch.Security.ElasticsearchAuthenticationType
 Excalibur.Data.ElasticSearch.Security.ElasticsearchAuthenticationType.ApiKey = 2 -> Excalibur.Data.ElasticSearch.Security.ElasticsearchAuthenticationType
 Excalibur.Data.ElasticSearch.Security.ElasticsearchAuthenticationType.Base64ApiKey = 3 -> Excalibur.Data.ElasticSearch.Security.ElasticsearchAuthenticationType
@@ -2146,6 +2091,7 @@ Excalibur.Data.ElasticSearch.Security.EncryptionKeyType.Ecc = 2 -> Excalibur.Dat
 Excalibur.Data.ElasticSearch.Security.EncryptionKeyType.Hmac = 3 -> Excalibur.Data.ElasticSearch.Security.EncryptionKeyType
 Excalibur.Data.ElasticSearch.Security.EncryptionKeyType.Rsa = 1 -> Excalibur.Data.ElasticSearch.Security.EncryptionKeyType
 Excalibur.Data.ElasticSearch.Security.EncryptionOptions
+Excalibur.Data.ElasticSearch.Security.EncryptionOptions.ClassificationRules.get -> System.Collections.Generic.List<Excalibur.Data.ElasticSearch.Security.DataClassificationRule!>!
 Excalibur.Data.ElasticSearch.Security.EncryptionOptions.ClassificationRules.init -> void
 Excalibur.Data.ElasticSearch.Security.EncryptionOptions.DocumentLevelSecurity.get -> bool
 Excalibur.Data.ElasticSearch.Security.EncryptionOptions.DocumentLevelSecurity.init -> void
@@ -2489,16 +2435,6 @@ Excalibur.Data.ElasticSearch.Security.SecurityAlert.UserId.init -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAlertGeneratedEventArgs
 Excalibur.Data.ElasticSearch.Security.SecurityAlertGeneratedEventArgs.Alert.get -> Excalibur.Data.ElasticSearch.Security.SecurityAlert!
 Excalibur.Data.ElasticSearch.Security.SecurityAlertGeneratedEventArgs.SecurityAlertGeneratedEventArgs(Excalibur.Data.ElasticSearch.Security.SecurityAlert! alert) -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.Enabled.get -> bool
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.Enabled.init -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.EscalationTimeout.get -> System.TimeSpan
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.EscalationTimeout.init -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.MinimumSeverity.get -> Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.MinimumSeverity.init -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.NotificationChannels.get -> System.Collections.Generic.List<string!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.NotificationChannels.init -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.SecurityAlertingOptions() -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAlertRequest
 Excalibur.Data.ElasticSearch.Security.SecurityAlertRequest.AlertCriteria
 Excalibur.Data.ElasticSearch.Security.SecurityAlertRequest.AlertCriteria.AlertCriteria() -> void
@@ -2541,6 +2477,16 @@ Excalibur.Data.ElasticSearch.Security.SecurityAlertResult.GenerationTimestamp.se
 Excalibur.Data.ElasticSearch.Security.SecurityAlertResult.RequestId.get -> string!
 Excalibur.Data.ElasticSearch.Security.SecurityAlertResult.RequestId.set -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAlertResult.SecurityAlertResult() -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.Enabled.get -> bool
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.Enabled.init -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.EscalationTimeout.get -> System.TimeSpan
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.EscalationTimeout.init -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.MinimumSeverity.get -> Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.MinimumSeverity.init -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.NotificationChannels.get -> System.Collections.Generic.List<string!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.NotificationChannels.init -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAlertingOptions.SecurityAlertingOptions() -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAnalysisContext
 Excalibur.Data.ElasticSearch.Security.SecurityAnalysisContext.AnalysisStartTime.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Security.SecurityAnalysisContext.AnalysisStartTime.set -> void
@@ -2581,10 +2527,10 @@ Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.RiskLevel.set -> vo
 Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.SecurityAnalysisResult() -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.ThreatDetected.get -> bool
 Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.ThreatDetected.set -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.Threats.get -> System.Collections.Generic.List<string!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.Threats.set -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.ThreatType.get -> string!
 Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.ThreatType.set -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.Threats.get -> System.Collections.Generic.List<string!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAnalysisResult.Threats.set -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent
 Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent.Details.get -> System.Collections.Generic.Dictionary<string!, object!>!
 Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent.Details.set -> void
@@ -2607,33 +2553,13 @@ Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent.UserAgent.get -> string
 Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent.UserAgent.set -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent.UserId.get -> string?
 Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent.UserId.set -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ArchiveAuditEventsAsync(Excalibur.Data.ElasticSearch.Security.AuditArchiveRequest! archiveRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditArchiveResult!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ArchiveAuditEventsAsync(System.DateTimeOffset cutoffDate, string! archiveLocation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditArchiveResult!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.AuditArchiveCompleted -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs!>?
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.AuditSecurityActivityAsync(Excalibur.Data.ElasticSearch.Security.SecurityActivityEvent! activityEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ComplianceViolationDetected -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.ComplianceViolationEventArgs!>?
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.Configuration.get -> Excalibur.Data.ElasticSearch.Security.AuditOptions!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.Dispose() -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.GenerateAuditReportAsync(Excalibur.Data.ElasticSearch.Security.AuditReportRequest! reportRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.SecurityAuditReport!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.GenerateAuditReportAsync(System.DateTimeOffset startTime, System.DateTimeOffset endTime, Excalibur.Data.ElasticSearch.Security.AuditReportType reportType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditReport!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.GenerateComplianceReportAsync(Excalibur.Data.ElasticSearch.Security.ComplianceFramework framework, System.DateTimeOffset startTime, System.DateTimeOffset endTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.ComplianceReport!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.GenerateComplianceReportAsync(Excalibur.Data.ElasticSearch.Security.ComplianceReportRequest! complianceRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.ComplianceReport!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.IntegrityProtectionEnabled.get -> bool
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.IntegrityViolationDetected -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.AuditIntegrityViolationEventArgs!>?
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordAuthenticationEventAsync(Excalibur.Data.ElasticSearch.Security.AuthenticationEvent! authenticationEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordConfigurationChangeAsync(Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent! configurationEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordDataAccessEventAsync(Excalibur.Data.ElasticSearch.Security.DataAccessEvent! dataAccessEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordSecurityEventAsync(Excalibur.Data.ElasticSearch.Security.SecurityEvent! securityEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordSecurityIncidentAsync(Excalibur.Data.ElasticSearch.Security.SecurityIncident! securityIncident, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SearchAuditEventsAsync(Excalibur.Data.ElasticSearch.Security.AuditSearchCriteria! searchCriteria, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent!>!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SearchAuditEventsAsync(Excalibur.Data.ElasticSearch.Security.AuditSearchRequest! searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditSearchResult!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SecurityAuditor(Elastic.Clients.Elasticsearch.ElasticsearchClient! elasticsearchClient, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.Security.AuditOptions!>! auditOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.Security.SecurityMonitoringOptions!>! monitoringOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Security.SecurityAuditor!>! logger) -> void
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SecurityEventRecorded -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.SecurityEventRecordedEventArgs!>?
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SupportedComplianceFrameworks.get -> System.Collections.Generic.IReadOnlyCollection<Excalibur.Data.ElasticSearch.Security.ComplianceFramework>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ValidateAuditIntegrityAsync(Excalibur.Data.ElasticSearch.Security.AuditIntegrityRequest! validationRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditIntegrityResult!>!
-Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ValidateAuditIntegrityAsync(System.DateTimeOffset startTime, System.DateTimeOffset endTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditLogIntegrityResult!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
+Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.AccessControl = 4 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
+Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.Authentication = 0 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
+Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.ConfigurationChange = 2 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
+Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.DataAccess = 1 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
+Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.Other = 5 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
+Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.SecurityIncident = 3 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
 Excalibur.Data.ElasticSearch.Security.SecurityAuditReport
 Excalibur.Data.ElasticSearch.Security.SecurityAuditReport.ComplianceStatus.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
 Excalibur.Data.ElasticSearch.Security.SecurityAuditReport.ComplianceStatus.init -> void
@@ -2661,6 +2587,33 @@ Excalibur.Data.ElasticSearch.Security.SecurityAuditReport.UniqueSourceIpCount.ge
 Excalibur.Data.ElasticSearch.Security.SecurityAuditReport.UniqueSourceIpCount.init -> void
 Excalibur.Data.ElasticSearch.Security.SecurityAuditReport.UniqueUserCount.get -> int
 Excalibur.Data.ElasticSearch.Security.SecurityAuditReport.UniqueUserCount.init -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ArchiveAuditEventsAsync(Excalibur.Data.ElasticSearch.Security.AuditArchiveRequest! archiveRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditArchiveResult!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ArchiveAuditEventsAsync(System.DateTimeOffset cutoffDate, string! archiveLocation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditArchiveResult!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.AuditArchiveCompleted -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.AuditArchiveCompletedEventArgs!>?
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.AuditSecurityActivityAsync(Excalibur.Data.ElasticSearch.Security.SecurityActivityEvent! activityEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ComplianceViolationDetected -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.ComplianceViolationEventArgs!>?
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.Configuration.get -> Excalibur.Data.ElasticSearch.Security.AuditOptions!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.Dispose() -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.GenerateAuditReportAsync(Excalibur.Data.ElasticSearch.Security.AuditReportRequest! reportRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.SecurityAuditReport!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.GenerateAuditReportAsync(System.DateTimeOffset startTime, System.DateTimeOffset endTime, Excalibur.Data.ElasticSearch.Security.AuditReportType reportType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditReport!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.GenerateComplianceReportAsync(Excalibur.Data.ElasticSearch.Security.ComplianceFramework framework, System.DateTimeOffset startTime, System.DateTimeOffset endTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.ComplianceReport!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.GenerateComplianceReportAsync(Excalibur.Data.ElasticSearch.Security.ComplianceReportRequest! complianceRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.ComplianceReport!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.IntegrityProtectionEnabled.get -> bool
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.IntegrityViolationDetected -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.AuditIntegrityViolationEventArgs!>?
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordAuthenticationEventAsync(Excalibur.Data.ElasticSearch.Security.AuthenticationEvent! authenticationEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordConfigurationChangeAsync(Excalibur.Data.ElasticSearch.Security.ConfigurationChangeEvent! configurationEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordDataAccessEventAsync(Excalibur.Data.ElasticSearch.Security.DataAccessEvent! dataAccessEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordSecurityEventAsync(Excalibur.Data.ElasticSearch.Security.SecurityEvent! securityEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.RecordSecurityIncidentAsync(Excalibur.Data.ElasticSearch.Security.SecurityIncident! securityIncident, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SearchAuditEventsAsync(Excalibur.Data.ElasticSearch.Security.AuditSearchCriteria! searchCriteria, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.Security.SecurityAuditEvent!>!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SearchAuditEventsAsync(Excalibur.Data.ElasticSearch.Security.AuditSearchRequest! searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditSearchResult!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SecurityAuditor(Elastic.Clients.Elasticsearch.ElasticsearchClient! elasticsearchClient, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.Security.AuditOptions!>! auditOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.Security.SecurityMonitoringOptions!>! monitoringOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Security.SecurityAuditor!>! logger) -> void
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SecurityEventRecorded -> System.EventHandler<Excalibur.Data.ElasticSearch.Security.SecurityEventRecordedEventArgs!>?
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.SupportedComplianceFrameworks.get -> System.Collections.Generic.IReadOnlyCollection<Excalibur.Data.ElasticSearch.Security.ComplianceFramework>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ValidateAuditIntegrityAsync(Excalibur.Data.ElasticSearch.Security.AuditIntegrityRequest! validationRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditIntegrityResult!>!
+Excalibur.Data.ElasticSearch.Security.SecurityAuditor.ValidateAuditIntegrityAsync(System.DateTimeOffset startTime, System.DateTimeOffset endTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Security.AuditLogIntegrityResult!>!
 Excalibur.Data.ElasticSearch.Security.SecurityEvent
 Excalibur.Data.ElasticSearch.Security.SecurityEvent.AdditionalData.get -> System.Collections.Generic.Dictionary<string!, object!>?
 Excalibur.Data.ElasticSearch.Security.SecurityEvent.AdditionalData.set -> void
@@ -2697,13 +2650,6 @@ Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity.Critical = 3 -> Exca
 Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity.High = 2 -> Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity
 Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity.Low = 0 -> Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity
 Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity.Medium = 1 -> Excalibur.Data.ElasticSearch.Security.SecurityEventSeverity
-Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
-Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.AccessControl = 4 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
-Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.Authentication = 0 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
-Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.ConfigurationChange = 2 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
-Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.DataAccess = 1 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
-Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.Other = 5 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
-Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType.SecurityIncident = 3 -> Excalibur.Data.ElasticSearch.Security.SecurityAuditEventType
 Excalibur.Data.ElasticSearch.Security.SecurityIncident
 Excalibur.Data.ElasticSearch.Security.SecurityIncident.AdditionalData.get -> System.Collections.Generic.Dictionary<string!, object!>?
 Excalibur.Data.ElasticSearch.Security.SecurityIncident.AdditionalData.set -> void
@@ -2985,21 +2931,111 @@ Excalibur.Data.ElasticSearch.TimeoutOptions.IndexTimeout.init -> void
 Excalibur.Data.ElasticSearch.TimeoutOptions.SearchTimeout.get -> System.TimeSpan
 Excalibur.Data.ElasticSearch.TimeoutOptions.SearchTimeout.init -> void
 Excalibur.Data.ElasticSearch.TimeoutOptions.TimeoutOptions() -> void
-Microsoft.Extensions.DependencyInjection.ElasticsearchPersistenceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions
+Microsoft.Extensions.DependencyInjection.ElasticsearchPersistenceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ElasticsearchSecurityServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions
+abstract Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.InitializeIndexAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+abstract Excalibur.Data.ElasticSearch.SecureElasticRepositoryBase<TEntity>.GetCurrentSourceIpAddress() -> string?
+abstract Excalibur.Data.ElasticSearch.SecureElasticRepositoryBase<TEntity>.GetCurrentUserId() -> string?
+abstract Excalibur.Data.ElasticSearch.SecureElasticRepositoryBase<TEntity>.IsIpInRange(string! ipAddress, string! rangeOrIp) -> bool
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.ActivitySourceName = "Excalibur.Data.Audit" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MeterName = "Excalibur.Data.Audit" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MetricNames.BulkStoreSize = "excalibur.audit.bulk_store.size" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MetricNames.EventsFailed = "excalibur.audit.events.failed" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MetricNames.EventsRecorded = "excalibur.audit.events.recorded" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.MetricNames.ReportDuration = "excalibur.audit.report.duration" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.Tags.ErrorType = "error.type" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.Tags.EventType = "audit.event_type" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.Tags.Severity = "audit.severity" -> string!
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.AggregationExecuted = 106400 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkAllHelperExecuting = 106504 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkItemFailed = 106503 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkItemSucceeded = 106502 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkOperationCompleted = 106501 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.BulkOperationStarted = 106500 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.CacheWarmingError = 106801 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.CircuitBreakerTriggered = 106605 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ClientCreated = 106000 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ClientDisposed = 106001 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ClusterHealthChecked = 106002 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ConnectionPoolConfigured = 106004 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.CreatingLifecyclePolicy = 106106 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DateHistogramExecuted = 106402 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DeletingLifecyclePolicy = 106110 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentDeleted = 106203 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentExistsChecked = 106205 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentIndexed = 106200 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentNotFound = 106601 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentRetrieved = 106201 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentSourceRetrieved = 106204 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentUpdated = 106202 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ElasticsearchException = 106603 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.GettingLifecycleStatus = 106119 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexAliasCreated = 106105 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexAlreadyInFinalPhase = 106126 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexCreated = 106100 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexDeleted = 106101 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexExistsChecked = 106102 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexHasNoPolicy = 106125 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexMappingUpdated = 106103 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexMoveToNextPhaseFailed = 106128 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexMovedToNextPhase = 106127 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexNotFound = 106600 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexRolledOver = 106116 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexRolloverException = 106118 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexRolloverFailed = 106117 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexSettingsUpdated = 106104 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyCreated = 106107 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyCreationException = 106109 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyCreationFailed = 106108 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyDeleted = 106111 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyDeletionException = 106114 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyDeletionFailed = 106113 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecyclePolicyNotFound = 106112 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecycleStatusException = 106122 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecycleStatusFailed = 106121 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.LifecycleStatusRetrieved = 106120 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.MoveToNextPhaseException = 106129 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.MovingToNextPhase = 106123 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.MultiSearchExecuted = 106302 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.NestedAggregationExecuted = 106403 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.NoIndicesFoundForPhaseMove = 106124 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.NodeDiscovered = 106003 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ProjectionDeleted = 106912 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ProjectionIndexCreationFailed = 106913 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ProjectionStoreInitialized = 106910 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ProjectionUpserted = 106911 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.QueryExecutionAnalysisFailed = 106901 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.RepositorySlowQuery = 106800 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.RequestTimeout = 106604 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.RollingOverIndex = 106115 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ScrollSearchCleared = 106305 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ScrollSearchContinued = 106304 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ScrollSearchStarted = 106303 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SearchExecuted = 106301 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SearchExecuting = 106300 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SearchRequestOptimizationFailed = 106900 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SecurityMonitoringStarted = 106700 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SecurityMonitoringStopped = 106701 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.SlowQueryDetected = 106902 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.TermsAggregationExecuted = 106401 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.VersionConflict = 106602 -> int
+const Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewStoreOptions.DefaultPositionsIndexName = "materialized-view-positions" -> string!
+const Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewStoreOptions.DefaultViewsIndexName = "materialized-views" -> string!
 static Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.ActivitySource.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Data.ElasticSearch.Diagnostics.AuditTelemetryConstants.Meter.get -> System.Diagnostics.Metrics.Meter!
 static Excalibur.Data.ElasticSearch.HealthChecksBuilderExtensions.AddElasticHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Excalibur.Data.ElasticSearch.HostExtensions.InitializeElasticsearchIndexesAsync(this Microsoft.Extensions.Hosting.IHost! host) -> System.Threading.Tasks.Task!
-static Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewExtensions.UseElasticSearch(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, string! nodeUri) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 static Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewExtensions.UseElasticSearch(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, System.Action<Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewExtensions.UseElasticSearch(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, string! nodeUri) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 static Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchActivitySource.EnrichWithCircuitBreakerDetails(System.Diagnostics.Activity? activity, string! state, int? failureCount = null, int? successCount = null) -> void
 static Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchActivitySource.EnrichWithRequestDetails(System.Diagnostics.Activity? activity, object! request, bool recordRequestBody = false) -> void
 static Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchActivitySource.EnrichWithResponseDetails(System.Diagnostics.Activity? activity, Elastic.Transport.Products.Elasticsearch.ElasticsearchResponse! response, bool recordResponseBody = false) -> void
 static Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchActivitySource.EnrichWithRetryDetails(System.Diagnostics.Activity? activity, int attemptNumber, int maxAttempts, System.TimeSpan? delay = null, System.Exception? exception = null) -> void
+static Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexConvention.GetIndexName(Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions! options, string! projectionTypeName) -> string!
+static Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexConvention.GetIndexName<TProjection>(Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions! options) -> string!
 static Excalibur.Data.ElasticSearch.Security.AuthenticationRotationResult.CreateSuccess(string? message = null, System.DateTimeOffset? nextRotationDue = null) -> Excalibur.Data.ElasticSearch.Security.AuthenticationRotationResult!
 static Excalibur.Data.ElasticSearch.Security.AuthenticationRotationResult.Failure(string! message) -> Excalibur.Data.ElasticSearch.Security.AuthenticationRotationResult!
 static Excalibur.Data.ElasticSearch.Security.EncryptionKeyRotationResult.CreateFailure(Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification classification, string! errorMessage) -> Excalibur.Data.ElasticSearch.Security.EncryptionKeyRotationResult!
@@ -3008,10 +3044,11 @@ static Excalibur.Data.ElasticSearch.Security.KeyGenerationResult.CreateFailure(s
 static Excalibur.Data.ElasticSearch.Security.KeyGenerationResult.CreateSuccess(string! keyName, Excalibur.Data.ElasticSearch.Security.EncryptionKeyType keyType, int keySize, string! keyVersion) -> Excalibur.Data.ElasticSearch.Security.KeyGenerationResult!
 static Excalibur.Data.ElasticSearch.Security.KeyRotationResult.CreateFailure(string! keyName, string! errorMessage) -> Excalibur.Data.ElasticSearch.Security.KeyRotationResult!
 static Excalibur.Data.ElasticSearch.Security.KeyRotationResult.CreateSuccess(string! keyName, string! newKeyVersion, string! previousKeyVersion, System.DateTimeOffset? nextRotationDue = null) -> Excalibur.Data.ElasticSearch.Security.KeyRotationResult!
-static Microsoft.Extensions.DependencyInjection.ElasticsearchPersistenceServiceCollectionExtensions.AddElasticsearchPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Elastic.Clients.Elasticsearch.ElasticsearchClient!>! clientFactory, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticsearchPersistenceServiceCollectionExtensions.AddElasticsearchPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticsearchSecurityServiceCollectionExtensions.AddElasticsearchSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.Security.ElasticsearchSecurityOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddAuthentication(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddAwsKms(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -3040,14 +3077,3 @@ virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.Initialize
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.SearchAsync(Elastic.Clients.Elasticsearch.SearchRequestDescriptor<TDocument!>! searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.SearchResponse<TDocument!>!>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.UpdateAsync(string! documentId, System.Collections.Generic.Dictionary<string!, object!>! updatedFields, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar.Add<TProjection>(System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.ElasticSearchProjectionStore(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptionsMonitor<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! optionsMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection!>!>! logger) -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>.ElasticSearchProjectionStore(Microsoft.Extensions.Options.IOptionsMonitor<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! optionsMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection!>!>! logger) -> void
-static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexName.get -> string?
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexName.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUris.get -> System.Collections.Generic.IReadOnlyList<System.Uri!>?
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUris.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.ConnectionPoolType.get -> Excalibur.Data.ElasticSearch.ConnectionPoolType
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.ConnectionPoolType.set -> void

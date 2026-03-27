@@ -136,7 +136,7 @@ public sealed class JsonSerializationSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// AOT-compatible type registry for discovered message types.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static class DiscoveredMessageTypeRegistry");
+		_ = sb.AppendLine("internal static class DiscoveredMessageTypeRegistry");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine("    /// <summary>");
 		_ = sb.AppendLine("    /// Gets all discovered message type names for AOT compilation.");
@@ -193,7 +193,7 @@ public sealed class JsonSerializationSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// public partial class AppJsonSerializerContext : JsonSerializerContext {{ }}");
 		_ = sb.AppendLine("/// </code>");
 		_ = sb.AppendLine("/// </example>");
-		_ = sb.AppendLine("public static class DiscoveredMessageTypeMetadata");
+		_ = sb.AppendLine("internal static class DiscoveredMessageTypeMetadata");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine("    /// <summary>");
 		_ = sb.AppendLine($"    /// Gets all {concreteTypes.Length} discovered concrete message types (compile-time).");
@@ -252,4 +252,3 @@ public sealed class JsonSerializationSourceGenerator : IIncrementalGenerator
 		public bool IsAbstract { get; set; }
 	}
 }
-

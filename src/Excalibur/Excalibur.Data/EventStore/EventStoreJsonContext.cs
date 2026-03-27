@@ -15,7 +15,7 @@ namespace Excalibur.Data.EventStore;
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(List<EventMetadata>))]
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Default)]
-public partial class EventStoreJsonContext : JsonSerializerContext
+internal partial class EventStoreJsonContext : JsonSerializerContext
 {
 	/// <summary>
 	/// Gets the singleton instance of the EventStoreJsonContext.

@@ -57,40 +57,38 @@ public sealed class InventoryAggregate : AggregateRoot<string>
 		RaiseEvent(new InventoryReplenished(Id, quantity));
 	}
 
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		InventoryItemCreated e => Apply(e),
-		InventoryReserved e => Apply(e),
-		InventoryReservationReleased e => Apply(e),
-		InventoryReplenished e => Apply(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case InventoryItemCreated e: Apply(e); break;
+			case InventoryReserved e: Apply(e); break;
+			case InventoryReservationReleased e: Apply(e); break;
+			case InventoryReplenished e: Apply(e); break;
+		}
+	}
 
-	private bool Apply(InventoryItemCreated e)
+	private void Apply(InventoryItemCreated e)
 	{
 		Id = e.ProductId;
 		ProductName = e.ProductName;
 		AvailableQuantity = e.InitialQuantity;
-		return true;
 	}
 
-	private bool Apply(InventoryReserved e)
+	private void Apply(InventoryReserved e)
 	{
 		AvailableQuantity -= e.Quantity;
 		_reservations[e.OrderId] = _reservations.GetValueOrDefault(e.OrderId) + e.Quantity;
-		return true;
 	}
 
-	private bool Apply(InventoryReservationReleased e)
+	private void Apply(InventoryReservationReleased e)
 	{
 		AvailableQuantity += e.Quantity;
 		_reservations.Remove(e.OrderId);
-		return true;
 	}
 
-	private bool Apply(InventoryReplenished e)
+	private void Apply(InventoryReplenished e)
 	{
 		AvailableQuantity += e.Quantity;
-		return true;
 	}
 }

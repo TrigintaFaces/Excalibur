@@ -41,6 +41,7 @@ projects:
   - path: samples/06-security/AwsSecretsManager/AwsSecretsManager.csproj
   - path: samples/06-security/AzureKeyVault/AzureKeyVault.csproj
   - path: samples/06-security/MessageEncryption/MessageEncryption.csproj
+  - path: samples/06-security/StandaloneA3/StandaloneA3.csproj
   - path: samples/07-observability/HealthChecks/HealthChecks.csproj
   - path: samples/07-observability/OpenTelemetry/OpenTelemetry.csproj
   - path: samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj
@@ -53,12 +54,11 @@ projects:
   - path: samples/09-advanced/CdcAntiCorruption/CdcAntiCorruption.csproj
   - path: samples/09-advanced/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj
   - path: samples/09-advanced/CosmosDbEventStore/CosmosDbEventStore.csproj
-  - path: samples/09-advanced/EventUpcasting/EventUpcasting.csproj
+  - path: samples/09-advanced/Versioning.Examples/EventUpcasting/EventUpcasting.csproj
   - path: samples/09-advanced/FluentValidationSample/FluentValidationSample.csproj
   - path: samples/09-advanced/InboxIdempotency/InboxIdempotency.csproj
   - path: samples/09-advanced/JobWorkerSample/JobWorkerSample.csproj
   - path: samples/09-advanced/LeaderElection/LeaderElection.csproj
-  - path: samples/09-advanced/MinimalJobSample/MinimalJobSample.csproj
   - path: samples/09-advanced/MultiDatabase/MultiDatabase.csproj
   - path: samples/09-advanced/ProductionPipeline/ProductionPipeline.csproj
   - path: samples/09-advanced/ProjectionsSample/ProjectionsSample.csproj
@@ -130,6 +130,9 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/Excalibur.Dispatch.Validation.FluentValidation.csproj
   - path: src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj
   - path: src/Excalibur/Excalibur.A3.Abstractions/Excalibur.A3.Abstractions.csproj
+  - path: src/Excalibur/Excalibur.A3.Core/Excalibur.A3.Core.csproj
+  - path: src/Excalibur/Excalibur.A3.Governance.Abstractions/Excalibur.A3.Governance.Abstractions.csproj
+  - path: src/Excalibur/Excalibur.A3.Governance/Excalibur.A3.Governance.csproj
   - path: src/Excalibur/Excalibur.A3/Excalibur.A3.csproj
   - path: src/Excalibur/Excalibur.Application/Excalibur.Application.csproj
   - path: src/Excalibur/Excalibur.Caching/Excalibur.Caching.csproj
@@ -241,6 +244,7 @@ projects:
   - path: tests/performance/Excalibur.Dispatch.Performance.Tests/Excalibur.Dispatch.Performance.Tests.csproj
   - path: tests/smoke/Excalibur.Dispatch.Tests.Smoke/Excalibur.Dispatch.Tests.Smoke.csproj
   - path: tests/unit/Excalibur.A3.Tests/Excalibur.A3.Tests.csproj
+  - path: tests/unit/Excalibur.A3.Governance.Tests/Excalibur.A3.Governance.Tests.csproj
   - path: tests/unit/Excalibur.Application.Tests/Excalibur.Application.Tests.csproj
   - path: tests/unit/Excalibur.Caching.Tests/Excalibur.Caching.Tests.csproj
   - path: tests/unit/Excalibur.Cdc.Tests/Excalibur.Cdc.Tests.csproj

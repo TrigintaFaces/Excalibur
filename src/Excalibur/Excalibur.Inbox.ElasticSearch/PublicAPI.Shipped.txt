@@ -8,6 +8,7 @@ Excalibur.Inbox.ElasticSearch.ElasticsearchInboxOptions.RefreshPolicy.set -> voi
 Excalibur.Inbox.ElasticSearch.ElasticsearchInboxOptions.RetentionDays.get -> int
 Excalibur.Inbox.ElasticSearch.ElasticsearchInboxOptions.RetentionDays.set -> void
 Excalibur.Inbox.ElasticSearch.ElasticsearchInboxStore
+Excalibur.Inbox.ElasticSearch.ElasticsearchInboxStore.CleanupAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.ElasticSearch.ElasticsearchInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.ElasticSearch.ElasticsearchInboxStore.ElasticsearchInboxStore(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.ElasticSearch.ElasticsearchInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.ElasticSearch.ElasticsearchInboxStore!>! logger) -> void
 Excalibur.Inbox.ElasticSearch.ElasticsearchInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>

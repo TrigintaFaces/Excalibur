@@ -168,7 +168,7 @@ public sealed class SagaMetadataGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine("/// Compile-time metadata describing discovered saga structures.");
 		sb.AppendLine("/// </summary>");
-		sb.AppendLine("public static class PrecompiledSagaMetadata");
+		sb.AppendLine("internal static class PrecompiledSagaMetadata");
 		sb.AppendLine("{");
 
 		// Generate step metadata record

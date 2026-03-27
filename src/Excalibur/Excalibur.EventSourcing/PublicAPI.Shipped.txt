@@ -1,143 +1,4 @@
 #nullable enable
-abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.AggregateType.get -> string!
-abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.FromVersion.get -> int
-abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.ToVersion.get -> int
-abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.UpgradeSnapshot(TFrom! oldSnapshot) -> TTo!
-abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.EventType.get -> string!
-abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.FromVersion.get -> int
-abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.ToVersion.get -> int
-abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.UpgradeEvent(TFrom! oldEvent) -> TTo!
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateCreated = 111004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateHydrated = 111102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateLoaded = 111001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateNotFound = 111003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateRepositoryCreated = 111000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateSaved = 111002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateStateReconstructed = 111103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateVersionChecked = 111005 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreAppendingEvents = 114300 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreConcurrencyConflict = 114302 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreEventsAppended = 114301 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreInitializing = 114304 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreLoadedEvents = 114305 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreLoadingEvents = 114303 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ConcurrencyConflict = 111104 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CosmosDbEventStoreCreated = 110101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DomainEventApplied = 111100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DomainEventsCleared = 111101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DynamoDbEventStoreCreated = 110102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateAlreadyErased = 114503 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateCompleted = 114504 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateFailed = 114506 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregatesResolved = 114502 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureContributorCompleted = 114507 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureContributorStarting = 114500 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureNoAggregatesFound = 114501 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureSnapshotsDeleted = 114505 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventDeserialized = 110201 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrated = 114102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationCompleted = 114101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationFailed = 114103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationStarted = 114100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventsAppended = 110001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventSerializationFailed = 110202 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventSerialized = 110200 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventsLoaded = 110002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventStoreCreated = 110000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventTypeResolved = 110203 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpcasted = 114001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpgraderRegistered = 114200 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpgrading = 114201 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.FirestoreEventStoreCreated = 110103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.GlobalPositionRetrieved = 110006 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.InMemoryEventStoreCreated = 110104 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationApplied = 114404 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationCompleted = 114402 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationFailed = 114403 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationHistoryCreated = 114413 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockAcquired = 114410 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockFailed = 114412 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockReleased = 114411 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationStarted = 114401 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigratorCreated = 114400 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.NoPendingMigrations = 114415 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.PendingMigrationsFound = 114414 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionBatchProcessed = 113104 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionBehind = 113102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionCaughtUp = 113101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionCheckpointSaved = 113004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionError = 113103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionEventProcessed = 113003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionManagerCreated = 113000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuilt = 113100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStarted = 113001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStopped = 113002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackCompleted = 114406 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackFailed = 114407 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackStarted = 114405 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SchemaVersionUpdated = 114104 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotCreationTriggered = 112102 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotDeleted = 112004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotLoaded = 112002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotNotFound = 112003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotSaved = 112001 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotSkipped = 112103 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotStoreCreated = 112000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotStrategyEvaluated = 112100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotThresholdReached = 112101 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotUpgraderRegistered = 114250 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotUpgrading = 114251 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionDeserializationFailed = 114604 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionEventsDelivered = 114602 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionPollingError = 114603 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionStarted = 114600 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionStopped = 114601 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SqlServerEventStoreCreated = 110100 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamCreated = 110003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamDeleted = 110005 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamRead = 110004 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterChainExecuted = 114002 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterRegistered = 114003 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterRegistryCreated = 114000 -> int
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcastingSkipped = 114004 -> int
-const Excalibur.EventSourcing.Diagnostics.MaterializedViewMetrics.MeterName = "Excalibur.EventSourcing.MaterializedViews" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivities.Append = "EventStore.Append" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivities.DeleteSnapshots = "SnapshotStore.Delete" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivities.GetSnapshot = "SnapshotStore.Get" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivities.GetUndispatched = "EventStore.GetUndispatched" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivities.Load = "EventStore.Load" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivities.MarkDispatched = "EventStore.MarkDispatched" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivities.SaveSnapshot = "SnapshotStore.Save" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivitySource.Name = "Excalibur.EventSourcing" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivitySources.EventStore = "Excalibur.EventSourcing.EventStore" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingActivitySources.SnapshotStore = "Excalibur.EventSourcing.SnapshotStore" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMeters.EventStore = "Excalibur.EventSourcing.EventStore" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMeters.SnapshotStore = "Excalibur.EventSourcing.SnapshotStore" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.AppendDuration = "excalibur.eventsourcing.eventstore.append_duration" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.EventsAppended = "excalibur.eventsourcing.eventstore.events_appended" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.EventsLoaded = "excalibur.eventsourcing.eventstore.events_loaded" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.EventStoreDuration = "excalibur.eventsourcing.eventstore.duration" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.EventStoreOperations = "excalibur.eventsourcing.eventstore.operations" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.LoadDuration = "excalibur.eventsourcing.eventstore.load_duration" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.SnapshotStoreDuration = "excalibur.eventsourcing.snapshotstore.duration" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.SnapshotStoreOperations = "excalibur.eventsourcing.snapshotstore.operations" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.AggregateId = "aggregate.id" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.AggregateType = "aggregate.type" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.BatchSize = "batch.size" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.EventCount = "event.count" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.EventId = "event.id" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.ExceptionMessage = "exception.message" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.ExceptionType = "exception.type" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.ExpectedVersion = "expected.version" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.FromVersion = "from.version" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.Operation = "store.operation" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.OperationResult = "operation.result" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.Provider = "store.provider" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTags.Version = "event.version" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTagValues.ConcurrencyConflict = "concurrency_conflict" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTagValues.Failure = "failure" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTagValues.NotFound = "not_found" -> string!
-const Excalibur.EventSourcing.Observability.EventSourcingTagValues.Success = "success" -> string!
 Excalibur.EventSourcing.Bulk.AggregateBulkOperations<TAggregate, TKey>
 Excalibur.EventSourcing.Bulk.AggregateBulkOperations<TAggregate, TKey>.AggregateBulkOperations(Excalibur.EventSourcing.Abstractions.IEventSourcedRepository<TAggregate!, TKey>! repository) -> void
 Excalibur.EventSourcing.Bulk.AggregateBulkOperations<TAggregate, TKey>.LoadManyAsync(System.Collections.Generic.IEnumerable<TKey>! aggregateIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<TKey, TAggregate!>!>!
@@ -248,8 +109,8 @@ Excalibur.EventSourcing.Diagnostics.TelemetrySnapshotStore.TelemetrySnapshotStor
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.EncryptingEventStoreDecorator(Excalibur.EventSourcing.Abstractions.IEventStore! inner, Excalibur.Dispatch.Compliance.IEncryptionProviderRegistry! registry, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Compliance.EncryptionOptions!>! options) -> void
-Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Encryption.Decorators.EncryptingEventStoreDecorator.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.EventSourcing.Encryption.Decorators.EncryptingProjectionStoreDecorator<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -269,12 +130,41 @@ Excalibur.EventSourcing.Erasure.EventStoreErasureContributor.EventStoreErasureCo
 Excalibur.EventSourcing.Erasure.EventStoreErasureContributor.Name.get -> string!
 Excalibur.EventSourcing.Erasure.IAggregateDataSubjectMapping
 Excalibur.EventSourcing.Erasure.IAggregateDataSubjectMapping.GetAggregatesForDataSubjectAsync(string! dataSubjectIdHash, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Erasure.AggregateReference!>!>!
+Excalibur.EventSourcing.Exceptions.InlineProjectionException
+Excalibur.EventSourcing.Exceptions.InlineProjectionException.AggregateId.get -> string!
+Excalibur.EventSourcing.Exceptions.InlineProjectionException.AggregateType.get -> string!
+Excalibur.EventSourcing.Exceptions.InlineProjectionException.CommittedVersion.get -> long
+Excalibur.EventSourcing.Exceptions.InlineProjectionException.FailedProjectionType.get -> System.Type!
+Excalibur.EventSourcing.Exceptions.InlineProjectionException.InlineProjectionException(long committedVersion, string! aggregateId, string! aggregateType, System.Type! failedProjectionType, System.Exception! innerException) -> void
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.FailureRateThresholdPercent.get -> double
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.FailureRateThresholdPercent.set -> void
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.IncludeDetails.get -> bool
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.IncludeDetails.set -> void
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.MaterializedViewHealthCheckOptions() -> void
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.Name.get -> string!
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.Name.set -> void
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.StalenessThreshold.get -> System.TimeSpan
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.StalenessThreshold.set -> void
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.Tags.get -> System.Collections.Generic.List<string!>!
+Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions.Tags.set -> void
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.EventSourcedRepository(Excalibur.EventSourcing.Abstractions.IEventStore! eventStore, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, System.Func<TKey, TAggregate!>! aggregateFactory, Excalibur.Dispatch.Abstractions.IUpcastingPipeline? upcastingPipeline = null, Excalibur.EventSourcing.Abstractions.ISnapshotManager? snapshotManager = null, Excalibur.EventSourcing.Abstractions.ISnapshotStrategy? snapshotStrategy = null, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Versioning.UpcastingOptions!>? upcastingOptions = null, Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore? outboxStore = null, Excalibur.EventSourcing.Snapshots.SnapshotVersionManager? snapshotVersionManager = null, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Snapshots.SnapshotUpgradingOptions!>? snapshotUpgradingOptions = null, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate!, TKey>!>? logger = null, Excalibur.EventSourcing.Abstractions.IEventNotificationBroker? eventNotificationBroker = null) -> void
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.EventSourcedRepository(Excalibur.EventSourcing.Abstractions.IEventStore! eventStore, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, System.Func<TKey, TAggregate!>! aggregateFactory, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions!>! options, Excalibur.Dispatch.Abstractions.IUpcastingPipeline? upcastingPipeline = null, Excalibur.EventSourcing.Abstractions.ISnapshotManager? snapshotManager = null, Excalibur.EventSourcing.Abstractions.ISnapshotStrategy? snapshotStrategy = null, Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore? outboxStore = null, Excalibur.EventSourcing.Snapshots.SnapshotVersionManager? snapshotVersionManager = null, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate!, TKey>!>? logger = null, Excalibur.EventSourcing.Abstractions.IEventNotificationBroker? eventNotificationBroker = null) -> void
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.ExistsAsync(TKey aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.GetByIdAsync(TKey aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TAggregate?>!
-Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.SaveAsync(TAggregate! aggregate, string? expectedETag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.SaveAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.SaveAsync(TAggregate! aggregate, string? expectedETag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate>
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate>.EventSourcedRepository(Excalibur.EventSourcing.Abstractions.IEventStore! eventStore, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, System.Func<string!, TAggregate!>! aggregateFactory, Excalibur.Dispatch.Abstractions.IUpcastingPipeline? upcastingPipeline = null, Excalibur.EventSourcing.Abstractions.ISnapshotManager? snapshotManager = null, Excalibur.EventSourcing.Abstractions.ISnapshotStrategy? snapshotStrategy = null, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Versioning.UpcastingOptions!>? upcastingOptions = null, Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore? outboxStore = null, Excalibur.EventSourcing.Snapshots.SnapshotVersionManager? snapshotVersionManager = null, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Snapshots.SnapshotUpgradingOptions!>? snapshotUpgradingOptions = null, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate!, string!>!>? logger = null, Excalibur.EventSourcing.Abstractions.IEventNotificationBroker? eventNotificationBroker = null) -> void
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EnableAutoSnapshotUpgrade.get -> bool
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EnableAutoSnapshotUpgrade.set -> void
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EnableAutoUpcast.get -> bool
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EnableAutoUpcast.set -> void
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EventSourcedRepositoryOptions() -> void
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.TargetSnapshotVersion.get -> int
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.TargetSnapshotVersion.set -> void
 Excalibur.EventSourcing.Migration.EventBatchMigrator
 Excalibur.EventSourcing.Migration.EventBatchMigrator.CreatePlanAsync(Excalibur.EventSourcing.Migration.MigrationOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Migration.MigrationPlan!>!>!
 Excalibur.EventSourcing.Migration.EventBatchMigrator.EventBatchMigrator(Excalibur.EventSourcing.Abstractions.IEventStore! eventStore, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Migration.MigrationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Migration.EventBatchMigrator!>! logger) -> void
@@ -342,8 +232,8 @@ Excalibur.EventSourcing.Observability.EventSourcingActivitySource
 Excalibur.EventSourcing.Observability.EventSourcingActivitySources
 Excalibur.EventSourcing.Observability.EventSourcingMeters
 Excalibur.EventSourcing.Observability.EventSourcingMetricNames
-Excalibur.EventSourcing.Observability.EventSourcingTags
 Excalibur.EventSourcing.Observability.EventSourcingTagValues
+Excalibur.EventSourcing.Observability.EventSourcingTags
 Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore
 Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore.AddAsync(Excalibur.EventSourcing.Outbox.OutboxMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore.DeletePublishedOlderThanAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
@@ -390,6 +280,12 @@ Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>.B
 Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>.FromCategory(string! category) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>.FromStream(string! streamId) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>.When<TEvent>(System.Action<TProjection!, TEvent>! handler) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Async() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Inline() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithCacheTtl(System.TimeSpan ttl) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
+Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>
+Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>.Configure(Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>! builder) -> void
 Excalibur.EventSourcing.Projections.IProjectionRebuildService
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.RebuildAsync<TProjection>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -417,6 +313,7 @@ Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.RebuildOnStartup.ge
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.RebuildOnStartup.set -> void
 Excalibur.EventSourcing.Projections.ProjectionRebuildService
 Excalibur.EventSourcing.Projections.ProjectionRebuildService.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!
+Excalibur.EventSourcing.Projections.ProjectionRebuildService.ProjectionRebuildService(System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Projections.ProjectionRebuildOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Projections.ProjectionRebuildService!>! logger) -> void
 Excalibur.EventSourcing.Projections.ProjectionRebuildService.RebuildAsync<TProjection>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Projections.ProjectionRebuildState
 Excalibur.EventSourcing.Projections.ProjectionRebuildState.Completed = 2 -> Excalibur.EventSourcing.Projections.ProjectionRebuildState
@@ -494,6 +391,10 @@ Excalibur.EventSourcing.Snapshots.Compression.SnapshotCompressionOptions.Compres
 Excalibur.EventSourcing.Snapshots.Compression.SnapshotCompressionOptions.MinimumSizeBytes.get -> int
 Excalibur.EventSourcing.Snapshots.Compression.SnapshotCompressionOptions.MinimumSizeBytes.set -> void
 Excalibur.EventSourcing.Snapshots.Compression.SnapshotCompressionOptions.SnapshotCompressionOptions() -> void
+Excalibur.EventSourcing.Snapshots.IncrementalSnapshotStrategy
+Excalibur.EventSourcing.Snapshots.IncrementalSnapshotStrategy.CompactionThreshold.get -> int
+Excalibur.EventSourcing.Snapshots.IncrementalSnapshotStrategy.IncrementalSnapshotStrategy(int compactionThreshold = 10) -> void
+Excalibur.EventSourcing.Snapshots.IncrementalSnapshotStrategy.ShouldCreateSnapshot(Excalibur.Domain.Model.IAggregateRoot! aggregate) -> bool
 Excalibur.EventSourcing.Snapshots.IntervalSnapshotStrategy
 Excalibur.EventSourcing.Snapshots.IntervalSnapshotStrategy.IntervalSnapshotStrategy(int interval = 100) -> void
 Excalibur.EventSourcing.Snapshots.IntervalSnapshotStrategy.ShouldCreateSnapshot(Excalibur.Domain.Model.IAggregateRoot! aggregate) -> bool
@@ -571,6 +472,7 @@ Excalibur.EventSourcing.Subscriptions.EventStoreLiveSubscription.SubscribeAsync(
 Excalibur.EventSourcing.Subscriptions.EventStoreLiveSubscription.UnsubscribeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Subscriptions.EventSubscriptionManager
 Excalibur.EventSourcing.Subscriptions.EventSubscriptionManager.CreateSubscription(string! name, Excalibur.EventSourcing.Subscriptions.EventSubscriptionOptions! options) -> Excalibur.EventSourcing.Subscriptions.IEventSubscription!
+Excalibur.EventSourcing.Subscriptions.EventSubscriptionManager.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.Subscriptions.EventSubscriptionManager.EventSubscriptionManager(Excalibur.EventSourcing.Abstractions.IEventStore! eventStore, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory) -> void
 Excalibur.EventSourcing.Subscriptions.EventSubscriptionManager.GetSubscription(string! name) -> Excalibur.EventSourcing.Subscriptions.IEventSubscription?
 Excalibur.EventSourcing.Subscriptions.EventSubscriptionOptions
@@ -591,13 +493,13 @@ Excalibur.EventSourcing.Subscriptions.IEventSubscription.UnsubscribeAsync(System
 Excalibur.EventSourcing.Subscriptions.IEventSubscriptionManager
 Excalibur.EventSourcing.Subscriptions.IEventSubscriptionManager.CreateSubscription(string! name, Excalibur.EventSourcing.Subscriptions.EventSubscriptionOptions! options) -> Excalibur.EventSourcing.Subscriptions.IEventSubscription!
 Excalibur.EventSourcing.Subscriptions.IEventSubscriptionManager.GetSubscription(string! name) -> Excalibur.EventSourcing.Subscriptions.IEventSubscription?
+Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore
+Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.GetCheckpointAsync(string! subscriptionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long?>!
+Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.StoreCheckpointAsync(string! subscriptionName, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Subscriptions.InMemorySubscriptionCheckpointStore
 Excalibur.EventSourcing.Subscriptions.InMemorySubscriptionCheckpointStore.GetCheckpointAsync(string! subscriptionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long?>!
 Excalibur.EventSourcing.Subscriptions.InMemorySubscriptionCheckpointStore.InMemorySubscriptionCheckpointStore() -> void
 Excalibur.EventSourcing.Subscriptions.InMemorySubscriptionCheckpointStore.StoreCheckpointAsync(string! subscriptionName, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore
-Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.GetCheckpointAsync(string! subscriptionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long?>!
-Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore.StoreCheckpointAsync(string! subscriptionName, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition
 Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition.Beginning = 0 -> Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition
 Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition.End = 1 -> Excalibur.EventSourcing.Subscriptions.SubscriptionStartPosition
@@ -667,6 +569,7 @@ Excalibur.EventSourcing.Views.MaterializedViewOptions.MaterializedViewOptions() 
 Excalibur.EventSourcing.Views.MaterializedViewOptionsValidator
 Excalibur.EventSourcing.Views.MaterializedViewOptionsValidator.MaterializedViewOptionsValidator() -> void
 Excalibur.EventSourcing.Views.MaterializedViewOptionsValidator.Validate(string? name, Excalibur.EventSourcing.Views.MaterializedViewOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingServiceCollectionExtensions
@@ -674,12 +577,153 @@ Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollection
 Microsoft.Extensions.DependencyInjection.EventTypeRegistryServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ProjectionHandlerServiceCollectionExtensions
+abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.AggregateType.get -> string!
+abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.FromVersion.get -> int
+abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.ToVersion.get -> int
+abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.UpgradeSnapshot(TFrom! oldSnapshot) -> TTo!
+abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.EventType.get -> string!
+abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.FromVersion.get -> int
+abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.ToVersion.get -> int
+abstract Excalibur.EventSourcing.Upcasting.EventUpgrader<TFrom, TTo>.UpgradeEvent(TFrom! oldEvent) -> TTo!
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateCreated = 111004 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateHydrated = 111102 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateLoaded = 111001 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateNotFound = 111003 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateRepositoryCreated = 111000 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateSaved = 111002 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateStateReconstructed = 111103 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.AggregateVersionChecked = 111005 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreAppendingEvents = 114300 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreConcurrencyConflict = 114302 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreEventsAppended = 114301 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreInitializing = 114304 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreLoadedEvents = 114305 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CloudStoreLoadingEvents = 114303 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ConcurrencyConflict = 111104 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.CosmosDbEventStoreCreated = 110101 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DomainEventApplied = 111100 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DomainEventsCleared = 111101 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.DynamoDbEventStoreCreated = 110102 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateAlreadyErased = 114503 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateCompleted = 114504 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregateFailed = 114506 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureAggregatesResolved = 114502 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureContributorCompleted = 114507 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureContributorStarting = 114500 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureNoAggregatesFound = 114501 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ErasureSnapshotsDeleted = 114505 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventDeserialized = 110201 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrated = 114102 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationCompleted = 114101 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationFailed = 114103 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventMigrationStarted = 114100 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventSerializationFailed = 110202 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventSerialized = 110200 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventStoreCreated = 110000 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventTypeResolved = 110203 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpcasted = 114001 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpgraderRegistered = 114200 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventUpgrading = 114201 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventsAppended = 110001 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.EventsLoaded = 110002 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.FirestoreEventStoreCreated = 110103 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.GlobalPositionRetrieved = 110006 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.InMemoryEventStoreCreated = 110104 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationApplied = 114404 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationCompleted = 114402 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationFailed = 114403 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationHistoryCreated = 114413 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockAcquired = 114410 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockFailed = 114412 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationLockReleased = 114411 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigrationStarted = 114401 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.MigratorCreated = 114400 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.NoPendingMigrations = 114415 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.PendingMigrationsFound = 114414 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionBatchProcessed = 113104 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionBehind = 113102 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionCaughtUp = 113101 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionCheckpointSaved = 113004 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionError = 113103 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionEventProcessed = 113003 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionManagerCreated = 113000 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildEventError = 113105 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuilt = 113100 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStarted = 113001 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionStopped = 113002 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackCompleted = 114406 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackFailed = 114407 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.RollbackStarted = 114405 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SchemaVersionUpdated = 114104 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotCreationTriggered = 112102 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotDeleted = 112004 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotLoaded = 112002 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotNotFound = 112003 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotSaved = 112001 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotSkipped = 112103 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotStoreCreated = 112000 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotStrategyEvaluated = 112100 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotThresholdReached = 112101 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotUpgraderRegistered = 114250 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SnapshotUpgrading = 114251 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SqlServerEventStoreCreated = 110100 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamCreated = 110003 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamDeleted = 110005 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.StreamRead = 110004 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionDeserializationFailed = 114604 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionEventsDelivered = 114602 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionPollingError = 114603 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionStarted = 114600 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.SubscriptionStopped = 114601 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterChainExecuted = 114002 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterRegistered = 114003 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcasterRegistryCreated = 114000 -> int
+const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.UpcastingSkipped = 114004 -> int
+const Excalibur.EventSourcing.Diagnostics.MaterializedViewMetrics.MeterName = "Excalibur.EventSourcing.MaterializedViews" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivities.Append = "EventStore.Append" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivities.DeleteSnapshots = "SnapshotStore.Delete" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivities.GetSnapshot = "SnapshotStore.Get" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivities.GetUndispatched = "EventStore.GetUndispatched" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivities.Load = "EventStore.Load" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivities.MarkDispatched = "EventStore.MarkDispatched" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivities.SaveSnapshot = "SnapshotStore.Save" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivitySource.Name = "Excalibur.EventSourcing" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivitySources.EventStore = "Excalibur.EventSourcing.EventStore" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingActivitySources.SnapshotStore = "Excalibur.EventSourcing.SnapshotStore" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMeters.EventStore = "Excalibur.EventSourcing.EventStore" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMeters.SnapshotStore = "Excalibur.EventSourcing.SnapshotStore" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.AppendDuration = "excalibur.eventsourcing.eventstore.append_duration" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.EventStoreDuration = "excalibur.eventsourcing.eventstore.duration" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.EventStoreOperations = "excalibur.eventsourcing.eventstore.operations" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.EventsAppended = "excalibur.eventsourcing.eventstore.events_appended" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.EventsLoaded = "excalibur.eventsourcing.eventstore.events_loaded" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.LoadDuration = "excalibur.eventsourcing.eventstore.load_duration" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.SnapshotStoreDuration = "excalibur.eventsourcing.snapshotstore.duration" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingMetricNames.SnapshotStoreOperations = "excalibur.eventsourcing.snapshotstore.operations" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTagValues.ConcurrencyConflict = "concurrency_conflict" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTagValues.Failure = "failure" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTagValues.NotFound = "not_found" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTagValues.Success = "success" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.AggregateId = "aggregate.id" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.AggregateType = "aggregate.type" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.BatchSize = "batch.size" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.EventCount = "event.count" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.EventId = "event.id" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.ExceptionMessage = "exception.message" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.ExceptionType = "exception.type" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.ExpectedVersion = "expected.version" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.FromVersion = "from.version" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.Operation = "store.operation" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.OperationResult = "operation.result" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.Provider = "store.provider" -> string!
+const Excalibur.EventSourcing.Observability.EventSourcingTags.Version = "event.version" -> string!
 override Excalibur.EventSourcing.Diagnostics.EventStoreThroughputMetrics.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
-override Excalibur.EventSourcing.Diagnostics.EventStoreThroughputMetrics.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 override Excalibur.EventSourcing.Diagnostics.EventStoreThroughputMetrics.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+override Excalibur.EventSourcing.Diagnostics.EventStoreThroughputMetrics.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 override Excalibur.EventSourcing.Diagnostics.TelemetryEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
-override Excalibur.EventSourcing.Diagnostics.TelemetryEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 override Excalibur.EventSourcing.Diagnostics.TelemetryEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+override Excalibur.EventSourcing.Diagnostics.TelemetryEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 override Excalibur.EventSourcing.Diagnostics.TelemetrySnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 override Excalibur.EventSourcing.Diagnostics.TelemetrySnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 override Excalibur.EventSourcing.Diagnostics.TelemetrySnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
@@ -702,6 +746,10 @@ static Excalibur.EventSourcing.Queries.GlobalStreamPosition.Start.get -> Excalib
 static Excalibur.EventSourcing.Snapshots.NoSnapshotStrategy.Instance.get -> Excalibur.EventSourcing.Snapshots.NoSnapshotStrategy!
 static Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult.Compatible(int version) -> Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult!
 static Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult.Incompatible(int storedVersion, int currentVersion, string? reason = null) -> Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult!
+static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddProjection<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddProjectionsFromAssembly(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.UseEventNotification(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.UseProjectionRecovery(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingExcaliburBuilderExtensions.AddEventSourcing(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!>! configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions.AddEventSourcingInstrumentation(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions.AddEventSourcingInstrumentation(this OpenTelemetry.Trace.TracerProviderBuilder! builder) -> OpenTelemetry.Trace.TracerProviderBuilder!
@@ -721,38 +769,12 @@ static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollecti
 static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions.AddMaterializedViews(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions.HasMaterializedViews(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
 static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Migration.MigrationRunnerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ProjectionHandlerServiceCollectionExtensions.AddProjectionHandlersFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.EventSourcing.Decorators.DelegatingEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
-virtual Excalibur.EventSourcing.Decorators.DelegatingEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 virtual Excalibur.EventSourcing.Decorators.DelegatingEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+virtual Excalibur.EventSourcing.Decorators.DelegatingEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.DeleteAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Microsoft.Extensions.DependencyInjection.ProjectionHandlerServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.ProjectionHandlerServiceCollectionExtensions.AddProjectionHandlersFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-const Excalibur.EventSourcing.Diagnostics.EventSourcingEventId.ProjectionRebuildEventError = 113105 -> int
-Excalibur.EventSourcing.Projections.ProjectionRebuildService.ProjectionRebuildService(System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Projections.ProjectionRebuildOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Projections.ProjectionRebuildService!>! logger) -> void
-Excalibur.EventSourcing.Subscriptions.EventSubscriptionManager.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>
-Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Async() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>!
-Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Inline() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>!
-Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.When<TEvent>(System.Action<TProjection, TEvent>! handler) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>!
-Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithCacheTtl(System.TimeSpan ttl) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>!
-Excalibur.EventSourcing.Exceptions.InlineProjectionException
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.AggregateId.get -> string!
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.AggregateType.get -> string!
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.CommittedVersion.get -> long
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.FailedProjectionType.get -> System.Type!
-Excalibur.EventSourcing.Exceptions.InlineProjectionException.InlineProjectionException(long committedVersion, string! aggregateId, string! aggregateType, System.Type! failedProjectionType, System.Exception! innerException) -> void
-Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>
-Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>.Configure(Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>! builder) -> void
-Excalibur.EventSourcing.Snapshots.IncrementalSnapshotStrategy
-Excalibur.EventSourcing.Snapshots.IncrementalSnapshotStrategy.CompactionThreshold.get -> int
-Excalibur.EventSourcing.Snapshots.IncrementalSnapshotStrategy.IncrementalSnapshotStrategy(int compactionThreshold = 10) -> void
-Excalibur.EventSourcing.Snapshots.IncrementalSnapshotStrategy.ShouldCreateSnapshot(Excalibur.Domain.Model.IAggregateRoot! aggregate) -> bool
-Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddProjection<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddProjectionsFromAssembly(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.UseEventNotification(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.UseProjectionRecovery(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

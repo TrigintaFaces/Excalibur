@@ -1,79 +1,47 @@
 # Advanced Samples
 
-Advanced patterns and sophisticated real-world scenarios including streaming handlers, distributed coordination, validation, projections, event sourcing providers, and schema evolution.
+Production-grade patterns for event sourcing, CDC integration, distributed coordination, and background processing.
 
-## Streaming Handlers (Sprint 436)
+## Where to Start
 
-| Sample | Description | Key Technologies |
-|--------|-------------|------------------|
-| [StreamingHandlers](StreamingHandlers/) | All four streaming handler patterns | IAsyncEnumerable, backpressure, progress |
+These samples build on the fundamentals from [01-getting-started/](../01-getting-started/). If you haven't worked through [EventSourcingIntro](../01-getting-started/EventSourcingIntro/) yet, start there.
 
-### Streaming Handler Types
+### Learning Tracks
 
-| Handler | Pattern | Use Case |
-|---------|---------|----------|
-| `IStreamingDocumentHandler<TDocument, TOutput>` | Document → Stream | CSV parsing, PDF page extraction |
-| `IStreamConsumerHandler<TDocument>` | Stream → Sink | Batch imports, ETL sinks |
-| `IStreamTransformHandler<TInput, TOutput>` | Stream → Stream | Data enrichment, filtering |
-| `IProgressDocumentHandler<TDocument>` | Progress reporting | Long-running exports |
+Pick the track that matches what you're building:
 
-See [Streaming Documentation](../../docs/streaming/) for detailed guides.
+```
+Event Sourcing Track (start here for CQRS)
+  1. ProjectionsSample .............. In-memory projections, no infrastructure needed
+  2. SqlServerEventStore ............ Real persistence, aggregate rehydration
+  3. SnapshotStrategies ............. Performance optimization for loaded aggregates
+  4. CdcEventStoreElasticsearch ..... Full CQRS: CDC + projections + ES search + API
 
-## Distributed Coordination
+CDC / Legacy Integration Track
+  1. CdcAntiCorruption .............. Schema adaptation, backfill, history gap recovery
+  2. CdcEventStoreElasticsearch ..... Full pipeline: CDC -> event store -> ES projections
 
-| Sample | Description | Key Technologies |
-|--------|-------------|------------------|
-| [LeaderElection](LeaderElection/) | Distributed leader election | Redis, TTL leases, callbacks |
+Versioning & Schema Evolution Track
+  1. Versioning.Examples/ ........... 4 sub-projects covering all versioning scenarios:
+     - EventUpcasting ............... BFS-based V1->V2->V3 aggregate replay
+     - EcommerceOrderVersioning ..... Order event evolution patterns
+     - IntegrationEventVersioning ... Cross-service message compatibility
+     - UserProfileVersioning ........ GDPR-aware schema evolution
 
-### Leader Election Provider Comparison
+Background Processing Track
+  1. BackgroundServices ............. 4 hosting patterns (at-least-once, transactional, etc.)
+  2. JobWorkerSample ................ Quartz scheduling, Redis coordination, health checks
+  3. ../13-jobs/CdcJobQuartz ........ Quartz-based CDC processing (scheduled alternative)
+```
 
-| Provider | Best For | Infrastructure | Failover Speed |
-|----------|----------|----------------|----------------|
-| **Redis** | High availability, fast failover | Redis cluster | Sub-second |
-| **SQL Server** | Existing SQL infrastructure | SQL Server | 5-15 seconds |
-| **Kubernetes** | K8s-native deployments | Kubernetes API | 15-30 seconds |
-| **Consul** | Service mesh integration | Consul cluster | 1-5 seconds |
+## Event Sourcing
 
-## Validation Patterns
-
-| Sample | Description | Key Technologies |
-|--------|-------------|------------------|
-| [FluentValidationSample](FluentValidationSample/) | Pipeline validation integration | FluentValidation, Middleware |
-
-### Validation Decision Matrix
-
-| Pattern | Use Case | Complexity |
-|---------|----------|------------|
-| **Basic Rules** | Required fields, length limits | Low |
-| **Conditional** | Optional fields, context-dependent | Medium |
-| **Cross-Field** | Multi-field constraints | Medium |
-| **Async** | External service validation | High |
-
-## CQRS & Projections
-
-| Sample | Description | Key Technologies |
-|--------|-------------|------------------|
-| [ProjectionsSample](ProjectionsSample/) | Read model generation | Checkpoint tracking, rebuild |
-
-### Projection Patterns
-
-| Pattern | Best For | Consistency |
-|---------|----------|-------------|
-| **Inline** | Strong consistency | Synchronous |
-| **Async** | High throughput | Eventual |
-| **Multi-Stream** | Cross-aggregate queries | Eventual |
-| **Checkpoint** | Rebuild support | At-least-once |
-
-## Event Sourcing Providers
-
-Production-ready event store implementations with database-specific optimizations.
-
-| Sample | Description | Key Technologies |
-|--------|-------------|------------------|
-| [SqlServerEventStore](SqlServerEventStore/) | SQL Server event persistence | Dapper, Docker, Transactions |
-| [CosmosDbEventStore](CosmosDbEventStore/) | Cosmos DB with partition strategies | Azure SDK, Change Feed |
-| [SnapshotStrategies](SnapshotStrategies/) | Aggregate snapshot optimization | Interval, Time, Size, Composite |
-| [EventUpcasting](EventUpcasting/) | Event schema evolution | V1->V2->V3, BFS Path Finding |
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [ProjectionsSample](ProjectionsSample/) | CQRS read models, inline projections, multi-stream projections, checkpoint tracking, rebuild patterns | None (in-memory) |
+| [SqlServerEventStore](SqlServerEventStore/) | SQL Server persistence, aggregate rehydration, direct event store access, configuration | Docker (SQL Server) |
+| [CosmosDbEventStore](CosmosDbEventStore/) | Cosmos DB partitioning, change feed, global distribution | Cosmos DB Emulator or Azure |
+| [SnapshotStrategies](SnapshotStrategies/) | Interval, time-based, size-based, composite snapshot strategies, tuning guide | None (in-memory) |
 
 ### Provider Selection Guide
 
@@ -81,211 +49,93 @@ Production-ready event store implementations with database-specific optimization
 |----------|----------|-------------|---------|
 | **SQL Server** | Enterprise, ACID transactions | Strong | Vertical |
 | **Cosmos DB** | Global distribution, high throughput | Tunable | Horizontal |
-| **In-Memory** | Testing, development | Strong | N/A |
+| **In-Memory** | Testing, development, learning | Strong | N/A |
 
-### Snapshot Strategy Decision Matrix
+## CDC & Legacy Integration
 
-| Strategy | When to Use | Configuration |
-|----------|-------------|---------------|
-| **Interval** | High-velocity aggregates | Every 50-100 events |
-| **Time-Based** | Long-running, read-heavy | Every 1-4 hours |
-| **Size-Based** | Large aggregate state | Above 10-50 KB |
-| **Composite** | Production belt-and-suspenders | Interval + Time (Any mode) |
-| **None** | Testing, small aggregates | - |
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [CdcAntiCorruption](CdcAntiCorruption/) | Anti-corruption layer, schema adaptation (V1/V2/V3), CDC history backfill, data processing framework | Docker (SQL Server) |
+| [CdcEventStoreElasticsearch](CdcEventStoreElasticsearch/) | Full CQRS pipeline: CDC -> event store -> ES projections, `IProjectionStore<T>` vs `ElasticRepositoryBase<T>`, full-text search, aggregations | Docker (SQL Server + Elasticsearch) |
 
-### Event Upcasting Patterns
+**Which CDC sample?**
+- **Start with CdcAntiCorruption** if you need to integrate with legacy databases and want focused ACL patterns
+- **Start with CdcEventStoreElasticsearch** if you want the full end-to-end CQRS story with search
 
-| Pattern | Scenario | Complexity |
-|---------|----------|------------|
-| **Field Addition** | Add new optional field | Low |
-| **Field Splitting** | Address -> Street, City, Zip | Medium |
-| **Field Merging** | FirstName + LastName -> FullName | Low |
-| **Type Rename** | Rename event class | Medium |
-| **Schema Transform** | Restructure event shape | High |
+## Versioning & Schema Evolution
+
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [Versioning.Examples/](Versioning.Examples/) | 4 sub-projects covering all event versioning scenarios | None (in-memory) |
+
+Sub-projects:
+
+| Sub-project | Scenario | Key Patterns |
+|-------------|----------|-------------|
+| EventUpcasting | Domain event V1->V2->V3 with aggregate replay | BFS path finding, auto-upcasting |
+| EcommerceOrderVersioning | Order event evolution with multi-hop transforms | Schema splitting (Total -> Subtotal + Tax) |
+| IntegrationEventVersioning | Cross-service message compatibility | UpcastingMessageBusDecorator, migration detection |
+| UserProfileVersioning | GDPR-focused schema evolution | Consent tracking, email encryption, assembly scanning |
+
+## Distributed Coordination
+
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [LeaderElection](LeaderElection/) | Redis-based leader election, TTL leases, failover callbacks | Docker (Redis) |
+| [SessionManagement](SessionManagement/) | Session-aware message processing, state tracking | None (in-memory) |
+
+## Validation
+
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [FluentValidationSample](FluentValidationSample/) | Pipeline validation, conditional rules, async validators, cross-field constraints | None |
 
 ## Background Processing
 
-| Sample | Description | Complexity |
-|--------|-------------|------------|
-| [BackgroundServices](BackgroundServices/) | Various background service patterns | Advanced |
-| [JobWorkerSample](JobWorkerSample/) | Job worker pattern with multiple job types | Intermediate |
-| [MinimalJobSample](MinimalJobSample/) | Minimal job worker setup | Intermediate |
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [BackgroundServices](BackgroundServices/) | 4 hosting patterns: at-least-once inbox, transactional, minimized window, basic polling | Varies by sub-project |
+| [JobWorkerSample](JobWorkerSample/) | Quartz scheduling, persistent store, Redis coordination, CDC/outbox/data processing jobs, health checks | Docker (SQL Server, Redis) |
 
-## Integration Patterns
+> **Looking for Quartz-based CDC scheduling?** See [13-jobs/CdcJobQuartz](../13-jobs/CdcJobQuartz/).
 
-| Sample | Description | Complexity |
-|--------|-------------|------------|
-| [CdcAntiCorruption](CdcAntiCorruption/) | Anti-corruption layer for CDC integration | Advanced |
-| [CdcEventStoreElasticsearch](CdcEventStoreElasticsearch/) | CDC processing with event-sourcing projections | Advanced |
-| [SessionManagement](SessionManagement/) | Session-aware message processing patterns | Advanced |
+## Other Advanced Patterns
 
-## Versioning & Evolution
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [StreamingHandlers](StreamingHandlers/) | `IAsyncEnumerable` streaming, backpressure, progress reporting, 4 handler types | None |
+| [InboxIdempotency](InboxIdempotency/) | At-least-once delivery with deduplication guarantees | None (in-memory) |
+| [TransactionalHandlers](TransactionalHandlers/) | ACID handler execution with TransactionScope | None (in-memory) |
+| [MultiDatabase](MultiDatabase/) | Event sourcing across multiple database systems | Docker |
+| [ProductionPipeline](ProductionPipeline/) | Full middleware stack: security, validation, transactions, observability | None (in-memory) |
+| [DataProcessingBackgroundService](DataProcessingBackgroundService/) | Background data processing with retry and error handling | None |
 
-| Sample | Description | Complexity |
-|--------|-------------|------------|
-| [EventUpcasting](EventUpcasting/) | Event schema evolution (V1->V2->V3) | Advanced |
-| [Versioning.Examples](Versioning.Examples/) | Event versioning and upcasting | Advanced |
-
-## Code Examples
-
-### Leader Election
-
-```csharp
-// Register Redis leader election
-services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect("localhost:6379"));
-
-services.AddRedisLeaderElection("myapp:leader", options =>
-{
-    options.LeaseDuration = TimeSpan.FromSeconds(30);
-    options.RenewInterval = TimeSpan.FromSeconds(10);
-    options.GracePeriod = TimeSpan.FromSeconds(15);
-});
-
-// Use leadership status
-if (leaderElection.IsLeader)
-{
-    await ProcessBackgroundJobsAsync();
-}
-```
-
-### FluentValidation Integration
-
-```csharp
-// Register validation
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-}).WithFluentValidation();
-
-services.AddValidatorsFromAssemblyContaining<CreateUserCommandValidator>();
-
-// Validation runs automatically in pipeline
-var result = await dispatcher.DispatchAsync(command, context, ct);
-if (!result.Succeeded)
-{
-    foreach (var error in result.ProblemDetails.Errors)
-        Console.WriteLine($"{error.Key}: {string.Join(", ", error.Value)}");
-}
-```
-
-### Projections
-
-```csharp
-// Projection handler
-public class ProductCatalogProjectionHandler
-{
-    public async Task HandleAsync(ProductCreated @event, CancellationToken ct)
-    {
-        var projection = new ProductCatalogProjection
-        {
-            Id = @event.ProductId.ToString(),
-            Name = @event.Name,
-            Price = @event.Price,
-        };
-        await _store.UpsertAsync(projection.Id, projection, ct);
-    }
-}
-
-// Query projections with filters
-var electronics = await store.QueryAsync(
-    new Dictionary<string, object> { ["Category"] = "Electronics" },
-    new QueryOptions(Skip: 0, Take: 10, OrderBy: "Price"),
-    ct);
-```
-
-### SQL Server Event Store
-
-```csharp
-// Configure SQL Server event store
-services.AddSqlServerEventSourcing(options =>
-{
-    options.ConnectionString = connectionString;
-    options.RegisterHealthChecks = true;
-});
-
-// Use the repository
-var repository = provider.GetRequiredService<
-    IEventSourcedRepository<BankAccountAggregate, Guid>>();
-
-var account = await repository.LoadAsync(accountId, ct);
-account.Deposit(500m, "Paycheck");
-await repository.SaveAsync(account, ct);
-```
-
-## Running the Samples
-
-### Sprint 434 Samples
+## Running Samples
 
 ```bash
-# Leader Election (requires Docker for Redis)
-cd samples/09-advanced/LeaderElection
-docker-compose up -d
-dotnet run
+# Most samples (no infrastructure needed)
+dotnet run --project samples/09-advanced/ProjectionsSample
 
-# FluentValidation
-cd samples/09-advanced/FluentValidationSample
-dotnet run
-
-# Projections
-cd samples/09-advanced/ProjectionsSample
-dotnet run
-```
-
-### Event Sourcing Samples
-
-```bash
-# SQL Server (requires Docker)
+# Samples with Docker dependencies
 cd samples/09-advanced/SqlServerEventStore
-docker-compose up -d
-dotnet run
+docker-compose up -d    # Start infrastructure
+dotnet run              # Run the sample
 
-# Cosmos DB (requires Emulator or Azure)
-cd samples/09-advanced/CosmosDbEventStore
-dotnet run
-
-# Snapshot Strategies
-cd samples/09-advanced/SnapshotStrategies
-dotnet run
-
-# Event Upcasting
-cd samples/09-advanced/EventUpcasting
-dotnet run
-```
-
-### Other Samples
-
-```bash
-# Job Worker
-dotnet run --project samples/09-advanced/JobWorkerSample
-
-# CDC Anti-Corruption
-dotnet run --project samples/09-advanced/CdcAntiCorruption
+cd samples/09-advanced/CdcEventStoreElasticsearch
+docker-compose up -d    # SQL Server + Elasticsearch
+dotnet run              # Web API at http://localhost:5000
 ```
 
 ## Prerequisites
 
-| Sample | Requirements |
-|--------|--------------|
-| LeaderElection | Docker (Redis) |
-| SqlServerEventStore | Docker Desktop |
-| CosmosDbEventStore | Cosmos DB Emulator or Azure account |
-| BackgroundServices | Docker (for some variants) |
+| Requirement | Needed By |
+|-------------|-----------|
+| .NET 9.0 SDK | All samples |
+| Docker Desktop | SqlServerEventStore, LeaderElection, CdcAntiCorruption, CdcEventStoreElasticsearch, BackgroundServices (some) |
+| Cosmos DB Emulator | CosmosDbEventStore |
 
-## Related Categories
+## Next Steps
 
-- [04-reliability/](../04-reliability/) - Outbox pattern, retry, circuit breaker
-- [08-serialization/](../08-serialization/) - Protobuf, MessagePack, MemoryPack
-- [10-real-world/](../10-real-world/) - Production-style examples
-- [01-getting-started/EventSourcingIntro/](../01-getting-started/EventSourcingIntro/) - Basic CQRS patterns
-
-## Learn More
-
-- [Event Sourcing Documentation](../../docs-site/docs/event-sourcing/)
-- [FluentValidation Docs](https://docs.fluentvalidation.net/)
-- [Azure Cosmos DB](https://learn.microsoft.com/azure/cosmos-db/)
-- [Event Sourcing Patterns](https://learn.microsoft.com/azure/architecture/patterns/event-sourcing)
-
----
-
-*Category: Advanced | Sprint 434*
+- [10-real-world/](../10-real-world/) -- Production-style samples combining multiple patterns
+- [Event Sourcing Documentation](../../docs-site/docs/event-sourcing/) -- Comprehensive guides
+- [CDC Pattern](../../docs-site/docs/patterns/cdc.md) -- Change Data Capture reference

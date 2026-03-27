@@ -2,10 +2,10 @@
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.CollectionName.get -> string!
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.CollectionName.set -> void
-Excalibur.Inbox.MongoDB.MongoDbInboxOptions.ConnectionString.get -> string!
-Excalibur.Inbox.MongoDB.MongoDbInboxOptions.ConnectionString.set -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.ConnectTimeoutSeconds.get -> int
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.ConnectTimeoutSeconds.set -> void
+Excalibur.Inbox.MongoDB.MongoDbInboxOptions.ConnectionString.get -> string!
+Excalibur.Inbox.MongoDB.MongoDbInboxOptions.ConnectionString.set -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.DatabaseName.get -> string!
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.DatabaseName.set -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.DefaultTtlSeconds.get -> int
@@ -19,6 +19,7 @@ Excalibur.Inbox.MongoDB.MongoDbInboxOptions.UseSsl.get -> bool
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.UseSsl.set -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.Validate() -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxStore
+Excalibur.Inbox.MongoDB.MongoDbInboxStore.CleanupAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>

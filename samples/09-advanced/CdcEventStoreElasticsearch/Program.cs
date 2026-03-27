@@ -21,7 +21,7 @@
 //   └─────────┬─────────────┘                       │ Domain Events
 //             │                                     ▲
 //             │ CDC Polling Service                 │
-//             │ (Background Service or Quartz Job)  │
+//             │ (Background Service)               │
 //             ▼                                     │
 //   ┌─────────────────────────────────────────────────────────────────────┐
 //   │                    Anti-Corruption Layer (ACL)                       │
@@ -66,7 +66,7 @@
 //   └─────────────────────────────────────────────────────────────────────┘
 //
 // Key Features:
-// - CDC processing: Background Service OR Quartz Job (configurable)
+// - CDC processing via Background Service
 // - Multiple tables: LegacyCustomers, LegacyOrders, LegacyOrderItems
 // - Production-grade stale position recovery
 // - Real SQL Server event store with snapshots
@@ -83,10 +83,12 @@
 using CdcEventStoreElasticsearch.AntiCorruption;
 using CdcEventStoreElasticsearch.Infrastructure;
 using CdcEventStoreElasticsearch.Projections;
+using CdcEventStoreElasticsearch.Repositories;
+
+using Elastic.Clients.Elasticsearch;
+using Elastic.Transport;
 
 using Excalibur.Cdc.SqlServer;
-
-using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -191,7 +193,7 @@ builder.Services.AddCdcProcessor(cdc =>
 				})
 				.EnableStructuredLogging();
 		});
-	// Note: Don't call EnableBackgroundProcessing() - we use custom service/Quartz toggle below
+	// Note: Don't call EnableBackgroundProcessing() - we use CdcPollingBackgroundService below
 });
 
 // Register SQL services (CDC processor already registered above via AddCdcProcessor builder)
@@ -201,14 +203,6 @@ builder.Services
 // CDC polling options (bound from configuration with defaults)
 builder.Services.Configure<CdcPollingOptions>(builder.Configuration.GetSection(CdcPollingOptions.SectionName));
 builder.Services.PostConfigure<CdcPollingOptions>(options =>
-{
-	options.CdcSourceConnectionString ??= cdcSourceConnectionString;
-	options.StateStoreConnectionString ??= eventStoreConnectionString;
-});
-
-// CDC Quartz job options (bound from configuration with defaults)
-builder.Services.Configure<CdcSampleJobConfig>(builder.Configuration.GetSection(CdcSampleJobConfig.SectionName));
-builder.Services.PostConfigure<CdcSampleJobConfig>(options =>
 {
 	options.CdcSourceConnectionString ??= cdcSourceConnectionString;
 	options.StateStoreConnectionString ??= eventStoreConnectionString;
@@ -231,24 +225,11 @@ builder.Services
 	.AddSingleton<IOrderItemLookupService, InMemoryOrderItemLookupService>();
 
 // ============================================================================
-// CDC Processing Mode (Background Service or Quartz)
+// CDC Background Processing
 // ============================================================================
+// For Quartz-based scheduling, see the CdcJobQuartz sample in samples/13-jobs.
 
-var useQuartzScheduler = builder.Configuration.GetValue<bool>("Jobs:UseQuartzScheduler");
-
-if (useQuartzScheduler)
-{
-	startupLogger.LogInformation("CDC mode: Quartz Scheduler");
-
-	builder.Services.AddQuartz(q => CdcSampleJob.ConfigureJob(q, builder.Configuration));
-	builder.Services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
-}
-else
-{
-	startupLogger.LogInformation("CDC mode: Background Service");
-
-	builder.Services.AddHostedService<CdcPollingBackgroundService>();
-}
+builder.Services.AddHostedService<CdcPollingBackgroundService>();
 
 // ============================================================================
 // Elasticsearch Projections
@@ -291,6 +272,24 @@ builder.Services
 		options.IndexPrefix = "analytics";
 		options.CreateIndexOnInitialize = true;
 	});
+
+// ============================================================================
+// Custom Elasticsearch Repository (Native Query Features)
+// ============================================================================
+// The OrderFullTextSearchRepository extends ElasticRepositoryBase<T> for native
+// ES queries (full-text search, aggregations, fuzzy matching) while targeting
+// the SAME index as IProjectionStore<OrderSearchProjection> above.
+//
+// ElasticSearchProjectionIndexConvention resolves the index name from the same
+// options, so if you change the IndexPrefix both paths stay in sync.
+
+builder.Services.AddSingleton<ElasticsearchClient>(_ =>
+{
+	var settings = new ElasticsearchClientSettings(new Uri(elasticsearchUri));
+	return new ElasticsearchClient(settings);
+});
+
+builder.Services.AddScoped<OrderFullTextSearchRepository>();
 
 // Projection handlers (auto-discovered from assembly via IProjectionHandler marker)
 builder.Services.AddProjectionHandlersFromAssembly(typeof(Program).Assembly);
@@ -335,10 +334,9 @@ app.MapControllers();
 
 var apiPort = builder.Configuration["Api:Port"] ?? "5000";
 logger.LogInformation(
-	"Application running. CDC={CdcMode}, API=http://localhost:{Port}, Swagger=http://localhost:{Port}/swagger",
-	useQuartzScheduler ? "Quartz" : "BackgroundService",
+	"Application running. API=http://localhost:{Port}, Swagger=http://localhost:{Port}/swagger",
 	apiPort,
 	apiPort);
-logger.LogInformation("Endpoints: GET /api/customers, GET /api/orders, GET /api/analytics/dashboard");
+logger.LogInformation("Endpoints: GET /api/customers, GET /api/orders, GET /api/orders/search?q=..., GET /api/orders/statistics, GET /api/analytics/dashboard");
 
 await app.RunAsync().ConfigureAwait(false);

@@ -1,289 +1,211 @@
 # Excalibur Samples
 
-This directory contains working samples demonstrating the Dispatch and Excalibur frameworks.
+Working samples demonstrating the Dispatch and Excalibur frameworks. Each sample is self-contained and runnable with `dotnet run`.
 
-## Which Sample Should I Start With?
+## Quick Start
+
+**New to Excalibur?** Follow this path:
+
+```
+1. HelloDispatch ................... Simplest possible setup (5 min)
+2. DispatchOnly .................... Commands, events, queries, middleware (15 min)
+3. WebApiQuickStart ................ ASP.NET Core API with CQRS (15 min)
+4. EventSourcingIntro .............. Aggregates, event sourcing, snapshots (30 min)
+```
+
+**Ready for production patterns?** Pick your scenario:
 
 ```
 What are you building?
-├── Console app / hello world     → HelloDispatch
-├── Web API                       → WebApiQuickStart
-├── MediatR replacement           → DispatchOnly
-├── Event sourcing                → EventSourcingIntro
-├── Transport messaging
-│   ├── RabbitMQ                  → 02-messaging-transports/RabbitMQ
-│   ├── Kafka                     → 02-messaging-transports/Kafka
-│   ├── Azure Service Bus         → 02-messaging-transports/AzureServiceBus
-│   ├── AWS SQS                   → 02-messaging-transports/AwsSqs
-│   └── Multiple brokers          → 02-messaging-transports/MultiBusSample
+├── MediatR replacement              → 01-getting-started/DispatchOnly
+├── Web API with CQRS                → 01-getting-started/WebApiQuickStart
+├── Event sourcing
+│   ├── In-memory (learning)         → 09-advanced/ProjectionsSample
+│   ├── SQL Server (production)      → 09-advanced/SqlServerEventStore
+│   └── Full CQRS + search           → 09-advanced/CdcEventStoreElasticsearch
+├── Messaging transport
+│   ├── RabbitMQ                     → 02-messaging-transports/RabbitMQ
+│   ├── Kafka                        → 02-messaging-transports/Kafka
+│   ├── Azure Service Bus            → 02-messaging-transports/AzureServiceBus
+│   ├── AWS SQS                      → 02-messaging-transports/AwsSqs
+│   └── Multiple brokers             → 02-messaging-transports/MultiBusSample
 ├── Serverless
-│   ├── Azure Functions           → 05-serverless/AzureFunctions
-│   ├── AWS Lambda                → 05-serverless/AwsLambda
-│   └── Google Cloud Functions    → 05-serverless/GoogleCloudFunctions
-├── Reliability patterns
-│   ├── Outbox                    → 04-reliability/OutboxPattern
-│   ├── Retry + circuit breaker   → 04-reliability/RetryAndCircuitBreaker
-│   └── Saga orchestration        → 04-reliability/SagaOrchestration
-├── Security
-│   ├── Message encryption        → 06-security/MessageEncryption
-│   └── Audit logging             → 06-security/AuditLogging
-├── Observability
-│   ├── OpenTelemetry             → 07-observability/OpenTelemetry
-│   └── Health checks             → 07-observability/HealthChecks
-└── Production reference          → 10-real-world/EnterpriseOrderProcessing
+│   ├── Azure Functions              → 05-serverless/AzureFunctions
+│   ├── AWS Lambda                   → 05-serverless/AwsLambda
+│   └── Google Cloud Functions       → 05-serverless/GoogleCloudFunctions
+├── Reliability
+│   ├── Outbox pattern               → 04-reliability/OutboxPattern
+│   ├── Retry + circuit breaker      → 04-reliability/RetryAndCircuitBreaker
+│   └── Saga orchestration           → 04-reliability/SagaOrchestration
+├── Security & compliance            → 06-security/
+├── Observability                    → 07-observability/
+├── NativeAOT                        → 11-aot/
+└── Production reference             → 10-real-world/EnterpriseOrderProcessing
 ```
-
-## Getting Started
-
-**New to Dispatch?** Start with these foundational samples:
-
-| Sample | Description |
-|--------|-------------|
-| [WebApiQuickStart](01-getting-started/WebApiQuickStart/) | ASP.NET Core API with commands, queries, and events |
-| [DispatchOnly](01-getting-started/DispatchOnly/) | Console app showing pure Dispatch messaging patterns |
-| [EventSourcingIntro](01-getting-started/EventSourcingIntro/) | Full CQRS with aggregate roots and event sourcing |
 
 ## Sample Categories
 
-Samples are organized into numbered categories for easy discovery:
+### [01-getting-started/](01-getting-started/) -- Fundamentals
 
-### [01-getting-started/](01-getting-started/)
+| Sample | Description | Time |
+|--------|-------------|------|
+| [HelloDispatch](01-getting-started/HelloDispatch/) | Simplest Dispatch setup -- send a command, handle it | 5 min |
+| [DispatchOnly](01-getting-started/DispatchOnly/) | Commands, events, documents, custom middleware (no Excalibur) | 15 min |
+| [WebApiQuickStart](01-getting-started/WebApiQuickStart/) | ASP.NET Core API with commands, queries, events, `[AutoRegister]` | 15 min |
+| [EventSourcingIntro](01-getting-started/EventSourcingIntro/) | CQRS with `AggregateRoot`, event sourcing, in-memory store | 30 min |
+| [InteractiveDemo](01-getting-started/InteractiveDemo/) | Interactive walkthrough of core concepts | 10 min |
+| [DataAccessIntro](01-getting-started/DataAccessIntro/) | `IDataRequest` pattern with Dapper | 10 min |
 
-Foundational samples for learning Dispatch and Excalibur basics.
+### [02-messaging-transports/](02-messaging-transports/) -- Transport Providers
 
-| Sample | Description |
-|--------|-------------|
-| [WebApiQuickStart](01-getting-started/WebApiQuickStart/) | ASP.NET Core API demonstrating commands, queries, events, and `[AutoRegister]` |
-| [DispatchOnly](01-getting-started/DispatchOnly/) | Lightweight Dispatch-only console app with custom middleware |
-| [EventSourcingIntro](01-getting-started/EventSourcingIntro/) | CQRS pattern with Excalibur domain modeling |
-| [HelloDispatch](01-getting-started/HelloDispatch/) | Simplest possible Dispatch setup |
-| [InteractiveDemo](01-getting-started/InteractiveDemo/) | Interactive walkthrough of core concepts |
+Each transport sample includes Docker Compose for local development.
 
-### [02-messaging-transports/](02-messaging-transports/)
-
-Transport configuration, multi-bus scenarios, and cross-provider messaging.
-
-**Dedicated Transport Samples** (with Docker Compose for local development):
-
-| Sample | Transport | Description |
+| Sample | Transport | Key Features |
 |--------|-----------|-------------|
 | [RabbitMQ](02-messaging-transports/RabbitMQ/) | RabbitMQ 3.12 | Topic exchange routing, CloudEvents |
 | [Kafka](02-messaging-transports/Kafka/) | Kafka 7.5 (KRaft) | Consumer groups, partitioning, compression |
 | [AzureServiceBus](02-messaging-transports/AzureServiceBus/) | Azure Service Bus | Queues, topics, sessions |
-| [AwsSqs](02-messaging-transports/AwsSqs/) | AWS SQS | Standard/FIFO queues, DLQ (LocalStack) |
+| [AwsSqs](02-messaging-transports/AwsSqs/) | AWS SQS + LocalStack | Standard/FIFO queues, DLQ |
+| [MultiBusSample](02-messaging-transports/MultiBusSample/) | RabbitMQ + Kafka | Multi-transport routing |
+| [RemoteBusSample](02-messaging-transports/RemoteBusSample/) | RabbitMQ | Remote bus with outbox/inbox |
+| [TransportBindings](02-messaging-transports/TransportBindings/) | In-memory | Transport binding configuration |
+| [MultiProviderQueueProcessor](02-messaging-transports/MultiProviderQueueProcessor/) | All 5 providers | Cross-provider message processing |
 
-**Multi-Transport Samples:**
-
-| Sample | Description |
-|--------|-------------|
-| [MultiBusSample](02-messaging-transports/MultiBusSample/) | RabbitMQ + Kafka multi-bus configuration |
-| [RemoteBusSample](02-messaging-transports/RemoteBusSample/) | RabbitMQ remote bus with command/event handlers |
-| [TransportBindings](02-messaging-transports/TransportBindings/) | Transport binding configuration examples |
-| [MultiProviderQueueProcessor](02-messaging-transports/MultiProviderQueueProcessor/) | Processing messages from multiple providers |
-
-### [03-cloud-native/](03-cloud-native/)
-
-Cloud-native patterns and integrations.
+### [03-cloud-native/](03-cloud-native/) -- Cloud Patterns
 
 | Sample | Description |
 |--------|-------------|
-| [CloudNativePatterns.Examples](03-cloud-native/CloudNativePatterns.Examples/) | Claim check pattern and cloud-native messaging |
+| [CloudNativePatterns.Examples](03-cloud-native/CloudNativePatterns.Examples/) | Claim check pattern for large message payloads |
 
-### [04-reliability/](04-reliability/)
+### [04-reliability/](04-reliability/) -- Reliability Patterns
 
-Reliability patterns for distributed systems.
+| Sample | Pattern | Infrastructure |
+|--------|---------|----------------|
+| [OutboxPattern](04-reliability/OutboxPattern/) | Transactional outbox, guaranteed delivery | None (in-memory) |
+| [RetryAndCircuitBreaker](04-reliability/RetryAndCircuitBreaker/) | Polly: retry, circuit breaker, timeout, bulkhead | None |
+| [SagaOrchestration](04-reliability/SagaOrchestration/) | Distributed coordination, compensation, timeout scheduling | None (in-memory) |
 
-| Sample | Pattern | Local Dev |
-|--------|---------|-----------|
-| [OutboxPattern](04-reliability/OutboxPattern/) | Transactional outbox, guaranteed delivery | Yes - in-memory |
-| [RetryAndCircuitBreaker](04-reliability/RetryAndCircuitBreaker/) | Polly resilience patterns | Yes - no dependencies |
-| [SagaOrchestration](04-reliability/SagaOrchestration/) | Distributed transaction coordination | Yes - in-memory |
-
-### [05-serverless/](05-serverless/)
-
-Serverless hosting patterns for cloud platforms.
+### [05-serverless/](05-serverless/) -- Serverless Hosting
 
 | Sample | Platform | Triggers | Local Dev |
 |--------|----------|----------|-----------|
-| [AzureFunctions](05-serverless/AzureFunctions/) | Azure Functions v4 | HTTP, Queue Storage, Timer | `func start` |
+| [AzureFunctions](05-serverless/AzureFunctions/) | Azure Functions v4 | HTTP, Queue, Timer | `func start` |
 | [AwsLambda](05-serverless/AwsLambda/) | AWS Lambda (.NET 8) | API Gateway, SQS, EventBridge | `sam local start-api` |
-| [GoogleCloudFunctions](05-serverless/GoogleCloudFunctions/) | GCF Gen2 (.NET 8) | HTTP, Pub/Sub, Cloud Scheduler | `dotnet run` |
+| [GoogleCloudFunctions](05-serverless/GoogleCloudFunctions/) | GCF Gen2 (.NET 8) | HTTP, Pub/Sub, Scheduler | `dotnet run` |
 
-### [06-security/](06-security/)
+### [06-security/](06-security/) -- Security & Compliance
 
-Security and compliance patterns for enterprise applications.
+| Sample | Pattern | Infrastructure |
+|--------|---------|----------------|
+| [MessageEncryption](06-security/MessageEncryption/) | Field-level encryption, key rotation, PCI compliance | None (DataProtection) |
+| [AuditLogging](06-security/AuditLogging/) | SOC2/HIPAA/GDPR compliance logging, PII redaction | None (in-memory) |
+| [AzureKeyVault](06-security/AzureKeyVault/) | `ICredentialStore`, managed identity, secret caching | Azure account |
+| [AwsSecretsManager](06-security/AwsSecretsManager/) | Secret retrieval, IAM auth, rotation | LocalStack |
 
-| Sample | Pattern | Local Dev |
-|--------|---------|-----------|
-| [MessageEncryption](06-security/MessageEncryption/) | Field-level encryption, PCI compliance | Yes - DataProtection |
-| [AuditLogging](06-security/AuditLogging/) | SOC2/HIPAA/GDPR compliance logging | Yes - in-memory |
-| [AzureKeyVault](06-security/AzureKeyVault/) | ICredentialStore, secret caching | Requires Azure |
-| [AwsSecretsManager](06-security/AwsSecretsManager/) | Secret retrieval, IAM auth | Yes - LocalStack |
+### [07-observability/](07-observability/) -- Monitoring
 
-### [07-observability/](07-observability/)
+| Sample | Pattern | Infrastructure |
+|--------|---------|----------------|
+| [OpenTelemetry](07-observability/OpenTelemetry/) | Distributed tracing (Jaeger), custom spans, metrics | Docker (Jaeger) |
+| [HealthChecks](07-observability/HealthChecks/) | Kubernetes liveness/readiness probes, health checks UI | None |
 
-Logging, tracing, and metrics for production monitoring.
-
-| Sample | Pattern | Local Dev |
-|--------|---------|-----------|
-| [OpenTelemetry](07-observability/OpenTelemetry/) | Distributed tracing, custom spans, metrics | Yes - Jaeger Docker |
-| [HealthChecks](07-observability/HealthChecks/) | Kubernetes liveness/readiness probes | Yes - no dependencies |
-
-### [08-serialization/](08-serialization/)
-
-High-performance serialization alternatives.
+### [08-serialization/](08-serialization/) -- Serialization
 
 | Sample | Serializer | Best For |
 |--------|------------|----------|
-| [Protobuf](08-serialization/Protobuf/) | Protocol Buffers | Cross-language systems |
-| [MessagePack](08-serialization/MessagePackSample/) | MessagePack + LZ4 | High throughput |
-| [MemoryPack](08-serialization/MemoryPackSample/) | MemoryPack | Maximum .NET performance |
+| [MemoryPack](08-serialization/MemoryPackSample/) | MemoryPack | Maximum .NET performance, NativeAOT |
+| [MessagePack](08-serialization/MessagePackSample/) | MessagePack + LZ4 | High throughput, compact binary |
+| [Protobuf](08-serialization/Protobuf/) | Protocol Buffers | Cross-language interoperability |
 
-### [09-advanced/](09-advanced/)
+### [09-advanced/](09-advanced/) -- Advanced Patterns
 
-Advanced patterns including distributed coordination, validation, projections, streaming, and event sourcing.
+See the [09-advanced README](09-advanced/README.md) for learning tracks and detailed guidance.
 
-**Sprint 436 Samples (Streaming Handlers):**
+**Event Sourcing:**
 
-| Sample | Description | Key Technologies |
-|--------|-------------|------------------|
-| [StreamingHandlers](09-advanced/StreamingHandlers/) | All streaming handler patterns | IAsyncEnumerable, backpressure, progress |
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [ProjectionsSample](09-advanced/ProjectionsSample/) | CQRS read models, inline/async projections, rebuild | None |
+| [SqlServerEventStore](09-advanced/SqlServerEventStore/) | SQL Server persistence, rehydration, configuration | Docker |
+| [CosmosDbEventStore](09-advanced/CosmosDbEventStore/) | Cosmos DB partitioning, change feed | Cosmos Emulator |
+| [SnapshotStrategies](09-advanced/SnapshotStrategies/) | 5 snapshot strategies, tuning guide | None |
 
-**Sprint 434 Samples:**
+**CDC & Legacy Integration:**
 
-| Sample | Description | Key Technologies |
-|--------|-------------|------------------|
-| [LeaderElection](09-advanced/LeaderElection/) | Distributed leader election | Redis, TTL leases, callbacks |
-| [FluentValidationSample](09-advanced/FluentValidationSample/) | Pipeline validation integration | FluentValidation, Middleware |
-| [ProjectionsSample](09-advanced/ProjectionsSample/) | CQRS read model generation | Checkpoint tracking, rebuild |
+| Sample | What You'll Learn | Infrastructure |
+|--------|-------------------|----------------|
+| [CdcAntiCorruption](09-advanced/CdcAntiCorruption/) | Anti-corruption layer, schema adaptation, backfill | Docker |
+| [CdcEventStoreElasticsearch](09-advanced/CdcEventStoreElasticsearch/) | Full CQRS: CDC -> ES projections -> search API | Docker |
 
-**Event Sourcing Providers:**
+**Versioning, Coordination, Background Processing:**
 
-| Sample | Description | Key Technologies |
-|--------|-------------|------------------|
-| [SqlServerEventStore](09-advanced/SqlServerEventStore/) | SQL Server event persistence | Dapper, Docker, Transactions |
-| [CosmosDbEventStore](09-advanced/CosmosDbEventStore/) | Cosmos DB with partition strategies | Azure SDK, Change Feed |
-| [SnapshotStrategies](09-advanced/SnapshotStrategies/) | Aggregate snapshot optimization | Interval, Time, Size, Composite |
-| [EventUpcasting](09-advanced/EventUpcasting/) | Event schema evolution (V1->V2->V3) | BFS Path Finding, Auto-Upcast |
+| Sample | What You'll Learn |
+|--------|-------------------|
+| [Versioning.Examples/](09-advanced/Versioning.Examples/) | 4 event versioning scenarios (domain, ecommerce, integration, GDPR) |
+| [LeaderElection](09-advanced/LeaderElection/) | Redis-based distributed leader election |
+| [BackgroundServices](09-advanced/BackgroundServices/) | 4 background service hosting patterns |
+| [JobWorkerSample](09-advanced/JobWorkerSample/) | Quartz scheduling with persistent store and Redis coordination |
 
-**Other Advanced Patterns:**
+### [10-real-world/](10-real-world/) -- Production Reference
+
+| Sample | Focus | Key Patterns |
+|--------|-------|-------------|
+| [OrderProcessing](10-real-world/OrderProcessing/) | Complete order workflow | Event Sourcing, Saga, Retry, Compensation |
+| [EnterpriseOrderProcessing](10-real-world/EnterpriseOrderProcessing/) | Enterprise stack (22+ packages) | CDC, Outbox, RabbitMQ, OTel, Security |
+| [EnhancedStores](10-real-world/EnhancedStores/) | Modern async patterns | Inbox deduplication, Outbox batching, Observability |
+
+### [11-aot/](11-aot/) -- NativeAOT
 
 | Sample | Description |
 |--------|-------------|
-| [BackgroundServices](09-advanced/BackgroundServices/) | Various background service patterns |
-| [CdcAntiCorruption](09-advanced/CdcAntiCorruption/) | Anti-corruption layer for CDC integration |
-| [CdcEventStoreElasticsearch](09-advanced/CdcEventStoreElasticsearch/) | CDC with Elasticsearch event store |
-| [JobWorkerSample](09-advanced/JobWorkerSample/) | Job worker pattern with multiple job types |
-| [MinimalJobSample](09-advanced/MinimalJobSample/) | Minimal job worker setup |
-| [SessionManagement](09-advanced/SessionManagement/) | Session management and state tracking |
-| [Versioning.Examples](09-advanced/Versioning.Examples/) | Event versioning and upcasting patterns |
+| [Excalibur.Dispatch.Aot.Sample](11-aot/Excalibur.Dispatch.Aot.Sample/) | AOT-compatible Dispatch with source generators |
 
-### [10-real-world/](10-real-world/)
+### [12-vertical-slice-api/](12-vertical-slice-api/) -- Architecture
 
-Production-style samples demonstrating how multiple patterns work together.
+| Sample | Description |
+|--------|-------------|
+| [HealthcareApi](12-vertical-slice-api/HealthcareApi/) | Vertical slice architecture for healthcare domain |
 
-| Sample | Description | Patterns |
-|--------|-------------|----------|
-| [OrderProcessing](10-real-world/OrderProcessing/) | Complete order workflow | Event Sourcing, CQRS, Saga, Retry |
-| [ECommerce](10-real-world/ECommerce/) | E-commerce order processing | Hosted Services, Health Checks |
-| [EnhancedStores](10-real-world/EnhancedStores/) | Enhanced store patterns | Repository, Persistence |
-
-### [13-jobs/](13-jobs/)
-
-Job scheduling and background task patterns.
+### [13-jobs/](13-jobs/) -- Job Scheduling
 
 | Sample | Description |
 |--------|-------------|
 | [CdcJobQuartz](13-jobs/CdcJobQuartz/) | Quartz-scheduled CDC processing job |
 
-### [11-aot/](11-aot/)
-
-Native AOT compilation samples.
-
-| Sample | Description |
-|--------|-------------|
-| [Excalibur.Dispatch.Aot.Sample](11-aot/Excalibur.Dispatch.Aot.Sample/) | AOT-compatible Dispatch application |
-
-### [12-vertical-slice-api/](12-vertical-slice-api/)
-
-Vertical slice architecture samples.
-
-| Sample | Description |
-|--------|-------------|
-| [HealthcareApi](12-vertical-slice-api/HealthcareApi/) | Healthcare API using vertical slice architecture |
-
----
-
 ## Running Samples
 
-All samples build with `dotnet build` and run with `dotnet run`:
-
 ```bash
-# Build a specific sample
-dotnet build samples/01-getting-started/WebApiQuickStart
+# Build and run any sample
+dotnet run --project samples/01-getting-started/HelloDispatch
 
-# Run a specific sample
-dotnet run --project samples/01-getting-started/WebApiQuickStart
+# Samples with Docker dependencies
+cd samples/09-advanced/SqlServerEventStore
+docker-compose up -d    # Start infrastructure
+dotnet run              # Run the sample
 ```
 
 ### Prerequisites
 
-- .NET 9.0 SDK or later
-- For transport samples: Docker (for RabbitMQ, Kafka containers)
+- **.NET 9.0 SDK** or later
+- **Docker Desktop** for samples marked with "Docker" infrastructure
+- Specific cloud SDKs for serverless/cloud samples (documented per sample)
 
 ## Converting to Your Own Project
 
-Samples use `ProjectReference` for development convenience. To use them in your own projects, convert to `PackageReference`.
+Samples use `ProjectReference` for development convenience. Convert to `PackageReference` for your own projects:
 
-See [CONVERSION-GUIDE.md](CONVERSION-GUIDE.md) for step-by-step instructions.
-
-### Quick Conversion Example
-
-**Before (Sample):**
 ```xml
-<ProjectReference Include="$(DispatchSourceRoot)Dispatch\Excalibur.Dispatch.csproj" />
+<!-- Before (sample) -->
+<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+
+<!-- After (your project) -->
+<PackageReference Include="Excalibur.Dispatch" Version="1.0.0" />
 ```
 
-**After (Your Project):**
-```xml
-<PackageReference Include="Dispatch" Version="1.0.0" />
-```
-
-## Sample Structure
-
-Each sample follows a consistent structure:
-
-```
-SampleName/
-├── SampleName.csproj   # Project file
-├── README.md           # Documentation
-├── Program.cs          # Entry point
-├── Messages/           # Commands, queries, events
-├── Handlers/           # Message handlers
-└── ...                 # Sample-specific folders
-```
-
-## Contributing Samples
-
-When adding new samples:
-
-1. Place in the appropriate numbered category
-2. Include a comprehensive README.md with:
-   - What the sample demonstrates
-   - Prerequisites
-   - How to run
-   - Code highlights
-   - Next steps
-3. Ensure the sample builds and runs with no external dependencies (or document them clearly)
-4. Follow the naming conventions of existing samples
+See [CONVERSION-GUIDE.md](CONVERSION-GUIDE.md) for complete instructions.
 
 ## Related Documentation
 
-- [Main Documentation](../docs-site/docs/)
-- [Source Generators Guide](../docs-site/docs/source-generators/getting-started.md)
+- [Framework Documentation](../docs-site/docs/)
+- [Event Sourcing Guide](../docs-site/docs/event-sourcing/)
 - [API Reference](../docs-site/docs/reference/)
-
----
-
-*Updated: Sprint 581 - Release Readiness*
-

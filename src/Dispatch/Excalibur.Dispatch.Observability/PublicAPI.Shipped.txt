@@ -1,95 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Observability.Context" -> string!
-const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.MeterName = "Excalibur.Dispatch.Observability.Context" -> string!
-const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.MiddlewareActivitySourceName = "Excalibur.Dispatch.Observability.ContextMiddleware" -> string!
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ActivityEnriched = 80204 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.BaggagePropagated = 80206 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CausationIdExtracted = 80208 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CleanupArgumentError = 80016 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CleanupInvalidOperationError = 80015 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CloudMetricsAdapterCreated = 80301 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CompliancePiiPatternDetected = 80602 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ComplianceSanitizerRegistered = 80601 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextAnomalyDetected = 80103 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextAnomalyLogged = 80114 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextChangesDetected = 80008 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextCorrelated = 80009 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextCorrelationEstablished = 80005 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextEnrichedWithMetadata = 80202 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextEnrichedWithTrace = 80201 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextEnrichmentCompleted = 80203 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextEventAdded = 80211 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextExtracted = 80210 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFieldChangedDebug = 80013 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFieldRemovedWarning = 80012 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowCompleted = 80002 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowDiagnostic = 80112 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowDiagnosticsCollected = 80003 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowStarted = 80001 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowTrackerCreated = 80000 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextIntegrityCheckFailed = 80011 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextIntegrityValidationFailed = 80104 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextObservabilityExecuting = 80100 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextObserved = 80101 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextPropagated = 80004 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextSizeExceeded = 80111 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextSnapshotCaptured = 80102 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextStateRecorded = 80007 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextTraceEnricherCreated = 80200 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CorrelateBoundaryArgumentError = 80010 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CorrelateBoundaryInvalidOperation = 80021 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CorrelationIdExtracted = 80207 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CounterIncremented = 80304 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CriticalFieldRemoved = 80109 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.DetectChangesArgument = 80020 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.DetectChangesInvalidOperation = 80019 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedEnrichArgument = 80215 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedEnrichOperationInvalid = 80214 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedExtractBaggageArgument = 80219 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedExtractBaggageInvalid = 80218 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedLinkRelatedTrace = 80216 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedLinkRelatedTraceArgument = 80217 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.GaugeSet = 80305 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HealthCheckExecuted = 80500 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HealthCheckFailed = 80502 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HealthCheckPassed = 80501 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HealthStatusChanged = 80503 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HistogramRecorded = 80306 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HistoryEvent = 80113 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.LivenessCheckExecuted = 80505 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.LocalMetricsCollectorCreated = 80300 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.MetricsExportCompleted = 80307 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.MetricsFlushed = 80303 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.MetricsRecorded = 80302 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.NullContextAttempted = 80006 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PiiSanitizationBypassed = 80600 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PipelineStageException = 80105 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PropertyCaptureInvalidArgument = 80107 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PropertyCaptureInvalidOperation = 80106 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PropertyCaptureParameterMismatch = 80108 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ReadinessCheckExecuted = 80504 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.RecordStateArgument = 80018 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.RecordStateInvalidOperation = 80017 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.SnapshotCleanup = 80014 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.SpanCompleted = 80403 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.SpanStarted = 80402 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TenantIdExtracted = 80209 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceCompleted = 80401 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceDropped = 80406 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceExported = 80404 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceLinkCreated = 80205 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceParentParseArgumentError = 80213 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceParentParseFormatError = 80212 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceSampled = 80405 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceStarted = 80400 -> int
-const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TrackedFieldModified = 80110 -> int
-const Excalibur.Dispatch.Observability.Http.W3CTraceContextTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Observability.W3CTraceContext" -> string!
-const Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.MeterName = "Excalibur.Dispatch.CircuitBreaker" -> string!
-const Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.MeterName = "Excalibur.Dispatch.DeadLetterQueue" -> string!
-const Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Name = "Excalibur.Dispatch" -> string!
-const Excalibur.Dispatch.Observability.Metrics.DispatchMetrics.MeterName = "Excalibur.Dispatch.Core" -> string!
-const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.SpanIdTag = "span_id" -> string!
-const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.TraceIdTag = "trace_id" -> string!
 Excalibur.Dispatch.Observability.Context.AnomalySeverity
 Excalibur.Dispatch.Observability.Context.AnomalySeverity.High = 2 -> Excalibur.Dispatch.Observability.Context.AnomalySeverity
 Excalibur.Dispatch.Observability.Context.AnomalySeverity.Low = 0 -> Excalibur.Dispatch.Observability.Context.AnomalySeverity
@@ -149,6 +58,8 @@ Excalibur.Dispatch.Observability.Context.ContextExportOptions
 Excalibur.Dispatch.Observability.Context.ContextExportOptions.ApplicationInsightsConnectionString.get -> string?
 Excalibur.Dispatch.Observability.Context.ContextExportOptions.ApplicationInsightsConnectionString.set -> void
 Excalibur.Dispatch.Observability.Context.ContextExportOptions.ContextExportOptions() -> void
+Excalibur.Dispatch.Observability.Context.ContextExportOptions.EnableConsoleExporterInDevelopment.get -> bool
+Excalibur.Dispatch.Observability.Context.ContextExportOptions.EnableConsoleExporterInDevelopment.set -> void
 Excalibur.Dispatch.Observability.Context.ContextExportOptions.ExportToApplicationInsights.get -> bool
 Excalibur.Dispatch.Observability.Context.ContextExportOptions.ExportToApplicationInsights.set -> void
 Excalibur.Dispatch.Observability.Context.ContextExportOptions.ExportToPrometheus.get -> bool
@@ -481,7 +392,6 @@ Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceName.set ->
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceVersion.get -> string!
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ServiceVersion.set -> void
 Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions
-Excalibur.Dispatch.Observability.ObservabilityJsonSerializerContext
 Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator
 Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator.B3TracingContextPropagator() -> void
 Excalibur.Dispatch.Observability.Propagation.B3TracingContextPropagator.ExtractAsync(System.Collections.Generic.IDictionary<string!, string!>! carrier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Diagnostics.ActivityContext>!
@@ -549,6 +459,97 @@ Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.Telemetr
 Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions
 Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ObservabilityServiceCollectionExtensions
+const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Observability.Context" -> string!
+const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.MeterName = "Excalibur.Dispatch.Observability.Context" -> string!
+const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.MiddlewareActivitySourceName = "Excalibur.Dispatch.Observability.ContextMiddleware" -> string!
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ActivityEnriched = 80204 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.BaggagePropagated = 80206 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CausationIdExtracted = 80208 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CleanupArgumentError = 80016 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CleanupInvalidOperationError = 80015 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CloudMetricsAdapterCreated = 80301 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CompliancePiiPatternDetected = 80602 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ComplianceSanitizerRegistered = 80601 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextAnomalyDetected = 80103 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextAnomalyLogged = 80114 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextChangesDetected = 80008 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextCorrelated = 80009 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextCorrelationEstablished = 80005 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextEnrichedWithMetadata = 80202 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextEnrichedWithTrace = 80201 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextEnrichmentCompleted = 80203 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextEventAdded = 80211 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextExtracted = 80210 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFieldChangedDebug = 80013 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFieldRemovedWarning = 80012 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowCompleted = 80002 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowDiagnostic = 80112 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowDiagnosticsCollected = 80003 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowStarted = 80001 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextFlowTrackerCreated = 80000 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextIntegrityCheckFailed = 80011 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextIntegrityValidationFailed = 80104 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextObservabilityExecuting = 80100 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextObserved = 80101 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextPropagated = 80004 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextSizeExceeded = 80111 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextSnapshotCaptured = 80102 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextStateRecorded = 80007 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ContextTraceEnricherCreated = 80200 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CorrelateBoundaryArgumentError = 80010 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CorrelateBoundaryInvalidOperation = 80021 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CorrelationIdExtracted = 80207 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CounterIncremented = 80304 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CriticalFieldRemoved = 80109 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.DetectChangesArgument = 80020 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.DetectChangesInvalidOperation = 80019 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedEnrichArgument = 80215 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedEnrichOperationInvalid = 80214 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedExtractBaggageArgument = 80219 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedExtractBaggageInvalid = 80218 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedLinkRelatedTrace = 80216 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.FailedLinkRelatedTraceArgument = 80217 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.GaugeSet = 80305 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HealthCheckExecuted = 80500 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HealthCheckFailed = 80502 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HealthCheckPassed = 80501 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HealthStatusChanged = 80503 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HistogramRecorded = 80306 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.HistoryEvent = 80113 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.LivenessCheckExecuted = 80505 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.LocalMetricsCollectorCreated = 80300 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.MetricsExportCompleted = 80307 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.MetricsFlushed = 80303 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.MetricsRecorded = 80302 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.NullContextAttempted = 80006 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PiiSanitizationBypassed = 80600 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PipelineStageException = 80105 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PropertyCaptureInvalidArgument = 80107 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PropertyCaptureInvalidOperation = 80106 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.PropertyCaptureParameterMismatch = 80108 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ReadinessCheckExecuted = 80504 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.RecordStateArgument = 80018 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.RecordStateInvalidOperation = 80017 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.SnapshotCleanup = 80014 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.SpanCompleted = 80403 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.SpanStarted = 80402 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TenantIdExtracted = 80209 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceCompleted = 80401 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceDropped = 80406 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceExported = 80404 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceLinkCreated = 80205 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceParentParseArgumentError = 80213 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceParentParseFormatError = 80212 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceSampled = 80405 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceStarted = 80400 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TrackedFieldModified = 80110 -> int
+const Excalibur.Dispatch.Observability.Http.W3CTraceContextTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Observability.W3CTraceContext" -> string!
+const Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.MeterName = "Excalibur.Dispatch.CircuitBreaker" -> string!
+const Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.MeterName = "Excalibur.Dispatch.DeadLetterQueue" -> string!
+const Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Name = "Excalibur.Dispatch" -> string!
+const Excalibur.Dispatch.Observability.Metrics.DispatchMetrics.MeterName = "Excalibur.Dispatch.Core" -> string!
+const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.SpanIdTag = "span_id" -> string!
+const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.TraceIdTag = "trace_id" -> string!
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.StartActivity(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, string! activityName) -> System.Diagnostics.Activity?
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.StartHandleActivity(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.Type! handlerType) -> System.Diagnostics.Activity?
@@ -558,9 +559,9 @@ static Excalibur.Dispatch.Observability.Metrics.DispatchBaggageExtensions.ApplyB
 static Excalibur.Dispatch.Observability.Metrics.DispatchBaggageExtensions.ApplyCustomBaggage(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, string?>>! baggageItems) -> void
 static Excalibur.Dispatch.Observability.Metrics.DispatchBaggageExtensions.ClearBaggage() -> void
 static Excalibur.Dispatch.Observability.Metrics.DispatchBaggageExtensions.GetAllBaggage() -> System.Collections.Generic.IReadOnlyDictionary<string!, string?>!
-static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.RecordWithExemplar(this System.Diagnostics.Metrics.Histogram<double>! histogram, double value, string! messageType, bool success) -> void
 static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.RecordWithExemplar(this System.Diagnostics.Metrics.Histogram<double>! histogram, double value, System.Diagnostics.ActivityContext activityContext, System.Diagnostics.TagList tags) -> void
 static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.RecordWithExemplar(this System.Diagnostics.Metrics.Histogram<double>! histogram, double value, System.Diagnostics.TagList tags) -> void
+static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.RecordWithExemplar(this System.Diagnostics.Metrics.Histogram<double>! histogram, double value, string! messageType, bool success) -> void
 static Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.RecordWithExemplar(this System.Diagnostics.Metrics.Histogram<long>! histogram, long value, System.Diagnostics.TagList tags) -> void
 static Excalibur.Dispatch.Observability.Metrics.MetricsDispatchBuilderExtensions.AddDispatchMetricsInstrumentation(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Observability.Metrics.MetricsDispatchBuilderExtensions.WithMetricsOptions(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!

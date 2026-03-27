@@ -155,7 +155,7 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Generated zero-allocation handler invoker registry.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static partial class ZeroAllocationHandlerRegistry");
+		_ = sb.AppendLine("internal static partial class ZeroAllocationHandlerRegistry");
 		_ = sb.AppendLine("{");
 
 		// Generate type mapping dictionaries
@@ -458,4 +458,3 @@ public sealed class ZeroAllocHandlerInvokerGenerator : IIncrementalGenerator
 		public ITypeSymbol? ResultType { get; set; }
 	}
 }
-

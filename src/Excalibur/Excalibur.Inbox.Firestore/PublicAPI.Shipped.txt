@@ -17,6 +17,7 @@ Excalibur.Inbox.Firestore.FirestoreInboxOptions.TimeoutInSeconds.get -> int
 Excalibur.Inbox.Firestore.FirestoreInboxOptions.TimeoutInSeconds.set -> void
 Excalibur.Inbox.Firestore.FirestoreInboxOptions.Validate() -> void
 Excalibur.Inbox.Firestore.FirestoreInboxStore
+Excalibur.Inbox.Firestore.FirestoreInboxStore.CleanupAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.Firestore.FirestoreInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.Firestore.FirestoreInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Firestore.FirestoreInboxStore.FirestoreInboxStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Firestore.FirestoreInboxStore!>! logger) -> void

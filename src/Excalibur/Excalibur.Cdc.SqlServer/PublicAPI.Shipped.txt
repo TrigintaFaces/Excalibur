@@ -1,23 +1,4 @@
 #nullable enable
-const Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults.DefaultEnableStructuredLogging = true -> bool
-const Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults.DefaultMaxRecoveryAttempts = 3 -> int
-const Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults.DefaultRecoveryAttemptDelayMs = 1000 -> int
-const Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults.DefaultRecoveryStrategy = Excalibur.Cdc.StalePositionRecoveryStrategy.FallbackToEarliest -> Excalibur.Cdc.StalePositionRecoveryStrategy
-const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CaptureInstanceNotFoundError = 22985 -> int
-const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CdcNotEnabledError = 22911 -> int
-const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.InvalidFromLsnError = 22037 -> int
-const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.LsnOutOfRangeError = 22029 -> int
-const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultBatchTimeInterval = 5000 -> int
-const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultConsumerBatchSize = 10 -> int
-const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultProducerBatchSize = 100 -> int
-const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultQueueSize = 1000 -> int
-const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultStopOnMissingTableHandler = true -> bool
-const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.BackupRestore = "BACKUP_RESTORE" -> string!
-const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CaptureInstanceDropped = "CAPTURE_INSTANCE_DROPPED" -> string!
-const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CdcCleanup = "CDC_CLEANUP" -> string!
-const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CdcReenabled = "CDC_REENABLED" -> string!
-const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.LsnOutOfRange = "LSN_OUT_OF_RANGE" -> string!
-const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.Unknown = "UNKNOWN" -> string!
 Excalibur.Cdc.SqlServer.ByteArrayComparer
 Excalibur.Cdc.SqlServer.ByteArrayComparer.ByteArrayComparer() -> void
 Excalibur.Cdc.SqlServer.ByteArrayComparer.Compare(byte[]? x, byte[]? y) -> int
@@ -34,6 +15,8 @@ Excalibur.Cdc.SqlServer.CdcFatalErrorOptions
 Excalibur.Cdc.SqlServer.CdcFatalErrorOptions.CdcFatalErrorOptions() -> void
 Excalibur.Cdc.SqlServer.CdcFatalErrorOptions.OnFatalError.get -> Excalibur.Cdc.SqlServer.CdcFatalErrorHandler?
 Excalibur.Cdc.SqlServer.CdcFatalErrorOptions.OnFatalError.set -> void
+Excalibur.Cdc.SqlServer.CdcHealthCheckOptions
+Excalibur.Cdc.SqlServer.CdcHealthCheckOptions.CdcHealthCheckOptions() -> void
 Excalibur.Cdc.SqlServer.CdcHealthState
 Excalibur.Cdc.SqlServer.CdcHealthState.CdcHealthState() -> void
 Excalibur.Cdc.SqlServer.CdcHealthState.IsRunning.get -> bool
@@ -147,6 +130,43 @@ Excalibur.Cdc.SqlServer.CdcStateStore.Dispose() -> void
 Excalibur.Cdc.SqlServer.CdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Cdc.SqlServer.CdcStateStore.GetLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcProcessingState!>!>!
 Excalibur.Cdc.SqlServer.CdcStateStore.UpdateLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, string! tableName, byte[]! position, byte[]? sequenceValue, System.DateTime? commitTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.SqlServer.DataChange
+Excalibur.Cdc.SqlServer.DataChange.ColumnName.get -> string!
+Excalibur.Cdc.SqlServer.DataChange.ColumnName.init -> void
+Excalibur.Cdc.SqlServer.DataChange.DataChange() -> void
+Excalibur.Cdc.SqlServer.DataChange.DataType.get -> System.Type?
+Excalibur.Cdc.SqlServer.DataChange.DataType.init -> void
+Excalibur.Cdc.SqlServer.DataChange.NewValue.get -> object?
+Excalibur.Cdc.SqlServer.DataChange.NewValue.init -> void
+Excalibur.Cdc.SqlServer.DataChange.OldValue.get -> object?
+Excalibur.Cdc.SqlServer.DataChange.OldValue.init -> void
+Excalibur.Cdc.SqlServer.DataChangeEvent
+Excalibur.Cdc.SqlServer.DataChangeEvent.ChangeType.get -> Excalibur.Cdc.SqlServer.DataChangeType
+Excalibur.Cdc.SqlServer.DataChangeEvent.ChangeType.init -> void
+Excalibur.Cdc.SqlServer.DataChangeEvent.Changes.get -> System.Collections.Generic.IList<Excalibur.Cdc.SqlServer.DataChange!>!
+Excalibur.Cdc.SqlServer.DataChangeEvent.Changes.init -> void
+Excalibur.Cdc.SqlServer.DataChangeEvent.CommitTime.get -> System.DateTime
+Excalibur.Cdc.SqlServer.DataChangeEvent.CommitTime.init -> void
+Excalibur.Cdc.SqlServer.DataChangeEvent.DataChangeEvent() -> void
+Excalibur.Cdc.SqlServer.DataChangeEvent.Lsn.get -> byte[]!
+Excalibur.Cdc.SqlServer.DataChangeEvent.Lsn.init -> void
+Excalibur.Cdc.SqlServer.DataChangeEvent.SeqVal.get -> byte[]!
+Excalibur.Cdc.SqlServer.DataChangeEvent.SeqVal.init -> void
+Excalibur.Cdc.SqlServer.DataChangeEvent.TableName.get -> string!
+Excalibur.Cdc.SqlServer.DataChangeEvent.TableName.init -> void
+Excalibur.Cdc.SqlServer.DataChangeEventProcessor
+Excalibur.Cdc.SqlServer.DataChangeEventProcessor.DataChangeEventProcessor(Microsoft.Extensions.Hosting.IHostApplicationLifetime! appLifetime, Excalibur.Cdc.SqlServer.IDatabaseConfig! dbConfig, Microsoft.Data.SqlClient.SqlConnection! cdcConnection, Microsoft.Data.SqlClient.SqlConnection! stateStoreConnection, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions!>? stateStoreOptions, System.IServiceProvider! serviceProvider, Excalibur.Data.IDataAccessPolicyFactory! policyFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.SqlServer.DataChangeEventProcessor!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.CdcFatalErrorOptions!>? fatalErrorOptions = null) -> void
+Excalibur.Cdc.SqlServer.DataChangeEventProcessor.ProcessCdcChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.SqlServer.DataChangeEventProcessorFactory
+Excalibur.Cdc.SqlServer.DataChangeEventProcessorFactory.Create(Excalibur.Cdc.SqlServer.IDatabaseConfig! dbConfig, Microsoft.Data.SqlClient.SqlConnection! cdcConnection, Microsoft.Data.SqlClient.SqlConnection! stateStoreConnection) -> Excalibur.Cdc.SqlServer.IDataChangeEventProcessor!
+Excalibur.Cdc.SqlServer.DataChangeEventProcessorFactory.DataChangeEventProcessorFactory(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Hosting.IHostApplicationLifetime! appLifetime, Excalibur.Data.IDataAccessPolicyFactory! policyFactory) -> void
+Excalibur.Cdc.SqlServer.DataChangeExtensions
+Excalibur.Cdc.SqlServer.DataChangeType
+Excalibur.Cdc.SqlServer.DataChangeType.Delete = 3 -> Excalibur.Cdc.SqlServer.DataChangeType
+Excalibur.Cdc.SqlServer.DataChangeType.Insert = 1 -> Excalibur.Cdc.SqlServer.DataChangeType
+Excalibur.Cdc.SqlServer.DataChangeType.Unknown = 0 -> Excalibur.Cdc.SqlServer.DataChangeType
+Excalibur.Cdc.SqlServer.DataChangeType.Update = 2 -> Excalibur.Cdc.SqlServer.DataChangeType
+Excalibur.Cdc.SqlServer.DataChangeTypeExtensions
 Excalibur.Cdc.SqlServer.DatabaseConfig
 Excalibur.Cdc.SqlServer.DatabaseConfig.BatchTimeInterval.get -> int
 Excalibur.Cdc.SqlServer.DatabaseConfig.BatchTimeInterval.init -> void
@@ -170,43 +190,6 @@ Excalibur.Cdc.SqlServer.DatabaseConfig.StateConnectionIdentifier.init -> void
 Excalibur.Cdc.SqlServer.DatabaseConfig.StopOnMissingTableHandler.get -> bool
 Excalibur.Cdc.SqlServer.DatabaseConfig.StopOnMissingTableHandler.init -> void
 Excalibur.Cdc.SqlServer.DatabaseConfigDefaults
-Excalibur.Cdc.SqlServer.DataChange
-Excalibur.Cdc.SqlServer.DataChange.ColumnName.get -> string!
-Excalibur.Cdc.SqlServer.DataChange.ColumnName.init -> void
-Excalibur.Cdc.SqlServer.DataChange.DataChange() -> void
-Excalibur.Cdc.SqlServer.DataChange.DataType.get -> System.Type?
-Excalibur.Cdc.SqlServer.DataChange.DataType.init -> void
-Excalibur.Cdc.SqlServer.DataChange.NewValue.get -> object?
-Excalibur.Cdc.SqlServer.DataChange.NewValue.init -> void
-Excalibur.Cdc.SqlServer.DataChange.OldValue.get -> object?
-Excalibur.Cdc.SqlServer.DataChange.OldValue.init -> void
-Excalibur.Cdc.SqlServer.DataChangeEvent
-Excalibur.Cdc.SqlServer.DataChangeEvent.Changes.get -> System.Collections.Generic.IList<Excalibur.Cdc.SqlServer.DataChange!>!
-Excalibur.Cdc.SqlServer.DataChangeEvent.Changes.init -> void
-Excalibur.Cdc.SqlServer.DataChangeEvent.ChangeType.get -> Excalibur.Cdc.SqlServer.DataChangeType
-Excalibur.Cdc.SqlServer.DataChangeEvent.ChangeType.init -> void
-Excalibur.Cdc.SqlServer.DataChangeEvent.CommitTime.get -> System.DateTime
-Excalibur.Cdc.SqlServer.DataChangeEvent.CommitTime.init -> void
-Excalibur.Cdc.SqlServer.DataChangeEvent.DataChangeEvent() -> void
-Excalibur.Cdc.SqlServer.DataChangeEvent.Lsn.get -> byte[]!
-Excalibur.Cdc.SqlServer.DataChangeEvent.Lsn.init -> void
-Excalibur.Cdc.SqlServer.DataChangeEvent.SeqVal.get -> byte[]!
-Excalibur.Cdc.SqlServer.DataChangeEvent.SeqVal.init -> void
-Excalibur.Cdc.SqlServer.DataChangeEvent.TableName.get -> string!
-Excalibur.Cdc.SqlServer.DataChangeEvent.TableName.init -> void
-Excalibur.Cdc.SqlServer.DataChangeEventProcessor
-Excalibur.Cdc.SqlServer.DataChangeEventProcessor.DataChangeEventProcessor(Microsoft.Extensions.Hosting.IHostApplicationLifetime! appLifetime, Excalibur.Cdc.SqlServer.IDatabaseConfig! dbConfig, Microsoft.Data.SqlClient.SqlConnection! cdcConnection, Microsoft.Data.SqlClient.SqlConnection! stateStoreConnection, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions!>? stateStoreOptions, System.IServiceProvider! serviceProvider, Excalibur.Data.IDataAccessPolicyFactory! policyFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.SqlServer.DataChangeEventProcessor!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.SqlServer.CdcFatalErrorOptions!>? fatalErrorOptions = null) -> void
-Excalibur.Cdc.SqlServer.DataChangeEventProcessor.ProcessCdcChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Cdc.SqlServer.DataChangeEventProcessorFactory
-Excalibur.Cdc.SqlServer.DataChangeEventProcessorFactory.Create(Excalibur.Cdc.SqlServer.IDatabaseConfig! dbConfig, Microsoft.Data.SqlClient.SqlConnection! cdcConnection, Microsoft.Data.SqlClient.SqlConnection! stateStoreConnection) -> Excalibur.Cdc.SqlServer.IDataChangeEventProcessor!
-Excalibur.Cdc.SqlServer.DataChangeEventProcessorFactory.DataChangeEventProcessorFactory(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Hosting.IHostApplicationLifetime! appLifetime, Excalibur.Data.IDataAccessPolicyFactory! policyFactory) -> void
-Excalibur.Cdc.SqlServer.DataChangeExtensions
-Excalibur.Cdc.SqlServer.DataChangeType
-Excalibur.Cdc.SqlServer.DataChangeType.Delete = 3 -> Excalibur.Cdc.SqlServer.DataChangeType
-Excalibur.Cdc.SqlServer.DataChangeType.Insert = 1 -> Excalibur.Cdc.SqlServer.DataChangeType
-Excalibur.Cdc.SqlServer.DataChangeType.Unknown = 0 -> Excalibur.Cdc.SqlServer.DataChangeType
-Excalibur.Cdc.SqlServer.DataChangeType.Update = 2 -> Excalibur.Cdc.SqlServer.DataChangeType
-Excalibur.Cdc.SqlServer.DataChangeTypeExtensions
 Excalibur.Cdc.SqlServer.ICdcProcessor
 Excalibur.Cdc.SqlServer.ICdcProcessor.ProcessCdcChangesAsync(System.Func<Excalibur.Cdc.SqlServer.DataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.SqlServer.ICdcRepository
@@ -220,9 +203,13 @@ Excalibur.Cdc.SqlServer.ICdcRepositoryLsnMapping.GetLsnToTimeAsync(byte[]! lsn, 
 Excalibur.Cdc.SqlServer.ICdcRepositoryLsnMapping.GetNextLsnAsync(string! captureInstance, byte[]! lastProcessedLsn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
 Excalibur.Cdc.SqlServer.ICdcRepositoryLsnMapping.GetNextValidLsnAsync(byte[]! lastProcessedLsn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
 Excalibur.Cdc.SqlServer.ICdcRepositoryLsnMapping.GetTimeToLsnAsync(System.DateTime lsnDate, string! relationalOperator, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
-Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore
-Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore.GetLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcProcessingState!>!>!
-Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore.UpdateLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, string! tableName, byte[]! position, byte[]? sequenceValue, System.DateTime? commitTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.SqlServer.IDataChangeEventProcessor
+Excalibur.Cdc.SqlServer.IDataChangeEventProcessor.ProcessCdcChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.SqlServer.IDataChangeEventProcessorFactory
+Excalibur.Cdc.SqlServer.IDataChangeEventProcessorFactory.Create(Excalibur.Cdc.SqlServer.IDatabaseConfig! dbConfig, Microsoft.Data.SqlClient.SqlConnection! cdcConnection, Microsoft.Data.SqlClient.SqlConnection! stateStoreConnection) -> Excalibur.Cdc.SqlServer.IDataChangeEventProcessor!
+Excalibur.Cdc.SqlServer.IDataChangeHandler
+Excalibur.Cdc.SqlServer.IDataChangeHandler.HandleAsync(Excalibur.Cdc.SqlServer.DataChangeEvent! changeEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.SqlServer.IDataChangeHandler.TableNames.get -> string![]!
 Excalibur.Cdc.SqlServer.IDatabaseConfig
 Excalibur.Cdc.SqlServer.IDatabaseConfig.BatchTimeInterval.get -> int
 Excalibur.Cdc.SqlServer.IDatabaseConfig.CaptureInstances.get -> string![]!
@@ -234,19 +221,26 @@ Excalibur.Cdc.SqlServer.IDatabaseConfig.QueueSize.get -> int
 Excalibur.Cdc.SqlServer.IDatabaseConfig.RecoveryOptions.get -> Excalibur.Cdc.SqlServer.CdcRecoveryOptions?
 Excalibur.Cdc.SqlServer.IDatabaseConfig.StateConnectionIdentifier.get -> string!
 Excalibur.Cdc.SqlServer.IDatabaseConfig.StopOnMissingTableHandler.get -> bool
-Excalibur.Cdc.SqlServer.IDataChangeEventProcessor
-Excalibur.Cdc.SqlServer.IDataChangeEventProcessor.ProcessCdcChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Cdc.SqlServer.IDataChangeEventProcessorFactory
-Excalibur.Cdc.SqlServer.IDataChangeEventProcessorFactory.Create(Excalibur.Cdc.SqlServer.IDatabaseConfig! dbConfig, Microsoft.Data.SqlClient.SqlConnection! cdcConnection, Microsoft.Data.SqlClient.SqlConnection! stateStoreConnection) -> Excalibur.Cdc.SqlServer.IDataChangeEventProcessor!
-Excalibur.Cdc.SqlServer.IDataChangeHandler
-Excalibur.Cdc.SqlServer.IDataChangeHandler.HandleAsync(Excalibur.Cdc.SqlServer.DataChangeEvent! changeEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.SqlServer.IDataChangeHandler.TableNames.get -> string![]!
 Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder
 Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.BatchSize(int size) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.CaptureInstances(params string![]! captureInstances) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.CommandTimeout(System.TimeSpan timeout) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.DatabaseConnectionIdentifier(string! identifier) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.DatabaseName(string! name) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.PollingInterval(System.TimeSpan interval) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.SchemaName(string! schema) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StateConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StateConnectionIdentifier(string! identifier) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StateTableName(string! tableName) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StopOnMissingTableHandler(bool stop) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore
+Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore.GetLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Cdc.SqlServer.CdcProcessingState!>!>!
+Excalibur.Cdc.SqlServer.ISqlServerCdcStateStore.UpdateLastProcessedPositionAsync(string! databaseConnectionIdentifier, string! databaseName, string! tableName, byte[]! position, byte[]? sequenceValue, System.DateTime? commitTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.SqlServer.LsnExtensions
 Excalibur.Cdc.SqlServer.MinHeapComparer
 Excalibur.Cdc.SqlServer.MinHeapComparer.Compare((byte[]! Lsn, string! TableName) x, (byte[]! Lsn, string! TableName) y) -> int
@@ -255,19 +249,35 @@ Excalibur.Cdc.SqlServer.MinHeapComparer.MinHeapComparer() -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.BatchSize.get -> int
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.BatchSize.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.CaptureInstances.get -> string![]?
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.CaptureInstances.set -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.CommandTimeout.get -> System.TimeSpan
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.CommandTimeout.set -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.ConnectionString.get -> string?
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.ConnectionString.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseConnectionIdentifier.get -> string?
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseConnectionIdentifier.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseName.get -> string?
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseName.set -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.PollingInterval.get -> System.TimeSpan
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.PollingInterval.set -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.QualifiedTableName.get -> string!
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.SchemaName.get -> string!
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.SchemaName.set -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.SqlServerCdcOptions() -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StateConnectionIdentifier.get -> string?
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StateConnectionIdentifier.set -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StateTableName.get -> string!
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StateTableName.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.get -> bool
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.set -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.Validate() -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcStalePositionException
+Excalibur.Cdc.SqlServer.SqlServerCdcStalePositionException.CaptureInstance.get -> string?
+Excalibur.Cdc.SqlServer.SqlServerCdcStalePositionException.SqlServerCdcStalePositionException() -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcStalePositionException.SqlServerCdcStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs, string? message = null, System.Exception? innerException = null) -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcStalePositionException.SqlServerCdcStalePositionException(string! message) -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcStalePositionException.SqlServerCdcStalePositionException(string! message, System.Exception? innerException) -> void
 Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions
 Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions.QualifiedTableName.get -> string!
 Excalibur.Cdc.SqlServer.SqlServerCdcStateStoreOptions.SchemaName.get -> string!
@@ -285,6 +295,26 @@ Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException.UnmatchedUpdateRecordsEx
 Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException.UnmatchedUpdateRecordsException(string! message) -> void
 Excalibur.Cdc.SqlServer.UnmatchedUpdateRecordsException.UnmatchedUpdateRecordsException(string! message, System.Exception? innerException) -> void
 Microsoft.Extensions.DependencyInjection.CdcHealthChecksBuilderExtensions
+Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions
+const Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults.DefaultEnableStructuredLogging = true -> bool
+const Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults.DefaultMaxRecoveryAttempts = 3 -> int
+const Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults.DefaultRecoveryAttemptDelayMs = 1000 -> int
+const Excalibur.Cdc.SqlServer.CdcRecoveryOptionsDefaults.DefaultRecoveryStrategy = Excalibur.Cdc.StalePositionRecoveryStrategy.FallbackToEarliest -> Excalibur.Cdc.StalePositionRecoveryStrategy
+const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CaptureInstanceNotFoundError = 22985 -> int
+const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.CdcNotEnabledError = 22911 -> int
+const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.InvalidFromLsnError = 22037 -> int
+const Excalibur.Cdc.SqlServer.CdcStalePositionDetector.LsnOutOfRangeError = 22029 -> int
+const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultBatchTimeInterval = 5000 -> int
+const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultConsumerBatchSize = 10 -> int
+const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultProducerBatchSize = 100 -> int
+const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultQueueSize = 1000 -> int
+const Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultStopOnMissingTableHandler = true -> bool
+const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.BackupRestore = "BACKUP_RESTORE" -> string!
+const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CaptureInstanceDropped = "CAPTURE_INSTANCE_DROPPED" -> string!
+const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CdcCleanup = "CDC_CLEANUP" -> string!
+const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.CdcReenabled = "CDC_REENABLED" -> string!
+const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.LsnOutOfRange = "LSN_OUT_OF_RANGE" -> string!
+const Excalibur.Cdc.SqlServer.StalePositionReasonCodes.Unknown = "UNKNOWN" -> string!
 override Excalibur.Cdc.SqlServer.CdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.SqlServer.CdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.SqlServer.CdcPosition.ToString() -> string!
@@ -308,6 +338,7 @@ static Excalibur.Cdc.SqlServer.LsnExtensions.ByteArrayToHex(this byte[]! bytes) 
 static Excalibur.Cdc.SqlServer.LsnExtensions.CompareLsn(this byte[]! lsn1, byte[]! lsn2) -> int
 static Excalibur.Cdc.SqlServer.StalePositionReasonCodes.FromSqlError(int sqlErrorNumber) -> string!
 static Microsoft.Extensions.DependencyInjection.CdcHealthChecksBuilderExtensions.AddCdcHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Cdc.SqlServer.CdcHealthCheckOptions!>? configure = null, string! name = "cdc", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions.AddDataChangeHandlersFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Cdc.SqlServer.DatabaseConfigDefaults.CdcDefaultCaptureInstances -> string![]!
 virtual Excalibur.Cdc.SqlServer.CdcProcessor.Dispose(bool disposing) -> void
 virtual Excalibur.Cdc.SqlServer.CdcProcessor.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
@@ -315,26 +346,3 @@ virtual Excalibur.Cdc.SqlServer.CdcRepository.Dispose(bool disposing) -> void
 virtual Excalibur.Cdc.SqlServer.CdcRepository.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Cdc.SqlServer.CdcStateStore.Dispose(bool disposing) -> void
 virtual Excalibur.Cdc.SqlServer.CdcStateStore.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.CaptureInstances(params string![]! captureInstances) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.DatabaseConnectionIdentifier(string! identifier) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.DatabaseName(string! name) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StateConnectionIdentifier(string! identifier) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StopOnMissingTableHandler(bool stop) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.CaptureInstances.get -> string![]?
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.CaptureInstances.set -> void
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseConnectionIdentifier.get -> string?
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseConnectionIdentifier.set -> void
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseName.get -> string?
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseName.set -> void
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StateConnectionIdentifier.get -> string?
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StateConnectionIdentifier.set -> void
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.get -> bool
-Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.set -> void
-Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions.AddDataChangeHandlersFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StateConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!

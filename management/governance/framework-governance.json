@@ -321,12 +321,11 @@
       "samples/09-advanced/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj",
       "samples/09-advanced/CosmosDbEventStore/CosmosDbEventStore.csproj",
       "samples/09-advanced/DataProcessingBackgroundService/DataProcessingBackgroundService.csproj",
-      "samples/09-advanced/EventUpcasting/EventUpcasting.csproj",
+      "samples/09-advanced/Versioning.Examples/EventUpcasting/EventUpcasting.csproj",
       "samples/09-advanced/FluentValidationSample/FluentValidationSample.csproj",
       "samples/09-advanced/InboxIdempotency/InboxIdempotency.csproj",
       "samples/09-advanced/JobWorkerSample/JobWorkerSample.csproj",
       "samples/09-advanced/LeaderElection/LeaderElection.csproj",
-      "samples/09-advanced/MinimalJobSample/MinimalJobSample.csproj",
       "samples/09-advanced/MultiDatabase/MultiDatabase.csproj",
       "samples/09-advanced/ProductionPipeline/ProductionPipeline.csproj",
       "samples/09-advanced/ProjectionsSample/ProjectionsSample.csproj",
@@ -538,7 +537,7 @@
         "timeoutSeconds": 30
       },
       {
-        "project": "samples/09-advanced/EventUpcasting/EventUpcasting.csproj",
+        "project": "samples/09-advanced/Versioning.Examples/EventUpcasting/EventUpcasting.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
@@ -561,11 +560,6 @@
         "project": "samples/09-advanced/LeaderElection/LeaderElection.csproj",
         "mode": "build",
         "timeoutSeconds": null
-      },
-      {
-        "project": "samples/09-advanced/MinimalJobSample/MinimalJobSample.csproj",
-        "mode": "run",
-        "timeoutSeconds": 20
       },
       {
         "project": "samples/09-advanced/MultiDatabase/MultiDatabase.csproj",

@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Serialization;
 [JsonSerializable(typeof(byte[]))]
 [JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(Guid))]
-public partial class CoreMessageJsonContext : JsonSerializerContext
+internal partial class CoreMessageJsonContext : JsonSerializerContext
 {
 	/// <summary>
 	/// Gets the singleton instance for core message serialization.

@@ -54,8 +54,10 @@ public interface IProjectionBuilder<TProjection>
 	/// An action that applies the event to the projection state.
 	/// </param>
 	/// <returns>This builder for fluent chaining.</returns>
+#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
 	IProjectionBuilder<TProjection> When<TEvent>(Action<TProjection, TEvent> handler)
 		where TEvent : IDomainEvent;
+#pragma warning restore RS0016
 
 	/// <summary>
 	/// Configures optional caching for ephemeral projection results.

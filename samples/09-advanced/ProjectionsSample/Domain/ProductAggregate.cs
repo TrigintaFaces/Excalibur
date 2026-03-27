@@ -125,15 +125,17 @@ public class ProductAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		ProductCreated e => ApplyProductCreated(e),
-		ProductPriceChanged e => ApplyPriceChanged(e),
-		ProductStockAdded e => ApplyStockAdded(e),
-		ProductStockRemoved e => ApplyStockRemoved(e),
-		ProductDiscontinued e => ApplyDiscontinued(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case ProductCreated e: Apply(e); break;
+			case ProductPriceChanged e: Apply(e); break;
+			case ProductStockAdded e: Apply(e); break;
+			case ProductStockRemoved e: Apply(e); break;
+			case ProductDiscontinued e: Apply(e); break;
+		}
+	}
 
 	private void EnsureActive()
 	{
@@ -143,7 +145,7 @@ public class ProductAggregate : AggregateRoot<Guid>
 		}
 	}
 
-	private bool ApplyProductCreated(ProductCreated e)
+	private void Apply(ProductCreated e)
 	{
 		Id = e.ProductId;
 		Name = e.Name;
@@ -152,31 +154,26 @@ public class ProductAggregate : AggregateRoot<Guid>
 		StockLevel = e.InitialStock;
 		IsActive = true;
 		CreatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyPriceChanged(ProductPriceChanged e)
+	private void Apply(ProductPriceChanged e)
 	{
 		Price = e.NewPrice;
-		return true;
 	}
 
-	private bool ApplyStockAdded(ProductStockAdded e)
+	private void Apply(ProductStockAdded e)
 	{
 		StockLevel = e.NewStockLevel;
-		return true;
 	}
 
-	private bool ApplyStockRemoved(ProductStockRemoved e)
+	private void Apply(ProductStockRemoved e)
 	{
 		StockLevel = e.NewStockLevel;
-		return true;
 	}
 
-	private bool ApplyDiscontinued(ProductDiscontinued e)
+	private void Apply(ProductDiscontinued e)
 	{
 		IsActive = false;
 		DiscontinuedAt = e.OccurredAt;
-		return true;
 	}
 }

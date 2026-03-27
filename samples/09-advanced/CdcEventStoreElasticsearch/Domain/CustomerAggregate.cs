@@ -114,14 +114,16 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		CustomerCreated e => ApplyCustomerCreated(e),
-		CustomerInfoUpdated e => ApplyCustomerInfoUpdated(e),
-		CustomerOrderPlaced e => ApplyCustomerOrderPlaced(e),
-		CustomerDeactivated e => ApplyCustomerDeactivated(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case CustomerCreated e: Apply(e); break;
+			case CustomerInfoUpdated e: Apply(e); break;
+			case CustomerOrderPlaced e: Apply(e); break;
+			case CustomerDeactivated e: Apply(e); break;
+		}
+	}
 
 	private void EnsureActive()
 	{
@@ -139,7 +141,7 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 		_ => CustomerTier.Bronze
 	};
 
-	private bool ApplyCustomerCreated(CustomerCreated e)
+	private void Apply(CustomerCreated e)
 	{
 		Id = e.CustomerId;
 		ExternalId = e.ExternalId;
@@ -149,32 +151,28 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 		IsActive = true;
 		Tier = CustomerTier.Bronze;
 		CreatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyCustomerInfoUpdated(CustomerInfoUpdated e)
+	private void Apply(CustomerInfoUpdated e)
 	{
 		Name = e.Name;
 		Email = e.Email;
 		Phone = e.Phone;
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyCustomerOrderPlaced(CustomerOrderPlaced e)
+	private void Apply(CustomerOrderPlaced e)
 	{
 		OrderCount++;
 		TotalSpent += e.Amount;
 		Tier = CalculateTier(TotalSpent);
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyCustomerDeactivated(CustomerDeactivated e)
+	private void Apply(CustomerDeactivated e)
 	{
 		IsActive = false;
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 }
 

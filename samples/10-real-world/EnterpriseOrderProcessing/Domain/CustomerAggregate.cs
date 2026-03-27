@@ -58,24 +58,25 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 		RaiseEvent(new CustomerDeactivated(Id, reason));
 	}
 
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		CustomerRegistered e => Apply(e),
-		CustomerAddressUpdated e => Apply(e),
-		CustomerDeactivated e => Apply(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case CustomerRegistered e: Apply(e); break;
+			case CustomerAddressUpdated e: Apply(e); break;
+			case CustomerDeactivated e: Apply(e); break;
+		}
+	}
 
-	private bool Apply(CustomerRegistered e)
+	private void Apply(CustomerRegistered e)
 	{
 		Id = e.CustomerId;
 		Name = e.Name;
 		Email = e.Email;
 		IsActive = true;
-		return true;
 	}
 
-	private bool Apply(CustomerAddressUpdated e)
+	private void Apply(CustomerAddressUpdated e)
 	{
 		ShippingAddress = new Address
 		{
@@ -84,13 +85,11 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 			PostalCode = e.PostalCode,
 			Country = e.Country
 		};
-		return true;
 	}
 
-	private bool Apply(CustomerDeactivated e)
+	private void Apply(CustomerDeactivated e)
 	{
 		IsActive = false;
 		DeactivationReason = e.Reason;
-		return true;
 	}
 }

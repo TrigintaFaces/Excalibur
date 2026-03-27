@@ -236,18 +236,20 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		OrderCreated e => ApplyOrderCreated(e),
-		OrderLineItemAdded e => ApplyLineItemAdded(e),
-		OrderLineItemUpdated e => ApplyLineItemUpdated(e),
-		OrderLineItemRemoved e => ApplyLineItemRemoved(e),
-		OrderStatusUpdated e => ApplyStatusUpdated(e),
-		OrderShipped e => ApplyShipped(e),
-		OrderDelivered e => ApplyDelivered(e),
-		OrderCancelled e => ApplyCancelled(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case OrderCreated e: Apply(e); break;
+			case OrderLineItemAdded e: Apply(e); break;
+			case OrderLineItemUpdated e: Apply(e); break;
+			case OrderLineItemRemoved e: Apply(e); break;
+			case OrderStatusUpdated e: Apply(e); break;
+			case OrderShipped e: Apply(e); break;
+			case OrderDelivered e: Apply(e); break;
+			case OrderCancelled e: Apply(e); break;
+		}
+	}
 
 	private void EnsureNotCancelled()
 	{
@@ -262,7 +264,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 		TotalAmount = _lineItems.Sum(li => li.Quantity * li.UnitPrice);
 	}
 
-	private bool ApplyOrderCreated(OrderCreated e)
+	private void Apply(OrderCreated e)
 	{
 		Id = e.OrderId;
 		ExternalOrderId = e.ExternalOrderId;
@@ -271,10 +273,9 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 		OrderDate = e.OrderDate;
 		Status = OrderStatus.Pending;
 		CreatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyLineItemAdded(OrderLineItemAdded e)
+	private void Apply(OrderLineItemAdded e)
 	{
 		_lineItems.Add(new OrderLineItem(
 			e.ItemId,
@@ -284,10 +285,9 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			e.UnitPrice));
 		RecalculateTotalAmount();
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyLineItemUpdated(OrderLineItemUpdated e)
+	private void Apply(OrderLineItemUpdated e)
 	{
 		var item = _lineItems.FirstOrDefault(li => li.ItemId == e.ItemId);
 		if (item is not null)
@@ -298,10 +298,9 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 		}
 
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyLineItemRemoved(OrderLineItemRemoved e)
+	private void Apply(OrderLineItemRemoved e)
 	{
 		var item = _lineItems.FirstOrDefault(li => li.ItemId == e.ItemId);
 		if (item is not null)
@@ -311,37 +310,32 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 		}
 
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyStatusUpdated(OrderStatusUpdated e)
+	private void Apply(OrderStatusUpdated e)
 	{
 		Status = e.NewStatus;
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyShipped(OrderShipped e)
+	private void Apply(OrderShipped e)
 	{
 		Status = OrderStatus.Shipped;
 		ShippedDate = e.ShippedDate;
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyDelivered(OrderDelivered e)
+	private void Apply(OrderDelivered e)
 	{
 		Status = OrderStatus.Delivered;
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyCancelled(OrderCancelled e)
+	private void Apply(OrderCancelled e)
 	{
 		Status = OrderStatus.Cancelled;
 		CancellationReason = e.Reason;
 		UpdatedAt = e.OccurredAt;
-		return true;
 	}
 }
 

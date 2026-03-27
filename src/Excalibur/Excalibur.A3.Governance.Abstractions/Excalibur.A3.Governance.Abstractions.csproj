@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- NuGet Package Metadata -->
+    <PackageId>Excalibur.A3.Governance.Abstractions</PackageId>
+    <Description>Interfaces, records, and enums for IAM governance capabilities: access reviews, separation of duties, role management, and provisioning workflows.</Description>
+    <PackageTags>excalibur;authorization;governance;iam;access-review;sod;roles</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.A3.Governance" />
+    <InternalsVisibleTo Include="Excalibur.A3.Governance.Tests" />
+  </ItemGroup>
+  <!-- Single dependency: A3.Abstractions only -->
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.A3.Abstractions\Excalibur.A3.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

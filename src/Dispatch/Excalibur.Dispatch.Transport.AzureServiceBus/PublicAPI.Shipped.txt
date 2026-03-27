@@ -1,252 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.AcknowledgeError = 24312 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ActionSent = 24023 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BatchProcessingCompleted = 24114 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BatchProduced = 24113 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BatchPublished = 24203 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BatchPublishError = 24205 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BrokerDisposed = 24019 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BrokerDisposing = 24009 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.CachedConsumer = 24007 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.CachedPublisher = 24005 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ChannelReceiverStarting = 24306 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ChannelReceiverStopping = 24307 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.CheckpointCreated = 24603 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ClientCreated = 24004 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConnectionEstablished = 24103 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConsumerCreated = 24008 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConsumerGroupCreated = 24411 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConsumerStarted = 24300 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConsumerStopped = 24301 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DestinationValidationFailed = 24018 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DestinationValidationFailedWithException = 24022 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqManagerInitialized = 24950 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMessageMoved = 24951 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMessageReprocessed = 24955 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMessageSkipped = 24960 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMessagesRetrieved = 24953 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMoveFailed = 24952 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqPurged = 24958 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqPurgeFailed = 24959 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqReprocessFailed = 24956 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqRetrieveFailed = 24954 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqStatisticsRetrieved = 24957 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DocumentSent = 24025 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderBatchSendFailed = 25103 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderBatchSent = 25102 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderDisposed = 25104 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderMessageSent = 25100 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderSendFailed = 25101 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberDisposed = 25126 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberError = 25124 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberEventAcknowledged = 25122 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberEventReceived = 25121 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberEventRejected = 25123 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberStarted = 25120 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberStopped = 25125 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubCreated = 24410 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsActionSent = 24422 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsAlreadyStarted = 24640 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBatchAcknowledged = 24637 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBatchPublished = 24602 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBatchPublishedSummary = 24613 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBrokerCreated = 24403 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBrokerDisposed = 24421 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBrokerDisposing = 24420 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsCachedConsumer = 24414 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsCachedPublisher = 24412 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsChannelCancelled = 24615 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsChannelFailed = 24616 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsChannelPublishFailed = 24614 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsCheckpointFailed = 24635 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsCloudEventParsed = 24641 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsConsumerCreated = 24415 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsDestinationValidationFailed = 24418 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsDestinationValidationFailedWithException = 24419 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsDocumentSent = 24424 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsError = 24490 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventProcessed = 24633 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventProcessingFailed = 24634 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventPublished = 24600 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventReceived = 24601 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventReceivedDetailed = 24632 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventSent = 24423 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsHealthCheckFailed = 24417 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsInitializing = 24400 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsInvalidDestination = 24416 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsMessageAcknowledged = 24636 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsMessagePublished = 24611 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsMessageRejected = 24638 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsProcessingStarted = 24630 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsProcessingStopped = 24631 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsPublisherCreated = 24413 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsPublishingBatch = 24612 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsPublishingMessage = 24610 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsPublishingWithPartition = 24617 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsStarting = 24401 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsStopping = 24402 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportDisposed = 24501 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportInitialized = 24500 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportMessageProcessingFailed = 24508 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportReceivingMessage = 24506 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportSendFailed = 24509 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportSendingMessage = 24507 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportStarting = 24504 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportStopping = 24505 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsVisibilityNotSupported = 24639 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventSent = 24024 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventSourceCreated = 24102 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventSourceSubscribed = 24313 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.HealthCheckFailed = 24017 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.InitializationFailed = 24020 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.InvalidDestination = 24021 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MaxConcurrentCallsAdjusted = 24123 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageAbandoned = 24304 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageAbandonedWithError = 24111 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageAcknowledged = 24308 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageBrokerCreated = 24003 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageCancelled = 24202 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageCompleted = 24303 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageDeadLettered = 24305 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageLockRenewalFailed = 24125 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageLockRenewed = 24124 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageProcessed = 24110 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageProcessingFailed = 24118 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageProcessorStarted = 24904 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessagePublished = 24200 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageReceived = 24302 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageRejected = 24309 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageScheduled = 24201 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PartitionAssigned = 24502 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PartitionLost = 24503 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PrefetchCountAdjusted = 24122 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ProcessingError = 24112 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ProcessorError = 24117 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ProcessorStarted = 24115 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ProcessorStopped = 24116 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PublisherCreated = 24006 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PublishError = 24204 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.QueueCreated = 24010 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.QueueMetricsCollected = 24905 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ReceiveError = 24311 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ServiceBusError = 24090 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ServiceBusInitializing = 24000 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ServiceBusStarting = 24001 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ServiceBusStopping = 24002 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionAccepted = 24119 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionAcknowledgeError = 24325 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionEventSourceSubscribed = 24327 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionLockLost = 24326 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionMessageAcknowledged = 24321 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionMessageReceived = 24320 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionMessageRejected = 24322 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionReceiveError = 24324 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionReleased = 24120 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionStateUpdated = 24121 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionVisibilityModified = 24323 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueAlreadyStarted = 24911 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBatchAcknowledged = 24907 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBatchCompleted = 24920 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBatchPublishedSummary = 24812 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBrokerDisposed = 24720 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBrokerDisposing = 24719 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueCachedConsumer = 24713 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueCachedPublisher = 24711 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueChannelCancelled = 24813 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueChannelFailed = 24814 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueCloudEventParsed = 24923 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueConsumerCreated = 24714 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueConsumerStarted = 24900 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueConsumerStopped = 24901 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueCreated = 24710 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueDeadLettered = 24927 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueDestinationValidationFailed = 24717 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueDestinationValidationFailedWithException = 24718 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueEnvelopeParsed = 24924 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueError = 24790 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueHealthChecked = 24921 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueHealthCheckFailed = 24716 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueInitializing = 24700 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueInvalidDestination = 24715 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueInvalidMessageType = 24926 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueIterationCompleted = 24922 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageAcknowledged = 24906 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageConverted = 24925 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageDeleted = 24903 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageProcessed = 24918 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageProcessingFailed = 24919 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageProcessingStarted = 24917 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessagePublished = 24802 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageReceived = 24902 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageRejected = 24908 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessagesReceived = 24914 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsBatchProcessed = 24931 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsDeleteOperation = 24933 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsDisposalError = 24937 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsDisposing = 24936 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsHealthRecorded = 24935 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsMessageProcessed = 24930 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsReceiveOperation = 24932 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsVisibilityUpdate = 24934 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueNoMessages = 24915 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueuePublisherCreated = 24712 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueuePublishingBatch = 24811 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueuePublishingMessage = 24810 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueReceiveFailed = 24916 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueRejectedNotDeadLettered = 24928 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueStarting = 24701 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueStartingProcessing = 24912 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueStopping = 24702 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueStoppingProcessing = 24913 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportDisposed = 24801 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportInitialized = 24800 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportMessageProcessingFailed = 24807 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportReceivingMessage = 24805 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportSendFailed = 24808 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportSendingMessage = 24806 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportStarting = 24803 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportStopping = 24804 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueVisibilityExtended = 24909 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueVisibilityExtensionFailed = 24910 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionCreated = 24012 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionCreating = 24013 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionDeleted = 24015 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionDeleting = 24014 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionNotFound = 24016 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TopicCreated = 24011 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportAdapterDisposed = 24101 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportAdapterInitialized = 24100 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportAdapterStarting = 24104 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportAdapterStopping = 24105 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportMessageProcessingFailed = 24108 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverAcknowledgeError = 24983 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverDisposed = 24987 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageAcknowledged = 24982 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageReceived = 24980 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageRejected = 24984 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageRejectedRequeue = 24985 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverReceiveError = 24981 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverRejectError = 24986 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceivingMessage = 24106 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderBatchSendFailed = 24973 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderBatchSent = 24972 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderDisposed = 24974 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderMessageSent = 24970 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderSendFailed = 24971 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSendFailed = 24109 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSendingMessage = 24107 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberDisposed = 24997 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberError = 24995 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageAcknowledged = 24992 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageReceived = 24991 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageRejected = 24993 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageRequeued = 24994 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberStarted = 24990 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberStopped = 24996 -> int
-const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.VisibilityModified = 24310 -> int
-const Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportServiceCollectionExtensions.DefaultTransportName = "azure-eventhubs" -> string!
-const Microsoft.Extensions.DependencyInjection.AzureServiceBusTransportServiceCollectionExtensions.DefaultTransportName = "azure-servicebus" -> string!
-const Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportServiceCollectionExtensions.DefaultTransportName = "azure-storagequeue" -> string!
 Excalibur.Dispatch.Transport.Azure.AzureAuthenticationOptions
 Excalibur.Dispatch.Transport.Azure.AzureAuthenticationOptions.AzureAuthenticationOptions() -> void
 Excalibur.Dispatch.Transport.Azure.AzureAuthenticationOptions.ClientId.get -> string!
@@ -313,7 +65,6 @@ Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.TriggerName.ge
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.TriggerName.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.WorkflowName.get -> string?
 Excalibur.Dispatch.Transport.Azure.AzureLogicAppsSchedulerOptions.WorkflowName.set -> void
-Excalibur.Dispatch.Transport.Azure.AzureMessageJsonContext
 Excalibur.Dispatch.Transport.Azure.AzureProviderOptions
 Excalibur.Dispatch.Transport.Azure.AzureProviderOptions.Authentication.get -> Excalibur.Dispatch.Transport.Azure.AzureAuthenticationOptions!
 Excalibur.Dispatch.Transport.Azure.AzureProviderOptions.Authentication.set -> void
@@ -757,9 +508,9 @@ Excalibur.Dispatch.Transport.Azure.StorageQueuePollingOptions.VisibilityTimeout.
 Excalibur.Dispatch.Transport.Azure.TransactionalSendOptions
 Excalibur.Dispatch.Transport.Azure.TransactionalSendOptions.PartitionKey.get -> string?
 Excalibur.Dispatch.Transport.Azure.TransactionalSendOptions.PartitionKey.set -> void
-Excalibur.Dispatch.Transport.Azure.TransactionalSendOptions.TransactionalSendOptions() -> void
 Excalibur.Dispatch.Transport.Azure.TransactionalSendOptions.TransactionGroup.get -> string?
 Excalibur.Dispatch.Transport.Azure.TransactionalSendOptions.TransactionGroup.set -> void
+Excalibur.Dispatch.Transport.Azure.TransactionalSendOptions.TransactionalSendOptions() -> void
 Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId
 Excalibur.Dispatch.Transport.AzureServiceBus.ServiceBusDeadLetterOptions
 Excalibur.Dispatch.Transport.AzureServiceBus.ServiceBusDeadLetterOptions.EntityPath.get -> string!
@@ -851,7 +602,255 @@ Microsoft.Extensions.DependencyInjection.PriorityQueueServiceCollectionExtension
 Microsoft.Extensions.DependencyInjection.RequestReplyServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceBusDeadLetterServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.TransactionServiceCollectionExtensions
-static Excalibur.Dispatch.Transport.Azure.AzureMessageJsonContext.Instance.get -> Excalibur.Dispatch.Transport.Azure.AzureMessageJsonContext!
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.AcknowledgeError = 24312 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ActionSent = 24023 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BatchProcessingCompleted = 24114 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BatchProduced = 24113 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BatchPublishError = 24205 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BatchPublished = 24203 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BrokerDisposed = 24019 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.BrokerDisposing = 24009 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.CachedConsumer = 24007 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.CachedPublisher = 24005 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ChannelReceiverStarting = 24306 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ChannelReceiverStopping = 24307 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.CheckpointCreated = 24603 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ClientCreated = 24004 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConnectionEstablished = 24103 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConsumerCreated = 24008 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConsumerGroupCreated = 24411 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConsumerStarted = 24300 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ConsumerStopped = 24301 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DestinationValidationFailed = 24018 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DestinationValidationFailedWithException = 24022 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqManagerInitialized = 24950 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMessageMoved = 24951 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMessageReprocessed = 24955 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMessageSkipped = 24960 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMessagesRetrieved = 24953 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqMoveFailed = 24952 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqPurgeFailed = 24959 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqPurged = 24958 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqReprocessFailed = 24956 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqRetrieveFailed = 24954 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DlqStatisticsRetrieved = 24957 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.DocumentSent = 24025 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderBatchSendFailed = 25103 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderBatchSent = 25102 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderDisposed = 25104 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderMessageSent = 25100 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSenderSendFailed = 25101 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberDisposed = 25126 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberError = 25124 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberEventAcknowledged = 25122 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberEventReceived = 25121 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberEventRejected = 25123 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberStarted = 25120 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventGridSubscriberStopped = 25125 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubCreated = 24410 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsActionSent = 24422 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsAlreadyStarted = 24640 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBatchAcknowledged = 24637 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBatchPublished = 24602 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBatchPublishedSummary = 24613 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBrokerCreated = 24403 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBrokerDisposed = 24421 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsBrokerDisposing = 24420 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsCachedConsumer = 24414 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsCachedPublisher = 24412 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsChannelCancelled = 24615 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsChannelFailed = 24616 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsChannelPublishFailed = 24614 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsCheckpointFailed = 24635 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsCloudEventParsed = 24641 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsConsumerCreated = 24415 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsDestinationValidationFailed = 24418 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsDestinationValidationFailedWithException = 24419 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsDocumentSent = 24424 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsError = 24490 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventProcessed = 24633 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventProcessingFailed = 24634 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventPublished = 24600 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventReceived = 24601 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventReceivedDetailed = 24632 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsEventSent = 24423 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsHealthCheckFailed = 24417 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsInitializing = 24400 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsInvalidDestination = 24416 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsMessageAcknowledged = 24636 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsMessagePublished = 24611 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsMessageRejected = 24638 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsProcessingStarted = 24630 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsProcessingStopped = 24631 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsPublisherCreated = 24413 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsPublishingBatch = 24612 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsPublishingMessage = 24610 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsPublishingWithPartition = 24617 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsStarting = 24401 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsStopping = 24402 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportDisposed = 24501 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportInitialized = 24500 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportMessageProcessingFailed = 24508 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportReceivingMessage = 24506 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportSendFailed = 24509 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportSendingMessage = 24507 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportStarting = 24504 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsTransportStopping = 24505 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventHubsVisibilityNotSupported = 24639 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventSent = 24024 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventSourceCreated = 24102 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.EventSourceSubscribed = 24313 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.HealthCheckFailed = 24017 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.InitializationFailed = 24020 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.InvalidDestination = 24021 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MaxConcurrentCallsAdjusted = 24123 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageAbandoned = 24304 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageAbandonedWithError = 24111 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageAcknowledged = 24308 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageBrokerCreated = 24003 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageCancelled = 24202 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageCompleted = 24303 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageDeadLettered = 24305 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageLockRenewalFailed = 24125 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageLockRenewed = 24124 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageProcessed = 24110 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageProcessingFailed = 24118 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageProcessorStarted = 24904 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessagePublished = 24200 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageReceived = 24302 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageRejected = 24309 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.MessageScheduled = 24201 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PartitionAssigned = 24502 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PartitionLost = 24503 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PrefetchCountAdjusted = 24122 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ProcessingError = 24112 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ProcessorError = 24117 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ProcessorStarted = 24115 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ProcessorStopped = 24116 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PublishError = 24204 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.PublisherCreated = 24006 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.QueueCreated = 24010 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.QueueMetricsCollected = 24905 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ReceiveError = 24311 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ServiceBusError = 24090 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ServiceBusInitializing = 24000 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ServiceBusStarting = 24001 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.ServiceBusStopping = 24002 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionAccepted = 24119 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionAcknowledgeError = 24325 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionEventSourceSubscribed = 24327 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionLockLost = 24326 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionMessageAcknowledged = 24321 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionMessageReceived = 24320 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionMessageRejected = 24322 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionReceiveError = 24324 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionReleased = 24120 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionStateUpdated = 24121 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SessionVisibilityModified = 24323 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueAlreadyStarted = 24911 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBatchAcknowledged = 24907 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBatchCompleted = 24920 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBatchPublishedSummary = 24812 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBrokerDisposed = 24720 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueBrokerDisposing = 24719 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueCachedConsumer = 24713 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueCachedPublisher = 24711 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueChannelCancelled = 24813 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueChannelFailed = 24814 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueCloudEventParsed = 24923 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueConsumerCreated = 24714 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueConsumerStarted = 24900 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueConsumerStopped = 24901 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueCreated = 24710 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueDeadLettered = 24927 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueDestinationValidationFailed = 24717 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueDestinationValidationFailedWithException = 24718 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueEnvelopeParsed = 24924 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueError = 24790 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueHealthCheckFailed = 24716 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueHealthChecked = 24921 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueInitializing = 24700 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueInvalidDestination = 24715 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueInvalidMessageType = 24926 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueIterationCompleted = 24922 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageAcknowledged = 24906 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageConverted = 24925 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageDeleted = 24903 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageProcessed = 24918 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageProcessingFailed = 24919 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageProcessingStarted = 24917 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessagePublished = 24802 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageReceived = 24902 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessageRejected = 24908 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMessagesReceived = 24914 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsBatchProcessed = 24931 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsDeleteOperation = 24933 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsDisposalError = 24937 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsDisposing = 24936 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsHealthRecorded = 24935 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsMessageProcessed = 24930 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsReceiveOperation = 24932 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueMetricsVisibilityUpdate = 24934 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueNoMessages = 24915 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueuePublisherCreated = 24712 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueuePublishingBatch = 24811 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueuePublishingMessage = 24810 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueReceiveFailed = 24916 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueRejectedNotDeadLettered = 24928 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueStarting = 24701 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueStartingProcessing = 24912 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueStopping = 24702 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueStoppingProcessing = 24913 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportDisposed = 24801 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportInitialized = 24800 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportMessageProcessingFailed = 24807 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportReceivingMessage = 24805 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportSendFailed = 24808 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportSendingMessage = 24806 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportStarting = 24803 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueTransportStopping = 24804 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueVisibilityExtended = 24909 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.StorageQueueVisibilityExtensionFailed = 24910 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionCreated = 24012 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionCreating = 24013 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionDeleted = 24015 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionDeleting = 24014 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.SubscriptionNotFound = 24016 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TopicCreated = 24011 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportAdapterDisposed = 24101 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportAdapterInitialized = 24100 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportAdapterStarting = 24104 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportAdapterStopping = 24105 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportMessageProcessingFailed = 24108 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverAcknowledgeError = 24983 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverCacheFull = 24988 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverDisposed = 24987 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageAcknowledged = 24982 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageReceived = 24980 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageRejected = 24984 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageRejectedRequeue = 24985 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverReceiveError = 24981 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverRejectError = 24986 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceivingMessage = 24106 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSendFailed = 24109 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderBatchSendFailed = 24973 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderBatchSent = 24972 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderDisposed = 24974 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderMessageSent = 24970 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSenderSendFailed = 24971 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSendingMessage = 24107 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberDisposed = 24997 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberError = 24995 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageAcknowledged = 24992 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageReceived = 24991 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageRejected = 24993 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageRequeued = 24994 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberStarted = 24990 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberStopped = 24996 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.VisibilityModified = 24310 -> int
+const Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportServiceCollectionExtensions.DefaultTransportName = "azure-eventhubs" -> string!
+const Microsoft.Extensions.DependencyInjection.AzureServiceBusTransportServiceCollectionExtensions.DefaultTransportName = "azure-servicebus" -> string!
+const Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportServiceCollectionExtensions.DefaultTransportName = "azure-storagequeue" -> string!
 static Excalibur.Dispatch.Transport.Azure.AzureServiceBusEventSource.LogMessageAbandoned(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, System.Exception! exception) -> void
 static Excalibur.Dispatch.Transport.Azure.AzureServiceBusEventSource.LogMessageProcessed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
 static Excalibur.Dispatch.Transport.Azure.AzureServiceBusEventSource.LogProcessingError(Microsoft.Extensions.Logging.ILogger! logger, string! entityPath, System.Exception! exception) -> void
@@ -861,13 +860,13 @@ static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.CloudEvent
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.ConnectionError(Microsoft.Extensions.Logging.ILogger! logger, string! queueName, System.Exception! ex) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.DeadLetterMessage(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.EmptyPoll(Microsoft.Extensions.Logging.ILogger! logger, string! queueName) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageDeleted(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageDeleteFailed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, System.Exception! ex) -> void
+static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageDeleted(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageProcessed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, long elapsedMilliseconds) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageProcessingFailed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, int dequeueCount, System.Exception! ex) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageReceived(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, string! popReceipt, int dequeueCount) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageVisibilityUpdated(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, int timeoutSeconds) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageVisibilityUpdateFailed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, System.Exception! ex) -> void
+static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageVisibilityUpdated(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, int timeoutSeconds) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.PollingCycle(Microsoft.Extensions.Logging.ILogger! logger, string! queueName, long elapsedMilliseconds) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.PollingStarted(Microsoft.Extensions.Logging.ILogger! logger, string! queueName) -> void
 static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.PollingStopped(Microsoft.Extensions.Logging.ILogger! logger, string! queueName) -> void
@@ -878,14 +877,14 @@ static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectio
 static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.UseCloudEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.UseCloudEventsForEventHubs(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.AzureEventHubsCloudEventOptions!>? configureEventHubs = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.UseCloudEventsForServiceBus(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.AzureServiceBusCloudEventOptions!>? configureServiceBus = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportServiceCollectionExtensions.AddAzureEventHubsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportServiceCollectionExtensions.AddAzureEventHubsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AzureServiceBusTransportServiceCollectionExtensions.AddAzureServiceBusTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportServiceCollectionExtensions.AddAzureEventHubsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureServiceBusTransportServiceCollectionExtensions.AddAzureServiceBusTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportServiceCollectionExtensions.AddAzureStorageQueueTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IAzureStorageQueueTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureServiceBusTransportServiceCollectionExtensions.AddAzureServiceBusTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportServiceCollectionExtensions.AddAzureStorageQueueTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IAzureStorageQueueTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DispatchBuilderAzureServiceBusExtensions.UseAzureServiceBus(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! name, System.Action<Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportServiceCollectionExtensions.AddAzureStorageQueueTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IAzureStorageQueueTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderAzureServiceBusExtensions.UseAzureServiceBus(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderAzureServiceBusExtensions.UseAzureServiceBus(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! name, System.Action<Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.EventGridTransportServiceCollectionExtensions.AddEventGridTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.EventGridTransportOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PriorityQueueServiceCollectionExtensions.AddAzureServiceBusPriorityQueues(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.AzureServiceBusPriorityOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.RequestReplyServiceCollectionExtensions.AddAzureServiceBusRequestReply(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.RequestReplyOptions!>! configure, System.Func<System.IServiceProvider!, Excalibur.Dispatch.Transport.Azure.IRequestReplyClient!>! factory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -1,6 +1,39 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+// ============================================================================
+// MINIMAL SETUP (uncomment for quickstart, comment out everything below)
+// ============================================================================
+// For a 5-minute quickstart with zero configuration:
+//
+// using Excalibur.Jobs.Abstractions;
+// using Excalibur.Jobs.Quartz;
+//
+// var builder = Host.CreateApplicationBuilder(args);
+// builder.Services.AddExcaliburJobHost(
+//     configureJobs: jobs =>
+//     {
+//         jobs.AddRecurringJob<HelloWorldJob>(TimeSpan.FromMinutes(1), "hello-job");
+//     },
+//     typeof(Program).Assembly);
+// var host = builder.Build();
+// host.Run();
+//
+// public class HelloWorldJob : IBackgroundJob
+// {
+//     private readonly ILogger<HelloWorldJob> _logger;
+//     public HelloWorldJob(ILogger<HelloWorldJob> logger) => _logger = logger;
+//     public Task ExecuteAsync(CancellationToken cancellationToken = default)
+//     {
+//         _logger.LogInformation("Hello from Excalibur Job at {Time}", DateTimeOffset.Now);
+//         return Task.CompletedTask;
+//     }
+// }
+//
+// That's it! Jobs are discovered and scheduled automatically.
+// The configuration below shows the full-featured production setup.
+// ============================================================================
+
 #pragma warning disable CA1506 // Avoid excessive class coupling - acceptable for sample Program.cs
 
 using Excalibur.Jobs.Cdc;
@@ -53,9 +86,9 @@ public class Program
 						{
 							store.UseProperties = true; // Store all JobDataMap values as strings (recommended)
 							store.PerformSchemaValidation = true; // Validate database schema
-																  // TODO: Add SQL Server and SystemTextJson extensions when packages are available
-																  // store.UseSqlServer(sql => { sql.ConnectionString = connectionString; sql.TablePrefix = "QRTZ_"; });
-																  // store.UseSystemTextJsonSerializer();
+															      // TODO: Add SQL Server and SystemTextJson extensions when packages are available
+															      // store.UseSqlServer(sql => { sql.ConnectionString = connectionString; sql.TablePrefix = "QRTZ_"; });
+															      // store.UseSystemTextJsonSerializer();
 
 							// Optional: Enable clustering for distributed job execution
 							// store.UseClustering(c => { c.CheckinInterval = TimeSpan.FromSeconds(10); c.CheckinMisfireThreshold = TimeSpan.FromSeconds(20); });

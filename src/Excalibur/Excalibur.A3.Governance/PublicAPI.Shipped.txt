@@ -1,0 +1,16 @@
+#nullable enable
+Microsoft.Extensions.DependencyInjection.AccessReviewGovernanceBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.AccessReviewGovernanceBuilderExtensions.AddAccessReviews(this Excalibur.A3.Governance.IGovernanceBuilder! builder, System.Action<Excalibur.A3.Governance.AccessReviews.AccessReviewOptions!>? configure = null) -> Excalibur.A3.Governance.IGovernanceBuilder!
+Microsoft.Extensions.DependencyInjection.GovernanceServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.GovernanceServiceCollectionExtensions.AddGovernance(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.A3.Governance.IGovernanceBuilder!>! configure) -> Excalibur.A3.IA3Builder!
+Microsoft.Extensions.DependencyInjection.SoDGovernanceBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.SoDGovernanceBuilderExtensions.AddSeparationOfDuties(this Excalibur.A3.Governance.IGovernanceBuilder! builder, System.Action<Excalibur.A3.Governance.SeparationOfDuties.SoDOptions!>? configure = null) -> Excalibur.A3.Governance.IGovernanceBuilder!
+Microsoft.Extensions.DependencyInjection.OrphanedAccessGovernanceBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.OrphanedAccessGovernanceBuilderExtensions.AddOrphanedAccessDetection(this Excalibur.A3.Governance.IGovernanceBuilder! builder, System.Action<Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions!>? configure = null) -> Excalibur.A3.Governance.IGovernanceBuilder!
+Microsoft.Extensions.DependencyInjection.NonHumanIdentityGovernanceBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.NonHumanIdentityGovernanceBuilderExtensions.AddNonHumanIdentity(this Excalibur.A3.Governance.IGovernanceBuilder! builder) -> Excalibur.A3.Governance.IGovernanceBuilder!
+static Microsoft.Extensions.DependencyInjection.NonHumanIdentityGovernanceBuilderExtensions.AddApiKeyManagement(this Excalibur.A3.Governance.IGovernanceBuilder! builder, System.Action<Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions!>? configure = null) -> Excalibur.A3.Governance.IGovernanceBuilder!
+Microsoft.Extensions.DependencyInjection.ProvisioningGovernanceBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.ProvisioningGovernanceBuilderExtensions.AddProvisioning(this Excalibur.A3.Governance.IGovernanceBuilder! builder, System.Action<Excalibur.A3.Governance.Provisioning.ProvisioningOptions!>? configureProvisioning = null, System.Action<Excalibur.A3.Governance.Provisioning.JitAccessOptions!>? configureJit = null) -> Excalibur.A3.Governance.IGovernanceBuilder!
+Microsoft.Extensions.DependencyInjection.EntitlementReportingGovernanceBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.EntitlementReportingGovernanceBuilderExtensions.AddEntitlementReporting(this Excalibur.A3.Governance.IGovernanceBuilder! builder) -> Excalibur.A3.Governance.IGovernanceBuilder!

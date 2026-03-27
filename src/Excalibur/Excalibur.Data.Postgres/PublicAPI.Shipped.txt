@@ -1,104 +1,4 @@
 #nullable enable
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AdvisoryLockAcquired = 101205 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AdvisoryLockReleased = 101206 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ArrayParameterBound = 101400 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditEventRetrieved = 107001 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditEventStored = 107000 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditIntegrityVerified = 107003 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditQueryExecuted = 107002 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditStoreError = 107005 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditStoreInitialized = 107004 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.BecameLeader = 107107 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcConfirmedPosition = 102306 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcConnectedToReplicationStream = 102302 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcCreatedReplicationSlot = 102303 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcProcessedChange = 102305 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcProcessingError = 102308 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcProcessorStarting = 102300 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcProcessorStopping = 102307 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcReplicationSlotExists = 102304 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcResumingFromPosition = 102301 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CleanedUpOldDeadLetterMessages = 102003 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ClearedConnectionPools = 101809 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionAcquired = 101003 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionClosed = 101001 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionFailed = 101005 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionOpened = 101000 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionPoolCreated = 101002 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionReturned = 101004 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionTestFailed = 101804 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionTestSuccessful = 101803 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionValidationFailed = 102202 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CopyOperationExecuted = 101105 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CreatedPostgresConnection = 102200 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CreatePostgresConnectionFailed = 102201 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.DeadlockDetected = 101600 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.DeletedDeadLetterMessage = 102002 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.DisposeConnectionWarning = 102204 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.DisposingProvider = 101808 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ErrorDisposingProvider = 101810 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ExecutingDataRequest = 101800 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ExecutingDataRequestInTransaction = 101801 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ExecutionPlanRetrieved = 101502 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.FailedToExecuteDataRequest = 101802 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.FailedToRetrieveConnectionPoolStatistics = 101807 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.FailedToRetrieveMetrics = 101805 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ForeignKeyViolation = 101603 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.HealthCheckFailed = 102101 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.HealthCheckSucceeded = 102100 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.InitializingProvider = 101806 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.JsonbOperationExecuted = 101403 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.JsonColumnRead = 101401 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.JsonColumnWritten = 101402 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LeaderElectionDisposeError = 107109 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LeaderElectionError = 107106 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LeaderElectionStarted = 107100 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LeaderElectionStopped = 107101 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LockAcquisitionError = 107103 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LockAcquisitionFailed = 107102 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LockReleased = 107104 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LockReleaseError = 107105 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LostLeadership = 107108 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.MarkedDeadLetterMessageAsReplayed = 102001 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.NotificationReceived = 101303 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.NpgsqlDataSourceCreated = 101300 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.NpgsqlMultiplexingEnabled = 101301 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxBatchOperation = 101906 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxCleanupSentMessagesNotNeeded = 101911 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxConvertMessageFailed = 101908 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxDeleteRecord = 101903 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxGetFailedMessagesNotSupported = 101909 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxGetScheduledMessagesNotSupported = 101910 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxGetStatisticsBasic = 101912 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxIncreaseAttempts = 101904 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxMoveToDeadLetter = 101905 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxOperationCompleted = 101907 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxReserveMessages = 101901 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxSaveMessages = 101900 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxUnreserveMessages = 101902 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.PersistenceRetryAttempt = 101811 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.PostgresError = 101604 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.PreparedStatementCreated = 101104 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryExecuted = 101101 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryExecuting = 101100 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryFailed = 101102 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryStatisticsCollected = 101501 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryTimeout = 101103 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QuickCheckFailed = 102102 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.RepairConnectionFailed = 102203 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.RetryAttempt = 101700 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SavepointCreated = 101203 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SavepointReleased = 101204 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SerializationFailure = 101601 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SlowQueryDetected = 101500 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SslConnectionEstablished = 101006 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.StoredDeadLetterMessage = 102000 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TransactionCommitted = 101201 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TransactionRolledBack = 101202 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TransactionStarted = 101200 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TypeMappingConfigured = 101302 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.UniqueViolation = 101602 -> int
-const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.WaitEventDetected = 101503 -> int
 Excalibur.Data.Postgres.Audit.PostgresAuditOptions
 Excalibur.Data.Postgres.Audit.PostgresAuditOptions.AutoCreateTable.get -> bool
 Excalibur.Data.Postgres.Audit.PostgresAuditOptions.AutoCreateTable.set -> void
@@ -143,6 +43,7 @@ Excalibur.Data.Postgres.Authorization.PostgresGrantStore.InsertActivityGroupGran
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.PostgresGrantStore(Excalibur.Data.IDomainDb! domainDb) -> void
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.SaveGrantAsync(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId
+Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions.ConnectionString.get -> string!
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions.ConnectionString.set -> void
@@ -196,6 +97,7 @@ Excalibur.Data.Postgres.Persistence.PostgresConnectionOptions.TcpKeepAliveTime.s
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.Dispose() -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.GetCurrentMetrics() -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.PostgresPersistenceMetrics(System.Diagnostics.Metrics.IMeterFactory? meterFactory = null) -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.RecordCacheHit(string! cacheType) -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.RecordCacheMiss(string! cacheType) -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.RecordCommand(double durationMs, int affectedRows, params System.Collections.Generic.KeyValuePair<string!, object?>[]! tags) -> void
@@ -366,10 +268,10 @@ Excalibur.Data.Postgres.PostgresProviderOptions.ApplicationName.get -> string?
 Excalibur.Data.Postgres.PostgresProviderOptions.ApplicationName.set -> void
 Excalibur.Data.Postgres.PostgresProviderOptions.CommandTimeout.get -> int
 Excalibur.Data.Postgres.PostgresProviderOptions.CommandTimeout.set -> void
-Excalibur.Data.Postgres.PostgresProviderOptions.ConnectionString.get -> string!
-Excalibur.Data.Postgres.PostgresProviderOptions.ConnectionString.set -> void
 Excalibur.Data.Postgres.PostgresProviderOptions.ConnectTimeout.get -> int
 Excalibur.Data.Postgres.PostgresProviderOptions.ConnectTimeout.set -> void
+Excalibur.Data.Postgres.PostgresProviderOptions.ConnectionString.get -> string!
+Excalibur.Data.Postgres.PostgresProviderOptions.ConnectionString.set -> void
 Excalibur.Data.Postgres.PostgresProviderOptions.IncludeErrorDetail.get -> bool
 Excalibur.Data.Postgres.PostgresProviderOptions.IncludeErrorDetail.set -> void
 Excalibur.Data.Postgres.PostgresProviderOptions.Name.get -> string?
@@ -425,8 +327,8 @@ Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore
 Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
-Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore.PostgresSnapshotStore(string! connectionString, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore!>! logger) -> void
 Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore.PostgresSnapshotStore(System.Func<Npgsql.NpgsqlConnection!>! connectionFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore!>! logger) -> void
+Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore.PostgresSnapshotStore(string! connectionString, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore!>! logger) -> void
 Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStoreOptions
 Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStoreOptions.PostgresSnapshotStoreOptions() -> void
@@ -438,9 +340,112 @@ Excalibur.Data.Postgres.Snapshots.SaveSnapshotRequest
 Excalibur.Data.Postgres.Snapshots.SaveSnapshotRequest.SaveSnapshotRequest(Excalibur.Domain.Model.ISnapshot! snapshot, string! schemaName, string! tableName, System.Threading.CancellationToken cancellationToken) -> void
 Microsoft.Extensions.DependencyInjection.A3BuilderPostgresExtensions
 Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions
+Microsoft.Extensions.DependencyInjection.PostgresDataExecutorServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PostgresServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PostgresSnapshotStoreServiceCollectionExtensions
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AdvisoryLockAcquired = 101205 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AdvisoryLockReleased = 101206 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ArrayParameterBound = 101400 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditEventRetrieved = 107001 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditEventStored = 107000 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditIntegrityVerified = 107003 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditQueryExecuted = 107002 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditStoreError = 107005 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.AuditStoreInitialized = 107004 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.BecameLeader = 107107 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcConfirmedPosition = 102306 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcConnectedToReplicationStream = 102302 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcCreatedReplicationSlot = 102303 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcProcessedChange = 102305 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcProcessingError = 102308 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcProcessorStarting = 102300 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcProcessorStopping = 102307 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcReplicationSlotExists = 102304 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CdcResumingFromPosition = 102301 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CleanedUpOldDeadLetterMessages = 102003 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ClearedConnectionPools = 101809 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionAcquired = 101003 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionClosed = 101001 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionFailed = 101005 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionOpened = 101000 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionPoolCreated = 101002 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionReturned = 101004 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionTestFailed = 101804 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionTestSuccessful = 101803 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ConnectionValidationFailed = 102202 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CopyOperationExecuted = 101105 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CreatePostgresConnectionFailed = 102201 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.CreatedPostgresConnection = 102200 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.DeadlockDetected = 101600 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.DeletedDeadLetterMessage = 102002 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.DisposeConnectionWarning = 102204 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.DisposingProvider = 101808 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ErrorDisposingProvider = 101810 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ExecutingDataRequest = 101800 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ExecutingDataRequestInTransaction = 101801 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ExecutionPlanRetrieved = 101502 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.FailedToExecuteDataRequest = 101802 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.FailedToRetrieveConnectionPoolStatistics = 101807 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.FailedToRetrieveMetrics = 101805 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.ForeignKeyViolation = 101603 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.HealthCheckFailed = 102101 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.HealthCheckSucceeded = 102100 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.InitializingProvider = 101806 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.JsonColumnRead = 101401 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.JsonColumnWritten = 101402 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.JsonbOperationExecuted = 101403 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LeaderElectionDisposeError = 107109 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LeaderElectionError = 107106 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LeaderElectionStarted = 107100 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LeaderElectionStopped = 107101 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LockAcquisitionError = 107103 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LockAcquisitionFailed = 107102 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LockReleaseError = 107105 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LockReleased = 107104 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.LostLeadership = 107108 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.MarkedDeadLetterMessageAsReplayed = 102001 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.NotificationReceived = 101303 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.NpgsqlDataSourceCreated = 101300 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.NpgsqlMultiplexingEnabled = 101301 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxBatchOperation = 101906 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxCleanupSentMessagesNotNeeded = 101911 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxConvertMessageFailed = 101908 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxDeleteRecord = 101903 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxGetFailedMessagesNotSupported = 101909 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxGetScheduledMessagesNotSupported = 101910 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxGetStatisticsBasic = 101912 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxIncreaseAttempts = 101904 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxMoveToDeadLetter = 101905 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxOperationCompleted = 101907 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxReserveMessages = 101901 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxSaveMessages = 101900 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.OutboxUnreserveMessages = 101902 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.PersistenceRetryAttempt = 101811 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.PostgresError = 101604 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.PreparedStatementCreated = 101104 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryExecuted = 101101 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryExecuting = 101100 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryFailed = 101102 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryStatisticsCollected = 101501 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QueryTimeout = 101103 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.QuickCheckFailed = 102102 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.RepairConnectionFailed = 102203 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.RetryAttempt = 101700 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SavepointCreated = 101203 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SavepointReleased = 101204 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SerializationFailure = 101601 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SlowQueryDetected = 101500 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.SslConnectionEstablished = 101006 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.StoredDeadLetterMessage = 102000 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TransactionCommitted = 101201 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TransactionRolledBack = 101202 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TransactionStarted = 101200 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TypeMappingConfigured = 101302 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.UniqueViolation = 101602 -> int
+const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.WaitEventDetected = 101503 -> int
+const Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants.MeterName = "Excalibur.Data.Postgres.Persistence" -> string!
+const Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants.Version = "1.0.0" -> string!
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.MeasureOperation<T>(System.Func<T>! operation, System.Action<double>! recordAction) -> T
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.MeasureOperationAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Action<double>! recordAction) -> System.Threading.Tasks.Task<T>!
 static Excalibur.Data.Postgres.RequestProviders.PostgresActivityGroupRequestProvider.ActivityGroupExists(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, bool>!
@@ -459,20 +464,18 @@ static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.Gra
 static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.InsertActivityGroupGrant(string! userId, string! fullName, string? tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
 static Excalibur.Data.Postgres.RequestProviders.PostgresGrantRequestProvider.SaveGrant(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, int>!
 static Microsoft.Extensions.DependencyInjection.A3BuilderPostgresExtensions.UsePostgres(this Excalibur.A3.IA3Builder! builder) -> Excalibur.A3.IA3Builder!
-static Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions.AddPostgresAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions.AddPostgresAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Postgres.Audit.PostgresAuditOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresAuditExtensions.AddPostgresAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresDataExecutorServiceCollectionExtensions.AddPostgresDataExecutors(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.Data.IDbConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Postgres.Persistence.IPostgresPersistenceBuilder!>! builderAction) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresPersistenceServiceCollectionExtensions.AddPostgresPersistenceFromSection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configurationSectionName = "Postgres", System.Action<Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresServiceCollectionExtensions.AddPostgresDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresServiceCollectionExtensions.AddPostgresDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresSnapshotStoreServiceCollectionExtensions.AddPostgresSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresServiceCollectionExtensions.AddPostgresDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresSnapshotStoreServiceCollectionExtensions.AddPostgresSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Npgsql.NpgsqlConnection!>! connectionFactory, System.Action<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresSnapshotStoreServiceCollectionExtensions.AddPostgresSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.Data.Postgres.Snapshots.PostgresSnapshotStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
-const Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants.MeterName = "Excalibur.Data.Postgres.Persistence" -> string!
-const Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants.Version = "1.0.0" -> string!
-Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants

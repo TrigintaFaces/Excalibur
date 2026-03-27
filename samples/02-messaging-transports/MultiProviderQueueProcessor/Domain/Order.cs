@@ -123,52 +123,49 @@ public sealed class Order : AggregateRoot
 	}
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		OrderCreatedEvent e => Apply(e),
-		OrderItemAddedEvent e => Apply(e),
-		OrderSubmittedEvent => ApplySubmitted(),
-		OrderShippedEvent e => Apply(e),
-		OrderCancelledEvent e => Apply(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}"),
-	};
+		switch (@event)
+		{
+			case OrderCreatedEvent e: Apply(e); break;
+			case OrderItemAddedEvent e: Apply(e); break;
+			case OrderSubmittedEvent: ApplySubmitted(); break;
+			case OrderShippedEvent e: Apply(e); break;
+			case OrderCancelledEvent e: Apply(e); break;
+		}
+	}
 
-	private bool Apply(OrderCreatedEvent e)
+	private void Apply(OrderCreatedEvent e)
 	{
 		Id = e.AggregateId;
 		CustomerId = e.CustomerId;
 		TotalAmount = e.TotalAmount;
 		Currency = e.Currency;
 		Status = OrderStatus.Created;
-		return true;
 	}
 
-	private bool Apply(OrderItemAddedEvent e)
+	private void Apply(OrderItemAddedEvent e)
 	{
 		_items.Add(new OrderItem(e.ProductId, e.ProductName, e.Quantity, e.UnitPrice));
 		TotalAmount += e.Quantity * e.UnitPrice;
-		return true;
 	}
 
-	private bool ApplySubmitted()
+	private void ApplySubmitted()
 	{
 		Status = OrderStatus.Submitted;
-		return true;
 	}
 
-	private bool Apply(OrderShippedEvent e)
+	private void Apply(OrderShippedEvent e)
 	{
 		TrackingNumber = e.TrackingNumber;
 		Carrier = e.Carrier;
 		Status = OrderStatus.Shipped;
-		return true;
 	}
 
-	private bool Apply(OrderCancelledEvent e)
+	private void Apply(OrderCancelledEvent e)
 	{
 		CancellationReason = e.Reason;
 		Status = OrderStatus.Cancelled;
-		return true;
 	}
 }
 

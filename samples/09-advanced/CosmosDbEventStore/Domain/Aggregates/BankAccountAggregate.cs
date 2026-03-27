@@ -29,7 +29,7 @@ public enum AccountStatus
 /// This aggregate demonstrates:
 /// <list type="bullet">
 /// <item>Event sourcing with RaiseEvent for state changes</item>
-/// <item>Pattern matching in ApplyEventInternal using switch expressions</item>
+/// <item>Pattern matching in ApplyEventInternal using switch statements</item>
 /// <item>Business invariant enforcement (e.g., no negative balance)</item>
 /// <item>Static factory method for creation</item>
 /// </list>
@@ -177,17 +177,19 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		AccountOpened e => ApplyAccountOpened(e),
-		MoneyDeposited e => ApplyMoneyDeposited(e),
-		MoneyWithdrawn e => ApplyMoneyWithdrawn(e),
-		MoneyTransferred e => ApplyMoneyTransferred(e),
-		AccountClosed e => ApplyAccountClosed(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case AccountOpened e: Apply(e); break;
+			case MoneyDeposited e: Apply(e); break;
+			case MoneyWithdrawn e: Apply(e); break;
+			case MoneyTransferred e: Apply(e); break;
+			case AccountClosed e: Apply(e); break;
+		}
+	}
 
-	private bool ApplyAccountOpened(AccountOpened e)
+	private void Apply(AccountOpened e)
 	{
 		Id = e.AccountId;
 		AccountHolder = e.AccountHolder;
@@ -196,35 +198,30 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 		Status = AccountStatus.Active;
 		OpenedAt = e.OccurredAt;
 		TransactionCount = e.InitialDeposit > 0 ? 1 : 0;
-		return true;
 	}
 
-	private bool ApplyMoneyDeposited(MoneyDeposited e)
+	private void Apply(MoneyDeposited e)
 	{
 		Balance += e.Amount;
 		TransactionCount++;
-		return true;
 	}
 
-	private bool ApplyMoneyWithdrawn(MoneyWithdrawn e)
+	private void Apply(MoneyWithdrawn e)
 	{
 		Balance -= e.Amount;
 		TransactionCount++;
-		return true;
 	}
 
-	private bool ApplyMoneyTransferred(MoneyTransferred e)
+	private void Apply(MoneyTransferred e)
 	{
 		Balance -= e.Amount;
 		TransactionCount++;
-		return true;
 	}
 
-	private bool ApplyAccountClosed(AccountClosed e)
+	private void Apply(AccountClosed e)
 	{
 		Status = AccountStatus.Closed;
 		ClosedAt = e.OccurredAt;
-		return true;
 	}
 
 	private void EnsureAccountIsActive()

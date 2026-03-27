@@ -144,7 +144,7 @@ static Excalibur.EventSourcing.Abstractions.MigrationResult.Failed(string! error
 static Excalibur.EventSourcing.Abstractions.MigrationResult.NoMigrationsPending() -> Excalibur.EventSourcing.Abstractions.MigrationResult!
 static Excalibur.EventSourcing.Abstractions.MigrationResult.Succeeded(System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.AppliedMigration!>! appliedMigrations) -> Excalibur.EventSourcing.Abstractions.MigrationResult!
 static Excalibur.EventSourcing.Abstractions.QueryOptions.Default.get -> Excalibur.EventSourcing.Abstractions.QueryOptions!
-Excalibur.EventSourcing.Abstractions.StoredEvent.StoredEvent(string\! EventId, string\! AggregateId, string\! AggregateType, string\! EventType, byte[]\! EventData, byte[]? Metadata, long Version, System.DateTimeOffset Timestamp) -> void
+Excalibur.EventSourcing.Abstractions.StoredEvent.StoredEvent(string! EventId, string! AggregateId, string! AggregateType, string! EventType, byte[]! EventData, byte[]? Metadata, long Version, System.DateTimeOffset Timestamp) -> void
 Excalibur.EventSourcing.Abstractions.EventNotificationContext
 Excalibur.EventSourcing.Abstractions.EventNotificationContext.AggregateId.get -> string!
 Excalibur.EventSourcing.Abstractions.EventNotificationContext.AggregateId.init -> void
@@ -177,7 +177,7 @@ Excalibur.EventSourcing.Abstractions.ICursorMapStore.GetCursorMapAsync(string! p
 Excalibur.EventSourcing.Abstractions.ICursorMapStore.ResetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Abstractions.ICursorMapStore.SaveCursorMapAsync(string! projectionName, System.Collections.Generic.IReadOnlyDictionary<string!, long>! cursorMap, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Abstractions.IEphemeralProjectionEngine
-Excalibur.EventSourcing.Abstractions.IEphemeralProjectionEngine.BuildAsync<TProjection>(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection>!
+Excalibur.EventSourcing.Abstractions.IEphemeralProjectionEngine.BuildAsync<TProjection>(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection!>!
 Excalibur.EventSourcing.Abstractions.IIncrementalSnapshotStore<TState>
 Excalibur.EventSourcing.Abstractions.IIncrementalSnapshotStore<TState>.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TState?>!
 Excalibur.EventSourcing.Abstractions.IIncrementalSnapshotStore<TState>.SaveDeltaAsync(string! aggregateId, string! aggregateType, TState! delta, long version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

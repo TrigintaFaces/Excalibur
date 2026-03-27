@@ -1,94 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.AllCircuitBreakersReset = 60204 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadCompleted = 60407 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecuting = 60406 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecutionAllowed = 60401 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecutionRejected = 60402 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadPolicyCreated = 60400 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadQueueFull = 60403 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadQueueing = 60408 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadSlotAcquired = 60404 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadSlotReleased = 60405 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerAdapterCreated = 60001 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerClosed = 60004 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerCoordinationError = 60011 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerFactoryCreated = 60000 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerFallbackExecuted = 60008 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerHalfOpen = 60005 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerInitializing = 60013 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerObserverSubscribed = 60016 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerObserverUnsubscribed = 60017 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerOpened = 60003 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerOperationFailed = 60009 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerPolicyAdapterCreated = 60101 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerPolicyCreated = 60100 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerRejected = 60007 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerReset = 60006 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerResetRequested = 60012 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStarting = 60014 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStateChanged = 60002 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStopError = 60018 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStopping = 60015 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerThresholdExceeded = 60010 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryAttempt = 60702 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryCompleted = 60703 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryConfigurationLoaded = 60701 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryPolicyApplied = 60700 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationHealthCheckError = 60609 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationHealthMetricsUpdated = 60607 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationLevelChanged = 60605 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationOperationRejected = 60606 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationPrimaryOperationFailed = 60608 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradedResponseReturned = 60604 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DistributedCircuitBreakerConflict = 60103 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DistributedCircuitBreakerSynced = 60102 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.FallbackExecuted = 60603 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationActivated = 60601 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationCreated = 60600 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationDeactivated = 60602 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingAttemptLaunched = 60800 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingCompleted = 60801 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingExhausted = 60802 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.JitterStrategyUsed = 60309 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.PollyCircuitBreakerCreated = 60104 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.PollyCircuitBreakerRemoved = 60105 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryAttemptStarted = 60303 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryDelayCalculated = 60306 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryExhausted = 60305 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryMaxExceeded = 60308 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryOperationTimeout = 60310 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyAdapterCreated = 60302 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyCreated = 60300 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyFactoryCreated = 60301 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetrySucceeded = 60304 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryWithJitter = 60307 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.SlowOperationDetected = 60508 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TelemetryCircuitBreakerTransition = 60901 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TelemetryRetryAttemptRecorded = 60900 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutCancelled = 60505 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutCompleted = 60503 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutConfigured = 60501 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutExceeded = 60504 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutManagerCreated = 60500 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutRegistered = 60507 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutRetrieved = 60506 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutStarted = 60502 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerNotFound = 60203 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerRegistered = 60200 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerRetrieved = 60202 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerUnregistered = 60201 -> int
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Resilience" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.CircuitBreakerTransitions = "dispatch.resilience.circuit_breaker.transitions" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.OperationDuration = "dispatch.resilience.operation.duration" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.OperationsExecuted = "dispatch.resilience.operations.executed" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.RetryAttempts = "dispatch.resilience.retry.attempts" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.Timeouts = "dispatch.resilience.timeouts" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.MeterName = "Excalibur.Dispatch.Resilience" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.CircuitState = "resilience.circuit_breaker.state" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.Outcome = "resilience.outcome" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.PipelineName = "resilience.pipeline.name" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.RetryAttempt = "resilience.retry.attempt" -> string!
-const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.StrategyType = "resilience.strategy.type" -> string!
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.ActiveExecutions.get -> int
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.ActiveExecutions.init -> void
@@ -101,10 +11,10 @@ Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.MaxQueueLength.get -> int
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.MaxQueueLength.init -> void
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.Name.get -> string!
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.Name.init -> void
-Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueuedExecutions.get -> long
-Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueuedExecutions.init -> void
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueueLength.get -> int
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueueLength.init -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueuedExecutions.get -> long
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueuedExecutions.init -> void
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.RejectedExecutions.get -> long
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.RejectedExecutions.init -> void
 Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.TotalExecutions.get -> long
@@ -410,6 +320,7 @@ Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.
 Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.Threading.Tasks.Task!>! operation, System.Threading.CancellationToken cancellationToken, string? operationName = null) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken, string? operationName = null) -> System.Threading.Tasks.Task<T>!
 Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Dispatch.Resilience.Polly.RetryPolicy.RetryPolicy(Excalibur.Dispatch.Resilience.Polly.RetryOptions! options, Microsoft.Extensions.Logging.ILogger? logger = null, Excalibur.Dispatch.Resilience.Polly.ITimeoutManager? timeoutManager = null, Excalibur.Dispatch.Resilience.IBackoffCalculator? backoffCalculator = null) -> void
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.Dispose() -> void
 Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.ExecuteAsync<TResult>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
@@ -441,6 +352,96 @@ Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.SlowOperationThreshold
 Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.TimeoutManagerOptions() -> void
 Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.AllCircuitBreakersReset = 60204 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadCompleted = 60407 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecuting = 60406 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecutionAllowed = 60401 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecutionRejected = 60402 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadPolicyCreated = 60400 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadQueueFull = 60403 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadQueueing = 60408 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadSlotAcquired = 60404 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadSlotReleased = 60405 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerAdapterCreated = 60001 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerClosed = 60004 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerCoordinationError = 60011 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerFactoryCreated = 60000 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerFallbackExecuted = 60008 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerHalfOpen = 60005 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerInitializing = 60013 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerObserverSubscribed = 60016 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerObserverUnsubscribed = 60017 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerOpened = 60003 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerOperationFailed = 60009 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerPolicyAdapterCreated = 60101 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerPolicyCreated = 60100 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerRejected = 60007 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerReset = 60006 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerResetRequested = 60012 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStarting = 60014 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStateChanged = 60002 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStopError = 60018 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStopping = 60015 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerThresholdExceeded = 60010 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryAttempt = 60702 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryCompleted = 60703 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryConfigurationLoaded = 60701 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryPolicyApplied = 60700 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationHealthCheckError = 60609 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationHealthMetricsUpdated = 60607 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationLevelChanged = 60605 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationOperationRejected = 60606 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationPrimaryOperationFailed = 60608 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradedResponseReturned = 60604 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DistributedCircuitBreakerConflict = 60103 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DistributedCircuitBreakerSynced = 60102 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.FallbackExecuted = 60603 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationActivated = 60601 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationCreated = 60600 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationDeactivated = 60602 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingAttemptLaunched = 60800 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingCompleted = 60801 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingExhausted = 60802 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.JitterStrategyUsed = 60309 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.PollyCircuitBreakerCreated = 60104 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.PollyCircuitBreakerRemoved = 60105 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryAttemptStarted = 60303 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryDelayCalculated = 60306 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryExhausted = 60305 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryMaxExceeded = 60308 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryOperationTimeout = 60310 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyAdapterCreated = 60302 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyCreated = 60300 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyFactoryCreated = 60301 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetrySucceeded = 60304 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryWithJitter = 60307 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.SlowOperationDetected = 60508 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TelemetryCircuitBreakerTransition = 60901 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TelemetryRetryAttemptRecorded = 60900 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutCancelled = 60505 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutCompleted = 60503 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutConfigured = 60501 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutExceeded = 60504 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutManagerCreated = 60500 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutRegistered = 60507 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutRetrieved = 60506 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutStarted = 60502 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerNotFound = 60203 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerRegistered = 60200 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerRetrieved = 60202 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerUnregistered = 60201 -> int
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Resilience" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.CircuitBreakerTransitions = "dispatch.resilience.circuit_breaker.transitions" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.OperationDuration = "dispatch.resilience.operation.duration" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.OperationsExecuted = "dispatch.resilience.operations.executed" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.RetryAttempts = "dispatch.resilience.retry.attempts" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Instruments.Timeouts = "dispatch.resilience.timeouts" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.MeterName = "Excalibur.Dispatch.Resilience" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.CircuitState = "resilience.circuit_breaker.state" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.Outcome = "resilience.outcome" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.PipelineName = "resilience.pipeline.name" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.RetryAttempt = "resilience.retry.attempt" -> string!
+const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Tags.StrategyType = "resilience.strategy.type" -> string!
 static Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions.AddDispatchResilience(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions.AddDispatchResilience(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Resilience.Polly.ResilienceOptions!>! configureOptions) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions.AddPollyResilienceAdapters(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions!>? configureOptions = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!

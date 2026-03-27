@@ -116,7 +116,7 @@ public sealed class AotValidationGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine($"/// AOT-generated validator for <see cref=\"{className}\"/>.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine($"public sealed class {validatorName} : IValidateOptions<{className}>");
+		_ = sb.AppendLine($"internal sealed class {validatorName} : IValidateOptions<{className}>");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine($"\tpublic ValidateOptionsResult Validate(string? name, {className} options)");
 		_ = sb.AppendLine("\t{");

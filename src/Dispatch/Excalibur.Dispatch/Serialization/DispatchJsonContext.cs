@@ -56,4 +56,4 @@ namespace Excalibur.Dispatch.Serialization;
 [JsonSerializable(typeof(DateTimeOffset?))]
 [JsonSerializable(typeof(TimeSpan?))]
 [JsonSerializable(typeof(Guid?))]
-public partial class DispatchJsonContext : JsonSerializerContext;
+internal partial class DispatchJsonContext : JsonSerializerContext;

@@ -1,0 +1,142 @@
+#nullable enable
+Microsoft.Extensions.DependencyInjection.A3CoreServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.A3CoreServiceCollectionExtensions.AddExcaliburA3Core(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
+Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions.AddRoles(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.A3.Abstractions.Authorization.RoleOptions!>? configure = null) -> Excalibur.A3.IA3Builder!
+Excalibur.A3.Authorization.Events.GrantAdded
+Excalibur.A3.Authorization.Events.GrantAdded.ApplicationName.get -> string!
+Excalibur.A3.Authorization.Events.GrantAdded.ApplicationName.init -> void
+Excalibur.A3.Authorization.Events.GrantAdded.ExpiresOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.Events.GrantAdded.ExpiresOn.init -> void
+Excalibur.A3.Authorization.Events.GrantAdded.FullName.get -> string!
+Excalibur.A3.Authorization.Events.GrantAdded.FullName.init -> void
+Excalibur.A3.Authorization.Events.GrantAdded.GrantAdded() -> void
+Excalibur.A3.Authorization.Events.GrantAdded.GrantAdded(string! userId, string! fullName, string! applicationName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.DateTimeOffset grantedOn) -> void
+Excalibur.A3.Authorization.Events.GrantAdded.GrantType.get -> string!
+Excalibur.A3.Authorization.Events.GrantAdded.GrantType.init -> void
+Excalibur.A3.Authorization.Events.GrantAdded.GrantedBy.get -> string!
+Excalibur.A3.Authorization.Events.GrantAdded.GrantedBy.init -> void
+Excalibur.A3.Authorization.Events.GrantAdded.GrantedOn.get -> System.DateTimeOffset
+Excalibur.A3.Authorization.Events.GrantAdded.GrantedOn.init -> void
+Excalibur.A3.Authorization.Events.GrantAdded.Qualifier.get -> string!
+Excalibur.A3.Authorization.Events.GrantAdded.Qualifier.init -> void
+Excalibur.A3.Authorization.Events.GrantAdded.TenantId.get -> string!
+Excalibur.A3.Authorization.Events.GrantAdded.TenantId.init -> void
+Excalibur.A3.Authorization.Events.GrantAdded.UserId.get -> string!
+Excalibur.A3.Authorization.Events.GrantAdded.UserId.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked
+Excalibur.A3.Authorization.Events.GrantRevoked.ApplicationName.get -> string!
+Excalibur.A3.Authorization.Events.GrantRevoked.ApplicationName.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.ExpiresOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.Events.GrantRevoked.ExpiresOn.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.FullName.get -> string!
+Excalibur.A3.Authorization.Events.GrantRevoked.FullName.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.GrantRevoked() -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.GrantRevoked(string! userId, string! fullName, string! applicationName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! revokedBy, System.DateTimeOffset revokedOn) -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.GrantType.get -> string!
+Excalibur.A3.Authorization.Events.GrantRevoked.GrantType.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.Qualifier.get -> string!
+Excalibur.A3.Authorization.Events.GrantRevoked.Qualifier.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.RevokedBy.get -> string!
+Excalibur.A3.Authorization.Events.GrantRevoked.RevokedBy.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.RevokedOn.get -> System.DateTimeOffset
+Excalibur.A3.Authorization.Events.GrantRevoked.RevokedOn.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.TenantId.get -> string!
+Excalibur.A3.Authorization.Events.GrantRevoked.TenantId.init -> void
+Excalibur.A3.Authorization.Events.GrantRevoked.UserId.get -> string!
+Excalibur.A3.Authorization.Events.GrantRevoked.UserId.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded
+Excalibur.A3.Authorization.Events.IGrantAdded.ApplicationName.get -> string!
+Excalibur.A3.Authorization.Events.IGrantAdded.ApplicationName.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded.ExpiresOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.Events.IGrantAdded.ExpiresOn.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded.FullName.get -> string!
+Excalibur.A3.Authorization.Events.IGrantAdded.FullName.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded.GrantType.get -> string!
+Excalibur.A3.Authorization.Events.IGrantAdded.GrantType.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded.GrantedBy.get -> string!
+Excalibur.A3.Authorization.Events.IGrantAdded.GrantedBy.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded.GrantedOn.get -> System.DateTimeOffset
+Excalibur.A3.Authorization.Events.IGrantAdded.GrantedOn.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded.Qualifier.get -> string!
+Excalibur.A3.Authorization.Events.IGrantAdded.Qualifier.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded.TenantId.get -> string!
+Excalibur.A3.Authorization.Events.IGrantAdded.TenantId.init -> void
+Excalibur.A3.Authorization.Events.IGrantAdded.UserId.get -> string!
+Excalibur.A3.Authorization.Events.IGrantAdded.UserId.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked
+Excalibur.A3.Authorization.Events.IGrantRevoked.ApplicationName.get -> string!
+Excalibur.A3.Authorization.Events.IGrantRevoked.ApplicationName.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked.ExpiresOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.Events.IGrantRevoked.ExpiresOn.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked.FullName.get -> string!
+Excalibur.A3.Authorization.Events.IGrantRevoked.FullName.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked.GrantType.get -> string!
+Excalibur.A3.Authorization.Events.IGrantRevoked.GrantType.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked.Qualifier.get -> string!
+Excalibur.A3.Authorization.Events.IGrantRevoked.Qualifier.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked.RevokedBy.get -> string!
+Excalibur.A3.Authorization.Events.IGrantRevoked.RevokedBy.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked.RevokedOn.get -> System.DateTimeOffset
+Excalibur.A3.Authorization.Events.IGrantRevoked.RevokedOn.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked.TenantId.get -> string!
+Excalibur.A3.Authorization.Events.IGrantRevoked.TenantId.init -> void
+Excalibur.A3.Authorization.Events.IGrantRevoked.UserId.get -> string!
+Excalibur.A3.Authorization.Events.IGrantRevoked.UserId.init -> void
+Excalibur.A3.Authorization.Grants.Grant
+Excalibur.A3.Authorization.Grants.Grant.ExpiresOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.Grants.Grant.FullName.get -> string?
+Excalibur.A3.Authorization.Grants.Grant.Grant(string! userId, string! fullName, Excalibur.A3.Authorization.Grants.GrantScope! scope, System.DateTimeOffset? expiresOn, string! grantedBy) -> void
+Excalibur.A3.Authorization.Grants.Grant.Grant(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy) -> void
+Excalibur.A3.Authorization.Grants.Grant.Grant(string! userId, string! fullName, string! tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.DateTimeOffset grantedOn) -> void
+Excalibur.A3.Authorization.Grants.Grant.GrantedBy.get -> string?
+Excalibur.A3.Authorization.Grants.Grant.GrantedOn.get -> System.DateTimeOffset
+Excalibur.A3.Authorization.Grants.Grant.IsActive() -> bool
+Excalibur.A3.Authorization.Grants.Grant.IsExpired() -> bool
+Excalibur.A3.Authorization.Grants.Grant.IsRevoked() -> bool
+Excalibur.A3.Authorization.Grants.Grant.Revoke(string! revokedBy) -> void
+Excalibur.A3.Authorization.Grants.Grant.RevokedBy.get -> string?
+Excalibur.A3.Authorization.Grants.Grant.RevokedOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.Grants.Grant.Scope.get -> Excalibur.A3.Authorization.Grants.GrantScope?
+Excalibur.A3.Authorization.Grants.Grant.UserId.get -> string?
+Excalibur.A3.Authorization.Grants.GrantData
+Excalibur.A3.Authorization.Grants.GrantData.ExpiresOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.Grants.GrantData.ExpiresOn.init -> void
+Excalibur.A3.Authorization.Grants.GrantData.FullName.get -> string!
+Excalibur.A3.Authorization.Grants.GrantData.FullName.init -> void
+Excalibur.A3.Authorization.Grants.GrantData.GrantType.get -> string!
+Excalibur.A3.Authorization.Grants.GrantData.GrantType.init -> void
+Excalibur.A3.Authorization.Grants.GrantData.GrantedBy.get -> string!
+Excalibur.A3.Authorization.Grants.GrantData.GrantedBy.init -> void
+Excalibur.A3.Authorization.Grants.GrantData.GrantedOn.get -> System.DateTimeOffset?
+Excalibur.A3.Authorization.Grants.GrantData.GrantedOn.init -> void
+Excalibur.A3.Authorization.Grants.GrantData.Qualifier.get -> string!
+Excalibur.A3.Authorization.Grants.GrantData.Qualifier.init -> void
+Excalibur.A3.Authorization.Grants.GrantData.TenantId.get -> string!
+Excalibur.A3.Authorization.Grants.GrantData.TenantId.init -> void
+Excalibur.A3.Authorization.Grants.GrantData.UserId.get -> string!
+Excalibur.A3.Authorization.Grants.GrantData.UserId.init -> void
+Excalibur.A3.Authorization.Grants.GrantKey
+Excalibur.A3.Authorization.Grants.GrantKey.GrantKey(string! key) -> void
+Excalibur.A3.Authorization.Grants.GrantKey.GrantKey(string? userId, string? tenantId, string? grantType, string? qualifier) -> void
+Excalibur.A3.Authorization.Grants.GrantKey.Scope.get -> Excalibur.A3.Authorization.Grants.GrantScope!
+Excalibur.A3.Authorization.Grants.GrantKey.Scope.init -> void
+Excalibur.A3.Authorization.Grants.GrantKey.UserId.get -> string!
+Excalibur.A3.Authorization.Grants.GrantKey.UserId.init -> void
+Excalibur.A3.Authorization.Grants.GrantScope
+Excalibur.A3.Authorization.Grants.GrantScope.GrantScope(string! TenantId, string! GrantType, string! Qualifier) -> void
+Excalibur.A3.Authorization.Grants.GrantScope.GrantType.get -> string!
+Excalibur.A3.Authorization.Grants.GrantScope.GrantType.set -> void
+Excalibur.A3.Authorization.Grants.GrantScope.Qualifier.get -> string!
+Excalibur.A3.Authorization.Grants.GrantScope.Qualifier.set -> void
+Excalibur.A3.Authorization.Grants.GrantScope.TenantId.get -> string!
+Excalibur.A3.Authorization.Grants.GrantScope.TenantId.set -> void
+Excalibur.A3.Authorization.Grants.GrantType
+override Excalibur.A3.Authorization.Grants.GrantKey.ToString() -> string!
+override Excalibur.A3.Authorization.Grants.GrantScope.ToString() -> string!
+static Excalibur.A3.Authorization.Grants.Grant.Create(string! id) -> Excalibur.A3.Authorization.Grants.Grant!
+static Excalibur.A3.Authorization.Grants.Grant.FromEvents(string! id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events) -> Excalibur.A3.Authorization.Grants.Grant!
+static Excalibur.A3.Authorization.Grants.GrantScope.FromString(string! scope) -> Excalibur.A3.Authorization.Grants.GrantScope!
+static readonly Excalibur.A3.Authorization.Grants.GrantType.Activity -> string!
+static readonly Excalibur.A3.Authorization.Grants.GrantType.ActivityGroup -> string!
+static readonly Excalibur.A3.Authorization.Grants.GrantType.Role -> string!

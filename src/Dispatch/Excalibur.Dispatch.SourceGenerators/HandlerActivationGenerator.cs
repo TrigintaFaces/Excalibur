@@ -119,7 +119,7 @@ public sealed class HandlerActivationGenerator : IIncrementalGenerator
 			/// <summary>
 			/// AOT-compatible handler activator generated at compile time.
 			/// </summary>
-			public sealed class SourceGeneratedHandlerActivator : IHandlerActivator
+			internal sealed class SourceGeneratedHandlerActivator : IHandlerActivator
 			{
 				/// <summary>
 				/// Activates a handler instance and sets its context property if available.

@@ -115,3 +115,45 @@ Excalibur.A3.IA3Builder
 Excalibur.A3.IA3Builder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.A3.IA3Builder.UseActivityGroupStore<TStore>() -> Excalibur.A3.IA3Builder!
 Excalibur.A3.IA3Builder.UseGrantStore<TStore>() -> Excalibur.A3.IA3Builder!
+Excalibur.A3.Abstractions.Authorization.IRoleStore
+Excalibur.A3.Abstractions.Authorization.IRoleStore.DeleteRoleAsync(string! roleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.A3.Abstractions.Authorization.IRoleStore.GetRoleAsync(string! roleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Abstractions.Authorization.RoleSummary?>!
+Excalibur.A3.Abstractions.Authorization.IRoleStore.GetRolesAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.RoleSummary!>!>!
+Excalibur.A3.Abstractions.Authorization.IRoleStore.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Abstractions.Authorization.IRoleStore.SaveRoleAsync(Excalibur.A3.Abstractions.Authorization.RoleSummary! role, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.A3.Abstractions.Authorization.RoleOptions
+Excalibur.A3.Abstractions.Authorization.RoleOptions.RoleOptions() -> void
+Excalibur.A3.Abstractions.Authorization.RoleOptions.EnforceUniqueNames.get -> bool
+Excalibur.A3.Abstractions.Authorization.RoleOptions.EnforceUniqueNames.set -> void
+Excalibur.A3.Abstractions.Authorization.RoleOptions.MaxHierarchyDepth.get -> int
+Excalibur.A3.Abstractions.Authorization.RoleOptions.MaxHierarchyDepth.set -> void
+Excalibur.A3.Abstractions.Authorization.RoleState
+Excalibur.A3.Abstractions.Authorization.RoleState.Active = 0 -> Excalibur.A3.Abstractions.Authorization.RoleState
+Excalibur.A3.Abstractions.Authorization.RoleState.Deprecated = 2 -> Excalibur.A3.Abstractions.Authorization.RoleState
+Excalibur.A3.Abstractions.Authorization.RoleState.Inactive = 1 -> Excalibur.A3.Abstractions.Authorization.RoleState
+Excalibur.A3.Abstractions.Authorization.RoleSummary
+Excalibur.A3.Abstractions.Authorization.RoleSummary.ActivityGroupNames.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.A3.Abstractions.Authorization.RoleSummary.ActivityGroupNames.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.ActivityNames.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.A3.Abstractions.Authorization.RoleSummary.ActivityNames.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.CreatedAt.get -> System.DateTimeOffset
+Excalibur.A3.Abstractions.Authorization.RoleSummary.CreatedAt.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.Description.get -> string?
+Excalibur.A3.Abstractions.Authorization.RoleSummary.Description.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.Name.get -> string!
+Excalibur.A3.Abstractions.Authorization.RoleSummary.Name.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.RoleId.get -> string!
+Excalibur.A3.Abstractions.Authorization.RoleSummary.RoleId.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.ParentRoleName.get -> string?
+Excalibur.A3.Abstractions.Authorization.RoleSummary.ParentRoleName.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.RoleSummary(string! RoleId, string! Name, string? Description, string? TenantId, System.Collections.Generic.IReadOnlyList<string!>! ActivityGroupNames, System.Collections.Generic.IReadOnlyList<string!>! ActivityNames, Excalibur.A3.Abstractions.Authorization.RoleState State, System.DateTimeOffset CreatedAt, string? ParentRoleName = null) -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.State.get -> Excalibur.A3.Abstractions.Authorization.RoleState
+Excalibur.A3.Abstractions.Authorization.RoleSummary.State.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleSummary.TenantId.get -> string?
+Excalibur.A3.Abstractions.Authorization.RoleSummary.TenantId.init -> void
+Excalibur.A3.Abstractions.Authorization.RoleOptions.PermissionCacheDurationSeconds.get -> int
+Excalibur.A3.Abstractions.Authorization.RoleOptions.PermissionCacheDurationSeconds.set -> void
+Excalibur.A3.Abstractions.Authorization.IGrantCommand
+Excalibur.A3.Abstractions.Authorization.IGrantCommand.UserId.get -> string!
+Excalibur.A3.Abstractions.Authorization.IGrantCommand.Qualifier.get -> string!
+Excalibur.A3.Abstractions.Authorization.IGrantCommand.GrantType.get -> string!

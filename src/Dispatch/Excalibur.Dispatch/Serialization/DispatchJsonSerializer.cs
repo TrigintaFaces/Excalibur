@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Serialization;
 public sealed class DispatchJsonSerializer : IDisposable
 {
 	private readonly JsonSerializerOptions _options;
-	private readonly DispatchJsonContext? _jsonContext;
+	private readonly JsonSerializerContext? _jsonContext;
 	private readonly IUtf8JsonWriterPool _writerPool;
 	private readonly IPooledBufferService _bufferManager;
 	private readonly ThreadLocal<ArrayBufferWriter<byte>> _threadLocalBufferWriter;
@@ -48,7 +48,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 		"JSON serialization with JsonSerializerOptions and converters requires dynamic code generation for type inspection and serialization logic.")]
 	public DispatchJsonSerializer(
 		Action<JsonSerializerOptions>? configure = null,
-		DispatchJsonContext? jsonContext = null,
+		JsonSerializerContext? jsonContext = null,
 		IUtf8JsonWriterPool? writerPool = null,
 		IPooledBufferService? bufferManager = null)
 	{

@@ -1,44 +1,4 @@
 #nullable enable
-abstract Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.IAuditStore!
-abstract Excalibur.Testing.Conformance.CacheTagTrackerConformanceTestKit.CreateTracker() -> Excalibur.Dispatch.Caching.ICacheTagTracker!
-abstract Excalibur.Testing.Conformance.ClaimCheckProviderConformanceTestKit.CreateProvider() -> Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider!
-abstract Excalibur.Testing.Conformance.ClaimCheckProviderConformanceTestKit.CreateProviderWithTtl(System.TimeSpan ttl) -> Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider!
-abstract Excalibur.Testing.Conformance.ComplianceAlertHandlerConformanceTestKit.CreateHandler() -> Excalibur.Dispatch.Compliance.IComplianceAlertHandler!
-abstract Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.CreateMetrics() -> Excalibur.Dispatch.Compliance.IComplianceMetrics!
-abstract Excalibur.Testing.Conformance.ControlValidationServiceConformanceTestKit.CreateService() -> Excalibur.Dispatch.Compliance.IControlValidationService!
-abstract Excalibur.Testing.Conformance.ControlValidatorConformanceTestKit.CreateValidator() -> Excalibur.Dispatch.Compliance.IControlValidator!
-abstract Excalibur.Testing.Conformance.CronJobStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Delivery.ICronJobStore!
-abstract Excalibur.Testing.Conformance.DataInventoryStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.IDataInventoryStore!
-abstract Excalibur.Testing.Conformance.DeadLetterStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.ErrorHandling.IDeadLetterStore!
-abstract Excalibur.Testing.Conformance.DeduplicatorConformanceTestKit.CreateDeduplicator() -> Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator!
-abstract Excalibur.Testing.Conformance.EncryptionMigrationServiceConformanceTestKit.CreateServiceAsync() -> System.Threading.Tasks.Task<(Excalibur.Dispatch.Compliance.IEncryptionMigrationService! Service, Excalibur.Dispatch.Compliance.IEncryptionProvider! Encryption, Excalibur.Dispatch.Compliance.IKeyManagementProvider! KeyManagement)>!
-abstract Excalibur.Testing.Conformance.EncryptionProviderConformanceTestKit.CreateProviderAsync() -> System.Threading.Tasks.Task<(Excalibur.Dispatch.Compliance.IEncryptionProvider! Provider, Excalibur.Dispatch.Compliance.IKeyManagementProvider! KeyManagement)>!
-abstract Excalibur.Testing.Conformance.EncryptionProviderRegistryConformanceTestKit.CreateMockProvider() -> Excalibur.Dispatch.Compliance.IEncryptionProvider!
-abstract Excalibur.Testing.Conformance.EncryptionProviderRegistryConformanceTestKit.CreateRegistry() -> Excalibur.Dispatch.Compliance.IEncryptionProviderRegistry!
-abstract Excalibur.Testing.Conformance.EncryptionTelemetryConformanceTestKit.CreateTelemetry() -> Excalibur.Dispatch.Compliance.IEncryptionTelemetry!
-abstract Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.IErasureStore!
-abstract Excalibur.Testing.Conformance.EventStoreConformanceTestKit.CreateStore() -> Excalibur.EventSourcing.Abstractions.IEventStore!
-abstract Excalibur.Testing.Conformance.FipsDetectorConformanceTestKit.CreateDetector() -> Excalibur.Dispatch.Compliance.IFipsDetector!
-abstract Excalibur.Testing.Conformance.InboxStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Abstractions.IInboxStore!
-abstract Excalibur.Testing.Conformance.KeyCacheConformanceTestKit.CreateCache() -> Excalibur.Dispatch.Compliance.IKeyCache!
-abstract Excalibur.Testing.Conformance.KeyEscrowServiceConformanceTestKit.CreateService() -> Excalibur.Dispatch.Compliance.IKeyEscrowService!
-abstract Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.CreateProvider() -> Excalibur.Dispatch.Compliance.IKeyManagementProvider!
-abstract Excalibur.Testing.Conformance.KeyRotationAlertHandlerConformanceTestKit.CreateHandler() -> Excalibur.Dispatch.Compliance.IKeyRotationAlertHandler!
-abstract Excalibur.Testing.Conformance.KeyRotationSchedulerConformanceTestKit.CreateScheduler() -> (Excalibur.Dispatch.Compliance.IKeyRotationScheduler! Scheduler, Excalibur.Dispatch.Compliance.IKeyManagementProvider! KeyProvider, Excalibur.Dispatch.Compliance.KeyRotationOptions! Options)
-abstract Excalibur.Testing.Conformance.LeaderElectionConformanceTestKit.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
-abstract Excalibur.Testing.Conformance.LegalHoldStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.ILegalHoldStore!
-abstract Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.CreateService() -> Excalibur.Dispatch.Compliance.IMasterKeyBackupService!
-abstract Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.RegisterTestKeyAsync(Excalibur.Dispatch.Compliance.IMasterKeyBackupService! service, string! keyId, byte[]! keyMaterial, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-abstract Excalibur.Testing.Conformance.OutboxStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Abstractions.IOutboxStore!
-abstract Excalibur.Testing.Conformance.SagaIdempotencyConformanceTestKit.CreateProvider() -> Excalibur.Saga.Idempotency.ISagaIdempotencyProvider!
-abstract Excalibur.Testing.Conformance.SagaMonitoringConformanceTestKit.CreateMonitoringService() -> Excalibur.Saga.Abstractions.ISagaMonitoringService!
-abstract Excalibur.Testing.Conformance.SagaMonitoringConformanceTestKit.CreateStateStore() -> Excalibur.Saga.Abstractions.ISagaStateStore!
-abstract Excalibur.Testing.Conformance.SagaStateStoreConformanceTestKit.CreateStore() -> Excalibur.Saga.Abstractions.ISagaStateStore!
-abstract Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Abstractions.Messaging.ISagaStore!
-abstract Excalibur.Testing.Conformance.ScheduleStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Delivery.IScheduleStore!
-abstract Excalibur.Testing.Conformance.SnapshotStoreConformanceTestKit.CreateStore() -> Excalibur.EventSourcing.Abstractions.ISnapshotStore!
-abstract Excalibur.Testing.Conformance.Soc2ReportGeneratorConformanceTestKit.CreateGenerator() -> Excalibur.Dispatch.Compliance.ISoc2ReportGenerator!
-abstract Excalibur.Testing.Conformance.Soc2ReportStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.ISoc2ReportStore!
 Excalibur.Testing.Conformance.AuditStoreConformanceTestKit
 Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.AuditStoreConformanceTestKit() -> void
 Excalibur.Testing.Conformance.CacheTagTrackerConformanceTestKit
@@ -95,6 +55,12 @@ Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit
 Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.MasterKeyBackupServiceConformanceTestKit() -> void
 Excalibur.Testing.Conformance.OutboxStoreConformanceTestKit
 Excalibur.Testing.Conformance.OutboxStoreConformanceTestKit.OutboxStoreConformanceTestKit() -> void
+Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper
+Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>
+Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.Apply(TProjection! projection, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events) -> TProjection!
+Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.Apply(TProjection! projection, params Excalibur.Dispatch.Abstractions.IDomainEvent![]! events) -> TProjection!
+Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.InlineProjectionTestHelper() -> void
+Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.When<TEvent>(System.Action<TProjection!, TEvent>! handler) -> Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection!>!
 Excalibur.Testing.Conformance.SagaIdempotencyConformanceTestKit
 Excalibur.Testing.Conformance.SagaIdempotencyConformanceTestKit.SagaIdempotencyConformanceTestKit() -> void
 Excalibur.Testing.Conformance.SagaMonitoringConformanceTestKit
@@ -153,7 +119,49 @@ Excalibur.Testing.Conformance.TestSnapshot.SnapshotId.init -> void
 Excalibur.Testing.Conformance.TestSnapshot.TestSnapshot() -> void
 Excalibur.Testing.Conformance.TestSnapshot.Version.get -> long
 Excalibur.Testing.Conformance.TestSnapshot.Version.init -> void
+abstract Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.IAuditStore!
+abstract Excalibur.Testing.Conformance.CacheTagTrackerConformanceTestKit.CreateTracker() -> Excalibur.Dispatch.Caching.ICacheTagTracker!
+abstract Excalibur.Testing.Conformance.ClaimCheckProviderConformanceTestKit.CreateProvider() -> Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider!
+abstract Excalibur.Testing.Conformance.ClaimCheckProviderConformanceTestKit.CreateProviderWithTtl(System.TimeSpan ttl) -> Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider!
+abstract Excalibur.Testing.Conformance.ComplianceAlertHandlerConformanceTestKit.CreateHandler() -> Excalibur.Dispatch.Compliance.IComplianceAlertHandler!
+abstract Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.CreateMetrics() -> Excalibur.Dispatch.Compliance.IComplianceMetrics!
+abstract Excalibur.Testing.Conformance.ControlValidationServiceConformanceTestKit.CreateService() -> Excalibur.Dispatch.Compliance.IControlValidationService!
+abstract Excalibur.Testing.Conformance.ControlValidatorConformanceTestKit.CreateValidator() -> Excalibur.Dispatch.Compliance.IControlValidator!
+abstract Excalibur.Testing.Conformance.CronJobStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Delivery.ICronJobStore!
+abstract Excalibur.Testing.Conformance.DataInventoryStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.IDataInventoryStore!
+abstract Excalibur.Testing.Conformance.DeadLetterStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.ErrorHandling.IDeadLetterStore!
+abstract Excalibur.Testing.Conformance.DeduplicatorConformanceTestKit.CreateDeduplicator() -> Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator!
+abstract Excalibur.Testing.Conformance.EncryptionMigrationServiceConformanceTestKit.CreateServiceAsync() -> System.Threading.Tasks.Task<(Excalibur.Dispatch.Compliance.IEncryptionMigrationService! Service, Excalibur.Dispatch.Compliance.IEncryptionProvider! Encryption, Excalibur.Dispatch.Compliance.IKeyManagementProvider! KeyManagement)>!
+abstract Excalibur.Testing.Conformance.EncryptionProviderConformanceTestKit.CreateProviderAsync() -> System.Threading.Tasks.Task<(Excalibur.Dispatch.Compliance.IEncryptionProvider! Provider, Excalibur.Dispatch.Compliance.IKeyManagementProvider! KeyManagement)>!
+abstract Excalibur.Testing.Conformance.EncryptionProviderRegistryConformanceTestKit.CreateMockProvider() -> Excalibur.Dispatch.Compliance.IEncryptionProvider!
+abstract Excalibur.Testing.Conformance.EncryptionProviderRegistryConformanceTestKit.CreateRegistry() -> Excalibur.Dispatch.Compliance.IEncryptionProviderRegistry!
+abstract Excalibur.Testing.Conformance.EncryptionTelemetryConformanceTestKit.CreateTelemetry() -> Excalibur.Dispatch.Compliance.IEncryptionTelemetry!
+abstract Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.IErasureStore!
+abstract Excalibur.Testing.Conformance.EventStoreConformanceTestKit.CreateStore() -> Excalibur.EventSourcing.Abstractions.IEventStore!
+abstract Excalibur.Testing.Conformance.FipsDetectorConformanceTestKit.CreateDetector() -> Excalibur.Dispatch.Compliance.IFipsDetector!
+abstract Excalibur.Testing.Conformance.InboxStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Abstractions.IInboxStore!
+abstract Excalibur.Testing.Conformance.KeyCacheConformanceTestKit.CreateCache() -> Excalibur.Dispatch.Compliance.IKeyCache!
+abstract Excalibur.Testing.Conformance.KeyEscrowServiceConformanceTestKit.CreateService() -> Excalibur.Dispatch.Compliance.IKeyEscrowService!
+abstract Excalibur.Testing.Conformance.KeyManagementProviderConformanceTestKit.CreateProvider() -> Excalibur.Dispatch.Compliance.IKeyManagementProvider!
+abstract Excalibur.Testing.Conformance.KeyRotationAlertHandlerConformanceTestKit.CreateHandler() -> Excalibur.Dispatch.Compliance.IKeyRotationAlertHandler!
+abstract Excalibur.Testing.Conformance.KeyRotationSchedulerConformanceTestKit.CreateScheduler() -> (Excalibur.Dispatch.Compliance.IKeyRotationScheduler! Scheduler, Excalibur.Dispatch.Compliance.IKeyManagementProvider! KeyProvider, Excalibur.Dispatch.Compliance.KeyRotationOptions! Options)
+abstract Excalibur.Testing.Conformance.LeaderElectionConformanceTestKit.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
+abstract Excalibur.Testing.Conformance.LegalHoldStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.ILegalHoldStore!
+abstract Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.CreateService() -> Excalibur.Dispatch.Compliance.IMasterKeyBackupService!
+abstract Excalibur.Testing.Conformance.MasterKeyBackupServiceConformanceTestKit.RegisterTestKeyAsync(Excalibur.Dispatch.Compliance.IMasterKeyBackupService! service, string! keyId, byte[]! keyMaterial, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+abstract Excalibur.Testing.Conformance.OutboxStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Abstractions.IOutboxStore!
+abstract Excalibur.Testing.Conformance.SagaIdempotencyConformanceTestKit.CreateProvider() -> Excalibur.Saga.Idempotency.ISagaIdempotencyProvider!
+abstract Excalibur.Testing.Conformance.SagaMonitoringConformanceTestKit.CreateMonitoringService() -> Excalibur.Saga.Abstractions.ISagaMonitoringService!
+abstract Excalibur.Testing.Conformance.SagaMonitoringConformanceTestKit.CreateStateStore() -> Excalibur.Saga.Abstractions.ISagaStateStore!
+abstract Excalibur.Testing.Conformance.SagaStateStoreConformanceTestKit.CreateStore() -> Excalibur.Saga.Abstractions.ISagaStateStore!
+abstract Excalibur.Testing.Conformance.SagaStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Abstractions.Messaging.ISagaStore!
+abstract Excalibur.Testing.Conformance.ScheduleStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Delivery.IScheduleStore!
+abstract Excalibur.Testing.Conformance.SnapshotStoreConformanceTestKit.CreateStore() -> Excalibur.EventSourcing.Abstractions.ISnapshotStore!
+abstract Excalibur.Testing.Conformance.Soc2ReportGeneratorConformanceTestKit.CreateGenerator() -> Excalibur.Dispatch.Compliance.ISoc2ReportGenerator!
+abstract Excalibur.Testing.Conformance.Soc2ReportStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Compliance.ISoc2ReportStore!
+static Excalibur.Testing.Conformance.InboxStoreConformanceTestKit.CreateAdminStore(Excalibur.Dispatch.Abstractions.IInboxStore! store) -> Excalibur.Dispatch.Abstractions.IInboxStoreAdmin!
 static Excalibur.Testing.Conformance.KeyEscrowServiceConformanceTestKit.CreateKeyMaterial(int size = 32) -> byte[]!
+static Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper.For<TProjection>() -> Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection!>!
 static Excalibur.Testing.Conformance.TestDomainEvent.Create(string! aggregateId, long version) -> Excalibur.Testing.Conformance.TestDomainEvent!
 static Excalibur.Testing.Conformance.TestSagaState.Create(System.Guid sagaId) -> Excalibur.Testing.Conformance.TestSagaState!
 static Excalibur.Testing.Conformance.TestSnapshot.Create(string! aggregateId, string! aggregateType, long version, string? state = null) -> Excalibur.Testing.Conformance.TestSnapshot!
@@ -226,8 +234,8 @@ virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.Cleanu
 virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.DefaultProvider.get -> string!
 virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.GenerateKeyId() -> string!
 virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.Meter_ShouldBeNonNullAndNamed() -> void
-virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.RecordAuditEventLogged_WithoutTenant_ShouldCompleteSuccessfully() -> void
 virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.RecordAuditEventLogged_WithTenant_ShouldCompleteSuccessfully() -> void
+virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.RecordAuditEventLogged_WithoutTenant_ShouldCompleteSuccessfully() -> void
 virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.RecordAuditIntegrityCheck_NoViolations_ShouldCompleteSuccessfully() -> void
 virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.RecordAuditIntegrityCheck_WithViolations_ShouldCompleteSuccessfully() -> void
 virtual Excalibur.Testing.Conformance.ComplianceMetricsConformanceTestKit.RecordEncryptionLatency_SuccessFalse_ShouldCompleteSuccessfully() -> void

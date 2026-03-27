@@ -22,6 +22,7 @@ Excalibur provides comprehensive security features for enterprise applications, 
 
 | Topic | Description |
 |-------|-------------|
+| [Authorization & Audit (A3)](authorization.md) | Activity-based authorization, grants, audit events. Use `Excalibur.A3` (full-stack) or `Excalibur.A3.Core` (standalone) |
 | [Encryption Architecture](encryption-architecture.md) | AES-256-GCM encryption, key management, cloud KMS integration |
 | [Audit Logging](audit-logging.md) | Tamper-evident audit trails with hash chain integrity |
 | [Threat Model Baseline](threat-model.md) | Release-blocking threat categories and governance expectations |

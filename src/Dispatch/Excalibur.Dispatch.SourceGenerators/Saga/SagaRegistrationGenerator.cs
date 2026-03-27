@@ -146,7 +146,7 @@ public sealed class SagaRegistrationGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine("/// Generated DI registration extensions for saga step auto-discovery.");
 		sb.AppendLine("/// </summary>");
-		sb.AppendLine("public static class GeneratedSagaRegistrationExtensions");
+		sb.AppendLine("internal static class GeneratedSagaRegistrationExtensions");
 		sb.AppendLine("{");
 
 		foreach (var group in sagaGroups)

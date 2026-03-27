@@ -138,14 +138,16 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		AccountOpened e => ApplyAccountOpened(e),
-		MoneyDeposited e => ApplyMoneyDeposited(e),
-		MoneyWithdrawn e => ApplyMoneyWithdrawn(e),
-		AccountClosed e => ApplyAccountClosed(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case AccountOpened e: Apply(e); break;
+			case MoneyDeposited e: Apply(e); break;
+			case MoneyWithdrawn e: Apply(e); break;
+			case AccountClosed e: Apply(e); break;
+		}
+	}
 
 	private void EnsureAccountActive()
 	{
@@ -155,7 +157,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 		}
 	}
 
-	private bool ApplyAccountOpened(AccountOpened e)
+	private void Apply(AccountOpened e)
 	{
 		Id = e.AccountId;
 		HolderName = e.HolderName;
@@ -164,30 +166,26 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 		TransactionCount = 1;
 		IsActive = true;
 		OpenedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyMoneyDeposited(MoneyDeposited e)
+	private void Apply(MoneyDeposited e)
 	{
 		Balance = e.NewBalance;
 		TotalDeposits += e.Amount;
 		TransactionCount++;
-		return true;
 	}
 
-	private bool ApplyMoneyWithdrawn(MoneyWithdrawn e)
+	private void Apply(MoneyWithdrawn e)
 	{
 		Balance = e.NewBalance;
 		TotalWithdrawals += e.Amount;
 		TransactionCount++;
-		return true;
 	}
 
-	private bool ApplyAccountClosed(AccountClosed e)
+	private void Apply(AccountClosed e)
 	{
 		IsActive = false;
 		ClosedAt = e.OccurredAt;
-		return true;
 	}
 }
 

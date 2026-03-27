@@ -2,10 +2,10 @@
 Excalibur.Inbox.Redis.RedisInboxOptions
 Excalibur.Inbox.Redis.RedisInboxOptions.AbortOnConnectFail.get -> bool
 Excalibur.Inbox.Redis.RedisInboxOptions.AbortOnConnectFail.set -> void
-Excalibur.Inbox.Redis.RedisInboxOptions.ConnectionString.get -> string!
-Excalibur.Inbox.Redis.RedisInboxOptions.ConnectionString.set -> void
 Excalibur.Inbox.Redis.RedisInboxOptions.ConnectTimeoutMs.get -> int
 Excalibur.Inbox.Redis.RedisInboxOptions.ConnectTimeoutMs.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.ConnectionString.get -> string!
+Excalibur.Inbox.Redis.RedisInboxOptions.ConnectionString.set -> void
 Excalibur.Inbox.Redis.RedisInboxOptions.DatabaseId.get -> int
 Excalibur.Inbox.Redis.RedisInboxOptions.DatabaseId.set -> void
 Excalibur.Inbox.Redis.RedisInboxOptions.DefaultTtlSeconds.get -> int
@@ -21,6 +21,7 @@ Excalibur.Inbox.Redis.RedisInboxOptions.UseSsl.get -> bool
 Excalibur.Inbox.Redis.RedisInboxOptions.UseSsl.set -> void
 Excalibur.Inbox.Redis.RedisInboxOptions.Validate() -> void
 Excalibur.Inbox.Redis.RedisInboxStore
+Excalibur.Inbox.Redis.RedisInboxStore.CleanupAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Inbox.Redis.RedisInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
 Excalibur.Inbox.Redis.RedisInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Redis.RedisInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>

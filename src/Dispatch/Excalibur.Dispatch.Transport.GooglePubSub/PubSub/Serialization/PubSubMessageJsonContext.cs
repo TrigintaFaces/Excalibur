@@ -67,4 +67,4 @@ namespace Excalibur.Dispatch.Transport.Google;
 [JsonSerializable(typeof(ReadOnlyMemory<byte>))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(List<string>))]
-public partial class PubSubMessageJsonContext : JsonSerializerContext;
+internal partial class PubSubMessageJsonContext : JsonSerializerContext;

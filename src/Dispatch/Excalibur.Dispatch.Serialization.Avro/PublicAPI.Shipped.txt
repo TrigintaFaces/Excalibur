@@ -8,3 +8,8 @@ Excalibur.Dispatch.Serialization.Avro.AvroSerializer.Name.get -> string!
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.Serialize<T>(T value, System.Buffers.IBufferWriter<byte>! bufferWriter) -> void
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.SerializeObject(object! value, System.Type! type) -> byte[]!
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.Version.get -> string!
+Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions
+static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.AddAvroPluggableSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool setAsCurrent = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.AddAvroSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.GetPluggableSerializer() -> Excalibur.Dispatch.Abstractions.Serialization.ISerializer!
+static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.RegisterAvro(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!

@@ -131,7 +131,7 @@ public sealed class HandlerInvocationGenerator : IIncrementalGenerator
 		/// <summary>
 		/// AOT-compatible handler invoker generated at compile time.
 		/// </summary>
-		public sealed class SourceGeneratedHandlerInvoker : IHandlerInvoker
+		internal sealed class SourceGeneratedHandlerInvoker : IHandlerInvoker
 		{
 			/// <summary>
 			/// Invokes a handler's HandleAsync method with the provided message.

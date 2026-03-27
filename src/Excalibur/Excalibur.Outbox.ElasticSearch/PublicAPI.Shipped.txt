@@ -11,6 +11,7 @@ Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.SentMessageRetentionDa
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.SentMessageRetentionDays.set -> void
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.CleanupSentMessagesAsync(System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.ElasticsearchOutboxStore(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore!>! logger) -> void
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.EnqueueAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.GetFailedMessagesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>

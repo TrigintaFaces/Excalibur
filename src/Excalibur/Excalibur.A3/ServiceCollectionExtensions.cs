@@ -21,18 +21,19 @@ using IAuthorizationPolicyProvider = Excalibur.A3.Authorization.IAuthorizationPo
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Provides extension methods to configure application services for A3 Excalibur applications.
+/// Provides extension methods to configure full-stack A3 services.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds A3 authorization services and returns a builder for store configuration.
+	/// Adds full A3 authorization services including CQRS pipeline, authentication,
+	/// and dispatch middleware. Returns a builder for store configuration.
 	/// </summary>
 	/// <param name="services">The service collection to add A3 services to.</param>
 	/// <returns>An <see cref="IA3Builder"/> for configuring store providers.</returns>
 	/// <remarks>
 	/// <para>
-	/// This is the recommended entry point for configuring A3 authorization.
+	/// This is the recommended entry point for full-stack A3 authorization.
 	/// Use the returned builder to register store providers:
 	/// </para>
 	/// <code>
@@ -40,17 +41,17 @@ public static class ServiceCollectionExtensions
 	///     .UseSqlServer(options =&gt; { options.ConnectionString = "..."; });
 	/// </code>
 	/// <para>
-	/// For custom store implementations:
+	/// For a lightweight registration (no CQRS, no Dispatch pipeline, no
+	/// external services), use the <c>Excalibur.A3.Core</c> package with
+	/// <see cref="A3CoreServiceCollectionExtensions.AddExcaliburA3Core"/> instead.
 	/// </para>
-	/// <code>
-	/// services.AddExcaliburA3()
-	///     .UseGrantStore&lt;MyGrantStore&gt;()
-	///     .UseActivityGroupStore&lt;MyActivityGroupStore&gt;();
-	/// </code>
 	/// </remarks>
 	public static IA3Builder AddExcaliburA3(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
+
+		// Register core stores (in-memory fallbacks) via A3.Core
+		var builder = services.AddExcaliburA3Core();
 
 		_ = services.TryAddTenantId();
 		_ = services.AddA3DispatchServices();
@@ -58,7 +59,7 @@ public static class ServiceCollectionExtensions
 		_ = services.AddA3AuthorizationCore();
 		services.TryAddScoped<IAccessToken, AccessToken>();
 
-		return new A3Builder(services);
+		return builder;
 	}
 
 	/// <summary>
@@ -89,7 +90,7 @@ public static class ServiceCollectionExtensions
 	/// <summary>
 	/// Configures Dispatch services for A3 applications.
 	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The updated service collection. </returns>
 	public static IServiceCollection AddA3DispatchServices(this IServiceCollection services)
 	{
@@ -105,7 +106,7 @@ public static class ServiceCollectionExtensions
 	/// <summary>
 	/// Configures authentication services.
 	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
+	/// <param name="services"> The service collection to add services to. </param>
 	/// <returns> The updated service collection. </returns>
 	/// <exception cref="InvalidConfigurationException">
 	/// Thrown when the <see cref="ApplicationContext.AuthenticationServiceEndpoint" /> has an invalid format.

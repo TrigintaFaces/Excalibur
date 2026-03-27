@@ -100,7 +100,7 @@ public sealed class ProjectionTagResolverGenerator : IIncrementalGenerator
 		_ = sb.AppendLine();
 		_ = sb.AppendLine("namespace Excalibur.Dispatch.Generated");
 		_ = sb.AppendLine("{");
-		_ = sb.AppendLine(" public static class ProjectionTagResolverRegistry");
+		_ = sb.AppendLine(" internal static class ProjectionTagResolverRegistry");
 		_ = sb.AppendLine(" {");
 		_ = sb.AppendLine(" private static readonly Dictionary<Type, Func<IServiceProvider, object>> _resolverFactories = new()");
 		_ = sb.AppendLine(" {");

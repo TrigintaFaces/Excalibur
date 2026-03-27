@@ -44,7 +44,7 @@ namespace Excalibur.Dispatch.CloudEvents;
 [JsonSerializable(typeof(Uri))]
 [JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(DateTimeOffset?))]
-public partial class CloudEventJsonContext : JsonSerializerContext
+internal partial class CloudEventJsonContext : JsonSerializerContext
 {
 	/// <summary>
 	/// Gets the singleton instance for CloudEvents serialization.

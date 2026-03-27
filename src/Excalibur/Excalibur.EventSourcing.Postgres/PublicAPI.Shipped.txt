@@ -42,6 +42,12 @@ Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.Mig
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.MigrationNamespace.set -> void
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.PostgresMigratorOptions() -> void
 Excalibur.EventSourcing.Postgres.EventSourcingBuilderPostgresExtensions
+Excalibur.EventSourcing.Postgres.PostgresCursorMapStore
+Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.GetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, long>!>!
+Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.PostgresCursorMapStore(Npgsql.NpgsqlDataSource! dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresCursorMapStore!>! logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.PostgresCursorMapStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresCursorMapStore!>! logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.ResetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.SaveCursorMapAsync(string! projectionName, System.Collections.Generic.IReadOnlyDictionary<string!, long>! cursorMap, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore
 Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.AddAsync(Excalibur.EventSourcing.Outbox.OutboxMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.DeletePublishedOlderThanAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
@@ -52,8 +58,10 @@ Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.PostgresEventSo
 Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.PostgresEventSourcedOutboxStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore!>! logger) -> void
 Excalibur.EventSourcing.Postgres.PostgresEventStore
 Excalibur.EventSourcing.Postgres.PostgresEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
-Excalibur.EventSourcing.Postgres.PostgresEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Postgres.PostgresEventStore.EraseEventsAsync(string! aggregateId, string! aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.EventSourcing.Postgres.PostgresEventStore.IsErasedAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.EventSourcing.Postgres.PostgresEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Postgres.PostgresEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 Excalibur.EventSourcing.Postgres.PostgresEventStore.PostgresEventStore(Npgsql.NpgsqlDataSource! dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventStore!>! logger, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer = null, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer? payloadSerializer = null) -> void
 Excalibur.EventSourcing.Postgres.PostgresEventStore.PostgresEventStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventStore!>! logger) -> void
 Excalibur.EventSourcing.Postgres.PostgresEventStore.PostgresEventStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventStore!>! logger, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer) -> void
@@ -111,16 +119,12 @@ Excalibur.EventSourcing.Postgres.Requests.GetLatestSnapshotRequest
 Excalibur.EventSourcing.Postgres.Requests.GetLatestSnapshotRequest.GetLatestSnapshotRequest(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.EventSourcing.Postgres.Requests.GetPendingOutboxMessagesRequest
 Excalibur.EventSourcing.Postgres.Requests.GetPendingOutboxMessagesRequest.GetPendingOutboxMessagesRequest(int batchSize, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.EventSourcing.Postgres.Requests.GetUndispatchedEventsRequest
-Excalibur.EventSourcing.Postgres.Requests.GetUndispatchedEventsRequest.GetUndispatchedEventsRequest(int batchSize, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.EventSourcing.Postgres.Requests.IncrementOutboxRetryCountRequest
 Excalibur.EventSourcing.Postgres.Requests.IncrementOutboxRetryCountRequest.IncrementOutboxRetryCountRequest(System.Guid messageId, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.EventSourcing.Postgres.Requests.InsertEventRequest
 Excalibur.EventSourcing.Postgres.Requests.InsertEventRequest.InsertEventRequest(string! eventId, string! aggregateId, string! aggregateType, string! eventType, byte[]! eventData, byte[]? metadata, long version, System.DateTimeOffset timestamp, System.Data.IDbTransaction? transaction, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.EventSourcing.Postgres.Requests.LoadEventsRequest
 Excalibur.EventSourcing.Postgres.Requests.LoadEventsRequest.LoadEventsRequest(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> void
-Excalibur.EventSourcing.Postgres.Requests.MarkEventDispatchedRequest
-Excalibur.EventSourcing.Postgres.Requests.MarkEventDispatchedRequest.MarkEventDispatchedRequest(string! eventId, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.EventSourcing.Postgres.Requests.MarkOutboxMessagePublishedRequest
 Excalibur.EventSourcing.Postgres.Requests.MarkOutboxMessagePublishedRequest.MarkOutboxMessagePublishedRequest(System.Guid messageId, System.Data.IDbTransaction? transaction, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.EventSourcing.Postgres.Requests.SaveSnapshotRequest
@@ -138,11 +142,3 @@ static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceColl
 static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Npgsql.NpgsqlDataSource! dataSource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory, System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.EventSourcing.Postgres.PostgresEventStore.EraseEventsAsync(string! aggregateId, string! aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.EventSourcing.Postgres.PostgresEventStore.IsErasedAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.EventSourcing.Postgres.PostgresCursorMapStore
-Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.PostgresCursorMapStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresCursorMapStore!>! logger) -> void
-Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.PostgresCursorMapStore(Npgsql.NpgsqlDataSource! dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresCursorMapStore!>! logger) -> void
-Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.GetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, long>!>!
-Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.SaveCursorMapAsync(string! projectionName, System.Collections.Generic.IReadOnlyDictionary<string!, long>! cursorMap, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.ResetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

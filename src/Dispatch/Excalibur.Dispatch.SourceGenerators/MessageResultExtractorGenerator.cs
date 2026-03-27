@@ -277,7 +277,7 @@ public sealed class MessageResultExtractorGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Generated result factory registry for AOT-compatible message result creation.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static partial class ResultFactoryRegistry");
+		_ = sb.AppendLine("internal static partial class ResultFactoryRegistry");
 		_ = sb.AppendLine("{");
 
 		// Generate factory dictionary

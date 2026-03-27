@@ -1,0 +1,431 @@
+#nullable enable
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.AccessReviewCampaignSummary(string! CampaignId, string! CampaignName, Excalibur.A3.Governance.AccessReviews.AccessReviewScope! Scope, string! CreatedBy, System.DateTimeOffset StartsAt, System.DateTimeOffset ExpiresAt, Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy ExpiryPolicy, Excalibur.A3.Governance.AccessReviews.AccessReviewState State, int TotalItems, int DecidedItems) -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CampaignId.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CampaignId.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CampaignName.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CampaignName.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CreatedBy.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.CreatedBy.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.DecidedItems.get -> int
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.DecidedItems.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.ExpiresAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.ExpiresAt.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.ExpiryPolicy.get -> Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.ExpiryPolicy.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.Scope.get -> Excalibur.A3.Governance.AccessReviews.AccessReviewScope!
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.Scope.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.StartsAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.StartsAt.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.State.get -> Excalibur.A3.Governance.AccessReviews.AccessReviewState
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.State.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.TotalItems.get -> int
+Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary.TotalItems.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.AccessReviewDecision(string! CampaignId, string! GrantUserId, string! GrantScope, string! ReviewerId, Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome Outcome, string? Justification, System.DateTimeOffset DecisionTimestamp, string? DelegateToReviewerId) -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.CampaignId.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.CampaignId.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.DecisionTimestamp.get -> System.DateTimeOffset
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.DecisionTimestamp.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.DelegateToReviewerId.get -> string?
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.DelegateToReviewerId.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.GrantScope.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.GrantScope.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.GrantUserId.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.GrantUserId.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.Justification.get -> string?
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.Justification.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.Outcome.get -> Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.Outcome.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.ReviewerId.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewDecision.ReviewerId.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy
+Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy.DoNothing = 0 -> Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy
+Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy.NotifyAndExtend = 2 -> Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy
+Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy.RevokeUnreviewed = 1 -> Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.AccessReviewItem(string! GrantUserId, string! GrantScope, System.DateTimeOffset GrantedOn, Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome? CurrentDecision) -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.CurrentDecision.get -> Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome?
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.CurrentDecision.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.GrantScope.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.GrantScope.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.GrantUserId.get -> string!
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.GrantUserId.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.GrantedOn.get -> System.DateTimeOffset
+Excalibur.A3.Governance.AccessReviews.AccessReviewItem.GrantedOn.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome
+Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome.Approved = 0 -> Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome
+Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome.Delegated = 2 -> Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome
+Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome.Revoked = 1 -> Excalibur.A3.Governance.AccessReviews.AccessReviewOutcome
+Excalibur.A3.Governance.AccessReviews.AccessReviewScope
+Excalibur.A3.Governance.AccessReviews.AccessReviewScope.AccessReviewScope(Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType Type, string? FilterValue) -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewScope.FilterValue.get -> string?
+Excalibur.A3.Governance.AccessReviews.AccessReviewScope.FilterValue.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewScope.Type.get -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
+Excalibur.A3.Governance.AccessReviews.AccessReviewScope.Type.init -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
+Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType.AllGrants = 0 -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
+Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType.ByRole = 1 -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
+Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType.ByTenant = 3 -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
+Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType.ByUser = 2 -> Excalibur.A3.Governance.AccessReviews.AccessReviewScopeType
+Excalibur.A3.Governance.AccessReviews.AccessReviewState
+Excalibur.A3.Governance.AccessReviews.AccessReviewState.Completed = 2 -> Excalibur.A3.Governance.AccessReviews.AccessReviewState
+Excalibur.A3.Governance.AccessReviews.AccessReviewState.Created = 0 -> Excalibur.A3.Governance.AccessReviews.AccessReviewState
+Excalibur.A3.Governance.AccessReviews.AccessReviewState.Expired = 3 -> Excalibur.A3.Governance.AccessReviews.AccessReviewState
+Excalibur.A3.Governance.AccessReviews.AccessReviewState.InProgress = 1 -> Excalibur.A3.Governance.AccessReviews.AccessReviewState
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.AccessReviewOptions() -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.AutoStartOnCreation.get -> bool
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.AutoStartOnCreation.set -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.DefaultCampaignDuration.get -> System.TimeSpan
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.DefaultCampaignDuration.set -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.DefaultExpiryPolicy.get -> Excalibur.A3.Governance.AccessReviews.AccessReviewExpiryPolicy
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.DefaultExpiryPolicy.set -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.ExpiryCheckInterval.get -> System.TimeSpan
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.ExpiryCheckInterval.set -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.MaxRetryAttempts.get -> int
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.MaxRetryAttempts.set -> void
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.RetryBaseDelay.set -> void
+Excalibur.A3.Governance.AccessReviews.IAccessReviewStore
+Excalibur.A3.Governance.AccessReviews.IAccessReviewStore.DeleteCampaignAsync(string! campaignId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.A3.Governance.AccessReviews.IAccessReviewStore.GetCampaignAsync(string! campaignId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary?>!
+Excalibur.A3.Governance.AccessReviews.IAccessReviewStore.GetCampaignsByStateAsync(Excalibur.A3.Governance.AccessReviews.AccessReviewState? state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary!>!>!
+Excalibur.A3.Governance.AccessReviews.IAccessReviewStore.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Governance.AccessReviews.IAccessReviewStore.SaveCampaignAsync(Excalibur.A3.Governance.AccessReviews.AccessReviewCampaignSummary! campaign, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.ExtensionDays.get -> int
+Excalibur.A3.Governance.AccessReviews.AccessReviewOptions.ExtensionDays.set -> void
+Excalibur.A3.Governance.AccessReviews.IAccessReviewNotifier
+Excalibur.A3.Governance.AccessReviews.IAccessReviewNotifier.NotifyCampaignCreatedAsync(string! campaignId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.A3.Governance.AccessReviews.IAccessReviewNotifier.NotifyCampaignExtendedAsync(string! campaignId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.A3.Governance.AccessReviews.IAccessReviewNotifier.NotifyDecisionRequiredAsync(string! campaignId, string! reviewerId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.A3.Governance.IGovernanceBuilder
+Excalibur.A3.Governance.IGovernanceBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.ConflictingItem1.get -> string!
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.ConflictingItem1.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.ConflictingItem2.get -> string!
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.ConflictingItem2.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.DetectedAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.DetectedAt.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.PolicyId.get -> string!
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.PolicyId.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.Severity.get -> Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.Severity.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.SoDConflict(string! PolicyId, string! UserId, string! ConflictingItem1, string! ConflictingItem2, System.DateTimeOffset DetectedAt, Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity Severity) -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.UserId.get -> string!
+Excalibur.A3.Governance.SeparationOfDuties.SoDConflict.UserId.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.ConflictingItems.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.ConflictingItems.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.CreatedBy.get -> string!
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.CreatedBy.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.Description.get -> string?
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.Description.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.Name.get -> string!
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.Name.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.PolicyId.get -> string!
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.PolicyId.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.PolicyScope.get -> Excalibur.A3.Governance.SeparationOfDuties.SoDPolicyScope
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.PolicyScope.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.Severity.get -> Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.Severity.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.SoDPolicy(string! PolicyId, string! Name, string? Description, Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity Severity, Excalibur.A3.Governance.SeparationOfDuties.SoDPolicyScope PolicyScope, System.Collections.Generic.IReadOnlyList<string!>! ConflictingItems, string? TenantId, string! CreatedBy) -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.TenantId.get -> string?
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy.TenantId.init -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicyScope
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicyScope.Activity = 1 -> Excalibur.A3.Governance.SeparationOfDuties.SoDPolicyScope
+Excalibur.A3.Governance.SeparationOfDuties.SoDPolicyScope.Role = 0 -> Excalibur.A3.Governance.SeparationOfDuties.SoDPolicyScope
+Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity
+Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity.Critical = 2 -> Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity
+Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity.Violation = 1 -> Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity
+Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity.Warning = 0 -> Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity
+Excalibur.A3.Governance.SeparationOfDuties.ISoDPolicyStore
+Excalibur.A3.Governance.SeparationOfDuties.ISoDPolicyStore.GetPolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy?>!
+Excalibur.A3.Governance.SeparationOfDuties.ISoDPolicyStore.GetAllPoliciesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy!>!>!
+Excalibur.A3.Governance.SeparationOfDuties.ISoDPolicyStore.SavePolicyAsync(Excalibur.A3.Governance.SeparationOfDuties.SoDPolicy! policy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.A3.Governance.SeparationOfDuties.ISoDPolicyStore.DeletePolicyAsync(string! policyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.A3.Governance.SeparationOfDuties.ISoDPolicyStore.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.SoDOptions() -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.EnablePreventiveEnforcement.get -> bool
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.EnablePreventiveEnforcement.set -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.EnableDetectiveScanning.get -> bool
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.EnableDetectiveScanning.set -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.DetectiveScanInterval.get -> System.TimeSpan
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.DetectiveScanInterval.set -> void
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.MinimumEnforcementSeverity.get -> Excalibur.A3.Governance.SeparationOfDuties.SoDSeverity
+Excalibur.A3.Governance.SeparationOfDuties.SoDOptions.MinimumEnforcementSeverity.set -> void
+Excalibur.A3.Governance.SeparationOfDuties.ISoDEvaluator
+Excalibur.A3.Governance.SeparationOfDuties.ISoDEvaluator.EvaluateCurrentAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.SeparationOfDuties.SoDConflict!>!>!
+Excalibur.A3.Governance.SeparationOfDuties.ISoDEvaluator.EvaluateHypotheticalAsync(string! userId, string! proposedScope, string! proposedGrantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.SeparationOfDuties.SoDConflict!>!>!
+Excalibur.A3.Governance.SeparationOfDuties.ISoDEvaluator.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus.Active = 0 -> Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus.Inactive = 1 -> Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus.Departed = 2 -> Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus.Unknown = 3 -> Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatusResult
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatusResult.PrincipalStatusResult(Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus Status, System.DateTimeOffset? StatusChangedAt) -> void
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatusResult.Status.get -> Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatusResult.Status.init -> void
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatusResult.StatusChangedAt.get -> System.DateTimeOffset?
+Excalibur.A3.Governance.OrphanedAccess.PrincipalStatusResult.StatusChangedAt.init -> void
+Excalibur.A3.Governance.OrphanedAccess.IUserStatusProvider
+Excalibur.A3.Governance.OrphanedAccess.IUserStatusProvider.GetStatusAsync(string! principalId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.OrphanedAccess.PrincipalStatusResult!>!
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction.Flag = 0 -> Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction.Revoke = 1 -> Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction.Investigate = 2 -> Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.OrphanedGrant(string! UserId, string! GrantScope, Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus UserStatus, System.DateTimeOffset GrantedOn, Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction RecommendedAction) -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.UserId.get -> string!
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.UserId.init -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.GrantScope.get -> string!
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.GrantScope.init -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.UserStatus.get -> Excalibur.A3.Governance.OrphanedAccess.PrincipalStatus
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.UserStatus.init -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.GrantedOn.get -> System.DateTimeOffset
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.GrantedOn.init -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.RecommendedAction.get -> Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessAction
+Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant.RecommendedAction.init -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.OrphanedAccessReport(System.DateTimeOffset GeneratedAt, string? TenantId, System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant!>! OrphanedGrants, int TotalUsersScanned) -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.GeneratedAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.GeneratedAt.init -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.TenantId.get -> string?
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.TenantId.init -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.OrphanedGrants.get -> System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.OrphanedAccess.OrphanedGrant!>!
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.OrphanedGrants.init -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.TotalUsersScanned.get -> int
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport.TotalUsersScanned.init -> void
+Excalibur.A3.Governance.OrphanedAccess.IOrphanedAccessDetector
+Excalibur.A3.Governance.OrphanedAccess.IOrphanedAccessDetector.DetectAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessReport!>!
+Excalibur.A3.Governance.OrphanedAccess.IOrphanedAccessDetector.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.OrphanedAccessOptions() -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.ScanIntervalHours.get -> int
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.ScanIntervalHours.set -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.InactiveGracePeriodDays.get -> int
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.InactiveGracePeriodDays.set -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.AutoRevokeDeparted.get -> bool
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.AutoRevokeDeparted.set -> void
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.AutoRevokeAfterGracePeriod.get -> bool
+Excalibur.A3.Governance.OrphanedAccess.OrphanedAccessOptions.AutoRevokeAfterGracePeriod.set -> void
+Excalibur.A3.Governance.NonHumanIdentity.PrincipalType
+Excalibur.A3.Governance.NonHumanIdentity.PrincipalType.Human = 0 -> Excalibur.A3.Governance.NonHumanIdentity.PrincipalType
+Excalibur.A3.Governance.NonHumanIdentity.PrincipalType.ServiceAccount = 1 -> Excalibur.A3.Governance.NonHumanIdentity.PrincipalType
+Excalibur.A3.Governance.NonHumanIdentity.PrincipalType.Bot = 2 -> Excalibur.A3.Governance.NonHumanIdentity.PrincipalType
+Excalibur.A3.Governance.NonHumanIdentity.PrincipalType.ApiKey = 3 -> Excalibur.A3.Governance.NonHumanIdentity.PrincipalType
+Excalibur.A3.Governance.NonHumanIdentity.IPrincipalTypeProvider
+Excalibur.A3.Governance.NonHumanIdentity.IPrincipalTypeProvider.GetPrincipalTypeAsync(string! principalId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.NonHumanIdentity.PrincipalType>!
+Excalibur.A3.Governance.NonHumanIdentity.IPrincipalTypeProvider.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Governance.Provisioning.ApprovalCondition
+Excalibur.A3.Governance.Provisioning.ApprovalCondition.Always = 0 -> Excalibur.A3.Governance.Provisioning.ApprovalCondition
+Excalibur.A3.Governance.Provisioning.ApprovalCondition.RiskScoreAbove = 1 -> Excalibur.A3.Governance.Provisioning.ApprovalCondition
+Excalibur.A3.Governance.Provisioning.ApprovalCondition.SensitiveScope = 2 -> Excalibur.A3.Governance.Provisioning.ApprovalCondition
+Excalibur.A3.Governance.Provisioning.ApprovalOutcome
+Excalibur.A3.Governance.Provisioning.ApprovalOutcome.Approved = 0 -> Excalibur.A3.Governance.Provisioning.ApprovalOutcome
+Excalibur.A3.Governance.Provisioning.ApprovalOutcome.Denied = 1 -> Excalibur.A3.Governance.Provisioning.ApprovalOutcome
+Excalibur.A3.Governance.Provisioning.ApprovalStep
+Excalibur.A3.Governance.Provisioning.ApprovalStep.ApprovalStep(string! StepId, string! ApproverRole, Excalibur.A3.Governance.Provisioning.ApprovalOutcome? Outcome, string? Justification, System.DateTimeOffset? DecidedAt, string? DecidedBy) -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStep.ApproverRole.get -> string!
+Excalibur.A3.Governance.Provisioning.ApprovalStep.ApproverRole.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStep.DecidedAt.get -> System.DateTimeOffset?
+Excalibur.A3.Governance.Provisioning.ApprovalStep.DecidedAt.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStep.DecidedBy.get -> string?
+Excalibur.A3.Governance.Provisioning.ApprovalStep.DecidedBy.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStep.Justification.get -> string?
+Excalibur.A3.Governance.Provisioning.ApprovalStep.Justification.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStep.Outcome.get -> Excalibur.A3.Governance.Provisioning.ApprovalOutcome?
+Excalibur.A3.Governance.Provisioning.ApprovalStep.Outcome.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStep.StepId.get -> string!
+Excalibur.A3.Governance.Provisioning.ApprovalStep.StepId.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.ApprovalStepTemplate(int StepOrder, string! ApproverRole, bool IsRequired, Excalibur.A3.Governance.Provisioning.ApprovalCondition Condition = Excalibur.A3.Governance.Provisioning.ApprovalCondition.Always, int? ConditionThreshold = null) -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.ApproverRole.get -> string!
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.ApproverRole.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.Condition.get -> Excalibur.A3.Governance.Provisioning.ApprovalCondition
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.Condition.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.ConditionThreshold.get -> int?
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.ConditionThreshold.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.IsRequired.get -> bool
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.IsRequired.init -> void
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.StepOrder.get -> int
+Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate.StepOrder.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus.Pending = 0 -> Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus.InReview = 1 -> Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus.Approved = 2 -> Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus.Denied = 3 -> Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus.Provisioned = 4 -> Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus.Failed = 5 -> Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.ProvisioningRequestSummary(string! RequestId, string! UserId, string! GrantScope, string! GrantType, Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus Status, string! IdempotencyKey, int RiskScore, string! RequestedBy, System.DateTimeOffset CreatedAt, System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.Provisioning.ApprovalStep!>! ApprovalSteps, string? TenantId = null, System.DateTimeOffset? RequestedExpiry = null) -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.TenantId.get -> string?
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.TenantId.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.RequestedExpiry.get -> System.DateTimeOffset?
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.RequestedExpiry.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.RequestId.get -> string!
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.RequestId.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.UserId.get -> string!
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.UserId.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.GrantScope.get -> string!
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.GrantScope.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.GrantType.get -> string!
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.GrantType.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.Status.get -> Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.Status.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.IdempotencyKey.get -> string!
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.IdempotencyKey.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.RiskScore.get -> int
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.RiskScore.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.RequestedBy.get -> string!
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.RequestedBy.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.CreatedAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.CreatedAt.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.ApprovalSteps.get -> System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.Provisioning.ApprovalStep!>!
+Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary.ApprovalSteps.init -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions.ProvisioningOptions() -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions.DefaultApprovalTimeout.get -> System.TimeSpan
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions.DefaultApprovalTimeout.set -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions.RequireRiskAssessment.get -> bool
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions.RequireRiskAssessment.set -> void
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions.EnableJitAccess.get -> bool
+Excalibur.A3.Governance.Provisioning.ProvisioningOptions.EnableJitAccess.set -> void
+Excalibur.A3.Governance.Provisioning.JitAccessOptions
+Excalibur.A3.Governance.Provisioning.JitAccessOptions.JitAccessOptions() -> void
+Excalibur.A3.Governance.Provisioning.JitAccessOptions.DefaultJitDuration.get -> System.TimeSpan
+Excalibur.A3.Governance.Provisioning.JitAccessOptions.DefaultJitDuration.set -> void
+Excalibur.A3.Governance.Provisioning.JitAccessOptions.MaxJitDuration.get -> System.TimeSpan
+Excalibur.A3.Governance.Provisioning.JitAccessOptions.MaxJitDuration.set -> void
+Excalibur.A3.Governance.Provisioning.JitAccessOptions.ExpiryCheckInterval.get -> System.TimeSpan
+Excalibur.A3.Governance.Provisioning.JitAccessOptions.ExpiryCheckInterval.set -> void
+Excalibur.A3.Governance.Provisioning.IGrantRiskAssessor
+Excalibur.A3.Governance.Provisioning.IGrantRiskAssessor.AssessRiskAsync(string! userId, string! grantScope, string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.A3.Governance.Provisioning.IProvisioningWorkflowConfiguration
+Excalibur.A3.Governance.Provisioning.IProvisioningWorkflowConfiguration.GetApprovalStepsAsync(string! grantScope, string! grantType, int riskScore, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.Provisioning.ApprovalStepTemplate!>!>!
+Excalibur.A3.Governance.Provisioning.IProvisioningStore
+Excalibur.A3.Governance.Provisioning.IProvisioningStore.GetRequestAsync(string! requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary?>!
+Excalibur.A3.Governance.Provisioning.IProvisioningStore.GetRequestsByStatusAsync(Excalibur.A3.Governance.Provisioning.ProvisioningRequestStatus? status, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary!>!>!
+Excalibur.A3.Governance.Provisioning.IProvisioningStore.SaveRequestAsync(Excalibur.A3.Governance.Provisioning.ProvisioningRequestSummary! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.A3.Governance.Provisioning.IProvisioningStore.DeleteRequestAsync(string! requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.A3.Governance.Provisioning.IProvisioningStore.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Governance.NonHumanIdentity.IApiKeyManager
+Excalibur.A3.Governance.NonHumanIdentity.IApiKeyManager.CreateKeyAsync(Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult!>!
+Excalibur.A3.Governance.NonHumanIdentity.IApiKeyManager.RevokeKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.A3.Governance.NonHumanIdentity.IApiKeyManager.ValidateKeyAsync(string! apiKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult!>!
+Excalibur.A3.Governance.NonHumanIdentity.IApiKeyManager.GetKeysByPrincipalAsync(string! principalId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata!>!>!
+Excalibur.A3.Governance.NonHumanIdentity.IApiKeyManager.RotateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult!>!
+Excalibur.A3.Governance.NonHumanIdentity.IApiKeyManager.GetService(System.Type! serviceType) -> object?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.ApiKeyRequest(string! PrincipalId, Excalibur.A3.Governance.NonHumanIdentity.PrincipalType PrincipalType, System.Collections.Generic.IReadOnlyList<string!>! Scopes, System.DateTimeOffset? ExpiresAt, string? Description) -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.PrincipalId.get -> string!
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.PrincipalId.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.PrincipalType.get -> Excalibur.A3.Governance.NonHumanIdentity.PrincipalType
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.PrincipalType.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.Scopes.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.Scopes.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.ExpiresAt.get -> System.DateTimeOffset?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.ExpiresAt.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.Description.get -> string?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyRequest.Description.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult.ApiKeyCreationResult(string! KeyId, string! ApiKey, System.DateTimeOffset ExpiresAt) -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult.KeyId.get -> string!
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult.KeyId.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult.ApiKey.get -> string!
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult.ApiKey.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult.ExpiresAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyCreationResult.ExpiresAt.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.ApiKeyMetadata(string! KeyId, string! PrincipalId, Excalibur.A3.Governance.NonHumanIdentity.PrincipalType PrincipalType, System.DateTimeOffset CreatedAt, System.DateTimeOffset ExpiresAt, System.DateTimeOffset? RevokedAt, System.Collections.Generic.IReadOnlyList<string!>! Scopes, string? Description) -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.KeyId.get -> string!
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.KeyId.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.PrincipalId.get -> string!
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.PrincipalId.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.PrincipalType.get -> Excalibur.A3.Governance.NonHumanIdentity.PrincipalType
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.PrincipalType.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.CreatedAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.CreatedAt.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.ExpiresAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.ExpiresAt.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.RevokedAt.get -> System.DateTimeOffset?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.RevokedAt.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.Scopes.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.Scopes.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.Description.get -> string?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyMetadata.Description.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.ApiKeyValidationResult(bool IsValid, string? KeyId, string? PrincipalId, Excalibur.A3.Governance.NonHumanIdentity.PrincipalType? PrincipalType, System.Collections.Generic.IReadOnlyList<string!>? Scopes, string? FailureReason) -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.IsValid.get -> bool
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.IsValid.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.KeyId.get -> string?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.KeyId.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.PrincipalId.get -> string?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.PrincipalId.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.PrincipalType.get -> Excalibur.A3.Governance.NonHumanIdentity.PrincipalType?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.PrincipalType.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.Scopes.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.Scopes.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.FailureReason.get -> string?
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyValidationResult.FailureReason.init -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions.ApiKeyOptions() -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions.MaxKeysPerPrincipal.get -> int
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions.MaxKeysPerPrincipal.set -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions.DefaultExpirationDays.get -> int
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions.DefaultExpirationDays.set -> void
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions.KeyLengthBytes.get -> int
+Excalibur.A3.Governance.NonHumanIdentity.ApiKeyOptions.KeyLengthBytes.set -> void
+Excalibur.A3.Governance.Reporting.EntitlementReportType
+Excalibur.A3.Governance.Reporting.EntitlementReportType.UserEntitlements = 0 -> Excalibur.A3.Governance.Reporting.EntitlementReportType
+Excalibur.A3.Governance.Reporting.EntitlementReportType.TenantEntitlements = 1 -> Excalibur.A3.Governance.Reporting.EntitlementReportType
+Excalibur.A3.Governance.Reporting.EntitlementReportType.OrphanedGrants = 2 -> Excalibur.A3.Governance.Reporting.EntitlementReportType
+Excalibur.A3.Governance.Reporting.EntitlementReportType.ExpiringGrants = 3 -> Excalibur.A3.Governance.Reporting.EntitlementReportType
+Excalibur.A3.Governance.Reporting.EntitlementReportType.SoDViolations = 4 -> Excalibur.A3.Governance.Reporting.EntitlementReportType
+Excalibur.A3.Governance.Reporting.EntitlementReportType.UnreviewedGrants = 5 -> Excalibur.A3.Governance.Reporting.EntitlementReportType
+Excalibur.A3.Governance.Reporting.EntitlementReviewStatus
+Excalibur.A3.Governance.Reporting.EntitlementReviewStatus.EntitlementReviewStatus(bool HasBeenReviewed, System.DateTimeOffset? LastReviewedOn, System.Collections.Generic.IReadOnlyList<string!>? SoDConflictPolicyIds) -> void
+Excalibur.A3.Governance.Reporting.EntitlementReviewStatus.HasBeenReviewed.get -> bool
+Excalibur.A3.Governance.Reporting.EntitlementReviewStatus.HasBeenReviewed.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementReviewStatus.LastReviewedOn.get -> System.DateTimeOffset?
+Excalibur.A3.Governance.Reporting.EntitlementReviewStatus.LastReviewedOn.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementReviewStatus.SoDConflictPolicyIds.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Excalibur.A3.Governance.Reporting.EntitlementReviewStatus.SoDConflictPolicyIds.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry
+Excalibur.A3.Governance.Reporting.EntitlementEntry.EntitlementEntry(string! UserId, Excalibur.A3.Governance.NonHumanIdentity.PrincipalType PrincipalType, string! GrantScope, System.DateTimeOffset GrantedOn, string! GrantedBy, System.DateTimeOffset? ExpiresOn, bool IsActive, Excalibur.A3.Governance.Reporting.EntitlementReviewStatus? ReviewStatus) -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry.UserId.get -> string!
+Excalibur.A3.Governance.Reporting.EntitlementEntry.UserId.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry.PrincipalType.get -> Excalibur.A3.Governance.NonHumanIdentity.PrincipalType
+Excalibur.A3.Governance.Reporting.EntitlementEntry.PrincipalType.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry.GrantScope.get -> string!
+Excalibur.A3.Governance.Reporting.EntitlementEntry.GrantScope.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry.GrantedOn.get -> System.DateTimeOffset
+Excalibur.A3.Governance.Reporting.EntitlementEntry.GrantedOn.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry.GrantedBy.get -> string!
+Excalibur.A3.Governance.Reporting.EntitlementEntry.GrantedBy.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry.ExpiresOn.get -> System.DateTimeOffset?
+Excalibur.A3.Governance.Reporting.EntitlementEntry.ExpiresOn.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry.IsActive.get -> bool
+Excalibur.A3.Governance.Reporting.EntitlementEntry.IsActive.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementEntry.ReviewStatus.get -> Excalibur.A3.Governance.Reporting.EntitlementReviewStatus?
+Excalibur.A3.Governance.Reporting.EntitlementEntry.ReviewStatus.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.EntitlementSnapshot(System.DateTimeOffset GeneratedAt, Excalibur.A3.Governance.Reporting.EntitlementReportType ReportType, string? Scope, System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.Reporting.EntitlementEntry!>! Entries) -> void
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.GeneratedAt.get -> System.DateTimeOffset
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.GeneratedAt.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.ReportType.get -> Excalibur.A3.Governance.Reporting.EntitlementReportType
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.ReportType.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.Scope.get -> string?
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.Scope.init -> void
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.Entries.get -> System.Collections.Generic.IReadOnlyList<Excalibur.A3.Governance.Reporting.EntitlementEntry!>!
+Excalibur.A3.Governance.Reporting.EntitlementSnapshot.Entries.init -> void
+Excalibur.A3.Governance.Reporting.IEntitlementReportProvider
+Excalibur.A3.Governance.Reporting.IEntitlementReportProvider.GenerateUserSnapshotAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.Reporting.EntitlementSnapshot!>!
+Excalibur.A3.Governance.Reporting.IEntitlementReportProvider.GenerateTenantSnapshotAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.Reporting.EntitlementSnapshot!>!
+Excalibur.A3.Governance.Reporting.IEntitlementReportProvider.GenerateReportAsync(Excalibur.A3.Governance.Reporting.EntitlementReportType reportType, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Governance.Reporting.EntitlementSnapshot!>!
+Excalibur.A3.Governance.Reporting.IReportFormatter
+Excalibur.A3.Governance.Reporting.IReportFormatter.ContentType.get -> string!
+Excalibur.A3.Governance.Reporting.IReportFormatter.FormatAsync(Excalibur.A3.Governance.Reporting.EntitlementSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!

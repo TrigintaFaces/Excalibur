@@ -171,18 +171,20 @@ public class OrderAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		OrderCreated e => ApplyOrderCreated(e),
-		OrderValidated e => ApplyOrderValidated(e),
-		OrderValidationFailed e => ApplyOrderValidationFailed(e),
-		PaymentProcessed e => ApplyPaymentProcessed(e),
-		PaymentFailed e => ApplyPaymentFailed(e),
-		OrderShipped e => ApplyOrderShipped(e),
-		OrderCompleted e => ApplyOrderCompleted(e),
-		OrderCancelled e => ApplyOrderCancelled(e),
-		_ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case OrderCreated e: Apply(e); break;
+			case OrderValidated e: Apply(e); break;
+			case OrderValidationFailed e: Apply(e); break;
+			case PaymentProcessed e: Apply(e); break;
+			case PaymentFailed e: Apply(e); break;
+			case OrderShipped e: Apply(e); break;
+			case OrderCompleted e: Apply(e); break;
+			case OrderCancelled e: Apply(e); break;
+		}
+	}
 
 	private void EnsureStatus(OrderStatus expected, string action)
 	{
@@ -193,7 +195,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 		}
 	}
 
-	private bool ApplyOrderCreated(OrderCreated e)
+	private void Apply(OrderCreated e)
 	{
 		Id = e.OrderId;
 		CustomerId = e.CustomerId;
@@ -202,56 +204,48 @@ public class OrderAggregate : AggregateRoot<Guid>
 		TotalAmount = e.TotalAmount;
 		Status = OrderStatus.Created;
 		CreatedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyOrderValidated(OrderValidated e)
+	private void Apply(OrderValidated e)
 	{
 		Status = OrderStatus.Validated;
-		return true;
 	}
 
-	private bool ApplyOrderValidationFailed(OrderValidationFailed e)
+	private void Apply(OrderValidationFailed e)
 	{
 		Status = OrderStatus.ValidationFailed;
 		FailureReason = e.Reason;
-		return true;
 	}
 
-	private bool ApplyPaymentProcessed(PaymentProcessed e)
+	private void Apply(PaymentProcessed e)
 	{
 		TransactionId = e.TransactionId;
 		Status = OrderStatus.PaymentProcessed;
-		return true;
 	}
 
-	private bool ApplyPaymentFailed(PaymentFailed e)
+	private void Apply(PaymentFailed e)
 	{
 		Status = OrderStatus.PaymentFailed;
 		FailureReason = e.Reason;
-		return true;
 	}
 
-	private bool ApplyOrderShipped(OrderShipped e)
+	private void Apply(OrderShipped e)
 	{
 		TrackingNumber = e.TrackingNumber;
 		Carrier = e.Carrier;
 		Status = OrderStatus.Shipped;
-		return true;
 	}
 
-	private bool ApplyOrderCompleted(OrderCompleted e)
+	private void Apply(OrderCompleted e)
 	{
 		Status = OrderStatus.Completed;
 		CompletedAt = e.OccurredAt;
-		return true;
 	}
 
-	private bool ApplyOrderCancelled(OrderCancelled e)
+	private void Apply(OrderCancelled e)
 	{
 		Status = OrderStatus.Cancelled;
 		FailureReason = e.Reason;
-		return true;
 	}
 }
 

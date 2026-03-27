@@ -4,9 +4,9 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Excalibur.A3.Audit.Events;
-using Excalibur.Data.Serialization;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Domain;
 
@@ -21,6 +21,23 @@ namespace Excalibur.A3.Audit;
 /// <typeparam name="TResponse"> The type of the response. </typeparam>
 public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 {
+	/// <summary>
+	/// JSON options that skip Stream-typed properties during serialization.
+	/// Replaces the dependency on <c>ExcaliburJsonSerializerOptions.IgnoreStream</c>
+	/// from <c>Excalibur.Data</c>.
+	/// </summary>
+#pragma warning disable IL2026 // RequiresUnreferencedCode: JsonStringEnumConverter used for audit serialization only
+#pragma warning disable IL3050 // RequiresDynamicCode: JsonStringEnumConverter used for audit serialization only
+	private static readonly JsonSerializerOptions s_auditSerializerOptions = new()
+	{
+		WriteIndented = true,
+		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+		Converters = { new JsonStringEnumConverter() },
+	};
+#pragma warning restore IL3050
+#pragma warning restore IL2026
+
 	private readonly Dictionary<string, object> _headers = [];
 
 	/// <summary>
@@ -134,7 +151,7 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 	{
 		[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 		[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-		get => JsonSerializer.Serialize(Request, ExcaliburJsonSerializerOptions.IgnoreStream);
+		get => JsonSerializer.Serialize(Request, s_auditSerializerOptions);
 		init => _ = value;
 	}
 

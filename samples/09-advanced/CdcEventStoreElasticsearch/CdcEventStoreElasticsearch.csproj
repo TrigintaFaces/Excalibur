@@ -39,12 +39,6 @@
   <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
-  <!-- Quartz for scheduled job processing -->
-  <ItemGroup>
-    <PackageReference Include="Quartz" />
-    <PackageReference Include="Quartz.Extensions.DependencyInjection" />
-    <PackageReference Include="Quartz.Extensions.Hosting" />
-  </ItemGroup>
   <!-- Logging and configuration -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />

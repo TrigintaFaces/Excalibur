@@ -86,7 +86,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_indexName = ResolveIndexName(_options, _projectionType);
+		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
 	}
 
 	/// <summary>
@@ -110,18 +110,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_indexName = ResolveIndexName(_options, _projectionType);
-	}
-
-	private static string ResolveIndexName(ElasticSearchProjectionStoreOptions options, string projectionType)
-	{
-		var name = !string.IsNullOrWhiteSpace(options.IndexName)
-			? options.IndexName
-			: projectionType.ToLowerInvariant();
-
-		return string.IsNullOrWhiteSpace(options.IndexPrefix)
-			? name
-			: $"{options.IndexPrefix}-{name}";
+		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
 	}
 
 	private enum ProjectionFieldType

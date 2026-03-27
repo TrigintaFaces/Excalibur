@@ -170,7 +170,7 @@ public sealed class CachePolicySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Generated cache information registry for AOT-compatible caching.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static class CacheInfoRegistry");
+		_ = sb.AppendLine("internal static class CacheInfoRegistry");
 		_ = sb.AppendLine("{");
 
 		// Generate cacheable type extractors
@@ -479,4 +479,3 @@ public sealed class CachePolicySourceGenerator : IIncrementalGenerator
 		public INamedTypeSymbol? MessageType { get; set; }
 	}
 }
-

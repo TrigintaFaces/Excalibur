@@ -103,17 +103,19 @@ public class ShoppingCartAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override void ApplyEventInternal(IDomainEvent @event)
 	{
-		CartCreated => true,
-		ItemAddedToCart e => ApplyItemAdded(e),
-		ItemRemovedFromCart e => ApplyItemRemoved(e),
-		CartItemQuantityUpdated e => ApplyQuantityUpdated(e),
-		CartCheckedOut => ApplyCheckedOut(),
-		_ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
-	};
+		switch (@event)
+		{
+			case CartCreated: break;
+			case ItemAddedToCart e: Apply(e); break;
+			case ItemRemovedFromCart e: Apply(e); break;
+			case CartItemQuantityUpdated e: Apply(e); break;
+			case CartCheckedOut: ApplyCheckedOut(); break;
+		}
+	}
 
-	private bool ApplyItemAdded(ItemAddedToCart e)
+	private void Apply(ItemAddedToCart e)
 	{
 		var existing = _items.FirstOrDefault(i => i.ProductId == e.ProductId);
 		if (existing != null)
@@ -124,31 +126,25 @@ public class ShoppingCartAggregate : AggregateRoot<Guid>
 		{
 			_items.Add(new CartItem(e.ProductId, e.ProductName, e.Price, e.Quantity));
 		}
-
-		return true;
 	}
 
-	private bool ApplyItemRemoved(ItemRemovedFromCart e)
+	private void Apply(ItemRemovedFromCart e)
 	{
 		_ = _items.RemoveAll(i => i.ProductId == e.ProductId);
-		return true;
 	}
 
-	private bool ApplyQuantityUpdated(CartItemQuantityUpdated e)
+	private void Apply(CartItemQuantityUpdated e)
 	{
 		var item = _items.FirstOrDefault(i => i.ProductId == e.ProductId);
 		if (item != null)
 		{
 			item.Quantity = e.NewQuantity;
 		}
-
-		return true;
 	}
 
-	private bool ApplyCheckedOut()
+	private void ApplyCheckedOut()
 	{
 		IsCheckedOut = true;
-		return true;
 	}
 }
 

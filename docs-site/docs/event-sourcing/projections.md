@@ -405,20 +405,36 @@ public class SalesReport
 }
 ```
 
-### Read Model Repository
+### Querying Read Models
+
+`IProjectionStore<T>` is the default query interface -- it works across all backends (SQL, ElasticSearch, MongoDB, CosmosDB) and supports dictionary-based filters with operator suffixes:
 
 ```csharp
-public interface IOrderSummaryRepository
-{
-    Task<OrderSummary?> GetByIdAsync(Guid orderId, CancellationToken ct);
-    Task<IReadOnlyList<OrderSummary>> GetByCustomerAsync(string customerId, CancellationToken ct);
-    Task<IReadOnlyList<OrderSummary>> SearchAsync(OrderSearchCriteria criteria, CancellationToken ct);
-    Task InsertAsync(OrderSummary summary, CancellationToken ct);
-    Task UpdateAsync(OrderSummary summary, CancellationToken ct);
-}
+// No custom repository needed for standard queries
+var results = await projectionStore.QueryAsync(
+    new Dictionary<string, object>
+    {
+        ["CustomerId"] = customerId,
+        ["Status:neq"] = "Deleted",
+        ["TotalAmount:gte"] = 100m
+    },
+    new QueryOptions { Skip = 0, Take = 25, SortBy = "CreatedAt", SortDescending = true },
+    cancellationToken);
 
-// Implementation using Dapper
-public class SqlServerOrderSummaryRepository : IOrderSummaryRepository
+// Single record lookup
+var summary = await projectionStore.GetByIdAsync(orderId.ToString(), cancellationToken);
+```
+
+For most use cases, `IProjectionStore<T>` is all you need. Graduate to a custom repository only when you need backend-native features.
+
+### Custom Repositories (Advanced)
+
+When you need capabilities beyond `IProjectionStore<T>` -- such as full-text search, aggregations, or SQL joins -- build a custom repository targeting your chosen backend.
+
+#### SQL Server (Dapper)
+
+```csharp
+public class SqlServerOrderSummaryRepository
 {
     private readonly IDbConnection _db;
 
@@ -458,6 +474,129 @@ public class SqlServerOrderSummaryRepository : IOrderSummaryRepository
     }
 }
 ```
+
+#### ElasticSearch (Full-Text Search, Aggregations)
+
+When projections are backed by ElasticSearch and you need native query features (full-text search, faceted filtering, aggregations, geo queries), extend `ElasticRepositoryBase<T>`. Use `ElasticSearchProjectionIndexConvention` to resolve the same index name that `IProjectionStore<T>` uses:
+
+```csharp
+public class OrderSearchRepository : ElasticRepositoryBase<OrderSummary>
+{
+    public OrderSearchRepository(
+        ElasticsearchClient client,
+        IOptionsMonitor<ElasticSearchProjectionStoreOptions> optionsMonitor)
+        : base(client, ElasticSearchProjectionIndexConvention.GetIndexName<OrderSummary>(
+            optionsMonitor.Get(nameof(OrderSummary))))
+    {
+    }
+
+    public async Task<SearchResponse<OrderSummary>> FullTextSearchAsync(
+        string searchText,
+        CancellationToken ct)
+    {
+        return await SearchAsync(s => s
+            .Query(q => q.MultiMatch(mm => mm
+                .Query(searchText)
+                .Fields(new[] { "customerId", "status" })))
+            .Aggregations(a => a
+                .Add("by_status", agg => agg
+                    .Terms(t => t.Field("status.keyword")))),
+            ct);
+    }
+}
+```
+
+:::tip
+`ElasticSearchProjectionIndexConvention.GetIndexName<T>()` ensures both `IProjectionStore<T>` and your custom repository resolve to the same index from a single source of truth. If you change the `IndexPrefix` in options, both paths stay in sync automatically.
+:::
+
+### List View vs Detail View (Multiple Projections)
+
+A common CQRS pattern uses separate read models for list and detail views, each optimized for its query pattern. Define two projection types and optionally back them with different storage:
+
+```csharp
+// Slim model for list/search views
+public class OrderListItem
+{
+    public Guid OrderId { get; set; }
+    public string CustomerName { get; set; }
+    public string Status { get; set; }
+    public decimal Total { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+// Rich model for single-record detail views
+public class OrderDetail
+{
+    public Guid OrderId { get; set; }
+    public string CustomerName { get; set; }
+    public string Status { get; set; }
+    public decimal Total { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public List<OrderLineItem> Lines { get; set; }
+    public string ShippingAddress { get; set; }
+    public string Notes { get; set; }
+}
+```
+
+Register separate projections -- they can target different backends:
+
+```csharp
+// List view: ElasticSearch for fast full-text search and faceted filtering
+services.AddElasticSearchProjectionStore<OrderListItem>(options =>
+{
+    options.NodeUri = "https://elasticsearch.example.com:9200";
+    options.IndexPrefix = $"{env}-projections";
+});
+
+// Detail view: SQL Server for strong consistency and relational queries
+services.AddSqlServerProjectionStore<OrderDetail>(options =>
+{
+    options.ConnectionString = sqlConnectionString;
+    options.TableName = "OrderDetails";
+});
+
+services.AddExcaliburEventSourcing(builder =>
+{
+    // List projection: fewer fields, async (eventually consistent)
+    builder.AddProjection<OrderListItem>(p => p
+        .Async()
+        .When<OrderPlaced>((proj, e) =>
+        {
+            proj.OrderId = e.OrderId;
+            proj.CustomerName = e.CustomerName;
+            proj.Status = "Placed";
+            proj.Total = e.Total;
+            proj.CreatedAt = e.OccurredAt;
+        })
+        .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
+
+    // Detail projection: all fields, inline (immediately consistent)
+    builder.AddProjection<OrderDetail>(p => p
+        .Inline()
+        .When<OrderPlaced>((proj, e) =>
+        {
+            proj.OrderId = e.OrderId;
+            proj.CustomerName = e.CustomerName;
+            proj.Status = "Placed";
+            proj.Total = e.Total;
+            proj.CreatedAt = e.OccurredAt;
+            proj.ShippingAddress = e.ShippingAddress;
+        })
+        .When<OrderLineAdded>((proj, e) =>
+        {
+            proj.Lines.Add(new OrderLineItem
+            {
+                ProductId = e.ProductId,
+                Quantity = e.Quantity,
+                UnitPrice = e.UnitPrice
+            });
+        })
+        .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
+});
+```
+
+Both projections stay in sync automatically because they are fed by the same event stream -- events are the synchronization mechanism, not any cross-store sync process.
 
 ## Async Projection Processing
 

@@ -193,7 +193,8 @@ $files = Get-ChildItem -Path $repoRoot -Recurse -File -Include *.cs |
   Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' }
 $total = 0
 foreach ($f in $files) {
-  $lines = (Get-Content -ReadCount 0 -- $f.FullName).Length
+  $content = Get-Content -ReadCount 0 -- $f.FullName
+  $lines = if ($null -eq $content) { 0 } else { $content.Length }
   $total += $lines
 }
 "- Files: $($files.Count)" | Out-File -FilePath $Output -Encoding UTF8 -Append

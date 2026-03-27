@@ -185,7 +185,7 @@ public sealed class EventStoreTypeMapGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Concrete type for event metadata to replace anonymous types (AOT-compatible).");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public record EventMetadataContent(");
+		_ = sb.AppendLine("internal record EventMetadataContent(");
 		_ = sb.AppendLine(" object AggregateKey,");
 		_ = sb.AppendLine(" string ETag,");
 		_ = sb.AppendLine(" DateTimeOffset OccurredOn,");
@@ -223,7 +223,7 @@ public sealed class EventStoreTypeMapGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// </summary>");
 		_ = sb.AppendLine("[UnconditionalSuppressMessage(\"AOT\", \"IL2026:RequiresUnreferencedCode\")]");
 		_ = sb.AppendLine("[UnconditionalSuppressMessage(\"AOT\", \"IL3050:RequiresDynamicCode\")]");
-		_ = sb.AppendLine("public static class EventStoreTypeMap");
+		_ = sb.AppendLine("internal static class EventStoreTypeMap");
 		_ = sb.AppendLine("{");
 
 		// Generate type mappings
@@ -331,7 +331,7 @@ public sealed class EventStoreTypeMapGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Auto-generated projection handler registrations for AOT compatibility.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static class GeneratedProjectionHandlerRegistrations");
+		_ = sb.AppendLine("internal static class GeneratedProjectionHandlerRegistrations");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine(" /// <summary>");
 		_ = sb.AppendLine(" /// Registers all discovered projection handlers.");

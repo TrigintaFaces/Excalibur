@@ -42,7 +42,6 @@ Excalibur.Data.EventStore.EventMetadata.Timestamp.get -> System.DateTimeOffset
 Excalibur.Data.EventStore.EventMetadata.Timestamp.set -> void
 Excalibur.Data.EventStore.EventMetadata.UserId.get -> string?
 Excalibur.Data.EventStore.EventMetadata.UserId.set -> void
-Excalibur.Data.EventStore.EventStoreJsonContext
 Excalibur.Data.Exceptions.ResourceAlreadyExistsException
 Excalibur.Data.Exceptions.ResourceAlreadyExistsException.ResourceAlreadyExistsException(string! resource, int? statusCode, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Data.Exceptions.ResourceAlreadyExistsException.ResourceAlreadyExistsException(string! resourceKey, string! resource, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
@@ -139,7 +138,6 @@ static Excalibur.Data.ActivityContextExtensions.Get<T>(this Excalibur.Domain.IAc
 static Excalibur.Data.ActivityContextExtensions.LatestETag(this Excalibur.Domain.IActivityContext! context) -> string?
 static Excalibur.Data.ActivityContextExtensions.ServiceProvider(this Excalibur.Domain.IActivityContext! context) -> System.IServiceProvider!
 static Excalibur.Data.ActivityContextExtensions.TenantId(this Excalibur.Domain.IActivityContext! context) -> string!
-static Excalibur.Data.EventStore.EventStoreJsonContext.Instance.get -> Excalibur.Data.EventStore.EventStoreJsonContext!
 static Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions.Default.get -> System.Text.Json.JsonSerializerOptions!
 static Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions.IgnoreStream.get -> System.Text.Json.JsonSerializerOptions!
 static Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions.AddExcaliburDataServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

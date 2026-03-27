@@ -121,7 +121,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine(
 			"[UnconditionalSuppressMessage(\"Trimming\", \"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming\",");
 		_ = sb.AppendLine(" Justification = \"All handler types are preserved by this source generator\")]");
-		_ = sb.AppendLine("public static class PrecompiledHandlerRegistry");
+		_ = sb.AppendLine("internal static class PrecompiledHandlerRegistry");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine(" /// <summary>");
 		_ = sb.AppendLine(" /// Registers all discovered handlers with the provided registry.");
@@ -240,7 +240,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// AOT-compatible handler invoker that uses compile-time generated delegates.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static class PrecompiledHandlerInvoker");
+		_ = sb.AppendLine("internal static class PrecompiledHandlerInvoker");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine(" /// <summary>");
 		_ = sb.AppendLine(" /// Invokes a handler using compile-time generated delegates (AOT-compatible).");
@@ -326,7 +326,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Provides compile-time metadata about discovered handlers.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static class PrecompiledHandlerMetadata");
+		_ = sb.AppendLine("internal static class PrecompiledHandlerMetadata");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine(" private static readonly ImmutableDictionary<Type, HandlerMetadata> _handlersByMessageType;");
 		_ = sb.AppendLine(" private static readonly ImmutableDictionary<Type, ImmutableArray<Type>> _messageTypesByHandler;");
@@ -437,7 +437,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// AOT-compatible handler activator that uses compile-time generated property setters.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static class PrecompiledHandlerActivator");
+		_ = sb.AppendLine("internal static class PrecompiledHandlerActivator");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine(" /// <summary>");
 		_ = sb.AppendLine(" /// Activates a handler and sets its context property if available (AOT-compatible).");
@@ -538,7 +538,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// <summary>");
 		_ = sb.AppendLine("/// Compile-time generated direct dispatch table for IActionHandler paths.");
 		_ = sb.AppendLine("/// </summary>");
-		_ = sb.AppendLine("public static class PrecompiledDirectActionDispatch");
+		_ = sb.AppendLine("internal static class PrecompiledDirectActionDispatch");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine(" private static readonly ValueTask<object?> NoResult = new(result: null);");
 		_ = sb.AppendLine();

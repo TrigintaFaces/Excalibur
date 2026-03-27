@@ -1318,7 +1318,7 @@ Excalibur.Dispatch.Abstractions.IOutboxPublisher.RetryFailedMessagesAsync(int ma
 Excalibur.Dispatch.Abstractions.IOutboxStore
 Excalibur.Dispatch.Abstractions.IOutboxStore.EnqueueAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>
-Excalibur.Dispatch.Abstractions.IOutboxStore.MarkBatchFailedAsync(System.Collections.Generic.IReadOnlyList<string!>! messageIds, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Abstractions.IOutboxStore.MarkBatchFailedAsync(System.Collections.Generic.IReadOnlyList<string!>! messageIds, string! reason, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IOutboxStore.MarkBatchSentAsync(System.Collections.Generic.IReadOnlyList<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -3150,12 +3150,12 @@ virtual Excalibur.Dispatch.Abstractions.ApiException.GetProblemDetailsErrorCode(
 virtual Excalibur.Dispatch.Abstractions.ApiException.GetProblemDetailsExtensions() -> System.Collections.Generic.IDictionary<string!, object?>?
 virtual Excalibur.Dispatch.Abstractions.ApiException.ToProblemDetails() -> Excalibur.Dispatch.Abstractions.MessageProblemDetails!
 virtual Excalibur.Dispatch.Abstractions.ChangePosition.Timestamp.get -> System.DateTimeOffset?
-virtual Excalibur.Dispatch.Abstractions.ConnectionPoolHealthOptions.Clone() -> Excalibur.Dispatch.Abstractions.ConnectionPoolHealthOptions!
-virtual Excalibur.Dispatch.Abstractions.ConnectionPoolHealthOptions.Validate() -> void
-virtual Excalibur.Dispatch.Abstractions.ConnectionPoolOptions.Clone() -> Excalibur.Dispatch.Abstractions.ConnectionPoolOptions!
-virtual Excalibur.Dispatch.Abstractions.ConnectionPoolOptions.Validate() -> void
-virtual Excalibur.Dispatch.Abstractions.ConnectionPoolSizingOptions.Clone() -> Excalibur.Dispatch.Abstractions.ConnectionPoolSizingOptions!
-virtual Excalibur.Dispatch.Abstractions.ConnectionPoolSizingOptions.Validate() -> void
+Excalibur.Dispatch.Abstractions.ConnectionPoolHealthOptions.Clone() -> Excalibur.Dispatch.Abstractions.ConnectionPoolHealthOptions!
+Excalibur.Dispatch.Abstractions.ConnectionPoolHealthOptions.Validate() -> void
+Excalibur.Dispatch.Abstractions.ConnectionPoolOptions.Clone() -> Excalibur.Dispatch.Abstractions.ConnectionPoolOptions!
+Excalibur.Dispatch.Abstractions.ConnectionPoolOptions.Validate() -> void
+Excalibur.Dispatch.Abstractions.ConnectionPoolSizingOptions.Clone() -> Excalibur.Dispatch.Abstractions.ConnectionPoolSizingOptions!
+Excalibur.Dispatch.Abstractions.ConnectionPoolSizingOptions.Validate() -> void
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.AggregateId.get -> string!
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.AggregateId.init -> void
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.EventId.get -> string!
@@ -3183,3 +3183,11 @@ Excalibur.Dispatch.Abstractions.Outbox.OutboxWriterExtensions
 static Excalibur.Dispatch.Abstractions.Outbox.OutboxWriterExtensions.WriteScheduledAsync(this Excalibur.Dispatch.Abstractions.Outbox.IOutboxWriter! writer, Excalibur.Dispatch.Abstractions.IDispatchMessage! message, string? destination, System.DateTimeOffset scheduledAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IConnectionPool<TConnection>.ReturnConnectionAsync(TConnection! connection, bool forceDispose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator.ClearAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException() -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! circuitName) -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! circuitName, System.TimeSpan retryAfter) -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitName.get -> string?
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.get -> System.TimeSpan?
+Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.init -> void
