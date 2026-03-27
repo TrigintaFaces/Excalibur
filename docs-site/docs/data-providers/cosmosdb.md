@@ -35,28 +35,25 @@ services.AddCosmosDb(options =>
 });
 ```
 
-## Registration Options
+## Registration Methods
+
+| Method | What It Registers | Key Options |
+|--------|-------------------|-------------|
+| `AddCosmosDb(opts)` | Core persistence provider | `AccountEndpoint`, `AccountKey`, `DatabaseName` |
+| `AddCosmosDbSnapshotStore(opts)` | `ISnapshotStore` | `ContainerName` |
+| `AddCosmosDbProjectionStore<T>(connStr, dbName, opts?)` | `IProjectionStore<T>` | `ContainerName` |
+
+All methods also accept `IConfiguration` binding: `AddCosmosDb(configuration, sectionName: "CosmosDb")`.
+
+### Batch Projection Registration
+
+Register multiple projections sharing the same Cosmos DB account:
 
 ```csharp
-// With options callback
-services.AddCosmosDb(options =>
+services.AddCosmosDbProjections(connectionString, "MyDatabase", projections =>
 {
-    options.AccountEndpoint = "https://...";
-    options.AccountKey = "...";
-    options.DatabaseName = "MyDatabase";
-});
-
-// From configuration section
-services.AddCosmosDb(configuration);
-services.AddCosmosDb(configuration, sectionName: "CosmosDb");
-```
-
-### Snapshot Store
-
-```csharp
-services.AddCosmosDbSnapshotStore(options =>
-{
-    options.ContainerName = "snapshots";
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.ContainerName = "customers");
 });
 ```
 

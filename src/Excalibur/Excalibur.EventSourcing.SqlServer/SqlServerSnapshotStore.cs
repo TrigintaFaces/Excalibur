@@ -37,6 +37,8 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly ILogger<SqlServerSnapshotStore> _logger;
+	private readonly string _schema;
+	private readonly string _table;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerSnapshotStore"/> class.
@@ -45,7 +47,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerSnapshotStore(Func{SqlConnection}, ILogger{SqlServerSnapshotStore})"/>
+	/// Use <see cref="SqlServerSnapshotStore(Func{SqlConnection}, ILogger{SqlServerSnapshotStore}, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerSnapshotStore(string connectionString, ILogger<SqlServerSnapshotStore> logger)
@@ -61,6 +63,8 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 	/// The caller is responsible for ensuring the factory returns properly configured connections.
 	/// </param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="schema">The schema name for the snapshot store table. Default: "dbo".</param>
+	/// <param name="table">The snapshot store table name. Default: "EventStoreSnapshots".</param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -73,10 +77,14 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 	/// </remarks>
 	public SqlServerSnapshotStore(
 		Func<SqlConnection> connectionFactory,
-		ILogger<SqlServerSnapshotStore> logger)
+		ILogger<SqlServerSnapshotStore> logger,
+		string schema = "dbo",
+		string table = "EventStoreSnapshots")
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_schema = schema;
+		_table = table;
 	}
 
 	/// <inheritdoc/>
@@ -94,7 +102,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var snapshot = await connection.ResolveAsync(
-					new GetLatestSnapshotRequest(aggregateId, aggregateType, cancellationToken))
+					new GetLatestSnapshotRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (snapshot == null)
@@ -134,7 +142,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new SaveSnapshotRequest(snapshot, cancellationToken))
+					new SaveSnapshotRequest(snapshot, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Saved snapshot for {AggregateType}/{AggregateId} at version {Version}",
@@ -171,7 +179,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsRequest(aggregateId, aggregateType, cancellationToken))
+					new DeleteSnapshotsRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots for {AggregateType}/{AggregateId}",
@@ -209,7 +217,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, cancellationToken))
+					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots older than version {Version} for {AggregateType}/{AggregateId}",

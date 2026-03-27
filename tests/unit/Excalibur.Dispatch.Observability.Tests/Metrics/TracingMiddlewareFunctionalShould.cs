@@ -9,6 +9,8 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Observability.Metrics;
 
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 
 /// <summary>
@@ -23,6 +25,9 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	private readonly ITelemetrySanitizer _fakeSanitizer = A.Fake<ITelemetrySanitizer>();
 	private readonly ActivityListener _listener;
 	private readonly ConcurrentBag<Activity> _capturedActivities = [];
+
+	private static IOptions<ObservabilityOptions> DefaultOptions =>
+		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { EnableDetailedTiming = true, IncludeSensitiveData = true });
 
 	public TracingMiddlewareFunctionalShould()
 	{
@@ -82,7 +87,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	[Fact]
 	public async Task CreateActivity_WithMessageTypeTag()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId, correlationId: "corr-456");
@@ -103,7 +108,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	[Fact]
 	public async Task SetOkStatus_OnSuccessfulResult()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
@@ -121,7 +126,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	[Fact]
 	public async Task SetErrorStatus_OnFailedResult()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
@@ -146,7 +151,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	[Fact]
 	public async Task SetExceptionStatus_OnException()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
@@ -162,7 +167,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	[Fact]
 	public async Task TagHandlerType_WhenAvailableInContext()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var items = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -183,7 +188,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	[Fact]
 	public async Task TagMessageKind_AsAction()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchAction>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
@@ -200,7 +205,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	[Fact]
 	public async Task TagMessageKind_AsEvent()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchEvent>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);
@@ -217,7 +222,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	[Fact]
 	public async Task TagMessageKind_AsDocument()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchDocument>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);

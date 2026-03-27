@@ -57,6 +57,11 @@ var bus = serviceProvider.GetRequiredKeyedService<IMessageBus>("rabbitmq");
 ## Configuration
 
 ### Fluent Builder Configuration
+
+:::tip Start simple
+For most applications, the Quick Start above is all you need. The fluent builder below is for advanced scenarios (custom exchanges, queue bindings, CloudEvents routing).
+:::
+
 Configure RabbitMQ transport using the fluent builder:
 
 ```csharp
@@ -92,6 +97,11 @@ services.AddRabbitMQTransport(rmq =>
 ```
 
 ### Broker Options
+
+:::tip When do I need this?
+Use `RabbitMqOptions` when you need fine-grained control over queue arguments, consumer behavior, or dead letter exchanges. The fluent builder above covers most scenarios.
+:::
+
 Configure low-level broker behavior via `RabbitMqOptions`:
 
 ```csharp

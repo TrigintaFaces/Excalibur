@@ -50,6 +50,8 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 	private readonly JsonSerializerOptions _jsonOptions;
 	private readonly ISerializer? _internalSerializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
+	private readonly string _schema;
+	private readonly string _table;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerEventStore"/> class.
@@ -62,7 +64,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(string connectionString, ILogger<SqlServerEventStore> logger)
-		: this(connectionString, logger, internalSerializer: null, payloadSerializer: null)
+		: this(CreateConnectionFactory(connectionString), logger, internalSerializer: null, payloadSerializer: null, schema: "dbo", table: "EventStoreEvents")
 	{
 	}
 
@@ -116,6 +118,8 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
+	/// <param name="schema">The schema name for the event store table. Default: "dbo".</param>
+	/// <param name="table">The event store table name. Default: "EventStoreEvents".</param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -140,13 +144,17 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerEventStore> logger,
 		ISerializer? internalSerializer = null,
-		IPayloadSerializer? payloadSerializer = null)
+		IPayloadSerializer? payloadSerializer = null,
+		string schema = "dbo",
+		string table = "EventStoreEvents")
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 		_internalSerializer = internalSerializer;
 		_payloadSerializer = payloadSerializer;
+		_schema = schema;
+		_table = table;
 	}
 
 	/// <inheritdoc/>
@@ -175,7 +183,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var loadedEvents = await connection.ResolveAsync(
-					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, cancellationToken))
+					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_ = (activity?.SetTag(EventSourcingTags.EventCount, loadedEvents.Count));
@@ -266,7 +274,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 
 		// Check current version using IDataRequest
 		var currentVersion = await connection.ResolveAsync(
-				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, cancellationToken))
+				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 
 		if (currentVersion != expectedVersion)
@@ -322,7 +330,9 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 						version,
 						@event.OccurredAt,
 						transaction,
-						cancellationToken))
+						cancellationToken,
+						_schema,
+						_table))
 				.ConfigureAwait(false);
 
 			if (firstPosition == 0)
@@ -505,7 +515,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, cancellationToken))
+			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 
@@ -519,7 +529,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.IsErasedRequest(aggregateId, aggregateType, cancellationToken))
+			new Requests.IsErasedRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 }

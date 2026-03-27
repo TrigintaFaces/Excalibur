@@ -39,7 +39,7 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Assert
-		options.EventStoreTable.ShouldBe("Events");
+		options.EventStoreTable.ShouldBe("EventStoreEvents");
 	}
 
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Assert
-		options.SnapshotStoreTable.ShouldBe("Snapshots");
+		options.SnapshotStoreTable.ShouldBe("EventStoreSnapshots");
 	}
 
 	[Fact]

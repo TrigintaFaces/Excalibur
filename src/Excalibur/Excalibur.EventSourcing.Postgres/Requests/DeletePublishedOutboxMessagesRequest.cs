@@ -15,25 +15,33 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 public sealed class DeletePublishedOutboxMessagesRequest : DataRequestBase<IDbConnection, int>
 {
-	private const string Sql = """
-		DELETE FROM event_sourced_outbox
-		WHERE published_at IS NOT NULL
-		  AND published_at < @CutoffDate
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DeletePublishedOutboxMessagesRequest"/> class.
 	/// </summary>
 	/// <param name="retentionPeriod">The retention period for published messages.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "public".</param>
+	/// <param name="table">The outbox table name. Default: "event_sourced_outbox".</param>
 	public DeletePublishedOutboxMessagesRequest(
 		TimeSpan retentionPeriod,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "event_sourced_outbox")
 	{
+		var qualifiedTable = PgTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			DELETE FROM {qualifiedTable}
+			WHERE published_at IS NOT NULL
+			  AND published_at < @CutoffDate
+			""";
+#pragma warning restore CA2100
+
 		var parameters = new DynamicParameters();
 		parameters.Add("@CutoffDate", DateTimeOffset.UtcNow - retentionPeriod);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);

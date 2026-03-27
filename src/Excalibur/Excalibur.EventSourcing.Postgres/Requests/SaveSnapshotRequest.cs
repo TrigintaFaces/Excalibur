@@ -17,27 +17,35 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 {
-	private const string Sql = """
-		INSERT INTO event_store_snapshots (snapshot_id, aggregate_id, aggregate_type, version, data, created_at)
-		VALUES (@SnapshotId, @AggregateId, @AggregateType, @Version, @Data, @CreatedAt)
-		ON CONFLICT (aggregate_id, aggregate_type)
-		DO UPDATE SET
-		    snapshot_id = EXCLUDED.snapshot_id,
-		    version = EXCLUDED.version,
-		    data = EXCLUDED.data,
-		    created_at = EXCLUDED.created_at
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SaveSnapshotRequest"/> class.
 	/// </summary>
 	/// <param name="snapshot">The snapshot to save.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the snapshot store table. Default: "public".</param>
+	/// <param name="table">The snapshot store table name. Default: "event_store_snapshots".</param>
 	public SaveSnapshotRequest(
 		ISnapshot snapshot,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "event_store_snapshots")
 	{
 		ArgumentNullException.ThrowIfNull(snapshot);
+
+		var qualifiedTable = PgTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			INSERT INTO {qualifiedTable} (snapshot_id, aggregate_id, aggregate_type, version, data, created_at)
+			VALUES (@SnapshotId, @AggregateId, @AggregateType, @Version, @Data, @CreatedAt)
+			ON CONFLICT (aggregate_id, aggregate_type)
+			DO UPDATE SET
+			    snapshot_id = EXCLUDED.snapshot_id,
+			    version = EXCLUDED.version,
+			    data = EXCLUDED.data,
+			    created_at = EXCLUDED.created_at
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@SnapshotId", snapshot.SnapshotId);
@@ -47,7 +55,7 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 		parameters.Add("@Data", snapshot.Data, DbType.Binary);
 		parameters.Add("@CreatedAt", snapshot.CreatedAt);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);

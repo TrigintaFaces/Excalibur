@@ -38,6 +38,8 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 {
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly ILogger<PostgresSnapshotStore> _logger;
+	private readonly string _schema;
+	private readonly string _table;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresSnapshotStore"/> class.
@@ -46,7 +48,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresSnapshotStore(NpgsqlDataSource, ILogger{PostgresSnapshotStore})"/>
+	/// Use <see cref="PostgresSnapshotStore(NpgsqlDataSource, ILogger{PostgresSnapshotStore}, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresSnapshotStore(string connectionString, ILogger<PostgresSnapshotStore> logger)
@@ -62,6 +64,8 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 	/// Using NpgsqlDataSource is the recommended pattern per Npgsql documentation.
 	/// </param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="schema">The schema name for the snapshot store table. Default: "public".</param>
+	/// <param name="table">The snapshot store table name. Default: "event_store_snapshots".</param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -74,10 +78,14 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 	/// </remarks>
 	public PostgresSnapshotStore(
 		NpgsqlDataSource dataSource,
-		ILogger<PostgresSnapshotStore> logger)
+		ILogger<PostgresSnapshotStore> logger,
+		string schema = "public",
+		string table = "event_store_snapshots")
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_schema = schema;
+		_table = table;
 	}
 
 	/// <inheritdoc/>
@@ -94,7 +102,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			var snapshot = await connection.ResolveAsync(
-					new GetLatestSnapshotRequest(aggregateId, aggregateType, cancellationToken))
+					new GetLatestSnapshotRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (snapshot == null)
@@ -133,7 +141,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new SaveSnapshotRequest(snapshot, cancellationToken))
+					new SaveSnapshotRequest(snapshot, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Saved snapshot for {AggregateType}/{AggregateId} at version {Version}",
@@ -169,7 +177,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsRequest(aggregateId, aggregateType, cancellationToken))
+					new DeleteSnapshotsRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots for {AggregateType}/{AggregateId}",
@@ -206,7 +214,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, cancellationToken))
+					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots older than version {Version} for {AggregateType}/{AggregateId}",

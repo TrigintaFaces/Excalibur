@@ -235,24 +235,26 @@ builder.Services.AddHostedService<CdcPollingBackgroundService>();
 // Elasticsearch Projections
 // ============================================================================
 
-// Customer projections
-builder.Services
-	.AddElasticSearchProjectionStore<CustomerSearchProjection>(elasticsearchUri, options =>
+// Register all Elasticsearch projection stores using the batch API.
+// This shares the common node URI and reduces boilerplate.
+builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
+{
+	// Customer projections
+	projections.Add<CustomerSearchProjection>(options =>
 	{
 		options.IndexPrefix = "customers";
 		options.CreateIndexOnInitialize = true;
 		options.NumberOfShards = 1;
 		options.NumberOfReplicas = 0;
-	})
-	.AddElasticSearchProjectionStore<CustomerTierSummaryProjection>(elasticsearchUri, options =>
+	});
+	projections.Add<CustomerTierSummaryProjection>(options =>
 	{
 		options.IndexPrefix = "customers";
 		options.CreateIndexOnInitialize = true;
 	});
 
-// Order projections
-builder.Services
-	.AddElasticSearchProjectionStore<OrderSearchProjection>(elasticsearchUri, options =>
+	// Order projections
+	projections.Add<OrderSearchProjection>(options =>
 	{
 		options.IndexPrefix = "orders";
 		options.CreateIndexOnInitialize = true;
@@ -260,18 +262,18 @@ builder.Services
 		options.NumberOfReplicas = 0;
 	});
 
-// Analytics projections
-builder.Services
-	.AddElasticSearchProjectionStore<OrderAnalyticsProjection>(elasticsearchUri, options =>
-	{
-		options.IndexPrefix = "analytics";
-		options.CreateIndexOnInitialize = true;
-	})
-	.AddElasticSearchProjectionStore<DailyOrderSummaryProjection>(elasticsearchUri, options =>
+	// Analytics projections
+	projections.Add<OrderAnalyticsProjection>(options =>
 	{
 		options.IndexPrefix = "analytics";
 		options.CreateIndexOnInitialize = true;
 	});
+	projections.Add<DailyOrderSummaryProjection>(options =>
+	{
+		options.IndexPrefix = "analytics";
+		options.CreateIndexOnInitialize = true;
+	});
+});
 
 // ============================================================================
 // Custom Elasticsearch Repository (Native Query Features)

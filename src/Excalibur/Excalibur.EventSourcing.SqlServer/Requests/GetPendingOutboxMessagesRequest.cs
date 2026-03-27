@@ -16,27 +16,35 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// </summary>
 public sealed class GetPendingOutboxMessagesRequest : DataRequestBase<IDbConnection, IReadOnlyList<OutboxMessage>>
 {
-	private const string Sql = """
-		SELECT TOP (@BatchSize)
-		    Id, AggregateId, AggregateType, EventType, EventData, CreatedAt, PublishedAt, RetryCount, MessageType, Metadata
-		FROM EventSourcedOutbox
-		WHERE PublishedAt IS NULL
-		ORDER BY CreatedAt ASC
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetPendingOutboxMessagesRequest"/> class.
 	/// </summary>
 	/// <param name="batchSize">Maximum number of messages to retrieve.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "dbo".</param>
+	/// <param name="table">The outbox table name. Default: "EventSourcedOutbox".</param>
 	public GetPendingOutboxMessagesRequest(
 		int batchSize,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "dbo",
+		string table = "EventSourcedOutbox")
 	{
+		var qualifiedTable = SqlTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		var sql = $"""
+			SELECT TOP (@BatchSize)
+			    Id, AggregateId, AggregateType, EventType, EventData, CreatedAt, PublishedAt, RetryCount, MessageType, Metadata
+			FROM {qualifiedTable}
+			WHERE PublishedAt IS NULL
+			ORDER BY CreatedAt ASC
+			""";
+#pragma warning restore CA2100
+
 		var parameters = new DynamicParameters();
 		parameters.Add("@BatchSize", batchSize);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 		{

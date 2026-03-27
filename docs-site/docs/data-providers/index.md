@@ -297,12 +297,35 @@ var query = await provider.QueryAsync<Order>(
     "SELECT * FROM c", key, parameters: null, consistencyOptions: options, ct);
 ```
 
+## Default Naming Conventions
+
+Each provider uses sensible defaults for table/collection/container names. You can override any of them via options.
+
+| Provider | Store | Default Name | Override Property |
+|----------|-------|-------------|-------------------|
+| **SQL Server** | Event Store | `EventStoreEvents` | `EventStoreTable` |
+| **SQL Server** | Snapshots | `EventStoreSnapshots` | `SnapshotStoreTable` |
+| **SQL Server** | Outbox | `EventSourcedOutbox` | `OutboxTable` |
+| **SQL Server** | Schema | `dbo` | `EventStoreSchema` / `SnapshotStoreSchema` / `OutboxSchema` |
+| **PostgreSQL** | Event Store | `event_store_events` | `EventStoreTable` |
+| **PostgreSQL** | Snapshots | `event_store_snapshots` | `SnapshotStoreTable` |
+| **PostgreSQL** | Outbox | `event_sourced_outbox` | `OutboxTable` |
+| **MongoDB** | Snapshots | `snapshots` | `CollectionName` |
+| **Cosmos DB** | Snapshots | `snapshots` | `ContainerName` |
+| **DynamoDB** | Snapshots | `Snapshots` | `TableName` |
+| **Firestore** | Snapshots | `snapshots` | `CollectionName` |
+| **ElasticSearch** | Projections | `{prefix}-{typename}` | `IndexName`, `IndexPrefix` |
+
+:::tip SQL Injection Protection
+SQL Server and PostgreSQL validate all schema and table names against a strict whitelist (`[a-zA-Z0-9_]`) and bracket/quote-escape them in queries. You cannot inject SQL through configuration.
+:::
+
 ## What's Next
 
-- [Multi-Database Support](./multi-database.md) — Typed `IDb` interfaces for separate connections per store
-- [SQL Server Provider](./sqlserver.md) — Enterprise SQL workloads with full transaction support
-- [Cosmos DB Provider](./cosmosdb.md) — Global distribution and multi-model cloud-native access
-- [MongoDB Provider](./mongodb.md) — Flexible document storage with aggregation pipelines
+- [Multi-Database Support](./multi-database.md) -- Typed `IDb` interfaces for separate connections per store
+- [SQL Server Provider](./sqlserver.md) -- Enterprise SQL workloads with full transaction support
+- [Cosmos DB Provider](./cosmosdb.md) -- Global distribution and multi-model cloud-native access
+- [MongoDB Provider](./mongodb.md) -- Flexible document storage with aggregation pipelines
 
 ## See Also
 

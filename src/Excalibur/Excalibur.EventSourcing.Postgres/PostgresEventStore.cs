@@ -51,6 +51,8 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	private readonly JsonSerializerOptions _jsonOptions;
 	private readonly ISerializer? _internalSerializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
+	private readonly string _schema;
+	private readonly string _table;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresEventStore"/> class.
@@ -59,11 +61,11 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(string connectionString, ILogger<PostgresEventStore> logger)
-		: this(connectionString, logger, internalSerializer: null, payloadSerializer: null)
+		: this(CreateDataSource(connectionString), logger, internalSerializer: null, payloadSerializer: null, schema: "public", table: "events")
 	{
 	}
 
@@ -75,7 +77,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(
@@ -95,7 +97,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(
@@ -117,6 +119,8 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
+	/// <param name="schema">The schema name for the event store table. Default: "public".</param>
+	/// <param name="table">The event store table name. Default: "events".</param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -131,13 +135,17 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		NpgsqlDataSource dataSource,
 		ILogger<PostgresEventStore> logger,
 		ISerializer? internalSerializer = null,
-		IPayloadSerializer? payloadSerializer = null)
+		IPayloadSerializer? payloadSerializer = null,
+		string schema = "public",
+		string table = "events")
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 		_internalSerializer = internalSerializer;
 		_payloadSerializer = payloadSerializer;
+		_schema = schema;
+		_table = table;
 	}
 
 	/// <inheritdoc/>
@@ -165,7 +173,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			var loadedEvents = await connection.ResolveAsync(
-					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, cancellationToken))
+					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_ = (activity?.SetTag(EventSourcingTags.EventCount, loadedEvents.Count));
@@ -258,7 +266,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 
 		// Check current version using IDataRequest
 		var currentVersion = await connection.ResolveAsync(
-				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, cancellationToken))
+				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 
 		if (currentVersion != expectedVersion)
@@ -311,7 +319,9 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 						version,
 						@event.OccurredAt,
 						transaction,
-						cancellationToken))
+						cancellationToken,
+						_schema,
+						_table))
 				.ConfigureAwait(false);
 
 			if (firstPosition == 0)
@@ -493,7 +503,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, cancellationToken))
+			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 
@@ -506,7 +516,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.IsErasedRequest(aggregateId, aggregateType, cancellationToken))
+			new Requests.IsErasedRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 }

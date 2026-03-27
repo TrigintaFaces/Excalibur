@@ -7,6 +7,8 @@ using Google.Protobuf;
 
 using Testcontainers.PubSub;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Dispatch.Integration.Tests.Transport.GooglePubSub;
 
 /// <summary>
@@ -64,7 +66,10 @@ public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime
 		{
 			if (_container is not null)
 			{
-				await _container.DisposeAsync().ConfigureAwait(false);
+				await TestTimeouts.WithTimeout(
+					_container.DisposeAsync().AsTask(),
+					TestTimeouts.ContainerDispose,
+					"PubSub emulator container dispose").ConfigureAwait(false);
 			}
 		}
 		catch

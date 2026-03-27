@@ -8,6 +8,10 @@ description: Build event-sourced applications with aggregates, event stores, and
 
 Excalibur provides a complete event sourcing implementation with aggregates, event stores, snapshots, and projections.
 
+:::info Why Should I Care?
+Traditional CRUD overwrites state on every save -- you lose the history of *how* you got there. Event sourcing stores every change as an immutable event, giving you: **full audit trails** (who changed what, when), **temporal queries** (what was the state at any point in time), **easy debugging** (replay events to reproduce bugs), and **decoupled read models** (build multiple query-optimized views from the same event stream).
+:::
+
 ## Before You Start
 
 - **.NET 8.0+** (or .NET 9/10 for latest features)
@@ -308,16 +312,17 @@ public interface IEventStore
 }
 ```
 
-## In This Section
+## Recommended Reading Order
 
-- [Domain Events](domain-events.md) — Define and work with domain events
-- [Aggregates](aggregates.md) — Build event-sourced aggregates
-- [Event Store](event-store.md) — Persist and load events
-- [Snapshots](snapshots.md) — Optimize loading with snapshots
-- [Projections](projections.md) — Build read models from events
-- [Materialized Views](materialized-views.md) — Query-optimized analytics views
-- [Migrations](migrations.md) — Schema migrations CLI tool
-- [Event Versioning](versioning.md) — Handle schema evolution
+1. **[Domain Events](domain-events.md)** -- Start here. Define the events that describe what happens in your domain.
+2. **[Aggregates](aggregates.md)** -- Build aggregates that enforce business rules and raise events.
+3. **[Event Store](event-store.md)** -- Persist and load event streams.
+4. **[Snapshots](snapshots.md)** -- Optimize loading for aggregates with many events.
+5. **[Projections](projections.md)** -- Build query-optimized read models from event streams.
+6. **[Providers](providers.md)** -- Choose and configure your database provider.
+7. **[Event Versioning](versioning.md)** -- Handle event schema changes over time.
+8. **[Materialized Views](materialized-views.md)** -- Schedule-driven analytics views.
+9. **[Migrations](migrations.md)** -- Schema migrations CLI tool.
 
 ## See Also
 

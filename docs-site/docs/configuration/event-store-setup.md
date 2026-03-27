@@ -60,8 +60,14 @@ services.AddExcaliburEventSourcing(es =>
 You can also register providers directly on `IServiceCollection` if you prefer separating provider setup from builder configuration:
 
 ```csharp
+// All-in-one: registers event store, snapshot store, and outbox
 services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
-// or with connection factory
+
+// Or register individual stores with per-store options
+services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
+services.AddSqlServerSnapshotStore(opts => opts.ConnectionString = connectionString);
+
+// Or with connection factory (advanced)
 services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
 ```
 :::
@@ -233,16 +239,46 @@ CREATE TABLE [EventSourcing].[Snapshots] (
 
 ## Configuration Options
 
+### SqlServerEventSourcingOptions (All-in-One)
+
 | Option | Default | Description |
 |--------|---------|-------------|
 | `ConnectionString` | `null` | SQL Server connection string (required unless using factory) |
-| `EventStoreSchema` | `dbo` | Database schema for the events table |
-| `EventStoreTable` | `Events` | Name of events table |
-| `SnapshotStoreSchema` | `dbo` | Database schema for the snapshots table |
-| `SnapshotStoreTable` | `Snapshots` | Name of snapshots table |
-| `OutboxSchema` | `dbo` | Database schema for the outbox table |
-| `OutboxTable` | `EventSourcedOutbox` | Name of outbox table |
+| `EventStoreSchema` | `"dbo"` | Database schema for the events table |
+| `EventStoreTable` | `"EventStoreEvents"` | Name of events table |
+| `SnapshotStoreSchema` | `"dbo"` | Database schema for the snapshots table |
+| `SnapshotStoreTable` | `"EventStoreSnapshots"` | Name of snapshots table |
+| `OutboxSchema` | `"dbo"` | Database schema for the outbox table |
+| `OutboxTable` | `"EventSourcedOutbox"` | Name of outbox table |
 | `RegisterHealthChecks` | `true` | Whether to register health checks |
+
+All schema and table names are validated against SQL injection using `SqlIdentifierValidator` (alphanumeric + underscore whitelist, bracket-escaped in queries).
+
+### Per-Store Options
+
+When registering individual stores, use their lightweight options classes:
+
+| Options Class | Key Property | Used By |
+|---------------|-------------|---------|
+| `SqlServerEventStoreOptions` | `ConnectionString` | `AddSqlServerEventStore(Action<>)` |
+| `SqlServerSnapshotStoreOptions` | `ConnectionString` | `AddSqlServerSnapshotStore(Action<>)` |
+| `PostgresEventStoreOptions` | `ConnectionString` | `AddPostgresEventStore(Action<>)` |
+| `PostgresSnapshotStoreOptions` | `ConnectionString` | `AddPostgresSnapshotStore(Action<>)` |
+
+### Custom Schema and Table Names
+
+To use custom table names (e.g., for multi-tenant isolation or naming conventions):
+
+```csharp
+services.AddSqlServerEventSourcing(opts =>
+{
+    opts.ConnectionString = connectionString;
+    opts.EventStoreSchema = "ordering";
+    opts.EventStoreTable = "DomainEvents";
+    opts.SnapshotStoreSchema = "ordering";
+    opts.SnapshotStoreTable = "AggregateSnapshots";
+});
+```
 
 ## Multiple Event Stores
 

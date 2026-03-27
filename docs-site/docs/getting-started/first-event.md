@@ -371,6 +371,50 @@ public class ResilientEventHandler : IEventHandler<OrderCreatedEvent>
 | Multiple handlers | Same event can have many handlers |
 | Parallel execution | Default behavior for throughput |
 
+## Gotchas and Common Mistakes
+
+### Dispatching from inside a handler? Use `DispatchChildAsync`
+
+When you dispatch a new message from within an existing handler, use `DispatchChildAsync` instead of `DispatchAsync`. This creates a child context that propagates correlation IDs, causation chains, and tenant information:
+
+```csharp
+public class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
+{
+    private readonly IDispatcher _dispatcher;
+
+    public async Task<Guid> HandleAsync(CreateOrderAction action, CancellationToken ct)
+    {
+        var orderId = Guid.NewGuid();
+
+        // Wrong: DispatchAsync reuses the parent context without causation tracking
+        // await _dispatcher.DispatchAsync(new OrderCreatedEvent(orderId), ct);
+
+        // Correct: DispatchChildAsync creates a child context with proper lineage
+        await _dispatcher.DispatchChildAsync(
+            new OrderCreatedEvent(orderId, action.CustomerId, 0m, DateTime.UtcNow), ct);
+
+        return orderId;
+    }
+}
+```
+
+Without `DispatchChildAsync`, you lose the causal chain between parent and child messages, making distributed tracing and debugging significantly harder.
+
+### Context is scoped per dispatch call
+
+Each top-level `DispatchAsync` call gets its own `IMessageContext`. Items you set on the context in one handler are visible to middleware in that same pipeline, but **not** across separate dispatch calls:
+
+```csharp
+// Handler A sets a context item
+context.SetItem("ProcessedBy", "HandlerA");
+
+// A separate DispatchAsync call starts a NEW context --
+// it will NOT see "ProcessedBy" from Handler A
+await _dispatcher.DispatchAsync(new AnotherAction(), ct);
+```
+
+If you need to pass data between related dispatches, use `DispatchChildAsync` which copies correlation metadata, or pass data explicitly through the message itself.
+
 ## What's Next
 
 - [Project Templates](./project-templates.md) - Scaffold new projects quickly

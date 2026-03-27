@@ -15,28 +15,36 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// </summary>
 public sealed class MarkOutboxMessagePublishedRequest : DataRequestBase<IDbConnection, int>
 {
-	private const string Sql = """
-		UPDATE EventSourcedOutbox
-		SET PublishedAt = @PublishedAt
-		WHERE Id = @Id AND PublishedAt IS NULL
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MarkOutboxMessagePublishedRequest"/> class.
 	/// </summary>
 	/// <param name="messageId">The unique identifier of the message to mark as published.</param>
 	/// <param name="transaction">Optional database transaction.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "dbo".</param>
+	/// <param name="table">The outbox table name. Default: "EventSourcedOutbox".</param>
 	public MarkOutboxMessagePublishedRequest(
 		Guid messageId,
 		IDbTransaction? transaction,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "dbo",
+		string table = "EventSourcedOutbox")
 	{
+		var qualifiedTable = SqlTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		var sql = $"""
+			UPDATE {qualifiedTable}
+			SET PublishedAt = @PublishedAt
+			WHERE Id = @Id AND PublishedAt IS NULL
+			""";
+#pragma warning restore CA2100
+
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", messageId);
 		parameters.Add("@PublishedAt", DateTimeOffset.UtcNow);
 
-		Command = CreateCommand(Sql, parameters, transaction: transaction, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, transaction: transaction, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);

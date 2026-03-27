@@ -8,6 +8,10 @@ description: Cross-cutting concerns with the Dispatch middleware pipeline
 
 Middleware components process messages before and after handlers, providing cross-cutting concerns like logging, validation, and authorization.
 
+:::info Why Should I Care?
+Without middleware, every handler ends up with copy-pasted try/catch logging, manual validation checks, and authorization guards. Middleware lets you **write cross-cutting logic once** and apply it to every message automatically -- just like ASP.NET Core middleware but for your dispatch pipeline. Add logging, validation, retry, and auth without touching any handler code.
+:::
+
 ## Before You Start
 
 - **.NET 8.0+** (or .NET 9/10 for latest features)
@@ -256,16 +260,21 @@ builder.Services.AddDispatch(dispatch =>
 });
 ```
 
-## In This Section
+## Recommended Reading Order
 
-- [Built-in Middleware](built-in.md) — Pre-built middleware components
-- [Custom Middleware](custom.md) — Create your own middleware
-- [Validation](validation.md) — Input validation patterns
-- [Authorization](authorization.md) — Permission and policy checks
-- [Serialization](serialization.md) — Message serialization options
+1. **[Built-in Middleware](built-in.md)** -- Start here. See what's available out of the box.
+2. **[Custom Middleware](custom.md)** -- Create your own middleware for application-specific concerns.
+3. **[Validation](validation.md)** -- Automatic input validation with FluentValidation.
+4. **[Authorization](authorization.md)** -- Permission and policy checks.
+5. **[Serialization Providers](serialization-providers.md)** -- Message serialization options.
+
+## Next Steps
+
+- [Pipeline](../pipeline/index.md) -- Understand pipeline stages and execution order
+- [Configuration](../core-concepts/configuration.md) -- Register middleware via the dispatch builder
 
 ## See Also
 
-- [Pipeline](../pipeline/index.md) - Full pipeline architecture and stages
-- [Handlers](../handlers.md) - Action and event handlers
-- [Transports](../transports/index.md) - Transport-level middleware integration
+- [Handlers](../handlers.md) -- Action and event handlers that middleware wraps
+- [Transports](../transports/index.md) -- Transport-level middleware integration
+- [Observability](../observability/index.md) -- Tracing and metrics for middleware execution

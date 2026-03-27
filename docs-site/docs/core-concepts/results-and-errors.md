@@ -8,6 +8,10 @@ description: Handle success and failure patterns in Dispatch using the MessageRe
 
 Dispatch provides a comprehensive result type system for handling operation outcomes without relying on exceptions for control flow. The `IMessageResult` and `IMessageResult<T>` interfaces enable clean error handling with full support for railway-oriented programming patterns.
 
+:::info Why Should I Care?
+Throwing exceptions for business validation ("order not found", "insufficient stock") is expensive and makes error paths invisible in your code. `IMessageResult` makes success and failure **first-class values** -- you can pattern-match, chain with `.Map()` and `.Match()`, and convert directly to HTTP responses with `.ToApiResult()`. Your handlers return results, not throw exceptions.
+:::
+
 ## Before You Start
 
 - **.NET 8.0+** (or .NET 9/10 for latest features)
@@ -1199,6 +1203,39 @@ public class ErrorController : ControllerBase
     }
 }
 ```
+
+## Error Handling Decision Tree
+
+Use this to pick the right error strategy for your scenario:
+
+```
+Is the error a business rule violation (validation, not found, insufficient funds)?
+├── YES → Return MessageResult.Failed(problemDetails)
+│         Don't throw exceptions for expected business outcomes.
+│
+└── NO → Is it a transient infrastructure failure (timeout, connection reset)?
+    ├── YES → Let resilience middleware handle it
+    │         Add: dispatch.AddDispatchResilience()
+    │         The middleware retries automatically with backoff.
+    │
+    └── NO → Is it a permanent infrastructure failure (bad config, missing table)?
+        ├── YES → Throw an exception
+        │         Let it propagate to the caller. Log it. Fix the root cause.
+        │
+        └── NO → Is it a message that cannot be processed after retries?
+            └── YES → Use the dead-letter pattern
+                      Messages move to a DLQ after max retries.
+                      See: Dead Letter Pattern docs
+```
+
+| Scenario | Strategy | Code Pattern |
+|----------|----------|-------------|
+| Validation failure | `MessageResult.Failed(problem)` | Return result, don't throw |
+| Entity not found | `MessageResult.Failed("Not found")` | Return result |
+| Transient failure | Resilience middleware | `dispatch.AddDispatchResilience()` |
+| Permanent failure | Exception | `throw new InvalidOperationException(...)` |
+| Poison message | Dead letter queue | Transport DLQ config |
+| Concurrency conflict | Reload + retry | Catch `ConcurrencyException`, reload aggregate |
 
 ## What's Next
 

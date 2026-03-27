@@ -9,6 +9,8 @@ using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Observability;
 using Excalibur.Dispatch.Observability.Metrics;
 
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 
 /// <summary>
@@ -22,9 +24,12 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 	private readonly List<Activity> _capturedActivities = [];
 	private readonly TracingMiddleware _middleware;
 
+	private static IOptions<ObservabilityOptions> DefaultOptions =>
+		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { EnableDetailedTiming = true, IncludeSensitiveData = true });
+
 	public TracingMiddlewareShould()
 	{
-		_middleware = new TracingMiddleware(NullTelemetrySanitizer.Instance);
+		_middleware = new TracingMiddleware(DefaultOptions, NullTelemetrySanitizer.Instance);
 
 		// Set up activity listener to capture activities
 		_activityListener = new ActivityListener

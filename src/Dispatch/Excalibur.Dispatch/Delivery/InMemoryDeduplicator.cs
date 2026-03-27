@@ -7,8 +7,10 @@ using System.Collections.Concurrent;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Options.Delivery;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Delivery;
 
@@ -43,7 +45,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDis
 
 	private readonly ConcurrentDictionary<string, ProcessedEntry> _processedMessages = new(StringComparer.Ordinal);
 	private readonly ILogger<InMemoryDeduplicator> _logger;
-	private readonly Timer _cleanupTimer;
+	private readonly Timer? _cleanupTimer;
 #if NET9_0_OR_GREATER
 	private readonly System.Threading.Lock _statsLock = new();
 #else
@@ -63,27 +65,32 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDis
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryDeduplicator"/> class.
-	/// Creates a new in-memory deduplicator instance.
 	/// </summary>
+	/// <param name="options">Configuration options for the deduplicator.</param>
 	/// <param name="logger"> Logger for diagnostic information. </param>
-	/// <param name="cleanupInterval"> Optional interval between automatic cleanup runs. Default is 5 minutes. </param>
 	public InMemoryDeduplicator(
-		ILogger<InMemoryDeduplicator> logger,
-		TimeSpan? cleanupInterval = null)
+		IOptions<InMemoryDeduplicatorOptions> options,
+		ILogger<InMemoryDeduplicator> logger)
 	{
+		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_logger = logger;
 
-		// Set up periodic cleanup timer
-		var interval = cleanupInterval ?? TimeSpan.FromMinutes(5);
-		_cleanupTimer = new Timer(
-			async _ => await PerformScheduledCleanupAsync().ConfigureAwait(false),
-			state: null,
-			interval,
-			interval);
+		var opts = options.Value;
 
-		LogDeduplicatorInitialized(interval);
+		// Only start the cleanup timer when EnableAutomaticCleanup is true
+		if (opts.EnableAutomaticCleanup)
+		{
+			var interval = opts.CleanupInterval;
+			_cleanupTimer = new Timer(
+				async _ => await PerformScheduledCleanupAsync().ConfigureAwait(false),
+				state: null,
+				interval,
+				interval);
+
+			LogDeduplicatorInitialized(interval);
+		}
 	}
 
 	/// <inheritdoc />

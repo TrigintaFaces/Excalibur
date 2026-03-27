@@ -22,7 +22,7 @@ public sealed class SkipBehaviorShould
 		values.Length.ShouldBe(3);
 		values.ShouldContain(SkipBehavior.Silent);
 		values.ShouldContain(SkipBehavior.LogOnly);
-		values.ShouldContain(SkipBehavior.ReturnSkippedResult);
+		values.ShouldContain(SkipBehavior.ThrowOnDuplicate);
 	}
 
 	[Fact]
@@ -40,10 +40,10 @@ public sealed class SkipBehaviorShould
 	}
 
 	[Fact]
-	public void ReturnSkippedResult_HasExpectedValue()
+	public void ThrowOnDuplicate_HasExpectedValue()
 	{
 		// Assert
-		((int)SkipBehavior.ReturnSkippedResult).ShouldBe(2);
+		((int)SkipBehavior.ThrowOnDuplicate).ShouldBe(2);
 	}
 
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class SkipBehaviorShould
 	[Theory]
 	[InlineData(SkipBehavior.Silent)]
 	[InlineData(SkipBehavior.LogOnly)]
-	[InlineData(SkipBehavior.ReturnSkippedResult)]
+	[InlineData(SkipBehavior.ThrowOnDuplicate)]
 	public void BeDefinedForAllValues(SkipBehavior behavior)
 	{
 		// Assert
@@ -69,7 +69,7 @@ public sealed class SkipBehaviorShould
 	[Theory]
 	[InlineData(0, SkipBehavior.Silent)]
 	[InlineData(1, SkipBehavior.LogOnly)]
-	[InlineData(2, SkipBehavior.ReturnSkippedResult)]
+	[InlineData(2, SkipBehavior.ThrowOnDuplicate)]
 	public void CastFromInt_ReturnsCorrectValue(int value, SkipBehavior expected)
 	{
 		// Act
@@ -84,6 +84,6 @@ public sealed class SkipBehaviorShould
 	{
 		// Assert - Values should be ordered from least to most verbose
 		(SkipBehavior.Silent < SkipBehavior.LogOnly).ShouldBeTrue();
-		(SkipBehavior.LogOnly < SkipBehavior.ReturnSkippedResult).ShouldBeTrue();
+		(SkipBehavior.LogOnly < SkipBehavior.ThrowOnDuplicate).ShouldBeTrue();
 	}
 }

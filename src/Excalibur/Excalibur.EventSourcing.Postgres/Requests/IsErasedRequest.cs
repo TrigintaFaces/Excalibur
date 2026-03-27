@@ -14,28 +14,34 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 internal sealed class IsErasedRequest : DataRequestBase<IDbConnection, bool>
 {
-	private const string Sql = """
-		SELECT EXISTS (
-		    SELECT 1 FROM events
-		    WHERE aggregate_id = @AggregateId
-		      AND aggregate_type = @AggregateType
-		      AND event_type = '$erased'
-		)
-		""";
-
 	public IsErasedRequest(
 		string aggregateId,
 		string aggregateType,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "events")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+
+		var qualifiedTable = PgTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			SELECT EXISTS (
+			    SELECT 1 FROM {qualifiedTable}
+			    WHERE aggregate_id = @AggregateId
+			      AND aggregate_type = @AggregateType
+			      AND event_type = '$erased'
+			)
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteScalarAsync<bool>(Command).ConfigureAwait(false);

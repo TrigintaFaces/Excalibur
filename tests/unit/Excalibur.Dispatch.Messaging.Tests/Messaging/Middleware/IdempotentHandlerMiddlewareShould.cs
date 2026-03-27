@@ -6,9 +6,11 @@ using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Inbox;
+using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Tests.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -40,14 +42,25 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_logger = NullLoggerFactory.Instance.CreateLogger<IdempotentHandlerMiddleware>();
 	}
 
+	private static IOptions<InboxOptions> CreateInboxOptions(
+		Excalibur.Dispatch.Messaging.SkipBehavior duplicateBehavior = Excalibur.Dispatch.Messaging.SkipBehavior.Silent)
+	{
+		return Microsoft.Extensions.Options.Options.Create(new InboxOptions
+		{
+			DuplicateBehavior = duplicateBehavior,
+		});
+	}
+
 	private IdempotentHandlerMiddleware CreateMiddleware(
 		IInMemoryDeduplicator? deduplicator = null,
 		IInboxStore? inboxStore = null,
 		IMessageIdProvider? messageIdProvider = null,
 		IInboxConfigurationProvider? configurationProvider = null,
-		bool omitInboxStore = false)
+		bool omitInboxStore = false,
+		Excalibur.Dispatch.Messaging.SkipBehavior duplicateBehavior = Excalibur.Dispatch.Messaging.SkipBehavior.Silent)
 	{
 		return new IdempotentHandlerMiddleware(
+			CreateInboxOptions(duplicateBehavior),
 			deduplicator ?? _inMemoryDeduplicator,
 			_logger,
 			omitInboxStore ? null : (inboxStore ?? _inboxStore),
@@ -68,11 +81,19 @@ public sealed class IdempotentHandlerMiddlewareShould
 	}
 
 	[Fact]
+	public void ThrowArgumentNullException_WhenInboxOptionsIsNull()
+	{
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() =>
+			new IdempotentHandlerMiddleware(null!, _inMemoryDeduplicator, _logger));
+	}
+
+	[Fact]
 	public void ThrowArgumentNullException_WhenDeduplicatorIsNull()
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new IdempotentHandlerMiddleware(null!, _logger));
+			new IdempotentHandlerMiddleware(CreateInboxOptions(), null!, _logger));
 	}
 
 	[Fact]
@@ -80,14 +101,15 @@ public sealed class IdempotentHandlerMiddlewareShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new IdempotentHandlerMiddleware(_inMemoryDeduplicator, null!));
+			new IdempotentHandlerMiddleware(CreateInboxOptions(), _inMemoryDeduplicator, null!));
 	}
 
 	[Fact]
 	public void AllowOptionalDependencies()
 	{
 		// Act - all optional dependencies are null
-		var middleware = new IdempotentHandlerMiddleware(_inMemoryDeduplicator, _logger);
+		var middleware = new IdempotentHandlerMiddleware(
+			CreateInboxOptions(), _inMemoryDeduplicator, _logger);
 
 		// Assert
 		_ = middleware.ShouldNotBeNull();

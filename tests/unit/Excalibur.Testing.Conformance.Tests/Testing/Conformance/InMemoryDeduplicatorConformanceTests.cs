@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Options.Delivery;
 
 using Excalibur.Testing.Conformance;
 
@@ -49,8 +50,12 @@ public sealed class InMemoryDeduplicatorConformanceTests : DeduplicatorConforman
 	/// <inheritdoc />
 	protected override IInMemoryDeduplicator CreateDeduplicator()
 	{
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = false,
+		});
 		var logger = NullLogger<InMemoryDeduplicator>.Instance;
-		return new InMemoryDeduplicator(logger);
+		return new InMemoryDeduplicator(options, logger);
 	}
 
 	#region IsDuplicateAsync Tests

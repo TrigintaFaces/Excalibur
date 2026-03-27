@@ -9,7 +9,7 @@ public sealed class SkipBehaviorShould
 	[Theory]
 	[InlineData(SkipBehavior.Silent, 0)]
 	[InlineData(SkipBehavior.LogOnly, 1)]
-	[InlineData(SkipBehavior.ReturnSkippedResult, 2)]
+	[InlineData(SkipBehavior.ThrowOnDuplicate, 2)]
 	public void HaveExpectedValues(SkipBehavior behavior, int expected)
 	{
 		((int)behavior).ShouldBe(expected);

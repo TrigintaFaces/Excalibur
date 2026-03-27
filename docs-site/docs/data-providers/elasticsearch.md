@@ -77,8 +77,15 @@ services.AddElasticsearchIndexManagement(configuration);
 ### Projection Store
 
 ```csharp
-services.AddElasticsearchProjections(configuration);
+// Register all projections together (shared cluster)
+services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
+{
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.IndexName = "customers");
+});
 ```
+
+See [Projections](../event-sourcing/projections.md#register-projection-stores) for index naming, multi-node clusters, and per-projection overrides.
 
 ### Health Checks
 

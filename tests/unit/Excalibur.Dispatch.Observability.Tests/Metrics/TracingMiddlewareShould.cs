@@ -7,6 +7,8 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Observability.Metrics;
 
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 
 /// <summary>
@@ -20,6 +22,9 @@ public sealed class TracingMiddlewareShould : IDisposable
 	private readonly ITelemetrySanitizer _fakeSanitizer = A.Fake<ITelemetrySanitizer>();
 	private readonly ActivityListener _listener;
 	private readonly List<Activity> _capturedActivities = [];
+
+	private static IOptions<ObservabilityOptions> DefaultOptions =>
+		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { EnableDetailedTiming = true, IncludeSensitiveData = true });
 
 	public TracingMiddlewareShould()
 	{
@@ -57,13 +62,13 @@ public sealed class TracingMiddlewareShould : IDisposable
 	[Fact]
 	public void ThrowOnNullSanitizer()
 	{
-		Should.Throw<ArgumentNullException>(() => new TracingMiddleware(null!));
+		Should.Throw<ArgumentNullException>(() => new TracingMiddleware(DefaultOptions, null!));
 	}
 
 	[Fact]
 	public void HavePreProcessingStage()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		middleware.Stage.ShouldBe(DispatchMiddlewareStage.PreProcessing);
 	}
 
@@ -71,7 +76,7 @@ public sealed class TracingMiddlewareShould : IDisposable
 	public async Task InvokeNextDelegate_AndReturnResult()
 	{
 		// Arrange
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
 		var context = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
@@ -89,7 +94,7 @@ public sealed class TracingMiddlewareShould : IDisposable
 	[Fact]
 	public async Task ThrowOnNullMessage()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
 
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -99,7 +104,7 @@ public sealed class TracingMiddlewareShould : IDisposable
 	[Fact]
 	public async Task ThrowOnNullContext()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
 
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -109,7 +114,7 @@ public sealed class TracingMiddlewareShould : IDisposable
 	[Fact]
 	public async Task ThrowOnNullNextDelegate()
 	{
-		var middleware = new TracingMiddleware(_fakeSanitizer);
+		var middleware = new TracingMiddleware(DefaultOptions, _fakeSanitizer);
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			async () => await middleware.InvokeAsync(

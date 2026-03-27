@@ -391,6 +391,7 @@ public sealed class AuditLoggingMiddlewareShould
 		var filterCalled = false;
 		var options = new AuditLoggingOptions
 		{
+			IncludeSensitiveData = true, // Required for payload logging path to execute
 			LogMessagePayload = true,
 			PayloadFilter = msg =>
 			{

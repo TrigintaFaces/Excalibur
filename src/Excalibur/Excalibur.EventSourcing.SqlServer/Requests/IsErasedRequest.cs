@@ -14,28 +14,34 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// </summary>
 internal sealed class IsErasedRequest : DataRequestBase<IDbConnection, bool>
 {
-	private const string Sql = """
-		SELECT CASE WHEN EXISTS (
-		    SELECT 1 FROM EventStoreEvents
-		    WHERE AggregateId = @AggregateId
-		      AND AggregateType = @AggregateType
-		      AND EventType = '$erased'
-		) THEN 1 ELSE 0 END
-		""";
-
 	public IsErasedRequest(
 		string aggregateId,
 		string aggregateType,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "dbo",
+		string table = "EventStoreEvents")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+
+		var qualifiedTable = SqlTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		var sql = $"""
+			SELECT CASE WHEN EXISTS (
+			    SELECT 1 FROM {qualifiedTable}
+			    WHERE AggregateId = @AggregateId
+			      AND AggregateType = @AggregateType
+			      AND EventType = '$erased'
+			) THEN 1 ELSE 0 END
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteScalarAsync<bool>(Command).ConfigureAwait(false);

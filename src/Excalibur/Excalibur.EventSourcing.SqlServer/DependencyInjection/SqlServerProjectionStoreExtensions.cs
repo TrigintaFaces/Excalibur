@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.SqlServer;
+using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -132,6 +133,39 @@ public static class SqlServerProjectionStoreExtensions
 				options?.TableName,
 				options?.JsonSerializerOptions);
 		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple SQL Server projection stores that share a common connection string,
+	/// reducing boilerplate when multiple projections target the same database.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The shared SQL Server connection string.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddSqlServerProjections("Server=...;Database=...", projections =>
+	/// {
+	///     projections.Add&lt;OrderSummary&gt;();
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.TableName = "Customers");
+	///     projections.Add&lt;ProductCatalog&gt;();
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddSqlServerProjections(
+		this IServiceCollection services,
+		string connectionString,
+		Action<SqlServerProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new SqlServerProjectionRegistrar(services, connectionString);
+		configure(registrar);
 
 		return services;
 	}

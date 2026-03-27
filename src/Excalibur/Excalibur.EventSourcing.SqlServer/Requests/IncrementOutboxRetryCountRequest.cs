@@ -15,25 +15,33 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// </summary>
 public sealed class IncrementOutboxRetryCountRequest : DataRequestBase<IDbConnection, int>
 {
-	private const string Sql = """
-		UPDATE EventSourcedOutbox
-		SET RetryCount = RetryCount + 1
-		WHERE Id = @Id
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="IncrementOutboxRetryCountRequest"/> class.
 	/// </summary>
 	/// <param name="messageId">The unique identifier of the message.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "dbo".</param>
+	/// <param name="table">The outbox table name. Default: "EventSourcedOutbox".</param>
 	public IncrementOutboxRetryCountRequest(
 		Guid messageId,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "dbo",
+		string table = "EventSourcedOutbox")
 	{
+		var qualifiedTable = SqlTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		var sql = $"""
+			UPDATE {qualifiedTable}
+			SET RetryCount = RetryCount + 1
+			WHERE Id = @Id
+			""";
+#pragma warning restore CA2100
+
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", messageId);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);

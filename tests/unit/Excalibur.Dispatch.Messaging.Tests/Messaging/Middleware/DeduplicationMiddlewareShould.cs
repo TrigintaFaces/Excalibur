@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Inbox;
+using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Tests.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -41,7 +42,9 @@ public sealed class DeduplicationMiddlewareShould
 		IInboxStore? inboxStore = null,
 		bool omitInboxStore = false)
 	{
+		var inboxOptions = Microsoft.Extensions.Options.Options.Create(new InboxOptions());
 		return new IdempotentHandlerMiddleware(
+			inboxOptions,
 			_inMemoryDeduplicator,
 			_logger,
 			omitInboxStore ? null : (inboxStore ?? _inboxStore),

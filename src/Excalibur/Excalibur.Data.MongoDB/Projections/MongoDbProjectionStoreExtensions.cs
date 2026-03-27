@@ -119,4 +119,40 @@ public static class MongoDbProjectionStoreExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// Registers multiple MongoDB projection stores that share a common connection string
+	/// and database name, reducing boilerplate when multiple projections target the same database.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The shared MongoDB connection string.</param>
+	/// <param name="databaseName">The shared MongoDB database name.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddMongoDbProjections("mongodb://localhost:27017", "mydb", projections =>
+	/// {
+	///     projections.Add&lt;OrderSummary&gt;();
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.CollectionName = "customers");
+	///     projections.Add&lt;ProductCatalog&gt;();
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddMongoDbProjections(
+		this IServiceCollection services,
+		string connectionString,
+		string databaseName,
+		Action<MongoDbProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new MongoDbProjectionRegistrar(services, connectionString, databaseName);
+		configure(registrar);
+
+		return services;
+	}
 }

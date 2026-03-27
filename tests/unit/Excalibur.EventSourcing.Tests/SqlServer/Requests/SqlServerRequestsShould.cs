@@ -31,7 +31,7 @@ public sealed class SqlServerRequestsShould
 			new byte[] { 1, 2, 3 }, null, 1, DateTimeOffset.UtcNow, null, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO EventStoreEvents");
+		request.Command.CommandText.ShouldContain("INSERT INTO [dbo].[EventStoreEvents]");
 		request.Command.CommandText.ShouldContain("OUTPUT INSERTED.Position");
 	}
 
@@ -190,7 +190,7 @@ public sealed class SqlServerRequestsShould
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("SELECT");
-		request.Command.CommandText.ShouldContain("FROM EventStoreEvents");
+		request.Command.CommandText.ShouldContain("FROM [dbo].[EventStoreEvents]");
 	}
 
 	[Fact]
@@ -309,7 +309,7 @@ public sealed class SqlServerRequestsShould
 	{
 		var request = new GetCurrentVersionRequest("agg-1", "OrderAggregate", null, Ct);
 
-		request.Command.CommandText.ShouldContain("FROM EventStoreEvents");
+		request.Command.CommandText.ShouldContain("FROM [dbo].[EventStoreEvents]");
 	}
 
 	[Fact]
@@ -386,7 +386,7 @@ public sealed class SqlServerRequestsShould
 		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("EventStoreSnapshots");
+		request.Command.CommandText.ShouldContain("[dbo].[EventStoreSnapshots]");
 	}
 
 	[Fact]
@@ -458,7 +458,7 @@ public sealed class SqlServerRequestsShould
 		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("DELETE FROM EventStoreSnapshots");
+		request.Command.CommandText.ShouldContain("DELETE FROM [dbo].[EventStoreSnapshots]");
 	}
 
 	[Fact]
@@ -534,7 +534,7 @@ public sealed class SqlServerRequestsShould
 	{
 		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, Ct);
 
-		request.Command.CommandText.ShouldContain("DELETE FROM EventStoreSnapshots");
+		request.Command.CommandText.ShouldContain("DELETE FROM [dbo].[EventStoreSnapshots]");
 	}
 
 	[Fact]
@@ -614,7 +614,7 @@ public sealed class SqlServerRequestsShould
 		var request = new SaveSnapshotRequest(snapshot, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("MERGE INTO EventStoreSnapshots WITH (ROWLOCK, UPDLOCK)");
+		request.Command.CommandText.ShouldContain("MERGE INTO [dbo].[EventStoreSnapshots] WITH (ROWLOCK, UPDLOCK)");
 	}
 
 	[Fact]
@@ -686,7 +686,7 @@ public sealed class SqlServerRequestsShould
 		var request = new AddOutboxMessageRequest(message, transaction, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO EventSourcedOutbox");
+		request.Command.CommandText.ShouldContain("INSERT INTO [dbo].[EventSourcedOutbox]");
 	}
 
 	[Fact]
@@ -798,7 +798,7 @@ public sealed class SqlServerRequestsShould
 	{
 		var request = new GetPendingOutboxMessagesRequest(100, Ct);
 
-		request.Command.CommandText.ShouldContain("FROM EventSourcedOutbox");
+		request.Command.CommandText.ShouldContain("FROM [dbo].[EventSourcedOutbox]");
 	}
 
 	[Fact]
@@ -860,7 +860,7 @@ public sealed class SqlServerRequestsShould
 		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromDays(7), Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("DELETE FROM EventSourcedOutbox");
+		request.Command.CommandText.ShouldContain("DELETE FROM [dbo].[EventSourcedOutbox]");
 		request.Command.CommandText.ShouldContain("PublishedAt < @CutoffDate");
 	}
 
@@ -931,7 +931,7 @@ public sealed class SqlServerRequestsShould
 	{
 		var request = new IncrementOutboxRetryCountRequest(Guid.NewGuid(), Ct);
 
-		request.Command.CommandText.ShouldContain("UPDATE EventSourcedOutbox");
+		request.Command.CommandText.ShouldContain("UPDATE [dbo].[EventSourcedOutbox]");
 	}
 
 	[Fact]
@@ -993,7 +993,7 @@ public sealed class SqlServerRequestsShould
 	{
 		var request = new MarkOutboxMessagePublishedRequest(Guid.NewGuid(), null, Ct);
 
-		request.Command.CommandText.ShouldContain("UPDATE EventSourcedOutbox");
+		request.Command.CommandText.ShouldContain("UPDATE [dbo].[EventSourcedOutbox]");
 	}
 
 	[Fact]

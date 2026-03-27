@@ -40,6 +40,8 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 {
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly ILogger<PostgresEventSourcedOutboxStore> _logger;
+	private readonly string _schema;
+	private readonly string _table;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresEventSourcedOutboxStore"/> class.
@@ -48,7 +50,7 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventSourcedOutboxStore(NpgsqlDataSource, ILogger{PostgresEventSourcedOutboxStore})"/>
+	/// Use <see cref="PostgresEventSourcedOutboxStore(NpgsqlDataSource, ILogger{PostgresEventSourcedOutboxStore}, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventSourcedOutboxStore(string connectionString, ILogger<PostgresEventSourcedOutboxStore> logger)
@@ -64,6 +66,8 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 	/// Using NpgsqlDataSource is the recommended pattern per Npgsql documentation.
 	/// </param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "public".</param>
+	/// <param name="table">The outbox table name. Default: "event_sourced_outbox".</param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -76,10 +80,14 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 	/// </remarks>
 	public PostgresEventSourcedOutboxStore(
 		NpgsqlDataSource dataSource,
-		ILogger<PostgresEventSourcedOutboxStore> logger)
+		ILogger<PostgresEventSourcedOutboxStore> logger,
+		string schema = "public",
+		string table = "event_sourced_outbox")
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_schema = schema;
+		_table = table;
 	}
 
 	/// <inheritdoc/>
@@ -105,7 +113,7 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 			}
 
 			_ = await connection.ResolveAsync(
-					new AddOutboxMessageRequest(message, transaction, cancellationToken))
+					new AddOutboxMessageRequest(message, transaction, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug(
@@ -141,7 +149,7 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 		try
 		{
 			var messages = await connection.ResolveAsync(
-					new GetPendingOutboxMessagesRequest(batchSize, cancellationToken))
+					new GetPendingOutboxMessagesRequest(batchSize, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Retrieved {Count} pending outbox messages", messages.Count);
@@ -187,7 +195,7 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 					}
 
 					_ = await transactionConnection.ResolveAsync(
-							new MarkOutboxMessagePublishedRequest(messageId, transaction, cancellationToken))
+							new MarkOutboxMessagePublishedRequest(messageId, transaction, cancellationToken, _schema, _table))
 						.ConfigureAwait(false);
 				}
 				catch
@@ -203,7 +211,7 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 					await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 					_ = await connection.ResolveAsync(
-							new MarkOutboxMessagePublishedRequest(messageId, null, cancellationToken))
+							new MarkOutboxMessagePublishedRequest(messageId, null, cancellationToken, _schema, _table))
 						.ConfigureAwait(false);
 				}
 				catch
@@ -239,7 +247,7 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 		try
 		{
 			var deletedCount = await connection.ResolveAsync(
-					new DeletePublishedOutboxMessagesRequest(retentionPeriod, cancellationToken))
+					new DeletePublishedOutboxMessagesRequest(retentionPeriod, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug(
@@ -277,7 +285,7 @@ public sealed class PostgresEventSourcedOutboxStore : IEventSourcedOutboxStore
 		try
 		{
 			_ = await connection.ResolveAsync(
-					new IncrementOutboxRetryCountRequest(messageId, cancellationToken))
+					new IncrementOutboxRetryCountRequest(messageId, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Incremented retry count for outbox message {MessageId}", messageId);

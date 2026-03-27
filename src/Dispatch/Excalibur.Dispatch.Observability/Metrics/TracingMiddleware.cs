@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Extensions;
 
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Dispatch.Observability.Metrics;
 
 /// <summary>
@@ -27,10 +29,12 @@ namespace Excalibur.Dispatch.Observability.Metrics;
 /// </code>
 /// </para>
 /// </remarks>
+/// <param name="observabilityOptions">The observability options controlling detailed timing and sensitive data inclusion.</param>
 /// <param name="sanitizer">The telemetry sanitizer for PII protection.</param>
 [AppliesTo(MessageKinds.All)]
-internal sealed class TracingMiddleware(ITelemetrySanitizer sanitizer) : IDispatchMiddleware
+internal sealed class TracingMiddleware(IOptions<ObservabilityOptions> observabilityOptions, ITelemetrySanitizer sanitizer) : IDispatchMiddleware
 {
+	private readonly ObservabilityOptions _observabilityOptions = observabilityOptions?.Value ?? throw new ArgumentNullException(nameof(observabilityOptions));
 	private readonly ITelemetrySanitizer _sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
 	/// <inheritdoc />
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
@@ -46,6 +50,12 @@ internal sealed class TracingMiddleware(ITelemetrySanitizer sanitizer) : IDispat
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(nextDelegate);
 
+		// When EnableDetailedTiming is false, skip creating per-middleware Activity spans
+		if (!_observabilityOptions.EnableDetailedTiming)
+		{
+			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
 		var messageType = message.GetType();
 		using var activity = DispatchActivitySource.Instance.StartActivity(
 			$"dispatch.{messageType.Name}",
@@ -59,9 +69,14 @@ internal sealed class TracingMiddleware(ITelemetrySanitizer sanitizer) : IDispat
 
 		// Set standard attributes
 		_ = activity.SetTag("message.type", messageType.Name);
-		_ = activity.SetTag("message.id", context.MessageId ?? string.Empty);
-		_ = activity.SetTag("dispatch.correlation.id", context.CorrelationId ?? string.Empty);
 		_ = activity.SetTag("dispatch.operation", "handle");
+
+		// Only include potentially sensitive identifiers when IncludeSensitiveData is true
+		if (_observabilityOptions.IncludeSensitiveData)
+		{
+			_ = activity.SetTag("message.id", context.MessageId ?? string.Empty);
+			_ = activity.SetTag("dispatch.correlation.id", context.CorrelationId ?? string.Empty);
+		}
 
 		// Add handler type if available
 		if (context.GetItem<Type>("HandlerType") is { } handlerType)

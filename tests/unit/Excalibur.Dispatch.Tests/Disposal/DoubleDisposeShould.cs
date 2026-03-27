@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Channels;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Channels;
+using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Timing;
 
@@ -33,9 +34,14 @@ public sealed class DoubleDisposeShould
 	public void NotThrowForInMemoryDeduplicator()
 	{
 		// Arrange
+		var dedupOptions = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = false,
+			CleanupInterval = TimeSpan.FromHours(1),
+		});
 		var deduplicator = new InMemoryDeduplicator(
-			NullLogger<InMemoryDeduplicator>.Instance,
-			cleanupInterval: TimeSpan.FromHours(1));
+			dedupOptions,
+			NullLogger<InMemoryDeduplicator>.Instance);
 
 		// Act & Assert
 		deduplicator.Dispose();
@@ -89,9 +95,14 @@ public sealed class DoubleDisposeShould
 	public void PreserveDisposedStateAcrossMultipleDisposes()
 	{
 		// Arrange
+		var dedupOptions = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = false,
+			CleanupInterval = TimeSpan.FromHours(1),
+		});
 		var deduplicator = new InMemoryDeduplicator(
-			NullLogger<InMemoryDeduplicator>.Instance,
-			cleanupInterval: TimeSpan.FromHours(1));
+			dedupOptions,
+			NullLogger<InMemoryDeduplicator>.Instance);
 
 		// Act -- dispose twice
 		deduplicator.Dispose();
@@ -119,9 +130,14 @@ public sealed class DoubleDisposeShould
 	public void NotThrowForInMemoryDeduplicatorConcurrentDispose()
 	{
 		// Arrange
+		var dedupOptions = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = false,
+			CleanupInterval = TimeSpan.FromHours(1),
+		});
 		var deduplicator = new InMemoryDeduplicator(
-			NullLogger<InMemoryDeduplicator>.Instance,
-			cleanupInterval: TimeSpan.FromHours(1));
+			dedupOptions,
+			NullLogger<InMemoryDeduplicator>.Instance);
 
 		// Act & Assert -- concurrent dispose should not throw
 		Should.NotThrow(() =>

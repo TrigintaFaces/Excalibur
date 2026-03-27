@@ -33,50 +33,31 @@ services.AddSqlServerPersistence(opts =>
 });
 ```
 
-## Registration Options
+## Registration Methods
 
-### Basic Registration
+| Method | What It Registers | Key Options |
+|--------|-------------------|-------------|
+| `AddSqlServerPersistence(opts)` | Core data executors + persistence | `ConnectionString`, `CommandTimeout` |
+| `AddSqlServerPersistenceWithRetry(opts)` | Persistence + automatic retry | `Resiliency.MaxRetryAttempts` |
+| `AddSqlServerPersistenceWithEncryption(opts)` | Persistence + Always Encrypted | `Security.ColumnEncryptionSetting` |
+| `AddSqlServerPersistenceReadOnly(opts)` | Read-only replica connection | `ConnectionString` |
+| `AddSqlServerPersistenceHighAvailability(opts)` | Failover support | `ConnectionString` |
+| `AddSqlServerDeadLetterStore(opts)` | `IDeadLetterStore` | `TableName` |
+| `AddSqlServerProjectionStore<T>(opts)` | `IProjectionStore<T>` | `ConnectionString`, `TableName` |
+| `AddSqlServerTransactionScope(...)` | Transaction scope | `IsolationLevel`, `Timeout` |
+
+All methods also accept `IConfiguration` binding: `AddSqlServerPersistence(configuration, sectionName: "SqlServerPersistence")`.
+
+### Batch Projection Registration
+
+Register multiple projections sharing the same connection:
 
 ```csharp
-// With options callback
-services.AddSqlServerPersistence(options =>
+services.AddSqlServerProjections(connectionString, projections =>
 {
-    options.ConnectionString = "Server=...;Database=...;";
-    options.CommandTimeout = 60;
-});
-
-// From configuration
-services.AddSqlServerPersistence(configuration, sectionName: "SqlServerPersistence");
-```
-
-### Specialized Registration
-
-```csharp
-// With automatic retry
-services.AddSqlServerPersistenceWithRetry(opts =>
-{
-    opts.ConnectionString = connectionString;
-    opts.Resiliency.MaxRetryAttempts = 3;
-    opts.Resiliency.RetryDelayMilliseconds = 1000;
-});
-
-// With Always Encrypted column support
-services.AddSqlServerPersistenceWithEncryption(opts =>
-{
-    opts.ConnectionString = connectionString;
-    opts.Security.ColumnEncryptionSetting = SqlConnectionColumnEncryptionSetting.Enabled;
-});
-
-// Read-only replica connection
-services.AddSqlServerPersistenceReadOnly(opts =>
-{
-    opts.ConnectionString = connectionString;
-});
-
-// High-availability with failover support
-services.AddSqlServerPersistenceHighAvailability(opts =>
-{
-    opts.ConnectionString = connectionString;
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.TableName = "CustomerViews");
+    projections.Add<InventoryView>(o => o.TableName = "InventoryViews");
 });
 ```
 
@@ -85,14 +66,6 @@ services.AddSqlServerPersistenceHighAvailability(opts =>
 ```csharp
 services.AddHealthChecks()
     .AddSqlServerPersistenceHealthCheck();
-```
-
-### Transaction Scope
-
-```csharp
-services.AddSqlServerTransactionScope(
-    IsolationLevel.ReadCommitted,
-    defaultTimeout: TimeSpan.FromSeconds(30));
 ```
 
 ## Data Request Pattern

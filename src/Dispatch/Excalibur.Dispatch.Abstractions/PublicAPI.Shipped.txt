@@ -794,6 +794,9 @@ Excalibur.Dispatch.Abstractions.DomainEvent.WithCorrelationId(System.Guid correl
 Excalibur.Dispatch.Abstractions.DomainEvent.WithMetadata(string! key, object! value) -> Excalibur.Dispatch.Abstractions.DomainEvent!
 Excalibur.Dispatch.Abstractions.ErrorConstants
 Excalibur.Dispatch.Abstractions.EventTypeNameHelper
+Excalibur.Dispatch.Abstractions.Exceptions.DuplicateMessageException
+Excalibur.Dispatch.Abstractions.Exceptions.DuplicateMessageException.DuplicateMessageException(string! messageId) -> void
+Excalibur.Dispatch.Abstractions.Exceptions.DuplicateMessageException.MessageId.get -> string!
 Excalibur.Dispatch.Abstractions.FailureHandlingStrategy
 Excalibur.Dispatch.Abstractions.FailureHandlingStrategy.CreateOnDemand = 3 -> Excalibur.Dispatch.Abstractions.FailureHandlingStrategy
 Excalibur.Dispatch.Abstractions.FailureHandlingStrategy.FailFast = 0 -> Excalibur.Dispatch.Abstractions.FailureHandlingStrategy

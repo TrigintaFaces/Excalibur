@@ -6,9 +6,14 @@ using System.Reflection;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Exceptions;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Options.Delivery;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+using SkipBehavior = Excalibur.Dispatch.Messaging.SkipBehavior;
 
 namespace Excalibur.Dispatch.Middleware.Inbox;
 
@@ -52,6 +57,8 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 
 	private readonly IInboxConfigurationProvider? _configurationProvider;
 
+	private readonly SkipBehavior _duplicateBehavior;
+
 	private readonly ILogger<IdempotentHandlerMiddleware> _logger;
 
 	private volatile bool _inMemoryFallbackWarned;
@@ -59,18 +66,22 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 	/// <summary>
 	/// Initializes a new instance of the <see cref="IdempotentHandlerMiddleware"/> class.
 	/// </summary>
+	/// <param name="inboxOptions"> The inbox options controlling duplicate behavior. </param>
 	/// <param name="inMemoryDeduplicator"> The in-memory deduplicator service. </param>
 	/// <param name="logger"> The logger instance. </param>
 	/// <param name="inboxStore"> The optional persistent inbox store. </param>
 	/// <param name="messageIdProvider"> The optional custom message ID provider. </param>
 	/// <param name="configurationProvider"> The optional inbox configuration provider. </param>
 	public IdempotentHandlerMiddleware(
+		IOptions<InboxOptions> inboxOptions,
 		IInMemoryDeduplicator inMemoryDeduplicator,
 		ILogger<IdempotentHandlerMiddleware> logger,
 		IInboxStore? inboxStore = null,
 		IMessageIdProvider? messageIdProvider = null,
 		IInboxConfigurationProvider? configurationProvider = null)
 	{
+		ArgumentNullException.ThrowIfNull(inboxOptions);
+		_duplicateBehavior = inboxOptions.Value.DuplicateBehavior;
 		_inMemoryDeduplicator = inMemoryDeduplicator ?? throw new ArgumentNullException(nameof(inMemoryDeduplicator));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_inboxStore = inboxStore;
@@ -143,8 +154,21 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 
 		if (isDuplicate)
 		{
-			LogDuplicateSkipped(messageId, handlerType.Name);
-			return MessageResult.Success(); // Skip duplicate
+			switch (_duplicateBehavior)
+			{
+				case SkipBehavior.Silent:
+					break;
+
+				case SkipBehavior.LogOnly:
+					LogDuplicateSkipped(messageId, handlerType.Name);
+					break;
+
+				case SkipBehavior.ThrowOnDuplicate:
+					LogDuplicateSkipped(messageId, handlerType.Name);
+					throw new DuplicateMessageException(messageId);
+			}
+
+			return MessageResult.Success();
 		}
 
 		// 5. Invoke handler

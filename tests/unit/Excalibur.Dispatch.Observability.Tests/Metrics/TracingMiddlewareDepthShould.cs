@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Observability.Metrics;
 
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 
 /// <summary>
@@ -19,6 +21,9 @@ namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 [Trait("Feature", "Metrics")]
 public sealed class TracingMiddlewareDepthShould
 {
+	private static IOptions<ObservabilityOptions> DefaultOptions =>
+		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { EnableDetailedTiming = true, IncludeSensitiveData = true });
+
 	/// <summary>
 	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
 	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
@@ -63,7 +68,7 @@ public sealed class TracingMiddlewareDepthShould
 		// Get the unique message ID set by the test for filtering
 		var messageId = context.MessageId;
 
-		var middleware = new TracingMiddleware(sanitizer ?? A.Fake<ITelemetrySanitizer>());
+		var middleware = new TracingMiddleware(DefaultOptions, sanitizer ?? A.Fake<ITelemetrySanitizer>());
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
 		// Find the activity matching OUR unique message ID to avoid cross-test interference
@@ -155,7 +160,7 @@ public sealed class TracingMiddlewareDepthShould
 		};
 		ActivitySource.AddActivityListener(listener);
 
-		var middleware = new TracingMiddleware(A.Fake<ITelemetrySanitizer>());
+		var middleware = new TracingMiddleware(DefaultOptions, A.Fake<ITelemetrySanitizer>());
 		var message = A.Fake<IDispatchMessage>();
 		var uniqueId = Guid.NewGuid().ToString();
 		var context = CreateFakeContext(messageId: uniqueId);

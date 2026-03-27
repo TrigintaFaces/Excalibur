@@ -138,7 +138,17 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			try
 			{
 				using var cts = new CancellationTokenSource(ContainerDisposeTimeout);
-				await DisposeContainerAsync(cts.Token).ConfigureAwait(false);
+				// Use Task.WhenAny because IContainer.DisposeAsync() does not accept
+				// a CancellationToken, so the CTS alone cannot interrupt a hung dispose.
+				var disposeTask = DisposeContainerAsync(cts.Token);
+				var completed = await Task.WhenAny(disposeTask, Task.Delay(ContainerDisposeTimeout)).ConfigureAwait(false);
+				if (completed != disposeTask)
+				{
+					// Timed out -- abandon the dispose rather than hanging the test host
+					return;
+				}
+
+				await disposeTask.ConfigureAwait(false);
 			}
 			catch
 			{

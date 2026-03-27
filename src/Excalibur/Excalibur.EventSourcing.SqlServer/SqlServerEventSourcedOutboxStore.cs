@@ -39,6 +39,8 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly ILogger<SqlServerEventSourcedOutboxStore> _logger;
+	private readonly string _schema;
+	private readonly string _table;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerEventSourcedOutboxStore"/> class.
@@ -47,7 +49,7 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventSourcedOutboxStore(Func{SqlConnection}, ILogger{SqlServerEventSourcedOutboxStore})"/>
+	/// Use <see cref="SqlServerEventSourcedOutboxStore(Func{SqlConnection}, ILogger{SqlServerEventSourcedOutboxStore}, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventSourcedOutboxStore(string connectionString, ILogger<SqlServerEventSourcedOutboxStore> logger)
@@ -63,6 +65,8 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 	/// The caller is responsible for ensuring the factory returns properly configured connections.
 	/// </param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "dbo".</param>
+	/// <param name="table">The outbox table name. Default: "EventSourcedOutbox".</param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -75,10 +79,14 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 	/// </remarks>
 	public SqlServerEventSourcedOutboxStore(
 		Func<SqlConnection> connectionFactory,
-		ILogger<SqlServerEventSourcedOutboxStore> logger)
+		ILogger<SqlServerEventSourcedOutboxStore> logger,
+		string schema = "dbo",
+		string table = "EventSourcedOutbox")
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_schema = schema;
+		_table = table;
 	}
 
 	/// <inheritdoc/>
@@ -104,7 +112,7 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 			}
 
 			_ = await connection.ResolveAsync(
-					new AddOutboxMessageRequest(message, transaction, cancellationToken))
+					new AddOutboxMessageRequest(message, transaction, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug(
@@ -141,7 +149,7 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 		try
 		{
 			var messages = await connection.ResolveAsync(
-					new GetPendingOutboxMessagesRequest(batchSize, cancellationToken))
+					new GetPendingOutboxMessagesRequest(batchSize, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Retrieved {Count} pending outbox messages", messages.Count);
@@ -187,7 +195,7 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 					}
 
 					_ = await transactionConnection.ResolveAsync(
-							new MarkOutboxMessagePublishedRequest(messageId, transaction, cancellationToken))
+							new MarkOutboxMessagePublishedRequest(messageId, transaction, cancellationToken, _schema, _table))
 						.ConfigureAwait(false);
 				}
 				catch
@@ -204,7 +212,7 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 					await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 					_ = await connection.ResolveAsync(
-							new MarkOutboxMessagePublishedRequest(messageId, null, cancellationToken))
+							new MarkOutboxMessagePublishedRequest(messageId, null, cancellationToken, _schema, _table))
 						.ConfigureAwait(false);
 				}
 				catch
@@ -241,7 +249,7 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 		try
 		{
 			var deletedCount = await connection.ResolveAsync(
-					new DeletePublishedOutboxMessagesRequest(retentionPeriod, cancellationToken))
+					new DeletePublishedOutboxMessagesRequest(retentionPeriod, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug(
@@ -280,7 +288,7 @@ public sealed class SqlServerEventSourcedOutboxStore : IEventSourcedOutboxStore
 		try
 		{
 			_ = await connection.ResolveAsync(
-					new IncrementOutboxRetryCountRequest(messageId, cancellationToken))
+					new IncrementOutboxRetryCountRequest(messageId, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Incremented retry count for outbox message {MessageId}", messageId);

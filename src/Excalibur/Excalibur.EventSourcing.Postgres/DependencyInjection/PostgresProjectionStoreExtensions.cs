@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Postgres;
+using Excalibur.EventSourcing.Postgres.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -90,6 +91,39 @@ public static class PostgresProjectionStoreExtensions
 				options?.TableName,
 				options?.JsonSerializerOptions);
 		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple Postgres projection stores that share a common connection string,
+	/// reducing boilerplate when multiple projections target the same database.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The shared Postgres connection string.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddPostgresProjections("Host=localhost;Database=mydb", projections =>
+	/// {
+	///     projections.Add&lt;OrderSummary&gt;();
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.TableName = "customers");
+	///     projections.Add&lt;ProductCatalog&gt;();
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddPostgresProjections(
+		this IServiceCollection services,
+		string connectionString,
+		Action<PostgresProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new PostgresProjectionRegistrar(services, connectionString);
+		configure(registrar);
 
 		return services;
 	}

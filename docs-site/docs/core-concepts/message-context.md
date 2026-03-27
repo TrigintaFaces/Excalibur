@@ -8,6 +8,10 @@ description: Learn how to use the message context to pass metadata through the D
 
 The message context carries metadata through the pipeline, enabling correlation, multi-tenancy, and custom data propagation.
 
+:::info Why Should I Care?
+Without message context, every handler needs to manually thread correlation IDs, tenant info, and user identity through method parameters. Message context solves this by providing a **per-request ambient bag** that all middleware and handlers can read and write -- similar to `HttpContext` in ASP.NET Core but for any dispatch pipeline (HTTP, queue, background job).
+:::
+
 ## Before You Start
 
 - **.NET 8.0+** (or .NET 9/10 for latest features)

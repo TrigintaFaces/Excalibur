@@ -65,9 +65,9 @@ public sealed class PostgresEventSourcingOptions
 	public string SnapshotStoreSchema { get; set; } = "public";
 
 	/// <summary>
-	/// Gets or sets the snapshot store table name. Default: "snapshots".
+	/// Gets or sets the snapshot store table name. Default: "event_store_snapshots".
 	/// </summary>
-	public string SnapshotStoreTable { get; set; } = "snapshots";
+	public string SnapshotStoreTable { get; set; } = "event_store_snapshots";
 
 	/// <summary>
 	/// Gets or sets the schema name for outbox tables. Default: "public".

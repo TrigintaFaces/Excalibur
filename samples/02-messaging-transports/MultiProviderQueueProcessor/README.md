@@ -215,8 +215,8 @@ builder.Services.AddGooglePubSubTransport("google-pubsub", pubsub =>
 builder.Services.AddSqlServerEventSourcing(options =>
 {
     options.ConnectionString = connectionString;
-    options.EventStoreTable = "Events";
-    options.SnapshotStoreTable = "Snapshots";
+    options.EventStoreTable = "EventStoreEvents";
+    options.SnapshotStoreTable = "EventStoreSnapshots";
     options.OutboxTable = "EventSourcedOutbox";
 });
 ```

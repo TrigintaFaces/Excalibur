@@ -4,6 +4,7 @@
 using System.Reflection;
 
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Options.Delivery;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -17,9 +18,14 @@ public sealed class TimerDisposalShould
 	public void DisposeCleanupTimerInInMemoryDeduplicator()
 	{
 		// Arrange
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = true,
+			CleanupInterval = TimeSpan.FromHours(1),
+		});
 		var deduplicator = new InMemoryDeduplicator(
-			NullLogger<InMemoryDeduplicator>.Instance,
-			cleanupInterval: TimeSpan.FromHours(1));
+			options,
+			NullLogger<InMemoryDeduplicator>.Instance);
 
 		// Get the timer field via reflection
 		var timerField = typeof(InMemoryDeduplicator)
@@ -41,9 +47,14 @@ public sealed class TimerDisposalShould
 	public void DisposeCleanupTimerWhenCalledMultipleTimes()
 	{
 		// Arrange
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = true,
+			CleanupInterval = TimeSpan.FromHours(1),
+		});
 		var deduplicator = new InMemoryDeduplicator(
-			NullLogger<InMemoryDeduplicator>.Instance,
-			cleanupInterval: TimeSpan.FromHours(1));
+			options,
+			NullLogger<InMemoryDeduplicator>.Instance);
 
 		// Act -- dispose multiple times
 		deduplicator.Dispose();

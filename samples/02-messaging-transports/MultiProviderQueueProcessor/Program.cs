@@ -25,8 +25,8 @@ builder.Services.AddSqlServerEventSourcing(options =>
 							   ?? throw new InvalidOperationException("EventStore connection string is required");
 
 	// Optional: customize table names (these are the defaults)
-	options.EventStoreTable = "Events";
-	options.SnapshotStoreTable = "Snapshots";
+	options.EventStoreTable = "EventStoreEvents";
+	options.SnapshotStoreTable = "EventStoreSnapshots";
 	options.OutboxTable = "EventSourcedOutbox";
 });
 

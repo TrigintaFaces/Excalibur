@@ -46,18 +46,19 @@ public enum SkipBehavior
 	LogOnly = 1,
 
 	/// <summary>
-	/// Skip processing and return an explicit skipped result to the caller. Enables the calling code to take specific action based on the
-	/// skip event.
+	/// Throw an exception when a duplicate message is detected. Enables the calling code to catch the
+	/// <see cref="Excalibur.Dispatch.Abstractions.Exceptions.DuplicateMessageException"/> and take specific action.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// This option provides the most control by allowing calling code to implement custom logic when messages are skipped. The result
-	/// typically includes information about why the message was skipped and any relevant context.
+	/// This option provides the most control by surfacing duplicate detection as an exception,
+	/// allowing calling code to implement custom retry logic, alternative processing paths,
+	/// or user notifications.
 	/// </para>
 	/// <para>
-	/// Use this option when the application needs to respond differently to skipped messages, such as implementing retry logic, alternative
-	/// processing paths, or user notifications.
+	/// Use this option when the application needs to respond differently to duplicate messages
+	/// and silent skipping or logging alone is insufficient.
 	/// </para>
 	/// </remarks>
-	ReturnSkippedResult = 2,
+	ThrowOnDuplicate = 2,
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Options.Delivery;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -21,14 +22,25 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 
 	public InMemoryDeduplicatorShould()
 	{
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = false,
+			CleanupInterval = TimeSpan.FromHours(1),
+		});
 		_sut = new InMemoryDeduplicator(
-			NullLogger<InMemoryDeduplicator>.Instance,
-			TimeSpan.FromHours(1)); // Long cleanup interval to avoid interference
+			options,
+			NullLogger<InMemoryDeduplicator>.Instance);
 	}
 
 	[Fact]
+	public void ThrowArgumentNullExceptionForNullOptions() =>
+		Should.Throw<ArgumentNullException>(() => new InMemoryDeduplicator(
+			null!, NullLogger<InMemoryDeduplicator>.Instance));
+
+	[Fact]
 	public void ThrowArgumentNullExceptionForNullLogger() =>
-		Should.Throw<ArgumentNullException>(() => new InMemoryDeduplicator(null!));
+		Should.Throw<ArgumentNullException>(() => new InMemoryDeduplicator(
+			Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions()), null!));
 
 	[Fact]
 	public async Task ReturnFalseForNewMessage()
@@ -141,7 +153,8 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	[Fact]
 	public void DisposeMultipleTimesSafely()
 	{
-		var instance = new InMemoryDeduplicator(NullLogger<InMemoryDeduplicator>.Instance);
+		var opts = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions());
+		var instance = new InMemoryDeduplicator(opts, NullLogger<InMemoryDeduplicator>.Instance);
 		Should.NotThrow(() =>
 		{
 			instance.Dispose();

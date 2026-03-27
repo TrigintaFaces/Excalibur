@@ -16,12 +16,6 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// </summary>
 public sealed class InsertEventRequest : DataRequestBase<IDbConnection, long>
 {
-	private const string Sql = """
-		INSERT INTO EventStoreEvents (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp)
-		OUTPUT INSERTED.Position
-		VALUES (@EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp)
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InsertEventRequest"/> class.
 	/// </summary>
@@ -35,6 +29,8 @@ public sealed class InsertEventRequest : DataRequestBase<IDbConnection, long>
 	/// <param name="timestamp">The event timestamp.</param>
 	/// <param name="transaction">The transaction to participate in.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the event store table. Default: "dbo".</param>
+	/// <param name="table">The event store table name. Default: "EventStoreEvents".</param>
 	public InsertEventRequest(
 		string eventId,
 		string aggregateId,
@@ -45,13 +41,25 @@ public sealed class InsertEventRequest : DataRequestBase<IDbConnection, long>
 		long version,
 		DateTimeOffset timestamp,
 		IDbTransaction? transaction,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "dbo",
+		string table = "EventStoreEvents")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventType);
 		ArgumentNullException.ThrowIfNull(eventData);
+
+		var qualifiedTable = SqlTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		var sql = $"""
+			INSERT INTO {qualifiedTable} (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp)
+			OUTPUT INSERTED.Position
+			VALUES (@EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp)
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@EventId", eventId);
@@ -63,7 +71,7 @@ public sealed class InsertEventRequest : DataRequestBase<IDbConnection, long>
 		parameters.Add("@Version", version);
 		parameters.Add("@Timestamp", timestamp);
 
-		Command = CreateCommand(Sql, parameters, transaction, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, transaction, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteScalarAsync<long>(Command).ConfigureAwait(false);

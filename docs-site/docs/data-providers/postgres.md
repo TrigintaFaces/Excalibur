@@ -30,40 +30,26 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddPostgresDataExecutors(() => new NpgsqlConnection(connectionString));
 ```
 
-## Registration Options
+## Registration Methods
 
-### Data Executors
+| Method | What It Registers | Key Options |
+|--------|-------------------|-------------|
+| `AddPostgresDataExecutors(factory)` | Core data executors | Connection factory |
+| `AddPostgresEventStore(opts)` | `IEventStore` | `ConnectionString`, `SchemaName` |
+| `AddPostgresSnapshotStore(opts)` | `ISnapshotStore` | `ConnectionString` |
+| `AddPostgresInboxStore(opts)` | `IInboxStore` | `ConnectionString` |
+| `AddPostgresProjectionStore<T>(opts)` | `IProjectionStore<T>` | `ConnectionString`, `TableName` |
+| `AddPostgresCdc(opts)` | CDC processor | `ConnectionString`, `PublicationName`, `ReplicationSlotName` |
+
+### Batch Projection Registration
+
+Register multiple projections sharing the same connection:
 
 ```csharp
-services.AddPostgresDataExecutors(() => new NpgsqlConnection(connectionString));
-```
-
-### Event Store
-
-```csharp
-// With connection string
-services.AddPostgresEventStore(opts => opts.ConnectionString = connectionString);
-
-// With connection string and options
-services.AddPostgresEventStore(options =>
+services.AddPostgresProjections(connectionString, projections =>
 {
-    options.ConnectionString = connectionString;
-    options.SchemaName = "events";
-});
-```
-
-### Snapshot Store
-
-```csharp
-services.AddPostgresSnapshotStore(opts => opts.ConnectionString = connectionString);
-```
-
-### Inbox / Outbox
-
-```csharp
-services.AddPostgresInboxStore(options =>
-{
-    options.ConnectionString = connectionString;
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.TableName = "customer_views");
 });
 ```
 

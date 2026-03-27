@@ -73,14 +73,17 @@ public sealed partial class AuditLoggingMiddleware(IOptions<AuditLoggingOptions>
 		var messageId = Guid.TryParse(context.MessageId, out var parsedId) ? parsedId : Guid.Empty;
 		LogMessageProcessingStarted(messageId, messageType, userId, correlationId);
 
-		// Add audit context to activity — sanitize PII
+		// Add audit context to activity — sanitize PII unless IncludeSensitiveData is false
 		if (activity is not null)
 		{
-			SetSanitizedTag(activity, "audit.user_id", userId);
-			_ = activity.SetTag("audit.correlation_id", correlationId);
+			if (_options.IncludeSensitiveData)
+			{
+				SetSanitizedTag(activity, "audit.user_id", userId);
+				_ = activity.SetTag("audit.correlation_id", correlationId);
+			}
 		}
 
-		if (_options.LogMessagePayload && ShouldLogPayload(message))
+		if (_options.IncludeSensitiveData && _options.LogMessagePayload && ShouldLogPayload(message))
 		{
 			LogMessagePayload(message, messageId);
 		}

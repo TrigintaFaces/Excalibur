@@ -677,13 +677,14 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
 		var query = new CachingTestQuery { Value = 808 };
+		var context = new MessageContext(new TestDispatchAction(), provider);
 
 		// Act - first call caches the result
 		CachingTestQueryHandler.CallCount = 0;
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None);
+			query, context, CancellationToken.None);
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None);
+			query, context, CancellationToken.None);
 
 		// Assert cached
 		result1.Succeeded.ShouldBeTrue();
@@ -693,12 +694,12 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Invalidate
 		var invalidate = new InvalidateCacheCommand { TagsToInvalidate = ["test-tag"] };
 		_ = await dispatcher
-			.DispatchAsync(invalidate, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default)
+			.DispatchAsync(invalidate, context, cancellationToken: default)
 			;
 
 		// Act - after invalidation handler should run again
 		var result3 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
+			query, context, cancellationToken: default);
 
 		// Assert - handler should be called twice: first call + third call after invalidation
 		CachingTestQueryHandler.CallCount.ShouldBe(2);

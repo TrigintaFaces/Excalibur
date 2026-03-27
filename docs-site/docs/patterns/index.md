@@ -37,6 +37,38 @@ If you are new to reliable messaging, start with these two guides:
 | [Routing](routing.md) | Message routing rules | Route messages to different handlers/transports |
 | [Streaming](streaming.md) | Async stream processing | Large datasets, positional awareness |
 
+## Which Pattern Do I Need?
+
+```
+Do you need to publish messages reliably (no lost messages)?
+├── YES → Outbox Pattern
+│         Stores messages in the same DB transaction as your domain changes.
+│         Messages are published asynchronously by a background processor.
+│
+└── NO → Do you receive messages that might be delivered more than once?
+    ├── YES → Inbox Pattern (Idempotent Consumer)
+    │         Deduplicates incoming messages by ID.
+    │         Guarantees each message is processed at most once.
+    │
+    └── NO → Are your messages too large for the transport?
+        ├── YES → Claim Check Pattern
+        │         Store payload in blob storage, send a reference.
+        │         Receiver retrieves the full payload on demand.
+        │
+        └── NO → Do messages fail processing repeatedly?
+            ├── YES → Dead Letter Pattern
+            │         After N retries, move to a dead letter queue.
+            │         Monitor and replay when the issue is fixed.
+            │
+            └── NO → Do you need to route messages to different destinations?
+                └── YES → Routing Pattern
+                          Route by message type, content, or custom rules.
+```
+
+:::tip Common Combinations
+Most production systems use **Outbox + Inbox** together: Outbox on the sender side for reliable publishing, Inbox on the receiver side for idempotent processing. This gives you effective exactly-once semantics.
+:::
+
 ## Outbox Pattern
 
 The outbox pattern ensures messages are published reliably by storing them in the same transaction as your domain changes.

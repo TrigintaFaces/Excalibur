@@ -35,45 +35,29 @@ services.AddMongoDbSnapshotStore(options =>
 });
 ```
 
-## Registration Options
+## Registration Methods
 
-MongoDB registration uses specialized store methods — there is no single base `AddMongoDB()` registration. Register only the stores your application needs:
+| Method | What It Registers | Key Options |
+|--------|-------------------|-------------|
+| `AddMongoDbSnapshotStore(opts)` | `ISnapshotStore` | `CollectionName` |
+| `AddMongoDbProjectionStore<T>(connStr, dbName, opts?)` | `IProjectionStore<T>` | `CollectionName` |
+| `AddMongoDbOutboxStore(opts)` | `IEventSourcedOutboxStore` | `CollectionName` |
+| `AddMongoDbSagaStore(opts)` | `ISagaStore` | `CollectionName` |
 
-### Snapshot Store
+### Batch Projection Registration
+
+Register multiple projections sharing the same connection in a single call:
 
 ```csharp
-services.AddMongoDbSnapshotStore(options =>
+services.AddMongoDbProjections("mongodb://localhost:27017", "MyApp", projections =>
 {
-    options.CollectionName = "snapshots";
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.CollectionName = "customers");
+    projections.Add<InventoryView>(o => o.CollectionName = "inventory");
 });
 ```
 
-### Projection Store
-
-```csharp
-services.AddMongoDbProjectionStore<OrderProjection>(options =>
-{
-    options.CollectionName = "order-projections";
-});
-```
-
-### Outbox Store
-
-```csharp
-services.AddMongoDbOutboxStore(options =>
-{
-    options.CollectionName = "outbox";
-});
-```
-
-### Saga Store
-
-```csharp
-services.AddMongoDbSagaStore(options =>
-{
-    options.CollectionName = "sagas";
-});
-```
+This follows the same pattern as [`AddElasticSearchProjections()`](./elasticsearch.md).
 
 ## Aggregation Pipelines
 

@@ -30,7 +30,7 @@ public sealed class PostgresRequestsShould
 			new byte[] { 1, 2, 3 }, null, 1, DateTimeOffset.UtcNow, null, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO events");
+		request.Command.CommandText.ShouldContain("INSERT INTO \"public\".\"events\"");
 	}
 
 	[Theory]
@@ -91,7 +91,7 @@ public sealed class PostgresRequestsShould
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("SELECT");
-		request.Command.CommandText.ShouldContain("FROM events");
+		request.Command.CommandText.ShouldContain("FROM \"public\".\"events\"");
 	}
 
 	[Theory]
@@ -157,7 +157,7 @@ public sealed class PostgresRequestsShould
 		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("event_store_snapshots");
+		request.Command.CommandText.ShouldContain("\"public\".\"event_store_snapshots\"");
 	}
 
 	[Theory]
@@ -190,7 +190,7 @@ public sealed class PostgresRequestsShould
 		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("DELETE FROM snapshots");
+		request.Command.CommandText.ShouldContain("DELETE FROM \"public\".\"event_store_snapshots\"");
 	}
 
 	[Theory]
@@ -264,7 +264,7 @@ public sealed class PostgresRequestsShould
 		var request = new SaveSnapshotRequest(snapshot, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO event_store_snapshots");
+		request.Command.CommandText.ShouldContain("INSERT INTO \"public\".\"event_store_snapshots\"");
 		request.Command.CommandText.ShouldContain("ON CONFLICT");
 	}
 
@@ -298,7 +298,7 @@ public sealed class PostgresRequestsShould
 		var request = new AddOutboxMessageRequest(message, transaction, Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO event_sourced_outbox");
+		request.Command.CommandText.ShouldContain("INSERT INTO \"public\".\"event_sourced_outbox\"");
 	}
 
 	[Fact]
@@ -353,7 +353,7 @@ public sealed class PostgresRequestsShould
 		var request = new DeletePublishedOutboxMessagesRequest(TimeSpan.FromDays(7), Ct);
 
 		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("DELETE FROM event_sourced_outbox");
+		request.Command.CommandText.ShouldContain("DELETE FROM \"public\".\"event_sourced_outbox\"");
 		request.Command.CommandText.ShouldContain("published_at < @CutoffDate");
 	}
 

@@ -163,30 +163,16 @@ public class OrderLineAddedProjectionHandler : IEventHandler<OrderLineAdded>
 Configure projection stores based on your storage backend:
 
 ```csharp
+// ElasticSearch -- register all projections together (shared cluster)
+services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
+{
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.IndexName = "customers");
+    projections.Add<ProductCatalog>(o => o.NumberOfShards = 3);
+});
+
 // MongoDB projection store
 services.AddMongoDbProjectionStore<OrderSummary>(mongoConnectionString, "projections");
-
-// ElasticSearch projection store
-services.AddElasticSearchProjectionStore<OrderSummary>(options =>
-{
-    options.NodeUri = "https://elasticsearch.example.com:9200";
-    // Environment-scoped prefix → e.g. "development-projections-ordersummary"
-    options.IndexPrefix = $"{builder.Environment.EnvironmentName.ToLowerInvariant()}-projections";
-    // Optional: override index name (replaces projection type name in convention)
-    // options.IndexName = "order-summaries";
-});
-
-// ElasticSearch with multi-node cluster
-services.AddElasticSearchProjectionStore<OrderSummary>(options =>
-{
-    options.NodeUris = new[]
-    {
-        new Uri("https://es-node1.example.com:9200"),
-        new Uri("https://es-node2.example.com:9200"),
-        new Uri("https://es-node3.example.com:9200"),
-    };
-    options.ConnectionPoolType = ConnectionPoolType.Static; // or Sniffing
-});
 
 // CosmosDb projection store
 services.AddCosmosDbProjectionStore<OrderSummary>(cosmosConnectionString, "projections");
@@ -208,6 +194,56 @@ services.AddPostgresProjectionStore<OrderSummary>(options =>
     options.TableName = "order_summaries";
 });
 ```
+
+#### ElasticSearch Index Naming
+
+The index name follows the convention `{IndexPrefix}-{IndexName ?? typeof(T).Name.ToLower()}`:
+
+```csharp
+services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
+{
+    // "production-customers" (IndexName overrides the class name)
+    projections.Add<CustomerProjection>(o =>
+    {
+        o.IndexPrefix = "production";
+        o.IndexName = "customers";
+    });
+
+    // "production-ordersummary" (default: prefix + lowercase type name)
+    projections.Add<OrderSummary>(o => o.IndexPrefix = "production");
+
+    // "ordersummary" (no prefix when IndexPrefix is empty)
+    projections.Add<OrderSummary>(o => o.IndexPrefix = "");
+});
+```
+
+#### ElasticSearch Multi-Node Cluster
+
+Per-projection overrides support multi-node clusters and authentication:
+
+```csharp
+services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
+{
+    projections.Add<OrderSummary>(o =>
+    {
+        o.NodeUris = new[]
+        {
+            new Uri("https://es-node1.example.com:9200"),
+            new Uri("https://es-node2.example.com:9200"),
+            new Uri("https://es-node3.example.com:9200"),
+        };
+        o.ConnectionPoolType = ConnectionPoolType.Sniffing;
+        o.Auth.ApiKey = "your-api-key";
+    });
+});
+```
+
+:::tip
+For a single projection or when projections target different clusters, use the per-projection overload:
+```csharp
+services.AddElasticSearchProjectionStore<OrderSummary>("https://es.example.com:9200");
+```
+:::
 
 ### Register Projection Handlers
 
@@ -543,10 +579,9 @@ Register separate projections -- they can target different backends:
 
 ```csharp
 // List view: ElasticSearch for fast full-text search and faceted filtering
-services.AddElasticSearchProjectionStore<OrderListItem>(options =>
+services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
 {
-    options.NodeUri = "https://elasticsearch.example.com:9200";
-    options.IndexPrefix = $"{env}-projections";
+    projections.Add<OrderListItem>(o => o.IndexPrefix = $"{env}-projections");
 });
 
 // Detail view: SQL Server for strong consistency and relational queries
@@ -960,6 +995,84 @@ The built-in `ProjectionHealthCheck` is automatically registered as an ASP.NET C
 - **Unhealthy:** Async projection lag > 1000 events
 
 The health check reads from `ProjectionHealthState`, which is updated in real-time by the inline projection processor and async projection host.
+
+## Gotchas and Common Mistakes
+
+### Inline projection failures do NOT roll back events
+
+When an inline projection fails during `SaveAsync()`, the events are **already committed** to the event store. The projection just didn't update. This is the most dangerous gotcha in event sourcing with Excalibur.
+
+**The mistake:** Catching `InlineProjectionException` and retrying `SaveAsync()`:
+
+```csharp
+// WRONG: This duplicates events! Events were already committed.
+try
+{
+    await repository.SaveAsync(order, cancellationToken);
+}
+catch (InlineProjectionException)
+{
+    // DO NOT retry SaveAsync -- events are already in the store!
+    await repository.SaveAsync(order, cancellationToken); // Duplicates events!
+}
+```
+
+**Correct approach:** Use `IProjectionRecovery` to re-apply the projection without re-appending events:
+
+```csharp
+try
+{
+    await repository.SaveAsync(order, cancellationToken);
+}
+catch (InlineProjectionException ex)
+{
+    // Events ARE committed -- recover the projection only
+    var recovery = serviceProvider.GetRequiredService<IProjectionRecovery>();
+    await recovery.ReapplyAsync<OrderSummary>(ex.AggregateId, cancellationToken);
+}
+```
+
+### Don't retry `SaveAsync` on `ConcurrencyException` without reloading
+
+`ConcurrencyException` means another process modified the aggregate since you loaded it. The correct recovery is to **reload the aggregate** and re-apply your changes, not to retry the same save:
+
+```csharp
+// WRONG: retrying the same stale aggregate
+try
+{
+    await repository.SaveAsync(order, cancellationToken);
+}
+catch (ConcurrencyException)
+{
+    await repository.SaveAsync(order, cancellationToken); // Same stale version -- fails again!
+}
+
+// CORRECT: reload and re-apply domain logic
+try
+{
+    await repository.SaveAsync(order, cancellationToken);
+}
+catch (ConcurrencyException)
+{
+    // Reload fresh aggregate state
+    var freshOrder = await repository.GetByIdAsync(order.Id, cancellationToken);
+    freshOrder.AddLine(productId, quantity, price); // Re-apply domain operation
+    await repository.SaveAsync(freshOrder, cancellationToken);
+}
+```
+
+### Projection handlers must be idempotent
+
+Both inline and async projections may replay events during recovery or rebuild. Your projection logic must produce the same result when applied multiple times:
+
+```csharp
+// Wrong: incrementing without checking -- replays double-count
+report.OrderCount++;
+
+// Correct: use upsert with idempotent logic
+var existing = await _store.GetByIdAsync(key, ct);
+if (existing?.LastProcessedVersion >= @event.Version) return; // Already applied
+```
 
 ## Best Practices
 

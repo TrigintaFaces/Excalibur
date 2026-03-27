@@ -424,6 +424,51 @@ public class TimingMiddlewareTests
 }
 ```
 
+## Gotchas and Common Mistakes
+
+### Middleware runs for every dispatch -- including nested calls
+
+If you use `DispatchChildAsync` inside a handler, the child dispatch goes through the full pipeline again. This means your middleware will execute twice (once for the parent, once for the child). Design middleware to be re-entrant and avoid side effects that should only happen once per top-level request.
+
+**The mistake:** A logging middleware that writes an audit entry on every `InvokeAsync` -- nested dispatches create duplicate audit records.
+
+**Correct approach:** Check `context.CausationId` to distinguish top-level dispatches from child dispatches, or use the `DispatchMiddlewareStage` to control when middleware fires.
+
+### Always call `next()` unless short-circuiting
+
+Forgetting to call `next(message, context, cancellationToken)` silently swallows the rest of the pipeline and the handler never executes:
+
+```csharp
+public async ValueTask<IMessageResult> InvokeAsync(
+    IDispatchMessage message,
+    IMessageContext context,
+    DispatchRequestDelegate next,
+    CancellationToken ct)
+{
+    // Pre-processing...
+
+    // Wrong: forgot to call next -- handler never runs!
+    // return MessageResult.Success();
+
+    // Correct: always call next unless intentionally short-circuiting
+    return await next(message, context, ct);
+}
+```
+
+Only skip `next()` when you intentionally want to short-circuit (e.g., returning a validation error or a cached result).
+
+### Don't modify the message -- use context instead
+
+`IDispatchMessage` is the caller's data. Mutating it can cause subtle bugs especially when the same message instance is reused. Store request-scoped data in `IMessageContext.Items` instead:
+
+```csharp
+// Wrong: modifying the message
+// ((MyAction)message).EnrichedField = "value";
+
+// Correct: use context items
+context.SetItem("EnrichedField", "value");
+```
+
 ## Best Practices
 
 | Practice | Recommendation |

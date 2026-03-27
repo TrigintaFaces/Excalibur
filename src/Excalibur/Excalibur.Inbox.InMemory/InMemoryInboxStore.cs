@@ -30,6 +30,7 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDi
 	private readonly ConcurrentDictionary<string, InboxEntry> _entries = new(StringComparer.Ordinal);
 	private readonly InMemoryInboxOptions _options;
 	private readonly ILogger<InMemoryInboxStore> _logger;
+	private readonly Timer? _cleanupTimer;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -46,6 +47,16 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDi
 
 		_options = options.Value;
 		_logger = logger;
+
+		// Only start the cleanup timer when EnableAutomaticCleanup is true
+		if (_options.EnableAutomaticCleanup)
+		{
+			_cleanupTimer = new Timer(
+				_ => PerformScheduledCleanup(),
+				state: null,
+				_options.CleanupInterval,
+				_options.CleanupInterval);
+		}
 	}
 
 	/// <inheritdoc/>
@@ -342,6 +353,7 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDi
 			return;
 		}
 
+		_cleanupTimer?.Dispose();
 		_entries.Clear();
 		_disposed = true;
 	}
@@ -351,6 +363,40 @@ public sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDi
 	{
 		Dispose();
 		return ValueTask.CompletedTask;
+	}
+
+	private void PerformScheduledCleanup()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		try
+		{
+			var cutoff = DateTimeOffset.UtcNow.Subtract(_options.RetentionPeriod);
+			var count = 0;
+
+			foreach (var kvp in _entries.ToArray())
+			{
+				var entry = kvp.Value;
+				if (entry is { Status: InboxStatus.Processed, ProcessedAt: not null } &&
+					entry.ProcessedAt.Value <= cutoff && _entries.TryRemove(kvp.Key, out _))
+				{
+					count++;
+				}
+			}
+
+			if (count > 0)
+			{
+				_logger.LogDebug("Scheduled cleanup removed {Count} processed inbox entries older than {CutoffDate}",
+					count, cutoff);
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error during scheduled inbox cleanup");
+		}
 	}
 
 	private static string GetKey(string messageId, string handlerType)

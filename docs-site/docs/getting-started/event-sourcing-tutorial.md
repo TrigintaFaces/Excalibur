@@ -206,6 +206,7 @@ using OrderSystem.Domain;
 
 namespace OrderSystem.Handlers;
 
+// CreateOrderAction and CancelOrderAction are defined in Messages/OrderActions.cs below
 public class CreateOrderHandler(
     IEventSourcedRepository<OrderAggregate, Guid> repository)
     : IActionHandler<CreateOrderAction>
@@ -220,6 +221,7 @@ public class CreateOrderHandler(
     }
 }
 
+// GetOrderQuery and GetCustomerOrdersQuery are defined in Messages/OrderActions.cs below
 public class CancelOrderHandler(
     IEventSourcedRepository<OrderAggregate, Guid> repository)
     : IActionHandler<CancelOrderAction>

@@ -1730,7 +1730,7 @@ Excalibur.Dispatch.Messaging.MessageResultOfT<T>.ReturnValue.set -> void
 Excalibur.Dispatch.Messaging.ProjectionHandlerExtensions
 Excalibur.Dispatch.Messaging.SkipBehavior
 Excalibur.Dispatch.Messaging.SkipBehavior.LogOnly = 1 -> Excalibur.Dispatch.Messaging.SkipBehavior
-Excalibur.Dispatch.Messaging.SkipBehavior.ReturnSkippedResult = 2 -> Excalibur.Dispatch.Messaging.SkipBehavior
+Excalibur.Dispatch.Messaging.SkipBehavior.ThrowOnDuplicate = 2 -> Excalibur.Dispatch.Messaging.SkipBehavior
 Excalibur.Dispatch.Messaging.SkipBehavior.Silent = 0 -> Excalibur.Dispatch.Messaging.SkipBehavior
 Excalibur.Dispatch.Messaging.UpcastingMessageBusDecorator
 Excalibur.Dispatch.Messaging.UpcastingMessageBusDecorator.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -2141,7 +2141,7 @@ Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlerMiddleware.Type
 Excalibur.Dispatch.Middleware.Inbox.IMessageEnvelope
 Excalibur.Dispatch.Middleware.Inbox.IMessageEnvelope.MessageId.get -> string!
 Excalibur.Dispatch.Middleware.Inbox.IdempotentHandlerMiddleware
-Excalibur.Dispatch.Middleware.Inbox.IdempotentHandlerMiddleware.IdempotentHandlerMiddleware(Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator! inMemoryDeduplicator, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Middleware.Inbox.IdempotentHandlerMiddleware!>! logger, Excalibur.Dispatch.Abstractions.IInboxStore? inboxStore = null, Excalibur.Dispatch.Abstractions.IMessageIdProvider? messageIdProvider = null, Excalibur.Dispatch.Abstractions.Configuration.IInboxConfigurationProvider? configurationProvider = null) -> void
+Excalibur.Dispatch.Middleware.Inbox.IdempotentHandlerMiddleware.IdempotentHandlerMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.InboxOptions!>! inboxOptions, Excalibur.Dispatch.Abstractions.IInMemoryDeduplicator! inMemoryDeduplicator, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Middleware.Inbox.IdempotentHandlerMiddleware!>! logger, Excalibur.Dispatch.Abstractions.IInboxStore? inboxStore = null, Excalibur.Dispatch.Abstractions.IMessageIdProvider? messageIdProvider = null, Excalibur.Dispatch.Abstractions.Configuration.IInboxConfigurationProvider? configurationProvider = null) -> void
 Excalibur.Dispatch.Middleware.Inbox.IdempotentHandlerMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
 Excalibur.Dispatch.Middleware.Inbox.IdempotentHandlerMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
 Excalibur.Dispatch.Middleware.Inbox.InboxMiddleware

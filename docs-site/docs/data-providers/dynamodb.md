@@ -34,32 +34,16 @@ services.AddDynamoDb(options =>
 });
 ```
 
-## Registration Options
+## Registration Methods
 
-```csharp
-// With options callback
-services.AddDynamoDb(options =>
-{
-    options.Region = "us-east-1";
-    options.ServiceUrl = "http://localhost:8000"; // Local development
-});
+| Method | What It Registers | Key Options |
+|--------|-------------------|-------------|
+| `AddDynamoDb(opts)` | Core persistence provider | `Region`, `ServiceUrl`, `TablePrefix` |
+| `AddDynamoDbWithClient(client)` | Provider with pre-configured client | N/A |
+| `AddDynamoDbSnapshotStore(opts)` | `ISnapshotStore` | `TableName` |
+| `AddDynamoDbAuthorization(opts)` | Authorization store | `TableName` |
 
-// From configuration
-services.AddDynamoDb(configuration);
-services.AddDynamoDb(configuration, sectionName: "DynamoDb");
-
-// With pre-configured client
-services.AddDynamoDbWithClient(dynamoDbClient);
-```
-
-### Snapshot Store
-
-```csharp
-services.AddDynamoDbSnapshotStore(options =>
-{
-    options.TableName = "Snapshots";
-});
-```
+All methods also accept `IConfiguration` binding: `AddDynamoDb(configuration, sectionName: "DynamoDb")`.
 
 ### Change Data Capture
 
@@ -76,15 +60,6 @@ services.AddCdcProcessor(cdc =>
     })
     .TrackTable("Orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();
-});
-```
-
-### Authorization Store
-
-```csharp
-services.AddDynamoDbAuthorization(options =>
-{
-    options.TableName = "AuthGrants";
 });
 ```
 

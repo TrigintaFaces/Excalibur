@@ -16,30 +16,38 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 public sealed class GetPendingOutboxMessagesRequest : DataRequestBase<IDbConnection, IReadOnlyList<OutboxMessage>>
 {
-	private const string Sql = """
-		SELECT id AS Id, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
-		       event_type AS EventType, event_data AS EventData, created_at AS CreatedAt,
-		       published_at AS PublishedAt, retry_count AS RetryCount,
-		       message_type AS MessageType, metadata AS Metadata
-		FROM event_sourced_outbox
-		WHERE published_at IS NULL
-		ORDER BY created_at ASC
-		LIMIT @BatchSize
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GetPendingOutboxMessagesRequest"/> class.
 	/// </summary>
 	/// <param name="batchSize">Maximum number of messages to retrieve.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "public".</param>
+	/// <param name="table">The outbox table name. Default: "event_sourced_outbox".</param>
 	public GetPendingOutboxMessagesRequest(
 		int batchSize,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "event_sourced_outbox")
 	{
+		var qualifiedTable = PgTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			SELECT id AS Id, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
+			       event_type AS EventType, event_data AS EventData, created_at AS CreatedAt,
+			       published_at AS PublishedAt, retry_count AS RetryCount,
+			       message_type AS MessageType, metadata AS Metadata
+			FROM {qualifiedTable}
+			WHERE published_at IS NULL
+			ORDER BY created_at ASC
+			LIMIT @BatchSize
+			""";
+#pragma warning restore CA2100
+
 		var parameters = new DynamicParameters();
 		parameters.Add("@BatchSize", batchSize);
 
-		Command = CreateCommand(Sql, parameters, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 		{

@@ -31,6 +31,8 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
+	/// <param name="schema">The schema name for the event store table. Default: "public".</param>
+	/// <param name="table">The event store table name. Default: "events".</param>
 	/// <returns>The service collection for method chaining.</returns>
 	/// <remarks>
 	/// <para>
@@ -40,7 +42,9 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	/// </remarks>
 	public static IServiceCollection AddPostgresEventStore(
 		this IServiceCollection services,
-		NpgsqlDataSource dataSource)
+		NpgsqlDataSource dataSource,
+		string schema = "public",
+		string table = "events")
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(dataSource);
@@ -50,7 +54,9 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 				dataSource,
 				sp.GetRequiredService<ILogger<PostgresEventStore>>(),
 				sp.GetService<ISerializer>(),
-				sp.GetService<IPayloadSerializer>()));
+				sp.GetService<IPayloadSerializer>(),
+				schema,
+				table));
 
 		RegisterEventStoreTelemetryWrapper(services);
 
@@ -58,14 +64,51 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds Postgres event store implementation with options configuration.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Configuration action for event store options.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown when <see cref="PostgresEventStoreOptions.ConnectionString"/> is not configured.
+	/// </exception>
+	public static IServiceCollection AddPostgresEventStore(
+		this IServiceCollection services,
+		Action<PostgresEventStoreOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var options = new PostgresEventStoreOptions();
+		configure(options);
+
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			throw new InvalidOperationException(
+				"ConnectionString must be configured for Postgres event store. " +
+				"Set PostgresEventStoreOptions.ConnectionString.");
+		}
+
+#pragma warning disable CA2000 // Dispose objects before losing scope -- managed by DI container
+		var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
+#pragma warning restore CA2000
+		services.TryAddSingleton(dataSource);
+		return services.AddPostgresEventStore(dataSource, options.Schema, options.Table);
+	}
+
+	/// <summary>
 	/// Adds Postgres snapshot store implementation with an NpgsqlDataSource.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
+	/// <param name="schema">The schema name for the snapshot store table. Default: "public".</param>
+	/// <param name="table">The snapshot store table name. Default: "event_store_snapshots".</param>
 	/// <returns>The service collection for method chaining.</returns>
 	public static IServiceCollection AddPostgresSnapshotStore(
 		this IServiceCollection services,
-		NpgsqlDataSource dataSource)
+		NpgsqlDataSource dataSource,
+		string schema = "public",
+		string table = "event_store_snapshots")
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(dataSource);
@@ -73,7 +116,9 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		services.TryAddSingleton(sp =>
 			new PostgresSnapshotStore(
 				dataSource,
-				sp.GetRequiredService<ILogger<PostgresSnapshotStore>>()));
+				sp.GetRequiredService<ILogger<PostgresSnapshotStore>>(),
+				schema,
+				table));
 
 		RegisterSnapshotStoreTelemetryWrapper(services);
 
@@ -81,14 +126,51 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds Postgres snapshot store implementation with options configuration.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Configuration action for snapshot store options.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown when <see cref="PostgresSnapshotStoreOptions.ConnectionString"/> is not configured.
+	/// </exception>
+	public static IServiceCollection AddPostgresSnapshotStore(
+		this IServiceCollection services,
+		Action<PostgresSnapshotStoreOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var options = new PostgresSnapshotStoreOptions();
+		configure(options);
+
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			throw new InvalidOperationException(
+				"ConnectionString must be configured for Postgres snapshot store. " +
+				"Set PostgresSnapshotStoreOptions.ConnectionString.");
+		}
+
+#pragma warning disable CA2000 // Dispose objects before losing scope -- managed by DI container
+		var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
+#pragma warning restore CA2000
+		services.TryAddSingleton(dataSource);
+		return services.AddPostgresSnapshotStore(dataSource, options.Schema, options.Table);
+	}
+
+	/// <summary>
 	/// Adds Postgres event-sourced outbox store implementation with an NpgsqlDataSource.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "public".</param>
+	/// <param name="table">The outbox table name. Default: "event_sourced_outbox".</param>
 	/// <returns>The service collection for method chaining.</returns>
 	public static IServiceCollection AddPostgresOutboxStore(
 		this IServiceCollection services,
-		NpgsqlDataSource dataSource)
+		NpgsqlDataSource dataSource,
+		string schema = "public",
+		string table = "event_sourced_outbox")
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(dataSource);
@@ -96,7 +178,9 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		services.TryAddSingleton<IEventSourcedOutboxStore>(sp =>
 			new PostgresEventSourcedOutboxStore(
 				dataSource,
-				sp.GetRequiredService<ILogger<PostgresEventSourcedOutboxStore>>()));
+				sp.GetRequiredService<ILogger<PostgresEventSourcedOutboxStore>>(),
+				schema,
+				table));
 
 		return services;
 	}
@@ -147,9 +231,9 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		var dataSource = NpgsqlDataSource.Create(options.ConnectionString);
 #pragma warning restore CA2000
 		services.TryAddSingleton(dataSource);
-		_ = services.AddPostgresEventStore(dataSource);
-		_ = services.AddPostgresSnapshotStore(dataSource);
-		_ = services.AddPostgresOutboxStore(dataSource);
+		_ = services.AddPostgresEventStore(dataSource, options.EventStoreSchema, options.EventStoreTable);
+		_ = services.AddPostgresSnapshotStore(dataSource, options.SnapshotStoreSchema, options.SnapshotStoreTable);
+		_ = services.AddPostgresOutboxStore(dataSource, options.OutboxSchema, options.OutboxTable);
 
 		// Register health checks if enabled
 		if (options.HealthChecks.RegisterHealthChecks)

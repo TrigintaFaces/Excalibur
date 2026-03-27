@@ -33,45 +33,16 @@ services.AddFirestore(options =>
 });
 ```
 
-## Registration Options
+## Registration Methods
 
-```csharp
-// With options callback
-services.AddFirestore(options =>
-{
-    options.ProjectId = "my-gcp-project";
-    options.EmulatorHost = "localhost:8080"; // Local development
-});
+| Method | What It Registers | Key Options |
+|--------|-------------------|-------------|
+| `AddFirestore(opts)` | Core persistence provider | `ProjectId`, `EmulatorHost` |
+| `AddFirestoreWithDatabase(opts)` | Provider with specific database | `ProjectId`, `DatabaseId` |
+| `AddFirestoreSnapshotStore(opts)` | `ISnapshotStore` | `CollectionName` |
+| `AddFirestoreInboxStore(opts)` | `IInboxStore` | `CollectionName` |
 
-// From configuration
-services.AddFirestore(configuration);
-services.AddFirestore(configuration, sectionName: "Firestore");
-
-// With specific database
-services.AddFirestoreWithDatabase(options =>
-{
-    options.ProjectId = "my-gcp-project";
-    options.DatabaseId = "my-database";
-});
-```
-
-### Snapshot Store
-
-```csharp
-services.AddFirestoreSnapshotStore(options =>
-{
-    options.CollectionName = "snapshots";
-});
-```
-
-### Inbox Store
-
-```csharp
-services.AddFirestoreInboxStore(options =>
-{
-    options.CollectionName = "inbox";
-});
-```
+All methods also accept `IConfiguration` binding: `AddFirestore(configuration, sectionName: "Firestore")`.
 
 ### Change Data Capture
 

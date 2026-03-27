@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Options.Delivery;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Tests.Messaging;
 
@@ -18,9 +20,14 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 
 	public InMemoryDeduplicatorShould()
 	{
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions
+		{
+			EnableAutomaticCleanup = false, // Disable timer to avoid interference in tests
+			CleanupInterval = TimeSpan.FromMinutes(30),
+		});
 		_deduplicator = new InMemoryDeduplicator(
-			NullLogger<InMemoryDeduplicator>.Instance,
-			TimeSpan.FromMinutes(30));
+			options,
+			NullLogger<InMemoryDeduplicator>.Instance);
 	}
 
 	public void Dispose()
@@ -181,17 +188,27 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	}
 
 	[Fact]
-	public void ThrowWhenLoggerIsNull()
+	public void ThrowWhenOptionsIsNull()
 	{
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => new InMemoryDeduplicator(null!));
+		Should.Throw<ArgumentNullException>(() => new InMemoryDeduplicator(
+			null!, NullLogger<InMemoryDeduplicator>.Instance));
 	}
 
 	[Fact]
-	public void UseDefaultCleanupIntervalWhenNoneProvided()
+	public void ThrowWhenLoggerIsNull()
+	{
+		// Act & Assert
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions());
+		Should.Throw<ArgumentNullException>(() => new InMemoryDeduplicator(options, null!));
+	}
+
+	[Fact]
+	public void UseDefaultOptionsWhenNoneCustomized()
 	{
 		// Act & Assert - should not throw
-		using var dedup = new InMemoryDeduplicator(NullLogger<InMemoryDeduplicator>.Instance);
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryDeduplicatorOptions());
+		using var dedup = new InMemoryDeduplicator(options, NullLogger<InMemoryDeduplicator>.Instance);
 		dedup.ShouldNotBeNull();
 	}
 

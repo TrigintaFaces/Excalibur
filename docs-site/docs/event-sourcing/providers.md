@@ -6,7 +6,23 @@ description: Per-provider event store setup for SQL Server, PostgreSQL, MongoDB,
 
 # Event Store Providers
 
-Each event store provider implements `IEventStore` with database-specific optimizations. SQL Server is the primary provider; cloud-native and document providers offer alternatives for specific deployment targets.
+Each event store provider implements `IEventStore` with database-specific optimizations. Choose the provider that matches your database.
+
+## Quick Start
+
+Pick your database and copy the registration:
+
+| Database | Package | Registration |
+|----------|---------|-------------|
+| **SQL Server** | `Excalibur.EventSourcing.SqlServer` | `services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connStr)` |
+| **PostgreSQL** | `Excalibur.EventSourcing.Postgres` | `services.AddPostgresEventSourcing(opts => opts.ConnectionString = connStr)` |
+| **MongoDB** | `Excalibur.Data.MongoDB` | `services.AddMongoDbSnapshotStore(opts => { ... })` |
+| **Cosmos DB** | `Excalibur.Data.CosmosDb` | `services.AddCosmosDb(opts => { ... })` |
+| **DynamoDB** | `Excalibur.Data.DynamoDb` | `services.AddDynamoDb(opts => { ... })` |
+| **Firestore** | `Excalibur.Data.Firestore` | `services.AddFirestore(opts => { ... })` |
+| **In-Memory** | `Excalibur.EventSourcing.InMemory` | `es.UseInMemory()` (builder only) |
+
+Each `AddXxxEventSourcing()` call registers `IEventStore`, `ISnapshotStore`, and `IEventSourcedOutboxStore` for that provider.
 
 ## Before You Start
 

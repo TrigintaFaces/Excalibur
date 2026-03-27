@@ -131,12 +131,53 @@ services.AddDispatch(dispatch =>
 
 **Learn more:** [Dependency Injection](dependency-injection.md)
 
-## In This Section
+## Gotchas and Common Mistakes
 
-- [Actions and Handlers](actions-and-handlers.md) - Define actions and implement handlers
-- [Message Context](message-context.md) - Work with message metadata and context
-- [Results and Errors](results-and-errors.md) - Handle success and failure patterns
-- [Dependency Injection](dependency-injection.md) - Configure services and handlers
+### Handlers run sequentially by default
+
+Dispatch executes action handlers **one at a time** through the pipeline. If you register multiple event handlers for the same event, they also run in sequence. This is intentional -- it guarantees predictable ordering and avoids concurrency issues within a single dispatch call.
+
+**The mistake:** Assuming handlers run in parallel and designing for concurrent execution.
+
+**Why it matters:** If Handler A takes 500ms and Handler B takes 300ms, the total dispatch time is ~800ms, not ~500ms. If you need true parallelism, dispatch separate messages or use background processing.
+
+### Context is per-request scoped
+
+`IMessageContext` is created fresh for each top-level `DispatchAsync` call. Items set on the context are visible to all middleware and the handler within that pipeline execution, but are **not shared** across separate dispatches.
+
+**The mistake:** Setting a value on `IMessageContext` in one handler and expecting to read it in an unrelated dispatch:
+
+```csharp
+// In Handler A:
+context.SetItem("TenantId", "acme");
+
+// In a separate dispatch -- this is a NEW context, "TenantId" is NOT set
+await dispatcher.DispatchAsync(new OtherAction(), ct);
+```
+
+**Correct approach:** Use `DispatchChildAsync` for related dispatches (copies correlation/tenant metadata), or pass data through the message itself.
+
+### Use `DispatchChildAsync` for nested dispatch
+
+When dispatching a message from within an existing handler, always use `DispatchChildAsync` instead of `DispatchAsync`:
+
+```csharp
+// Wrong: loses causation chain
+await _dispatcher.DispatchAsync(new NotifyCustomerAction(orderId), ct);
+
+// Correct: propagates CorrelationId, TenantId, UserId, sets CausationId
+await _dispatcher.DispatchChildAsync(new NotifyCustomerAction(orderId), ct);
+```
+
+`DispatchChildAsync` creates a child context that maintains the full message lineage -- essential for distributed tracing and debugging.
+
+## Recommended Reading Order
+
+1. **[Actions and Handlers](actions-and-handlers.md)** -- Start here. Learn how messages flow and how handlers process them.
+2. **[Results and Errors](results-and-errors.md)** -- How to handle success and failure without exceptions.
+3. **[Message Context](message-context.md)** -- Passing metadata (correlation, tenant, user) through the pipeline.
+4. **[Dependency Injection](dependency-injection.md)** -- Registration patterns and service lifetimes.
+5. **[Configuration](configuration.md)** -- Builder API, options, and environment-specific settings.
 
 ## What's Next
 

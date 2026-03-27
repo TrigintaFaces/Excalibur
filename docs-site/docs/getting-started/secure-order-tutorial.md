@@ -36,12 +36,11 @@ dotnet add package Excalibur.Dispatch.Compliance.Abstractions
 Replace the simple `IDispatchAction` records with `CommandBase` and `QueryBase`. These add correlation tracking, tenant isolation, and transaction configuration.
 
 ```csharp title="Messages/OrderCommands.cs"
-using Excalibur.A3.Authorization;
-using Excalibur.A3.Authorization.Requests;
-using Excalibur.Application.Requests;
-using OrderSystem.Domain;
-using OrderSystem.ReadModels;
-using OrderSystem.Security;
+using Excalibur.A3.Authorization;           // RequirePermissionAttribute
+using Excalibur.A3.Authorization.Requests;  // AuthorizeCommandBase<T>
+using Excalibur.Application.Requests;       // IAmAuditable
+using OrderSystem.Domain;                   // OrderLineData (defined in event-sourcing tutorial Step 2)
+using OrderSystem.Security;                 // OrderGrants (defined in Step 3 below)
 
 namespace OrderSystem.Messages;
 
@@ -86,8 +85,8 @@ public sealed class CancelOrderCommand : AuthorizeCommandBase<bool>, IAmAuditabl
 ```
 
 ```csharp title="Messages/OrderQueries.cs"
-using Excalibur.Application.Requests.Queries;
-using OrderSystem.ReadModels;
+using Excalibur.Application.Requests.Queries; // QueryBase<T>
+using OrderSystem.ReadModels;                 // OrderSummary (defined in event-sourcing tutorial Step 4)
 
 namespace OrderSystem.Messages;
 
@@ -218,10 +217,14 @@ public class CancelOrderHandler(
 
 Inject `IAuditLogger` to log security-sensitive operations explicitly. Commands marked with `IAmAuditable` are also logged automatically by the A3 audit middleware.
 
+:::tip Skip this on first read
+The grant management endpoints below are **admin-only plumbing**. If you just want to see the security flow end-to-end, skip ahead to [Step 6: Wire It Up](#step-6-wire-it-up) and come back here when you need to manage grants programmatically.
+:::
+
 ```csharp title="Handlers/GrantManagementEndpoints.cs"
-using Excalibur.A3.Authorization.Grants;
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Compliance;
+using Excalibur.A3.Authorization.Grants;  // AddGrantCommand, RevokeGrantCommand (from Excalibur.A3 package)
+using Excalibur.Dispatch.Abstractions;    // IDispatcher
+using Excalibur.Dispatch.Compliance;      // IAuditLogger, AuditEvent, AuditEventType, AuditOutcome
 
 namespace OrderSystem.Handlers;
 

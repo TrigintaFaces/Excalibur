@@ -10,8 +10,8 @@
 // Key concepts demonstrated:
 // - IProjection<TKey> - Read model interface
 // - IProjectionStore<T> - Storage abstraction
-// - Inline projections - Synchronous updates
-// - Multi-stream projections - Aggregating across streams
+// - AddProjection<T>().Inline() - Framework-managed inline projections
+// - Multi-stream projections - Aggregating across streams (handler-based)
 // - Checkpoint tracking - For async projection support
 // - Projection rebuild - Rebuilding from scratch
 // - IEventSourcedRepository - Aggregate persistence
@@ -47,15 +47,65 @@ services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Inf
 // Add event serializer (required for event sourcing)
 services.AddSingleton<IEventSerializer, JsonEventSerializer>();
 
-// Add Excalibur event sourcing with in-memory event store
+// Add Excalibur event sourcing with in-memory event store and inline projections.
+// The AddProjection<T>() API registers projections that run automatically during
+// SaveAsync(), providing read-after-write consistency without manual event iteration.
 services.AddExcaliburEventSourcing(builder =>
 {
 	_ = builder.AddRepository<ProductAggregate, Guid>(id => new ProductAggregate(id));
+
+	// -----------------------------------------------------------------------
+	// Inline projection: ProductCatalogProjection
+	// -----------------------------------------------------------------------
+	// This projection is keyed by aggregate ID (product ID) and updates
+	// automatically during SaveAsync(). No manual event iteration needed.
+	// The framework loads the projection from IProjectionStore<T>, applies
+	// each When<TEvent> handler, then saves it back -- all within SaveAsync().
+	builder.AddProjection<ProductCatalogProjection>(p => p
+		.Inline()
+		.When<ProductCreated>((proj, e) =>
+		{
+			proj.Id = e.ProductId.ToString();
+			proj.Name = e.Name;
+			proj.Category = e.Category;
+			proj.CurrentPrice = e.Price;
+			proj.OriginalPrice = e.Price;
+			proj.StockLevel = e.InitialStock;
+			proj.IsActive = true;
+			proj.CreatedAt = e.OccurredAt;
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version = e.Version;
+		})
+		.When<ProductPriceChanged>((proj, e) =>
+		{
+			proj.CurrentPrice = e.NewPrice;
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version = e.Version;
+		})
+		.When<ProductStockAdded>((proj, e) =>
+		{
+			proj.StockLevel = e.NewStockLevel;
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version = e.Version;
+		})
+		.When<ProductStockRemoved>((proj, e) =>
+		{
+			proj.StockLevel = e.NewStockLevel;
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version = e.Version;
+		})
+		.When<ProductDiscontinued>((proj, e) =>
+		{
+			proj.IsActive = false;
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version = e.Version;
+		}));
 });
 services.AddInMemoryEventStore();
 
-// Register in-memory projection stores
+// Register in-memory projection stores.
 // In production, use SqlServerProjectionStore, PostgresProjectionStore, etc.
+// The inline projection system resolves IProjectionStore<T> from DI to persist state.
 services.AddSingleton<IProjectionStore<ProductCatalogProjection>>(
 	new InMemoryProjectionStore<ProductCatalogProjection>(p => p.Id));
 
@@ -65,8 +115,12 @@ services.AddSingleton<IProjectionStore<CategorySummaryProjection>>(
 // Register checkpoint store (for async projection support)
 services.AddSingleton<InMemoryCheckpointStore>();
 
-// Register projection handlers (auto-discovered from assembly via IProjectionHandler marker)
-services.AddProjectionHandlersFromAssembly(typeof(Program).Assembly);
+// Register the CategorySummaryProjectionHandler for multi-stream projections.
+// Multi-stream projections aggregate data across multiple aggregates (keyed by
+// category name, not aggregate ID). These cannot use AddProjection<T>().Inline()
+// because the inline system keys by aggregate ID. Instead, we use the handler-based
+// approach where the handler manages its own projection store lookups.
+services.AddSingleton<CategorySummaryProjectionHandler>();
 
 var provider = services.BuildServiceProvider();
 
@@ -75,7 +129,6 @@ var logger = provider.GetRequiredService<ILogger<Program>>();
 var catalogStore = provider.GetRequiredService<IProjectionStore<ProductCatalogProjection>>();
 var categoryStore = provider.GetRequiredService<IProjectionStore<CategorySummaryProjection>>();
 var checkpointStore = provider.GetRequiredService<InMemoryCheckpointStore>();
-var catalogHandler = provider.GetRequiredService<ProductCatalogProjectionHandler>();
 var categoryHandler = provider.GetRequiredService<CategorySummaryProjectionHandler>();
 var repository = provider.GetRequiredService<IEventSourcedRepository<ProductAggregate, Guid>>();
 
@@ -86,9 +139,10 @@ Console.WriteLine("╔═══════════════════�
 Console.WriteLine("║  Demo 1: Inline Projections                    ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("Inline projections update read models synchronously as events");
-Console.WriteLine("are raised. This provides strong consistency but couples the");
-Console.WriteLine("write and read sides.");
+Console.WriteLine("Inline projections update read models synchronously during");
+Console.WriteLine("SaveAsync(). No manual event iteration is needed -- the");
+Console.WriteLine("framework processes events through registered When<T> handlers");
+Console.WriteLine("automatically.");
 Console.WriteLine();
 
 // Create some products
@@ -103,63 +157,25 @@ var chair = ProductAggregate.Create(
 var desk = ProductAggregate.Create(
 	Guid.NewGuid(), "Standing Desk", "Furniture", 599.99m, 15);
 
-// Process events through projection handlers (inline) and save aggregates
-foreach (var evt in laptop.GetUncommittedEvents())
+// Save aggregates -- inline projections update ProductCatalogProjection automatically.
+// The CategorySummaryProjection is updated via its handler (multi-stream pattern).
+foreach (var aggregate in new[] { laptop, phone, headphones, chair, desk })
 {
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
-	if (evt is ProductCreated created)
+	// Update category summary via handler (multi-stream, keyed by category name).
+	// This must happen before SaveAsync() because SaveAsync() clears uncommitted events.
+	foreach (var evt in aggregate.GetUncommittedEvents())
 	{
-		await categoryHandler.HandleAsync(created, CancellationToken.None);
+		if (evt is ProductCreated created)
+		{
+			await categoryHandler.HandleAsync(created, CancellationToken.None);
+		}
 	}
+
+	// SaveAsync persists events AND runs inline projections (ProductCatalogProjection)
+	await repository.SaveAsync(aggregate, CancellationToken.None).ConfigureAwait(false);
 }
 
-await repository.SaveAsync(laptop, CancellationToken.None).ConfigureAwait(false);
-
-foreach (var evt in phone.GetUncommittedEvents())
-{
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
-	if (evt is ProductCreated created)
-	{
-		await categoryHandler.HandleAsync(created, CancellationToken.None);
-	}
-}
-
-await repository.SaveAsync(phone, CancellationToken.None).ConfigureAwait(false);
-
-foreach (var evt in headphones.GetUncommittedEvents())
-{
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
-	if (evt is ProductCreated created)
-	{
-		await categoryHandler.HandleAsync(created, CancellationToken.None);
-	}
-}
-
-await repository.SaveAsync(headphones, CancellationToken.None).ConfigureAwait(false);
-
-foreach (var evt in chair.GetUncommittedEvents())
-{
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
-	if (evt is ProductCreated created)
-	{
-		await categoryHandler.HandleAsync(created, CancellationToken.None);
-	}
-}
-
-await repository.SaveAsync(chair, CancellationToken.None).ConfigureAwait(false);
-
-foreach (var evt in desk.GetUncommittedEvents())
-{
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
-	if (evt is ProductCreated created)
-	{
-		await categoryHandler.HandleAsync(created, CancellationToken.None);
-	}
-}
-
-await repository.SaveAsync(desk, CancellationToken.None).ConfigureAwait(false);
-
-// Query the catalog projection
+// Query the catalog projection -- populated automatically by the inline projection
 Console.WriteLine("Product Catalog Read Model:");
 var allProducts = await catalogStore.QueryAsync(null, new QueryOptions(OrderBy: "Name"), CancellationToken.None);
 foreach (var product in allProducts)
@@ -178,7 +194,9 @@ Console.WriteLine("╚═══════════════════�
 Console.WriteLine();
 Console.WriteLine("Multi-stream projections aggregate data across multiple");
 Console.WriteLine("aggregates. The CategorySummaryProjection combines data");
-Console.WriteLine("from all products in a category.");
+Console.WriteLine("from all products in a category. Because it is keyed by");
+Console.WriteLine("category name (not aggregate ID), it uses the handler-based");
+Console.WriteLine("pattern instead of AddProjection<T>().Inline().");
 Console.WriteLine();
 
 // Query category summaries
@@ -202,8 +220,8 @@ Console.WriteLine("╔═══════════════════�
 Console.WriteLine("║  Demo 3: Projection Updates from Events        ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("When domain events occur, projections are updated to reflect");
-Console.WriteLine("the new state. Let's apply some changes...");
+Console.WriteLine("When domain events occur, inline projections update automatically");
+Console.WriteLine("during SaveAsync(). Multi-stream projections update via handlers.");
 Console.WriteLine();
 
 // Reload aggregates from repository for mutations (correct load-mutate-save pattern)
@@ -213,15 +231,17 @@ laptop = await repository.GetByIdAsync(laptop.Id, CancellationToken.None).Config
 // Price change
 Console.WriteLine("1. Changing laptop price from $1,299.99 to $1,099.99 (sale!)");
 laptop.ChangePrice(1099.99m);
+
+// Update category summary via handler for multi-stream projection
 foreach (var evt in laptop.GetUncommittedEvents())
 {
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
 	if (evt is ProductPriceChanged priceChanged)
 	{
 		await categoryHandler.HandleAsync(priceChanged, "Electronics", CancellationToken.None);
 	}
 }
 
+// SaveAsync updates the ProductCatalogProjection inline automatically
 await repository.SaveAsync(laptop, CancellationToken.None).ConfigureAwait(false);
 
 // Reload headphones for mutation
@@ -231,9 +251,9 @@ headphones = await repository.GetByIdAsync(headphones.Id, CancellationToken.None
 // Stock update
 Console.WriteLine("2. Removing 45 headphones from stock (big sale!)");
 headphones.RemoveStock(45, "Flash sale");
+
 foreach (var evt in headphones.GetUncommittedEvents())
 {
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
 	if (evt is ProductStockRemoved stockRemoved)
 	{
 		await categoryHandler.HandleAsync(stockRemoved, "Electronics", CancellationToken.None);
@@ -249,9 +269,9 @@ desk = await repository.GetByIdAsync(desk.Id, CancellationToken.None).ConfigureA
 // Add more stock
 Console.WriteLine("3. Restocking desks (+10 units)");
 desk.AddStock(10);
+
 foreach (var evt in desk.GetUncommittedEvents())
 {
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
 	if (evt is ProductStockAdded stockAdded)
 	{
 		await categoryHandler.HandleAsync(stockAdded, "Furniture", CancellationToken.None);
@@ -405,9 +425,9 @@ Console.WriteLine("╔═══════════════════�
 Console.WriteLine("║  Demo 7: Discontinue a Product                 ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("When a product is discontinued, both projections are updated.");
-Console.WriteLine("The catalog shows the product as inactive, and the category");
-Console.WriteLine("summary recalculates its statistics.");
+Console.WriteLine("When a product is discontinued, the inline projection updates");
+Console.WriteLine("the catalog automatically. The category summary is updated");
+Console.WriteLine("via the handler-based multi-stream pattern.");
 Console.WriteLine();
 
 // Reload chair for mutation
@@ -416,15 +436,17 @@ chair = await repository.GetByIdAsync(chair.Id, CancellationToken.None).Configur
 
 Console.WriteLine("Discontinuing the Office Chair...");
 chair.Discontinue("End of product line");
+
+// Update category summary via handler (multi-stream pattern)
 foreach (var evt in chair.GetUncommittedEvents())
 {
-	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
 	if (evt is ProductDiscontinued discontinued)
 	{
 		await categoryHandler.HandleAsync(discontinued, "Furniture", CancellationToken.None);
 	}
 }
 
+// SaveAsync updates ProductCatalogProjection inline automatically
 await repository.SaveAsync(chair, CancellationToken.None).ConfigureAwait(false);
 
 Console.WriteLine();
@@ -448,11 +470,11 @@ Console.WriteLine("  Sample Complete!");
 Console.WriteLine("=================================================");
 Console.WriteLine();
 Console.WriteLine("Key takeaways:");
-Console.WriteLine("  - IProjection<TKey> defines read model contract");
-Console.WriteLine("  - IProjectionStore<T> provides storage abstraction");
-Console.WriteLine("  - IEventSourcedRepository persists aggregates properly");
-Console.WriteLine("  - Inline projections update synchronously with events");
-Console.WriteLine("  - Multi-stream projections aggregate across aggregates");
+Console.WriteLine("  - AddProjection<T>().Inline() for single-stream projections");
+Console.WriteLine("  - Inline projections update automatically during SaveAsync()");
+Console.WriteLine("  - No manual GetUncommittedEvents() iteration needed for inline");
+Console.WriteLine("  - Multi-stream projections use handler-based pattern");
+Console.WriteLine("  - IProjectionStore<T> provides storage abstraction for both");
 Console.WriteLine("  - Checkpoints enable async projections and rebuilds");
 Console.WriteLine("  - QueryOptions support filtering, sorting, and pagination");
 Console.WriteLine();

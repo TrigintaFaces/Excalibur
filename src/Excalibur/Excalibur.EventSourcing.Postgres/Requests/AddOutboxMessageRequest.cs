@@ -16,26 +16,34 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 public sealed class AddOutboxMessageRequest : DataRequestBase<IDbConnection, int>
 {
-	private const string Sql = """
-		INSERT INTO event_sourced_outbox
-		    (id, aggregate_id, aggregate_type, event_type, event_data, created_at, published_at, retry_count, message_type, metadata)
-		VALUES
-		    (@Id, @AggregateId, @AggregateType, @EventType, @EventData, @CreatedAt, @PublishedAt, @RetryCount, @MessageType, @Metadata)
-		""";
-
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AddOutboxMessageRequest"/> class.
 	/// </summary>
 	/// <param name="message">The outbox message to add.</param>
 	/// <param name="transaction">The database transaction.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="schema">The schema name for the outbox table. Default: "public".</param>
+	/// <param name="table">The outbox table name. Default: "event_sourced_outbox".</param>
 	public AddOutboxMessageRequest(
 		OutboxMessage message,
 		IDbTransaction transaction,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string schema = "public",
+		string table = "event_sourced_outbox")
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(transaction);
+
+		var qualifiedTable = PgTableName.Format(schema, table);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		var sql = $"""
+			INSERT INTO {qualifiedTable}
+			    (id, aggregate_id, aggregate_type, event_type, event_data, created_at, published_at, retry_count, message_type, metadata)
+			VALUES
+			    (@Id, @AggregateId, @AggregateType, @EventType, @EventData, @CreatedAt, @PublishedAt, @RetryCount, @MessageType, @Metadata)
+			""";
+#pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", message.Id);
@@ -49,7 +57,7 @@ public sealed class AddOutboxMessageRequest : DataRequestBase<IDbConnection, int
 		parameters.Add("@MessageType", message.MessageType);
 		parameters.Add("@Metadata", message.Metadata);
 
-		Command = CreateCommand(Sql, parameters, transaction: transaction, cancellationToken: cancellationToken);
+		Command = CreateCommand(sql, parameters, transaction: transaction, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
 			await connection.ExecuteAsync(Command).ConfigureAwait(false);

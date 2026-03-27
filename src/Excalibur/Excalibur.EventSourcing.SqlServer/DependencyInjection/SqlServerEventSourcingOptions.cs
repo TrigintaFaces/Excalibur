@@ -46,9 +46,9 @@ public sealed class SqlServerEventSourcingOptions
 	public string EventStoreSchema { get; set; } = "dbo";
 
 	/// <summary>
-	/// Gets or sets the event store table name. Default: "Events".
+	/// Gets or sets the event store table name. Default: "EventStoreEvents".
 	/// </summary>
-	public string EventStoreTable { get; set; } = "Events";
+	public string EventStoreTable { get; set; } = "EventStoreEvents";
 
 	/// <summary>
 	/// Gets or sets the schema name for snapshot store tables. Default: "dbo".
@@ -56,9 +56,9 @@ public sealed class SqlServerEventSourcingOptions
 	public string SnapshotStoreSchema { get; set; } = "dbo";
 
 	/// <summary>
-	/// Gets or sets the snapshot store table name. Default: "Snapshots".
+	/// Gets or sets the snapshot store table name. Default: "EventStoreSnapshots".
 	/// </summary>
-	public string SnapshotStoreTable { get; set; } = "Snapshots";
+	public string SnapshotStoreTable { get; set; } = "EventStoreSnapshots";
 
 	/// <summary>
 	/// Gets or sets the schema name for outbox tables. Default: "dbo".

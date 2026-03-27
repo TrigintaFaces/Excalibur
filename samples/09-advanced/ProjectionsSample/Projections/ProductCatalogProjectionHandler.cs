@@ -10,19 +10,33 @@ using ProjectionsSample.Domain;
 namespace ProjectionsSample.Projections;
 
 // ============================================================================
-// Product Catalog Projection Handler (Inline Projection)
+// Product Catalog Projection Handler (Alternative: Manual Handler Approach)
 // ============================================================================
-// This handler updates the ProductCatalogProjection in response to domain events.
-// It demonstrates the "inline projection" pattern where projections are updated
-// synchronously as events are processed.
+// This handler demonstrates the MANUAL projection pattern where events are
+// iterated explicitly and handlers are called directly. This is the OLD pattern.
+//
+// ** The PREFERRED approach is AddProjection<T>().Inline() **
+// See Program.cs for the inline projection registration that replaces this handler.
+// The framework automatically runs inline projections during SaveAsync(),
+// eliminating the need for manual event iteration.
+//
+// This file is kept as a reference for the handler-based approach, which is still
+// useful for multi-stream projections (like CategorySummaryProjectionHandler)
+// where the projection key differs from the aggregate ID.
 
 /// <summary>
 /// Handles events for the ProductCatalogProjection.
 /// </summary>
 /// <remarks>
-/// This is an inline (synchronous) projection handler that updates the read model
-/// immediately when events are processed. For high-throughput scenarios, consider
-/// using async projections with checkpoint tracking.
+/// <para>
+/// This is the handler-based projection approach. For single-stream projections
+/// keyed by aggregate ID, prefer <c>AddProjection&lt;T&gt;().Inline()</c> instead,
+/// which runs automatically during <c>SaveAsync()</c>.
+/// </para>
+/// <para>
+/// See <c>Program.cs</c> for the inline projection registration that replaces
+/// direct usage of this handler.
+/// </para>
 /// </remarks>
 public sealed class ProductCatalogProjectionHandler : IProjectionHandler
 {
