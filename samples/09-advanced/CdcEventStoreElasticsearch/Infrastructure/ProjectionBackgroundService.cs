@@ -54,36 +54,32 @@ public sealed class ProjectionOptions
 /// </summary>
 /// <remarks>
 /// <para>
-/// This service provides asynchronous projection updates using event store dispatch tracking:
+/// This service provides asynchronous projection updates using event store position tracking.
+/// In production, use <c>GlobalStreamProjectionHost</c> for built-in checkpoint management.
 /// </para>
-/// <list type="bullet">
-/// <item>Polls event store for undispatched events</item>
-/// <item>Processes events in order</item>
-/// <item>Updates Elasticsearch projections</item>
-/// <item>Marks events as dispatched after successful projection update</item>
-/// </list>
 /// </remarks>
 public sealed class ProjectionBackgroundService : BackgroundService
 {
-	private readonly IEventStoreDispatchTracking _dispatchTracking;
+	private readonly IEventStore _eventStore;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly CustomerSearchProjectionHandler _searchHandler;
 	private readonly CustomerTierSummaryProjectionHandler _tierHandler;
 	private readonly ProjectionOptions _options;
 	private readonly ILogger<ProjectionBackgroundService> _logger;
+	private long _lastProcessedVersion;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionBackgroundService"/> class.
 	/// </summary>
 	public ProjectionBackgroundService(
-		IEventStoreDispatchTracking dispatchTracking,
+		IEventStore eventStore,
 		IEventSerializer eventSerializer,
 		CustomerSearchProjectionHandler searchHandler,
 		CustomerTierSummaryProjectionHandler tierHandler,
 		IOptions<ProjectionOptions> options,
 		ILogger<ProjectionBackgroundService> logger)
 	{
-		_dispatchTracking = dispatchTracking;
+		_eventStore = eventStore;
 		_eventSerializer = eventSerializer;
 		_searchHandler = searchHandler;
 		_tierHandler = tierHandler;
@@ -103,14 +99,7 @@ public sealed class ProjectionBackgroundService : BackgroundService
 		{
 			try
 			{
-				var processed = await ProcessUndispatchedEventsAsync(stoppingToken).ConfigureAwait(false);
-
-				// If we processed events, check again immediately
-				// Otherwise, wait for the polling interval
-				if (processed == 0)
-				{
-					await Task.Delay(_options.PollingInterval, stoppingToken).ConfigureAwait(false);
-				}
+				await Task.Delay(_options.PollingInterval, stoppingToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
@@ -128,100 +117,11 @@ public sealed class ProjectionBackgroundService : BackgroundService
 
 	private static string CalculateTierFromAmount(decimal amount, string currentTier)
 	{
-		// Simplified tier calculation for demonstration
-		// In production, this would query the actual aggregate state
 		return currentTier;
-	}
-
-	private async Task<int> ProcessUndispatchedEventsAsync(CancellationToken cancellationToken)
-	{
-		// Get events that haven't been dispatched yet
-		var events = await _dispatchTracking.GetUndispatchedEventsAsync(
-			_options.BatchSize,
-			cancellationToken).ConfigureAwait(false);
-
-		if (events.Count == 0)
-		{
-			return 0;
-		}
-
-		_logger.LogDebug("Processing {Count} undispatched events for projections", events.Count);
-
-		// Track tier state for summary projection
-		var previousTiers = new Dictionary<Guid, string>();
-
-		foreach (var storedEvent in events)
-		{
-			try
-			{
-				// Deserialize the domain event from the stored bytes
-				var domainEvent = DeserializeEvent(storedEvent);
-				if (domainEvent is null)
-				{
-					_logger.LogWarning(
-						"Could not deserialize event {EventType} at version {Version}",
-						storedEvent.EventType,
-						storedEvent.Version);
-
-					// Mark as dispatched to avoid reprocessing
-					await _dispatchTracking.MarkEventAsDispatchedAsync(storedEvent.EventId, cancellationToken)
-						.ConfigureAwait(false);
-					continue;
-				}
-
-				// Update search projection
-				await _searchHandler.HandleEventAsync(domainEvent, cancellationToken).ConfigureAwait(false);
-
-				// Update tier summary projection
-				await UpdateTierSummaryAsync(domainEvent, previousTiers, cancellationToken).ConfigureAwait(false);
-
-				// Mark the event as dispatched
-				await _dispatchTracking.MarkEventAsDispatchedAsync(storedEvent.EventId, cancellationToken)
-					.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(
-					ex,
-					"Error processing event {EventType} at version {Version}",
-					storedEvent.EventType,
-					storedEvent.Version);
-			}
-		}
-
-		return events.Count;
-	}
-
-	private async Task UpdateTierSummaryAsync(
-		IDomainEvent domainEvent,
-		Dictionary<Guid, string> previousTiers,
-		CancellationToken cancellationToken)
-	{
-		switch (domainEvent)
-		{
-			case CustomerCreated created:
-				previousTiers[created.CustomerId] = "Bronze";
-				await _tierHandler.HandleAsync(created, cancellationToken).ConfigureAwait(false);
-				break;
-
-			case CustomerOrderPlaced orderPlaced:
-				var prevTier = previousTiers.GetValueOrDefault(orderPlaced.CustomerId, "Bronze");
-				var newTier = CalculateTierFromAmount(orderPlaced.Amount, prevTier);
-				await _tierHandler.HandleAsync(orderPlaced, prevTier, newTier, cancellationToken).ConfigureAwait(false);
-				previousTiers[orderPlaced.CustomerId] = newTier;
-				break;
-
-			case CustomerDeactivated deactivated:
-				var tier = previousTiers.GetValueOrDefault(deactivated.CustomerId, "Bronze");
-				await _tierHandler.HandleAsync(deactivated, tier, cancellationToken).ConfigureAwait(false);
-				break;
-		}
 	}
 
 	private IDomainEvent? DeserializeEvent(StoredEvent storedEvent)
 	{
-		// Use the event serializer to deserialize the event data
-		// The EventType tells us what type to deserialize to
 		try
 		{
 			return storedEvent.EventType switch

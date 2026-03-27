@@ -172,32 +172,6 @@ public class InMemoryEventStoreBenchmarks
 
 	#endregion Concurrent Benchmarks
 
-	#region Outbox Pattern Benchmarks
-
-	/// <summary>
-	/// Benchmark: Get undispatched events (outbox polling).
-	/// </summary>
-	[Benchmark]
-	public async Task<IReadOnlyList<StoredEvent>> GetUndispatchedEvents_Batch100()
-	{
-		return await _eventStore.GetUndispatchedEventsAsync(100, CancellationToken.None);
-	}
-
-	/// <summary>
-	/// Benchmark: Mark event as dispatched.
-	/// </summary>
-	[Benchmark]
-	public async Task MarkEventAsDispatched()
-	{
-		var undispatched = await _eventStore.GetUndispatchedEventsAsync(1, CancellationToken.None);
-		if (undispatched.Count > 0)
-		{
-			await _eventStore.MarkEventAsDispatchedAsync(undispatched[0].EventId, CancellationToken.None);
-		}
-	}
-
-	#endregion Outbox Pattern Benchmarks
-
 	#region Helpers
 
 	private static TestDomainEvent[] CreateEvents(string aggregateId, int count)
