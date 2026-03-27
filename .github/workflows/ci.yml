@@ -2408,7 +2408,7 @@ jobs:
 
       - name: Publish test results
         if: hashFiles('test-results/**/*.trx') != ''
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v2
         with:
           name: "Test Results - ${{ matrix.report.name }}"
           path: "test-results/${{ matrix.report.path }}"
