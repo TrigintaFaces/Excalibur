@@ -308,6 +308,11 @@
       "samples/06-security/AwsSecretsManager/AwsSecretsManager.csproj",
       "samples/06-security/AzureKeyVault/AzureKeyVault.csproj",
       "samples/06-security/MessageEncryption/MessageEncryption.csproj",
+      "samples/06-security/StandaloneA3/StandaloneA3.csproj",
+      "samples/06-security/AccessReviews/AccessReviews.csproj",
+      "samples/06-security/JitAccess/JitAccess.csproj",
+      "samples/06-security/ProvisioningWorkflow/ProvisioningWorkflow.csproj",
+      "samples/06-security/SeparationOfDuties/SeparationOfDuties.csproj",
       "samples/07-observability/HealthChecks/HealthChecks.csproj",
       "samples/07-observability/OpenTelemetry/OpenTelemetry.csproj",
       "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
@@ -468,6 +473,31 @@
       },
       {
         "project": "samples/06-security/MessageEncryption/MessageEncryption.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/StandaloneA3/StandaloneA3.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/AccessReviews/AccessReviews.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/JitAccess/JitAccess.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/ProvisioningWorkflow/ProvisioningWorkflow.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/SeparationOfDuties/SeparationOfDuties.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },

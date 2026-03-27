@@ -42,6 +42,10 @@ projects:
   - path: samples/06-security/AzureKeyVault/AzureKeyVault.csproj
   - path: samples/06-security/MessageEncryption/MessageEncryption.csproj
   - path: samples/06-security/StandaloneA3/StandaloneA3.csproj
+  - path: samples/06-security/AccessReviews/AccessReviews.csproj
+  - path: samples/06-security/JitAccess/JitAccess.csproj
+  - path: samples/06-security/ProvisioningWorkflow/ProvisioningWorkflow.csproj
+  - path: samples/06-security/SeparationOfDuties/SeparationOfDuties.csproj
   - path: samples/07-observability/HealthChecks/HealthChecks.csproj
   - path: samples/07-observability/OpenTelemetry/OpenTelemetry.csproj
   - path: samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj
