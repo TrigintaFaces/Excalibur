@@ -197,7 +197,7 @@ jobs:
 
       - name: Upload flaky quarantine report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-flaky-quarantine-report
           path: management/reports/FlakyQuarantineReport
@@ -295,7 +295,7 @@ jobs:
 
       - name: Upload soak test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}
           path: "**/pre-tag-unit-soak-*.trx"
@@ -391,7 +391,7 @@ jobs:
           Write-Host "`n✅ All packages validated successfully" -ForegroundColor Green
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.os }}
           path: |
@@ -436,7 +436,7 @@ jobs:
           fi
 
       - name: Upload release SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-cyclonedx-sbom
           path: |
@@ -524,7 +524,7 @@ jobs:
 
       - name: Upload security results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-analysis
           path: security-report.json
