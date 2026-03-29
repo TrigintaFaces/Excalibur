@@ -9,10 +9,7 @@ namespace Excalibur.Dispatch.Channels;
 /// </summary>
 public sealed class InternalChannelMetrics(string channelName, int capacity)
 {
-	// R0.8: Avoid unused private fields - these are kept for future use
-#pragma warning disable CA1823, IDE0052
 	private long _totalReads;
-#pragma warning restore CA1823, IDE0052
 	private long _totalWrites;
 
 	/// <summary>

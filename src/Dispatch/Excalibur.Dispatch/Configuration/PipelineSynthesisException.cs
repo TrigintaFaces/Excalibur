@@ -31,13 +31,17 @@ public sealed class PipelineSynthesisException(string message, ValidationIssue[]
 	{
 	}
 
-	// R0.8: Remove unused parameter - Required to maintain standard exception constructor pattern
-#pragma warning disable IDE0060
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PipelineSynthesisException"/> class with a message and inner exception.
 	/// </summary>
 	/// <param name="message">The failure message.</param>
 	/// <param name="innerException">The inner exception.</param>
+	/// <remarks>
+	/// The <paramref name="innerException"/> parameter cannot be forwarded to the base <see cref="Exception(string, Exception)"/>
+	/// constructor because the primary constructor locks the base call to <c>Exception(message)</c>.
+	/// This overload exists to satisfy the standard exception constructor pattern (CA1032).
+	/// </remarks>
+#pragma warning disable IDE0060 // innerException cannot be forwarded — primary constructor limits base call to Exception(message)
 	public PipelineSynthesisException(string? message, Exception? innerException) : this(message ?? string.Empty, [])
 	{
 	}

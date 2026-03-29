@@ -8,6 +8,9 @@ using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Caching.Diagnostics;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Dispatch.Caching;
 
 /// <summary>
@@ -19,6 +22,9 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	private readonly Counter<long> _tagRegistrationCounter;
 	private readonly Counter<long> _tagLookupCounter;
 	private readonly Counter<long> _tagUnregistrationCounter;
+	private readonly int _capacity;
+	private readonly ILogger<InMemoryCacheTagTracker>? _logger;
+	private int _capacityWarningEmitted;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryCacheTagTracker"/> class.
@@ -31,6 +37,7 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
 		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
 		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
+		_capacity = int.MaxValue;
 	}
 
 	/// <summary>
@@ -46,6 +53,30 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
 		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
 		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
+		_capacity = int.MaxValue;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="InMemoryCacheTagTracker"/> class with bounded capacity.
+	/// </summary>
+	/// <param name="meterFactory"> The meter factory for DI-managed meter lifecycle. </param>
+	/// <param name="options"> Cache options providing <see cref="CacheOptions.TagTrackerCapacity"/>. </param>
+	/// <param name="logger"> Optional logger for capacity warnings. </param>
+	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+		Justification = "Meter lifecycle is managed by IMeterFactory; instruments hold a reference to it")]
+	public InMemoryCacheTagTracker(
+		IMeterFactory meterFactory,
+		IOptions<CacheOptions> options,
+		ILogger<InMemoryCacheTagTracker>? logger = null)
+	{
+		ArgumentNullException.ThrowIfNull(meterFactory);
+		ArgumentNullException.ThrowIfNull(options);
+		var meter = meterFactory.Create(DispatchCachingTelemetryConstants.MeterName);
+		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
+		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
+		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
+		_capacity = options.Value.TagTrackerCapacity > 0 ? options.Value.TagTrackerCapacity : 10_000;
+		_logger = logger;
 	}
 
 	// Maps tag -> set of keys
@@ -64,9 +95,20 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	/// <inheritdoc />
 	public Task RegisterKeyAsync(string key, string[] tags, CancellationToken cancellationToken)
 	{
-
 		if (tags == null || tags.Length == 0)
 		{
+			return Task.CompletedTask;
+		}
+
+		if (_keyToTags.Count >= _capacity)
+		{
+			if (Interlocked.CompareExchange(ref _capacityWarningEmitted, 1, 0) == 0)
+			{
+				_logger?.LogWarning(
+					"InMemoryCacheTagTracker capacity ({Capacity}) reached. New registrations will be skipped.",
+					_capacity);
+			}
+
 			return Task.CompletedTask;
 		}
 

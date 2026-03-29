@@ -18,6 +18,23 @@ Azure Service Bus transport for enterprise-grade messaging with Azure-native int
 dotnet add package Excalibur.Dispatch.Transport.AzureServiceBus
 ```
 
+:::tip One-Line Setup with Metapackage
+For the fastest setup, use the **`Excalibur.Dispatch.Azure`** experience metapackage. It bundles the Azure Service Bus transport with Polly resilience and OpenTelemetry observability in a single call:
+
+```bash
+dotnet add package Excalibur.Dispatch.Azure
+```
+
+```csharp
+services.AddDispatchAzure(asb =>
+{
+    asb.ConnectionString(builder.Configuration.GetConnectionString("ServiceBus")!);
+});
+```
+
+`AddDispatchAzure` calls `AddDispatch` internally and configures `UseAzureServiceBus`, `UseResilience`, and `UseObservability`. Pass an optional second parameter (`Action<IDispatchBuilder>`) for additional pipeline configuration. See [Package Guide](../package-guide.md#experience-metapackages) for details.
+:::
+
 ## Quick Start
 
 ### Using the Dispatch Builder (Recommended)
@@ -215,7 +232,7 @@ services.AddOpenTelemetry()
 
 ## See Also
 
-- [Choosing a Transport](./choosing-a-transport.md) — Compare Azure Service Bus against other transports
-- [Azure Functions Deployment](../deployment/azure-functions.md) — Run Dispatch handlers in Azure Functions
-- [Multi-Transport Routing](./multi-transport.md) — Route different message types across Azure Service Bus and other transports
-- [Azure Monitor Integration](../observability/azure-monitor.md) — Configure Azure-native observability for Dispatch
+- [Choosing a Transport](./choosing-a-transport.md) -- Compare Azure Service Bus against other transports
+- [Azure Functions Deployment](../deployment/azure-functions.md) -- Run Dispatch handlers in Azure Functions
+- [Multi-Transport Routing](./multi-transport.md) -- Route different message types across Azure Service Bus and other transports
+- [Azure Monitor Integration](../observability/azure-monitor.md) -- Configure Azure-native observability for Dispatch

@@ -18,6 +18,26 @@ Apache Kafka transport for high-throughput event streaming with configurable ord
 dotnet add package Excalibur.Dispatch.Transport.Kafka
 ```
 
+:::tip One-Line Setup with Metapackage
+For the fastest setup, use the **`Excalibur.Dispatch.Kafka`** experience metapackage. It bundles the Kafka transport with Polly resilience and OpenTelemetry observability in a single call:
+
+```bash
+dotnet add package Excalibur.Dispatch.Kafka
+```
+
+```csharp
+services.AddDispatchKafka(kafka =>
+{
+    kafka.BootstrapServers("localhost:9092")
+         .ConfigureConsumer(c => c.GroupId("order-service"));
+});
+```
+
+`AddDispatchKafka` calls `AddDispatch` internally and configures `UseKafka`, `UseResilience`, and `UseObservability`. Pass an optional second parameter (`Action<IDispatchBuilder>`) for additional pipeline configuration. See [Package Guide](../package-guide.md#experience-metapackages) for details.
+
+Note: The Kafka transport uses `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` attributes due to schema registry serialization requirements.
+:::
+
 ## Quick Start
 
 ### Using the Dispatch Builder (Recommended)
@@ -225,7 +245,7 @@ See **[Kafka Schema Registry](./kafka-schema-registry.md)** for the full referen
 
 ## See Also
 
-- [Choosing a Transport](./choosing-a-transport.md) — Compare Kafka against other transports to find the best fit
-- [Message Mapping](./message-mapping.md) — Configure how message types map to Kafka topics
-- [Multi-Transport Routing](./multi-transport.md) — Route different message types across Kafka and other transports
-- [Metrics Reference](../observability/metrics-reference.md) — Dispatch metrics for produce/consume throughput and latency
+- [Choosing a Transport](./choosing-a-transport.md) -- Compare Kafka against other transports to find the best fit
+- [Message Mapping](./message-mapping.md) -- Configure how message types map to Kafka topics
+- [Multi-Transport Routing](./multi-transport.md) -- Route different message types across Kafka and other transports
+- [Metrics Reference](../observability/metrics-reference.md) -- Dispatch metrics for produce/consume throughput and latency

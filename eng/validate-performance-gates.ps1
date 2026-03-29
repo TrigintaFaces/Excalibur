@@ -252,7 +252,30 @@ function Find-AllocatedByMethod {
         return $null
     }
 
+    # Guard against missing Allocated column (happens when all results are NA)
+    $allocatedValue = $row.PSObject.Properties["Allocated"]
+    if ($null -eq $allocatedValue) {
+        return $null
+    }
+
     return Convert-AllocatedToBytes $row.Allocated
+}
+
+function Test-AllResultsNA {
+    param(
+        [object[]]$Rows
+    )
+
+    if ($null -eq $Rows -or @($Rows).Count -eq 0) {
+        return $true
+    }
+
+    $nonNaCount = @($Rows | Where-Object {
+        $mean = $_.PSObject.Properties["Mean"]
+        $null -ne $mean -and $mean.Value -ne "NA" -and $mean.Value -ne "?" -and -not [string]::IsNullOrWhiteSpace($mean.Value)
+    }).Count
+
+    return $nonNaCount -eq 0
 }
 
 function Find-MeanByColumns {
@@ -387,6 +410,10 @@ if ($Gate -eq "MediatRLocalParity") {
 
     $rows = Import-Csv -Path $csv.FullName
 
+    if (Test-AllResultsNA -Rows $rows) {
+        throw "All benchmark results in $($csv.Name) have Mean=NA. Benchmarks failed to execute on this runner. Check the benchmark log for runtime exceptions."
+    }
+
     $dispatchSingle = Find-MeanByMethod -Rows $rows -MethodName "Dispatch: Single command strict direct-local"
     if ($null -eq $dispatchSingle) {
         $dispatchSingle = Find-MeanByMethod -Rows $rows -MethodName "Dispatch: Single command handler"
@@ -429,6 +456,10 @@ elseif ($Gate -eq "TransportComparison") {
 
     $rows = Import-Csv -Path $parityCsv.FullName
     $rowCount = @($rows).Count
+
+    if (Test-AllResultsNA -Rows $rows) {
+        throw "All benchmark results in $($parityCsv.Name) have Mean=NA. Benchmarks failed to execute on this runner. Check the benchmark log for runtime exceptions."
+    }
 
     Write-Host ("Transport comparison diagnostics:") -ForegroundColor Cyan
     Write-Host ("  CSV: {0} ({1} rows)" -f $parityCsv.FullName, $rowCount) -ForegroundColor Cyan
@@ -502,6 +533,14 @@ elseif ($Gate -eq "DispatchHotPath") {
     $hotPathRows = Import-Csv -Path $hotPathCsv.FullName
     $middlewareRows = Import-Csv -Path $middlewareCsv.FullName
 
+    if (Test-AllResultsNA -Rows $hotPathRows) {
+        throw "All benchmark results in $($hotPathCsv.Name) have Mean=NA. Benchmarks failed to execute on this runner. Check the benchmark log for runtime exceptions."
+    }
+
+    if (Test-AllResultsNA -Rows $middlewareRows) {
+        throw "All benchmark results in $($middlewareCsv.Name) have Mean=NA. Benchmarks failed to execute on this runner. Check the benchmark log for runtime exceptions."
+    }
+
     $dispatchSingle = Find-MeanByMethod -Rows $hotPathRows -MethodName "Dispatcher: Single command"
     $handlerLookup = Find-MeanByMethod -Rows $hotPathRows -MethodName "HandlerRegistry: Lookup"
     $handlerInvoker = Find-MeanByMethod -Rows $hotPathRows -MethodName "HandlerInvoker: Invoke"
@@ -558,6 +597,10 @@ elseif ($Gate -eq "ObservabilityOverhead") {
 
     $rows = Import-Csv -Path $observabilityCsv.FullName
 
+    if (Test-AllResultsNA -Rows $rows) {
+        throw "All benchmark results in $($observabilityCsv.Name) have Mean=NA. Benchmarks failed to execute on this runner. Check the benchmark log for runtime exceptions."
+    }
+
     $stringPath = Find-MeanByMethod -Rows $rows -MethodName "Size via JSON string + UTF8 count"
     $utf8Path = Find-MeanByMethod -Rows $rows -MethodName "Size via SerializeToUtf8Bytes"
     $skippedPath = Find-MeanByMethod -Rows $rows -MethodName "Size estimation skipped"
@@ -603,6 +646,14 @@ elseif ($Gate -eq "PersistenceBackgroundSmoke") {
 
     $cdcRows = Import-Csv -Path $cdcCsv.FullName
     $deliveryRows = Import-Csv -Path $deliveryCsv.FullName
+
+    if (Test-AllResultsNA -Rows $cdcRows) {
+        throw "All benchmark results in $($cdcCsv.Name) have Mean=NA. Benchmarks failed to execute on this runner. Check the benchmark log for runtime exceptions."
+    }
+
+    if (Test-AllResultsNA -Rows $deliveryRows) {
+        throw "All benchmark results in $($deliveryCsv.Name) have Mean=NA. Benchmarks failed to execute on this runner. Check the benchmark log for runtime exceptions."
+    }
 
     $cdcRowCount = @($cdcRows).Count
     $deliveryRowCount = @($deliveryRows).Count

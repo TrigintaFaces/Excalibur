@@ -304,7 +304,9 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		};
 	}
 
-#pragma warning disable IDE0060 // Remove unused parameter - kept for API consistency
+	// IDE0060: Export methods share a consistent (report, options, cancellationToken) signature
+	// for uniformity; not all formats use every parameter.
+#pragma warning disable IDE0060
 	private Task<(byte[] Data, string ContentType, string Extension)> ExportToJsonAsync(
 		Soc2Report report,
 		Soc2ReportExportOptions options,
@@ -699,7 +701,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			var sheetEntry = archive.CreateEntry("xl/worksheets/sheet1.xml");
 			using (var sheetStream = sheetEntry.Open())
 			{
-				var sheet = GenerateExcelSheetXml(report, options);
+				var sheet = GenerateExcelSheetXml(report);
 				sheetStream.Write(Encoding.UTF8.GetBytes(sheet));
 			}
 		}
@@ -710,8 +712,9 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		return Task.FromResult((data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"));
 	}
 #pragma warning restore CA1849
+#pragma warning restore IDE0060
 
-	private static string GenerateExcelSheetXml(Soc2Report report, Soc2ReportExportOptions options)
+	private static string GenerateExcelSheetXml(Soc2Report report)
 	{
 		var xml = new StringBuilder();
 		_ = xml.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>");
@@ -880,7 +883,6 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		return $"soc2-{typeStr}-{report.ReportId:N}{extension}";
 	}
 
-#pragma warning disable CA1307 // Specify StringComparison for clarity - simple char/string operations
 	private static string EscapeCsv(string value)
 	{
 		if (string.IsNullOrEmpty(value))
@@ -888,9 +890,9 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			return string.Empty;
 		}
 
-		if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+		if (value.Contains(',', StringComparison.Ordinal) || value.Contains('"', StringComparison.Ordinal) || value.Contains('\n', StringComparison.Ordinal))
 		{
-			return $"\"{value.Replace("\"", "\"\"")}\"";
+			return $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 		}
 
 		return value;
@@ -904,13 +906,12 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		}
 
 		return value
-			.Replace("&", "&amp;")
-			.Replace("<", "&lt;")
-			.Replace(">", "&gt;")
-			.Replace("\"", "&quot;")
-			.Replace("'", "&apos;");
+			.Replace("&", "&amp;", StringComparison.Ordinal)
+			.Replace("<", "&lt;", StringComparison.Ordinal)
+			.Replace(">", "&gt;", StringComparison.Ordinal)
+			.Replace("\"", "&quot;", StringComparison.Ordinal)
+			.Replace("'", "&apos;", StringComparison.Ordinal);
 	}
-#pragma warning restore CA1307
 
 	private static string SanitizeFileName(string name)
 	{

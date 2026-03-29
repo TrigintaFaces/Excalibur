@@ -139,6 +139,13 @@ function Test-IsDispatchFamily {
     return $Id -eq "Excalibur.Dispatch" -or $Id.StartsWith("Excalibur.Dispatch.", [System.StringComparison]::Ordinal)
 }
 
+# Bridge metapackages live in src/Excalibur/ but are named Excalibur.Dispatch.*.
+# They intentionally depend on both Dispatch and Excalibur packages.
+$bridgeMetapackages = @(
+    "Excalibur.Dispatch.SqlServer",
+    "Excalibur.Dispatch.Postgres"
+)
+
 foreach ($pkg in $nupkgs) {
     $zip = [System.IO.Compression.ZipFile]::OpenRead($pkg.FullName)
     try {
@@ -210,7 +217,7 @@ foreach ($pkg in $nupkgs) {
                 $packageIssues += "Internal dependency '$($dep.Id)' has floating version '$($dep.Version)'"
             }
 
-            if (Test-IsDispatchFamily -Id $packageId) {
+            if ((Test-IsDispatchFamily -Id $packageId) -and ($packageId -notin $bridgeMetapackages)) {
                 if (-not (Test-IsDispatchFamily -Id $dep.Id)) {
                     $packageIssues += "Dispatch package '$packageId' depends on non-Dispatch internal package '$($dep.Id)'"
                 }

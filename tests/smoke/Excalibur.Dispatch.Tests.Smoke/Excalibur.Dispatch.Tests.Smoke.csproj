@@ -56,6 +56,11 @@
     <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.Kafka/Excalibur.Dispatch.Transport.Kafka.csproj" />
     <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/Excalibur.Dispatch.Transport.RabbitMQ.csproj" />
     <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/Excalibur.Dispatch.Validation.FluentValidation.csproj" />
+    <!-- Experience metapackages (Sprint 724) -->
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.RabbitMQ/Excalibur.Dispatch.RabbitMQ.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Kafka/Excalibur.Dispatch.Kafka.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Azure/Excalibur.Dispatch.Azure.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Aws/Excalibur.Dispatch.Aws.csproj" />
     <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj" />
 
     <!-- Excalibur packages -->

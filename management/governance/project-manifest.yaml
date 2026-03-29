@@ -108,6 +108,10 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.LeaderElection.Abstractions/Excalibur.Dispatch.LeaderElection.Abstractions.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Observability.Aws/Excalibur.Dispatch.Observability.Aws.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Observability/Excalibur.Dispatch.Observability.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Aws/Excalibur.Dispatch.Aws.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Azure/Excalibur.Dispatch.Azure.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Kafka/Excalibur.Dispatch.Kafka.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.RabbitMQ/Excalibur.Dispatch.RabbitMQ.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Patterns.Azure/Excalibur.Dispatch.Patterns.Azure.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Patterns.Hosting.Json/Excalibur.Dispatch.Patterns.Hosting.Json.csproj

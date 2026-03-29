@@ -28,7 +28,7 @@ public static class ContextValidationDispatchBuilderExtensions
 
 		_ = builder.Services.AddContextValidation();
 
-		return builder;
+		return builder.UseMiddleware<ContextValidationMiddleware>();
 	}
 
 	/// <summary>
@@ -46,7 +46,7 @@ public static class ContextValidationDispatchBuilderExtensions
 
 		_ = builder.Services.AddContextValidation(configureOptions);
 
-		return builder;
+		return builder.UseMiddleware<ContextValidationMiddleware>();
 	}
 
 	/// <summary>

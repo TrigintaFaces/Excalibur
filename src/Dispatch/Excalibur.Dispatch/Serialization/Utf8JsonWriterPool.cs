@@ -67,7 +67,9 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private long _totalReturned;
 	private long _threadLocalHits;
 	private long _threadLocalMisses;
-#pragma warning disable CS0649, IDE0044 // Telemetry field — reserved for future option-mismatch tracking
+	// Telemetry counter — never assigned today but feeds PoolStatistics.OptionMismatches
+	// (public API). Will be incremented once option-mismatch detection is implemented.
+#pragma warning disable CS0649, IDE0044 // Field is never assigned to; not readonly because it will be Interlocked.Increment'd
 	private long _optionMismatches;
 #pragma warning restore CS0649, IDE0044
 	private long _poolExpansions;

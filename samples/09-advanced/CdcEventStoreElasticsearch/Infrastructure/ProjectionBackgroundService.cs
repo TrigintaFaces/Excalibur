@@ -66,7 +66,6 @@ public sealed class ProjectionBackgroundService : BackgroundService
 	private readonly CustomerTierSummaryProjectionHandler _tierHandler;
 	private readonly ProjectionOptions _options;
 	private readonly ILogger<ProjectionBackgroundService> _logger;
-	private long _lastProcessedVersion;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionBackgroundService"/> class.

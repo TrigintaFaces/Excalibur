@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
@@ -188,17 +189,18 @@ public static class DispatchServiceCollectionExtensions
 		_ = services.AddDispatchHandlers(assemblies);
 
 		// Guard: if a builder-based AddDispatch(configure) already called Build(),
-		// skip creating a new builder which would replace the configured middleware invoker.
+		// skip — the builder path already materialized the pipeline.
 		if (services.Any(static d => d.ServiceType == typeof(DispatchBuilderSentinel)))
 		{
 			return services;
 		}
 
-		// Ensure default AddDispatch() gets optimized runtime materialization and
-		// stateless handler singleton promotion without requiring explicit builder usage.
-		using var builder = new DispatchBuilder(services);
-		EnableDefaultPerformancePromotion(builder);
-		_ = builder.Build();
+		// Apply default performance promotion without calling Build().
+		// Build() replaces IDispatchMiddlewareInvoker with a builder-materialized snapshot,
+		// which would prevent any middleware registered later (via AddDispatchMiddleware<T>())
+		// from being discovered by the legacy GetServices<IDispatchMiddleware>() path.
+		_ = services.Configure<DispatchOptions>(static opt =>
+			opt.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = true);
 
 		return services;
 	}
@@ -319,6 +321,11 @@ public static class DispatchServiceCollectionExtensions
 		where TMiddleware : class, IDispatchMiddleware
 	{
 		services.TryAddSingleton<TMiddleware>();
+
+		// Also register as IDispatchMiddleware so the legacy GetServices<IDispatchMiddleware>()
+		// discovery path (used when DispatchBuilder.Build() hasn't run) can find it.
+		_ = services.AddSingleton<IDispatchMiddleware>(static sp => sp.GetRequiredService<TMiddleware>());
+
 		return services;
 	}
 

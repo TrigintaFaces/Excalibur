@@ -232,10 +232,10 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task InvokeAsync_DistributedMode_FallsBackToDistributedCache_WhenHybridCacheIsNull()
+	public async Task InvokeAsync_DistributedMode_FallsBackToMemoryCache_WhenHybridCacheIsNull()
 	{
-		// Arrange
-		var distributedCache = A.Fake<IDistributedCache>();
+		// Arrange -- unified path: tracker resolves tags → keys, memory cache removes
+		var memoryCache = A.Fake<IMemoryCache>();
 		var tagTracker = A.Fake<ICacheTagTracker>();
 		A.CallTo(() => tagTracker.GetKeysByTagsAsync(A<string[]>._, _ct))
 			.Returns(new HashSet<string> { "cached-key-1" });
@@ -246,7 +246,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 			CacheMode = CacheMode.Distributed,
 			DefaultTags = ["fallback-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, tagTracker: tagTracker, distributedCache: distributedCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, tagTracker: tagTracker, memoryCache: memoryCache);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
@@ -256,7 +256,8 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
 		// Assert
-		A.CallTo(() => distributedCache.RemoveAsync("cached-key-1", _ct)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => memoryCache.Remove("cached-key-1")).MustHaveHappenedOnceExactly();
+		A.CallTo(() => tagTracker.UnregisterKeyAsync("cached-key-1", _ct)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -286,16 +287,16 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task InvokeAsync_DistributedMode_FallbackWithKeys_RemovesFromDistributedCache()
+	public async Task InvokeAsync_DistributedMode_FallbackWithKeys_RemovesFromMemoryCache()
 	{
-		// Arrange
-		var distributedCache = A.Fake<IDistributedCache>();
+		// Arrange -- without HybridCache, falls back to memory cache for key removal
+		var memoryCache = A.Fake<IMemoryCache>();
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions
 		{
 			Enabled = true,
 			CacheMode = CacheMode.Distributed,
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, distributedCache: distributedCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, memoryCache: memoryCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns([]);
@@ -308,7 +309,7 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
 		// Assert
-		A.CallTo(() => distributedCache.RemoveAsync("key1", _ct)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => memoryCache.Remove("key1")).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -357,13 +358,13 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task InvokeAsync_UnsupportedCacheMode_ThrowsInvalidOperationException()
+	public async Task InvokeAsync_UnknownCacheMode_HandledGracefully()
 	{
-		// Arrange
+		// Arrange -- unified invalidation handles all modes, no throw for unknown
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions
 		{
 			Enabled = true,
-			CacheMode = (CacheMode)99, // Invalid mode
+			CacheMode = (CacheMode)99, // Unknown mode
 			DefaultTags = ["tag"]
 		});
 		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
@@ -372,9 +373,11 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(_successResult);
 
-		// Act & Assert
-		await Should.ThrowAsync<InvalidOperationException>(async () =>
-			await middleware.InvokeAsync(message, _context, Next, _ct));
+		// Act -- no exception, unified path handles gracefully
+		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
+
+		// Assert
+		result.ShouldBe(_successResult);
 	}
 
 	[Fact]
@@ -499,26 +502,24 @@ public sealed class CacheInvalidationMiddlewareShould : UnitTestBase
 	[Fact]
 	public async Task InvokeAsync_DistributedMode_WithTagsButNoTagTracker_SkipsTagInvalidation()
 	{
-		// Arrange — distributed mode fallback with distributedCache but no tag tracker
-		var distributedCache = A.Fake<IDistributedCache>();
+		// Arrange — no tag tracker and no HybridCache: tags can't be resolved to keys
 		var options = Microsoft.Extensions.Options.Options.Create(new CacheOptions
 		{
 			Enabled = true,
 			CacheMode = CacheMode.Distributed,
 			DefaultTags = ["some-tag"]
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, distributedCache: distributedCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options);
 		var message = A.Fake<IDispatchMessage>();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(_successResult);
 
-		// Act — tags present but no tag tracker
+		// Act — tags present but no tag tracker and no HybridCache
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
 		// Assert
 		result.ShouldBe(_successResult);
-		A.CallTo(() => distributedCache.RemoveAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]

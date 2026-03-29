@@ -66,8 +66,8 @@ internal sealed partial class CircuitBreakerFactory(
 
 		if (_circuitBreakers.TryRemove(name, out var circuitBreaker))
 		{
-			// Note: ValueTask disposal is fire-and-forget to avoid blocking the caller. This is acceptable for cleanup operations.
-			// R0.8: Use ValueTasks correctly - intentionally fire-and-forget for cleanup.
+			// CA2012: Fire-and-forget is intentional — Remove() is synchronous and circuit breaker
+			// disposal is best-effort cleanup. DisposeAsync() on the full collection is awaited in DisposeAsync().
 #pragma warning disable CA2012
 			_ = circuitBreaker.DisposeAsync();
 #pragma warning restore CA2012

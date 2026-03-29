@@ -25,14 +25,13 @@ namespace Excalibur.Dispatch.Configuration;
 /// <remarks> Creates a new pipeline profile synthesizer. </remarks>
 /// <param name="logger"> Logger for synthesis diagnostics. </param>
 /// <param name="options"> Dispatch configuration options. </param>
-/// <param name="applicabilityStrategy"> Strategy for determining middleware applicability. </param>
-// R0.8: Parameter 'applicabilityStrategy' is unread - reserved for future middleware filtering
-#pragma warning disable CS9113
-
+/// <param name="applicabilityStrategy"> Strategy for determining middleware applicability (reserved for future middleware filtering). </param>
+#pragma warning disable CS9113 // Primary constructor parameter is not read — reserved for future middleware filtering; removing would break public API
 public sealed partial class PipelineProfileSynthesizer(
 	ILogger<PipelineProfileSynthesizer> logger,
 	IOptions<DispatchOptions> options,
 	IMiddlewareApplicabilityStrategy applicabilityStrategy)
+#pragma warning restore CS9113
 {
 	/// <summary>
 	/// Represents the default baseline middleware order as per R7.6.

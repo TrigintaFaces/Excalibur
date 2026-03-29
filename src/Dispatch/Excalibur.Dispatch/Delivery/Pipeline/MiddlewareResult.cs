@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 [method: MethodImpl(MethodImplOptions.AggressiveInlining)]
 public readonly struct MiddlewareResult(bool continueExecution, bool success, string? error = null) : IEquatable<MiddlewareResult>
 {
-	// R0.8: Make property static - these properties access primary constructor parameters (instance state)
+	// MA0041: Properties access primary constructor parameters — must remain instance members.
 #pragma warning disable MA0041
 	/// <summary>
 	/// Gets a value indicating whether to continue executing the pipeline.

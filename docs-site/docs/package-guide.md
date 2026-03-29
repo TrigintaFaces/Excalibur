@@ -20,7 +20,8 @@ Excalibur is one framework with focused package families. Install only what your
 
 | Package Family | Purpose | When to Add |
 |----------------|---------|-------------|
-| `Excalibur.Dispatch.*` | Messaging, pipeline, handlers, transports | Always — this is the foundation |
+| `Excalibur.Dispatch.*` | Messaging, pipeline, handlers, transports | Always -- this is the foundation |
+| `Excalibur.Dispatch.{RabbitMQ,Kafka,Azure,Aws}` | Experience metapackages bundling transport + resilience + observability | When you want one-line transport setup |
 | `Excalibur.Domain` | Aggregates, entities, value objects | When you need rich domain modeling |
 | `Excalibur.EventSourcing.*` | Event stores, snapshots, persistence | When you need event sourcing |
 | `Excalibur.Saga.*` | Sagas and process managers | When you need long-running workflows |
@@ -28,7 +29,7 @@ Excalibur is one framework with focused package families. Install only what your
 | `Excalibur.LeaderElection.*` | Distributed coordination | When you need single-leader guarantees |
 
 :::tip Key Rule
-All packages share the `Excalibur.*` namespace. You never rewrite existing code when adding new capabilities — just install additional packages.
+All packages share the `Excalibur.*` namespace. You never rewrite existing code when adding new capabilities -- just install additional packages.
 :::
 
 ---
@@ -81,6 +82,45 @@ These scenarios add domain modeling, persistence, or compliance packages on top 
 
 ---
 
+## Experience Metapackages
+
+For the fastest setup, use the experience metapackages. Each bundles a transport with Polly resilience and OpenTelemetry observability into a single `AddDispatch*()` call:
+
+| Metapackage | Method | Includes |
+|-------------|--------|----------|
+| `Excalibur.Dispatch.RabbitMQ` | `AddDispatchRabbitMQ()` | RabbitMQ transport + Polly resilience + OpenTelemetry observability |
+| `Excalibur.Dispatch.Kafka` | `AddDispatchKafka()` | Kafka transport + Polly resilience + OpenTelemetry observability |
+| `Excalibur.Dispatch.Azure` | `AddDispatchAzure()` | Azure Service Bus transport + Polly resilience + OpenTelemetry observability |
+| `Excalibur.Dispatch.Aws` | `AddDispatchAws()` | AWS SQS transport + Polly resilience + OpenTelemetry observability |
+
+```csharp
+// One line: transport + resilience + observability
+services.AddDispatchRabbitMQ(rmq =>
+{
+    rmq.ConnectionString("amqp://guest:guest@localhost:5672/");
+});
+```
+
+Each method also accepts an optional `Action<IDispatchBuilder>` for additional pipeline configuration (handlers, caching, validation, etc.):
+
+```csharp
+services.AddDispatchKafka(
+    kafka =>
+    {
+        kafka.BootstrapServers("localhost:9092")
+             .ConfigureConsumer(c => c.GroupId("order-service"));
+    },
+    dispatch =>
+    {
+        dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+        dispatch.UseCaching();
+    });
+```
+
+If you need fine-grained control over which features are included, use the individual packages (`Excalibur.Dispatch.Transport.RabbitMQ`, etc.) with explicit `AddDispatch()` builder calls instead.
+
+---
+
 ## Hosting Packages
 
 | Deployment Model | Package | Notes |
@@ -115,7 +155,7 @@ dotnet add package Excalibur.Dispatch
 ```
 
 ```csharp
-// Program.cs — auto-discovers handlers from the entry assembly
+// Program.cs -- auto-discovers handlers from the entry assembly
 services.AddDispatch();
 ```
 
@@ -192,7 +232,7 @@ dotnet add package Excalibur.Hosting
 ```
 
 ```csharp
-// Program.cs — sensible defaults
+// Program.cs -- sensible defaults
 services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>());
@@ -202,7 +242,7 @@ services.AddExcalibur(excalibur =>
 Need transports or custom pipelines? Call `AddDispatch` with a builder action:
 
 ```csharp
-// Program.cs — with custom messaging configuration
+// Program.cs -- with custom messaging configuration
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -285,6 +325,7 @@ services.AddExcalibur(excalibur =>
 | Context | `Excalibur.Dispatch` | `MessageContext`, correlation |
 | Serialization | `Excalibur.Dispatch.Serialization.*` | MemoryPack, MessagePack |
 | Transports | `Excalibur.Dispatch.Transport.*` | Kafka, RabbitMQ, Azure Service Bus |
+| Experience metapackages | `Excalibur.Dispatch.{RabbitMQ,Kafka,Azure,Aws}` | One-line transport + resilience + observability |
 | Observability | `Excalibur.Dispatch.Observability` | Metrics, tracing |
 | Compliance | `Excalibur.Dispatch.Compliance.*` | Audit logging, SIEM |
 
@@ -320,6 +361,10 @@ Use the serverless hosting packages (`Excalibur.Dispatch.Hosting.AzureFunctions`
 ### Where do compliance features live?
 
 In the `Excalibur.Dispatch.Compliance.*` and `Excalibur.Dispatch.AuditLogging.*` packages.
+
+### What are the experience metapackages?
+
+The `Excalibur.Dispatch.RabbitMQ`, `.Kafka`, `.Azure`, and `.Aws` packages are convenience metapackages that bundle a transport with Polly resilience and OpenTelemetry observability. Use them for the fastest setup; use the individual transport packages for fine-grained control.
 
 ---
 

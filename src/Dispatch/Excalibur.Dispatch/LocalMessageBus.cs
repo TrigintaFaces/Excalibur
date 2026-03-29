@@ -2216,11 +2216,11 @@ internal sealed partial class LocalMessageBus(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static TResponse GetCompletedTaskResult<TResponse>(Task<TResponse> task)
 	{
-#pragma warning disable CA1849
-#pragma warning disable RS0030
+		// CA1849/RS0030: Safe synchronous access — only called when task.IsCompletedSuccessfully
+		// is true (see callers), so .Result never blocks or throws AggregateException.
+#pragma warning disable CA1849, RS0030
 		return task.Result;
-#pragma warning restore RS0030
-#pragma warning restore CA1849
+#pragma warning restore CA1849, RS0030
 	}
 
 	private static async ValueTask<object?> AwaitNoResponseAsObjectAsync(ValueTask invocation)

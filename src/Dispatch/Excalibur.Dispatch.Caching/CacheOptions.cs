@@ -67,6 +67,13 @@ public sealed class CacheOptions
 	public string[] DefaultTags { get; set; } = [];
 
 	/// <summary>
+	/// Gets or sets the maximum number of key-to-tag entries tracked by the in-memory tag tracker.
+	/// When exceeded, new registrations are silently skipped. Default is 10,000.
+	/// </summary>
+	/// <value>The maximum number of tracked key-to-tag mappings.</value>
+	public int TagTrackerCapacity { get; set; } = 10_000;
+
+	/// <summary>
 	/// Gets or sets the global cache policy to apply to all cacheable operations. Can be overridden per operation.
 	/// </summary>
 	/// <value>The global cache policy to apply to all cacheable operations.</value>

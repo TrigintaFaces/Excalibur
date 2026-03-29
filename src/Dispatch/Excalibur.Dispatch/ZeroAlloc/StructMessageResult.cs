@@ -240,7 +240,7 @@ public readonly struct StructMessageResult<T>(
 	/// <value>The current <see cref="ProblemDetails"/> value.</value>
 	public IMessageProblemDetails? ProblemDetails => _baseResult.ProblemDetails;
 
-	// R0.8: Make property static - these properties implement IMessageResult interface which requires instance members
+	// MA0041: Properties delegate to static members but must remain instance to implement IMessageResult interface.
 #pragma warning disable MA0041
 
 	/// <summary>

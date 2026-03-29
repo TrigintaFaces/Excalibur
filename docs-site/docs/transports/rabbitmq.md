@@ -18,6 +18,23 @@ RabbitMQ transport for flexible message routing, work queues, and traditional pu
 dotnet add package Excalibur.Dispatch.Transport.RabbitMQ
 ```
 
+:::tip One-Line Setup with Metapackage
+For the fastest setup, use the **`Excalibur.Dispatch.RabbitMQ`** experience metapackage. It bundles the RabbitMQ transport with Polly resilience and OpenTelemetry observability in a single call:
+
+```bash
+dotnet add package Excalibur.Dispatch.RabbitMQ
+```
+
+```csharp
+services.AddDispatchRabbitMQ(rmq =>
+{
+    rmq.ConnectionString("amqp://guest:guest@localhost:5672/");
+});
+```
+
+`AddDispatchRabbitMQ` calls `AddDispatch` internally and configures `UseRabbitMQ`, `UseResilience`, and `UseObservability`. Pass an optional second parameter (`Action<IDispatchBuilder>`) for additional pipeline configuration. See [Package Guide](../package-guide.md#experience-metapackages) for details.
+:::
+
 ## Quick Start
 
 ### Using the Dispatch Builder (Recommended)
@@ -265,12 +282,12 @@ services.AddOpenTelemetry()
 - [ ] Use TLS (`amqps://`) in production
 
 ## Next Steps
-- [Kafka Transport](kafka.md) — High-throughput streaming
-- [Multi-Transport Routing](multi-transport.md) — Combine RabbitMQ with other transports
+- [Kafka Transport](kafka.md) -- High-throughput streaming
+- [Multi-Transport Routing](multi-transport.md) -- Combine RabbitMQ with other transports
 
 ## See Also
 
-- [Choosing a Transport](./choosing-a-transport.md) — Compare RabbitMQ against other transports to find the best fit
-- [Message Mapping](./message-mapping.md) — Configure how message types map to exchanges and queues
-- [Dead Letter Handling](../patterns/dead-letter.md) — Strategies for managing failed messages with DLX
-- [Multi-Transport Routing](./multi-transport.md) — Route different message types across RabbitMQ and other transports
+- [Choosing a Transport](./choosing-a-transport.md) -- Compare RabbitMQ against other transports to find the best fit
+- [Message Mapping](./message-mapping.md) -- Configure how message types map to exchanges and queues
+- [Dead Letter Handling](../patterns/dead-letter.md) -- Strategies for managing failed messages with DLX
+- [Multi-Transport Routing](./multi-transport.md) -- Route different message types across RabbitMQ and other transports

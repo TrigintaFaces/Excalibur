@@ -824,7 +824,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	public async Task CacheInvalidation_DistributedFallback_WithKeysAndTags_InvalidatesBoth()
 	{
 		// Arrange - distributed mode fallback (no hybridCache) with both keys and tags
-		var distributedCache = A.Fake<IDistributedCache>();
+		var memoryCache = A.Fake<IMemoryCache>();
 		var tagTracker = A.Fake<ICacheTagTracker>();
 		A.CallTo(() => tagTracker.GetKeysByTagsAsync(A<string[]>._, _ct))
 			.Returns(new HashSet<string> { "tag-key-1" });
@@ -834,7 +834,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			Enabled = true,
 			CacheMode = CacheMode.Distributed,
 		});
-		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, tagTracker: tagTracker, distributedCache: distributedCache);
+		var middleware = new CacheInvalidationMiddleware(_meterFactory, options, tagTracker: tagTracker, memoryCache: memoryCache);
 
 		var message = A.Fake<TestCacheInvalidatorMessage>();
 		A.CallTo(() => ((ICacheInvalidator)message).GetCacheTagsToInvalidate()).Returns(["tag1"]);
@@ -846,9 +846,10 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert
-		A.CallTo(() => distributedCache.RemoveAsync("tag-key-1", _ct)).MustHaveHappened();
-		A.CallTo(() => distributedCache.RemoveAsync("direct-key", _ct)).MustHaveHappened();
+		// Assert -- tracker resolves tags to keys, memory cache removes all
+		A.CallTo(() => memoryCache.Remove("tag-key-1")).MustHaveHappened();
+		A.CallTo(() => tagTracker.UnregisterKeyAsync("tag-key-1", _ct)).MustHaveHappened();
+		A.CallTo(() => memoryCache.Remove("direct-key")).MustHaveHappened();
 	}
 
 	// =========================================================================

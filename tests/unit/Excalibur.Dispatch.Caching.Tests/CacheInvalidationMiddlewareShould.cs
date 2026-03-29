@@ -33,7 +33,6 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 
 	private readonly IMeterFactory _meterFactory = new TestMeterFactory();
 	private readonly IMemoryCache _fakeMemoryCache = A.Fake<IMemoryCache>();
-	private readonly IDistributedCache _fakeDistributedCache = A.Fake<IDistributedCache>();
 	private readonly HybridCache _fakeHybridCache = A.Fake<HybridCache>();
 	private readonly ICacheTagTracker _fakeTagTracker = A.Fake<ICacheTagTracker>();
 
@@ -262,11 +261,12 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 	}
 
 	[Fact]
-	public async Task InvalidateDistributedCache_ViaDistributedCacheDirectly_WhenNoHybridCache()
+	public async Task InvalidateDistributedCache_ViaTagTracker_WhenNoHybridCache()
 	{
-		// Arrange
+		// Arrange -- distributed mode without HybridCache falls back to tracker + memory cache
 		var options = new CacheOptions { Enabled = true, CacheMode = CacheMode.Distributed };
-		var middleware = CreateMiddleware(options, distributedCache: _fakeDistributedCache, tagTracker: _fakeTagTracker);
+		var fakeMemoryCache = A.Fake<IMemoryCache>();
+		var middleware = CreateMiddleware(options, tagTracker: _fakeTagTracker, memoryCache: fakeMemoryCache);
 
 		A.CallTo(() => _fakeTagTracker.GetKeysByTagsAsync(A<string[]>._, A<CancellationToken>._))
 			.Returns(new HashSet<string>(["dist-key-1"]));
@@ -282,9 +282,10 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		await middleware.InvokeAsync(
 			message, context, (_, _, _) => new ValueTask<IMessageResult>(expectedResult), CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => _fakeDistributedCache.RemoveAsync("dist-key-1", A<CancellationToken>._)).MustHaveHappened();
-		A.CallTo(() => _fakeDistributedCache.RemoveAsync("d-direct-key", A<CancellationToken>._)).MustHaveHappened();
+		// Assert -- tracker resolves tags to keys, memory cache removes them
+		A.CallTo(() => _fakeTagTracker.GetKeysByTagsAsync(A<string[]>._, A<CancellationToken>._)).MustHaveHappened();
+		A.CallTo(() => fakeMemoryCache.Remove("dist-key-1")).MustHaveHappened();
+		A.CallTo(() => _fakeTagTracker.UnregisterKeyAsync("dist-key-1", A<CancellationToken>._)).MustHaveHappened();
 	}
 
 	[Fact]
@@ -405,7 +406,6 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 		CacheOptions? options = null,
 		ICacheTagTracker? tagTracker = null,
 		IMemoryCache? memoryCache = null,
-		IDistributedCache? distributedCache = null,
 		HybridCache? hybridCache = null)
 	{
 		return new CacheInvalidationMiddleware(
@@ -413,7 +413,6 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 			MsOptions.Create(options ?? new CacheOptions { Enabled = true }),
 			tagTracker,
 			memoryCache,
-			distributedCache,
 			hybridCache);
 	}
 

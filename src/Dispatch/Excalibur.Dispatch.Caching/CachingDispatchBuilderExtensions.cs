@@ -49,6 +49,11 @@ public static class CachingDispatchBuilderExtensions
 			_ = builder.Services.AddDispatchCaching();
 		}
 
+		// Register middleware in the builder pipeline (not just DI).
+		// Required because DispatchBuilderSentinel prevents legacy GetServices<IDispatchMiddleware>() discovery.
+		_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CachingMiddlewareWrapper>();
+		_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CacheInvalidationMiddlewareWrapper>();
+
 		return builder;
 	}
 

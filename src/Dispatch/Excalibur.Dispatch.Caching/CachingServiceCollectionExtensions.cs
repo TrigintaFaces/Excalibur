@@ -180,9 +180,25 @@ public static class CachingServiceCollectionExtensions
 		// In Memory-only mode it acts as L1-only; in Distributed mode the DisableLocalCache flag is set.
 		_ = services.AddHybridCache();
 
-		// Register tag tracker for Memory and Distributed modes (tag-based invalidation).
-		// Hybrid mode uses HybridCache's native tag support but having this registered is harmless.
-		services.TryAddSingleton<ICacheTagTracker, InMemoryCacheTagTracker>();
+		// Register tag tracker: auto-selects DistributedCacheTagTracker for Distributed/Hybrid
+		// modes with a real distributed cache, or InMemoryCacheTagTracker otherwise.
+		services.TryAddSingleton<ICacheTagTracker>(sp =>
+		{
+			var opts = sp.GetRequiredService<IOptions<CacheOptions>>().Value;
+			if (opts.CacheMode is CacheMode.Distributed or CacheMode.Hybrid)
+			{
+				var distributedCache = sp.GetService<IDistributedCache>();
+				if (distributedCache is not null
+					&& !string.Equals(distributedCache.GetType().Name, "MemoryDistributedCache", StringComparison.Ordinal))
+				{
+					return new DistributedCacheTagTracker(
+						distributedCache,
+						sp.GetRequiredService<IOptions<CacheOptions>>());
+				}
+			}
+
+			return ActivatorUtilities.CreateInstance<InMemoryCacheTagTracker>(sp);
+		});
 
 		// Register middleware
 		services.TryAddSingleton<CachingMiddleware>();
@@ -215,7 +231,7 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="cachingMiddleware">The underlying caching middleware.</param>
 	[SuppressMessage("CodeQuality", "CA1812:Avoid uninstantiated internal classes",
 		Justification = "Class is instantiated by dependency injection container.")]
-	private sealed class CachingMiddlewareWrapper(IOptions<CacheOptions> options, CachingMiddleware cachingMiddleware) : IDispatchMiddleware
+	internal sealed class CachingMiddlewareWrapper(IOptions<CacheOptions> options, CachingMiddleware cachingMiddleware) : IDispatchMiddleware
 	{
 		/// <inheritdoc />
 		public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Cache;
@@ -239,7 +255,7 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="invalidationMiddleware">The underlying cache invalidation middleware.</param>
 	[SuppressMessage("CodeQuality", "CA1812:Avoid uninstantiated internal classes",
 		Justification = "Class is instantiated by dependency injection container.")]
-	private sealed class CacheInvalidationMiddlewareWrapper(
+	internal sealed class CacheInvalidationMiddlewareWrapper(
 		IOptions<CacheOptions> options,
 		CacheInvalidationMiddleware invalidationMiddleware) : IDispatchMiddleware
 	{

@@ -177,7 +177,7 @@ public struct MessageEnvelopeBuilder : IEquatable<MessageEnvelopeBuilder>
 	/// <summary>
 	/// Releases any resources associated with the builder (no resources to dispose for this struct).
 	/// </summary>
-	// R0.8: Make method static - Dispose() should remain instance method even when empty, for semantic correctness
+	// MA0038: Dispose() must be instance to implement IDisposable on this struct.
 #pragma warning disable MA0038
 
 	public readonly void Dispose()

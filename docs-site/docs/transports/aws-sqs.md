@@ -20,6 +20,24 @@ AWS Simple Queue Service (SQS) transport with optional SNS integration for AWS-n
 dotnet add package Excalibur.Dispatch.Transport.AwsSqs
 ```
 
+:::tip One-Line Setup with Metapackage
+For the fastest setup, use the **`Excalibur.Dispatch.Aws`** experience metapackage. It bundles the AWS SQS transport with Polly resilience and OpenTelemetry observability in a single call:
+
+```bash
+dotnet add package Excalibur.Dispatch.Aws
+```
+
+```csharp
+services.AddDispatchAws(sqs =>
+{
+    sqs.UseRegion("us-west-2")
+       .ConfigureQueue(queue => queue.VisibilityTimeout(TimeSpan.FromMinutes(5)));
+});
+```
+
+`AddDispatchAws` calls `AddDispatch` internally and configures `UseAwsSqs`, `UseResilience`, and `UseObservability`. Pass an optional second parameter (`Action<IDispatchBuilder>`) for additional pipeline configuration. See [Package Guide](../package-guide.md#experience-metapackages) for details.
+:::
+
 ## Quick Start
 
 ### Using the Dispatch Builder (Recommended)
@@ -477,12 +495,12 @@ public class OrderFunction
 
 ## Next Steps
 
-- [Google Pub/Sub](google-pubsub.md) — For GCP-native messaging
-- [Multi-Transport Routing](multi-transport.md) — Combine AWS SQS with other transports
+- [Google Pub/Sub](google-pubsub.md) -- For GCP-native messaging
+- [Multi-Transport Routing](multi-transport.md) -- Combine AWS SQS with other transports
 
 ## See Also
 
-- [Choosing a Transport](./choosing-a-transport.md) — Compare AWS SQS against other transports
-- [AWS Lambda Deployment](../deployment/aws-lambda.md) — Run Dispatch handlers in AWS Lambda with SQS triggers
-- [Dead Letter Handling](../patterns/dead-letter.md) — Strategies for processing failed messages from DLQ
-- [AWS CloudWatch Integration](../observability/aws-cloudwatch.md) — Configure AWS-native monitoring for Dispatch
+- [Choosing a Transport](./choosing-a-transport.md) -- Compare AWS SQS against other transports
+- [AWS Lambda Deployment](../deployment/aws-lambda.md) -- Run Dispatch handlers in AWS Lambda with SQS triggers
+- [Dead Letter Handling](../patterns/dead-letter.md) -- Strategies for processing failed messages from DLQ
+- [AWS CloudWatch Integration](../observability/aws-cloudwatch.md) -- Configure AWS-native monitoring for Dispatch

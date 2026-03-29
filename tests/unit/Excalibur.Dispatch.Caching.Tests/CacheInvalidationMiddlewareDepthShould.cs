@@ -25,7 +25,6 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 {
 	private readonly IMeterFactory _meterFactory = new TestMeterFactory();
 	private readonly IMemoryCache _fakeMemoryCache = A.Fake<IMemoryCache>();
-	private readonly IDistributedCache _fakeDistributedCache = A.Fake<IDistributedCache>();
 	private readonly HybridCache _fakeHybridCache = A.Fake<HybridCache>();
 	private readonly ICacheTagTracker _fakeTagTracker = A.Fake<ICacheTagTracker>();
 
@@ -36,9 +35,9 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 	}
 
 	[Fact]
-	public async Task ThrowInvalidOperationException_WhenUnsupportedCacheMode()
+	public async Task HandleUnknownCacheMode_Gracefully_WithUnifiedInvalidation()
 	{
-		// Arrange -- use an invalid CacheMode value (cast an out-of-range int)
+		// Arrange -- unknown CacheMode now handled gracefully by unified path (no throw)
 		var options = new CacheOptions { Enabled = true, CacheMode = (CacheMode)99 };
 		var middleware = CreateMiddleware(options, hybridCache: _fakeHybridCache);
 
@@ -47,13 +46,18 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 		A.CallTo(() => message.GetCacheKeysToInvalidate()).Returns(Enumerable.Empty<string>());
 
 		var context = A.Fake<IMessageContext>();
+		var expectedResult = A.Fake<IMessageResult>();
 
-		// Act & Assert
-		await Should.ThrowAsync<InvalidOperationException>(async () =>
-			await middleware.InvokeAsync(
-				message, context,
-				(_, _, _) => new ValueTask<IMessageResult>(A.Fake<IMessageResult>()),
-				CancellationToken.None));
+		// Act -- unified invalidation handles all modes, no exception for unknown
+		var result = await middleware.InvokeAsync(
+			message, context,
+			(_, _, _) => new ValueTask<IMessageResult>(expectedResult),
+			CancellationToken.None);
+
+		// Assert
+		result.ShouldBe(expectedResult);
+		A.CallTo(() => _fakeHybridCache.RemoveByTagAsync(
+			A<IEnumerable<string>>._, A<CancellationToken>._)).MustHaveHappened();
 	}
 
 	[Fact]
@@ -164,11 +168,12 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 	}
 
 	[Fact]
-	public async Task HandleDistributedMode_WithKeysOnly_ViaDistributedCacheFallback()
+	public async Task HandleDistributedMode_WithKeysOnly_ViaMemoryCacheFallback()
 	{
 		// Arrange -- distributed mode without HybridCache, keys only (no tags)
 		var options = new CacheOptions { Enabled = true, CacheMode = CacheMode.Distributed };
-		var middleware = CreateMiddleware(options, distributedCache: _fakeDistributedCache);
+		var fakeMemoryCache = A.Fake<IMemoryCache>();
+		var middleware = CreateMiddleware(options, memoryCache: fakeMemoryCache);
 
 		var message = A.Fake<ICacheInvalidator>();
 		A.CallTo(() => message.GetCacheTagsToInvalidate()).Returns(Enumerable.Empty<string>());
@@ -185,7 +190,7 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 
 		// Assert
 		result.ShouldBe(expectedResult);
-		A.CallTo(() => _fakeDistributedCache.RemoveAsync("fallback-key", A<CancellationToken>._))
+		A.CallTo(() => fakeMemoryCache.Remove("fallback-key"))
 			.MustHaveHappened();
 	}
 
@@ -247,7 +252,6 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 		CacheOptions? options = null,
 		ICacheTagTracker? tagTracker = null,
 		IMemoryCache? memoryCache = null,
-		IDistributedCache? distributedCache = null,
 		HybridCache? hybridCache = null)
 	{
 		return new CacheInvalidationMiddleware(
@@ -255,7 +259,6 @@ public sealed class CacheInvalidationMiddlewareDepthShould : IDisposable
 			MsOptions.Create(options ?? new CacheOptions { Enabled = true }),
 			tagTracker,
 			memoryCache,
-			distributedCache,
 			hybridCache);
 	}
 

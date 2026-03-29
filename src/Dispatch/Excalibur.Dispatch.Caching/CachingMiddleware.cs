@@ -29,6 +29,7 @@ namespace Excalibur.Dispatch.Caching;
 /// <param name="options">Configuration options for caching.</param>
 /// <param name="logger">Logger for startup warnings and diagnostics.</param>
 /// <param name="globalPolicy">Optional global cache policy.</param>
+/// <param name="tagTracker">Optional tag tracker for registering cache key-to-tag mappings on cache miss.</param>
 /// <remarks>
 /// <para>
 /// <b>AOT Compatibility:</b> This middleware uses JSON serialization and dynamic type inspection
@@ -52,7 +53,8 @@ internal sealed class CachingMiddleware(
 	IServiceProvider services,
 	IOptions<CacheOptions> options,
 	ILogger<CachingMiddleware> logger,
-	IResultCachePolicy? globalPolicy = null) : IDispatchMiddleware
+	IResultCachePolicy? globalPolicy = null,
+	ICacheTagTracker? tagTracker = null) : IDispatchMiddleware
 {
 	/// <summary>
 	/// Maximum number of entries allowed in each interface resolution cache.
@@ -397,6 +399,14 @@ internal sealed class CachingMiddleware(
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
 			RecordHitOrMiss(cachedResult, context);
 
+			// Register key-to-tag mapping on cache miss for tag-based invalidation
+			if (tagTracker is not null
+				&& tags is { Length: > 0 }
+				&& context.Items.ContainsKey("Dispatch:OriginalResult"))
+			{
+				await tagTracker.RegisterKeyAsync(key, tags, cancellationToken).ConfigureAwait(false);
+			}
+
 			return await HandleCachedResultAsync(cachedResult, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -617,6 +627,14 @@ internal sealed class CachingMiddleware(
 
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
 			RecordHitOrMiss(cachedResult, context);
+
+			// Register key-to-tag mapping on cache miss for tag-based invalidation
+			if (tagTracker is not null
+				&& tags is { Length: > 0 }
+				&& context.Items.ContainsKey("Dispatch:OriginalResult"))
+			{
+				await tagTracker.RegisterKeyAsync(key, tags, cancellationToken).ConfigureAwait(false);
+			}
 
 			return await HandleCachedResultAsync(cachedResult, message, context, nextDelegate, cancellationToken).ConfigureAwait(false);
 		}

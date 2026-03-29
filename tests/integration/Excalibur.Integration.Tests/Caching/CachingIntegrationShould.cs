@@ -411,10 +411,14 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();
 		_ = services.AddTransient<IActionHandler<InvalidateCacheCommand>, InvalidateCacheCommandHandler>();
 
+		// Register as singleton so we can retrieve the instance for assertions
+		_ = services.AddSingleton<TestTrackingMiddleware>();
+
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
-			_ = dispatch.UseResilience()
+			_ = dispatch.UseMiddleware<TestTrackingMiddleware>()
+				.UseResilience()
 				.UseCaching()
 				.WithCachingOptions(o =>
 				{
@@ -422,12 +426,11 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					o.UseDistributedCache = false;
 				});
 		});
-		_ = services.AddSingleton<IDispatchMiddleware, TestTrackingMiddleware>();
 		var provider = services.BuildServiceProvider();
 		// Ensure the local bus is registered
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
-		var trackingMiddleware = (TestTrackingMiddleware)provider.GetServices<IDispatchMiddleware>().First(m => m is TestTrackingMiddleware);
+		var trackingMiddleware = provider.GetRequiredService<TestTrackingMiddleware>();
 
 		var query = new CachingTestQuery { Value = 789 };
 

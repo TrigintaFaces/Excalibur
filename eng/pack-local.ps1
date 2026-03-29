@@ -5,9 +5,9 @@
 
 .DESCRIPTION
     This script:
-    1. Builds all Dispatch projects in Release mode
-    2. Packs them to artifacts/_packages/ local feed
-    3. The packages are then used by Excalibur projects when
+    1. Builds all shipping projects in Release mode
+    2. Packs both src/Dispatch and src/Excalibur projects to artifacts/_packages/ local feed
+    3. The packages are then used for cross-project PackageReference validation when
        UsePackageReferences=true is set
 
 .PARAMETER Version
@@ -42,6 +42,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $LocalFeed = Join-Path $RepoRoot "artifacts/_packages"
 $DispatchSrc = Join-Path $RepoRoot "src/Dispatch"
+$ExcaliburSrc = Join-Path $RepoRoot "src/Excalibur"
 $ShippingSolutionFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
 
 Write-Host "`n========================================" -ForegroundColor Cyan
@@ -88,12 +89,41 @@ else {
 }
 
 # Pack Dispatch projects
-Write-Host "`n[2/2] Packing Dispatch projects to local feed..." -ForegroundColor Yellow
+Write-Host "`n[2/3] Packing Dispatch projects to local feed..." -ForegroundColor Yellow
 
 $DispatchProjects = Get-ChildItem -Path $DispatchSrc -Filter "*.csproj" -Recurse
 
 $packedCount = 0
 foreach ($proj in $DispatchProjects) {
+    Write-Host "  Packing $($proj.Name)..." -ForegroundColor Gray
+
+    Push-Location $RepoRoot
+    try {
+        dotnet pack $proj.FullName `
+            -o $LocalFeed `
+            -c Release `
+            -p:Version=$Version `
+            --no-build `
+            --no-restore
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to pack $($proj.Name)"
+        }
+        else {
+            $packedCount++
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+# Pack Excalibur projects (needed for cross-project PackageReference validation)
+Write-Host "`n[3/3] Packing Excalibur projects to local feed..." -ForegroundColor Yellow
+
+$ExcaliburProjects = Get-ChildItem -Path $ExcaliburSrc -Filter "*.csproj" -Recurse
+
+foreach ($proj in $ExcaliburProjects) {
     Write-Host "  Packing $($proj.Name)..." -ForegroundColor Gray
 
     Push-Location $RepoRoot

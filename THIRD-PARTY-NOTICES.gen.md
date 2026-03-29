@@ -91,6 +91,9 @@ It is generated from project files; licenses remain with their respective owners
 | Excalibur.EventSourcing.Abstractions |  |
 | Excalibur.EventSourcing.Postgres |  |
 | Excalibur.EventSourcing.SqlServer |  |
+| Excalibur.Hosting.Web |  |
+| Excalibur.Outbox.Postgres |  |
+| Excalibur.Outbox.SqlServer |  |
 | FakeItEasy | 8.3.0 |
 | FluentMigrator | 6.0.0 |
 | FluentMigrator.Runner | 6.0.0 |

@@ -17,8 +17,6 @@ public static class ServerlessHostBuilderExtensions
 	/// <param name="hostBuilder"> The host builder. </param>
 	/// <param name="configureOptions"> Optional configuration action for serverless host options. </param>
 	/// <returns> The host builder for chaining. </returns>
-	// R0.8: Unused parameter - context required by delegate signature
-#pragma warning disable RCS1163
 	public static IHostBuilder UseServerlessHosting(
 		this IHostBuilder hostBuilder,
 		Action<ServerlessHostOptions>? configureOptions = null)
@@ -31,16 +29,16 @@ public static class ServerlessHostBuilderExtensions
 		configureOptions?.Invoke(eagerOptions);
 
 		// Apply host-level configuration immediately while hostBuilder is still valid
-		return hostBuilder.ConfigureServices((context, services) =>
+		return hostBuilder.ConfigureServices((_, services) =>
 		{
 			// Add serverless hosting services
-			_ = services.AddServerlessHosting(configureOptions);
+			services.AddServerlessHosting(configureOptions);
 
 			// Capture the extracted options, not the hostBuilder
 			var capturedOptions = eagerOptions;
 
 			// Configure the appropriate provider based on detected platform
-			_ = services.AddSingleton<IHostedService>(sp =>
+			services.AddSingleton<IHostedService>(sp =>
 			{
 				var factory = sp.GetRequiredService<IServerlessHostProviderFactory>();
 				var logger = sp.GetRequiredService<ILogger<ServerlessHostingService>>();
@@ -51,7 +49,6 @@ public static class ServerlessHostBuilderExtensions
 			});
 		});
 	}
-#pragma warning restore RCS1163
 
 	/// <summary>
 	/// Configures the host builder specifically for AWS Lambda.

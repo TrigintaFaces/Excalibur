@@ -32,12 +32,15 @@ public sealed class BatchProcessingMetrics : IDisposable
 	private readonly Histogram<double> _batchDurationHistogram;
 	private readonly Histogram<double> _throughputHistogram;
 
-	// Gauges - used by meter callbacks for observability
-	// R0.8: Remove unread private members - these are used by meter callbacks
-#pragma warning disable IDE0052
+	// Gauges — the meter internally holds references to the measurement callbacks;
+	// these fields prevent the ObservableGauge instances from being collected.
+	[SuppressMessage("CodeQuality", "IDE0052:Remove unread private members",
+		Justification = "ObservableGauge instances must be kept alive so the meter's measurement callbacks remain rooted.")]
 	private readonly ObservableGauge<int> _currentBatchSizeGauge;
+
+	[SuppressMessage("CodeQuality", "IDE0052:Remove unread private members",
+		Justification = "ObservableGauge instances must be kept alive so the meter's measurement callbacks remain rooted.")]
 	private readonly ObservableGauge<double> _successRateGauge;
-#pragma warning restore IDE0052
 
 	private int _currentBatchSize;
 	private double _currentSuccessRate;

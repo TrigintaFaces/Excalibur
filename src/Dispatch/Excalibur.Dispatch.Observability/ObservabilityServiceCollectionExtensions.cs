@@ -104,8 +104,7 @@ public static class ObservabilityServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 
 		builder.Services.TryAddSingleton<ContextObservabilityMiddleware>();
-		_ = builder.Services.AddMiddleware<ContextObservabilityMiddleware>();
-		return builder;
+		return builder.UseMiddleware<ContextObservabilityMiddleware>();
 	}
 
 	[SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
