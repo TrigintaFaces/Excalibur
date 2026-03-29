@@ -141,9 +141,14 @@ function Test-IsDispatchFamily {
 
 # Bridge metapackages live in src/Excalibur/ but are named Excalibur.Dispatch.*.
 # They intentionally depend on both Dispatch and Excalibur packages.
+# All metapackages in src/metapackages/ intentionally depend on both Dispatch and Excalibur packages.
 $bridgeMetapackages = @(
     "Excalibur.Dispatch.SqlServer",
-    "Excalibur.Dispatch.Postgres"
+    "Excalibur.Dispatch.Postgres",
+    "Excalibur.Dispatch.RabbitMQ",
+    "Excalibur.Dispatch.Kafka",
+    "Excalibur.Dispatch.Azure",
+    "Excalibur.Dispatch.Aws"
 )
 
 foreach ($pkg in $nupkgs) {

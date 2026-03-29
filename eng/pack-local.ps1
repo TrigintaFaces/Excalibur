@@ -43,6 +43,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $LocalFeed = Join-Path $RepoRoot "artifacts/_packages"
 $DispatchSrc = Join-Path $RepoRoot "src/Dispatch"
 $ExcaliburSrc = Join-Path $RepoRoot "src/Excalibur"
+$MetapackagesSrc = Join-Path $RepoRoot "src/metapackages"
 $ShippingSolutionFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
 
 Write-Host "`n========================================" -ForegroundColor Cyan
@@ -89,7 +90,7 @@ else {
 }
 
 # Pack Dispatch projects
-Write-Host "`n[2/3] Packing Dispatch projects to local feed..." -ForegroundColor Yellow
+Write-Host "`n[2/4] Packing Dispatch projects to local feed..." -ForegroundColor Yellow
 
 $DispatchProjects = Get-ChildItem -Path $DispatchSrc -Filter "*.csproj" -Recurse
 
@@ -119,11 +120,40 @@ foreach ($proj in $DispatchProjects) {
 }
 
 # Pack Excalibur projects (needed for cross-project PackageReference validation)
-Write-Host "`n[3/3] Packing Excalibur projects to local feed..." -ForegroundColor Yellow
+Write-Host "`n[3/4] Packing Excalibur projects to local feed..." -ForegroundColor Yellow
 
 $ExcaliburProjects = Get-ChildItem -Path $ExcaliburSrc -Filter "*.csproj" -Recurse
 
 foreach ($proj in $ExcaliburProjects) {
+    Write-Host "  Packing $($proj.Name)..." -ForegroundColor Gray
+
+    Push-Location $RepoRoot
+    try {
+        dotnet pack $proj.FullName `
+            -o $LocalFeed `
+            -c Release `
+            -p:Version=$Version `
+            --no-build `
+            --no-restore
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to pack $($proj.Name)"
+        }
+        else {
+            $packedCount++
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+# Pack metapackage projects
+Write-Host "`n[4/4] Packing metapackage projects to local feed..." -ForegroundColor Yellow
+
+$MetapackageProjects = Get-ChildItem -Path $MetapackagesSrc -Filter "*.csproj" -Recurse
+
+foreach ($proj in $MetapackageProjects) {
     Write-Host "  Packing $($proj.Name)..." -ForegroundColor Gray
 
     Push-Location $RepoRoot

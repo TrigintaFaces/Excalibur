@@ -2,9 +2,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageId>Excalibur.Dispatch.Postgres</PackageId>
-    <Description>Experience metapackage bundling Excalibur.Dispatch with PostgreSQL event sourcing, outbox, and web hosting. Provides a single AddDispatchWithPostgres() call for the common PostgreSQL scenario.</Description>
-    <PackageTags>excalibur;dispatch;postgres;postgresql;event-sourcing;outbox;metapackage</PackageTags>
+    <PackageId>Excalibur.Dispatch.SqlServer</PackageId>
+    <Description>Experience metapackage bundling Excalibur.Dispatch with SQL Server event sourcing, outbox, and web hosting. Provides a single AddDispatchWithSqlServer() call for the common SQL Server scenario.</Description>
+    <PackageTags>excalibur;dispatch;sqlserver;event-sourcing;outbox;metapackage</PackageTags>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
@@ -17,15 +17,15 @@
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-    <ProjectReference Include="..\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
-    <ProjectReference Include="..\Excalibur.Outbox.Postgres\Excalibur.Outbox.Postgres.csproj" />
-    <ProjectReference Include="..\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
+    <ProjectReference Include="..\..\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
-    <PackageReference Include="Excalibur.EventSourcing.Postgres" VersionOverride="$(DispatchPackageVersion)" />
-    <PackageReference Include="Excalibur.Outbox.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.EventSourcing.SqlServer" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Outbox.SqlServer" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Hosting.Web" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
   <ItemGroup>

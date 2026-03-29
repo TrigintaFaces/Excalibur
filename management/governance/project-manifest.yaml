@@ -108,10 +108,10 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.LeaderElection.Abstractions/Excalibur.Dispatch.LeaderElection.Abstractions.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Observability.Aws/Excalibur.Dispatch.Observability.Aws.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Observability/Excalibur.Dispatch.Observability.csproj
-  - path: src/Dispatch/Excalibur.Dispatch.Aws/Excalibur.Dispatch.Aws.csproj
-  - path: src/Dispatch/Excalibur.Dispatch.Azure/Excalibur.Dispatch.Azure.csproj
-  - path: src/Dispatch/Excalibur.Dispatch.Kafka/Excalibur.Dispatch.Kafka.csproj
-  - path: src/Dispatch/Excalibur.Dispatch.RabbitMQ/Excalibur.Dispatch.RabbitMQ.csproj
+  - path: src/metapackages/Excalibur.Dispatch.Aws/Excalibur.Dispatch.Aws.csproj
+  - path: src/metapackages/Excalibur.Dispatch.Azure/Excalibur.Dispatch.Azure.csproj
+  - path: src/metapackages/Excalibur.Dispatch.Kafka/Excalibur.Dispatch.Kafka.csproj
+  - path: src/metapackages/Excalibur.Dispatch.RabbitMQ/Excalibur.Dispatch.RabbitMQ.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Patterns.Azure/Excalibur.Dispatch.Patterns.Azure.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Patterns.Hosting.Json/Excalibur.Dispatch.Patterns.Hosting.Json.csproj
@@ -188,8 +188,8 @@ projects:
   - path: src/Excalibur/Excalibur.Hosting.Serverless/Excalibur.Hosting.Serverless.csproj
   - path: src/Excalibur/Excalibur.Hosting.Web/Excalibur.Hosting.Web.csproj
   - path: src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj
-  - path: src/Excalibur/Excalibur.Dispatch.SqlServer/Excalibur.Dispatch.SqlServer.csproj
-  - path: src/Excalibur/Excalibur.Dispatch.Postgres/Excalibur.Dispatch.Postgres.csproj
+  - path: src/metapackages/Excalibur.Dispatch.SqlServer/Excalibur.Dispatch.SqlServer.csproj
+  - path: src/metapackages/Excalibur.Dispatch.Postgres/Excalibur.Dispatch.Postgres.csproj
   - path: src/Excalibur/Excalibur.Inbox/Excalibur.Inbox.csproj
   - path: src/Excalibur/Excalibur.Inbox.CosmosDb/Excalibur.Inbox.CosmosDb.csproj
   - path: src/Excalibur/Excalibur.Inbox.DynamoDb/Excalibur.Inbox.DynamoDb.csproj

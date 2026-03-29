@@ -667,17 +667,17 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProvisioningWorkflow", "sam
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SeparationOfDuties", "samples\06-security\SeparationOfDuties\SeparationOfDuties.csproj", "{190FEF3D-5694-495E-915A-AD7CAC15BA26}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.SqlServer", "src\Excalibur\Excalibur.Dispatch.SqlServer\Excalibur.Dispatch.SqlServer.csproj", "{A73063B9-0F5D-402E-A6E4-ECE55FE69DCC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.SqlServer", "src\metapackages\Excalibur.Dispatch.SqlServer\Excalibur.Dispatch.SqlServer.csproj", "{A73063B9-0F5D-402E-A6E4-ECE55FE69DCC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Postgres", "src\Excalibur\Excalibur.Dispatch.Postgres\Excalibur.Dispatch.Postgres.csproj", "{77AB5B55-6437-4481-8DAC-D602BD911FA9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Postgres", "src\metapackages\Excalibur.Dispatch.Postgres\Excalibur.Dispatch.Postgres.csproj", "{77AB5B55-6437-4481-8DAC-D602BD911FA9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.RabbitMQ", "src\Dispatch\Excalibur.Dispatch.RabbitMQ\Excalibur.Dispatch.RabbitMQ.csproj", "{1F54B985-43B7-4B5A-9CBD-7CE0F5ADB790}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.RabbitMQ", "src\metapackages\Excalibur.Dispatch.RabbitMQ\Excalibur.Dispatch.RabbitMQ.csproj", "{1F54B985-43B7-4B5A-9CBD-7CE0F5ADB790}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Kafka", "src\Dispatch\Excalibur.Dispatch.Kafka\Excalibur.Dispatch.Kafka.csproj", "{94A7DEE7-6882-4577-AE00-96E90564FA04}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Kafka", "src\metapackages\Excalibur.Dispatch.Kafka\Excalibur.Dispatch.Kafka.csproj", "{94A7DEE7-6882-4577-AE00-96E90564FA04}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Azure", "src\Dispatch\Excalibur.Dispatch.Azure\Excalibur.Dispatch.Azure.csproj", "{58968CA8-B43C-4E47-A414-F2D236F0CD16}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Azure", "src\metapackages\Excalibur.Dispatch.Azure\Excalibur.Dispatch.Azure.csproj", "{58968CA8-B43C-4E47-A414-F2D236F0CD16}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Aws", "src\Dispatch\Excalibur.Dispatch.Aws\Excalibur.Dispatch.Aws.csproj", "{342F1FF4-B663-4D58-B702-431BEE5ACA85}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Aws", "src\metapackages\Excalibur.Dispatch.Aws\Excalibur.Dispatch.Aws.csproj", "{342F1FF4-B663-4D58-B702-431BEE5ACA85}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
