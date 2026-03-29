@@ -167,7 +167,7 @@ public static class MessageTypeRegistry
 				{
 					foreach (var type in assembly.GetTypes())
 					{
-						if (type is { IsAbstract: false, IsInterface: false } &&
+						if (type is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } &&
 							typeof(IDispatchMessage).IsAssignableFrom(type))
 						{
 							RegisterType(type);

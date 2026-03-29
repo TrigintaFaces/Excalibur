@@ -76,7 +76,7 @@ public static class ExcaliburDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(assembly);
 
 		var types = assembly.GetTypes()
-			.Where(t => t is { IsAbstract: false, IsInterface: false } && t.GetInterfaces().Any(static i =>
+			.Where(t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } && t.GetInterfaces().Any(static i =>
 				i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IProjectionTagResolver<>)));
 
 		foreach (var type in types)

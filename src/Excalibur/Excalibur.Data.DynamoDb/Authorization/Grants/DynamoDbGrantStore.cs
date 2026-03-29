@@ -355,7 +355,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 				var grant = GrantItem.FromItem(item);
 				if (grant is not null)
 				{
-					var key = $"{grant.GrantType}:{grant.Qualifier}";
+					var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
 					result[key] = grant;
 				}
 			}

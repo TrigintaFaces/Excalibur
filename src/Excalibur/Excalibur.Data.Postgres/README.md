@@ -30,3 +30,13 @@ Notes
 - Providers depend on `Excalibur.A3.Abstractions` only. No references to `Excalibur.A3` implementation remain.
 - Adapters internally execute existing IDataRequest request objects through the configured pipeline.
 
+
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Postgres` | Complete | Everything for PostgreSQL: ES + Outbox + Inbox + Saga + LE + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.Postgres` for a production-ready PostgreSQL stack with a single package reference.

@@ -1,0 +1,23 @@
+#nullable enable
+Excalibur.Postgres.ExcaliburPostgresOptions
+Excalibur.Postgres.ExcaliburPostgresOptions.ConnectionString.get -> string!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConnectionString.set -> void
+Excalibur.Postgres.ExcaliburPostgresOptions.ExcaliburPostgresOptions() -> void
+Excalibur.Postgres.ExcaliburPostgresOptions.UseAuditLogging.get -> bool
+Excalibur.Postgres.ExcaliburPostgresOptions.UseAuditLogging.set -> void
+Excalibur.Postgres.ExcaliburPostgresOptions.UseCompliance.get -> bool
+Excalibur.Postgres.ExcaliburPostgresOptions.UseCompliance.set -> void
+Excalibur.Postgres.ExcaliburPostgresOptions.UseInbox.get -> bool
+Excalibur.Postgres.ExcaliburPostgresOptions.UseInbox.set -> void
+Excalibur.Postgres.ExcaliburPostgresOptions.UseLeaderElection.get -> bool
+Excalibur.Postgres.ExcaliburPostgresOptions.UseLeaderElection.set -> void
+Excalibur.Postgres.ExcaliburPostgresOptions.UseSaga.get -> bool
+Excalibur.Postgres.ExcaliburPostgresOptions.UseSaga.set -> void
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureInbox(System.Action<Excalibur.Inbox.Postgres.PostgresInboxOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureSaga(System.Action<Excalibur.Saga.Postgres.PostgresSagaOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureLeaderElection(System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureAuditLogging(System.Action<Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureErasure(System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Microsoft.Extensions.DependencyInjection.ExcaliburPostgresServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.ExcaliburPostgresServiceCollectionExtensions.AddExcaliburPostgres(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Postgres.ExcaliburPostgresOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

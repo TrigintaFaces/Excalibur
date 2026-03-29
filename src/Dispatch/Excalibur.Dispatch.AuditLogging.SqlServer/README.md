@@ -2,6 +2,16 @@
 
 SQL Server implementation of IAuditStore for the Dispatch compliance framework. Provides tamper-evident hash-chain audit logging with Dapper, retention policy enforcement, and optimized query indexes.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.SqlServer` | Complete | Everything for SQL Server: ES + Outbox + Inbox + Saga + LE + Audit + Compliance + Data |
+
+> **Tip:** Install `Excalibur.SqlServer` for a production-ready SQL Server stack with a single package reference.
+
 ## Installation
 
 ```bash

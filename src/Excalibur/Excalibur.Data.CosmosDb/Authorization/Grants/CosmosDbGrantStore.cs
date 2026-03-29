@@ -283,8 +283,9 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
 			foreach (var doc in response)
 			{
-				var key = $"{doc.GrantType}:{doc.Qualifier}";
-				result[key] = doc.ToGrant();
+				var grant = doc.ToGrant();
+				var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
+				result[key] = grant;
 			}
 		}
 

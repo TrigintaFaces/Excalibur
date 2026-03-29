@@ -889,6 +889,15 @@
           "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
         ]
       }
+    },
+    {
+      "name": "Excalibur full-stack provider metapackages",
+      "packagePattern": "^Excalibur\\.(SqlServer|Postgres)$",
+      "suites": {
+        "smoke": [
+          "tests/smoke/Excalibur.Dispatch.Tests.Smoke/Excalibur.Dispatch.Tests.Smoke.csproj"
+        ]
+      }
     }
   ],
   "docsParity": {

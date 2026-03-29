@@ -126,11 +126,11 @@ Excalibur.A3.Authorization.Grants.GrantKey.UserId.init -> void
 Excalibur.A3.Authorization.Grants.GrantScope
 Excalibur.A3.Authorization.Grants.GrantScope.GrantScope(string! TenantId, string! GrantType, string! Qualifier) -> void
 Excalibur.A3.Authorization.Grants.GrantScope.GrantType.get -> string!
-Excalibur.A3.Authorization.Grants.GrantScope.GrantType.set -> void
+Excalibur.A3.Authorization.Grants.GrantScope.GrantType.init -> void
 Excalibur.A3.Authorization.Grants.GrantScope.Qualifier.get -> string!
-Excalibur.A3.Authorization.Grants.GrantScope.Qualifier.set -> void
+Excalibur.A3.Authorization.Grants.GrantScope.Qualifier.init -> void
 Excalibur.A3.Authorization.Grants.GrantScope.TenantId.get -> string!
-Excalibur.A3.Authorization.Grants.GrantScope.TenantId.set -> void
+Excalibur.A3.Authorization.Grants.GrantScope.TenantId.init -> void
 Excalibur.A3.Authorization.Grants.GrantType
 override Excalibur.A3.Authorization.Grants.GrantKey.ToString() -> string!
 override Excalibur.A3.Authorization.Grants.GrantScope.ToString() -> string!
@@ -140,3 +140,4 @@ static Excalibur.A3.Authorization.Grants.GrantScope.FromString(string! scope) ->
 static readonly Excalibur.A3.Authorization.Grants.GrantType.Activity -> string!
 static readonly Excalibur.A3.Authorization.Grants.GrantType.ActivityGroup -> string!
 static readonly Excalibur.A3.Authorization.Grants.GrantType.Role -> string!
+static Excalibur.A3.Authorization.Grants.GrantScope.Validate(string! tenantId, string! grantType, string! qualifier, out string? error) -> bool

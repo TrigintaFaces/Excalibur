@@ -12,6 +12,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Tests" />
     <InternalsVisibleTo Include="Excalibur.A3.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Benchmarks" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Audit\Requests\" />

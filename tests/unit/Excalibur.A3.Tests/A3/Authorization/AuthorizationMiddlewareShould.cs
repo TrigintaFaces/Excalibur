@@ -34,7 +34,7 @@ public sealed class AuthorizationMiddlewareShould
 		_accessToken = A.Fake<IAccessToken>();
 		_authorizationService = A.Fake<IDispatchAuthorizationService>();
 		_attributeCache = new A3AttributeAuthorizationCache();
-		_sut = new A3AuthorizationMiddleware(_accessToken, _authorizationService, _attributeCache);
+		_sut = new A3AuthorizationMiddleware(_accessToken, _authorizationService, _attributeCache, new ConditionExpressionEvaluator());
 	}
 
 	[Fact]

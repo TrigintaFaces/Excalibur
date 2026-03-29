@@ -32,6 +32,32 @@ public sealed class AddGrantCommandValidator : RequestValidator<AddGrantCommand>
 		// Validate that Qualifier is not empty.
 		_ = RuleFor(static x => x.Qualifier).NotEmpty();
 
+		// Validate wildcard patterns in Qualifier when present.
+		_ = RuleFor(static x => x.Qualifier)
+			.Must(static (command, qualifier) =>
+			{
+				if (qualifier is null || !qualifier.Contains('*', StringComparison.Ordinal))
+				{
+					return true;
+				}
+
+				return GrantScope.Validate(
+					command.TenantId ?? "*",
+					command.GrantType,
+					qualifier,
+					out _);
+			})
+			.WithMessage(static (command, qualifier) =>
+			{
+				GrantScope.Validate(
+					command.TenantId ?? "*",
+					command.GrantType,
+					qualifier!,
+					out var error);
+				return error ?? "Invalid wildcard pattern.";
+			})
+			.When(static x => x.Qualifier is not null && x.Qualifier.Contains('*', StringComparison.Ordinal));
+
 		// Validate that UserId is not empty.
 		_ = RuleFor(static x => x.UserId).NotEmpty();
 	}

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.SqlServer</PackageId>
+    <Description>Complete SQL Server metapackage for Excalibur: event sourcing, outbox, inbox, sagas, leader election, audit logging, compliance, and data access in a single package reference.</Description>
+    <PackageTags>excalibur;sqlserver;event-sourcing;outbox;inbox;saga;leader-election;audit;compliance;metapackage</PackageTags>
+  </PropertyGroup>
+  <!-- AOT Configuration -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <!-- Local development mode: ProjectReference for all SQL Server packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <!-- Starter metapackage (Dispatch + EventSourcing + Outbox + Hosting) -->
+    <ProjectReference Include="..\Excalibur.Dispatch.SqlServer\Excalibur.Dispatch.SqlServer.csproj" />
+    <!-- Inbox -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Inbox.SqlServer\Excalibur.Inbox.SqlServer.csproj" />
+    <!-- Saga -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
+    <!-- Leader Election -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.LeaderElection.SqlServer\Excalibur.LeaderElection.SqlServer.csproj" />
+    <!-- Audit Logging -->
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.AuditLogging.SqlServer\Excalibur.Dispatch.AuditLogging.SqlServer.csproj" />
+    <!-- Compliance (GDPR, Erasure, Key Escrow) -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Compliance.SqlServer\Excalibur.Compliance.SqlServer.csproj" />
+    <!-- Data Access -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

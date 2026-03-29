@@ -61,6 +61,9 @@
     <ProjectReference Include="../../../src/metapackages/Excalibur.Dispatch.Kafka/Excalibur.Dispatch.Kafka.csproj" />
     <ProjectReference Include="../../../src/metapackages/Excalibur.Dispatch.Azure/Excalibur.Dispatch.Azure.csproj" />
     <ProjectReference Include="../../../src/metapackages/Excalibur.Dispatch.Aws/Excalibur.Dispatch.Aws.csproj" />
+    <!-- Complete provider metapackages (Sprint 725) -->
+    <ProjectReference Include="../../../src/metapackages/Excalibur.SqlServer/Excalibur.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/metapackages/Excalibur.Postgres/Excalibur.Postgres.csproj" />
     <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj" />
 
     <!-- Excalibur packages -->

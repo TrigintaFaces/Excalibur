@@ -1,0 +1,13 @@
+#nullable enable
+Excalibur.A3.Policy.Opa.OpaOptions
+Excalibur.A3.Policy.Opa.OpaOptions.Endpoint.get -> string!
+Excalibur.A3.Policy.Opa.OpaOptions.Endpoint.set -> void
+Excalibur.A3.Policy.Opa.OpaOptions.FailClosed.get -> bool
+Excalibur.A3.Policy.Opa.OpaOptions.FailClosed.set -> void
+Excalibur.A3.Policy.Opa.OpaOptions.OpaOptions() -> void
+Excalibur.A3.Policy.Opa.OpaOptions.PolicyPath.get -> string!
+Excalibur.A3.Policy.Opa.OpaOptions.PolicyPath.set -> void
+Excalibur.A3.Policy.Opa.OpaOptions.TimeoutMs.get -> int
+Excalibur.A3.Policy.Opa.OpaOptions.TimeoutMs.set -> void
+Microsoft.Extensions.DependencyInjection.A3BuilderOpaExtensions
+static Microsoft.Extensions.DependencyInjection.A3BuilderOpaExtensions.UseOpaPolicy(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.A3.Policy.Opa.OpaOptions!>! configure) -> Excalibur.A3.IA3Builder!

@@ -141,6 +141,8 @@ projects:
   - path: src/Excalibur/Excalibur.A3.Core/Excalibur.A3.Core.csproj
   - path: src/Excalibur/Excalibur.A3.Governance.Abstractions/Excalibur.A3.Governance.Abstractions.csproj
   - path: src/Excalibur/Excalibur.A3.Governance/Excalibur.A3.Governance.csproj
+  - path: src/Excalibur/Excalibur.A3.Policy.Cedar/Excalibur.A3.Policy.Cedar.csproj
+  - path: src/Excalibur/Excalibur.A3.Policy.Opa/Excalibur.A3.Policy.Opa.csproj
   - path: src/Excalibur/Excalibur.A3/Excalibur.A3.csproj
   - path: src/Excalibur/Excalibur.Application/Excalibur.Application.csproj
   - path: src/Excalibur/Excalibur.Caching/Excalibur.Caching.csproj
@@ -190,6 +192,8 @@ projects:
   - path: src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj
   - path: src/metapackages/Excalibur.Dispatch.SqlServer/Excalibur.Dispatch.SqlServer.csproj
   - path: src/metapackages/Excalibur.Dispatch.Postgres/Excalibur.Dispatch.Postgres.csproj
+  - path: src/metapackages/Excalibur.SqlServer/Excalibur.SqlServer.csproj
+  - path: src/metapackages/Excalibur.Postgres/Excalibur.Postgres.csproj
   - path: src/Excalibur/Excalibur.Inbox/Excalibur.Inbox.csproj
   - path: src/Excalibur/Excalibur.Inbox.CosmosDb/Excalibur.Inbox.CosmosDb.csproj
   - path: src/Excalibur/Excalibur.Inbox.DynamoDb/Excalibur.Inbox.DynamoDb.csproj

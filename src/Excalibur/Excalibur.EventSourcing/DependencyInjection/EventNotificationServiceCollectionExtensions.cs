@@ -101,7 +101,7 @@ public static class EventNotificationServiceCollectionExtensions
 
 		foreach (var type in assembly.GetTypes())
 		{
-			if (type.IsAbstract || type.IsInterface || !type.IsClass)
+			if (type.IsAbstract || type.IsInterface || !type.IsClass || type.IsGenericTypeDefinition)
 			{
 				continue;
 			}

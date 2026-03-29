@@ -48,7 +48,7 @@ public static class HandlerRegistryExtensions
 
 		foreach (var type in assemblies.SelectMany(static a => a.GetTypes()))
 		{
-			if (type.IsAbstract || type.IsInterface)
+			if (type.IsAbstract || type.IsInterface || type.IsGenericTypeDefinition)
 			{
 				continue;
 			}

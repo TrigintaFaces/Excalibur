@@ -16,7 +16,7 @@ public sealed class PostgresAuditExtensionsShould
 		IServiceCollection services = null!;
 
 		Should.Throw<ArgumentNullException>(
-			() => services.AddPostgresAuditStore(opts => opts.ConnectionString = "Host=localhost;"));
+			() => services.AddPostgresDataAuditStore(opts => opts.ConnectionString = "Host=localhost;"));
 	}
 
 	[Fact]
@@ -25,7 +25,7 @@ public sealed class PostgresAuditExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(
-			() => services.AddPostgresAuditStore((Action<PostgresAuditOptions>)null!));
+			() => services.AddPostgresDataAuditStore((Action<PostgresAuditOptions>)null!));
 	}
 
 	[Fact]
@@ -33,7 +33,7 @@ public sealed class PostgresAuditExtensionsShould
 	{
 		var services = new ServiceCollection();
 
-		services.AddPostgresAuditStore(opts =>
+		services.AddPostgresDataAuditStore(opts =>
 		{
 			opts.ConnectionString = "Host=localhost;Database=test;";
 		});
@@ -47,7 +47,7 @@ public sealed class PostgresAuditExtensionsShould
 	{
 		var services = new ServiceCollection();
 
-		var result = services.AddPostgresAuditStore(opts =>
+		var result = services.AddPostgresDataAuditStore(opts =>
 		{
 			opts.ConnectionString = "Host=localhost;Database=test;";
 		});
@@ -61,7 +61,7 @@ public sealed class PostgresAuditExtensionsShould
 		IServiceCollection services = null!;
 
 		Should.Throw<ArgumentNullException>(
-			() => services.AddPostgresAuditStore("Host=localhost;"));
+			() => services.AddPostgresDataAuditStore("Host=localhost;"));
 	}
 
 	[Fact]
@@ -70,7 +70,7 @@ public sealed class PostgresAuditExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentException>(
-			() => services.AddPostgresAuditStore(string.Empty));
+			() => services.AddPostgresDataAuditStore(string.Empty));
 	}
 
 	[Fact]
@@ -79,7 +79,7 @@ public sealed class PostgresAuditExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentException>(
-			() => services.AddPostgresAuditStore("   "));
+			() => services.AddPostgresDataAuditStore("   "));
 	}
 
 	[Fact]
@@ -87,7 +87,7 @@ public sealed class PostgresAuditExtensionsShould
 	{
 		var services = new ServiceCollection();
 
-		services.AddPostgresAuditStore("Host=localhost;Database=test;");
+		services.AddPostgresDataAuditStore("Host=localhost;Database=test;");
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(PostgresAuditStore));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditStore));
@@ -98,7 +98,7 @@ public sealed class PostgresAuditExtensionsShould
 	{
 		var services = new ServiceCollection();
 		services.AddLogging();
-		services.AddPostgresAuditStore("Host=localhost;Database=test;");
+		services.AddPostgresDataAuditStore("Host=localhost;Database=test;");
 
 		await using var provider = services.BuildServiceProvider();
 		var auditStore = provider.GetRequiredService<IAuditStore>();

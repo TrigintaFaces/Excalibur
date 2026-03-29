@@ -234,8 +234,9 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 		var result = new Dictionary<string, object>();
 		foreach (var doc in documents)
 		{
-			var key = $"{doc.GrantType}:{doc.Qualifier}";
-			result[key] = doc.ToGrant();
+			var grant = doc.ToGrant();
+			var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
+			result[key] = grant;
 		}
 
 		return result;

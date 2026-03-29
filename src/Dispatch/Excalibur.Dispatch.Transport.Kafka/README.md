@@ -2,6 +2,16 @@
 
 Apache Kafka transport implementation for the Excalibur framework, providing high-throughput, distributed event streaming with exactly-once semantics and CloudEvents support.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.Kafka` | Starter | + Resilience (Polly) + Observability |
+
+> **Tip:** If you are getting started, install `Excalibur.Dispatch.Kafka` instead of this package directly. It includes production-ready defaults.
+
 ## Overview
 
 This package provides Apache Kafka integration for Excalibur.Dispatch, enabling:

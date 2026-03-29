@@ -138,4 +138,66 @@ public sealed class MetapackageNullGuardTests
 	}
 
 	#endregion
+
+	#region AddExcaliburSqlServer
+
+	[Fact]
+	public void AddExcaliburSqlServer_ThrowsOnNullServices()
+	{
+		IServiceCollection services = null!;
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddExcaliburSqlServer(_ => { }))
+			.ParamName.ShouldBe("services");
+	}
+
+	[Fact]
+	public void AddExcaliburSqlServer_ThrowsOnNullConfigure()
+	{
+		var services = new ServiceCollection();
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddExcaliburSqlServer(null!))
+			.ParamName.ShouldBe("configure");
+	}
+
+	[Fact]
+	public void AddExcaliburSqlServer_ReturnsServiceCollectionForChaining()
+	{
+		var services = new ServiceCollection();
+		var result = services.AddExcaliburSqlServer(sql =>
+			sql.ConnectionString = "Server=.;Database=Test;");
+		result.ShouldBeSameAs(services);
+	}
+
+	#endregion
+
+	#region AddExcaliburPostgres
+
+	[Fact]
+	public void AddExcaliburPostgres_ThrowsOnNullServices()
+	{
+		IServiceCollection services = null!;
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddExcaliburPostgres(_ => { }))
+			.ParamName.ShouldBe("services");
+	}
+
+	[Fact]
+	public void AddExcaliburPostgres_ThrowsOnNullConfigure()
+	{
+		var services = new ServiceCollection();
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddExcaliburPostgres(null!))
+			.ParamName.ShouldBe("configure");
+	}
+
+	[Fact]
+	public void AddExcaliburPostgres_ReturnsServiceCollectionForChaining()
+	{
+		var services = new ServiceCollection();
+		var result = services.AddExcaliburPostgres(pg =>
+			pg.ConnectionString = "Host=localhost;Database=Test;");
+		result.ShouldBeSameAs(services);
+	}
+
+	#endregion
 }

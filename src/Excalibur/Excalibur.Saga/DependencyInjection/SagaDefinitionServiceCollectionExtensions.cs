@@ -56,7 +56,7 @@ public static class SagaDefinitionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(assembly);
 
 		var definitionTypes = assembly.GetTypes()
-			.Where(static type => type is { IsClass: true, IsAbstract: false, IsInterface: false }
+			.Where(static type => type is { IsClass: true, IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false }
 				&& ImplementsSagaDefinition(type));
 
 		foreach (var definitionType in definitionTypes)

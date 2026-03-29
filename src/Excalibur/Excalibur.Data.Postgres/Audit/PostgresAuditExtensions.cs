@@ -27,7 +27,7 @@ public static class PostgresAuditExtensions
 	/// <para>
 	/// Example usage:
 	/// <code>
-	/// services.AddPostgresAuditStore(options =>
+	/// services.AddPostgresDataAuditStore(options =>
 	/// {
 	///     options.ConnectionString = "Host=localhost;Database=myapp;";
 	///     options.SchemaName = "audit";
@@ -35,7 +35,7 @@ public static class PostgresAuditExtensions
 	/// </code>
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddPostgresAuditStore(
+	public static IServiceCollection AddPostgresDataAuditStore(
 		this IServiceCollection services,
 		Action<PostgresAuditOptions> configureOptions)
 	{
@@ -59,14 +59,14 @@ public static class PostgresAuditExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="connectionString">The Postgres connection string.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddPostgresAuditStore(
+	public static IServiceCollection AddPostgresDataAuditStore(
 		this IServiceCollection services,
 		string connectionString)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-		return services.AddPostgresAuditStore(options =>
+		return services.AddPostgresDataAuditStore(options =>
 		{
 			options.ConnectionString = connectionString;
 		});

@@ -1,0 +1,18 @@
+#nullable enable
+Excalibur.A3.Policy.Cedar.CedarMode
+Excalibur.A3.Policy.Cedar.CedarMode.AwsVerifiedPermissions = 1 -> Excalibur.A3.Policy.Cedar.CedarMode
+Excalibur.A3.Policy.Cedar.CedarMode.Local = 0 -> Excalibur.A3.Policy.Cedar.CedarMode
+Excalibur.A3.Policy.Cedar.CedarOptions
+Excalibur.A3.Policy.Cedar.CedarOptions.CedarOptions() -> void
+Excalibur.A3.Policy.Cedar.CedarOptions.Endpoint.get -> string!
+Excalibur.A3.Policy.Cedar.CedarOptions.Endpoint.set -> void
+Excalibur.A3.Policy.Cedar.CedarOptions.FailClosed.get -> bool
+Excalibur.A3.Policy.Cedar.CedarOptions.FailClosed.set -> void
+Excalibur.A3.Policy.Cedar.CedarOptions.Mode.get -> Excalibur.A3.Policy.Cedar.CedarMode
+Excalibur.A3.Policy.Cedar.CedarOptions.Mode.set -> void
+Excalibur.A3.Policy.Cedar.CedarOptions.PolicyStoreId.get -> string?
+Excalibur.A3.Policy.Cedar.CedarOptions.PolicyStoreId.set -> void
+Excalibur.A3.Policy.Cedar.CedarOptions.TimeoutMs.get -> int
+Excalibur.A3.Policy.Cedar.CedarOptions.TimeoutMs.set -> void
+Microsoft.Extensions.DependencyInjection.A3BuilderCedarExtensions
+static Microsoft.Extensions.DependencyInjection.A3BuilderCedarExtensions.UseCedarPolicy(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.A3.Policy.Cedar.CedarOptions!>! configure) -> Excalibur.A3.IA3Builder!

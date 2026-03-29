@@ -532,10 +532,32 @@
         "resolved": "0.7.3",
         "contentHash": "U9Ix4l4cl58Kzz1rJzj5hoVTjmbx1qGMwzAcbv1j/d3NzrFaESIurQyg+ow4mivCgkE3S413y+U9k4WdnEIkRA=="
       },
+      "excalibur.a3": {
+        "type": "Project",
+        "dependencies": {
+          "Excalibur.A3.Core": "[0.1.0-local, )",
+          "Excalibur.Application": "[0.1.0-local, )",
+          "Excalibur.Data.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.EventSourcing": "[0.1.0-local, )",
+          "Excalibur.Outbox": "[0.1.0-local, )",
+          "Microsoft.Extensions.Http": "[10.0.0, )"
+        }
+      },
       "excalibur.a3.abstractions": {
         "type": "Project",
         "dependencies": {
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )"
+        }
+      },
+      "excalibur.a3.core": {
+        "type": "Project",
+        "dependencies": {
+          "Excalibur.A3.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Domain": "[0.1.0-local, )",
+          "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )"
         }
       },
       "excalibur.application": {

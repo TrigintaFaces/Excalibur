@@ -17,10 +17,12 @@ namespace Excalibur.A3.Authorization;
 /// <param name="accessToken"> The access token containing user authentication and authorization information. </param>
 /// <param name="authorization"> The authorization service to validate permissions. </param>
 /// <param name="attributeCache"> The cache for RequirePermission attribute lookups. </param>
+/// <param name="conditionEvaluator"> The evaluator for When condition expressions. </param>
 internal sealed class AuthorizationMiddleware(
 	IAccessToken accessToken,
 	IDispatchAuthorizationService authorization,
-	AttributeAuthorizationCache attributeCache)
+	AttributeAuthorizationCache attributeCache,
+	ConditionExpressionEvaluator conditionEvaluator)
 	: IDispatchMiddleware
 {
 	/// <summary>
@@ -118,6 +120,16 @@ internal sealed class AuthorizationMiddleware(
 
 		context.AuthorizationResult(result);
 
+		// Evaluate When conditions on attribute-based permissions (after grants pass)
+		if (result.IsAuthorized && hasAttributes)
+		{
+			var conditionDenied = EvaluateConditions(attributes, message);
+			if (conditionDenied is not null)
+			{
+				return conditionDenied;
+			}
+		}
+
 		if (!result.IsAuthorized)
 		{
 			return Dispatch.Messaging.MessageResult.Failed(
@@ -137,6 +149,115 @@ internal sealed class AuthorizationMiddleware(
 		}
 
 		return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+	}
+
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
+		"Condition evaluation may access properties via reflection.")]
+	private IMessageResult? EvaluateConditions(
+		RequirePermissionAttribute[] attributes,
+		IDispatchMessage message)
+	{
+		// Build subject attributes once (same for all permissions on this message)
+		Dictionary<string, string>? subjectAttrs = null;
+
+		foreach (var attr in attributes)
+		{
+			if (attr.When is null)
+			{
+				continue;
+			}
+
+			var parsedCondition = attributeCache.GetParsedCondition(attr.When);
+
+			// Malformed expression -> deny (fail-closed)
+			if (parsedCondition is null)
+			{
+				return CreateDeniedResult($"Malformed condition expression: {attr.When}");
+			}
+
+			// Build subject attributes lazily, once for all When conditions
+			subjectAttrs ??= BuildSubjectAttributes();
+			var actionAttrs = BuildActionAttributes(attr);
+			var resourceAttrs = BuildResourceAttributes(message, attr);
+
+			if (!conditionEvaluator.Evaluate(parsedCondition, subjectAttrs, actionAttrs, resourceAttrs))
+			{
+				return CreateDeniedResult($"Condition not met: {attr.When}");
+			}
+		}
+
+		return null;
+	}
+
+	private Dictionary<string, string> BuildSubjectAttributes()
+	{
+		var attrs = new Dictionary<string, string>(StringComparer.Ordinal);
+
+		if (accessToken.Claims is not null)
+		{
+			foreach (var claim in accessToken.Claims)
+			{
+				// Use last-wins for duplicate claim types (consistent with ClaimsPrincipal behavior)
+				attrs[claim.Type] = claim.Value;
+			}
+		}
+
+		if (accessToken.Login is not null)
+		{
+			attrs["Login"] = accessToken.Login;
+		}
+
+		return attrs;
+	}
+
+	private static Dictionary<string, string> BuildActionAttributes(RequirePermissionAttribute attr)
+	{
+		return new Dictionary<string, string>(StringComparer.Ordinal)
+		{
+			["Name"] = attr.Permission,
+		};
+	}
+
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
+		"Resource attribute extraction uses reflection.")]
+	private Dictionary<string, string> BuildResourceAttributes(
+		IDispatchMessage message,
+		RequirePermissionAttribute attr)
+	{
+		var attrs = new Dictionary<string, string>(StringComparer.Ordinal)
+		{
+			["Type"] = message.GetType().Name,
+		};
+
+		var resourceId = attributeCache.ExtractResourceId(message, attr.ResourceIdProperty);
+		if (resourceId is not null)
+		{
+			attrs["Id"] = resourceId;
+		}
+
+		if (attr.ResourceTypes is { Length: > 0 })
+		{
+			attrs["ResourceType"] = attr.ResourceTypes[0];
+		}
+
+		return attrs;
+	}
+
+	private static IMessageResult CreateDeniedResult(string reason)
+	{
+		return Dispatch.Messaging.MessageResult.Failed(
+			problemDetails: new MessageProblemDetails
+			{
+				Type = "about:blank",
+				Title = "Condition Not Met",
+				ErrorCode = 403,
+				Status = 403,
+				Detail = reason,
+				Instance = string.Empty,
+			},
+			routingDecision: Dispatch.Abstractions.Routing.RoutingDecision.Local,
+			validationResult: Dispatch.Abstractions.Serialization.SerializableValidationResult.Success(),
+			authorizationResult: Dispatch.Abstractions.AuthorizationResult.Failed(reason));
 	}
 
 	private static ClaimsPrincipal BuildPrincipal(IAccessToken accessToken)

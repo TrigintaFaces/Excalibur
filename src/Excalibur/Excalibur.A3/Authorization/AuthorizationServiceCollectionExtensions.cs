@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Abstractions;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -24,7 +25,9 @@ public static class AuthorizationServiceCollectionExtensions
 	{
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuthorizationHandler, GrantsAuthorizationHandler>());
 		services.TryAddSingleton<IDispatchAuthorizationService, DispatchAuthorizationService>();
-		services.TryAddSingleton<AttributeAuthorizationCache>();
+		services.TryAddSingleton(sp =>
+			new AttributeAuthorizationCache(sp.GetRequiredService<ILogger<AttributeAuthorizationCache>>()));
+		services.TryAddSingleton<ConditionExpressionEvaluator>();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, Excalibur.A3.Authorization.AuthorizationMiddleware>());
 
 		return services;

@@ -27,6 +27,7 @@ Excalibur is one framework with focused package families. Install only what your
 | `Excalibur.Saga.*` | Sagas and process managers | When you need long-running workflows |
 | `Excalibur.Hosting.*` | ASP.NET Core, serverless hosting | When you need opinionated hosting templates |
 | `Excalibur.LeaderElection.*` | Distributed coordination | When you need single-leader guarantees |
+| `Excalibur.SqlServer`, `Excalibur.Postgres` | Full-stack database metapackages: event sourcing + outbox + inbox + sagas + leader election + audit + compliance | When you want one-line database setup |
 
 :::tip Key Rule
 All packages share the `Excalibur.*` namespace. You never rewrite existing code when adding new capabilities -- just install additional packages.
@@ -120,6 +121,39 @@ services.AddDispatchKafka(
 If you need fine-grained control over which features are included, use the individual packages (`Excalibur.Dispatch.Transport.RabbitMQ`, etc.) with explicit `AddDispatch()` builder calls instead.
 
 ---
+
+## Full-Stack Database Metapackages
+
+For production deployments, the full-stack database metapackages bundle event sourcing, outbox, inbox, sagas, leader election, audit logging, compliance, and data access into a single `AddExcalibur*()` call:
+
+| Metapackage | Method | Includes |
+|-------------|--------|----------|
+| `Excalibur.SqlServer` | `AddExcaliburSqlServer()` | EventSourcing + Outbox + Inbox + Sagas + Leader Election + Audit Logging + Compliance + Data Access (SQL Server) |
+| `Excalibur.Postgres` | `AddExcaliburPostgres()` | EventSourcing + Outbox + Inbox + Sagas + Leader Election + Audit Logging + Compliance + Data Access (PostgreSQL) |
+
+```csharp
+// One line: complete SQL Server stack
+services.AddExcaliburSqlServer(sql =>
+{
+    sql.ConnectionString = connectionString;
+    sql.UseLeaderElection = true;   // default: true
+    sql.UseAuditLogging = true;     // default: true
+    sql.UseCompliance = true;       // default: true
+});
+
+// Or PostgreSQL
+services.AddExcaliburPostgres(pg =>
+{
+    pg.ConnectionString = connectionString;
+    pg.UseLeaderElection = true;
+    pg.UseAuditLogging = true;
+});
+```
+
+All features default to enabled. Disable individual features by setting the corresponding `Use*` property to `false`.
+
+See the [Pick Your Stack](pick-your-stack.md) guide for scenario-based package selection.
+
 
 ## Hosting Packages
 
@@ -341,6 +375,7 @@ services.AddExcalibur(excalibur =>
 | Hosting | `Excalibur.Hosting.*` | Web, Worker templates |
 | Leader election | `Excalibur.LeaderElection.*` | Distributed coordination |
 | Caching | `Excalibur.Caching` | Projection invalidation |
+| Full-stack metapackages | `Excalibur.SqlServer`, `Excalibur.Postgres` | `AddExcaliburSqlServer()`, `AddExcaliburPostgres()` |
 
 ---
 

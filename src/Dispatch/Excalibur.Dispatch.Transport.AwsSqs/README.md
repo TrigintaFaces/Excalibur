@@ -2,6 +2,16 @@
 
 AWS messaging transport implementation for the Excalibur framework, providing integration with Amazon SQS, SNS, and EventBridge services.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.Aws` | Starter | + Resilience (Polly) + Observability |
+
+> **Tip:** If you are getting started, install `Excalibur.Dispatch.Aws` instead of this package directly. It includes production-ready defaults.
+
 ## Overview
 
 This package provides AWS messaging integration for Excalibur.Dispatch, enabling:

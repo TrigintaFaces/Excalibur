@@ -32,7 +32,7 @@ public sealed class AuthorizationMiddlewareDepthShould
 
 		A.CallTo(() => _accessToken.IsAuthenticated()).Returns(true);
 
-		_sut = new AuthorizationMiddleware(_accessToken, _authorization, _attributeCache);
+		_sut = new AuthorizationMiddleware(_accessToken, _authorization, _attributeCache, new ConditionExpressionEvaluator());
 	}
 
 	[Fact]

@@ -47,5 +47,8 @@
     <!-- Dispatch for messaging -->
     <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <!-- A3 Authorization -->
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.A3\Excalibur.A3.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.A3.Abstractions\Excalibur.A3.Abstractions.csproj" />
   </ItemGroup>
 </Project>

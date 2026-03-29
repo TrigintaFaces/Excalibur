@@ -263,7 +263,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 			var grant = FirestoreGrantDocument.FromSnapshot(doc);
 			if (grant is not null)
 			{
-				var key = $"{grant.GrantType}:{grant.Qualifier}";
+				var key = $"{grant.TenantId ?? string.Empty}:{grant.GrantType}:{grant.Qualifier}";
 				result[key] = grant;
 			}
 		}

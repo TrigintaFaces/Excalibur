@@ -2,6 +2,16 @@
 
 RabbitMQ transport implementation for the Excalibur framework, providing reliable message queuing with advanced features including dead letter handling, CloudEvents support, and automatic recovery.
 
+## Part Of
+
+This package is included in the following metapackages:
+
+| Metapackage | Tier | What It Adds |
+|---|---|---|
+| `Excalibur.Dispatch.RabbitMQ` | Starter | + Resilience (Polly) + Observability |
+
+> **Tip:** If you are getting started, install `Excalibur.Dispatch.RabbitMQ` instead of this package directly. It includes production-ready defaults.
+
 ## Overview
 
 This package provides RabbitMQ integration for Excalibur.Dispatch, enabling:

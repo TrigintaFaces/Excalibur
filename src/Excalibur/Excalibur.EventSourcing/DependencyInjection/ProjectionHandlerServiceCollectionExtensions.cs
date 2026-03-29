@@ -55,7 +55,7 @@ public static class ProjectionHandlerServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(assembly);
 
 		var handlerTypes = assembly.GetTypes()
-			.Where(static type => type is { IsClass: true, IsAbstract: false, IsInterface: false }
+			.Where(static type => type is { IsClass: true, IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false }
 				&& typeof(IProjectionHandler).IsAssignableFrom(type));
 
 		foreach (var handlerType in handlerTypes)

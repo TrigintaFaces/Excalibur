@@ -339,7 +339,7 @@ public static class DispatchServiceCollectionExtensions
 		// Build a list of concrete types implementing the handler interfaces
 		var handlerTypes = assemblies
 			.SelectMany(static a => a.GetTypes())
-			.Where(static t => t is { IsAbstract: false, IsInterface: false })
+			.Where(static t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false })
 			.Select(static t => new
 			{
 				Type = t,

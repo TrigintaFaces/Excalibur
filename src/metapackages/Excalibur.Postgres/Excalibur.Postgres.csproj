@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Postgres</PackageId>
+    <Description>Complete PostgreSQL metapackage for Excalibur: event sourcing, outbox, inbox, sagas, leader election, audit logging, compliance, and data access in a single package reference.</Description>
+    <PackageTags>excalibur;postgres;postgresql;event-sourcing;outbox;inbox;saga;leader-election;audit;compliance;metapackage</PackageTags>
+  </PropertyGroup>
+  <!-- AOT Configuration -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <!-- Local development mode: ProjectReference for all Postgres packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <!-- Starter metapackage (Dispatch + EventSourcing + Outbox + Hosting) -->
+    <ProjectReference Include="..\Excalibur.Dispatch.Postgres\Excalibur.Dispatch.Postgres.csproj" />
+    <!-- Inbox -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Inbox.Postgres\Excalibur.Inbox.Postgres.csproj" />
+    <!-- Saga -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Saga.Postgres\Excalibur.Saga.Postgres.csproj" />
+    <!-- Leader Election -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.LeaderElection.Postgres\Excalibur.LeaderElection.Postgres.csproj" />
+    <!-- Audit Logging -->
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.AuditLogging.Postgres\Excalibur.Dispatch.AuditLogging.Postgres.csproj" />
+    <!-- Compliance (GDPR, Erasure) -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Compliance.Postgres\Excalibur.Compliance.Postgres.csproj" />
+    <!-- Data Access -->
+    <ProjectReference Include="..\..\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

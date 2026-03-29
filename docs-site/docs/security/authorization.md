@@ -339,7 +339,106 @@ Grant changes emit domain events for audit trails:
 - `GrantAdded` / `IGrantAdded` - Emitted when a grant is created
 - `GrantRevoked` / `IGrantRevoked` - Emitted when a grant is revoked
 
+
+### Wildcard Grants
+
+Grant scopes support wildcard patterns for broad permission grants. A `GrantScope` is a wildcard if any segment is `*` or the qualifier ends with `.*` or `/*`.
+
+**Wildcard patterns:**
+
+| Pattern | Matches | Example |
+|---------|---------|--------|
+| `*:*:*` | All grants across all tenants | Global admin |
+| `tenant-abc:*:*` | All grants within a tenant | Tenant admin |
+| `tenant-abc:activity:Orders.*` | All qualifier prefixes under `Orders.` | `Orders.Create`, `Orders.Delete` |
+| `tenant-abc:activity:orders/*` | All qualifier prefixes under `orders/` | `orders/create`, `orders/delete` |
+
+**Validation:**
+
+Use `GrantScope.Validate` to check wildcard patterns before creating grants. Invalid patterns (such as `**`, `*partial`, or mid-qualifier wildcards) are rejected:
+
+```csharp
+using Excalibur.A3.Authorization.Grants;
+
+if (!GrantScope.Validate(tenantId: "*", grantType: "activity", qualifier: "Orders.*", out var error))
+{
+    // error describes the validation failure
+    throw new ArgumentException(error);
+}
+
+// Valid -- create the wildcard grant
+var scope = new GrantScope("*", "activity", "Orders.*");
+```
+
+**Specificity and matching:**
+
+When multiple wildcard grants match a request, the most specific grant wins. The framework automatically ranks wildcards by specificity:
+
+- Each non-wildcard segment (TenantId, GrantType) is more specific than `*`
+- Exact qualifier beats suffix wildcards (`prefix.*`, `prefix/*`)
+- Suffix wildcards beat full wildcard (`*`)
+- Longer prefixes win tiebreakers between suffix patterns
+
+The authorization policy uses a dual-index strategy: exact grants are checked first via O(1) hash lookup, then wildcard grants are evaluated in descending specificity order.
+
 ## Audit
+
+## Conditional Authorization (When Expressions)
+
+The `[RequirePermission]` attribute supports a `When` property for runtime conditional checks. Expressions are parsed at startup and cached as ASTs for zero-allocation evaluation.
+
+### Basic Usage
+
+```csharp
+[RequirePermission("orders.approve", When = "resource.Amount <= 10000")]
+public class ApproveOrderCommand : IDispatchAction
+{
+    public decimal Amount { get; set; }
+}
+```
+
+If the user has the `orders.approve` permission **and** the order amount is at most 10,000, authorization succeeds. Otherwise it fails even with a valid grant.
+
+### Expression Grammar
+
+Expressions support three attribute categories: `subject`, `action`, and `resource`.
+
+```
+subject.Role == 'admin'
+resource.Amount > 10000
+subject.Department == 'finance' AND resource.Amount <= 50000
+NOT subject.IsExternal
+(subject.Role == 'admin' OR subject.Role == 'manager') AND resource.Status != 'archived'
+```
+
+**Operators:** `==`, `!=`, `>`, `<`, `>=`, `<=`, `contains`, `startsWith`
+**Logic:** `AND`, `OR`, `NOT`, parentheses
+**Values:** string literals (`'value'`), numbers, `true`, `false`, `null`
+
+### Advanced Examples
+
+```csharp
+// Time-based access
+[RequirePermission("reports.view", When = "subject.Role == 'auditor'")]
+public class ViewFinancialReport : IDispatchAction { }
+
+// Multi-condition
+[RequirePermission("transfers.execute",
+    When = "resource.Amount <= 50000 AND subject.Department == 'treasury'")]
+public class ExecuteTransfer : IDispatchAction
+{
+    public decimal Amount { get; set; }
+    public string Department { get; set; } = string.Empty;
+}
+```
+
+### How Attributes Are Resolved
+
+| Category | Source |
+|----------|--------|
+| `subject.*` | Claims from the authenticated principal |
+| `action.*` | Properties of the dispatched message |
+| `resource.*` | Properties of the dispatched message (alias for action) |
 
 ### Audit Events
 
@@ -928,6 +1027,55 @@ Full stack (unchanged):
 Governance (lightweight):
   Your App → A3.Governance → A3.Governance.Abstractions + A3.Core
 ```
+
+## External Policy Engines
+
+For organizations using centralized policy engines, A3 supports delegation to OPA or Cedar via HTTP adapters.
+
+### Open Policy Agent (OPA)
+
+```xml
+<PackageReference Include="Excalibur.A3.Policy.Opa" />
+```
+
+```csharp
+services.AddExcaliburA3(a3 =>
+{
+    a3.UseOpaPolicy(opa =>
+    {
+        opa.BaseUrl = "http://localhost:8181";
+        opa.PolicyPath = "/v1/data/excalibur/authz";
+    });
+});
+```
+
+The OPA adapter sends authorization requests as JSON to your OPA server and maps the response back to A3's grant model. Uses `IHttpClientFactory` for connection management.
+
+### Cedar (AWS Verified Permissions)
+
+```xml
+<PackageReference Include="Excalibur.A3.Policy.Cedar" />
+```
+
+```csharp
+services.AddExcaliburA3(a3 =>
+{
+    a3.UseCedarPolicy(cedar =>
+    {
+        cedar.Mode = CedarMode.AwsVerifiedPermissions;
+        cedar.BaseUrl = "https://verifiedpermissions.us-east-1.amazonaws.com";
+        cedar.PolicyStoreId = "ps-example123";
+    });
+});
+```
+
+Cedar supports two modes:
+- **`CedarMode.Local`** -- Evaluate policies locally using a Cedar engine
+- **`CedarMode.AwsVerifiedPermissions`** -- Delegate to AWS Verified Permissions via HTTP
+
+:::caution One evaluator at a time
+`UseOpaPolicy()` and `UseCedarPolicy()` both register `IAuthorizationEvaluator`. Calling both replaces the previous registration -- the **last call wins**. Choose one policy engine per application.
+:::
 
 ## What's Next
 

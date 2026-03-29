@@ -146,15 +146,15 @@ public sealed class GrantScopeDepthShould
     }
 
     [Fact]
-    public void MutableProperties_CanBeChanged()
+    public void InitOnlyProperties_CanBeSetViaObjectInitializer()
     {
-        // Arrange
-        var scope = new GrantScope("t1", "Activity", "Read");
-
-        // Act
-        scope.TenantId = "t2";
-        scope.GrantType = "ActivityGroup";
-        scope.Qualifier = "Admin";
+        // Arrange & Act -- init-only properties can be set via object initializer
+        var scope = new GrantScope("t1", "Activity", "Read")
+        {
+            TenantId = "t2",
+            GrantType = "ActivityGroup",
+            Qualifier = "Admin",
+        };
 
         // Assert
         scope.TenantId.ShouldBe("t2");

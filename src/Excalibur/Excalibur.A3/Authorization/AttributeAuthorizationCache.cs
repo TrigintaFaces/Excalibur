@@ -4,6 +4,8 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 
+using Microsoft.Extensions.Logging;
+
 namespace Excalibur.A3.Authorization;
 
 /// <summary>
@@ -22,6 +24,24 @@ public class AttributeAuthorizationCache
 {
 	private readonly ConcurrentDictionary<Type, RequirePermissionAttribute[]> _attributeCache = new();
 	private readonly ConcurrentDictionary<(Type, string), PropertyInfo?> _propertyCache = new();
+	private readonly ConcurrentDictionary<string, ExpressionNode?> _conditionCache = new();
+	private readonly ILogger<AttributeAuthorizationCache>? _logger;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AttributeAuthorizationCache"/> class.
+	/// </summary>
+	public AttributeAuthorizationCache()
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AttributeAuthorizationCache"/> class with a logger.
+	/// </summary>
+	/// <param name="logger">The logger for reporting malformed condition expressions.</param>
+	internal AttributeAuthorizationCache(ILogger<AttributeAuthorizationCache> logger)
+	{
+		_logger = logger;
+	}
 
 	/// <summary>
 	/// Gets the cached <see cref="RequirePermissionAttribute"/> attributes for a message type.
@@ -80,5 +100,31 @@ public class AttributeAuthorizationCache
 
 		var value = property.GetValue(message);
 		return value?.ToString();
+	}
+
+	/// <summary>
+	/// Gets the parsed condition expression AST for a <see cref="RequirePermissionAttribute.When"/> value.
+	/// Returns <see langword="null"/> if the expression is malformed (caller should deny).
+	/// </summary>
+	/// <param name="whenExpression">The condition expression string from the attribute.</param>
+	/// <returns>The parsed <see cref="ExpressionNode"/> or <see langword="null"/> if malformed.</returns>
+	internal ExpressionNode? GetParsedCondition(string whenExpression)
+	{
+		return _conditionCache.GetOrAdd(whenExpression, static (expr, logger) =>
+		{
+			try
+			{
+				return ConditionExpressionParser.Parse(expr);
+			}
+			catch (FormatException ex)
+			{
+				logger?.LogWarning(
+					"Malformed condition expression '{Expression}': {Message}. " +
+					"This permission will always deny at runtime.",
+					expr,
+					ex.Message);
+				return null;
+			}
+		}, _logger);
 	}
 }

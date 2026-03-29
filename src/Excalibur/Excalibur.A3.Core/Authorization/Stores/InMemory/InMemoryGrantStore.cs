@@ -134,8 +134,9 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 		var results = _grants.Values
 			.Where(g => string.Equals(g.UserId, userId, StringComparison.Ordinal))
 			.ToDictionary(
-				g => BuildKey(g.UserId, g.TenantId ?? string.Empty, g.GrantType, g.Qualifier),
-				g => (object)g);
+				g => BuildScopeKey(g.TenantId ?? string.Empty, g.GrantType, g.Qualifier),
+				g => (object)g,
+				StringComparer.Ordinal);
 
 		return Task.FromResult<IReadOnlyDictionary<string, object>>(results);
 	}
@@ -228,4 +229,7 @@ internal sealed class InMemoryGrantStore : IGrantStore, IGrantQueryStore, IActiv
 
 	private static string BuildKey(string userId, string tenantId, string grantType, string qualifier) =>
 		$"{userId}:{tenantId}:{grantType}:{qualifier}";
+
+	private static string BuildScopeKey(string tenantId, string grantType, string qualifier) =>
+		$"{tenantId}:{grantType}:{qualifier}";
 }
