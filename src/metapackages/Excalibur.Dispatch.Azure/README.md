@@ -31,4 +31,4 @@ This metapackage bundles:
 
 ## Documentation
 
-See the [Excalibur.Dispatch documentation](https://github.com/TrigintaFaces/Excalibur.Dispatch) for full details.
+See the [Excalibur documentation](https://github.com/TrigintaFaces/Excalibur) for full details.
