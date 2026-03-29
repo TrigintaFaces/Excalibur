@@ -167,7 +167,8 @@ services.AddJsonSerialization(options =>
 ```csharp
 services.AddExcaliburEventSourcing(builder =>
 {
-    builder.UseEventSerializer<MessagePackEventSerializer>();
+    // Register your custom IEventSerializer implementation
+    builder.UseEventSerializer<MyCustomEventSerializer>();
 });
 ```
 

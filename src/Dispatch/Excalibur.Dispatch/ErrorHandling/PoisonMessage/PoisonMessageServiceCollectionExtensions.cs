@@ -4,7 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Options.ErrorHandling;
 
@@ -73,8 +72,8 @@ public static class PoisonMessageServiceCollectionExtensions
 		// Register composite detector as the primary detector
 		services.TryAddSingleton<IPoisonMessageDetector, CompositePoisonDetector>();
 
-		// Register middleware
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, PoisonMessageMiddleware>());
+		// Register middleware concrete type for pipeline resolution
+		services.TryAddSingleton<PoisonMessageMiddleware>();
 
 		// Register default in-memory store if no store is registered
 		services.TryAddSingleton<IDeadLetterStore, InMemoryDeadLetterStore>();

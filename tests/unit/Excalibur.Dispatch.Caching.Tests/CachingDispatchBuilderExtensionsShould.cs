@@ -23,10 +23,10 @@ public sealed class CachingDispatchBuilderExtensionsShould
 {
 	private static readonly string[] ExpectedTags = ["tag1", "tag2"];
 
-	#region AddDispatchCaching
+	#region UseCaching
 
 	[Fact]
-	public void AddDispatchCaching_ReturnsSameBuilder()
+	public void UseCaching_ReturnsSameBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -34,14 +34,14 @@ public sealed class CachingDispatchBuilderExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddDispatchCaching();
+		var result = builder.UseCaching();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void AddDispatchCaching_RegistersCachingServices()
+	public void UseCaching_RegistersCachingServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -49,7 +49,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		builder.AddDispatchCaching();
+		builder.UseCaching();
 
 		// Assert
 		var sp = services.BuildServiceProvider();
@@ -59,19 +59,19 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	}
 
 	[Fact]
-	public void AddDispatchCaching_ThrowsArgumentNullException_WhenBuilderIsNull()
+	public void UseCaching_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			CachingDispatchBuilderExtensions.AddDispatchCaching(null!));
+			CachingDispatchBuilderExtensions.UseCaching(null!));
 	}
 
 	#endregion
 
-	#region AddCaching
+	#region UseCaching with configure
 
 	[Fact]
-	public void AddCaching_WithoutConfigure_ReturnsSameBuilder()
+	public void UseCaching_WithoutConfigure_ReturnsSameBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -79,14 +79,14 @@ public sealed class CachingDispatchBuilderExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddCaching();
+		var result = builder.UseCaching();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void AddCaching_WithoutConfigure_RegistersDefaultServices()
+	public void UseCaching_WithoutConfigure_RegistersDefaultServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -94,7 +94,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		builder.AddCaching();
+		builder.UseCaching();
 
 		// Assert
 		var sp = services.BuildServiceProvider();
@@ -102,7 +102,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	}
 
 	[Fact]
-	public void AddCaching_WithConfigure_AppliesConfiguration()
+	public void UseCaching_WithConfigure_AppliesConfiguration()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -110,7 +110,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		builder.AddCaching(opts =>
+		builder.UseCaching(opts =>
 		{
 			opts.Enabled = true;
 			opts.CacheMode = CacheMode.Memory;
@@ -124,7 +124,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	}
 
 	[Fact]
-	public void AddCaching_WithConfigure_ReturnsSameBuilder()
+	public void UseCaching_WithConfigure_ReturnsSameBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -132,18 +132,18 @@ public sealed class CachingDispatchBuilderExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddCaching(opts => opts.Enabled = true);
+		var result = builder.UseCaching(opts => opts.Enabled = true);
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void AddCaching_ThrowsArgumentNullException_WhenBuilderIsNull()
+	public void UseCaching_WithNullBuilder_ThrowsArgumentNullException()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			CachingDispatchBuilderExtensions.AddCaching(null!));
+			CachingDispatchBuilderExtensions.UseCaching(null!));
 	}
 
 	#endregion

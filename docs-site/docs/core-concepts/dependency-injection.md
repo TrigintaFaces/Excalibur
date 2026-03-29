@@ -262,10 +262,10 @@ builder.Services.AddDispatch(dispatch =>
     dispatch.UseKafka(kafka => kafka.BootstrapServers("localhost:9092"));
 
     // Cross-cutting (Add prefix — additive features)
-    dispatch.AddObservability();
-    dispatch.AddResilience(res => res.DefaultRetryCount = 3);
-    dispatch.AddCaching();
-    dispatch.AddSecurity(builder.Configuration);
+    dispatch.UseObservability();
+    dispatch.UseResilience(res => res.DefaultRetryCount = 3);
+    dispatch.UseCaching();
+    dispatch.UseSecurity(builder.Configuration);
 });
 ```
 
@@ -298,7 +298,7 @@ builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-    dispatch.AddObservability();
+    dispatch.UseObservability();
     dispatch.ConfigurePipeline("default", p => p.UseValidation());
 });
 

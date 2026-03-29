@@ -59,7 +59,7 @@ services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.War
 services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-	_ = dispatch.AddDispatchValidation()
+	_ = dispatch.UseValidation()
 		.WithFluentValidation();
 });
 

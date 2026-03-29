@@ -191,12 +191,13 @@ var result = await auditLogger.VerifyIntegrityAsync(
 
 if (result.IsValid)
 {
-    Console.WriteLine($"Verified {result.TotalEventsValidated} events - integrity OK");
+    Console.WriteLine($"Verified {result.EventsVerified} events - integrity OK");
 }
 else
 {
-    Console.WriteLine($"INTEGRITY VIOLATION: {result.CorruptedEvents} corrupted events found");
-    Console.WriteLine($"Details: {result.Message}");
+    Console.WriteLine($"INTEGRITY VIOLATION: {result.ViolationCount} violations found");
+    Console.WriteLine($"First violation: {result.FirstViolationEventId}");
+    Console.WriteLine($"Details: {result.ViolationDescription}");
 }
 ```
 
@@ -205,10 +206,13 @@ else
 | Property | Type | Description |
 |----------|------|-------------|
 | `IsValid` | bool | Whether hash chain is intact |
-| `TotalEventsValidated` | long | Number of events checked |
-| `CorruptedEvents` | long | Number of corrupted events found |
-| `CorruptedEventIds` | IReadOnlyList\<string\> | IDs of corrupted events |
-| `Message` | string? | Detailed validation message |
+| `EventsVerified` | long | Number of events checked |
+| `ViolationCount` | int | Number of violations found |
+| `FirstViolationEventId` | string? | ID of the first corrupted event |
+| `ViolationDescription` | string? | Detailed validation message |
+| `StartDate` | DateTimeOffset | Start of the verification range |
+| `EndDate` | DateTimeOffset | End of the verification range |
+| `VerifiedAt` | DateTimeOffset | When verification was performed |
 
 ---
 

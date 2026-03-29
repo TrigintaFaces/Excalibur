@@ -188,15 +188,9 @@ public static class CachingServiceCollectionExtensions
 		services.TryAddSingleton<CachingMiddleware>();
 		services.TryAddSingleton<CacheInvalidationMiddleware>();
 
-		// Register conditional wrapper middleware
+		// Register conditional wrapper middleware concrete types for pipeline resolution
 		services.TryAddSingleton<CachingMiddlewareWrapper>();
 		services.TryAddSingleton<CacheInvalidationMiddlewareWrapper>();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IDispatchMiddleware, CachingMiddlewareWrapper>(static sp =>
-				sp.GetRequiredService<CachingMiddlewareWrapper>()));
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IDispatchMiddleware, CacheInvalidationMiddlewareWrapper>(static sp =>
-				sp.GetRequiredService<CacheInvalidationMiddlewareWrapper>()));
 
 		// Register cache services
 		services.TryAddSingleton<ICacheInvalidationService, HybridCacheInvalidationService>();

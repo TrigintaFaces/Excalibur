@@ -134,8 +134,8 @@ public sealed class DistributedCacheConcurrencyShould : IntegrationTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(DistributedCacheConcurrencyShould).Assembly);
-			_ = dispatch.AddDispatchResilience()
-				.AddDispatchCaching()
+			_ = dispatch.UseResilience()
+				.UseCaching()
 				.WithCachingOptions(o =>
 				{
 					o.Enabled = true;

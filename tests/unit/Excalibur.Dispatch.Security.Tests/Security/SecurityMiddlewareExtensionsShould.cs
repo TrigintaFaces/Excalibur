@@ -99,7 +99,7 @@ public sealed class SecurityMiddlewareExtensionsShould
 
         // Assert
         var sp = services.BuildServiceProvider();
-        sp.GetService<IDispatchMiddleware>().ShouldNotBeNull();
+        sp.GetService<JwtAuthenticationMiddleware>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class SecurityMiddlewareExtensionsShould
     }
 
     [Fact]
-    public void RegisterEncryptionMiddlewareAsIDispatchMiddleware()
+    public void RegisterEncryptionMiddlewareAsConcreteType()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -139,12 +139,11 @@ public sealed class SecurityMiddlewareExtensionsShould
 
         // Assert
         services.ShouldContain(sd =>
-            sd.ServiceType == typeof(IDispatchMiddleware) &&
-            sd.ImplementationType == typeof(MessageEncryptionMiddleware));
+            sd.ServiceType == typeof(MessageEncryptionMiddleware));
     }
 
     [Fact]
-    public void RegisterSigningMiddlewareAsIDispatchMiddleware()
+    public void RegisterSigningMiddlewareAsConcreteType()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -152,8 +151,7 @@ public sealed class SecurityMiddlewareExtensionsShould
 
         // Assert
         services.ShouldContain(sd =>
-            sd.ServiceType == typeof(IDispatchMiddleware) &&
-            sd.ImplementationType == typeof(MessageSigningMiddleware));
+            sd.ServiceType == typeof(MessageSigningMiddleware));
     }
 
     [Fact]

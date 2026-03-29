@@ -168,7 +168,7 @@ public sealed class CachingServiceCollectionExtensionsDepthShould
 	}
 
 	[Fact]
-	public void RegisterMiddleware_AsIDispatchMiddleware()
+	public void RegisterMiddleware_AsConcrete()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -177,8 +177,11 @@ public sealed class CachingServiceCollectionExtensionsDepthShould
 		// Act
 		services.AddDispatchCaching();
 
-		// Assert -- two middleware wrappers registered
-		var descriptors = services.Where(sd => sd.ServiceType == typeof(IDispatchMiddleware)).ToList();
+		// S717 T.2: middleware registered as concrete type only
+		// Assert -- CachingMiddleware and CacheInvalidationMiddleware registered as concrete types
+		var descriptors = services.Where(sd =>
+			sd.ServiceType == typeof(CachingMiddleware) ||
+			sd.ServiceType == typeof(CacheInvalidationMiddleware)).ToList();
 		descriptors.Count.ShouldBeGreaterThanOrEqualTo(2);
 	}
 

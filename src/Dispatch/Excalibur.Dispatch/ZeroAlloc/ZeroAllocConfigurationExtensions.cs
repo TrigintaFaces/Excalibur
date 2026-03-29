@@ -87,17 +87,4 @@ public static class ZeroAllocConfigurationExtensions
 		_ = services.Configure(configure);
 		return services;
 	}
-
-	/// <summary>
-	/// Adds zero-allocation middleware to the pipeline.
-	/// </summary>
-	/// <param name="builder"> The dispatch builder. </param>
-	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder AddZeroAllocMiddleware(this IDispatchBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		// Add any zero-alloc specific middleware here
-		return builder;
-	}
 }

@@ -41,11 +41,8 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Register Dispatch — this is the ONLY registration you need
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Register Dispatch — auto-discovers handlers from the entry assembly
+builder.Services.AddDispatch();
 
 var app = builder.Build();
 
@@ -119,8 +116,7 @@ dotnet add package Excalibur.Dispatch.Validation.FluentValidation
 ```csharp
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchValidation().WithFluentValidation();
+    dispatch.UseValidation().WithFluentValidation();
 });
 ```
 
@@ -135,8 +131,7 @@ dotnet add package Excalibur.Dispatch.Resilience.Polly
 ```csharp
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchResilience();
+    dispatch.UseResilience();
 });
 ```
 
@@ -149,7 +144,10 @@ dotnet add package Excalibur.Dispatch.Observability
 ```
 
 ```csharp
-builder.Services.AddDispatchObservability();
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseObservability();
+});
 ```
 
 ### Transport — when you need to send messages to a broker

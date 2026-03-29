@@ -426,7 +426,7 @@ For more details, see [Dead Letter Handling](../patterns/dead-letter.md).
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.MaxRetryAttempts = 5;
         options.EnableAlerting = true;

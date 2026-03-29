@@ -153,14 +153,14 @@ public sealed class ObservabilityServiceCollectionExtensionsShould : UnitTestBas
 
 	#endregion
 
-	#region AddContextObservability Tests
+	#region UseContextObservability Tests
 
 	[Fact]
-	public void AddContextObservability_ThrowsArgumentNullException_WhenBuilderIsNull()
+	public void UseContextObservability_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
 		Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder = null!;
 
-		Should.Throw<ArgumentNullException>(() => builder.AddContextObservability());
+		Should.Throw<ArgumentNullException>(() => builder.UseContextObservability());
 	}
 
 	#endregion

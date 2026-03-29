@@ -141,10 +141,7 @@ Register handlers and dispatch events:
 var builder = WebApplication.CreateBuilder(args);
 
 // All three handlers will be discovered automatically
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+builder.Services.AddDispatch();
 
 // Register dependencies
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -213,10 +210,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+builder.Services.AddDispatch();
 
 var app = builder.Build();
 
@@ -316,10 +310,20 @@ builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-    // Configure a named pipeline for events
+    // Add global middleware (applies to all pipelines)
+    dispatch.UseMiddleware<LoggingMiddleware>();
+
+    // Configure a named pipeline for actions and events
+    dispatch.ConfigurePipeline("Actions", pipeline =>
+    {
+        pipeline.ForMessageKinds(MessageKinds.Action)
+                .Use<ValidationMiddleware>()
+                .Use<AuthorizationMiddleware>();
+    });
+
     dispatch.ConfigurePipeline("Events", pipeline =>
     {
-        pipeline.ForMessageKinds(MessageKinds.All);
+        pipeline.ForMessageKinds(MessageKinds.Event);
     });
 });
 ```

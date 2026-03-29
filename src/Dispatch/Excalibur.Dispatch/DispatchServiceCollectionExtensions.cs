@@ -61,6 +61,9 @@ public static class DispatchServiceCollectionExtensions
 			(IProgressDispatcher)sp.GetRequiredService<IDispatcher>());
 		services.TryAddSingleton<IDirectLocalDispatcher>(static sp =>
 			(IDirectLocalDispatcher)sp.GetRequiredService<IDispatcher>());
+		// Legacy fallback: discovers middleware from DI via GetServices<IDispatchMiddleware>().
+		// When DispatchBuilder.Build() is called (the modern path), these TryAdd registrations
+		// are replaced via Services.Replace() with builder-materialized middleware.
 		services.TryAddSingleton<IDispatchPipeline>(sp => new DispatchPipeline(
 			sp.GetServices<IDispatchMiddleware>(),
 			sp.GetRequiredService<IMiddlewareApplicabilityStrategy>()));
@@ -184,6 +187,13 @@ public static class DispatchServiceCollectionExtensions
 		_ = services.AddDispatchPipeline();
 		_ = services.AddDispatchHandlers(assemblies);
 
+		// Guard: if a builder-based AddDispatch(configure) already called Build(),
+		// skip creating a new builder which would replace the configured middleware invoker.
+		if (services.Any(static d => d.ServiceType == typeof(DispatchBuilderSentinel)))
+		{
+			return services;
+		}
+
 		// Ensure default AddDispatch() gets optimized runtime materialization and
 		// stateless handler singleton promotion without requiring explicit builder usage.
 		using var builder = new DispatchBuilder(services);
@@ -230,11 +240,25 @@ public static class DispatchServiceCollectionExtensions
 		// This allows the builder pattern to work without explicitly calling AddHandlersFromAssembly
 		_ = services.AddDispatchHandlers();
 
+		// Mark that a builder-based configuration was applied, preventing subsequent
+		// parameterless AddDispatch() calls from overwriting the middleware invoker.
+		services.TryAddSingleton<DispatchBuilderSentinel>();
+
 		// Create builder and apply default performance promotion BEFORE configure,
 		// so consumers can opt out via configure action if desired.
 		using var builder = new DispatchBuilder(services);
 		EnableDefaultPerformancePromotion(builder);
 		configure?.Invoke(builder);
+
+		// Zero-config: auto-scan entry assembly for handlers if none were registered
+		if (!builder.HasHandlerRegistrations)
+		{
+			var entryAssembly = Assembly.GetEntryAssembly();
+			if (entryAssembly != null)
+			{
+				builder.AddHandlersFromAssembly(entryAssembly);
+			}
+		}
 
 		// Materialize pipelines — without this call, ConfigurePipeline() configurations are silently lost
 		_ = builder.Build();
@@ -294,12 +318,7 @@ public static class DispatchServiceCollectionExtensions
 	TMiddleware>(this IServiceCollection services)
 		where TMiddleware : class, IDispatchMiddleware
 	{
-		if (services.All(static d => d.ServiceType != typeof(IDispatchMiddleware) || d.ImplementationType != typeof(TMiddleware)))
-		{
-			_ = services.AddSingleton<TMiddleware>();
-			_ = services.AddSingleton<IDispatchMiddleware>(static sp => sp.GetRequiredService<TMiddleware>());
-		}
-
+		services.TryAddSingleton<TMiddleware>();
 		return services;
 	}
 
@@ -342,4 +361,10 @@ public static class DispatchServiceCollectionExtensions
 			}
 		}
 	}
+
+	/// <summary>
+	/// Internal marker to detect that a builder-based AddDispatch(configure) has been called.
+	/// Prevents subsequent parameterless AddDispatch() from overwriting the configured middleware invoker.
+	/// </summary>
+	internal sealed class DispatchBuilderSentinel;
 }

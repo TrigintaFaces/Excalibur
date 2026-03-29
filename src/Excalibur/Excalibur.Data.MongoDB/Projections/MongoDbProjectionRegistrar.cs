@@ -8,7 +8,7 @@ namespace Excalibur.Data.MongoDB.Projections;
 /// <summary>
 /// Registrar for adding multiple MongoDB projection stores that share
 /// a common connection string and database name. Used with
-/// <see cref="MongoDbProjectionStoreExtensions.AddMongoDbProjections"/>.
+/// <c>AddMongoDbProjections</c>.
 /// </summary>
 /// <remarks>
 /// Each projection type gets its own options instance, so per-projection
@@ -17,15 +17,14 @@ namespace Excalibur.Data.MongoDB.Projections;
 public sealed class MongoDbProjectionRegistrar
 {
 	private readonly IServiceCollection _services;
-	private readonly string _connectionString;
-	private readonly string _databaseName;
+	private readonly string? _connectionString;
+	private readonly string? _databaseName;
+	private readonly Action<MongoDbProjectionStoreOptions>? _configureShared;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="MongoDbProjectionRegistrar"/> class.
+	/// Initializes a new instance of the <see cref="MongoDbProjectionRegistrar"/> class
+	/// with explicit connection string and database name.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionString">The shared MongoDB connection string.</param>
-	/// <param name="databaseName">The shared MongoDB database name.</param>
 	internal MongoDbProjectionRegistrar(IServiceCollection services, string connectionString, string databaseName)
 	{
 		_services = services;
@@ -34,7 +33,17 @@ public sealed class MongoDbProjectionRegistrar
 	}
 
 	/// <summary>
-	/// Adds a projection store for the specified type using the shared connection string and database.
+	/// Initializes a new instance of the <see cref="MongoDbProjectionRegistrar"/> class
+	/// with a shared options configuration action.
+	/// </summary>
+	internal MongoDbProjectionRegistrar(IServiceCollection services, Action<MongoDbProjectionStoreOptions> configureShared)
+	{
+		_services = services;
+		_configureShared = configureShared;
+	}
+
+	/// <summary>
+	/// Adds a projection store for the specified type using the shared configuration.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>
 	/// <param name="configureOptions">Optional action to override per-projection options (e.g., collection name).</param>
@@ -45,8 +54,16 @@ public sealed class MongoDbProjectionRegistrar
 	{
 		_services.AddMongoDbProjectionStore<TProjection>(options =>
 		{
-			options.ConnectionString = _connectionString;
-			options.DatabaseName = _databaseName;
+			if (_configureShared != null)
+			{
+				_configureShared(options);
+			}
+			else
+			{
+				options.ConnectionString = _connectionString!;
+				options.DatabaseName = _databaseName!;
+			}
+
 			configureOptions?.Invoke(options);
 		});
 

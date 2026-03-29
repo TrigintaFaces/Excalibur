@@ -30,10 +30,8 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Zero-config: auto-discovers handlers from the entry assembly
+builder.Services.AddDispatch();
 
 var app = builder.Build();
 
@@ -93,11 +91,10 @@ Aggregates, event store, projections, and read models backed by SQL Server.
 
 **Packages:**
 ```bash
-dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Domain
-dotnet add package Excalibur.EventSourcing
-dotnet add package Excalibur.EventSourcing.SqlServer
+dotnet add package Excalibur.Dispatch.SqlServer
 ```
+
+One metapackage includes Dispatch + EventSourcing + SqlServer + Hosting.
 
 ```csharp title="Program.cs"
 using Excalibur.Dispatch.Abstractions;
@@ -110,20 +107,14 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("EventStore")
     ?? "Server=(localdb)\\MSSQLLocalDB;Database=MyApp;Trusted_Connection=true;";
 
-// Dispatch (messaging)
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Single call: registers Dispatch + SQL Server event sourcing + outbox
+builder.Services.AddDispatchWithSqlServer(connectionString);
 
-// Event Sourcing (aggregates + repository)
+// Register aggregate repository
 builder.Services.AddExcaliburEventSourcing(es =>
 {
     es.AddRepository<CounterAggregate, Guid>(id => new CounterAggregate(id));
 });
-
-// SQL Server persistence
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 var app = builder.Build();
 
@@ -235,15 +226,12 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Dispatch with middleware
+// Dispatch with middleware (auto-discovers handlers from entry assembly)
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchResilience(); // Retry + circuit breaker
+    dispatch.UseResilience(); // Retry + circuit breaker
+    dispatch.UseObservability(); // Tracing + metrics
 });
-
-// Observability (tracing + metrics)
-builder.Services.AddDispatchObservability();
 
 // OpenTelemetry (optional -- export to your collector)
 builder.Services.AddOpenTelemetry()
@@ -294,10 +282,7 @@ Full Command Query Responsibility Segregation: write via aggregates, read via pr
 
 **Packages:**
 ```bash
-dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Domain
-dotnet add package Excalibur.EventSourcing
-dotnet add package Excalibur.EventSourcing.SqlServer
+dotnet add package Excalibur.Dispatch.SqlServer
 ```
 
 ```csharp title="Program.cs"
@@ -311,10 +296,8 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("EventStore")
     ?? "Server=(localdb)\\MSSQLLocalDB;Database=CqrsApp;Trusted_Connection=true;";
 
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Single call: Dispatch + SQL Server event sourcing (auto-discovers handlers)
+builder.Services.AddDispatchWithSqlServer(connectionString);
 
 builder.Services.AddExcaliburEventSourcing(es =>
 {

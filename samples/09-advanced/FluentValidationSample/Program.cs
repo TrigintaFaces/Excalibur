@@ -45,7 +45,7 @@ services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.War
 services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-	_ = dispatch.AddDispatchValidation() // Register ValidationMiddleware
+	_ = dispatch.UseValidation() // Register ValidationMiddleware
 		.WithFluentValidation(); // Use FluentValidation as the validator resolver
 });
 
@@ -254,7 +254,7 @@ Console.WriteLine("  Sample Complete!");
 Console.WriteLine("=================================================");
 Console.WriteLine();
 Console.WriteLine("Key takeaways:");
-Console.WriteLine("- AddDispatchValidation() registers the validation middleware");
+Console.WriteLine("- UseValidation() registers the validation middleware");
 Console.WriteLine("- WithFluentValidation() enables FluentValidation as resolver");
 Console.WriteLine("- Validators run before handlers in the pipeline");
 Console.WriteLine("- Use When() for conditional validation");

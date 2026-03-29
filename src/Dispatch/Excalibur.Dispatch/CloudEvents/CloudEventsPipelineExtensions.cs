@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Options.CloudEvents;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Excalibur.Dispatch.CloudEvents;
 
@@ -60,7 +61,7 @@ public static class CloudEventsPipelineExtensions
 	/// <remarks>
 	/// <para>
 	/// This method registers a custom CloudEvent validator via
-	/// <see cref="CloudEventsServiceCollectionExtensions.AddCloudEventValidation"/>.
+	/// <see cref="CloudEventsServiceCollectionExtensions.UseCloudEventValidation"/>.
 	/// The validator is invoked for each incoming CloudEvent before handler execution.
 	/// </para>
 	/// </remarks>
@@ -71,7 +72,10 @@ public static class CloudEventsPipelineExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(validator);
 
-		return builder.AddCloudEventValidation(validator);
+		// Call the implementation directly
+		_ = builder.Services.Configure<CloudEventOptions>(options => options.Schema.CustomValidator = validator);
+
+		return builder;
 	}
 
 	/// <summary>
@@ -83,7 +87,7 @@ public static class CloudEventsPipelineExtensions
 	/// <remarks>
 	/// <para>
 	/// This method registers CloudEvent batching services via
-	/// <see cref="CloudEventsServiceCollectionExtensions.AddCloudEventBatching"/>.
+	/// <see cref="CloudEventsServiceCollectionExtensions.UseCloudEventBatching"/>.
 	/// Batching groups multiple CloudEvents together for efficient processing.
 	/// </para>
 	/// </remarks>
@@ -93,7 +97,13 @@ public static class CloudEventsPipelineExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		return builder.AddCloudEventBatching(configureBatch);
+		// Inline batch registration directly rather than delegating to service collection extension
+		var batchOptions = new CloudEventBatchOptions();
+		configureBatch?.Invoke(batchOptions);
+		builder.Services.TryAddSingleton(batchOptions);
+		builder.Services.TryAddTransient<ICloudEventBatchProcessor, DefaultCloudEventBatchProcessor>();
+
+		return builder;
 	}
 
 	/// <summary>
@@ -108,7 +118,7 @@ public static class CloudEventsPipelineExtensions
 	/// <remarks>
 	/// <para>
 	/// This method registers a custom CloudEvent transformer via
-	/// <see cref="CloudEventsServiceCollectionExtensions.AddCloudEventTransformation"/>.
+	/// <see cref="CloudEventsServiceCollectionExtensions.UseCloudEventTransformation"/>.
 	/// Transformers are applied to outgoing CloudEvents in the order they were registered.
 	/// </para>
 	/// </remarks>
@@ -119,6 +129,21 @@ public static class CloudEventsPipelineExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(transformer);
 
-		return builder.AddCloudEventTransformation(transformer);
+		// Inline transformation registration directly rather than delegating to service collection extension
+		_ = builder.Services.Configure<CloudEventOptions>(options =>
+		{
+			var existingTransformer = options.Schema.OutgoingTransformer;
+			options.Schema.OutgoingTransformer = async (ce, evt, ctx, ct) =>
+			{
+				if (existingTransformer != null)
+				{
+					await existingTransformer(ce, evt, ctx, ct).ConfigureAwait(false);
+				}
+
+				await transformer(ce, evt, ctx, ct).ConfigureAwait(false);
+			};
+		});
+
+		return builder;
 	}
 }

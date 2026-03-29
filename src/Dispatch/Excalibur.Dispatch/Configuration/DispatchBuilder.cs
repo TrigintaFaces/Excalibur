@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
+using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Transport;
@@ -37,6 +38,11 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 	private readonly TransportBindingRegistry _bindingRegistry;
 	private volatile bool _disposed;
 
+	/// <summary>
+	/// Gets a value indicating whether any handler registrations have been made via
+	/// <c>AddHandlersFromAssembly</c>.
+	/// </summary>
+	internal bool HasHandlerRegistrations { get; set; }
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DispatchBuilder"/> class.
@@ -91,7 +97,6 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 	{
 		_globalMiddleware.Add(typeof(TMiddleware));
 		_ = Services.AddScoped(typeof(TMiddleware));
-		_ = Services.AddScoped(typeof(IDispatchMiddleware), typeof(TMiddleware));
 		return this;
 	}
 
@@ -157,15 +162,27 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		foreach (var middlewareType in _globalMiddleware)
 		{
 			_ = Services.AddScoped(middlewareType);
-			_ = Services.AddScoped(typeof(IDispatchMiddleware), middlewareType);
 		}
 
 		// Register runtime state that materializes pipelines using the caller's provider scope
 		_ = Services.AddSingleton(BuildRuntimeState);
 
-		// Ensure the configured dispatch pipeline is the one used by the dispatcher
-		_ = Services.Replace(ServiceDescriptor.Singleton(sp =>
+		// Ensure the configured dispatch pipeline and middleware invoker use
+		// the builder-materialized middleware, not the empty DI fallback.
+		_ = Services.Replace(ServiceDescriptor.Singleton<IDispatchPipeline>(sp =>
 			sp.GetRequiredService<DispatchRuntimeState>().DefaultPipeline.Pipeline));
+
+		// Resolve the same global middleware for the invoker path used by CoreDispatcher.
+		var capturedMiddlewareTypes = _globalMiddleware.ToArray();
+		_ = Services.Replace(ServiceDescriptor.Singleton<IDispatchMiddlewareInvoker>(sp =>
+		{
+			var middleware = capturedMiddlewareTypes
+				.Select(type => (IDispatchMiddleware)sp.GetRequiredService(type))
+				.ToArray();
+			return new DispatchMiddlewareInvoker(
+				middleware,
+				sp.GetRequiredService<IMiddlewareApplicabilityStrategy>());
+		}));
 
 		var dispatcherHolder = new DispatcherHolder();
 		_ = Services.AddSingleton(dispatcherHolder);

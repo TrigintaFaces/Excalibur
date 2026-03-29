@@ -28,7 +28,7 @@ public static class ExceptionMappingDispatchBuilderExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.ConfigureExceptionMapping(mapping =>
+	///     dispatch.WithExceptionMapping(mapping =>
 	///     {
 	///         mapping.UseApiExceptionMapping();
 	///         mapping.Map&lt;DbException&gt;(ex => new MessageProblemDetails { ... });
@@ -44,7 +44,7 @@ public static class ExceptionMappingDispatchBuilderExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
-	public static IDispatchBuilder ConfigureExceptionMapping(
+	public static IDispatchBuilder WithExceptionMapping(
 		this IDispatchBuilder builder,
 		Action<IExceptionMappingBuilder> configure)
 	{

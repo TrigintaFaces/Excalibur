@@ -29,9 +29,6 @@ public static class ObservabilityHostApplicationBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		// Add Excalibur metrics services (IMetrics implementation)
-		_ = builder.Services.AddExcaliburMetrics();
-
 		_ = builder.Services.AddOpenTelemetry().WithMetrics(meterOptions =>
 		{
 			_ = meterOptions.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(ApplicationContext.ApplicationSystemName));

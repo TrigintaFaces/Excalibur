@@ -302,7 +302,6 @@ public sealed class PackageDiSmokeTests
 		// ══════════════════════════════════════════════════════════
 
 		yield return Reg("Excalibur.Domain [BoundedContext]", s => s.AddBoundedContextEnforcement());
-		yield return Reg("Excalibur.Domain [Metrics]", s => s.AddExcaliburMetrics());
 		yield return Reg("Excalibur.Data", s => s.AddExcaliburDataServices());
 		yield return Reg("Excalibur.Data [Persistence]", s => s.AddPersistence());
 		yield return Reg("Excalibur.Data.InMemory [SnapshotStore]", s => s.AddInMemorySnapshotStore());

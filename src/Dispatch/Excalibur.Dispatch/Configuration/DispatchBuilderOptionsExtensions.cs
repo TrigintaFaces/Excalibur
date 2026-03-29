@@ -85,7 +85,7 @@ public static class DispatchBuilderOptionsExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configure"> Optional additional inbox configuration. </param>
 	/// <returns> The builder for fluent configuration. </returns>
-	public static IDispatchBuilder EnableInboxMode(this IDispatchBuilder builder, Action<InboxConfigurationOptions>? configure = null)
+	public static IDispatchBuilder WithInboxMode(this IDispatchBuilder builder, Action<InboxConfigurationOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
@@ -103,7 +103,7 @@ public static class DispatchBuilderOptionsExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configure"> Optional additional consumer configuration. </param>
 	/// <returns> The builder for fluent configuration. </returns>
-	public static IDispatchBuilder EnableLightMode(this IDispatchBuilder builder, Action<ConsumerOptions>? configure = null)
+	public static IDispatchBuilder WithLightMode(this IDispatchBuilder builder, Action<ConsumerOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 

@@ -36,7 +36,7 @@ services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
 services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-	_ = dispatch.AddDispatchValidation();
+	_ = dispatch.UseValidation();
 });
 
 var provider = services.BuildServiceProvider();

@@ -237,11 +237,8 @@ using OrderSystem.Messages;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Register Dispatch — discovers all handlers in this assembly
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Register Dispatch — auto-discovers all handlers in the entry assembly
+builder.Services.AddDispatch();
 
 // Register the in-memory store as a singleton
 builder.Services.AddSingleton<OrderStore>();
@@ -333,8 +330,7 @@ You should see event handler output in the console:
 
 ## What's Happening Under the Hood
 
-1. **`AddDispatch()`** registers the dispatcher, message context factory, and pipeline infrastructure.
-2. **`AddHandlersFromAssembly()`** scans the assembly for all `IActionHandler<T>`, `IActionHandler<T, TResult>`, and `IEventHandler<T>` implementations and registers them with DI.
+1. **`AddDispatch()`** registers the dispatcher, message context factory, pipeline infrastructure, and auto-discovers all `IActionHandler<T>`, `IActionHandler<T, TResult>`, and `IEventHandler<T>` implementations from the entry assembly.
 3. **`DispatchAsync()`** routes the message to the correct handler through the pipeline. Commands go to a single handler; events fan out to all registered handlers.
 4. **Result extensions** (`.ToApiResult()`, `.Match()`, `.ToNoContentResult()`) convert `IMessageResult` to HTTP responses using railway-oriented programming — success flows forward, failures automatically produce RFC 7807 Problem Details.
 5. **Event dispatch from handlers** — handlers can inject `IDispatcher` and dispatch events, enabling decoupled domain event workflows.

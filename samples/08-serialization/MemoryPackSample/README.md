@@ -157,11 +157,11 @@ All serialization code is source-generated at compile time - no runtime reflecti
 MemoryPack can be registered as the binary serializer for outbox/inbox persistence:
 
 ```csharp
-// Register Dispatch with JSON serializer for messaging
+// Configure Dispatch with JSON serialization for messaging
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+    dispatch.WithSerialization(config => config.UseSystemTextJson());
 });
 
 // Register MemoryPack as the ISerializer for binary serialization (Outbox/Inbox)

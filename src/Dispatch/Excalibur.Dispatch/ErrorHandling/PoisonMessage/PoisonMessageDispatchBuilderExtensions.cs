@@ -23,7 +23,7 @@ public static class PoisonMessageDispatchBuilderExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configureOptions"> Action to configure poison message options. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder AddPoisonMessageHandling(
+	public static IDispatchBuilder UsePoisonMessageHandling(
 		this IDispatchBuilder builder,
 		Action<PoisonMessageOptions>? configureOptions = null)
 	{
@@ -42,7 +42,7 @@ public static class PoisonMessageDispatchBuilderExtensions
 	/// <returns> The dispatch builder for chaining. </returns>
 	[RequiresUnreferencedCode("Uses reflection which may break with AOT compilation")]
 	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
-	public static IDispatchBuilder AddPoisonMessageHandling(
+	public static IDispatchBuilder UsePoisonMessageHandling(
 		this IDispatchBuilder builder,
 		IConfiguration configuration)
 	{
@@ -76,7 +76,7 @@ public static class PoisonMessageDispatchBuilderExtensions
 	/// <typeparam name="TDetector"> The type of the detector to add. </typeparam>
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder AddPoisonDetector<
+	public static IDispatchBuilder UsePoisonDetector<
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TDetector>(this IDispatchBuilder builder)
 		where TDetector : class, IPoisonMessageDetector

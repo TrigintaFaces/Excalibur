@@ -284,7 +284,7 @@ Events are serialized using the configured serializer. Register serialization vi
 services.AddExcaliburEventSourcing();
 
 // Default: MemoryPack for internal serialization
-services.AddMemoryPackInternalSerialization();
+// MemoryPack is auto-registered by AddDispatch(). For alternatives:
 
 // Or MessagePack for cross-language support
 services.AddMessagePackSerialization();

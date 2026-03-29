@@ -47,8 +47,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsShould
         services.AddInputValidation(config);
 
         // Assert
-        services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware) &&
-            sd.ImplementationType == typeof(InputValidationMiddleware));
+        services.ShouldContain(sd => sd.ServiceType == typeof(InputValidationMiddleware));
         // No default validators registered -- IInputValidator is a consumer extension point
     }
 

@@ -53,36 +53,35 @@ Multiple storage backends are available:
 
 ## Projection Patterns Demonstrated
 
-### 1. Inline Projections
+### 1. Inline Projections (Builder API)
 
-Synchronous updates that process events immediately:
+Synchronous updates using the `AddProjection<T>().Inline()` builder API:
 
 ```csharp
-public class ProductCatalogProjectionHandler
+services.AddExcaliburEventSourcing(builder =>
 {
-    private readonly IProjectionStore<ProductCatalogProjection> _store;
-
-    public async Task HandleAsync(ProductCreated @event, CancellationToken ct)
-    {
-        var projection = new ProductCatalogProjection
+    builder.AddProjection<ProductCatalogProjection>(p => p
+        .Inline()
+        .When<ProductCreated>((proj, e) =>
         {
-            Id = @event.ProductId.ToString(),
-            Name = @event.Name,
-            Price = @event.Price,
-            // ... other properties
-        };
-        await _store.UpsertAsync(projection.Id, projection, ct);
-    }
-}
+            proj.Id = e.ProductId.ToString();
+            proj.Name = e.Name;
+            proj.Price = e.Price;
+        })
+        .When<ProductPriceChanged>((proj, e) =>
+        {
+            proj.Price = e.NewPrice;
+        }));
+});
 ```
 
 **Pros:**
-- Strong consistency between write and read models
-- Simple to implement and reason about
+- Strong consistency -- read model is up-to-date before `SaveAsync()` returns
+- Declarative -- no handler classes needed
 
 **Cons:**
 - Couples read and write performance
-- Single point of failure
+- Projection failures need `IProjectionRecovery` (events are already committed)
 
 ### 2. Multi-Stream Projections
 

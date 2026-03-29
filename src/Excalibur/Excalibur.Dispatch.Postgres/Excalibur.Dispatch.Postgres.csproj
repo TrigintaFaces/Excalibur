@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Postgres</PackageId>
+    <Description>Experience metapackage bundling Excalibur.Dispatch with PostgreSQL event sourcing, outbox, and web hosting. Provides a single AddDispatchWithPostgres() call for the common PostgreSQL scenario.</Description>
+    <PackageTags>excalibur;dispatch;postgres;postgresql;event-sourcing;outbox;metapackage</PackageTags>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <!-- AOT Configuration -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
+    <ProjectReference Include="..\Excalibur.Outbox.Postgres\Excalibur.Outbox.Postgres.csproj" />
+    <ProjectReference Include="..\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.EventSourcing.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Outbox.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Hosting.Web" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

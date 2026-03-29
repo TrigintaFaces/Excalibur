@@ -115,11 +115,8 @@ dotnet add package Excalibur.Dispatch
 ```
 
 ```csharp
-// Program.cs
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Program.cs — auto-discovers handlers from the entry assembly
+services.AddDispatch();
 ```
 
 ```csharp
@@ -259,8 +256,8 @@ services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-    dispatch.AddObservability();
-    dispatch.AddResilience(res => res.DefaultRetryCount = 3);
+    dispatch.UseObservability();
+    dispatch.UseResilience(res => res.DefaultRetryCount = 3);
 });
 
 services.AddExcalibur(excalibur =>

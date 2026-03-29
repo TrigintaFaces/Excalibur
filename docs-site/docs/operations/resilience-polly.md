@@ -32,7 +32,7 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
     // Add Polly resilience to the dispatch pipeline
-    dispatch.AddDispatchResilience();
+    dispatch.UseResilience();
 });
 ```
 
@@ -44,10 +44,10 @@ services.AddDispatch(dispatch =>
 using Microsoft.Extensions.DependencyInjection;
 
 // Basic — adds all resilience services
-dispatch.AddDispatchResilience();
+dispatch.UseResilience();
 
 // With options
-dispatch.AddDispatchResilience(options =>
+dispatch.UseResilience(options =>
 {
     options.Enabled = true;
     options.EnableCircuitBreaker = true;

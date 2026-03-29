@@ -47,7 +47,7 @@ var host = Host.CreateDefaultBuilder(args)
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-			_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+			_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 		});
 
 		// Add AWS Secrets Manager credential store

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Options.Configuration;
 /// <para>
 /// This is a lightweight configuration-binding class for <c>appsettings.json</c> scenarios.
 /// For full caching configuration including memory/distributed modes, use
-/// <c>AddCaching()</c> on <c>IDispatchBuilder</c>.
+/// <c>UseCaching()</c> on <c>IDispatchBuilder</c>.
 /// </para>
 /// </remarks>
 public sealed class CachingOptions

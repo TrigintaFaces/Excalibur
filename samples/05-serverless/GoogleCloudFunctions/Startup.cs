@@ -35,8 +35,8 @@ public class Startup : FunctionsStartup
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(Startup).Assembly);
 
-			// Register JSON serializer for message payloads
-			_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+			// Configure JSON serialization
+			_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 		});
 
 		// Configure Google Cloud Functions Serverless hosting

@@ -88,17 +88,32 @@ builder.Services.AddAsymmetricSigning(opt =>
 
 ### Full Security Registration
 
-Use `AddDispatchSecurity()` to register signing alongside encryption, rate limiting, and authentication:
+Use `UseSecurity()` on the dispatch builder to register signing alongside encryption, rate limiting, and authentication:
 
 ```csharp
-builder.Services.AddDispatchSecurity(security =>
+builder.Services.AddDispatch(dispatch =>
 {
-    security.Signing.EnableSigning = true;
-    security.Signing.SigningAlgorithm = SigningAlgorithm.ECDSASHA256;
-
-    security.Encryption.EnableEncryption = true;
-    security.Authentication.EnableAuthentication = true;
+    dispatch.UseSecurity(builder.Configuration);
 });
+```
+
+Security options are configured via `IConfiguration` (e.g., `appsettings.json`):
+
+```json
+{
+  "Security": {
+    "Signing": {
+      "EnableSigning": true,
+      "SigningAlgorithm": "ECDSASHA256"
+    },
+    "Encryption": {
+      "EnableEncryption": true
+    },
+    "Authentication": {
+      "EnableAuthentication": true
+    }
+  }
+}
 ```
 
 ## Key Provider

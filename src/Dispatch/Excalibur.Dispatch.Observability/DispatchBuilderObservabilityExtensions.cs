@@ -33,11 +33,11 @@ public static class DispatchBuilderObservabilityExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.AddObservability(obs => obs.Enabled = true);
+	///     dispatch.UseObservability(obs => obs.Enabled = true);
 	/// });
 	/// </code>
 	/// </example>
-	public static IDispatchBuilder AddObservability(
+	public static IDispatchBuilder UseObservability(
 		this IDispatchBuilder builder,
 		Action<ContextObservabilityOptions>? configure = null)
 	{
@@ -60,13 +60,13 @@ public static class DispatchBuilderObservabilityExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.AddObservability(configuration);
+	///     dispatch.UseObservability(configuration);
 	/// });
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types")]
 	[RequiresDynamicCode("Configuration binding may require dynamic code generation")]
-	public static IDispatchBuilder AddObservability(
+	public static IDispatchBuilder UseObservability(
 		this IDispatchBuilder builder,
 		IConfiguration configuration)
 	{

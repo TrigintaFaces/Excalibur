@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Validation;
 
-using ValidationMiddleware = Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -52,9 +51,8 @@ public static class ValidationServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.AddSingleton<IDispatchMiddleware, ValidationMiddleware>();
-		_ = services.AddSingleton<IValidatorResolver, NoOpValidatorResolver>();
-		_ = services.AddSingleton<IValidationService, NoOpValidationService>();
+		services.TryAddSingleton<IValidatorResolver, NoOpValidatorResolver>();
+		services.TryAddSingleton<IValidationService, NoOpValidationService>();
 
 		return services;
 	}

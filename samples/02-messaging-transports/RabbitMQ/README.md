@@ -69,7 +69,7 @@ Messages are routed to RabbitMQ using the `UseRouting` fluent API:
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+    dispatch.WithSerialization(config => config.UseSystemTextJson());
     dispatch.UseRouting(routing =>
         routing.Transport.Route<OrderPlacedEvent>().To("rabbitmq"));
 });

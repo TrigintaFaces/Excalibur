@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 public sealed class CachingDispatchBuilderExtensionsShould : UnitTestBase
 {
 	[Fact]
-	public void AddDispatchCaching_RegistersServices()
+	public void UseCaching_RegistersServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -26,7 +26,7 @@ public sealed class CachingDispatchBuilderExtensionsShould : UnitTestBase
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		var result = builder.AddDispatchCaching();
+		var result = builder.UseCaching();
 
 		// Assert
 		result.ShouldBe(builder);
@@ -34,7 +34,7 @@ public sealed class CachingDispatchBuilderExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddCaching_WithNullConfigure_RegistersDefaultCaching()
+	public void UseCaching_WithNullConfigure_RegistersDefaultCaching()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -42,7 +42,7 @@ public sealed class CachingDispatchBuilderExtensionsShould : UnitTestBase
 		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		var result = builder.AddCaching(configure: null);
+		var result = builder.UseCaching(configure: null);
 
 		// Assert
 		result.ShouldBe(builder);
@@ -50,7 +50,7 @@ public sealed class CachingDispatchBuilderExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddCaching_WithConfigureDelegate_RegistersWithConfiguration()
+	public void UseCaching_WithConfigureDelegate_RegistersWithConfiguration()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -59,7 +59,7 @@ public sealed class CachingDispatchBuilderExtensionsShould : UnitTestBase
 		var configureCalled = false;
 
 		// Act
-		var result = builder.AddCaching(options =>
+		var result = builder.UseCaching(options =>
 		{
 			configureCalled = true;
 			options.Enabled = true;

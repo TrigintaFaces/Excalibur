@@ -27,7 +27,7 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddSecurity(configuration);
+    dispatch.UseSecurity(configuration);
 });
 
 // Or standalone encryption registration
@@ -128,7 +128,7 @@ services.AddAzureKeyVaultKeyManagement(
 // Via the Dispatch builder (recommended)
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddSecurity(configuration);
+    dispatch.UseSecurity(configuration);
 });
 
 // Or standalone Azure security setup

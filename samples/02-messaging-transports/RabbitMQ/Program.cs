@@ -51,8 +51,8 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer for message payloads
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Configure JSON serialization
+	_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 
 	// Route OrderPlacedEvent to RabbitMQ transport
 	_ = dispatch.UseRouting(routing =>

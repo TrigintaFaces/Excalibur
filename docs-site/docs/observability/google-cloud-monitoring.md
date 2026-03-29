@@ -1,4 +1,4 @@
-﻿---
+---
 sidebar_position: 6
 title: Google Cloud Monitoring Integration
 description: Monitor Dispatch applications with Google Cloud Monitoring
@@ -38,19 +38,24 @@ dotnet add package Google.Cloud.Monitoring.V3
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-builder.Services.AddDispatchObservability(options =>
+builder.Services.AddDispatch(dispatch =>
 {
-    options.Enabled = true;
-    options.ServiceName = "my-dispatch-service";
-    options.ServiceVersion = "1.0.0";
+    dispatch.UseObservability(options =>
+    {
+        options.Enabled = true;
+        options.ServiceName = "my-dispatch-service";
+        options.ServiceVersion = "1.0.0";
+    });
 });
 ```
 
 ### From Configuration
 
 ```csharp
-builder.Services.AddDispatchObservability(
-    builder.Configuration.GetSection("Dispatch:Observability"));
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseObservability(builder.Configuration);
+});
 ```
 
 ```json
@@ -187,7 +192,7 @@ public class Function : ICloudEventFunction<MessagePublishedData>
         services.AddDispatch(dispatch =>
         {
             dispatch.AddHandlersFromAssembly(typeof(Function).Assembly);
-            dispatch.AddObservability(obs => obs.ServiceName = "order-processor");
+            dispatch.UseObservability(obs => obs.ServiceName = "order-processor");
         });
 
         services.AddGoogleCloudFunctionsServerless();

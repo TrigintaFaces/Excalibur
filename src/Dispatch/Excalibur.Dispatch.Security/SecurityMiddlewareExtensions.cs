@@ -164,8 +164,8 @@ public static class SecurityMiddlewareExtensions
 		// Register encryption service
 		services.TryAddSingleton<IMessageEncryptionService, DataProtectionMessageEncryptionService>();
 
-		// Register middleware
-		services.TryAddTransient<IDispatchMiddleware, MessageEncryptionMiddleware>();
+		// Register middleware concrete type for pipeline resolution
+		services.TryAddTransient<MessageEncryptionMiddleware>();
 
 		return services;
 	}
@@ -222,7 +222,7 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddSingleton<IMessageSigningService, HmacMessageSigningService>();
 
 		// Register middleware
-		services.TryAddTransient<IDispatchMiddleware, MessageSigningMiddleware>();
+		services.TryAddTransient<MessageSigningMiddleware>();
 
 		return services;
 	}
@@ -272,7 +272,7 @@ public static class SecurityMiddlewareExtensions
 		services.AddSingleton<IMessageSigningService, CompositeMessageSigningService>();
 
 		// Register middleware (same as AddMessageSigning)
-		services.TryAddTransient<IDispatchMiddleware, MessageSigningMiddleware>();
+		services.TryAddTransient<MessageSigningMiddleware>();
 
 		return services;
 	}
@@ -323,7 +323,6 @@ public static class SecurityMiddlewareExtensions
 
 		// Register middleware as singleton for shared rate limiters
 		services.TryAddSingleton<RateLimitingMiddleware>();
-		services.TryAddTransient<IDispatchMiddleware>(static sp => sp.GetRequiredService<RateLimitingMiddleware>());
 
 		return services;
 	}
@@ -376,7 +375,7 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<JwtAuthenticationOptions>, JwtAuthenticationOptionsValidator>());
 
 		// Register middleware
-		services.TryAddTransient<IDispatchMiddleware, JwtAuthenticationMiddleware>();
+		services.TryAddTransient<JwtAuthenticationMiddleware>();
 
 		return services;
 	}

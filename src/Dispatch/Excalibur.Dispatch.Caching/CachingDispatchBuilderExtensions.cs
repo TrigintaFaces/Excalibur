@@ -18,20 +18,6 @@ namespace Excalibur.Dispatch.Caching;
 public static class CachingDispatchBuilderExtensions
 {
 	/// <summary>
-	/// Adds caching middleware to the builder's service collection.
-	/// </summary>
-	/// <param name="builder"> The <see cref="IDispatchBuilder" /> to configure. </param>
-	/// <returns> The configured <see cref="IDispatchBuilder" />. </returns>
-	public static IDispatchBuilder AddDispatchCaching(this IDispatchBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		_ = builder.Services.AddDispatchCaching();
-
-		return builder;
-	}
-
-	/// <summary>
 	/// Adds Dispatch caching (memory, distributed, hybrid) via the builder.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>
@@ -44,11 +30,11 @@ public static class CachingDispatchBuilderExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.AddCaching();
+	///     dispatch.UseCaching();
 	/// });
 	/// </code>
 	/// </example>
-	public static IDispatchBuilder AddCaching(
+	public static IDispatchBuilder UseCaching(
 		this IDispatchBuilder builder,
 		Action<CacheOptions>? configure = null)
 	{

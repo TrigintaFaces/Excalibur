@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Abstractions.Configuration;
 /// <para>
 /// Example usage:
 /// <code>
-/// builder.ConfigureExceptionMapping(mapping =>
+/// builder.WithExceptionMapping(mapping =>
 /// {
 ///     mapping.UseApiExceptionMapping();     // Auto-map ApiException hierarchy
 ///     mapping.Map&lt;DbException&gt;(ex => new MessageProblemDetails { ... });

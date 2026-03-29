@@ -33,6 +33,26 @@ namespace Excalibur.Dispatch.Serialization.Avro;
 [RequiresDynamicCode("Avro serialization may require dynamic code generation for type-specific handling.")]
 public sealed class AvroSerializer : ISerializer
 {
+	private readonly int _bufferSize;
+
+	/// <summary>
+	/// Initializes a new instance with default options.
+	/// </summary>
+	public AvroSerializer()
+		: this(new AvroSerializationOptions())
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance with the specified options.
+	/// </summary>
+	/// <param name="options">The Avro serialization options.</param>
+	internal AvroSerializer(AvroSerializationOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+		_bufferSize = options.BufferSize;
+	}
+
 	/// <inheritdoc />
 	public string Name => "Avro";
 
@@ -57,7 +77,7 @@ public sealed class AvroSerializer : ISerializer
 
 		try
 		{
-			using var stream = new MemoryStream();
+			using var stream = new MemoryStream(_bufferSize);
 			var writer = new SpecificDatumWriter<ISpecificRecord>(record.Schema);
 			var encoder = new BinaryEncoder(stream);
 			writer.Write(record, encoder);
@@ -118,7 +138,7 @@ public sealed class AvroSerializer : ISerializer
 
 		try
 		{
-			using var stream = new MemoryStream();
+			using var stream = new MemoryStream(_bufferSize);
 			var writer = new SpecificDatumWriter<ISpecificRecord>(record.Schema);
 			var encoder = new BinaryEncoder(stream);
 			writer.Write(record, encoder);

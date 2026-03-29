@@ -11,6 +11,7 @@ using System.Text;
 using Excalibur.Dispatch.Abstractions.Serialization;
 
 using Google.Protobuf;
+using Google.Protobuf.Reflection;
 
 namespace Excalibur.Dispatch.Serialization.Protobuf;
 
@@ -40,6 +41,26 @@ public sealed class ProtobufSerializer : ISerializer
 	private static readonly CompositeFormat NoParserFoundFormat =
 		CompositeFormat.Parse("No static Parser property found on Protobuf type '{0}'.");
 
+	private readonly ProtobufWireFormat _wireFormat;
+
+	/// <summary>
+	/// Initializes a new instance with default options.
+	/// </summary>
+	public ProtobufSerializer()
+		: this(new ProtobufSerializationOptions())
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance with the specified options.
+	/// </summary>
+	/// <param name="options">The Protobuf serialization options.</param>
+	internal ProtobufSerializer(ProtobufSerializationOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+		_wireFormat = options.WireFormat;
+	}
+
 	/// <inheritdoc />
 	public string Name => "Protobuf";
 
@@ -48,7 +69,9 @@ public sealed class ProtobufSerializer : ISerializer
 		.GetName().Version?.ToString() ?? "Unknown";
 
 	/// <inheritdoc />
-	public string ContentType => "application/x-protobuf";
+	public string ContentType => _wireFormat == ProtobufWireFormat.Json
+		? "application/json"
+		: "application/x-protobuf";
 
 	/// <inheritdoc />
 	public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
@@ -62,10 +85,21 @@ public sealed class ProtobufSerializer : ISerializer
 				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, typeof(T).Name));
 		}
 
-		var bytes = protoMessage.ToByteArray();
-		var span = bufferWriter.GetSpan(bytes.Length);
-		bytes.CopyTo(span);
-		bufferWriter.Advance(bytes.Length);
+		if (_wireFormat == ProtobufWireFormat.Json)
+		{
+			var json = JsonFormatter.Default.Format(protoMessage);
+			var bytes = Encoding.UTF8.GetBytes(json);
+			var span = bufferWriter.GetSpan(bytes.Length);
+			bytes.CopyTo(span);
+			bufferWriter.Advance(bytes.Length);
+		}
+		else
+		{
+			var bytes = protoMessage.ToByteArray();
+			var span = bufferWriter.GetSpan(bytes.Length);
+			bytes.CopyTo(span);
+			bufferWriter.Advance(bytes.Length);
+		}
 	}
 
 	/// <inheritdoc cref="ISerializer.Deserialize{T}"/>
@@ -79,6 +113,11 @@ public sealed class ProtobufSerializer : ISerializer
 
 		try
 		{
+			if (_wireFormat == ProtobufWireFormat.Json)
+			{
+				return DeserializeJson<T>(data);
+			}
+
 			return DeserializeBinary<T>(data.ToArray());
 		}
 		catch (SerializationException)
@@ -103,6 +142,12 @@ public sealed class ProtobufSerializer : ISerializer
 				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, type.Name));
 		}
 
+		if (_wireFormat == ProtobufWireFormat.Json)
+		{
+			var json = JsonFormatter.Default.Format(protoMessage);
+			return Encoding.UTF8.GetBytes(json);
+		}
+
 		return protoMessage.ToByteArray();
 	}
 
@@ -117,6 +162,13 @@ public sealed class ProtobufSerializer : ISerializer
 				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, type.Name));
 		}
 
+		if (_wireFormat == ProtobufWireFormat.Json)
+		{
+			var json = Encoding.UTF8.GetString(data);
+			var descriptor = GetDescriptor(type);
+			return JsonParser.Default.Parse(json, descriptor);
+		}
+
 		var parser = GetParser(type);
 		return parser.ParseFrom(data.ToArray());
 	}
@@ -128,12 +180,30 @@ public sealed class ProtobufSerializer : ISerializer
 		return (T)result;
 	}
 
+	private static T DeserializeJson<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(ReadOnlySpan<byte> data)
+	{
+		var json = Encoding.UTF8.GetString(data);
+		var descriptor = GetDescriptor(typeof(T));
+		var result = JsonParser.Default.Parse(json, descriptor);
+		return (T)(object)result;
+	}
+
 	private static MessageParser GetParser(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type messageType)
 	{
 		var parserProperty = messageType.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static);
 
 		return parserProperty?.GetValue(null) as MessageParser
+			?? throw new InvalidOperationException(
+				string.Format(CultureInfo.InvariantCulture, NoParserFoundFormat, messageType.Name));
+	}
+
+	private static MessageDescriptor GetDescriptor(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type messageType)
+	{
+		var descriptorProperty = messageType.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static);
+
+		return descriptorProperty?.GetValue(null) as MessageDescriptor
 			?? throw new InvalidOperationException(
 				string.Format(CultureInfo.InvariantCulture, NoParserFoundFormat, messageType.Name));
 	}

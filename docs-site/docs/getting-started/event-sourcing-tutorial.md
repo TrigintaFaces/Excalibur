@@ -25,10 +25,10 @@ This tutorial extends the [Order System Tutorial](./order-system-tutorial.md) wi
 
 ```bash
 cd OrderSystem
-dotnet add package Excalibur.Domain
-dotnet add package Excalibur.EventSourcing
-dotnet add package Excalibur.EventSourcing.SqlServer
+dotnet add package Excalibur.Dispatch.SqlServer
 ```
+
+One metapackage bundles Dispatch + Domain + EventSourcing + SqlServer.
 
 ## Step 2: Define Domain Events
 
@@ -295,7 +295,11 @@ public class GetCustomerOrdersHandler(
 
 ## Step 7: Build the Projection from Events
 
-An event handler listens to domain events and updates the read model. This is the "projection" — it projects events into a queryable shape.
+An event handler listens to domain events and updates the read model. This is the "projection" -- it projects events into a queryable shape.
+
+:::tip Inline projections for immediate consistency
+This tutorial uses `IEventHandler<T>` for projections, which processes events through the Dispatch pipeline (eventually consistent). For **immediate read-after-write consistency**, use the `AddProjection<T>().Inline()` builder API instead -- see [Inline Projections](../event-sourcing/projections.md#inline-projections-projection-builder-api) and the [CQRS Program.cs template](./program-cs-templates.md#cqrs-with-event-sourcing-and-projections) for a complete example.
+:::
 
 ```csharp title="Projections/OrderSummaryProjection.cs"
 using Excalibur.Dispatch.Abstractions.Delivery;
@@ -373,20 +377,14 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("OrderDb")
     ?? "Server=(localdb)\\MSSQLLocalDB;Database=OrderSystem;Trusted_Connection=true;";
 
-// Register Dispatch (messaging)
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Single call: Dispatch + SQL Server event sourcing (auto-discovers handlers)
+builder.Services.AddDispatchWithSqlServer(connectionString);
 
-// Register Event Sourcing (aggregates + event store + projections)
+// Register aggregate repository + projections
 builder.Services.AddExcaliburEventSourcing(es =>
 {
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 });
-
-// Register SQL Server persistence
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 builder.Services.AddSqlServerProjectionStore<OrderSummary>(opts => opts.ConnectionString = connectionString);
 
 var app = builder.Build();

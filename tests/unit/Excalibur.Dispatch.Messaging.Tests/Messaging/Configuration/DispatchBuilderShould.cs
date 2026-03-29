@@ -177,10 +177,8 @@ public sealed class DispatchBuilderShould : IDisposable
 		// Act
 		_sut.UseMiddleware<TestMiddleware>();
 
-		// Assert
+		// Assert -- UseMiddleware<T>() registers only the concrete type (S717 T.2 eliminated dual IDispatchMiddleware registration)
 		_services.Any(s => s.ServiceType == typeof(TestMiddleware)).ShouldBeTrue();
-		_services.Any(s => s.ServiceType == typeof(IDispatchMiddleware) &&
-						   s.ImplementationType == typeof(TestMiddleware)).ShouldBeTrue();
 	}
 
 	[Fact]

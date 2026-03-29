@@ -89,12 +89,8 @@ Configure Excalibur.Dispatch in your `Program.cs`:
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Register Dispatch with fluent configuration (recommended)
-builder.Services.AddDispatch(dispatch =>
-{
-    // Automatically discover and register handlers from your assembly
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Register Dispatch — auto-discovers handlers from the entry assembly
+builder.Services.AddDispatch();
 
 // Register your dependencies
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
@@ -163,10 +159,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+builder.Services.AddDispatch();
 
 var app = builder.Build();
 
@@ -321,12 +314,11 @@ builder.Services.AddExcalibur(excalibur =>
 Need custom messaging configuration (transports, pipelines, middleware)? Call `AddDispatch` with a builder action:
 
 ```csharp
-// Configure Dispatch with transports and middleware
+// Configure Dispatch with transports and middleware (handlers auto-discovered)
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-    dispatch.AddObservability();
+    dispatch.UseObservability();
 });
 
 // Configure Excalibur subsystems

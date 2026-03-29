@@ -167,13 +167,18 @@ public sealed class AwsTracingIntegrationShould : IDisposable
 		var integration = CreateIntegration(options);
 		await integration.ConfigureXRayAsync(CancellationToken.None);
 
+		using var guaranteeListener = new ActivityListener
+		{
+			ShouldListenTo = source => source.Name == "Dispatch.TagTest",
+			Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+		};
+		ActivitySource.AddActivityListener(guaranteeListener);
+
 		using var source = new ActivitySource("Dispatch.TagTest");
 		using var activity = source.StartActivity("tag-operation");
 
-		if (activity is not null)
-		{
-			activity.GetTagItem("aws.xray.service").ShouldBe("my-xray-service");
-		}
+		activity.ShouldNotBeNull();
+		activity.GetTagItem("aws.xray.service").ShouldBe("my-xray-service");
 	}
 
 	[Fact]
@@ -188,13 +193,18 @@ public sealed class AwsTracingIntegrationShould : IDisposable
 		var integration = CreateIntegration(options);
 		await integration.ConfigureXRayAsync(CancellationToken.None);
 
+		using var guaranteeListener = new ActivityListener
+		{
+			ShouldListenTo = source => source.Name == "Dispatch.DaemonTest",
+			Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+		};
+		ActivitySource.AddActivityListener(guaranteeListener);
+
 		using var source = new ActivitySource("Dispatch.DaemonTest");
 		using var activity = source.StartActivity("daemon-operation");
 
-		if (activity is not null)
-		{
-			activity.GetTagItem("aws.xray.daemon_endpoint").ShouldBe("10.0.0.1:3000");
-		}
+		activity.ShouldNotBeNull();
+		activity.GetTagItem("aws.xray.daemon_endpoint").ShouldBe("10.0.0.1:3000");
 	}
 
 	[Fact]
@@ -209,13 +219,18 @@ public sealed class AwsTracingIntegrationShould : IDisposable
 		var integration = CreateIntegration(options);
 		await integration.ConfigureXRayAsync(CancellationToken.None);
 
+		using var guaranteeListener = new ActivityListener
+		{
+			ShouldListenTo = source => source.Name == "Dispatch.NoDaemonTest",
+			Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+		};
+		ActivitySource.AddActivityListener(guaranteeListener);
+
 		using var source = new ActivitySource("Dispatch.NoDaemonTest");
 		using var activity = source.StartActivity("no-daemon-operation");
 
-		if (activity is not null)
-		{
-			activity.GetTagItem("aws.xray.daemon_endpoint").ShouldBeNull();
-		}
+		activity.ShouldNotBeNull();
+		activity.GetTagItem("aws.xray.daemon_endpoint").ShouldBeNull();
 	}
 
 	[Fact]
@@ -229,15 +244,23 @@ public sealed class AwsTracingIntegrationShould : IDisposable
 		var integration = CreateIntegration(options);
 		await integration.ConfigureXRayAsync(CancellationToken.None);
 
+		// Use a dedicated listener to guarantee activity creation under parallel load.
+		// The production listener's OnActivityStopped still fires (it's also registered),
+		// but this ensures the activity is never null regardless of other tests' listener disposal.
+		using var guaranteeListener = new ActivityListener
+		{
+			ShouldListenTo = source => source.Name == "Dispatch.ErrorTest",
+			Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+		};
+		ActivitySource.AddActivityListener(guaranteeListener);
+
 		using var source = new ActivitySource("Dispatch.ErrorTest");
 		using var activity = source.StartActivity("error-operation");
 
-		if (activity is not null)
-		{
-			activity.SetStatus(ActivityStatusCode.Error, "test error");
-			activity.Stop();
-			activity.GetTagItem("aws.xray.fault").ShouldBe("true");
-		}
+		activity.ShouldNotBeNull();
+		activity.SetStatus(ActivityStatusCode.Error, "test error");
+		activity.Stop();
+		activity.GetTagItem("aws.xray.fault").ShouldBe("true");
 	}
 
 	[Fact]
@@ -251,15 +274,20 @@ public sealed class AwsTracingIntegrationShould : IDisposable
 		var integration = CreateIntegration(options);
 		await integration.ConfigureXRayAsync(CancellationToken.None);
 
+		using var guaranteeListener = new ActivityListener
+		{
+			ShouldListenTo = source => source.Name == "Dispatch.OkTest",
+			Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+		};
+		ActivitySource.AddActivityListener(guaranteeListener);
+
 		using var source = new ActivitySource("Dispatch.OkTest");
 		using var activity = source.StartActivity("ok-operation");
 
-		if (activity is not null)
-		{
-			activity.SetStatus(ActivityStatusCode.Ok);
-			activity.Stop();
-			activity.GetTagItem("aws.xray.fault").ShouldBeNull();
-		}
+		activity.ShouldNotBeNull();
+		activity.SetStatus(ActivityStatusCode.Ok);
+		activity.Stop();
+		activity.GetTagItem("aws.xray.fault").ShouldBeNull();
 	}
 
 	[Fact]

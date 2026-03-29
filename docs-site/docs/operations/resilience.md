@@ -29,7 +29,7 @@ services.AddSqlServerEventSourcing(options =>
 {
     options.ConnectionString = connectionString;
     options.EventStoreSchema = "dbo";
-    options.EventStoreTable = "Events";
+    options.EventStoreTable = "EventStoreEvents";
 });
 
 // Outbox - configure storage and processing via fluent builder

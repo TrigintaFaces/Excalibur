@@ -46,24 +46,26 @@ builder.Services.AddLogging(logging =>
 });
 
 // ============================================================
-// Configure Dispatch messaging
+// Configure Dispatch messaging with resilience
 // ============================================================
 builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer as default (version 0)
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Register JSON serializer via the builder serialization API
+	_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
+
+	// Add Polly resilience infrastructure via the builder
+	_ = dispatch.UseResilience();
 });
 
 // ============================================================
-// Configure Polly Resilience Patterns
+// Configure Named Resilience Policies
 // ============================================================
+// Named policies are registered on IServiceCollection because each
+// targets a specific downstream dependency with its own thresholds.
 
-// Add Polly resilience infrastructure
-builder.Services.AddPollyResilience(builder.Configuration);
-
-// Configure named retry policy with exponential backoff and jitter
+// Retry with exponential backoff and jitter for payment service
 builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 {
 	options.MaxRetries = 5; // Retry up to 5 times
@@ -77,7 +79,7 @@ builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 	options.ShouldRetry = ex => ex is PaymentServiceException; // Only retry payment exceptions
 });
 
-// Configure circuit breaker for inventory service
+// Circuit breaker for inventory service
 builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 {
 	options.FailureThreshold = 3; // Open after 3 failures
@@ -87,7 +89,7 @@ builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 	options.MaxHalfOpenTests = 2; // Allow 2 test requests in half-open
 });
 
-// Configure timeout manager for slow operations
+// Timeout manager for slow operations
 builder.Services.ConfigureTimeoutManager(options =>
 {
 	// Add named timeouts for different operation types
@@ -97,7 +99,7 @@ builder.Services.ConfigureTimeoutManager(options =>
 	options.OperationTimeouts["inventory"] = TimeSpan.FromSeconds(3);
 });
 
-// Configure bulkhead for notification service
+// Bulkhead for notification service
 builder.Services.AddBulkhead("notification-bulkhead", options =>
 {
 	options.MaxConcurrency = 5; // Max 5 concurrent notifications

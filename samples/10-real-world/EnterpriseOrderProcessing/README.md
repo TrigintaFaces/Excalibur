@@ -10,10 +10,10 @@ This reference application wires the complete Excalibur.Dispatch and Excalibur f
 |---|---------------|---------|-----------------|
 | 1 | Core Dispatch | Message dispatching, pipeline | `AddDispatch()` |
 | 2 | Handler Discovery | Assembly-based handler scanning | `AddHandlersFromAssembly()` |
-| 3 | Validation | FluentValidation integration | `AddDispatchValidation().WithFluentValidation()` |
-| 4 | Resilience | Polly retry + circuit breaker | `AddDispatchResilience()` |
+| 3 | Validation | FluentValidation integration | `UseValidation().WithFluentValidation()` |
+| 4 | Resilience | Polly retry + circuit breaker | `UseResilience()` |
 | 5 | Transport | RabbitMQ integration event publishing | `UseRabbitMQ()` |
-| 6 | Security | Message encryption + audit logging | `AddDispatchSecurity()` |
+| 6 | Security | Message encryption + audit logging | `UseSecurity(configuration)` |
 | 7 | Compliance | GDPR erasure + compliance monitoring | `AddGdprErasure()`, `AddComplianceMonitoring()` |
 | 8 | Observability | OpenTelemetry metrics + distributed tracing | `ConfigureExcaliburMetrics()`, `ConfigureExcaliburTracing()` |
 | 9 | Logging | Serilog structured logging | `ConfigureExcaliburLogging()` |
@@ -128,7 +128,7 @@ Seven automated verification scenarios are implemented as smoke tests in `tests/
 | 1 | Full Pipeline | `PipelineScenarioTests.cs` | CDC -> Dispatcher -> Validation -> Resilience -> Handler -> EventStore |
 | 2 | Validation | `VerificationScenarioTests.cs` | Invalid command rejected by DataAnnotations middleware |
 | 3 | Resilience | `VerificationScenarioTests.cs` | Polly retry middleware is active in the pipeline |
-| 4 | Security | `VerificationScenarioTests.cs` | Encryption services resolve from AddDispatchSecurity() |
+| 4 | Security | `VerificationScenarioTests.cs` | Encryption services resolve from UseSecurity() |
 | 5 | Observability | `VerificationScenarioTests.cs` | OTel activities captured during command dispatch |
 | 6 | Health Checks | `VerificationScenarioTests.cs` | HealthCheckService resolves and returns Healthy |
 | 7 | Outbox | `VerificationScenarioTests.cs` | Outbox DI composition builds without errors |

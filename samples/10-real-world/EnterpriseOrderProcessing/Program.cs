@@ -18,8 +18,8 @@
 // See: management/specs/pre-release-validation-spec.md for full design.
 
 #pragma warning disable CA1303 // Sample code uses literal strings for demonstration
-#pragma warning disable IL2026 // AddDispatchSecurity uses reflection for configuration binding
-#pragma warning disable IL3050 // AddDispatchSecurity uses reflection for middleware registration
+#pragma warning disable IL2026 // UseSecurity uses reflection for configuration binding
+#pragma warning disable IL3050 // UseSecurity uses reflection for middleware registration
 
 using EnterpriseOrderProcessing.Commands;
 using EnterpriseOrderProcessing.LegacyIntegration;
@@ -72,11 +72,14 @@ services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
 	// 4. Validation middleware (FluentValidation integration)
-	_ = dispatch.AddDispatchValidation()
+	_ = dispatch.UseValidation()
 		.WithFluentValidation();
 
 	// 5. Resilience middleware (Polly retry + circuit breaker)
-	_ = dispatch.AddDispatchResilience();
+	_ = dispatch.UseResilience();
+
+	// 6. Security: message encryption + audit logging (B.1)
+	_ = dispatch.UseSecurity(builder.Configuration);
 
 	// 7. Transport (RabbitMQ) for integration event publishing
 	_ = dispatch.UseRabbitMQ(rmq =>
@@ -93,9 +96,6 @@ services.AddSqlServerOutboxStore(options =>
 
 // ---- CDC (Change Data Capture) handler registration ----
 services.AddSingleton<IDataChangeHandler, LegacyOrderChangeHandler>();
-
-// ---- Security: message encryption + audit logging (B.1) ----
-services.AddDispatchSecurity(builder.Configuration);
 
 // ---- Compliance: GDPR erasure + monitoring (B.1) ----
 services.AddGdprErasure(options =>

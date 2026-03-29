@@ -1,7 +1,7 @@
-﻿---
+---
 sidebar_position: 7
 title: Serialization Providers
-description: Dedicated setup guides for MemoryPack, MessagePack, and Protobuf serialization providers.
+description: Dedicated setup guides for MemoryPack, MessagePack, Protobuf, and Avro serialization providers.
 ---
 
 # Serialization Providers
@@ -16,7 +16,7 @@ For an overview of all serialization options, see [Serialization](./serializatio
 - Install the core package plus your chosen provider:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Serialization.MemoryPack  # or MessagePack / Protobuf
+  dotnet add package Excalibur.Dispatch.Serialization.MemoryPack  # or MessagePack / Protobuf / Avro
   ```
 - Familiarity with [serialization overview](./serialization.md) and [middleware concepts](./index.md)
 
@@ -28,12 +28,14 @@ For an overview of all serialization options, see [Serialization](./serializatio
 | **MemoryPack** | `Excalibur.Dispatch.Serialization.MemoryPack` | Yes | No | .NET only | Fastest |
 | **MessagePack** | `Excalibur.Dispatch.Serialization.MessagePack` | Yes | Optional | Yes | Very fast |
 | **Protobuf** | `Excalibur.Dispatch.Serialization.Protobuf` | Yes | Required (.proto) | Yes | Fast |
+| **Avro** | `Excalibur.Dispatch.Serialization.Avro` | Yes | Required | Yes | Fast |
 
 **Decision guide:**
-- **.NET-only, maximum throughput** → MemoryPack
-- **Cross-language, compact binary** → MessagePack
-- **Schema evolution, gRPC integration** → Protobuf
-- **Debugging, human-readable** → System.Text.Json (default)
+- **.NET-only, maximum throughput** -> MemoryPack
+- **Cross-language, compact binary** -> MessagePack
+- **Schema evolution, gRPC integration** -> Protobuf
+- **Hadoop/Kafka ecosystem** -> Avro
+- **Debugging, human-readable** -> System.Text.Json (default)
 
 ---
 
@@ -53,7 +55,7 @@ dotnet add package Excalibur.Dispatch.Serialization.MemoryPack
 using Microsoft.Extensions.DependencyInjection;
 
 // Register MemoryPack for internal serialization
-services.AddMemoryPackInternalSerialization();
+// MemoryPack is auto-registered by AddDispatch(). For alternatives:
 ```
 
 ### Message Annotation
@@ -80,7 +82,7 @@ public partial class OrderCreatedEvent : IDomainEvent
 
 ### Considerations
 
-- .NET-only — cannot be deserialized by non-.NET consumers
+- .NET-only -- cannot be deserialized by non-.NET consumers
 - Requires `partial` class declarations for source generation
 - Ideal for internal event store serialization where all consumers are .NET
 
@@ -98,9 +100,57 @@ dotnet add package Excalibur.Dispatch.Serialization.MessagePack
 
 ### Registration
 
-```csharp
-using Microsoft.Extensions.DependencyInjection;
+#### Via Serialization Builder (Recommended)
 
+Use the `WithSerialization` builder to register and configure MessagePack in one step:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    dispatch.WithSerialization(config =>
+    {
+        // Register with default settings
+        config.RegisterMessagePack();
+        config.UseMessagePack();
+    });
+});
+```
+
+Configure MessagePack options via the `Action<MessagePackSerializationOptions>` overload:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    dispatch.WithSerialization(config =>
+    {
+        config.RegisterMessagePack(opts =>
+        {
+            opts.UseLz4Compression = true;
+        });
+        config.UseMessagePack();
+    });
+});
+```
+
+You can also pass native `MessagePackSerializerOptions` directly:
+
+```csharp
+dispatch.WithSerialization(config =>
+{
+    config.RegisterMessagePack(
+        MessagePackSerializerOptions.Standard
+            .WithCompression(MessagePackCompression.Lz4BlockArray));
+    config.UseMessagePack();
+});
+```
+
+#### Via Service Collection
+
+```csharp
 // Basic registration
 services.AddMessagePackSerialization();
 
@@ -159,9 +209,42 @@ dotnet add package Excalibur.Dispatch.Serialization.Protobuf
 
 ### Registration
 
-```csharp
-using Microsoft.Extensions.DependencyInjection;
+#### Via Serialization Builder (Recommended)
 
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    dispatch.WithSerialization(config =>
+    {
+        config.RegisterProtobuf();
+        config.UseProtobuf();
+    });
+});
+```
+
+Configure Protobuf options via the `Action<ProtobufSerializationOptions>` overload:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    dispatch.WithSerialization(config =>
+    {
+        config.RegisterProtobuf(opts =>
+        {
+            opts.WireFormat = ProtobufWireFormat.Json;
+        });
+        config.UseProtobuf();
+    });
+});
+```
+
+#### Via Service Collection
+
+```csharp
 services.AddProtobufSerialization();
 ```
 
@@ -192,6 +275,60 @@ message OrderCreatedEvent {
 - Strong versioning and backward compatibility guarantees
 - Native gRPC transport compatibility
 - Requires `.proto` file management and code generation
+- Supports both binary (default) and JSON wire formats via `ProtobufSerializationOptions.WireFormat`
+
+---
+
+## Avro
+
+Apache Avro serialization for schema-based data exchange, commonly used in Kafka and Hadoop ecosystems.
+
+### Installation
+
+```bash
+dotnet add package Excalibur.Dispatch.Serialization.Avro
+```
+
+### Registration
+
+#### Via Serialization Builder (Recommended)
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    dispatch.WithSerialization(config =>
+    {
+        config.RegisterAvro();
+        config.UseAvro();
+    });
+});
+```
+
+Configure Avro options via the `Action<AvroSerializationOptions>` overload:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    dispatch.WithSerialization(config =>
+    {
+        config.RegisterAvro(opts =>
+        {
+            opts.BufferSize = 8192; // default: 4096
+        });
+        config.UseAvro();
+    });
+});
+```
+
+### Considerations
+
+- Schema-based contract definition
+- Native integration with Kafka and Confluent Schema Registry
+- Configurable buffer size for encoding operations (default: 4096 bytes)
 
 ---
 
@@ -206,7 +343,7 @@ services.AddDispatch(dispatch =>
 });
 
 // MemoryPack for internal event store (fastest)
-services.AddMemoryPackInternalSerialization();
+// MemoryPack is auto-registered by AddDispatch(). For alternatives:
 
 // MessagePack for transport serialization (cross-language)
 services.AddMessagePackPluggableSerialization();
@@ -214,5 +351,5 @@ services.AddMessagePackPluggableSerialization();
 
 ## See Also
 
-- [Serialization Overview](./serialization.md) — Core serialization concepts
-- [Transports](../transports/index.md) — Transport-level serialization configuration
+- [Serialization Overview](./serialization.md) -- Core serialization concepts
+- [Transports](../transports/index.md) -- Transport-level serialization configuration

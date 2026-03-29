@@ -36,6 +36,7 @@
 
 #pragma warning disable CA1506 // Avoid excessive class coupling - acceptable for sample Program.cs
 
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Jobs.Cdc;
 using Excalibur.Jobs.DataProcessing;
 using Excalibur.Jobs.Outbox;

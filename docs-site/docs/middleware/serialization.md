@@ -26,6 +26,7 @@ Dispatch supports multiple serialization formats for messages. Choose based on y
 | MemoryPack | `Excalibur.Dispatch.Serialization.MemoryPack` | .NET-only, max performance |
 | MessagePack | `Excalibur.Dispatch.Serialization.MessagePack` | Cross-language, compact |
 | Protobuf | `Excalibur.Dispatch.Serialization.Protobuf` | Schema-based, gRPC compat |
+| Avro | `Excalibur.Dispatch.Serialization.Avro` | Schema-based, Kafka/Hadoop |
 
 ## Configuration
 
@@ -67,7 +68,7 @@ services.AddDispatch(dispatch =>
 });
 
 // Register MemoryPack as internal serializer
-services.AddMemoryPackInternalSerialization();
+// MemoryPack is auto-registered by AddDispatch(). For alternatives:
 
 // Messages must be MemoryPack-compatible
 [MemoryPackable]
@@ -87,13 +88,16 @@ dotnet add package Excalibur.Dispatch.Serialization.MessagePack
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
 
-// Register MessagePack serialization
-services.AddMessagePackSerialization(options =>
-{
-    options.SerializerOptions = MessagePackSerializerOptions.Standard
-        .WithCompression(MessagePackCompression.Lz4BlockArray);
+    // Register MessagePack via the serialization builder (recommended)
+    dispatch.WithSerialization(config =>
+    {
+        config.RegisterMessagePack(opts =>
+        {
+            opts.UseLz4Compression = true;
+        });
+        config.UseMessagePack();
+    });
 });
 
 [MessagePackObject]
@@ -115,10 +119,17 @@ dotnet add package Excalibur.Dispatch.Serialization.Protobuf
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
 
-// Register Protobuf via the pluggable serialization system
-services.AddPluggableSerialization();
+    // Register Protobuf via the serialization builder (recommended)
+    dispatch.WithSerialization(config =>
+    {
+        config.RegisterProtobuf(opts =>
+        {
+            opts.WireFormat = ProtobufWireFormat.Json; // default: Binary
+        });
+        config.UseProtobuf();
+    });
+});
 
 // Define in .proto file
 // message CreateOrderAction {
@@ -127,6 +138,8 @@ services.AddPluggableSerialization();
 //   repeated OrderItem items = 3;
 // }
 ```
+
+See [Serialization Providers](serialization-providers.md) for detailed provider configuration including Avro, native options, and service collection registration.
 
 ## Compression
 
@@ -162,10 +175,10 @@ services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.UseMiddleware<MessageEncryptionMiddleware>();
-});
 
-// Configure encryption via IConfiguration
-services.AddDispatchSecurity(configuration);
+    // Configure encryption via IConfiguration
+    dispatch.UseSecurity(configuration);
+});
 ```
 
 ### Field-Level Encryption
@@ -296,7 +309,7 @@ public class CustomSerializer : ISerializer
 ```csharp
 // Register your custom serializer via the serialization builder
 services.AddDispatch()
-    .ConfigureSerialization(config =>
+    .WithSerialization(config =>
     {
         config.Register(new CustomSerializer(), id: 200);
         config.UseCurrent("CustomFormat");
@@ -476,12 +489,11 @@ See the [Performance Best Practices](../performance/messagecontext-best-practice
 
 ## Next Steps
 
-- [Transports](../transports/index.md) — Transport-specific serialization
-- [Middleware](index.md) — Middleware pipeline
-- [Event Sourcing](/docs/event-sourcing/) — Event store integration
+- [Transports](../transports/index.md) -- Transport-specific serialization
+- [Middleware](index.md) -- Middleware pipeline
+- [Event Sourcing](/docs/event-sourcing/) -- Event store integration
 
 ## See Also
 
-- [Serialization Providers](serialization-providers.md) - Detailed provider configuration for MemoryPack, MessagePack, Protobuf, and pluggable serialization
+- [Serialization Providers](serialization-providers.md) - Detailed provider configuration for MemoryPack, MessagePack, Protobuf, Avro, and pluggable serialization
 - [Middleware Overview](index.md) - How serialization middleware fits into the Dispatch pipeline
-

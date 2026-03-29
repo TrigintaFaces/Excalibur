@@ -99,7 +99,7 @@ public static class ObservabilityServiceCollectionExtensions
 	/// </summary>
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder AddContextObservability(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseContextObservability(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
@@ -212,20 +212,20 @@ public static class ObservabilityServiceCollectionExtensions
 		IServiceCollection services,
 		ResourceBuilder resourceBuilder,
 		ContextObservabilityOptions options) => _ = services.AddLogging(loggingBuilder => loggingBuilder.AddOpenTelemetry(loggingOptions =>
-													 {
-														 _ = loggingOptions.SetResourceBuilder(resourceBuilder);
-														 loggingOptions.IncludeScopes = true;
-														 loggingOptions.IncludeFormattedMessage = true;
+												 {
+													 _ = loggingOptions.SetResourceBuilder(resourceBuilder);
+													 loggingOptions.IncludeScopes = true;
+													 loggingOptions.IncludeFormattedMessage = true;
 
-														 if (!string.IsNullOrWhiteSpace(options.Export.OtlpEndpoint))
+													 if (!string.IsNullOrWhiteSpace(options.Export.OtlpEndpoint))
+													 {
+														 _ = loggingOptions.AddOtlpExporter(otlpOptions =>
 														 {
-															 _ = loggingOptions.AddOtlpExporter(otlpOptions =>
-															 {
-																 otlpOptions.Endpoint = new Uri(options.Export.OtlpEndpoint);
-																 otlpOptions.Protocol = OtlpExportProtocol.Grpc;
-															 });
-														 }
-													 }));
+															 otlpOptions.Endpoint = new Uri(options.Export.OtlpEndpoint);
+															 otlpOptions.Protocol = OtlpExportProtocol.Grpc;
+														 });
+													 }
+												 }));
 
 	/// <summary>
 	/// Adds compliance-level telemetry sanitization that detects and redacts PII patterns

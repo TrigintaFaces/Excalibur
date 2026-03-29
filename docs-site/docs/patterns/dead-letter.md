@@ -85,7 +85,7 @@ builder.Services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
     // Add poison message handling via the dispatch builder
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.MaxRetryAttempts = 5;
         options.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);

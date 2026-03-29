@@ -127,4 +127,38 @@ public static class PostgresProjectionStoreExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// Registers multiple Postgres projection stores with shared options configuration,
+	/// allowing advanced settings like custom table names, JSON serialization, and timeouts.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureShared">Shared options applied to all projections before per-projection overrides.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddPostgresProjections(
+	///     shared => { shared.ConnectionString = connStr; shared.SchemaName = "projections"; },
+	///     projections =>
+	///     {
+	///         projections.Add&lt;OrderSummary&gt;();
+	///         projections.Add&lt;CustomerProfile&gt;(options => options.TableName = "customers");
+	///     });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddPostgresProjections(
+		this IServiceCollection services,
+		Action<PostgresProjectionStoreOptions> configureShared,
+		Action<PostgresProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configureShared);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new PostgresProjectionRegistrar(services, configureShared);
+		configure(registrar);
+
+		return services;
+	}
 }

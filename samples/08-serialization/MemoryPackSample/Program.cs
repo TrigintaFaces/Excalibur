@@ -18,8 +18,8 @@
 using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Serialization;
 
 using MemoryPack;
@@ -51,13 +51,15 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer as default (version 0)
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Register MemoryPack as the pluggable serializer and set it as active.
+	// MemoryPack is auto-registered by default, but this shows the explicit
+	// builder pattern for clarity and customization.
+	_ = dispatch.WithSerialization(config =>
+	{
+		config.RegisterMemoryPack();
+		config.UseMemoryPack();
+	});
 });
-
-// Register MemoryPack as the ISerializer for binary serialization (Outbox/Inbox persistence)
-builder.Services.AddSingleton<Excalibur.Dispatch.Abstractions.Serialization.ISerializer>(
-	MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
 
 // ============================================================
 // Configure outbox/inbox for reliable messaging

@@ -376,10 +376,50 @@ services.AddInMemoryEventStore();
 | Firestore | `Excalibur.EventSourcing.Firestore` | Document-level | Automatic |
 | In-Memory | `Excalibur.EventSourcing.InMemory` | None | Single process |
 
+## Batch Projection Registration
+
+When registering multiple projections for the same provider, use the batch registrar API instead of individual `AddXxxProjectionStore<T>()` calls:
+
+```csharp
+// SQL Server: register multiple projections sharing the same connection
+services.AddSqlServerProjections(connectionString, projections =>
+{
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.TableName = "CustomerViews");
+});
+
+// MongoDB
+services.AddMongoDbProjections(connectionString, "MyApp", projections =>
+{
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.CollectionName = "customers");
+});
+
+// CosmosDB
+services.AddCosmosDbProjections(connectionString, "MyDatabase", projections =>
+{
+    projections.Add<OrderSummary>();
+});
+
+// PostgreSQL
+services.AddPostgresProjections(connectionString, projections =>
+{
+    projections.Add<OrderSummary>();
+});
+
+// ElasticSearch
+services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
+{
+    projections.Add<OrderSummary>();
+});
+```
+
+See [Data Providers](../data-providers/index.md) for provider-specific details and naming conventions.
+
 ## See Also
 
-- [Event Sourcing Overview](./index.md) — Architecture and core abstractions
-- [Event Store](./event-store.md) — `IEventStore` interface details
-- [Snapshots](./snapshots.md) — Snapshot store configuration
-- [Change Data Capture](../patterns/cdc.md) — CDC patterns and provider support
+- [Event Sourcing Overview](./index.md) -- Architecture and core abstractions
+- [Event Store](./event-store.md) -- `IEventStore` interface details
+- [Snapshots](./snapshots.md) -- Snapshot store configuration
+- [Change Data Capture](../patterns/cdc.md) -- CDC patterns and provider support
 

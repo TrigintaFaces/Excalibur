@@ -27,13 +27,13 @@ public static class DispatchBuilderSecurityExtensions
 	/// <code>
 	/// services.AddDispatch(dispatch =>
 	/// {
-	///     dispatch.AddSecurity(configuration);
+	///     dispatch.UseSecurity(configuration);
 	/// });
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Security service registration uses reflection for dependency injection and configuration binding")]
 	[RequiresDynamicCode("Security service registration uses reflection to scan and register middleware and validators")]
-	public static IDispatchBuilder AddSecurity(
+	public static IDispatchBuilder UseSecurity(
 		this IDispatchBuilder builder,
 		IConfiguration configuration)
 	{

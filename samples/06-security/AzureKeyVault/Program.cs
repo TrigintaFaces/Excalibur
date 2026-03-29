@@ -14,6 +14,8 @@
 // For local development, use Azure CLI authentication (DefaultAzureCredential).
 // For production, use Managed Identity.
 
+#pragma warning disable CA1506 // Sample has high coupling by design
+
 using AzureKeyVaultSample.Services;
 
 using Excalibur.Dispatch.Configuration;
@@ -47,7 +49,7 @@ var host = Host.CreateDefaultBuilder(args)
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-			_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+			_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 		});
 
 		// Add Azure Key Vault credential store

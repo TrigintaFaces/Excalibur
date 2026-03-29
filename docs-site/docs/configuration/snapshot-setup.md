@@ -285,7 +285,8 @@ public class SnapshotMigrationJob
 Choose efficient serialization:
 
 ```csharp
-builder.UseEventSerializer<MessagePackSnapshotSerializer>();
+// Register your custom IEventSerializer implementation
+builder.UseEventSerializer<MyCustomEventSerializer>();
 ```
 
 | Serializer | Size | Speed | Human-Readable |

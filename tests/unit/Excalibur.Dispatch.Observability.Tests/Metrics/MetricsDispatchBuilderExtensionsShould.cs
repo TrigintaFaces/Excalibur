@@ -17,21 +17,21 @@ namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 public sealed class MetricsDispatchBuilderExtensionsShould
 {
 	[Fact]
-	public void AddDispatchMetricsInstrumentation_ThrowOnNullBuilder()
+	public void UseMetricsInstrumentation_ThrowOnNullBuilder()
 	{
 		IDispatchBuilder builder = null!;
-		Should.Throw<ArgumentNullException>(() => builder.AddDispatchMetricsInstrumentation());
+		Should.Throw<ArgumentNullException>(() => builder.UseMetricsInstrumentation());
 	}
 
 	[Fact]
-	public void AddDispatchMetricsInstrumentation_RegistersDispatchMetrics()
+	public void UseMetricsInstrumentation_RegistersDispatchMetrics()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateFakeBuilder(services);
 
 		// Act
-		builder.AddDispatchMetricsInstrumentation();
+		builder.UseMetricsInstrumentation();
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(DispatchMetrics));
@@ -87,14 +87,14 @@ public sealed class MetricsDispatchBuilderExtensionsShould
 	}
 
 	[Fact]
-	public void AddDispatchMetricsInstrumentation_ReturnsSameBuilder()
+	public void UseMetricsInstrumentation_ReturnsSameBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateFakeBuilder(services);
 
 		// Act
-		var result = builder.AddDispatchMetricsInstrumentation();
+		var result = builder.UseMetricsInstrumentation();
 
 		// Assert
 		result.ShouldBeSameAs(builder);

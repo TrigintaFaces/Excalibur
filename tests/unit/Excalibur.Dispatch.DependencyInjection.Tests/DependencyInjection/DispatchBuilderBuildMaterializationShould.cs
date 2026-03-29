@@ -135,10 +135,11 @@ public sealed class DispatchBuilderBuildMaterializationShould : IDisposable
 
 		_serviceProvider = services.BuildServiceProvider();
 
-		// Assert — middleware should be registered in DI
+		// Assert — middleware should be registered in DI as concrete type
+		// (S717 T.2: UseMiddleware<T>() registers concrete type only, not IDispatchMiddleware)
 		using var scope = _serviceProvider.CreateScope();
-		var middlewareInstances = scope.ServiceProvider.GetServices<IDispatchMiddleware>();
-		middlewareInstances.ShouldContain(m => m is TestBuildVerificationMiddleware);
+		var middleware = scope.ServiceProvider.GetService<TestBuildVerificationMiddleware>();
+		middleware.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -161,9 +162,10 @@ public sealed class DispatchBuilderBuildMaterializationShould : IDisposable
 		var pipeline = _serviceProvider.GetService<IDispatchPipeline>();
 		_ = pipeline.ShouldNotBeNull();
 
+		// S717 T.2: middleware registered as concrete type, not IDispatchMiddleware
 		using var scope = _serviceProvider.CreateScope();
-		var middlewareInstances = scope.ServiceProvider.GetServices<IDispatchMiddleware>();
-		middlewareInstances.ShouldContain(m => m is TestBuildVerificationMiddleware);
+		var middleware = scope.ServiceProvider.GetService<TestBuildVerificationMiddleware>();
+		middleware.ShouldNotBeNull();
 	}
 
 	#endregion

@@ -79,8 +79,8 @@ public sealed class DistributedCacheOnlyShould
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(DistributedCacheOnlyShould).Assembly);
-			_ = dispatch.AddDispatchResilience();
-			_ = dispatch.AddDispatchCaching()
+			_ = dispatch.UseResilience();
+			_ = dispatch.UseCaching()
 				.WithCachingOptions(static o =>
 				{
 					o.Enabled = true;

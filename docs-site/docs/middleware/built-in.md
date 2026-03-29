@@ -467,7 +467,7 @@ Response caching for dispatch actions using .NET HybridCache:
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddCaching(); // Registers CachingMiddleware with HybridCache
+    dispatch.UseCaching(); // Registers CachingMiddleware with HybridCache
 });
 ```
 
@@ -761,7 +761,7 @@ services.AddDispatch(dispatch =>
     // Development preset: logging (verbose), validation, exception mapping
     dispatch.UseDevelopmentMiddleware();
 
-    // Production preset: retry + exception mapping (pair with AddDispatchObservability() for metrics/tracing)
+    // Production preset: retry + exception mapping (pair with UseObservability() for metrics/tracing)
     dispatch.UseProductionMiddleware();
 
     // Full preset: all middleware with sensible defaults
@@ -774,7 +774,7 @@ services.AddDispatch(dispatch =>
 | Preset | Middleware Included |
 |--------|---------------------|
 | Development | Logging (Debug level), Validation, ExceptionMapping |
-| Production | Retry, ExceptionMapping (pair with `AddDispatchObservability()` for Metrics + Tracing) |
+| Production | Retry, ExceptionMapping (pair with `UseObservability()` for Metrics + Tracing) |
 | Full | Logging, Validation, Metrics, Tracing, Retry, ExceptionMapping |
 
 ### Fine-Grained Middleware Stacks
@@ -859,7 +859,6 @@ All middleware classes listed below are **internal** -- register them using the 
 | `UseOutbox()` | `OutboxMiddleware` | Reliability |
 | `UseInbox()` | `InboxMiddleware` | Reliability |
 | `UseIdempotency()` | `InboxMiddleware` (alias) | Reliability |
-| `UseDeduplication()` | `DeduplicationMiddleware` | Reliability |
 | `UseCloudEvents()` | `CloudEventMiddleware` | Messaging |
 | `UseTenantIdentity()` | `TenantIdentityMiddleware` | Security |
 | `UseBackgroundExecution()` | `BackgroundExecutionMiddleware` | Threading |

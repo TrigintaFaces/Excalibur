@@ -18,19 +18,19 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 public sealed class CachingDispatchBuilderExtensionsAdditionalShould : UnitTestBase
 {
 	[Fact]
-	public void AddDispatchCaching_ThrowsOnNullBuilder()
+	public void UseCaching_ThrowsOnNullBuilder()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			CachingDispatchBuilderExtensions.AddDispatchCaching(null!));
+			CachingDispatchBuilderExtensions.UseCaching(null!));
 	}
 
 	[Fact]
-	public void AddCaching_ThrowsOnNullBuilder()
+	public void UseCaching_WithNullConfigure_ThrowsOnNullBuilder()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			CachingDispatchBuilderExtensions.AddCaching(null!));
+			CachingDispatchBuilderExtensions.UseCaching(null!));
 	}
 
 	[Fact]

@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Middleware.Validation;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,13 +22,13 @@ public static class ValidationDispatchBuilderExtensions
 	/// <param name="builder"> The dispatch builder to configure. </param>
 	/// <returns> The dispatch builder for method chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="builder" /> is null. </exception>
-	public static IDispatchBuilder AddDispatchValidation(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseValidation(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
 		_ = builder.Services.AddDispatchValidation();
 
-		return builder;
+		return builder.UseMiddleware<ValidationMiddleware>();
 	}
 
 	/// <summary>

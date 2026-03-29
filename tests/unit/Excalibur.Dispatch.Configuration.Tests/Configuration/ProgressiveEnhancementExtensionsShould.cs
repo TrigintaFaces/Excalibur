@@ -24,26 +24,26 @@ public sealed class ProgressiveEnhancementExtensionsShould
 	private static IDispatchBuilder CreateBuilder(IServiceCollection services)
 		=> new DispatchBuilder(services);
 
-	#region AddContextEnrichment Tests
+	#region UseContextEnrichment Tests
 
 	[Fact]
-	public void AddContextEnrichment_ThrowsArgumentNullException_WhenBuilderIsNull()
+	public void UseContextEnrichment_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
 		// Arrange
 		IDispatchBuilder builder = null!;
 
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => builder.AddContextEnrichment())
+		Should.Throw<ArgumentNullException>(() => builder.UseContextEnrichment())
 			.ParamName.ShouldBe("builder");
 	}
 
 	[Fact]
-	public void AddContextEnrichment_DisablesLightMode()
+	public void UseContextEnrichment_DisablesLightMode()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = CreateBuilder(services)
-			.AddContextEnrichment();
+			.UseContextEnrichment();
 
 		var provider = services.BuildServiceProvider();
 
@@ -55,12 +55,12 @@ public sealed class ProgressiveEnhancementExtensionsShould
 	}
 
 	[Fact]
-	public void AddContextEnrichment_EnablesCorrelation()
+	public void UseContextEnrichment_EnablesCorrelation()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = CreateBuilder(services)
-			.AddContextEnrichment();
+			.UseContextEnrichment();
 
 		var provider = services.BuildServiceProvider();
 
@@ -72,12 +72,12 @@ public sealed class ProgressiveEnhancementExtensionsShould
 	}
 
 	[Fact]
-	public void AddContextEnrichment_RegistersMessageContextAccessor()
+	public void UseContextEnrichment_RegistersMessageContextAccessor()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = CreateBuilder(services)
-			.AddContextEnrichment();
+			.UseContextEnrichment();
 
 		var provider = services.BuildServiceProvider();
 
@@ -90,28 +90,28 @@ public sealed class ProgressiveEnhancementExtensionsShould
 	}
 
 	[Fact]
-	public void AddContextEnrichment_ReturnsBuilderForChaining()
+	public void UseContextEnrichment_ReturnsBuilderForChaining()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateBuilder(services);
 
 		// Act
-		var result = builder.AddContextEnrichment();
+		var result = builder.UseContextEnrichment();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void AddContextEnrichment_IsIdempotent_WhenCalledMultipleTimes()
+	public void UseContextEnrichment_IsIdempotent_WhenCalledMultipleTimes()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = CreateBuilder(services)
-			.AddContextEnrichment()
-			.AddContextEnrichment()
-			.AddContextEnrichment();
+			.UseContextEnrichment()
+			.UseContextEnrichment()
+			.UseContextEnrichment();
 
 		var provider = services.BuildServiceProvider();
 
@@ -124,26 +124,26 @@ public sealed class ProgressiveEnhancementExtensionsShould
 
 	#endregion
 
-	#region AddAllFeatures Tests
+	#region UseAllFeatures Tests
 
 	[Fact]
-	public void AddAllFeatures_ThrowsArgumentNullException_WhenBuilderIsNull()
+	public void UseAllFeatures_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
 		// Arrange
 		IDispatchBuilder builder = null!;
 
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => builder.AddAllFeatures())
+		Should.Throw<ArgumentNullException>(() => builder.UseAllFeatures())
 			.ParamName.ShouldBe("builder");
 	}
 
 	[Fact]
-	public void AddAllFeatures_EnablesContextEnrichment()
+	public void UseAllFeatures_EnablesContextEnrichment()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = CreateBuilder(services)
-			.AddAllFeatures();
+			.UseAllFeatures();
 
 		var provider = services.BuildServiceProvider();
 
@@ -156,12 +156,12 @@ public sealed class ProgressiveEnhancementExtensionsShould
 	}
 
 	[Fact]
-	public void AddAllFeatures_RegistersMessageContextAccessor()
+	public void UseAllFeatures_RegistersMessageContextAccessor()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = CreateBuilder(services)
-			.AddAllFeatures();
+			.UseAllFeatures();
 
 		var provider = services.BuildServiceProvider();
 
@@ -173,27 +173,27 @@ public sealed class ProgressiveEnhancementExtensionsShould
 	}
 
 	[Fact]
-	public void AddAllFeatures_ReturnsBuilderForChaining()
+	public void UseAllFeatures_ReturnsBuilderForChaining()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateBuilder(services);
 
 		// Act
-		var result = builder.AddAllFeatures();
+		var result = builder.UseAllFeatures();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void AddAllFeatures_IsIdempotent_WhenCalledMultipleTimes()
+	public void UseAllFeatures_IsIdempotent_WhenCalledMultipleTimes()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = CreateBuilder(services)
-			.AddAllFeatures()
-			.AddAllFeatures();
+			.UseAllFeatures()
+			.UseAllFeatures();
 
 		// Act - Should not throw
 		var provider = services.BuildServiceProvider();
@@ -204,15 +204,15 @@ public sealed class ProgressiveEnhancementExtensionsShould
 	}
 
 	[Fact]
-	public void AddAllFeatures_CanBeChainedWithOtherExtensions()
+	public void UseAllFeatures_CanBeChainedWithOtherExtensions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act - Should not throw
 		var builder = CreateBuilder(services)
-			.AddAllFeatures()
-			.AddContextEnrichment(); // Should be idempotent
+			.UseAllFeatures()
+			.UseContextEnrichment(); // Should be idempotent
 
 		// Assert
 		_ = builder.ShouldNotBeNull();
@@ -233,8 +233,8 @@ public sealed class ProgressiveEnhancementExtensionsShould
 
 		// Act - Different order
 		var builder = CreateBuilder(services)
-			.AddContextEnrichment()
-			.AddAllFeatures();
+			.UseContextEnrichment()
+			.UseAllFeatures();
 
 		// Assert
 		_ = builder.ShouldNotBeNull();

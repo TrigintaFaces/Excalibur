@@ -250,7 +250,10 @@ services.AddConfluentSchemaRegistry(options =>
 });
 
 // Dispatch observability (covers all transports including Google Pub/Sub)
-services.AddDispatchObservability();
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseObservability();
+});
 
 // AWS Glue Schema Registry
 services.AddAwsGlueSchemaRegistry(options =>

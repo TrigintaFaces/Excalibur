@@ -4,9 +4,10 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Security;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -105,8 +106,8 @@ public static class DispatchSecurityServiceCollectionExtensions
 			.ValidateOnStart();
 		_ = services.AddSingleton(static sp => sp.GetRequiredService<IOptions<InputValidationOptions>>().Value);
 
-		// Register validation middleware
-		_ = services.AddSingleton<IDispatchMiddleware, InputValidationMiddleware>();
+		// Register validation middleware concrete type for pipeline resolution
+		services.TryAddSingleton<InputValidationMiddleware>();
 
 		// No default validators registered -- IInputValidator is a consumer extension point.
 		// Consumers register their own validators for their application's specific needs.

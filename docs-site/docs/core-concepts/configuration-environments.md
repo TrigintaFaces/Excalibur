@@ -149,8 +149,8 @@ builder.Services.AddDispatch(dispatch =>
 // Environment-specific transport
 if (builder.Environment.IsDevelopment())
 {
-    // Use in-memory transport for local development
-    builder.Services.AddMessageBus();
+    // In development: messages dispatch in-process (no broker needed)
+    // No transport registration means in-process dispatch by default
 }
 else
 {

@@ -62,8 +62,8 @@ public sealed class PipelineScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(PipelineScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
-			_ = dispatch.AddDispatchResilience();
+			_ = dispatch.UseValidation();
+			_ = dispatch.UseResilience();
 		});
 
 		services.AddEventSerializer();
@@ -137,8 +137,8 @@ public sealed class PipelineScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(PipelineScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
-			_ = dispatch.AddDispatchResilience();
+			_ = dispatch.UseValidation();
+			_ = dispatch.UseResilience();
 		});
 
 		services.AddEventSerializer();
@@ -189,8 +189,8 @@ public sealed class PipelineScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(PipelineScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
-			_ = dispatch.AddDispatchResilience();
+			_ = dispatch.UseValidation();
+			_ = dispatch.UseResilience();
 		});
 
 #pragma warning disable IL2026

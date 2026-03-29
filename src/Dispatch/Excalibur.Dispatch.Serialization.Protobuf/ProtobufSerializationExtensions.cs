@@ -58,7 +58,7 @@ public static class ProtobufSerializationExtensions
 	/// </para>
 	/// <code>
 	/// services.AddDispatch()
-	///     .ConfigureSerialization(config =>
+	///     .WithSerialization(config =>
 	///     {
 	///         config.RegisterProtobuf();
 	///         config.UseProtobuf();
@@ -69,6 +69,25 @@ public static class ProtobufSerializationExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		return builder.Register(new ProtobufSerializer(), SerializerIds.Protobuf);
+	}
+
+	/// <summary>
+	/// Registers the Protobuf serializer with configuration (framework-assigned ID: 4).
+	/// </summary>
+	/// <param name="builder">The serialization builder.</param>
+	/// <param name="configure">Configuration delegate for Protobuf serialization options.</param>
+	/// <returns>The builder for method chaining.</returns>
+	public static ISerializationBuilder RegisterProtobuf(
+		this ISerializationBuilder builder,
+		Action<ProtobufSerializationOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var options = new ProtobufSerializationOptions();
+		configure(options);
+
+		return builder.Register(new ProtobufSerializer(options), SerializerIds.Protobuf);
 	}
 
 	/// <summary>

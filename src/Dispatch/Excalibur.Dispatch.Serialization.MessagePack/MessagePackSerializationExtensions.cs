@@ -96,7 +96,7 @@ public static class MessagePackSerializationExtensions
 	/// </para>
 	/// <code>
 	/// services.AddDispatch()
-	///     .ConfigureSerialization(config =>
+	///     .WithSerialization(config =>
 	///     {
 	///         config.RegisterMessagePack();
 	///         config.UseMessagePack();
@@ -110,7 +110,28 @@ public static class MessagePackSerializationExtensions
 	}
 
 	/// <summary>
-	/// Registers the MessagePack serializer with custom options (framework-assigned ID: 3).
+	/// Registers the MessagePack serializer with configuration (framework-assigned ID: 3).
+	/// </summary>
+	/// <param name="builder">The serialization builder.</param>
+	/// <param name="configure">Configuration delegate for MessagePack serialization options.</param>
+	/// <returns>The builder for method chaining.</returns>
+	public static ISerializationBuilder RegisterMessagePack(
+		this ISerializationBuilder builder,
+		Action<MessagePackSerializationOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var options = new MessagePackSerializationOptions();
+		configure(options);
+
+		return builder.Register(
+			new MessagePackSerializer(options.MessagePackSerializerOptions),
+			SerializerIds.MessagePack);
+	}
+
+	/// <summary>
+	/// Registers the MessagePack serializer with custom native options (framework-assigned ID: 3).
 	/// </summary>
 	/// <param name="builder">The serialization builder.</param>
 	/// <param name="options">Custom MessagePack serializer options.</param>

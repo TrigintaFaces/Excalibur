@@ -26,7 +26,7 @@ public sealed class DispatchBuilderSecurityExtensionsShould
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            DispatchBuilderSecurityExtensions.AddSecurity(null!, config));
+            DispatchBuilderSecurityExtensions.UseSecurity(null!, config));
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class DispatchBuilderSecurityExtensionsShould
 
         // Act & Assert
         Should.Throw<ArgumentNullException>(() =>
-            builder.AddSecurity(null!));
+            builder.UseSecurity(null!));
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class DispatchBuilderSecurityExtensionsShould
         var config = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
 
         // Act
-        var result = builder.AddSecurity(config);
+        var result = builder.UseSecurity(config);
 
         // Assert
         result.ShouldBe(builder);

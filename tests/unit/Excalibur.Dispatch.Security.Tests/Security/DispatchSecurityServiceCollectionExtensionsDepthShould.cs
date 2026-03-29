@@ -67,8 +67,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecurityEventLogger));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecurityEventStore));
 		// IInputValidator is a consumer extension point -- no defaults registered
-		services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(InputValidationMiddleware));
+		services.ShouldContain(sd => sd.ServiceType == typeof(InputValidationMiddleware));
 	}
 
 	[Fact]
@@ -158,8 +157,7 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(InputValidationMiddleware));
+			sd.ServiceType == typeof(InputValidationMiddleware));
 	}
 
 	[Fact]

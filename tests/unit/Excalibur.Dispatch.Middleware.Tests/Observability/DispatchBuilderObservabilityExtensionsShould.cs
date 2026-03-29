@@ -23,24 +23,24 @@ public sealed class DispatchBuilderObservabilityExtensionsShould : UnitTestBase
 		return builder;
 	}
 
-	#region AddObservability Tests
+	#region UseObservability Tests
 
 	[Fact]
-	public void AddObservability_ThrowsArgumentNullException_WhenBuilderIsNull()
+	public void UseObservability_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
 		IDispatchBuilder builder = null!;
 
-		Should.Throw<ArgumentNullException>(() => builder.AddObservability());
+		Should.Throw<ArgumentNullException>(() => builder.UseObservability());
 	}
 
 	[Fact]
-	public void AddObservability_ReturnsBuilder()
+	public void UseObservability_ReturnsBuilder()
 	{
 		// Arrange
 		var builder = CreateBuilder();
 
 		// Act
-		var result = builder.AddObservability();
+		var result = builder.UseObservability();
 
 		// Assert
 		result.ShouldBeSameAs(builder);

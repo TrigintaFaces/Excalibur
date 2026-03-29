@@ -155,4 +155,38 @@ public static class MongoDbProjectionStoreExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// Registers multiple MongoDB projection stores with shared options configuration,
+	/// allowing advanced settings like custom timeouts, SSL, and pool sizes.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureShared">Shared options applied to all projections before per-projection overrides.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddMongoDbProjections(
+	///     shared => { shared.ConnectionString = connStr; shared.DatabaseName = "mydb"; shared.UseSsl = true; },
+	///     projections =>
+	///     {
+	///         projections.Add&lt;OrderSummary&gt;();
+	///         projections.Add&lt;CustomerProfile&gt;(options => options.CollectionName = "customers");
+	///     });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddMongoDbProjections(
+		this IServiceCollection services,
+		Action<MongoDbProjectionStoreOptions> configureShared,
+		Action<MongoDbProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configureShared);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new MongoDbProjectionRegistrar(services, configureShared);
+		configure(registrar);
+
+		return services;
+	}
 }

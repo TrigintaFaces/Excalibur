@@ -151,4 +151,38 @@ public static class ElasticSearchProjectionStoreExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// Registers multiple ElasticSearch projection stores with shared options configuration,
+	/// allowing advanced settings like custom node URIs, index prefixes, and shard counts.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureShared">Shared options applied to all projections before per-projection overrides.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddElasticSearchProjections(
+	///     shared => { shared.NodeUri = "https://es.example.com:9200"; shared.NumberOfReplicas = 2; },
+	///     projections =>
+	///     {
+	///         projections.Add&lt;OrderSummary&gt;();
+	///         projections.Add&lt;CustomerProfile&gt;(options => options.IndexPrefix = "customers");
+	///     });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddElasticSearchProjections(
+		this IServiceCollection services,
+		Action<ElasticSearchProjectionStoreOptions> configureShared,
+		Action<ElasticSearchProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configureShared);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new ElasticSearchProjectionRegistrar(services, configureShared);
+		configure(registrar);
+
+		return services;
+	}
 }

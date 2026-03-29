@@ -117,7 +117,7 @@ When you need custom Dispatch configuration (transports, middleware), configure 
 services.AddDispatch(dispatch =>
 {
     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-    dispatch.AddObservability();
+    dispatch.UseObservability();
     dispatch.ConfigurePipeline("default", p => p.UseValidation());
 });
 

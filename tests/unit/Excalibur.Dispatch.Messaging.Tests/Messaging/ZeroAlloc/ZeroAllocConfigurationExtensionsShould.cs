@@ -220,18 +220,18 @@ public sealed class ZeroAllocConfigurationExtensionsShould : IDisposable
 
 	#endregion
 
-	#region AddZeroAllocMiddleware Tests
+	#region UseZeroAllocMiddleware Tests
 
 	[Fact]
-	public void AddZeroAllocMiddleware_ThrowsArgumentNullException_WhenBuilderIsNull()
+	public void UseZeroAllocMiddleware_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			ZeroAllocConfigurationExtensions.AddZeroAllocMiddleware(null!));
+			ZeroAllocPipelineExtensions.UseZeroAllocMiddleware(null!));
 	}
 
 	[Fact]
-	public void AddZeroAllocMiddleware_ReturnsBuilderForChaining()
+	public void UseZeroAllocMiddleware_ReturnsBuilderForChaining()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -239,7 +239,7 @@ public sealed class ZeroAllocConfigurationExtensionsShould : IDisposable
 		_ = services.AddDispatch(dispatch =>
 		{
 			// Act
-			var result = dispatch.AddZeroAllocMiddleware();
+			var result = dispatch.UseZeroAllocMiddleware();
 
 			// Assert
 			result.ShouldBe(dispatch);
@@ -259,7 +259,7 @@ public sealed class ZeroAllocConfigurationExtensionsShould : IDisposable
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.UseZeroAllocation();
-			_ = dispatch.AddZeroAllocMiddleware();
+			_ = dispatch.UseZeroAllocMiddleware();
 		});
 		_serviceProvider = services.BuildServiceProvider();
 

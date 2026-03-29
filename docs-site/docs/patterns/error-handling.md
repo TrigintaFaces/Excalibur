@@ -72,7 +72,7 @@ The first line of defense. When a handler throws, the retry policy determines wh
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddDispatchResilience(options =>
+    dispatch.UseResilience(options =>
     {
         options.EnableRetry = true;
         options.EnableCircuitBreaker = true;
@@ -221,7 +221,7 @@ The DLQ preserves the full context of the failure: the original message, the exc
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.MaxRetryAttempts = 3;
         options.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);
@@ -489,7 +489,7 @@ Is the message from an external system (broker redelivery possible)?
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddDispatchResilience(options =>
+    dispatch.UseResilience(options =>
     {
         options.EnableRetry = true;
     });
@@ -501,13 +501,13 @@ services.AddDispatch(dispatch =>
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddDispatchResilience(options =>
+    dispatch.UseResilience(options =>
     {
         options.EnableRetry = true;
         options.EnableCircuitBreaker = true;
     });
 
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.MaxRetryAttempts = 3;
         options.DeadLetterRetentionPeriod = TimeSpan.FromDays(30);
@@ -524,7 +524,7 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
     // Resilience: retry + circuit breaker
-    dispatch.AddDispatchResilience(options =>
+    dispatch.UseResilience(options =>
     {
         options.EnableRetry = true;
         options.EnableCircuitBreaker = true;
@@ -539,7 +539,7 @@ services.AddDispatch(dispatch =>
     });
 
     // Dead letter queue with alerting
-    dispatch.AddPoisonMessageHandling(options =>
+    dispatch.UsePoisonMessageHandling(options =>
     {
         options.DeadLetterRetentionPeriod = TimeSpan.FromDays(90);
         options.EnableAlerting = true;

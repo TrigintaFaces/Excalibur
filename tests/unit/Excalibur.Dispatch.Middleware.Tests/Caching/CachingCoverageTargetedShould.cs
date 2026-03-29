@@ -52,6 +52,33 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 		return services;
 	}
 
+	/// <summary>
+	/// Resolves all registered wrapper middleware instances that implement <see cref="IDispatchMiddleware"/>
+	/// by scanning the service collection for concrete types whose names contain "Wrapper".
+	/// Sprint 717 T.2 eliminated dual IDispatchMiddleware registration; wrappers are now registered
+	/// as their concrete types only.
+	/// </summary>
+	private static List<IDispatchMiddleware> ResolveWrapperMiddleware(ServiceCollection services)
+	{
+		var provider = services.BuildServiceProvider();
+		var wrappers = new List<IDispatchMiddleware>();
+
+		foreach (var sd in services)
+		{
+			if (sd.ServiceType.Name.Contains("Wrapper", StringComparison.Ordinal) &&
+				typeof(IDispatchMiddleware).IsAssignableFrom(sd.ServiceType))
+			{
+				var instance = provider.GetService(sd.ServiceType);
+				if (instance is IDispatchMiddleware middleware)
+				{
+					wrappers.Add(middleware);
+				}
+			}
+		}
+
+		return wrappers;
+	}
+
 	// =========================================================================
 	// CacheResilienceOptions: verify all default property values are read
 	// =========================================================================
@@ -124,8 +151,10 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 			opts.CacheMode = CacheMode.Hybrid;
 		});
 
-		// Assert - wrappers are registered as IDispatchMiddleware
-		services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware));
+		// Assert - wrappers are registered as concrete types (Sprint 717 T.2 removed dual IDispatchMiddleware registration)
+		services.ShouldContain(sd =>
+			sd.ServiceType.Name.Contains("CachingMiddlewareWrapper", StringComparison.Ordinal) &&
+			typeof(IDispatchMiddleware).IsAssignableFrom(sd.ServiceType));
 	}
 
 	[Fact]
@@ -138,10 +167,9 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 			opts.CacheMode = CacheMode.Hybrid;
 		});
 
-		var provider = services.BuildServiceProvider();
-		var middlewares = provider.GetServices<IDispatchMiddleware>().ToList();
+		var wrappers = ResolveWrapperMiddleware(services);
 
-		var cachingWrapper = middlewares.FirstOrDefault(m =>
+		var cachingWrapper = wrappers.FirstOrDefault(m =>
 			m.Stage == DispatchMiddlewareStage.Cache &&
 			m.GetType().Name.Contains("CachingMiddlewareWrapper"));
 
@@ -171,10 +199,9 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 			opts.CacheMode = CacheMode.Hybrid;
 		});
 
-		var provider = services.BuildServiceProvider();
-		var middlewares = provider.GetServices<IDispatchMiddleware>().ToList();
+		var wrappers = ResolveWrapperMiddleware(services);
 
-		var invalidationWrapper = middlewares.FirstOrDefault(m =>
+		var invalidationWrapper = wrappers.FirstOrDefault(m =>
 			m.Stage == DispatchMiddlewareStage.Cache &&
 			m.GetType().Name.Contains("CacheInvalidationMiddlewareWrapper"));
 
@@ -205,10 +232,9 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 	{
 		// Arrange -- enabled, so wrapper delegates to inner CachingMiddleware
 		var services = CreateServicesWithCachingDependencies();
-		var provider = services.BuildServiceProvider();
-		var middlewares = provider.GetServices<IDispatchMiddleware>().ToList();
+		var wrappers = ResolveWrapperMiddleware(services);
 
-		var cachingWrapper = middlewares.FirstOrDefault(m =>
+		var cachingWrapper = wrappers.FirstOrDefault(m =>
 			m.GetType().Name.Contains("CachingMiddlewareWrapper"));
 
 		cachingWrapper.ShouldNotBeNull();
@@ -235,10 +261,9 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 	{
 		// Arrange -- enabled
 		var services = CreateServicesWithCachingDependencies();
-		var provider = services.BuildServiceProvider();
-		var middlewares = provider.GetServices<IDispatchMiddleware>().ToList();
+		var wrappers = ResolveWrapperMiddleware(services);
 
-		var invalidationWrapper = middlewares.FirstOrDefault(m =>
+		var invalidationWrapper = wrappers.FirstOrDefault(m =>
 			m.GetType().Name.Contains("CacheInvalidationMiddlewareWrapper"));
 
 		invalidationWrapper.ShouldNotBeNull();
@@ -267,16 +292,15 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 	[Fact]
 	public void AddDispatchCaching_ResolvesWrapperMiddlewareFromServiceProvider()
 	{
-		// Arrange -- resolving IDispatchMiddleware exercises the static lambda factories
+		// Arrange -- resolving wrapper middleware exercises the static lambda factories
 		var services = CreateServicesWithCachingDependencies();
 
 		// Act
-		var provider = services.BuildServiceProvider();
-		var middlewares = provider.GetServices<IDispatchMiddleware>().ToList();
+		var wrappers = ResolveWrapperMiddleware(services);
 
 		// Assert -- factory lambdas at lines 188, 191 executed successfully
-		middlewares.ShouldNotBeEmpty();
-		middlewares.Count(m => m.Stage == DispatchMiddlewareStage.Cache).ShouldBeGreaterThanOrEqualTo(1);
+		wrappers.ShouldNotBeEmpty();
+		wrappers.Count(m => m.Stage == DispatchMiddlewareStage.Cache).ShouldBeGreaterThanOrEqualTo(1);
 	}
 
 	[Fact]

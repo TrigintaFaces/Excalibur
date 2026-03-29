@@ -33,7 +33,7 @@ public static class PluggableSerializationServiceCollectionExtensions
 	/// </list>
 	/// <para>
 	/// By default, MemoryPack is auto-registered and set as the current serializer.
-	/// Use <see cref="ConfigureSerialization"/> to customize this behavior.
+	/// Use <see cref="WithSerialization"/> to customize this behavior.
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddPluggableSerialization(this IServiceCollection services)
@@ -97,12 +97,11 @@ public static class PluggableSerializationServiceCollectionExtensions
 	/// <returns>The dispatch builder for method chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// This is the preferred API over <see cref="ConfigurePluggableSerialization"/>.
 	/// The <see cref="ISerializationBuilder"/> has 3 core methods; format-specific convenience
 	/// methods are available as extension methods in <see cref="SerializationBuilderExtensions"/>.
 	/// </para>
 	/// </remarks>
-	public static IDispatchBuilder ConfigureSerialization(
+	public static IDispatchBuilder WithSerialization(
 		this IDispatchBuilder builder,
 		Action<ISerializationBuilder> configure)
 	{

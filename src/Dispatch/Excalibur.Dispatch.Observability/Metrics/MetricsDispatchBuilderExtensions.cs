@@ -22,7 +22,7 @@ public static class MetricsDispatchBuilderExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for method chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when builder is null. </exception>
-	public static IDispatchBuilder AddDispatchMetricsInstrumentation(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseMetricsInstrumentation(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		_ = builder.Services.AddSingleton<DispatchMetrics>();

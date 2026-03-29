@@ -946,12 +946,12 @@ Dispatch provides centralized exception-to-HTTP mapping that automatically conve
 
 ### Configuring Exception Mapping
 
-Configure exception mapping using the `ConfigureExceptionMapping` extension on the dispatch builder:
+Configure exception mapping using the `WithExceptionMapping` extension on the dispatch builder:
 
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.ConfigureExceptionMapping(mapping =>
+    dispatch.WithExceptionMapping(mapping =>
     {
         // ApiException hierarchy auto-mapped via ToProblemDetails() (default)
         mapping.UseApiExceptionMapping();
@@ -1011,7 +1011,7 @@ Exception mappings are evaluated in this order:
 3. **Default mapper** - Catches all remaining exceptions
 
 ```csharp
-dispatch.ConfigureExceptionMapping(mapping =>
+dispatch.WithExceptionMapping(mapping =>
 {
     // Order matters! More specific mappings should come first
     mapping.MapWhen<DbException>(
@@ -1215,7 +1215,7 @@ Is the error a business rule violation (validation, not found, insufficient fund
 │
 └── NO → Is it a transient infrastructure failure (timeout, connection reset)?
     ├── YES → Let resilience middleware handle it
-    │         Add: dispatch.AddDispatchResilience()
+    │         Add: dispatch.UseResilience()
     │         The middleware retries automatically with backoff.
     │
     └── NO → Is it a permanent infrastructure failure (bad config, missing table)?
@@ -1232,7 +1232,7 @@ Is the error a business rule violation (validation, not found, insufficient fund
 |----------|----------|-------------|
 | Validation failure | `MessageResult.Failed(problem)` | Return result, don't throw |
 | Entity not found | `MessageResult.Failed("Not found")` | Return result |
-| Transient failure | Resilience middleware | `dispatch.AddDispatchResilience()` |
+| Transient failure | Resilience middleware | `dispatch.UseResilience()` |
 | Permanent failure | Exception | `throw new InvalidOperationException(...)` |
 | Poison message | Dead letter queue | Transport DLQ config |
 | Concurrency conflict | Reload + retry | Catch `ConcurrencyException`, reload aggregate |

@@ -22,7 +22,7 @@ public static class ContextValidationDispatchBuilderExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
 	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
-	public static IDispatchBuilder AddContextValidation(this IDispatchBuilder builder)
+	public static IDispatchBuilder UseContextValidation(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
@@ -37,7 +37,7 @@ public static class ContextValidationDispatchBuilderExtensions
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configureOptions"> Action to configure options. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder AddContextValidation(
+	public static IDispatchBuilder UseContextValidation(
 		this IDispatchBuilder builder,
 		Action<ContextValidationOptions> configureOptions)
 	{

@@ -193,9 +193,8 @@ public sealed class BackgroundExecutionShould
 		// Act
 		services.AddDispatchThreading();
 
-		// Assert
+		// Assert -- S717 T.2: middleware registered as concrete type, not IDispatchMiddleware
 		services.ShouldContain(sd => sd.ServiceType == typeof(IKeyedLock));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IDispatchMiddleware));
 	}
 
 	// --- Test helpers ---

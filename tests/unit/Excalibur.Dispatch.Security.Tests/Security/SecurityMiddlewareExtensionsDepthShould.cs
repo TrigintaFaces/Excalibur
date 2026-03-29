@@ -166,10 +166,9 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 			opts.Authentication.JwtSigningKey = "ThisIsAVeryLongSigningKeyForHmacSha256ThatExceedsMinimumLength!";
 		});
 
-		// Assert — JWT middleware registered
+		// Assert — JWT middleware registered as concrete type
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(JwtAuthenticationMiddleware));
+			sd.ServiceType == typeof(JwtAuthenticationMiddleware));
 	}
 
 	[Fact]
@@ -193,8 +192,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		services.ShouldNotContain(sd => sd.ServiceType == typeof(IMessageSigningService));
 		services.ShouldNotContain(sd => sd.ServiceType == typeof(RateLimitingMiddleware));
 		services.ShouldNotContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(JwtAuthenticationMiddleware));
+			sd.ServiceType == typeof(JwtAuthenticationMiddleware));
 	}
 
 	[Fact]
@@ -340,8 +338,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(JwtAuthenticationMiddleware));
+			sd.ServiceType == typeof(JwtAuthenticationMiddleware));
 	}
 
 	[Fact]
@@ -399,8 +396,7 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDispatchMiddleware) &&
-			sd.ImplementationType == typeof(JwtAuthenticationMiddleware));
+			sd.ServiceType == typeof(JwtAuthenticationMiddleware));
 	}
 
 	[Fact]

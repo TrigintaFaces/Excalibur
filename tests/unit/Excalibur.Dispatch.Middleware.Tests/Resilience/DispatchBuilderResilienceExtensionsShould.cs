@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 
 /// <summary>
 /// Tests for the <see cref="DispatchBuilderResilienceExtensions"/> class.
-/// Sprint 45 (bd-5tsb): Unit tests for AddPollyResilienceAdapters DI registration.
+/// Sprint 45 (bd-5tsb): Unit tests for UsePollyResilienceAdapters DI registration.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Dispatch.Core")]
@@ -32,7 +32,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -49,7 +49,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -66,7 +66,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -83,7 +83,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -103,7 +103,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -123,7 +123,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -143,7 +143,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -163,7 +163,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -180,7 +180,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddPollyResilienceAdapters();
+		var result = builder.UsePollyResilienceAdapters();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -191,7 +191,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).AddPollyResilienceAdapters());
+			((IDispatchBuilder)null!).UsePollyResilienceAdapters());
 	}
 
 	#endregion IDispatchBuilder Extension Tests
@@ -206,7 +206,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters(options =>
+		_ = builder.UsePollyResilienceAdapters(options =>
 		{
 			options.RetryOptions = new RetryOptions
 			{
@@ -233,7 +233,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters(options =>
+		_ = builder.UsePollyResilienceAdapters(options =>
 		{
 			options.CircuitBreakerOptions = new CircuitBreakerOptions
 			{
@@ -259,7 +259,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters(options =>
+		_ = builder.UsePollyResilienceAdapters(options =>
 		{
 			options.MaxBackoffDelay = TimeSpan.FromMinutes(2);
 			options.RetryOptions = new RetryOptions
@@ -286,7 +286,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Assert - all services should be registered with defaults
@@ -304,7 +304,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act - should not throw
-		_ = builder.AddPollyResilienceAdapters(null);
+		_ = builder.UsePollyResilienceAdapters(null);
 		var provider = services.BuildServiceProvider();
 
 		// Assert
@@ -313,18 +313,18 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 
 	#endregion Configuration Options Tests
 
-	#region AddDispatchResilience Tests
+	#region UseResilience Tests
 
 	[Fact]
-	public void AddDispatchResilience_WithNullBuilder_ThrowsArgumentNullException()
+	public void UseResilience_WithNullBuilder_ThrowsArgumentNullException()
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).AddDispatchResilience());
+			((IDispatchBuilder)null!).UseResilience());
 	}
 
 	[Fact]
-	public void AddDispatchResilience_WithValidBuilder_ReturnsBuilder()
+	public void UseResilience_WithValidBuilder_ReturnsBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -332,14 +332,14 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddDispatchResilience();
+		var result = builder.UseResilience();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void AddDispatchResilience_RegistersCorePollyServices()
+	public void UseResilience_RegistersCorePollyServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -347,7 +347,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddDispatchResilience();
+		_ = builder.UseResilience();
 
 		// Assert - Core services should be registered
 		services.Any(d => d.ServiceType == typeof(ICircuitBreakerFactory)).ShouldBeTrue();
@@ -356,7 +356,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 	}
 
 	[Fact]
-	public void AddDispatchResilience_WithConfigureOptions_ConfiguresOptions()
+	public void UseResilience_WithConfigureOptions_ConfiguresOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -364,7 +364,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddDispatchResilience(options =>
+		_ = builder.UseResilience(options =>
 		{
 			options.DefaultRetryCount = 10;
 			options.EnableCircuitBreaker = true;
@@ -378,39 +378,15 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 	}
 
 	[Fact]
-	public void AddDispatchResilience_WithConfigureOptions_WithNullBuilder_ThrowsArgumentNullException()
+	public void UseResilience_WithConfigureOptions_WithNullBuilder_ThrowsArgumentNullException()
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).AddDispatchResilience(_ => { }));
+			((IDispatchBuilder)null!).UseResilience(_ => { }));
 	}
 
 	[Fact]
-	public void AddDispatchResilience_WithConfigureOptions_WithNullConfigAction_ThrowsArgumentNullException()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var builder = CreateFakeDispatchBuilder(services);
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			builder.AddDispatchResilience(null!));
-	}
-
-	#endregion AddDispatchResilience Tests
-
-	#region AddResilience Tests
-
-	[Fact]
-	public void AddResilience_WithNullBuilder_ThrowsArgumentNullException()
-	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).AddResilience());
-	}
-
-	[Fact]
-	public void AddResilience_WithValidBuilder_ReturnsBuilder()
+	public void UseResilience_WithNullConfigure_CallsUseResilience()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -418,29 +394,14 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddResilience();
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void AddResilience_WithNullConfigure_CallsAddDispatchResilience()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		services.AddLogging();
-		var builder = CreateFakeDispatchBuilder(services);
-
-		// Act
-		_ = builder.AddResilience(null);
+		_ = builder.UseResilience(null);
 
 		// Assert - Core services should be registered
 		services.Any(d => d.ServiceType == typeof(ICircuitBreakerFactory)).ShouldBeTrue();
 	}
 
 	[Fact]
-	public void AddResilience_WithConfigure_CallsAddDispatchResilienceWithConfigure()
+	public void UseResilience_WithConfigure_ConfiguresOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -449,7 +410,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var configCalled = false;
 
 		// Act
-		_ = builder.AddResilience(options =>
+		_ = builder.UseResilience(options =>
 		{
 			configCalled = true;
 			options.DefaultRetryCount = 5;
@@ -466,7 +427,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		options.Value.DefaultRetryCount.ShouldBe(5);
 	}
 
-	#endregion AddResilience Tests
+	#endregion UseResilience Tests
 
 	#region IServiceCollection Extension Tests
 
@@ -540,7 +501,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateFakeDispatchBuilder(services);
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -557,7 +518,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateFakeDispatchBuilder(services);
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -574,7 +535,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateFakeDispatchBuilder(services);
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -591,7 +552,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateFakeDispatchBuilder(services);
-		_ = builder.AddPollyResilienceAdapters();
+		_ = builder.UsePollyResilienceAdapters();
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -617,7 +578,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddPollyResilienceAdapters(options =>
+		_ = builder.UsePollyResilienceAdapters(options =>
 		{
 			options.RetryOptions = new RetryOptions
 			{

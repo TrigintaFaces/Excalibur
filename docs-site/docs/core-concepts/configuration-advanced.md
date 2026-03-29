@@ -53,14 +53,14 @@ builder.Services.AddOptions<DispatchOptions>()
 
 All transport methods support named overloads: `dispatch.UseKafka("analytics", kafka => ...)`.
 
-### IDispatchBuilder -- Cross-Cutting Extensions (`Add` prefix)
+### IDispatchBuilder -- Cross-Cutting Extensions (`Use` prefix)
 
 | Method | Package | Example |
 |--------|---------|---------|
-| `AddObservability()` | `Excalibur.Dispatch.Observability` | `dispatch.AddObservability(obs => ...)` |
-| `AddResilience()` | `Excalibur.Dispatch.Resilience.Polly` | `dispatch.AddResilience(res => ...)` |
-| `AddCaching()` | `Excalibur.Dispatch.Caching` | `dispatch.AddCaching()` |
-| `AddSecurity()` | `Excalibur.Dispatch.Security` | `dispatch.AddSecurity(configuration)` |
+| `UseObservability()` | `Excalibur.Dispatch.Observability` | `dispatch.UseObservability(obs => ...)` |
+| `UseResilience()` | `Excalibur.Dispatch.Resilience.Polly` | `dispatch.UseResilience(res => ...)` |
+| `UseCaching()` | `Excalibur.Dispatch.Caching` | `dispatch.UseCaching()` |
+| `UseSecurity()` | `Excalibur.Dispatch.Security` | `dispatch.UseSecurity(configuration)` |
 
 ### Standalone IServiceCollection Methods
 
@@ -75,11 +75,11 @@ These standalone methods remain available for consumers who prefer direct regist
 | `AddAzureServiceBusTransport()` | Azure Service Bus | `Excalibur.Dispatch.Transport.AzureServiceBus` |
 | `AddGooglePubSubTransport()` | Google Pub/Sub | `Excalibur.Dispatch.Transport.GooglePubSub` |
 | `AddDispatchObservability()` | Observability | `Excalibur.Dispatch.Observability` |
-| `AddDispatchResilience()` | Resilience (Polly) | `Excalibur.Dispatch.Resilience.Polly` |
-| `AddDispatchCaching()` | Caching | `Excalibur.Dispatch.Caching` |
-| `AddDispatchSecurity()` | Security | `Excalibur.Dispatch.Security` |
-| `AddMemoryPackInternalSerialization()` | MemoryPack serialization | `Excalibur.Dispatch.Serialization.MemoryPack` |
+| `UseDispatchResilience()` | Resilience (Polly) | `Excalibur.Dispatch.Resilience.Polly` |
+| `UseCaching()` | Caching (on `IDispatchBuilder`) | `Excalibur.Dispatch.Caching` |
+| `UseSecurity()` | Security (on `IDispatchBuilder`) | `Excalibur.Dispatch.Security` |
 | `AddMessagePackSerialization()` | MessagePack serialization | `Excalibur.Dispatch.Serialization.MessagePack` |
+| `AddPluggableSerialization()` | Pluggable serialization (MemoryPack default) | `Excalibur.Dispatch` |
 
 ## Common Configuration Patterns
 
@@ -113,11 +113,11 @@ builder.Services.AddDispatch(dispatch =>
     dispatch.UseKafka(kafka => kafka.BootstrapServers(builder.Configuration["Kafka:Servers"]));
     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
 
-    // Cross-cutting concerns (Add prefix)
-    dispatch.AddObservability();
-    dispatch.AddResilience(res => res.DefaultRetryCount = 3);
-    dispatch.AddCaching();
-    dispatch.AddSecurity(builder.Configuration);
+    // Cross-cutting concerns (Use prefix)
+    dispatch.UseObservability();
+    dispatch.UseResilience(res => res.DefaultRetryCount = 3);
+    dispatch.UseCaching();
+    dispatch.UseSecurity(builder.Configuration);
 
     // Global middleware
     dispatch.UseMiddleware<LoggingMiddleware>();
@@ -140,7 +140,7 @@ builder.Services.AddDispatch(dispatch =>
 });
 
 // Serialization
-builder.Services.AddMemoryPackInternalSerialization();
+// MemoryPack is auto-registered by AddDispatch(). For alternatives:
 
 // Health checks
 builder.Services.AddHealthChecks()
@@ -166,7 +166,7 @@ builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
     dispatch.UseKafka(kafka => kafka.BootstrapServers("localhost:9092"));
-    dispatch.AddObservability();
+    dispatch.UseObservability();
     dispatch.ConfigurePipeline("default", p => p.UseValidation());
 });
 

@@ -331,11 +331,10 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("OrderDb")
     ?? "Server=(localdb)\\MSSQLLocalDB;Database=OrderSystem;Trusted_Connection=true;";
 
-// 1. Dispatch (messaging + handler discovery)
+// 1. Dispatch (handlers auto-discovered + authorization middleware)
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.AddDispatchAuthorization(); // Authorization middleware
+    dispatch.UseAuthorization();
 });
 
 // 2. Event Sourcing (aggregates + event store)

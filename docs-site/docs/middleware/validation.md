@@ -48,7 +48,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddDispatch(builder =>
 {
-    builder.AddDispatchValidation();
+    builder.UseValidation();
     builder.WithDataAnnotationsValidation();
 });
 ```
@@ -70,7 +70,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddDispatch(builder =>
 {
-    builder.AddDispatchValidation();
+    builder.UseValidation();
     builder.WithFluentValidation();
 });
 

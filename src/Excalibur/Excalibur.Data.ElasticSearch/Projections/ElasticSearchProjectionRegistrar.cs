@@ -7,7 +7,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 
 /// <summary>
 /// Registrar for adding multiple ElasticSearch projection stores that share
-/// a common node URI. Used with <see cref="ElasticSearchProjectionStoreExtensions.AddElasticSearchProjections"/>.
+/// a common node URI. Used with <c>AddElasticSearchProjections</c>.
 /// </summary>
 /// <remarks>
 /// Each projection type gets its own named options instance, so per-projection
@@ -16,10 +16,12 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 public sealed class ElasticSearchProjectionRegistrar
 {
 	private readonly IServiceCollection _services;
-	private readonly string _nodeUri;
+	private readonly string? _nodeUri;
+	private readonly Action<ElasticSearchProjectionStoreOptions>? _configureShared;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="ElasticSearchProjectionRegistrar"/> class.
+	/// Initializes a new instance of the <see cref="ElasticSearchProjectionRegistrar"/> class
+	/// with an explicit node URI.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="nodeUri">The shared ElasticSearch node URI.</param>
@@ -30,7 +32,17 @@ public sealed class ElasticSearchProjectionRegistrar
 	}
 
 	/// <summary>
-	/// Adds a projection store for the specified type using the shared node URI.
+	/// Initializes a new instance of the <see cref="ElasticSearchProjectionRegistrar"/> class
+	/// with a shared options configuration action.
+	/// </summary>
+	internal ElasticSearchProjectionRegistrar(IServiceCollection services, Action<ElasticSearchProjectionStoreOptions> configureShared)
+	{
+		_services = services;
+		_configureShared = configureShared;
+	}
+
+	/// <summary>
+	/// Adds a projection store for the specified type using the shared configuration.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>
 	/// <param name="configureOptions">Optional action to override per-projection options.</param>
@@ -41,7 +53,15 @@ public sealed class ElasticSearchProjectionRegistrar
 	{
 		_services.AddElasticSearchProjectionStore<TProjection>(options =>
 		{
-			options.NodeUri = _nodeUri;
+			if (_configureShared != null)
+			{
+				_configureShared(options);
+			}
+			else
+			{
+				options.NodeUri = _nodeUri!;
+			}
+
 			configureOptions?.Invoke(options);
 		});
 

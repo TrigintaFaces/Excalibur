@@ -69,7 +69,7 @@ public sealed class VerificationScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(VerificationScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
+			_ = dispatch.UseValidation();
 		});
 
 		// Ensure validation uses DataAnnotations (default = true, but explicit for clarity)
@@ -127,8 +127,8 @@ public sealed class VerificationScenarioTests
 		services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(VerificationScenarioTests).Assembly);
-			_ = dispatch.AddDispatchValidation();
-			_ = dispatch.AddDispatchResilience();
+			_ = dispatch.UseValidation();
+			_ = dispatch.UseResilience();
 		});
 
 		services.AddEventSerializer();

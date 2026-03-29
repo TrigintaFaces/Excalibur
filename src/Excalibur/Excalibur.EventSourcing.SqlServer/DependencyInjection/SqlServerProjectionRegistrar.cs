@@ -8,7 +8,7 @@ namespace Excalibur.EventSourcing.SqlServer.DependencyInjection;
 /// <summary>
 /// Registrar for adding multiple SQL Server projection stores that share
 /// a common connection string. Used with
-/// <see cref="SqlServerProjectionStoreExtensions.AddSqlServerProjections"/>.
+/// <c>AddSqlServerProjections</c>.
 /// </summary>
 /// <remarks>
 /// Each projection type gets its own options instance, so per-projection
@@ -17,10 +17,12 @@ namespace Excalibur.EventSourcing.SqlServer.DependencyInjection;
 public sealed class SqlServerProjectionRegistrar
 {
 	private readonly IServiceCollection _services;
-	private readonly string _connectionString;
+	private readonly string? _connectionString;
+	private readonly Action<SqlServerProjectionStoreOptions>? _configureShared;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="SqlServerProjectionRegistrar"/> class.
+	/// Initializes a new instance of the <see cref="SqlServerProjectionRegistrar"/> class
+	/// with an explicit connection string.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="connectionString">The shared SQL Server connection string.</param>
@@ -31,7 +33,17 @@ public sealed class SqlServerProjectionRegistrar
 	}
 
 	/// <summary>
-	/// Adds a projection store for the specified type using the shared connection string.
+	/// Initializes a new instance of the <see cref="SqlServerProjectionRegistrar"/> class
+	/// with a shared options configuration action.
+	/// </summary>
+	internal SqlServerProjectionRegistrar(IServiceCollection services, Action<SqlServerProjectionStoreOptions> configureShared)
+	{
+		_services = services;
+		_configureShared = configureShared;
+	}
+
+	/// <summary>
+	/// Adds a projection store for the specified type using the shared configuration.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>
 	/// <param name="configureOptions">Optional action to override per-projection options (e.g., table name).</param>
@@ -42,7 +54,15 @@ public sealed class SqlServerProjectionRegistrar
 	{
 		_services.AddSqlServerProjectionStore<TProjection>(options =>
 		{
-			options.ConnectionString = _connectionString;
+			if (_configureShared != null)
+			{
+				_configureShared(options);
+			}
+			else
+			{
+				options.ConnectionString = _connectionString!;
+			}
+
 			configureOptions?.Invoke(options);
 		});
 

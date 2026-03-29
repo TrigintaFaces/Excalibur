@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Options.Configuration;
 /// <para>
 /// This is a lightweight configuration-binding class for <c>appsettings.json</c> scenarios.
 /// For full resilience configuration including Polly policies, use
-/// <c>AddResilience()</c> on <c>IDispatchBuilder</c>.
+/// <c>UseResilience()</c> on <c>IDispatchBuilder</c>.
 /// </para>
 /// </remarks>
 public sealed class ResilienceOptions

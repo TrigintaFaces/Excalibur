@@ -45,11 +45,7 @@ public sealed class DispatchConfigurationServiceCollectionExtensionsShould
 
 		services.AddMiddleware<SampleMiddleware>(ServiceLifetime.Transient);
 
-		services.ShouldContain(descriptor =>
-			descriptor.ServiceType == typeof(IDispatchMiddleware) &&
-			descriptor.ImplementationType == typeof(SampleMiddleware) &&
-			descriptor.Lifetime == ServiceLifetime.Transient);
-
+		// S717 T.2: middleware registered as concrete type only
 		services.ShouldContain(descriptor =>
 			descriptor.ServiceType == typeof(SampleMiddleware) &&
 			descriptor.ImplementationType == typeof(SampleMiddleware) &&

@@ -49,7 +49,7 @@ public static class AvroSerializationExtensions
 	/// </para>
 	/// <code>
 	/// services.AddDispatch()
-	///     .ConfigureSerialization(config =>
+	///     .WithSerialization(config =>
 	///     {
 	///         config.RegisterAvro();
 	///         config.UseAvro();
@@ -60,6 +60,25 @@ public static class AvroSerializationExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		return builder.Register(new AvroSerializer(), SerializerIds.Avro);
+	}
+
+	/// <summary>
+	/// Registers the Avro serializer with configuration (framework-assigned ID: 5).
+	/// </summary>
+	/// <param name="builder">The serialization builder.</param>
+	/// <param name="configure">Configuration delegate for Avro serialization options.</param>
+	/// <returns>The builder for method chaining.</returns>
+	public static ISerializationBuilder RegisterAvro(
+		this ISerializationBuilder builder,
+		Action<AvroSerializationOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var options = new AvroSerializationOptions();
+		configure(options);
+
+		return builder.Register(new AvroSerializer(options), SerializerIds.Avro);
 	}
 
 	/// <summary>

@@ -257,7 +257,7 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 	#region Cross-Cutting Builder Extensions (S500.4 — AC-1 through AC-5)
 
 	[Fact]
-	public void RegisterObservabilityServices_WhenAddObservabilityCalledViaBuilder()
+	public void RegisterObservabilityServices_WhenUseObservabilityCalledViaBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -265,14 +265,14 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddObservability();
+		_ = builder.UseObservability();
 
 		// Assert — observability adds context flow tracking services
 		services.ShouldContain(d => d.ServiceType == typeof(IContextFlowTracker));
 	}
 
 	[Fact]
-	public void ReturnSameBuilder_WhenAddObservabilityCalled()
+	public void ReturnSameBuilder_WhenUseObservabilityCalled()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -280,14 +280,14 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddObservability();
+		var result = builder.UseObservability();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void RegisterResilienceServices_WhenAddResilienceCalledViaBuilder()
+	public void RegisterResilienceServices_WhenUseResilienceCalledViaBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -295,14 +295,14 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddResilience();
+		_ = builder.UseResilience();
 
 		// Assert — resilience adds Polly services (circuit breaker factory, timeout manager, etc.)
 		services.ShouldContain(d => d.ServiceType == typeof(ICircuitBreakerFactory));
 	}
 
 	[Fact]
-	public void ReturnSameBuilder_WhenAddResilienceCalled()
+	public void ReturnSameBuilder_WhenUseResilienceCalled()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -310,14 +310,14 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddResilience();
+		var result = builder.UseResilience();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
 	}
 
 	[Fact]
-	public void RegisterCachingServices_WhenAddCachingCalledViaBuilder()
+	public void RegisterCachingServices_WhenUseCachingCalledViaBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -325,14 +325,14 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		_ = builder.AddCaching();
+		_ = builder.UseCaching();
 
 		// Assert — caching adds middleware and cache services
 		services.ShouldContain(d => d.ServiceType == typeof(ICacheKeyBuilder));
 	}
 
 	[Fact]
-	public void ReturnSameBuilder_WhenAddCachingCalled()
+	public void ReturnSameBuilder_WhenUseCachingCalled()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -340,7 +340,7 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
-		var result = builder.AddCaching();
+		var result = builder.UseCaching();
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -365,24 +365,24 @@ public sealed class DispatchBuilderExtensionsIntegrationShould
 	}
 
 	[Fact]
-	public void ThrowArgumentNullException_WhenNullBuilderCallsAddObservability()
+	public void ThrowArgumentNullException_WhenNullBuilderCallsUseObservability()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).AddObservability());
+			((IDispatchBuilder)null!).UseObservability());
 	}
 
 	[Fact]
-	public void ThrowArgumentNullException_WhenNullBuilderCallsAddResilience()
+	public void ThrowArgumentNullException_WhenNullBuilderCallsUseResilience()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).AddResilience());
+			((IDispatchBuilder)null!).UseResilience());
 	}
 
 	[Fact]
-	public void ThrowArgumentNullException_WhenNullBuilderCallsAddCaching()
+	public void ThrowArgumentNullException_WhenNullBuilderCallsUseCaching()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			((IDispatchBuilder)null!).AddCaching());
+			((IDispatchBuilder)null!).UseCaching());
 	}
 
 	[Fact]

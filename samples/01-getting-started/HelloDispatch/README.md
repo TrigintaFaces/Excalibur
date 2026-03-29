@@ -13,7 +13,7 @@ This sample shows the simplest possible Dispatch setup:
 
 - **Command Handling** - `IDispatchAction<TResult>` with `IActionHandler<TAction, TResult>`
 - **Event Publishing** - `IDispatchEvent` with `IEventHandler<TEvent>`
-- **Validation Middleware** - `AddDispatchValidation()` for pipeline validation
+- **Validation Middleware** - `UseValidation()` for pipeline validation
 - **Handler Discovery** - `AddHandlersFromAssembly()` for automatic registration
 
 ## Running the Sample
@@ -44,7 +44,7 @@ services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
 services.AddDispatch(dispatch =>
 {
     _ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    _ = dispatch.AddDispatchValidation();
+    _ = dispatch.UseValidation();
 });
 ```
 

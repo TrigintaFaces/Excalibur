@@ -117,7 +117,7 @@ services.AddDispatchHybridCaching(
 All modes also work through `IDispatchBuilder`:
 
 ```csharp
-builder.AddDispatchCaching()
+dispatch.UseCaching()
     .WithCachingOptions(options =>
     {
         options.Enabled = true;
@@ -262,8 +262,11 @@ dotnet add package Excalibur.Caching
 
 ```csharp
 // Register projection caching after dispatch caching
-services.AddDispatchCaching(o => o.Enabled = true);
-services.AddExcaliburProjectionCaching();
+builder.Services.AddDispatch(dispatch =>
+{
+    dispatch.UseCaching(o => o.Enabled = true);
+});
+builder.Services.AddExcaliburProjectionCaching();
 ```
 
 Implement `IProjectionTagResolver<T>` to map domain events to cache tags:

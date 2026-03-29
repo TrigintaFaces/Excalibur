@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// </para>
 /// <code>
 /// services.AddDispatch()
-///     .ConfigureSerialization(config =>
+///     .WithSerialization(config =>
 ///     {
 ///         config.RegisterSystemTextJson();  // extension method
 ///         config.UseCurrent("System.Text.Json");

@@ -32,7 +32,7 @@ public static class ExceptionMappingPipelineExtensions
 	/// </list>
 	/// </para>
 	/// <para>
-	/// For custom exception mappings, use <see cref="Configuration.ExceptionMappingDispatchBuilderExtensions.ConfigureExceptionMapping"/>
+	/// For custom exception mappings, use <see cref="Configuration.ExceptionMappingDispatchBuilderExtensions.WithExceptionMapping"/>
 	/// before calling this method.
 	/// </para>
 	/// <para>

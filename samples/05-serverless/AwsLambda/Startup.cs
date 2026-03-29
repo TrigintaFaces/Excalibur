@@ -38,8 +38,8 @@ public static class Startup
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(Startup).Assembly);
 
-			// Register JSON serializer for message payloads
-			_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+			// Configure JSON serialization
+			_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 		});
 
 		// Configure AWS Lambda Serverless hosting

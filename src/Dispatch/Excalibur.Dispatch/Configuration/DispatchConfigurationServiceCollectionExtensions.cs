@@ -101,7 +101,6 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		where TMiddleware : class, IDispatchMiddleware
 	{
 		ArgumentNullException.ThrowIfNull(services);
-		services.Add(new ServiceDescriptor(typeof(IDispatchMiddleware), typeof(TMiddleware), lifetime));
 		services.Add(new ServiceDescriptor(typeof(TMiddleware), typeof(TMiddleware), lifetime));
 		return services;
 	}

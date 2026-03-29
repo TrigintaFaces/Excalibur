@@ -184,6 +184,8 @@ projects:
   - path: src/Excalibur/Excalibur.Hosting.Serverless/Excalibur.Hosting.Serverless.csproj
   - path: src/Excalibur/Excalibur.Hosting.Web/Excalibur.Hosting.Web.csproj
   - path: src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj
+  - path: src/Excalibur/Excalibur.Dispatch.SqlServer/Excalibur.Dispatch.SqlServer.csproj
+  - path: src/Excalibur/Excalibur.Dispatch.Postgres/Excalibur.Dispatch.Postgres.csproj
   - path: src/Excalibur/Excalibur.Inbox/Excalibur.Inbox.csproj
   - path: src/Excalibur/Excalibur.Inbox.CosmosDb/Excalibur.Inbox.CosmosDb.csproj
   - path: src/Excalibur/Excalibur.Inbox.DynamoDb/Excalibur.Inbox.DynamoDb.csproj

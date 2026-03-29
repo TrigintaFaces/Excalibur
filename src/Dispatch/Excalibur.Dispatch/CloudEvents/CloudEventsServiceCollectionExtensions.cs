@@ -5,15 +5,11 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
-using CloudNative.CloudEvents;
-
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Options.CloudEvents;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -33,58 +29,6 @@ public static class CloudEventsServiceCollectionExtensions
 																	   CloudEventMapperTypeName)
 																   ?? throw new InvalidOperationException(
 																	   $"Unable to locate CloudEvent mapper type: {CloudEventMapperTypeName}");
-
-	/// <summary>
-	/// Adds CloudEvents support to the Dispatch pipeline.
-	/// </summary>
-	/// <param name="builder"> The dispatch builder. </param>
-	/// <param name="configureOptions"> Optional action to configure CloudEvent options. </param>
-	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder AddCloudEvents(
-		this IDispatchBuilder builder,
-		Action<CloudEventOptions>? configureOptions = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		// Register CloudEvent options using the Options pattern
-		_ = builder.Services.AddOptions<CloudEventOptions>()
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
-		if (configureOptions != null)
-		{
-			_ = builder.Services.Configure(configureOptions);
-		}
-
-		builder.Services.TryAddSingleton(static serviceProvider =>
-			serviceProvider.GetRequiredService<IOptions<CloudEventOptions>>().Value);
-
-		// Core CloudEvent services
-		builder.Services.TryAddSingleton<ICloudEventEnvelopeConverter, CloudEventEnvelopeConverter>();
-		builder.Services.TryAddSingleton<IEnvelopeCloudEventBridge, EnvelopeCloudEventBridge>();
-
-		// Expose bridge factory cached per transport
-		builder.Services.TryAddSingleton<Func<string, IEnvelopeCloudEventBridge>>(static serviceProvider =>
-		{
-			var cache = new ConcurrentDictionary<string, IEnvelopeCloudEventBridge>(StringComparer.OrdinalIgnoreCase);
-			return transportName =>
-			{
-				ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
-				return cache.GetOrAdd(
-					transportName,
-					static (_, provider) => provider.GetRequiredService<IEnvelopeCloudEventBridge>(),
-					serviceProvider);
-			};
-		});
-
-		builder.Services.TryAddSingleton(static serviceProvider =>
-			GetMapperFactory(serviceProvider));
-
-		// Register middleware
-		builder.Services.TryAddTransient<CloudEventMiddleware>();
-
-		// Add to pipeline
-		return builder.UseMiddleware<CloudEventMiddleware>();
-	}
 
 	/// <summary>
 	/// Adds a schema registry for CloudEvent schema management.
@@ -137,73 +81,9 @@ public static class CloudEventsServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds CloudEvent batching support.
-	/// </summary>
-	public static IDispatchBuilder AddCloudEventBatching(
-		this IDispatchBuilder builder,
-		Action<CloudEventBatchOptions>? configureBatch = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		// Register batch options
-		var batchOptions = new CloudEventBatchOptions();
-		configureBatch?.Invoke(batchOptions);
-		builder.Services.TryAddSingleton(batchOptions);
-
-		// Register batch processor
-		builder.Services.TryAddTransient<ICloudEventBatchProcessor, DefaultCloudEventBatchProcessor>();
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Adds custom CloudEvent validation.
-	/// </summary>
-	public static IDispatchBuilder AddCloudEventValidation(
-		this IDispatchBuilder builder,
-		Func<CloudEvent, CancellationToken, Task<bool>> validator)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(validator);
-
-		_ = builder.Services.Configure<CloudEventOptions>(options => options.Schema.CustomValidator = validator);
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Adds custom CloudEvent transformation for outgoing events.
-	/// </summary>
-	public static IDispatchBuilder AddCloudEventTransformation(
-		this IDispatchBuilder builder,
-		Func<CloudEvent, IDispatchEvent, IMessageContext, CancellationToken, Task> transformer)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(transformer);
-
-		_ = builder.Services.Configure<CloudEventOptions>(options =>
-		{
-			var existingTransformer = options.Schema.OutgoingTransformer;
-			options.Schema.OutgoingTransformer = async (ce, evt, ctx, ct) =>
-			{
-				// Call existing transformer first
-				if (existingTransformer != null)
-				{
-					await existingTransformer(ce, evt, ctx, ct).ConfigureAwait(false);
-				}
-
-				// Then call the new transformer
-				await transformer(ce, evt, ctx, ct).ConfigureAwait(false);
-			};
-		});
-
-		return builder;
-	}
-
-	/// <summary>
 	/// Configures CloudEvent extension attributes to include/exclude.
 	/// </summary>
-	public static IDispatchBuilder ConfigureCloudEventExtensions(
+	public static IDispatchBuilder WithCloudEventExtensions(
 		this IDispatchBuilder builder,
 		Action<HashSet<string>> configureExclusions)
 	{

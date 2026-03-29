@@ -12,9 +12,11 @@ Dispatch uses the standard .NET configuration patterns with fluent builders for 
 
 - **.NET 8.0+** (or .NET 9/10 for latest features)
 - Install the required packages:
+
   ```bash
   dotnet add package Excalibur.Dispatch
   ```
+
 - Familiarity with [.NET configuration](https://learn.microsoft.com/en-us/dotnet/core/extensions/configuration) and [dependency injection](./dependency-injection.md)
 
 ## Basic Configuration
@@ -69,10 +71,10 @@ builder.Services.AddDispatch(dispatch =>
     });
 });
 
-// Serialization is registered separately via DI
-builder.Services.AddMemoryPackInternalSerialization();
-// Or: builder.Services.AddMessagePackSerialization();
-// Or: builder.Services.AddJsonSerialization();
+// Serialization: MemoryPack is auto-registered by default with AddDispatch().
+// To use a different serializer, configure via the builder:
+// dispatch.WithSerialization(s => s.UseMessagePack());
+// dispatch.WithSerialization(s => s.UseJson());
 ```
 
 ### Handler Registration
@@ -101,13 +103,18 @@ builder.Services.AddDispatch(dispatch =>
 
     // Add global middleware (applies to all pipelines)
     dispatch.UseMiddleware<LoggingMiddleware>();
-    dispatch.UseMiddleware<ValidationMiddleware>();
-    dispatch.UseMiddleware<AuthorizationMiddleware>();
 
     // Or configure a named pipeline with specific middleware
+    dispatch.ConfigurePipeline("Actions", pipeline =>
+    {
+        pipeline.ForMessageKinds(MessageKinds.Action)
+                .Use<ValidationMiddleware>()
+                .Use<AuthorizationMiddleware>();
+    });
+
     dispatch.ConfigurePipeline("Events", pipeline =>
     {
-        pipeline.ForMessageKinds(MessageKinds.All);
+        pipeline.ForMessageKinds(MessageKinds.Event);
     });
 });
 ```
@@ -170,22 +177,22 @@ builder.Services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
     // Observability (tracing, metrics, context flow)
-    dispatch.AddObservability();
+    dispatch.UseObservability();
 
     // Resilience (retry, circuit breaker, timeout)
-    dispatch.AddResilience(res => res.DefaultRetryCount = 3);
+    dispatch.UseResilience(res => res.DefaultRetryCount = 3);
 
     // Caching
-    dispatch.AddCaching();
+    dispatch.UseCaching();
 
     // Security (requires IConfiguration for reflection-based scanning)
-    dispatch.AddSecurity(builder.Configuration);
+    dispatch.UseSecurity(builder.Configuration);
 });
 ```
 
 :::tip Short names on the builder
 When called on `IDispatchBuilder`, the `Dispatch` prefix is dropped since it's redundant.
-For example, `services.AddDispatchObservability()` becomes `dispatch.AddObservability()`.
+For example, `services.AddDispatchObservability()` becomes `dispatch.UseObservability()`.
 :::
 
 ## What's Next

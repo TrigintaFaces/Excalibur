@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This class provides the full Polly resilience configuration used by <c>AddResilience()</c>
+/// This class provides the full Polly resilience configuration used by <c>UseResilience()</c>
 /// on <c>IDispatchBuilder</c>. It controls retry policies, circuit breakers, and timeouts
 /// at the middleware level.
 /// </para>

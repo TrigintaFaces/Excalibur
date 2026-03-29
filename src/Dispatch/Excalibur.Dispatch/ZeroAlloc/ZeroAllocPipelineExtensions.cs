@@ -25,7 +25,7 @@ public static class ZeroAllocPipelineExtensions
 	/// <para>
 	/// This method adds the middleware directly to the pipeline using
 	/// <see cref="ZeroAllocationValidationMiddleware"/>. For service registration
-	/// configuration, use <c>AddZeroAllocMiddleware()</c> instead.
+	/// configuration, use <see cref="ZeroAllocConfigurationExtensions.UseZeroAllocation"/> instead.
 	/// </para>
 	/// <para>
 	/// Recommended pipeline order:

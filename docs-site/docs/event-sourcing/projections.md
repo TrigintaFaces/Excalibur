@@ -114,9 +114,15 @@ public interface IProjectionStore<TProjection> where TProjection : class
 }
 ```
 
-### Typed Event Handlers
+### Typed Event Handlers (Async Projections)
 
-Use Dispatch handlers to process events and update projections:
+:::tip Prefer AddProjection for inline projections
+For projections that must be immediately consistent after `SaveAsync()`, use the [Inline Projections builder API](#inline-projections-projection-builder-api) below instead of `IEventHandler<T>`. The builder approach is simpler and guarantees read-after-write consistency.
+
+Use `IEventHandler<T>` (shown here) for **async projections** that are updated via background processing or Dispatch event handlers.
+:::
+
+Use Dispatch event handlers to process events and update projections asynchronously:
 
 ```csharp
 public class OrderCreatedProjectionHandler : IEventHandler<OrderCreated>
@@ -171,23 +177,32 @@ services.AddElasticSearchProjections("https://es.example.com:9200", projections 
     projections.Add<ProductCatalog>(o => o.NumberOfShards = 3);
 });
 
-// MongoDB projection store
-services.AddMongoDbProjectionStore<OrderSummary>(mongoConnectionString, "projections");
-
-// CosmosDb projection store
-services.AddCosmosDbProjectionStore<OrderSummary>(cosmosConnectionString, "projections");
-
-// SQL Server projection store
-services.AddSqlServerProjectionStore<OrderSummary>(options =>
+// MongoDB -- batch registration (shared connection)
+services.AddMongoDbProjections(mongoConnectionString, "projections", projections =>
 {
-    options.ConnectionString = sqlConnectionString;
-    options.TableName = "OrderSummaries";
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.CollectionName = "customers");
 });
 
-// SQL Server projection store with typed IDb marker
-services.AddSqlServerProjectionStore<OrderSummary, IOrderDb>();
+// CosmosDB -- batch registration
+services.AddCosmosDbProjections(cosmosConnectionString, "projections", projections =>
+{
+    projections.Add<OrderSummary>();
+});
 
-// PostgreSQL projection store
+// SQL Server -- batch registration
+services.AddSqlServerProjections(sqlConnectionString, projections =>
+{
+    projections.Add<OrderSummary>(o => o.TableName = "OrderSummaries");
+});
+
+// PostgreSQL -- batch registration
+services.AddPostgresProjections(pgConnectionString, projections =>
+{
+    projections.Add<OrderSummary>(o => o.TableName = "order_summaries");
+});
+
+// Per-projection registration (when you need individual control)
 services.AddPostgresProjectionStore<OrderSummary>(options =>
 {
     options.ConnectionString = pgConnectionString;

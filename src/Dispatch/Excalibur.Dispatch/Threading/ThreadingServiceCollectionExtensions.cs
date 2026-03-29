@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Options.Threading;
 using Excalibur.Dispatch.Threading;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -25,7 +26,7 @@ public static class ThreadingServiceCollectionExtensions
 	{
 		_ = services.ConfigureOptions(configure, static _ => { });
 		_ = services.AddSingleton<IKeyedLock, KeyedLock>();
-		_ = services.AddSingleton<IDispatchMiddleware, BackgroundExecutionMiddleware>();
+		services.TryAddSingleton<BackgroundExecutionMiddleware>();
 
 		return services;
 	}

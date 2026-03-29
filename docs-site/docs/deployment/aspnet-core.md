@@ -398,10 +398,10 @@ Dispatch provides custom ASP.NET Core formatters that bridge `ISerializerRegistr
 
 ```csharp
 // 1. Register serializers
-builder.Services.AddDispatchSerialization(serializers =>
+builder.Services.AddDispatch(dispatch =>
 {
-    serializers.AddSystemTextJson();   // application/json
-    serializers.AddMessagePack();      // application/x-msgpack
+    dispatch.WithSerialization(s => s.UseJson());     // application/json
+    dispatch.WithSerialization(s => s.UseMessagePack()); // application/x-msgpack
 });
 
 // 2. Add content negotiation formatters

@@ -20,10 +20,9 @@ using MessagePackSerializer = MessagePack.MessagePackSerializer;
 using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Serialization;
-using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
@@ -54,15 +53,16 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register JSON serializer as default (version 0)
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
-});
-
-// Add MessagePack serialization with LZ4 compression
-builder.Services.AddMessagePackSerialization(options =>
-{
-	// Enable LZ4 block compression for high-throughput scenarios
-	options.UseLz4Compression = true;
+	// Register MessagePack as the pluggable serializer and set it as active.
+	// The RegisterMessagePack overload accepts MessagePackSerializerOptions
+	// so LZ4 compression can be configured inline.
+	_ = dispatch.WithSerialization(config =>
+	{
+		var lz4Options = MessagePackSerializerOptions.Standard
+			.WithCompression(MessagePackCompression.Lz4BlockArray);
+		config.RegisterMessagePack(lz4Options);
+		config.UseMessagePack();
+	});
 });
 
 // ============================================================
