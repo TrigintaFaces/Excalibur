@@ -154,6 +154,7 @@ It is generated from project files; licenses remain with their respective owners
 | Microsoft.CodeAnalysis.PublicApiAnalyzers | 3.3.4 |
 | Microsoft.CodeAnalysis.Workspaces.Common | 4.14.0 |
 | Microsoft.Data.SqlClient | 6.1.1 |
+| Microsoft.Data.Sqlite | 10.0.0 |
 | Microsoft.EntityFrameworkCore | 9.0.9 |
 | Microsoft.EntityFrameworkCore.InMemory | 9.0.9 |
 | Microsoft.Extensions.Caching.Abstractions | 10.0.0 |
@@ -193,6 +194,7 @@ It is generated from project files; licenses remain with their respective owners
 | NCrontab | 3.4.0 |
 | NetArchTest.Rules | 1.3.2 |
 | Npgsql | 9.0.4 |
+| OpenSearch.Client | 1.8.0 |
 | OpenTelemetry | 1.13.0 |
 | OpenTelemetry.Api | 1.13.0 |
 | OpenTelemetry.Exporter.Console | 1.13.0 |
@@ -236,6 +238,7 @@ It is generated from project files; licenses remain with their respective owners
 | System.Diagnostics.DiagnosticSource | 10.0.0 |
 | System.Diagnostics.PerformanceCounter | 9.0.0 |
 | System.IdentityModel.Tokens.Jwt | 8.14.0 |
+| System.IO.Hashing | 10.0.1 |
 | System.IO.Pipelines | 10.0.0 |
 | System.Text.Json | 10.0.0 |
 | System.Threading.Channels | 10.0.0 |

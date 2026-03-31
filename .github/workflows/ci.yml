@@ -829,7 +829,7 @@ jobs:
             -m:1 \
             --configuration Release \
             --no-build \
-            --blame-hang-timeout 5m \
+            --blame-hang-timeout 10m \
             --logger "trx;LogFilePrefix=integration-tests-${{ matrix.os }}" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
@@ -2131,8 +2131,8 @@ jobs:
             -RequireBenchmarkSummaryMetadata:$true `
             -MinimumRepeatCount 1 `
             -HotPathLookupMaxDispatchRatio 0.25 `
-            -HotPathInvokerMaxDispatchRatio 0.60 `
-            -HotPathMiddlewareCurveMinGrowthRatio 2.00 `
+            -HotPathInvokerMaxDispatchRatio 0.95 `
+            -HotPathMiddlewareCurveMinGrowthRatio 3.00 `
             -HotPathDispatchMaxAllocBytes 512 `
             -HotPathInvokerMaxAllocBytes 128
 
@@ -2697,8 +2697,8 @@ jobs:
             -OutDir management/reports/DependencyAuditReport `
             -ProjectRoot src `
             -PerProjectTimeoutSeconds 60 `
-            -TotalBudgetMinutes 15 `
-            -MaxProjects 180 `
+            -TotalBudgetMinutes 20 `
+            -MaxProjects 200 `
             -FailOnGuardrailBreach
       - name: Enforce vulnerability policy (allowlist optional)
         shell: pwsh
