@@ -21,9 +21,6 @@ public sealed record OrderCreated(
 	IReadOnlyList<OrderLineItem> Items,
 	string ShippingAddress) : DomainEvent
 {
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-
 	/// <summary>Gets the total order amount.</summary>
 	public decimal TotalAmount { get; init; } = Items.Sum(i => i.UnitPrice * i.Quantity);
 }
@@ -31,20 +28,12 @@ public sealed record OrderCreated(
 /// <summary>
 /// Raised when order validation succeeds.
 /// </summary>
-public sealed record OrderValidated(Guid OrderId) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderValidated(Guid OrderId) : DomainEvent;
 
 /// <summary>
 /// Raised when order validation fails.
 /// </summary>
-public sealed record OrderValidationFailed(Guid OrderId, string Reason) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderValidationFailed(Guid OrderId, string Reason) : DomainEvent;
 
 /// <summary>
 /// Raised when payment is successfully processed.
@@ -52,20 +41,12 @@ public sealed record OrderValidationFailed(Guid OrderId, string Reason) : Domain
 public sealed record PaymentProcessed(
 	Guid OrderId,
 	string TransactionId,
-	decimal Amount) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+	decimal Amount) : DomainEvent;
 
 /// <summary>
 /// Raised when payment fails.
 /// </summary>
-public sealed record PaymentFailed(Guid OrderId, string Reason) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record PaymentFailed(Guid OrderId, string Reason) : DomainEvent;
 
 /// <summary>
 /// Raised when the order is shipped.
@@ -73,29 +54,17 @@ public sealed record PaymentFailed(Guid OrderId, string Reason) : DomainEvent
 public sealed record OrderShipped(
 	Guid OrderId,
 	string TrackingNumber,
-	string Carrier) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+	string Carrier) : DomainEvent;
 
 /// <summary>
 /// Raised when the order is delivered and completed.
 /// </summary>
-public sealed record OrderCompleted(Guid OrderId) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderCompleted(Guid OrderId) : DomainEvent;
 
 /// <summary>
 /// Raised when an order is cancelled.
 /// </summary>
-public sealed record OrderCancelled(Guid OrderId, string Reason) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;
 
 /// <summary>
 /// Represents an item in an order.

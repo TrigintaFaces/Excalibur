@@ -8,24 +8,15 @@ namespace EnterpriseOrderProcessing.Domain.Events;
 public sealed record CustomerRegistered(
 	Guid CustomerId,
 	string Name,
-	string Email) : DomainEvent
-{
-	public override string AggregateId => CustomerId.ToString();
-}
+	string Email) : DomainEvent;
 
 public sealed record CustomerAddressUpdated(
 	Guid CustomerId,
 	string Street,
 	string City,
 	string PostalCode,
-	string Country) : DomainEvent
-{
-	public override string AggregateId => CustomerId.ToString();
-}
+	string Country) : DomainEvent;
 
 public sealed record CustomerDeactivated(
 	Guid CustomerId,
-	string Reason) : DomainEvent
-{
-	public override string AggregateId => CustomerId.ToString();
-}
+	string Reason) : DomainEvent;

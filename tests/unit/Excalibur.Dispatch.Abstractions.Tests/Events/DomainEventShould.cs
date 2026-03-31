@@ -11,7 +11,7 @@ public sealed class DomainEventShould
 	// Test implementation of abstract DomainEvent
 	private sealed record TestDomainEvent : DomainEvent
 	{
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	// Derived record with positional params and AggregateId override

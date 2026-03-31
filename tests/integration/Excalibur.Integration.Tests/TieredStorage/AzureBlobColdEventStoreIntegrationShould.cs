@@ -56,8 +56,15 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 
 	public async Task DisposeAsync()
 	{
-		if (_container is not null)
-			await _container.DisposeAsync().ConfigureAwait(false);
+		try
+		{
+			if (_container is not null)
+				await _container.DisposeAsync().ConfigureAwait(false);
+		}
+		catch (Exception)
+		{
+			// Suppress disposal errors to prevent test host crash
+		}
 	}
 
 	[Fact]

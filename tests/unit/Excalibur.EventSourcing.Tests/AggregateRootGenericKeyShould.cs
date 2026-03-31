@@ -23,7 +23,7 @@ public sealed class AggregateRootGenericKeyShould
 	internal sealed record TestEvent : DomainEvent
 	{
 		public string Data { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	#endregion Test Events

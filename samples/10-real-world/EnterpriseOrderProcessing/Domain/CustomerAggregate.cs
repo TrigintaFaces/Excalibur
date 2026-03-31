@@ -34,6 +34,7 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentException.ThrowIfNullOrWhiteSpace(email);
 
+		Id = customerId;
 		RaiseEvent(new CustomerRegistered(customerId, name, email));
 	}
 

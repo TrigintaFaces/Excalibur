@@ -169,34 +169,19 @@ public class CartItem
 
 #region Events
 
-public sealed record CartCreated(Guid CartId) : DomainEvent
-{
-	public override string AggregateId => CartId.ToString();
-}
+public sealed record CartCreated(Guid CartId) : DomainEvent;
 
 public sealed record ItemAddedToCart(
 	Guid CartId,
 	string ProductId,
 	string ProductName,
 	decimal Price,
-	int Quantity) : DomainEvent
-{
-	public override string AggregateId => CartId.ToString();
-}
+	int Quantity) : DomainEvent;
 
-public sealed record ItemRemovedFromCart(Guid CartId, string ProductId) : DomainEvent
-{
-	public override string AggregateId => CartId.ToString();
-}
+public sealed record ItemRemovedFromCart(Guid CartId, string ProductId) : DomainEvent;
 
-public sealed record CartItemQuantityUpdated(Guid CartId, string ProductId, int NewQuantity) : DomainEvent
-{
-	public override string AggregateId => CartId.ToString();
-}
+public sealed record CartItemQuantityUpdated(Guid CartId, string ProductId, int NewQuantity) : DomainEvent;
 
-public sealed record CartCheckedOut(Guid CartId, decimal TotalPrice) : DomainEvent
-{
-	public override string AggregateId => CartId.ToString();
-}
+public sealed record CartCheckedOut(Guid CartId, decimal TotalPrice) : DomainEvent;
 
 #endregion

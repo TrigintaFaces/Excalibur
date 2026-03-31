@@ -446,6 +446,7 @@ public sealed class DomainEventSerializationContractShould
 		// Arrange - uses the DomainEvent abstract record base class
 		var original = new OrderCreatedEvent("order-rec-1", 199.99m)
 		{
+			AggregateId = "order-rec-1",
 			EventId = "evt-record",
 			Version = 10,
 			OccurredAt = new DateTimeOffset(2026, 6, 15, 12, 0, 0, TimeSpan.Zero),
@@ -613,10 +614,7 @@ public sealed class DomainEventSerializationContractShould
 	/// <summary>
 	/// DomainEvent record using the abstract base class pattern.
 	/// </summary>
-	private sealed record OrderCreatedEvent(string OrderId, decimal Total) : DomainEvent
-	{
-		public override string AggregateId { get; init; } = OrderId;
-	}
+	private sealed record OrderCreatedEvent(string OrderId, decimal Total) : DomainEvent;
 
 	/// <summary>
 	/// Non-IDomainEvent class for negative testing.

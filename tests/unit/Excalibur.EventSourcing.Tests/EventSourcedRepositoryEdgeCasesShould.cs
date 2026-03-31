@@ -40,7 +40,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 	private sealed record TestDomainEvent : DomainEvent, IVersionedMessage
 	{
 		public string Data { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 		int IVersionedMessage.Version => 1;
 		string IVersionedMessage.MessageType => "TestDomainEvent";
 	}
@@ -48,7 +48,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 	private sealed record NonVersionedEvent : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	private sealed class EdgeCaseAggregate : AggregateRoot

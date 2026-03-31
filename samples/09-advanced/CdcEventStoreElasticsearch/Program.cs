@@ -81,6 +81,7 @@
 // ============================================================================
 
 using CdcEventStoreElasticsearch.AntiCorruption;
+using CdcEventStoreElasticsearch.Domain;
 using CdcEventStoreElasticsearch.Infrastructure;
 using CdcEventStoreElasticsearch.Projections;
 using CdcEventStoreElasticsearch.Repositories;
@@ -338,11 +339,38 @@ builder.Services.AddSingleton<ElasticsearchClient>(_ =>
 
 builder.Services.AddScoped<OrderFullTextSearchRepository>();
 
-// Projection processing options
-builder.Services.Configure<ProjectionOptions>(builder.Configuration.GetSection("Projections"));
+// ============================================================================
+// Inline Projection Handlers (Framework-managed)
+// ============================================================================
+// Register projection handlers through the framework pipeline.
+// The framework manages load, handler invocation, and upsert automatically.
 
-// Projection background service
-builder.Services.AddHostedService<ProjectionBackgroundService>();
+builder.Services.AddExcaliburEventSourcing(es =>
+{
+	es.UseEventNotification();
+
+	// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
+	es.AddProjection<CustomerSearchProjection>(p => p
+		.Inline()
+		.WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
+		.WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
+		.When<CustomerDeactivated>((proj, _) => { proj.IsActive = false; }));
+
+	// OrderSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
+	es.AddProjection<OrderSearchProjection>(p => p
+		.Inline()
+		.WhenHandledBy<OrderCreated, OrderCreatedProjectionHandler>()
+		.WhenHandledBy<OrderLineItemAdded, OrderLineItemAddedProjectionHandler>()
+		.WhenHandledBy<OrderLineItemUpdated, OrderLineItemUpdatedProjectionHandler>()
+		.WhenHandledBy<OrderLineItemRemoved, OrderLineItemRemovedProjectionHandler>()
+		.WhenHandledBy<OrderStatusUpdated, OrderStatusUpdatedProjectionHandler>()
+		.WhenHandledBy<OrderShipped, OrderShippedProjectionHandler>()
+		.WhenHandledBy<OrderDelivered, OrderDeliveredProjectionHandler>()
+		.WhenHandledBy<OrderCancelled, OrderCancelledProjectionHandler>());
+});
+
+// Projection processing options (for tier summary background service)
+builder.Services.Configure<ProjectionOptions>(builder.Configuration.GetSection("Projections"));
 
 // ============================================================================
 // Build and Configure Application

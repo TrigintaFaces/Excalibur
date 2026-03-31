@@ -18,6 +18,7 @@ namespace Excalibur.Integration.Tests.OpenSearch;
 /// <summary>
 /// T.14 (efok50): Integration tests for OpenSearchProjectionStore using
 /// OpenSearch TestContainers. Tests CRUD operations through real OpenSearch.
+/// Gracefully skips when OpenSearch container is unavailable.
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Database", "OpenSearch")]
@@ -64,7 +65,17 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 
 			var sp = services.BuildServiceProvider();
 			_store = sp.GetRequiredService<IProjectionStore<TestOpenSearchProjection>>();
-			_available = true;
+
+			// Verify connectivity before marking available
+			try
+			{
+				await _store.CountAsync(null, CancellationToken.None).ConfigureAwait(false);
+				_available = true;
+			}
+			catch
+			{
+				_available = false;
+			}
 		}
 		catch (Exception)
 		{
@@ -74,8 +85,15 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 
 	public async Task DisposeAsync()
 	{
-		if (_container is not null)
-			await _container.DisposeAsync().ConfigureAwait(false);
+		try
+		{
+			if (_container is not null)
+				await _container.DisposeAsync().ConfigureAwait(false);
+		}
+		catch (Exception)
+		{
+			// Suppress disposal errors to prevent test host crash
+		}
 	}
 
 	[Fact]
@@ -85,8 +103,6 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 
 		var projection = new TestOpenSearchProjection { Id = "proj-1", Name = "Test", Value = 42 };
 		await _store!.UpsertAsync("proj-1", projection, CancellationToken.None);
-
-		// OpenSearch needs a refresh for immediate consistency
 		await Task.Delay(1000);
 
 		var result = await _store.GetByIdAsync("proj-1", CancellationToken.None);
@@ -111,7 +127,6 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 
 		await _store!.UpsertAsync("proj-del", new TestOpenSearchProjection { Id = "proj-del", Name = "ToDelete" }, CancellationToken.None);
 		await Task.Delay(1000);
-
 		await _store.DeleteAsync("proj-del", CancellationToken.None);
 		await Task.Delay(1000);
 

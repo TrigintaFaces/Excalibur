@@ -278,6 +278,12 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		var stringId = aggregate.Id.ToString() ?? throw new InvalidOperationException(
 				Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
 
+		// Verify all events have consistent AggregateId (set by RaiseEvent)
+		Debug.Assert(
+			uncommittedEvents.All(e => e.AggregateId == stringId),
+			"All uncommitted events must have matching AggregateId. " +
+			"Events should be raised via AggregateRoot.RaiseEvent which sets AggregateId automatically.");
+
 		// Propagate CorrelationId/TenantId from current Activity into event metadata
 		EnrichEventsWithActivityContext(uncommittedEvents);
 
@@ -320,10 +326,10 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		if (_eventNotificationBroker is not null)
 		{
 			var context = new EventNotificationContext(
-				stringId,
+				uncommittedEvents[0].AggregateId,
 				aggregate.AggregateType,
 				aggregate.Version,
-				DateTimeOffset.UtcNow);
+				_timeProvider.GetUtcNow());
 
 			await _eventNotificationBroker.NotifyAsync(
 				uncommittedEvents, context, cancellationToken)

@@ -43,6 +43,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 		if (Status != OrderStatus.Draft || Version > 0)
 			throw new InvalidOperationException("Order already created.");
 
+		Id = orderId;
 		RaiseEvent(new OrderCreated(orderId, customerId, customerName));
 	}
 

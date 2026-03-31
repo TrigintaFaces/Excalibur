@@ -120,13 +120,13 @@ public sealed class ExcaliburEventSourcingBuilderShould
 	{
 		public string CustomerName { get; init; } = string.Empty;
 		public decimal Amount { get; init; }
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	internal sealed record CustomerRegisteredEvent : DomainEvent
 	{
 		public string Name { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	#endregion Test Events

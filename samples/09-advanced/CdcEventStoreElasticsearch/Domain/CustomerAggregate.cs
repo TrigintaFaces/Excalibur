@@ -204,11 +204,7 @@ public sealed record CustomerCreated(
 	string ExternalId,
 	string Name,
 	string Email,
-	string? Phone) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => CustomerId.ToString();
-}
+	string? Phone) : DomainEvent;
 
 /// <summary>
 /// Event raised when customer information is updated.
@@ -217,11 +213,7 @@ public sealed record CustomerInfoUpdated(
 	Guid CustomerId,
 	string Name,
 	string Email,
-	string? Phone) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => CustomerId.ToString();
-}
+	string? Phone) : DomainEvent;
 
 /// <summary>
 /// Event raised when a customer places an order.
@@ -229,21 +221,13 @@ public sealed record CustomerInfoUpdated(
 public sealed record CustomerOrderPlaced(
 	Guid CustomerId,
 	Guid OrderId,
-	decimal Amount) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => CustomerId.ToString();
-}
+	decimal Amount) : DomainEvent;
 
 /// <summary>
 /// Event raised when a customer is deactivated.
 /// </summary>
 public sealed record CustomerDeactivated(
 	Guid CustomerId,
-	string Reason) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => CustomerId.ToString();
-}
+	string Reason) : DomainEvent;
 
 #endregion

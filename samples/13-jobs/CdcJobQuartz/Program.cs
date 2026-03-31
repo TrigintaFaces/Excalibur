@@ -70,6 +70,7 @@
 // ============================================================================
 
 using CdcJobQuartz.AntiCorruption;
+using CdcJobQuartz.Domain;
 using CdcJobQuartz.Infrastructure;
 using CdcJobQuartz.Projections;
 
@@ -202,23 +203,36 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 	});
 });
 
-// Register projection handlers
-builder.Services.AddSingleton<CustomerSearchProjectionHandler>();
-builder.Services.AddSingleton<CustomerTierSummaryProjectionHandler>();
+// ============================================================================
+// Inline Projection Handlers (Framework-managed)
+// ============================================================================
+// Register projection handlers through the framework pipeline.
+// The framework manages load, handler invocation, and upsert automatically.
 
-// Configure projection processing options
-builder.Services.Configure<ProjectionOptions>(options =>
+builder.Services.AddExcaliburEventSourcing(es =>
 {
-	options.PollingInterval = TimeSpan.FromSeconds(1);
-	options.BatchSize = 100;
-	options.RebuildOnStartup = false; // Set to true to rebuild projections from event store
-});
+	es.UseEventNotification();
 
-// Projection Background Service - Creates materialized views in Elasticsearch
-// This processes domain events from the event store and updates:
-// - CustomerSearchProjection: Full-text search index
-// - CustomerTierSummaryProjection: Analytics aggregation by tier
-builder.Services.AddHostedService<ProjectionBackgroundService>();
+	// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
+	es.AddProjection<CustomerSearchProjection>(p => p
+		.Inline()
+		.WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
+		.WhenHandledBy<CustomerInfoUpdated, CustomerInfoUpdatedHandler>()
+		.WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
+		.When<CustomerDeactivated>((proj, _) =>
+		{
+			proj.IsActive = false;
+			if (!proj.Tags.Contains("deactivated"))
+			{
+				proj.Tags.Add("deactivated");
+			}
+		}));
+
+	// CustomerTierSummaryProjection: uses OverrideProjectionId for per-tier routing
+	es.AddProjection<CustomerTierSummaryProjection>(p => p
+		.Inline()
+		.WhenHandledBy<CustomerCreated, CustomerTierSummaryCreatedHandler>());
+});
 
 // ============================================================================
 // Step 7: Build and Start Host

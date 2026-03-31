@@ -41,7 +41,7 @@ public sealed class EventSourcedRepositoryShould
 	internal sealed record TestCreatedEventV1 : DomainEvent, IVersionedMessage
 	{
 		public string Name { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 
 		int IVersionedMessage.Version => 1;
 		string IVersionedMessage.MessageType => "TestCreatedEvent";
@@ -54,7 +54,7 @@ public sealed class EventSourcedRepositoryShould
 	{
 		public string FirstName { get; init; } = string.Empty;
 		public string LastName { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 
 		int IVersionedMessage.Version => 2;
 		string IVersionedMessage.MessageType => "TestCreatedEvent";
@@ -66,7 +66,7 @@ public sealed class EventSourcedRepositoryShould
 	internal sealed record TestUpdatedEvent : DomainEvent
 	{
 		public string NewValue { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	#endregion Test Domain Events

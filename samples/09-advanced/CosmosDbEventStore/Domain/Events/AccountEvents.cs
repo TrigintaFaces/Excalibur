@@ -12,29 +12,17 @@ public sealed record AccountOpened(
 	Guid AccountId,
 	string AccountHolder,
 	string AccountType,
-	decimal InitialDeposit) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-}
+	decimal InitialDeposit) : DomainEvent;
 
 /// <summary>
 /// Event raised when money is deposited into an account.
 /// </summary>
-public sealed record MoneyDeposited(Guid AccountId, decimal Amount, string Reference) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-}
+public sealed record MoneyDeposited(Guid AccountId, decimal Amount, string Reference) : DomainEvent;
 
 /// <summary>
 /// Event raised when money is withdrawn from an account.
 /// </summary>
-public sealed record MoneyWithdrawn(Guid AccountId, decimal Amount, string Reference) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-}
+public sealed record MoneyWithdrawn(Guid AccountId, decimal Amount, string Reference) : DomainEvent;
 
 /// <summary>
 /// Event raised when money is transferred between accounts.
@@ -43,20 +31,13 @@ public sealed record MoneyTransferred(
 	Guid AccountId,
 	Guid TargetAccountId,
 	decimal Amount,
-	string Reference) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-}
+	string Reference) : DomainEvent;
 
 /// <summary>
 /// Event raised when an account is closed.
 /// </summary>
 public sealed record AccountClosed(Guid AccountId, string Reason) : DomainEvent
 {
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-
 	/// <summary>Gets when the account was closed.</summary>
 	public DateTime ClosedAt { get; init; } = DateTime.UtcNow;
 }

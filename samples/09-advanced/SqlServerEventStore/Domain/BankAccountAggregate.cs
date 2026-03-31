@@ -194,11 +194,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 /// <summary>
 /// Event raised when a bank account is opened.
 /// </summary>
-public sealed record AccountOpened(Guid AccountId, string HolderName, decimal InitialDeposit) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-}
+public sealed record AccountOpened(Guid AccountId, string HolderName, decimal InitialDeposit) : DomainEvent;
 
 /// <summary>
 /// Event raised when money is deposited.
@@ -207,11 +203,7 @@ public sealed record MoneyDeposited(
 	Guid AccountId,
 	decimal Amount,
 	decimal NewBalance,
-	string Description) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-}
+	string Description) : DomainEvent;
 
 /// <summary>
 /// Event raised when money is withdrawn.
@@ -220,19 +212,11 @@ public sealed record MoneyWithdrawn(
 	Guid AccountId,
 	decimal Amount,
 	decimal NewBalance,
-	string Description) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-}
+	string Description) : DomainEvent;
 
 /// <summary>
 /// Event raised when an account is closed.
 /// </summary>
-public sealed record AccountClosed(Guid AccountId, string Reason) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => AccountId.ToString();
-}
+public sealed record AccountClosed(Guid AccountId, string Reason) : DomainEvent;
 
 #endregion

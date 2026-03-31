@@ -13,11 +13,7 @@ public sealed record OrderCreated(
 	string ExternalOrderId,
 	Guid CustomerId,
 	string CustomerExternalId,
-	DateTime OrderDate) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+	DateTime OrderDate) : DomainEvent;
 
 /// <summary>
 /// Event raised when a line item is added to an order.
@@ -30,9 +26,6 @@ public sealed record OrderLineItemAdded(
 	int Quantity,
 	decimal UnitPrice) : DomainEvent
 {
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-
 	/// <summary>Gets the line total.</summary>
 	public decimal LineTotal => Quantity * UnitPrice;
 }
@@ -44,11 +37,7 @@ public sealed record OrderLineItemUpdated(
 	Guid OrderId,
 	Guid ItemId,
 	int OldQuantity,
-	int NewQuantity) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+	int NewQuantity) : DomainEvent;
 
 /// <summary>
 /// Event raised when a line item is removed from an order.
@@ -58,11 +47,7 @@ public sealed record OrderLineItemRemoved(
 	Guid ItemId,
 	string ProductName,
 	int Quantity,
-	decimal UnitPrice) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+	decimal UnitPrice) : DomainEvent;
 
 /// <summary>
 /// Event raised when an order status is updated.
@@ -70,35 +55,19 @@ public sealed record OrderLineItemRemoved(
 public sealed record OrderStatusUpdated(
 	Guid OrderId,
 	OrderStatus OldStatus,
-	OrderStatus NewStatus) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+	OrderStatus NewStatus) : DomainEvent;
 
 /// <summary>
 /// Event raised when an order is shipped.
 /// </summary>
-public sealed record OrderShipped(Guid OrderId, DateTime ShippedDate) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderShipped(Guid OrderId, DateTime ShippedDate) : DomainEvent;
 
 /// <summary>
 /// Event raised when an order is delivered.
 /// </summary>
-public sealed record OrderDelivered(Guid OrderId, DateTime DeliveredDate) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderDelivered(Guid OrderId, DateTime DeliveredDate) : DomainEvent;
 
 /// <summary>
 /// Event raised when an order is cancelled.
 /// </summary>
-public sealed record OrderCancelled(Guid OrderId, string Reason) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;

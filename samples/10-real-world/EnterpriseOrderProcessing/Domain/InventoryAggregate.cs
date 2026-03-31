@@ -28,6 +28,7 @@ public sealed class InventoryAggregate : AggregateRoot<string>
 		ArgumentException.ThrowIfNullOrWhiteSpace(productName);
 		ArgumentOutOfRangeException.ThrowIfNegative(initialQuantity);
 
+		Id = productId;
 		RaiseEvent(new InventoryItemCreated(productId, productName, initialQuantity));
 	}
 

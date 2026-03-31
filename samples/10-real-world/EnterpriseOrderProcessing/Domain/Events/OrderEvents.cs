@@ -8,35 +8,20 @@ namespace EnterpriseOrderProcessing.Domain.Events;
 public sealed record OrderCreated(
 	Guid OrderId,
 	Guid CustomerId,
-	string CustomerName) : DomainEvent
-{
-	public override string AggregateId => OrderId.ToString();
-}
+	string CustomerName) : DomainEvent;
 
 public sealed record OrderLineAdded(
 	Guid OrderId,
 	string ProductId,
 	int Quantity,
-	decimal UnitPrice) : DomainEvent
-{
-	public override string AggregateId => OrderId.ToString();
-}
+	decimal UnitPrice) : DomainEvent;
 
-public sealed record OrderSubmitted(Guid OrderId) : DomainEvent
-{
-	public override string AggregateId => OrderId.ToString();
-}
+public sealed record OrderSubmitted(Guid OrderId) : DomainEvent;
 
 public sealed record OrderShipped(
 	Guid OrderId,
-	string TrackingNumber) : DomainEvent
-{
-	public override string AggregateId => OrderId.ToString();
-}
+	string TrackingNumber) : DomainEvent;
 
 public sealed record OrderCancelled(
 	Guid OrderId,
-	string Reason) : DomainEvent
-{
-	public override string AggregateId => OrderId.ToString();
-}
+	string Reason) : DomainEvent;

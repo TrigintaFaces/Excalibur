@@ -36,11 +36,12 @@ public sealed partial class UserCreatedV1ToV2Upgrader : IMessageUpcaster<UserCre
 	public UserCreatedV2 Upcast(UserCreatedV1 oldMessage)
 	{
 		return new UserCreatedV2(
-			oldMessage.AggregateId,
+			oldMessage.UserId,
 			oldMessage.Name,
 			oldMessage.Email,
 			Address: null) // V1 had no address
 		{
+			AggregateId = oldMessage.AggregateId,
 			Version = oldMessage.Version
 		};
 	}
@@ -64,11 +65,12 @@ public sealed class UserEmailChangedV1ToV2Upgrader : IMessageUpcaster<UserEmailC
 		// In a real system, you might keep email changed as a separate event type
 		// This is simplified for demonstration purposes
 		return new UserCreatedV2(
-			oldMessage.AggregateId,
+			oldMessage.UserId,
 			Name: "Unknown", // We don't have the name in email changed events
 			oldMessage.NewEmail,
 			Address: null)
 		{
+			AggregateId = oldMessage.AggregateId,
 			Version = oldMessage.Version
 		};
 	}
@@ -95,7 +97,7 @@ public sealed partial class UserCreatedV2ToV3Upgrader : IMessageUpcaster<UserCre
 		var (street, city, postalCode, country) = ParseAddress(oldMessage.Address);
 
 		return new UserCreatedV3(
-			oldMessage.AggregateId,
+			oldMessage.UserId,
 			oldMessage.Name,
 			oldMessage.Email,
 			Street: street,
@@ -103,6 +105,7 @@ public sealed partial class UserCreatedV2ToV3Upgrader : IMessageUpcaster<UserCre
 			PostalCode: postalCode,
 			Country: country)
 		{
+			AggregateId = oldMessage.AggregateId,
 			Version = oldMessage.Version
 		};
 	}
@@ -175,7 +178,7 @@ public sealed partial class UserAddressChangedV2ToV3Upgrader : IMessageUpcaster<
 		var (newStreet, newCity, newPostalCode, newCountry) = ParseAddress(oldMessage.NewAddress);
 
 		return new UserAddressChangedV3(
-			oldMessage.AggregateId,
+			oldMessage.UserId,
 			OldStreet: oldStreet,
 			OldCity: oldCity,
 			OldPostalCode: oldPostalCode,
@@ -185,6 +188,7 @@ public sealed partial class UserAddressChangedV2ToV3Upgrader : IMessageUpcaster<
 			NewPostalCode: newPostalCode,
 			NewCountry: newCountry)
 		{
+			AggregateId = oldMessage.AggregateId,
 			Version = oldMessage.Version
 		};
 	}
@@ -253,7 +257,7 @@ public sealed class UserCreatedV1ToV3DirectUpgrader : IMessageUpcaster<UserCreat
 	{
 		// Direct transformation - no address data in V1
 		return new UserCreatedV3(
-			oldMessage.AggregateId,
+			oldMessage.UserId,
 			oldMessage.Name,
 			oldMessage.Email,
 			Street: null,
@@ -261,6 +265,7 @@ public sealed class UserCreatedV1ToV3DirectUpgrader : IMessageUpcaster<UserCreat
 			PostalCode: null,
 			Country: null)
 		{
+			AggregateId = oldMessage.AggregateId,
 			Version = oldMessage.Version
 		};
 	}

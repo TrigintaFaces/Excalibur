@@ -19,11 +19,7 @@ public sealed record ProductCreated(
 	string Name,
 	string Category,
 	decimal Price,
-	int InitialStock) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => ProductId.ToString();
-}
+	int InitialStock) : DomainEvent;
 
 /// <summary>
 /// Event raised when a product's price changes.
@@ -31,11 +27,7 @@ public sealed record ProductCreated(
 public sealed record ProductPriceChanged(
 	Guid ProductId,
 	decimal OldPrice,
-	decimal NewPrice) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => ProductId.ToString();
-}
+	decimal NewPrice) : DomainEvent;
 
 /// <summary>
 /// Event raised when stock is added to a product.
@@ -43,11 +35,7 @@ public sealed record ProductPriceChanged(
 public sealed record ProductStockAdded(
 	Guid ProductId,
 	int Quantity,
-	int NewStockLevel) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => ProductId.ToString();
-}
+	int NewStockLevel) : DomainEvent;
 
 /// <summary>
 /// Event raised when stock is removed from a product (e.g., sale).
@@ -56,17 +44,9 @@ public sealed record ProductStockRemoved(
 	Guid ProductId,
 	int Quantity,
 	int NewStockLevel,
-	string Reason) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => ProductId.ToString();
-}
+	string Reason) : DomainEvent;
 
 /// <summary>
 /// Event raised when a product is discontinued.
 /// </summary>
-public sealed record ProductDiscontinued(Guid ProductId, string Reason) : DomainEvent
-{
-	/// <inheritdoc/>
-	public override string AggregateId => ProductId.ToString();
-}
+public sealed record ProductDiscontinued(Guid ProductId, string Reason) : DomainEvent;

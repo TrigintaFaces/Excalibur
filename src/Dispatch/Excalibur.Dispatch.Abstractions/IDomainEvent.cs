@@ -27,13 +27,14 @@ public interface IDomainEvent : IDispatchEvent
 
 	/// <summary>
 	/// Gets the identifier of the aggregate that raised this event.
+	/// Set automatically by the framework in <c>AggregateRoot.RaiseEvent</c>.
 	/// </summary>
 	/// <value>The identifier of the aggregate that raised this event.</value>
 	string AggregateId { get; }
 
 	/// <summary>
 	/// Gets the version of the aggregate after this event was applied.
-	/// Used for optimistic concurrency and event ordering.
+	/// Set automatically by the framework in <c>AggregateRoot.RaiseEvent</c>.
 	/// </summary>
 	/// <value>The version of the aggregate after this event was applied.</value>
 	long Version { get; }

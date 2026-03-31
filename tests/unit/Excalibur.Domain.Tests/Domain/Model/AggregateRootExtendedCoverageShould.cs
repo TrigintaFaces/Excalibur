@@ -279,7 +279,7 @@ public sealed class AggregateRootExtendedCoverageShould
         public TestAggregate(string id) : base(id) { }
 
         public void DoSomething(string value) =>
-            RaiseEvent(new TestEvent { AggregateId = Id ?? string.Empty, Value = value });
+            RaiseEvent(new TestEvent { Value = value });
 
         protected override void ApplyEventInternal(IDomainEvent @event)
         {

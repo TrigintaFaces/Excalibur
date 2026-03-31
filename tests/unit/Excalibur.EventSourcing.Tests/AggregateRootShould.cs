@@ -23,13 +23,13 @@ public sealed class AggregateRootShould
 	internal sealed record SomethingHappened : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	internal sealed record SomethingElseHappened : DomainEvent
 	{
 		public int Number { get; init; }
-		public override string AggregateId { get; init; } = string.Empty;
+
 	}
 
 	#endregion Test Domain Events

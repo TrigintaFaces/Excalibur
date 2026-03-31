@@ -35,7 +35,6 @@ public sealed record UserCreatedV1(
 	string Name,
 	string Email) : DomainEvent, IVersionedMessage
 {
-	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 1;
 	string IVersionedMessage.MessageType => "UserCreated";
 }
@@ -48,7 +47,6 @@ public sealed record UserEmailChangedV1(
 	string OldEmail,
 	string NewEmail) : DomainEvent, IVersionedMessage
 {
-	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 1;
 	string IVersionedMessage.MessageType => "UserEmailChanged";
 }
@@ -70,7 +68,6 @@ public sealed record UserCreatedV2(
 	string Email,
 	string? Address) : DomainEvent, IVersionedMessage
 {
-	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 2;
 	string IVersionedMessage.MessageType => "UserCreated";
 }
@@ -83,7 +80,6 @@ public sealed record UserAddressChangedV2(
 	string? OldAddress,
 	string NewAddress) : DomainEvent, IVersionedMessage
 {
-	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 2;
 	string IVersionedMessage.MessageType => "UserAddressChanged";
 }
@@ -108,7 +104,6 @@ public sealed record UserCreatedV3(
 	string? PostalCode,
 	string? Country) : DomainEvent, IVersionedMessage
 {
-	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 3;
 	string IVersionedMessage.MessageType => "UserCreated";
 }
@@ -127,7 +122,6 @@ public sealed record UserAddressChangedV3(
 	string? NewPostalCode,
 	string? NewCountry) : DomainEvent, IVersionedMessage
 {
-	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 3;
 	string IVersionedMessage.MessageType => "UserAddressChanged";
 }
@@ -140,7 +134,6 @@ public sealed record UserNameChangedV3(
 	string OldName,
 	string NewName) : DomainEvent, IVersionedMessage
 {
-	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 3;
 	string IVersionedMessage.MessageType => "UserNameChanged";
 }

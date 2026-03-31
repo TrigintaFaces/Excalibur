@@ -12,7 +12,7 @@ namespace Excalibur.Tests.Testing;
 /// </summary>
 internal sealed record CounterIncremented : DomainEvent
 {
-	public override string AggregateId { get; init; } = string.Empty;
+
 }
 
 /// <summary>
@@ -21,7 +21,7 @@ internal sealed record CounterIncremented : DomainEvent
 internal sealed record CounterIncrementedBy : DomainEvent
 {
 	public int Amount { get; init; }
-	public override string AggregateId { get; init; } = string.Empty;
+
 }
 
 /// <summary>
@@ -30,7 +30,7 @@ internal sealed record CounterIncrementedBy : DomainEvent
 internal sealed record AggregateInitialized : DomainEvent
 {
 	public string Name { get; init; } = string.Empty;
-	public override string AggregateId { get; init; } = string.Empty;
+
 }
 
 /// <summary>
