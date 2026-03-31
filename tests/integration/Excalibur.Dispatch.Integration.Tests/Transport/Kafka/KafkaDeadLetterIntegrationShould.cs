@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 /// </remarks>
 [Collection(ContainerCollections.Kafka)]
 [Trait("Category", "Integration")]
-[Trait("Provider", "Kafka")]
+[Trait("Database", "Kafka")]
 [Trait("Component", "Transport")]
 public sealed class KafkaDeadLetterIntegrationShould
 {

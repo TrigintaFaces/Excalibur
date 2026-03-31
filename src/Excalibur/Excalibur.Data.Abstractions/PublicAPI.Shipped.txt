@@ -812,3 +812,31 @@ static readonly Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions.Defau
 static readonly Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions.Eventual -> Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions!
 static readonly Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions.Strong -> Excalibur.Data.Abstractions.CloudNative.ConsistencyOptions!
 virtual Excalibur.Data.Abstractions.Db.Dispose(bool disposing) -> void
+Excalibur.Data.Abstractions.Sharding.ITenantShardMap
+Excalibur.Data.Abstractions.Sharding.ITenantShardMap.GetRegisteredShardIds() -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Excalibur.Data.Abstractions.Sharding.ITenantShardMap.GetShardInfo(string! tenantId) -> Excalibur.Data.Abstractions.Sharding.ShardInfo!
+Excalibur.Data.Abstractions.Sharding.ShardInfo
+Excalibur.Data.Abstractions.Sharding.ShardInfo.ConnectionString.get -> string!
+Excalibur.Data.Abstractions.Sharding.ShardInfo.DatabaseName.get -> string?
+Excalibur.Data.Abstractions.Sharding.ShardInfo.IndexPrefix.get -> string?
+Excalibur.Data.Abstractions.Sharding.ShardInfo.Region.get -> string?
+Excalibur.Data.Abstractions.Sharding.ShardInfo.SchemaName.get -> string?
+Excalibur.Data.Abstractions.Sharding.ShardInfo.ShardId.get -> string!
+Excalibur.Data.Abstractions.Sharding.ShardInfo.ShardInfo(string! ShardId, string! ConnectionString, string? SchemaName = null, string? DatabaseName = null, string? IndexPrefix = null, string? Region = null) -> void
+Excalibur.Data.Abstractions.Sharding.ShardInfo.ConnectionString.init -> void
+Excalibur.Data.Abstractions.Sharding.ShardInfo.DatabaseName.init -> void
+Excalibur.Data.Abstractions.Sharding.ShardInfo.IndexPrefix.init -> void
+Excalibur.Data.Abstractions.Sharding.ShardInfo.Region.init -> void
+Excalibur.Data.Abstractions.Sharding.ShardInfo.SchemaName.init -> void
+Excalibur.Data.Abstractions.Sharding.ShardInfo.ShardId.init -> void
+Excalibur.Data.Abstractions.Sharding.ShardMapOptions
+Excalibur.Data.Abstractions.Sharding.ShardMapOptions.DefaultShardId.get -> string?
+Excalibur.Data.Abstractions.Sharding.ShardMapOptions.DefaultShardId.set -> void
+Excalibur.Data.Abstractions.Sharding.ShardMapOptions.EnableTenantSharding.get -> bool
+Excalibur.Data.Abstractions.Sharding.ShardMapOptions.EnableTenantSharding.set -> void
+Excalibur.Data.Abstractions.Sharding.ShardMapOptions.ShardMapOptions() -> void
+Excalibur.Data.Abstractions.Sharding.TenantShardNotFoundException
+Excalibur.Data.Abstractions.Sharding.TenantShardNotFoundException.TenantId.get -> string!
+Excalibur.Data.Abstractions.Sharding.TenantShardNotFoundException.TenantShardNotFoundException(string! tenantId) -> void
+Excalibur.Data.Abstractions.Sharding.ITenantPlacementStrategy
+Excalibur.Data.Abstractions.Sharding.ITenantPlacementStrategy.SelectShard(string! tenantId, System.Collections.Generic.IReadOnlyCollection<string!>! availableShardIds) -> string!

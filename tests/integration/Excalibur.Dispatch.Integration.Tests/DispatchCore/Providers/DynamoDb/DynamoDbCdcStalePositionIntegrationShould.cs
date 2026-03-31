@@ -34,7 +34,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.DynamoDb;
 /// </remarks>
 [IntegrationTest]
 [Trait("Component", "CDC")]
-[Trait("Provider", "DynamoDB")]
+[Trait("Database", "DynamoDB")]
 [Trait("SubComponent", "StalePositionRecovery")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]

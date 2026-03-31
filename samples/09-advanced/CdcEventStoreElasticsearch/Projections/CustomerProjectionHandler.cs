@@ -3,41 +3,111 @@
 
 using CdcEventStoreElasticsearch.Domain;
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
+
+using Microsoft.Extensions.Logging;
 
 namespace CdcEventStoreElasticsearch.Projections;
 
-/// <summary>
-/// Handles domain events to update the customer search projection in Elasticsearch.
-/// </summary>
-public sealed class CustomerSearchProjectionHandler : IProjectionHandler
-{
-	private readonly IProjectionStore<CustomerSearchProjection> _projectionStore;
-	private readonly ILogger<CustomerSearchProjectionHandler> _logger;
+// ============================================================================
+// Customer Search Projection Handlers
+// ============================================================================
+// These handlers demonstrate the IProjectionEventHandler<T, TEvent> pattern
+// (Tier 3) for projection logic requiring DI, async operations, and logging.
+//
+// Registration in Program.cs:
+//   builder.AddProjection<CustomerSearchProjection>(p => p
+//       .Inline()
+//       .WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
+//       .WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
+//       .When<CustomerDeactivated>((proj, e) => { proj.IsActive = false; }));
+//
+// The framework manages projection load/upsert. Handlers just mutate state.
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CustomerSearchProjectionHandler"/> class.
-	/// </summary>
-	public CustomerSearchProjectionHandler(
-		IProjectionStore<CustomerSearchProjection> projectionStore,
-		ILogger<CustomerSearchProjectionHandler> logger)
+/// <summary>
+/// Handles <see cref="CustomerCreated"/> events by initializing a new customer
+/// search projection with all relevant fields.
+/// </summary>
+public sealed class CustomerCreatedHandler
+	: IProjectionEventHandler<CustomerSearchProjection, CustomerCreated>
+{
+	private readonly ILogger<CustomerCreatedHandler> _logger;
+
+	public CustomerCreatedHandler(ILogger<CustomerCreatedHandler> logger)
 	{
-		_projectionStore = projectionStore;
 		_logger = logger;
 	}
 
-	/// <summary>
-	/// Handles any domain event by routing to the appropriate handler method.
-	/// </summary>
-	public Task HandleEventAsync(IDomainEvent @event, CancellationToken cancellationToken) => @event switch
+	public Task HandleAsync(
+		CustomerSearchProjection projection,
+		CustomerCreated @event,
+		ProjectionHandlerContext context,
+		CancellationToken cancellationToken)
 	{
-		CustomerCreated e => HandleAsync(e, cancellationToken),
-		CustomerInfoUpdated e => HandleAsync(e, cancellationToken),
-		CustomerOrderPlaced e => HandleAsync(e, cancellationToken),
-		CustomerDeactivated e => HandleAsync(e, cancellationToken),
-		_ => Task.CompletedTask
-	};
+		projection.Id = @event.CustomerId.ToString();
+		projection.CustomerId = @event.CustomerId;
+		projection.ExternalId = @event.ExternalId;
+		projection.Name = @event.Name;
+		projection.Email = @event.Email;
+		projection.Phone = @event.Phone;
+		projection.OrderCount = 0;
+		projection.TotalSpent = 0;
+		projection.Tier = "Bronze";
+		projection.IsActive = true;
+		projection.CreatedAt = @event.OccurredAt;
+		projection.Tags = ["new-customer"];
+
+		_logger.LogDebug(
+			"Created customer search projection for {CustomerId}",
+			@event.CustomerId);
+
+		return Task.CompletedTask;
+	}
+}
+
+/// <summary>
+/// Handles <see cref="CustomerOrderPlaced"/> events by updating order counts,
+/// spending totals, and tier calculations. Demonstrates DI injection for logging.
+/// </summary>
+public sealed class CustomerOrderPlacedHandler
+	: IProjectionEventHandler<CustomerSearchProjection, CustomerOrderPlaced>
+{
+	private readonly ILogger<CustomerOrderPlacedHandler> _logger;
+
+	public CustomerOrderPlacedHandler(ILogger<CustomerOrderPlacedHandler> logger)
+	{
+		_logger = logger;
+	}
+
+	public Task HandleAsync(
+		CustomerSearchProjection projection,
+		CustomerOrderPlaced @event,
+		ProjectionHandlerContext context,
+		CancellationToken cancellationToken)
+	{
+		projection.OrderCount++;
+		projection.TotalSpent += @event.Amount;
+		projection.Tier = CalculateTier(projection.TotalSpent);
+		projection.LastUpdatedAt = @event.OccurredAt;
+
+		// Update tags based on activity
+		if (projection.OrderCount == 1 && !projection.Tags.Contains("first-order"))
+		{
+			projection.Tags.Add("first-order");
+		}
+
+		if (projection.TotalSpent >= 1000 && !projection.Tags.Contains("high-value"))
+		{
+			projection.Tags.Add("high-value");
+		}
+
+		_logger.LogDebug(
+			"Updated customer {CustomerId} after order -- tier: {Tier}",
+			context.AggregateId,
+			projection.Tier);
+
+		return Task.CompletedTask;
+	}
 
 	private static string CalculateTier(decimal totalSpent) => totalSpent switch
 	{
@@ -46,130 +116,18 @@ public sealed class CustomerSearchProjectionHandler : IProjectionHandler
 		>= 1000m => "Silver",
 		_ => "Bronze"
 	};
-
-	private async Task HandleAsync(CustomerCreated e, CancellationToken cancellationToken)
-	{
-		var projection = new CustomerSearchProjection
-		{
-			Id = e.CustomerId.ToString(),
-			CustomerId = e.CustomerId,
-			ExternalId = e.ExternalId,
-			Name = e.Name,
-			Email = e.Email,
-			Phone = e.Phone,
-			OrderCount = 0,
-			TotalSpent = 0,
-			Tier = "Bronze",
-			IsActive = true,
-			CreatedAt = e.OccurredAt,
-			Tags = ["new-customer"]
-		};
-
-		await _projectionStore.UpsertAsync(projection.Id, projection, cancellationToken).ConfigureAwait(false);
-
-		_logger.LogDebug(
-			"Created customer search projection for {CustomerId}",
-			e.CustomerId);
-	}
-
-	private async Task HandleAsync(CustomerInfoUpdated e, CancellationToken cancellationToken)
-	{
-		var id = e.CustomerId.ToString();
-		var existing = await _projectionStore.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
-
-		if (existing is null)
-		{
-			_logger.LogWarning(
-				"Customer search projection not found for {CustomerId} during info update",
-				e.CustomerId);
-			return;
-		}
-
-		existing.Name = e.Name;
-		existing.Email = e.Email;
-		existing.Phone = e.Phone;
-		existing.LastUpdatedAt = e.OccurredAt;
-
-		// Remove new-customer tag after first update
-		_ = existing.Tags.Remove("new-customer");
-
-		await _projectionStore.UpsertAsync(id, existing, cancellationToken).ConfigureAwait(false);
-
-		_logger.LogDebug(
-			"Updated customer search projection for {CustomerId}",
-			e.CustomerId);
-	}
-
-	private async Task HandleAsync(CustomerOrderPlaced e, CancellationToken cancellationToken)
-	{
-		var id = e.CustomerId.ToString();
-		var existing = await _projectionStore.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
-
-		if (existing is null)
-		{
-			_logger.LogWarning(
-				"Customer search projection not found for {CustomerId} during order placement",
-				e.CustomerId);
-			return;
-		}
-
-		existing.OrderCount++;
-		existing.TotalSpent += e.Amount;
-		existing.Tier = CalculateTier(existing.TotalSpent);
-		existing.LastUpdatedAt = e.OccurredAt;
-
-		// Update tags based on activity
-		if (existing.OrderCount == 1 && !existing.Tags.Contains("first-order"))
-		{
-			existing.Tags.Add("first-order");
-		}
-
-		if (existing.TotalSpent >= 1000 && !existing.Tags.Contains("high-value"))
-		{
-			existing.Tags.Add("high-value");
-		}
-
-		await _projectionStore.UpsertAsync(id, existing, cancellationToken).ConfigureAwait(false);
-
-		_logger.LogDebug(
-			"Updated customer search projection for {CustomerId} after order",
-			e.CustomerId);
-	}
-
-	private async Task HandleAsync(CustomerDeactivated e, CancellationToken cancellationToken)
-	{
-		var id = e.CustomerId.ToString();
-		var existing = await _projectionStore.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
-
-		if (existing is null)
-		{
-			_logger.LogWarning(
-				"Customer search projection not found for {CustomerId} during deactivation",
-				e.CustomerId);
-			return;
-		}
-
-		existing.IsActive = false;
-		existing.LastUpdatedAt = e.OccurredAt;
-
-		if (!existing.Tags.Contains("deactivated"))
-		{
-			existing.Tags.Add("deactivated");
-		}
-
-		await _projectionStore.UpsertAsync(id, existing, cancellationToken).ConfigureAwait(false);
-
-		_logger.LogDebug(
-			"Deactivated customer search projection for {CustomerId}",
-			e.CustomerId);
-	}
 }
 
 /// <summary>
 /// Handles domain events to update the customer tier summary projection in Elasticsearch.
 /// This is a multi-stream projection that aggregates across all customers.
 /// </summary>
-public sealed class CustomerTierSummaryProjectionHandler : IProjectionHandler
+/// <remarks>
+/// This handler manages its own store operations because it uses custom projection IDs
+/// (tier name, not aggregate ID) and requires extra parameters. This is the manual
+/// handler pattern for complex multi-stream projections.
+/// </remarks>
+public sealed class CustomerTierSummaryProjectionHandler
 {
 	private readonly IProjectionStore<CustomerTierSummaryProjection> _projectionStore;
 	private readonly ILogger<CustomerTierSummaryProjectionHandler> _logger;

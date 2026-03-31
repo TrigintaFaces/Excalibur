@@ -691,6 +691,82 @@ WHERE [Error] IS NOT NULL;
 - Add database indexes
 - Scale out processors (with locking)
 
+## Partitioned Outbox
+
+At high event rates (100K+ events/sec), the single outbox table becomes a contention bottleneck. Partitioned outbox splits the outbox into multiple tables, each processed independently by its own background processor.
+
+### Enable Partitioned Processing
+
+```csharp
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.UsePartitionedOutbox(opts =>
+    {
+        opts.Strategy = OutboxPartitionStrategy.ByTenantHash;
+        opts.PartitionCount = 8;
+        opts.ProcessorCountPerPartition = 1;
+    });
+});
+```
+
+### Partitioning Strategies
+
+| Strategy | Description | Use Case |
+|----------|-------------|----------|
+| `None` | Single outbox table (default, current behavior) | Low-to-moderate throughput |
+| `PerShard` | One outbox table per tenant shard | When tenant sharding (`vpbunk`) is active |
+| `ByTenantHash` | `XxHash32(tenantId) % N` partitions in same database | High throughput without sharding infrastructure |
+
+### How It Works
+
+```mermaid
+flowchart TD
+    M1[Message tenantA] --> P[IOutboxPartitioner]
+    M2[Message tenantB] --> P
+    M3[Message tenantC] --> P
+
+    P -->|"Hash % 4 = 0"| T0["Outbox_0 + DLQ_0"]
+    P -->|"Hash % 4 = 1"| T1["Outbox_1 + DLQ_1"]
+    P -->|"Hash % 4 = 2"| T2["Outbox_2 + DLQ_2"]
+    P -->|"Hash % 4 = 3"| T3["Outbox_3 + DLQ_3"]
+
+    T0 --> W0[Processor 0]
+    T1 --> W1[Processor 1]
+    T2 --> W2[Processor 2]
+    T3 --> W3[Processor 3]
+```
+
+Each partition has:
+- Its own outbox table (`Outbox_0`, `Outbox_1`, ...)
+- Its own DLQ table (`Outbox_0_dlq`, `Outbox_1_dlq`, ...)
+- An independent processor task (error isolation per partition)
+
+### Configuration Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `Strategy` | `None` | Partitioning strategy |
+| `PartitionCount` | 8 | Number of partitions (for `ByTenantHash`) |
+| `ProcessorCountPerPartition` | 1 | Processor instances per partition |
+
+### Provider Support
+
+Both SQL Server and PostgreSQL support partitioned outbox tables. The table manager auto-creates partition and DLQ tables on startup:
+
+| Provider | Table Manager |
+|----------|--------------|
+| SQL Server | `SqlServerPartitionedOutboxTableManager` |
+| PostgreSQL | `PostgresPartitionedOutboxTableManager` |
+
+### Partitioned Outbox Metrics
+
+Meter: `Excalibur.EventSourcing.Outbox.Partitioned`
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `excalibur.eventsourcing.outbox.partition.messages_processed` | Counter | Messages processed per partition |
+| `excalibur.eventsourcing.outbox.partition.dlq_messages` | Counter | Messages sent to per-partition DLQ |
+
 ## Design Principles
 
 | Principle | Description |

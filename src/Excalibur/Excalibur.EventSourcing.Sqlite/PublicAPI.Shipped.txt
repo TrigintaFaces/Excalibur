@@ -1,0 +1,22 @@
+#nullable enable
+Excalibur.EventSourcing.Sqlite.SqliteEventStore
+Excalibur.EventSourcing.Sqlite.SqliteEventStore.SqliteEventStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Sqlite.SqliteEventStore!>! logger, string! table = "Events") -> void
+Excalibur.EventSourcing.Sqlite.SqliteEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Sqlite.SqliteEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Sqlite.SqliteEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
+Excalibur.EventSourcing.Sqlite.SqliteSnapshotStore
+Excalibur.EventSourcing.Sqlite.SqliteSnapshotStore.SqliteSnapshotStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Sqlite.SqliteSnapshotStore!>! logger, string! table = "Snapshots") -> void
+Excalibur.EventSourcing.Sqlite.SqliteSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
+Excalibur.EventSourcing.Sqlite.SqliteSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Sqlite.SqliteSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Sqlite.SqliteSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions
+Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.SqliteEventSourcingOptions() -> void
+Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.ConnectionString.get -> string!
+Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.EventStoreTable.get -> string!
+Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.EventStoreTable.set -> void
+Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.SnapshotStoreTable.get -> string!
+Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.SnapshotStoreTable.set -> void
+Microsoft.Extensions.DependencyInjection.SqliteEventSourcingServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.SqliteEventSourcingServiceCollectionExtensions.UseSqlite(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

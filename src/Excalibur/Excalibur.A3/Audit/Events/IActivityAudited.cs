@@ -33,7 +33,7 @@ public interface IActivityAudited : IDomainEvent
 	/// Gets the correlation ID used to trace the activity across distributed systems or services.
 	/// </summary>
 	/// <value>The correlation ID used to trace the activity across distributed systems or services.</value>
-	Guid CorrelationId { get; init; }
+	new Guid CorrelationId { get; init; }
 
 	/// <summary>
 	/// Gets exception details, if any, related to the activity.

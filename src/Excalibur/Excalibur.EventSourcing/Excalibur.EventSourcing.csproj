@@ -20,6 +20,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
     <InternalsVisibleTo Include="Excalibur.Testing.Conformance" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.SqlServer" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.Postgres" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.Sqlite" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">
@@ -39,6 +42,7 @@
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="NCrontab" />
+    <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="OpenTelemetry.Api" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
   </ItemGroup>

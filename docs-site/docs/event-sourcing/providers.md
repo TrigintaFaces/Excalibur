@@ -158,6 +158,40 @@ services.AddPostgresProjectionStore<OrderSummaryProjection>(
 | `TableName` | `string?` | Type name (snake_case) | Table name for projections |
 | `JsonSerializerOptions` | `JsonSerializerOptions?` | camelCase, no indent | JSON serializer options for projection data |
 
+### CockroachDB and YugabyteDB Compatibility
+
+The Postgres provider works with **CockroachDB** and **YugabyteDB** out of the box -- both databases are PostgreSQL wire-compatible and work with Npgsql. No code changes or additional packages are needed.
+
+```csharp
+// CockroachDB
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UsePostgres(opts =>
+        opts.ConnectionString = "Host=cockroachdb.example.com;Port=26257;Database=events;...");
+});
+
+// YugabyteDB
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UsePostgres(opts =>
+        opts.ConnectionString = "Host=yugabyte.example.com;Port=5433;Database=events;...");
+});
+```
+
+**Known considerations:**
+
+| Database | Default Port | Notes |
+|----------|-------------|-------|
+| PostgreSQL | 5432 | Full feature support |
+| CockroachDB | 26257 | Distributed SQL. `SERIALIZABLE` isolation by default (stricter than Postgres `READ COMMITTED`). |
+| YugabyteDB | 5433 | Distributed SQL. Compatible with Postgres extensions. Supports `NpgsqlDataSource` pooling. |
+
+All three use the same `Excalibur.EventSourcing.Postgres` package, DDL, and query paths. Tenant sharding (`UsePostgresTenantEventStore`) and parallel catch-up (`PostgresRangeQueryEventStore`) also work with wire-compatible databases.
+
+:::tip
+For CockroachDB, set `options.SchemaName = "public"` (CockroachDB does not support custom schemas in the same way as PostgreSQL). For YugabyteDB, the default `public` schema works as expected.
+:::
+
 ---
 
 ## Azure Cosmos DB
@@ -346,6 +380,42 @@ MongoDB event stores use a single collection per aggregate type with the aggrega
 
 ---
 
+## SQLite (Local Development)
+
+Zero-Docker local development and testing. Auto-creates tables on first use.
+
+### Installation
+
+```bash
+dotnet add package Excalibur.EventSourcing.Sqlite
+```
+
+### Setup
+
+```csharp
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseSqlite(options =>
+    {
+        options.ConnectionString = "Data Source=events.db";
+    });
+});
+```
+
+Registers both `IEventStore` and `ISnapshotStore` backed by SQLite.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `ConnectionString` | Required | SQLite connection string (e.g., `Data Source=events.db`) |
+| `EventStoreTable` | `"Events"` | Table name for events |
+| `SnapshotStoreTable` | `"Snapshots"` | Table name for snapshots |
+
+:::tip When to use SQLite
+SQLite is ideal for **local development**, **quick prototyping**, and **unit/integration tests** where you want a real database without Docker. For production workloads, use SQL Server, PostgreSQL, or a cloud provider.
+:::
+
+---
+
 ## In-Memory (Testing)
 
 For unit and integration tests:
@@ -374,6 +444,7 @@ services.AddInMemoryEventStore();
 | Cosmos DB | `Excalibur.EventSourcing.CosmosDb` | Partition-scoped | Global distribution |
 | DynamoDB | `Excalibur.EventSourcing.DynamoDb` | Item-level | On-demand / provisioned |
 | Firestore | `Excalibur.EventSourcing.Firestore` | Document-level | Automatic |
+| SQLite | `Excalibur.EventSourcing.Sqlite` | Full ACID (single-writer) | Single process |
 | In-Memory | `Excalibur.EventSourcing.InMemory` | None | Single process |
 
 ## Batch Projection Registration
@@ -415,6 +486,85 @@ services.AddElasticSearchProjections("https://es.example.com:9200", projections 
 ```
 
 See [Data Providers](../data-providers/index.md) for provider-specific details and naming conventions.
+
+## Cold Event Store Providers (Tiered Storage)
+
+For hot/cold storage separation at petabyte scale, archived events are moved from the primary (hot) store to a cold store in blob/object storage. All cold store providers implement `IColdEventStore` (4 methods: `WriteAsync`, `ReadAsync`, `ReadAsync(fromVersion)`, `HasArchivedEventsAsync`) and use a gzip-compressed JSON format.
+
+### Azure Blob Storage
+
+```bash
+dotnet add package Excalibur.EventSourcing.AzureBlob
+```
+
+```csharp
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.UseAzureBlobColdEventStore(opts =>
+    {
+        opts.ConnectionString = "DefaultEndpointsProtocol=https;...";
+        opts.ContainerName = "event-archive";
+        opts.BlobPrefix = "events";
+    });
+});
+```
+
+### AWS S3
+
+```bash
+dotnet add package Excalibur.EventSourcing.AwsS3
+```
+
+```csharp
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.UseAwsS3ColdEventStore(opts =>
+    {
+        opts.BucketName = "my-event-archive";
+        opts.Region = "us-east-1";
+        opts.KeyPrefix = "events";
+    });
+});
+```
+
+### Google Cloud Storage
+
+```bash
+dotnet add package Excalibur.EventSourcing.Gcs
+```
+
+```csharp
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.UseGcsColdEventStore(opts =>
+    {
+        opts.BucketName = "my-event-archive";
+        opts.ObjectPrefix = "events";
+    });
+});
+```
+
+### Cold Store Comparison
+
+| Provider | Package | Authentication |
+|----------|---------|----------------|
+| **Azure Blob** | `Excalibur.EventSourcing.AzureBlob` | Connection string or DefaultAzureCredential |
+| **AWS S3** | `Excalibur.EventSourcing.AwsS3` | AWS SDK default credential chain |
+| **GCS** | `Excalibur.EventSourcing.Gcs` | Google Application Default Credentials |
+
+All providers store events as `{prefix}/{aggregateId}/events.json.gz` and support merge-on-write (read existing, append new, write back).
+
+### Archive Metrics
+
+Meter: `Excalibur.EventSourcing.Archive`
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `excalibur.eventsourcing.archive.events_archived` | Counter | Events moved to cold storage |
+| `excalibur.eventsourcing.archive.events_deleted` | Counter | Events removed from hot store |
+| `excalibur.eventsourcing.archive.cold_reads` | Counter | Read-through operations from cold |
+| `excalibur.eventsourcing.archive.errors` | Counter | Archive operation failures |
+| `excalibur.eventsourcing.archive.duration_seconds` | Histogram | Batch archive duration |
 
 ## See Also
 

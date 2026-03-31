@@ -62,7 +62,6 @@ public sealed class ProjectionBackgroundService : BackgroundService
 {
 	private readonly IEventStore _eventStore;
 	private readonly IEventSerializer _eventSerializer;
-	private readonly CustomerSearchProjectionHandler _searchHandler;
 	private readonly CustomerTierSummaryProjectionHandler _tierHandler;
 	private readonly ProjectionOptions _options;
 	private readonly ILogger<ProjectionBackgroundService> _logger;
@@ -70,17 +69,20 @@ public sealed class ProjectionBackgroundService : BackgroundService
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionBackgroundService"/> class.
 	/// </summary>
+	/// <remarks>
+	/// CustomerSearchProjection is now handled by the framework's inline projection
+	/// pipeline via <c>AddProjection&lt;T&gt;().Inline().WhenHandledBy&lt;...&gt;()</c>.
+	/// Only non-framework projections (tier summary) remain manually wired.
+	/// </remarks>
 	public ProjectionBackgroundService(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
-		CustomerSearchProjectionHandler searchHandler,
 		CustomerTierSummaryProjectionHandler tierHandler,
 		IOptions<ProjectionOptions> options,
 		ILogger<ProjectionBackgroundService> logger)
 	{
 		_eventStore = eventStore;
 		_eventSerializer = eventSerializer;
-		_searchHandler = searchHandler;
 		_tierHandler = tierHandler;
 		_options = options.Value;
 		_logger = logger;

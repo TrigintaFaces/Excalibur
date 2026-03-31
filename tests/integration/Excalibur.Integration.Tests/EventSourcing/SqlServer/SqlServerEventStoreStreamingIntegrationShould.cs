@@ -24,7 +24,7 @@ namespace Excalibur.Integration.Tests.EventSourcing.SqlServer;
 /// Sprint 175 - Provider Testing Epic Phase 1.
 /// </remarks>
 [Trait("Category", "Integration")]
-[Trait("Provider", "SqlServer")]
+[Trait("Database", "SqlServer")]
 [Trait("Component", "EventSourcing")]
 [SuppressMessage("Design", "CA1506", Justification = "Integration test requires multiple dependencies for proper setup")]
 public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifetime

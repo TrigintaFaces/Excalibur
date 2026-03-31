@@ -138,7 +138,7 @@ public sealed class ProjectionBuilderShould
 	[Fact]
 	public void ThrowOnNullRegistry()
 	{
-		Should.Throw<ArgumentNullException>(() => new ProjectionBuilder<OrderSummary>(null!));
+		Should.Throw<ArgumentNullException>(() => new ProjectionBuilder<OrderSummary>((IProjectionRegistry)null!));
 	}
 
 	[Fact]

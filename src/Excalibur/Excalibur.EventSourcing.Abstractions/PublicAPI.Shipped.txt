@@ -184,3 +184,66 @@ Excalibur.EventSourcing.Abstractions.IIncrementalSnapshotStore<TState>.SaveDelta
 Excalibur.EventSourcing.Abstractions.IIncrementalSnapshotStore<TState>.SaveFullAsync(string! aggregateId, string! aggregateType, TState! state, long version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Abstractions.IProjectionRecovery
 Excalibur.EventSourcing.Abstractions.IProjectionRecovery.ReapplyAsync<TProjection>(string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Abstractions.IProjectionEventHandler<TProjection, TEvent>
+Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext
+Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.AggregateId.get -> string!
+Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.AggregateType.get -> string!
+Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.CommittedVersion.get -> long
+Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.OverrideProjectionId.get -> string?
+Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.OverrideProjectionId.set -> void
+Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.ProjectionHandlerContext(string! aggregateId, string! aggregateType, long committedVersion, System.DateTimeOffset timestamp) -> void
+Excalibur.EventSourcing.Abstractions.ProjectionHandlerContext.Timestamp.get -> System.DateTimeOffset
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.AutoSnapshotOptions() -> void
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.CustomPolicy.get -> System.Func<Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext!, bool>?
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.CustomPolicy.set -> void
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.EventCountThreshold.get -> int?
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.EventCountThreshold.set -> void
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.TimeThreshold.get -> System.TimeSpan?
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.TimeThreshold.set -> void
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.VersionThreshold.get -> long?
+Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions.VersionThreshold.set -> void
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.AggregateId.get -> string!
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.AggregateType.get -> string!
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.CurrentVersion.get -> long
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.EventsSinceSnapshot.get -> int
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.LastSnapshotTimestamp.get -> System.DateTimeOffset?
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.LastSnapshotVersion.get -> long?
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.SnapshotDecisionContext(string! AggregateId, string! AggregateType, long CurrentVersion, long? LastSnapshotVersion, System.DateTimeOffset? LastSnapshotTimestamp, int EventsSinceSnapshot) -> void
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.AggregateId.init -> void
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.AggregateType.init -> void
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.CurrentVersion.init -> void
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.EventsSinceSnapshot.init -> void
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.LastSnapshotTimestamp.init -> void
+Excalibur.EventSourcing.Abstractions.SnapshotDecisionContext.LastSnapshotVersion.init -> void
+Excalibur.EventSourcing.Abstractions.IImmutableProjectionHandler<TProjection, TEvent>
+Excalibur.EventSourcing.Abstractions.IColdEventStore
+Excalibur.EventSourcing.Abstractions.IColdEventStore.WriteAsync(string! aggregateId, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>! events, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Abstractions.IColdEventStore.ReadAsync(string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>!
+Excalibur.EventSourcing.Abstractions.IColdEventStore.ReadAsync(string! aggregateId, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>!
+Excalibur.EventSourcing.Abstractions.IColdEventStore.HasArchivedEventsAsync(string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.EventSourcing.Abstractions.ArchivePolicy
+Excalibur.EventSourcing.Abstractions.ArchivePolicy.ArchivePolicy() -> void
+Excalibur.EventSourcing.Abstractions.ArchivePolicy.MaxAge.get -> System.TimeSpan?
+Excalibur.EventSourcing.Abstractions.ArchivePolicy.MaxAge.set -> void
+Excalibur.EventSourcing.Abstractions.ArchivePolicy.MaxPosition.get -> long?
+Excalibur.EventSourcing.Abstractions.ArchivePolicy.MaxPosition.set -> void
+Excalibur.EventSourcing.Abstractions.ArchivePolicy.RetainRecentCount.get -> int?
+Excalibur.EventSourcing.Abstractions.ArchivePolicy.RetainRecentCount.set -> void
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.ArchiveCandidate(string! AggregateId, string! AggregateType, long ArchivableUpToVersion, int EventCount) -> void
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.AggregateId.get -> string!
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.AggregateId.init -> void
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.AggregateType.get -> string!
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.AggregateType.init -> void
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.ArchivableUpToVersion.get -> long
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.ArchivableUpToVersion.init -> void
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.EventCount.get -> int
+Excalibur.EventSourcing.Abstractions.ArchiveCandidate.EventCount.init -> void
+Excalibur.EventSourcing.Abstractions.IEventStoreArchive
+Excalibur.EventSourcing.Abstractions.IEventStoreArchive.GetArchiveCandidatesAsync(Excalibur.EventSourcing.Abstractions.ArchivePolicy! policy, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.ArchiveCandidate!>!>!
+Excalibur.EventSourcing.Abstractions.IEventStoreArchive.DeleteEventsUpToVersionAsync(string! aggregateId, string! aggregateType, long toVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.EventSourcing.Abstractions.ITenantFilteredEventStore
+Excalibur.EventSourcing.Abstractions.ITenantFilteredEventStore.LoadByTenantAsync(string! aggregateId, string! aggregateType, string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Abstractions.ITenantFilteredEventStore.AppendByTenantAsync(string! aggregateId, string! aggregateType, string! tenantId, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>

@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [IntegrationTest]
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", "Data")]
-[Trait("Provider", "SqlServer")]
+[Trait("Database", "SqlServer")]
 [SuppressMessage("Design", "CA1506", Justification = "Integration test requires multiple dependencies for proper setup")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]

@@ -54,12 +54,16 @@ public static class EventNotificationServiceCollectionExtensions
 		// Ensure event notification infrastructure is registered
 		builder.UseEventNotification();
 
-		// Resolve the registry (registered as singleton by UseEventNotification)
-		// Build the projection and register it in the registry at startup
+		// Run configure eagerly: WhenHandledBy registers handler types in DI via
+		// TryAddTransient, which must happen before the container is built.
+		// The projection registration itself is deferred to startup.
+		var projectionBuilder = new ProjectionBuilder<TProjection>(builder.Services);
+		configure(projectionBuilder);
+
 		builder.Services.AddSingleton<IConfigureProjection>(sp =>
 		{
 			return new ConfigureProjection<TProjection>(
-				sp.GetRequiredService<IProjectionRegistry>(), configure);
+				sp.GetRequiredService<IProjectionRegistry>(), projectionBuilder);
 		});
 
 		return builder;
@@ -76,9 +80,7 @@ public static class EventNotificationServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// Assemblies with no <see cref="IProjectionConfiguration{TProjection}"/> implementations
-	/// are handled gracefully (no-op). This is consistent with the existing
-	/// <see cref="ProjectionHandlerServiceCollectionExtensions.AddProjectionHandlersFromAssembly"/>
-	/// pattern.
+	/// are handled gracefully (no-op).
 	/// </para>
 	/// </remarks>
 	/// <example>
@@ -150,7 +152,64 @@ public static class EventNotificationServiceCollectionExtensions
 		where TProjection : class, new()
 	{
 		var typedConfig = (IProjectionConfiguration<TProjection>)config;
-		builder.AddProjection<TProjection>(typedConfig.Configure);
+		builder.AddProjection<TProjection>(b => typedConfig.Configure(b));
+	}
+
+	/// <summary>
+	/// Scans the specified assembly for types implementing
+	/// <see cref="IEventNotificationHandler{TEvent}"/> and registers each discovered
+	/// handler via <see cref="ServiceCollectionDescriptorExtensions.TryAddEnumerable(IServiceCollection, ServiceDescriptor)"/>.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="assembly">The assembly to scan for notification handler implementations.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This provides consistency with <see cref="AddProjectionsFromAssembly"/> by allowing
+	/// convention-based registration of notification handlers.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// {
+	///     builder.AddEventNotificationHandlersFromAssembly(typeof(OrderNotificationHandler).Assembly);
+	/// });
+	/// </code>
+	/// </example>
+	[RequiresUnreferencedCode("Assembly scanning uses reflection to discover IEventNotificationHandler<T> implementations.")]
+	public static IEventSourcingBuilder AddEventNotificationHandlersFromAssembly(
+		this IEventSourcingBuilder builder,
+		Assembly assembly)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(assembly);
+
+		var handlerInterfaceType = typeof(IEventNotificationHandler<>);
+
+		foreach (var type in assembly.GetTypes())
+		{
+			if (type.IsAbstract || type.IsInterface || !type.IsClass || type.IsGenericTypeDefinition)
+			{
+				continue;
+			}
+
+			foreach (var iface in type.GetInterfaces())
+			{
+				if (!iface.IsGenericType || iface.GetGenericTypeDefinition() != handlerInterfaceType)
+				{
+					continue;
+				}
+
+				// Register: IEventNotificationHandler<TEvent> -> ConcreteHandler
+				builder.Services.TryAddEnumerable(ServiceDescriptor.Transient(iface, type));
+			}
+		}
+
+		// Ensure notification infrastructure is registered
+		builder.UseEventNotification();
+
+		return builder;
 	}
 
 	/// <summary>
@@ -233,21 +292,22 @@ public static class EventNotificationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Captures the projection configuration to apply when the DI container resolves it.
+	/// Captures a pre-configured projection builder and registers it in the
+	/// projection registry at startup.
 	/// </summary>
 	internal sealed class ConfigureProjection<TProjection> : IConfigureProjection
 		where TProjection : class, new()
 	{
 		private readonly IProjectionRegistry _registry;
-		private readonly Action<IProjectionBuilder<TProjection>> _configure;
+		private readonly ProjectionBuilder<TProjection> _projectionBuilder;
 		private bool _configured;
 
 		internal ConfigureProjection(
 			IProjectionRegistry registry,
-			Action<IProjectionBuilder<TProjection>> configure)
+			ProjectionBuilder<TProjection> projectionBuilder)
 		{
 			_registry = registry;
-			_configure = configure;
+			_projectionBuilder = projectionBuilder;
 		}
 
 		public void Configure()
@@ -258,9 +318,7 @@ public static class EventNotificationServiceCollectionExtensions
 			}
 
 			_configured = true;
-			var projectionBuilder = new ProjectionBuilder<TProjection>(_registry);
-			_configure(projectionBuilder);
-			projectionBuilder.Build();
+			_projectionBuilder.Build(_registry);
 		}
 	}
 }

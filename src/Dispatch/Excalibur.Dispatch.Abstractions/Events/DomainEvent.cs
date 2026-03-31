@@ -54,6 +54,12 @@ public abstract record DomainEvent : IDomainEvent
 	/// <inheritdoc/>
 	public virtual IDictionary<string, object>? Metadata { get; init; }
 
+	/// <inheritdoc/>
+	public virtual string? CorrelationId { get; init; }
+
+	/// <inheritdoc/>
+	public virtual string? CausationId { get; init; }
+
 	/// <summary>
 	/// Adds metadata to this event.
 	/// </summary>
@@ -84,32 +90,38 @@ public abstract record DomainEvent : IDomainEvent
 	}
 
 	/// <summary>
-	/// Adds a correlation ID to this event's metadata.
+	/// Sets the correlation ID for tracking across services.
 	/// </summary>
-	/// <param name="correlationId">The correlation ID for tracking across services.</param>
-	/// <returns>This event instance for method chaining.</returns>
+	/// <param name="correlationId">The correlation ID.</param>
+	/// <returns>A new event instance with the correlation ID set.</returns>
 	public DomainEvent WithCorrelationId(Guid correlationId)
 	{
-		if (correlationId != Guid.Empty)
-		{
-			return WithMetadata("CorrelationId", correlationId.ToString());
-		}
-
-		return this;
+		return correlationId != Guid.Empty
+			? this with { CorrelationId = correlationId.ToString() }
+			: this;
 	}
 
 	/// <summary>
-	/// Adds a causation ID to this event's metadata.
+	/// Sets the correlation ID for tracking across services.
+	/// </summary>
+	/// <param name="correlationId">The correlation ID string.</param>
+	/// <returns>A new event instance with the correlation ID set.</returns>
+	public DomainEvent WithCorrelationId(string? correlationId)
+	{
+		return !string.IsNullOrEmpty(correlationId)
+			? this with { CorrelationId = correlationId }
+			: this;
+	}
+
+	/// <summary>
+	/// Sets the causation ID identifying the command or event that caused this event.
 	/// </summary>
 	/// <param name="causationId">The ID of the event that caused this event.</param>
-	/// <returns>This event instance for method chaining.</returns>
-	public DomainEvent WithCausationId(string causationId)
+	/// <returns>A new event instance with the causation ID set.</returns>
+	public DomainEvent WithCausationId(string? causationId)
 	{
-		if (!string.IsNullOrEmpty(causationId))
-		{
-			return WithMetadata("CausationId", causationId);
-		}
-
-		return this;
+		return !string.IsNullOrEmpty(causationId)
+			? this with { CausationId = causationId }
+			: this;
 	}
 }

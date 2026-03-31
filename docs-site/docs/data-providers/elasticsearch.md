@@ -85,7 +85,7 @@ services.AddElasticSearchProjections("https://es.example.com:9200", projections 
 });
 ```
 
-See [Projections](../event-sourcing/projections.md#register-projection-stores) for index naming, multi-node clusters, and per-projection overrides.
+See [Projections](../event-sourcing/projections.md#registering-store-backends) for index naming, multi-node clusters, and per-projection overrides.
 
 ### Health Checks
 

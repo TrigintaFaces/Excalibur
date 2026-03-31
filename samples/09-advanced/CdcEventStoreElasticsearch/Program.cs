@@ -46,8 +46,8 @@
 //                            │
 //                            ▼
 //   ┌─────────────────────────────────────────────────────────────────────┐
-//   │                      Elasticsearch Cluster                          │
-//   │                          Port 9200                                  │
+//   │                   Elasticsearch 3-Node Cluster                      │
+//   │              Ports 9200 (node1), 9201 (node2), 9202 (node3)         │
 //   │  ┌─────────────────────┐  ┌───────────────────┐  ┌───────────────┐  │
 //   │  │CustomerSearchProj   │  │OrderSearchProj    │  │AnalyticsProj  │  │
 //   │  │TierSummaryProj      │  │DailySummaryProj   │  │               │  │
@@ -70,7 +70,7 @@
 // - Multiple tables: LegacyCustomers, LegacyOrders, LegacyOrderItems
 // - Production-grade stale position recovery
 // - Real SQL Server event store with snapshots
-// - Real Elasticsearch projections
+// - Real Elasticsearch 3-node cluster with connection pooling and replication
 // - ASP.NET Core Web API with Swagger
 //
 // Prerequisites:
@@ -104,7 +104,11 @@ var eventStoreConnectionString = builder.Configuration.GetConnectionString("Even
 								 ??
 								 "Server=localhost,1434;Database=EventStore;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True";
 
-var elasticsearchUri = builder.Configuration["Elasticsearch:Uri"] ?? "http://localhost:9200";
+// Elasticsearch cluster nodes (supports single-node fallback for local dev)
+var elasticsearchNodeUris = builder.Configuration.GetSection("Elasticsearch:NodeUris").Get<string[]>()
+							?? ["http://localhost:9200"];
+var elasticsearchConnectionPoolType = builder.Configuration["Elasticsearch:ConnectionPoolType"] ?? "Sniffing";
+var elasticsearchApiKey = builder.Configuration["Elasticsearch:ApiKey"];
 
 // Use the host's built-in bootstrap logger for startup messages
 using var startupLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
@@ -112,7 +116,8 @@ var startupLogger = startupLoggerFactory.CreateLogger("Startup");
 startupLogger.LogInformation("CDC + Event Store + Elasticsearch Sample - Production Configuration with Web API");
 startupLogger.LogInformation("SQL Server #1 (CDC Source): localhost:1433");
 startupLogger.LogInformation("SQL Server #2 (Event Store): localhost:1434");
-startupLogger.LogInformation("Elasticsearch: {ElasticsearchUri}", elasticsearchUri);
+startupLogger.LogInformation("Elasticsearch cluster: {Nodes} ({PoolType})",
+	string.Join(", ", elasticsearchNodeUris), elasticsearchConnectionPoolType);
 
 // ============================================================================
 // ASP.NET Core Web API
@@ -235,45 +240,76 @@ builder.Services.AddHostedService<CdcPollingBackgroundService>();
 // Elasticsearch Projections
 // ============================================================================
 
-// Register all Elasticsearch projection stores using the batch API.
-// This shares the common node URI and reduces boilerplate.
-builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
-{
-	// Customer projections
-	projections.Add<CustomerSearchProjection>(options =>
-	{
-		options.IndexPrefix = "customers";
-		options.CreateIndexOnInitialize = true;
-		options.NumberOfShards = 1;
-		options.NumberOfReplicas = 0;
-	});
-	projections.Add<CustomerTierSummaryProjection>(options =>
-	{
-		options.IndexPrefix = "customers";
-		options.CreateIndexOnInitialize = true;
-	});
+// Parse the connection pool type from configuration
+var poolType = Enum.TryParse<Excalibur.Data.ElasticSearch.ConnectionPoolType>(
+	elasticsearchConnectionPoolType, ignoreCase: true, out var parsed)
+	? parsed
+	: Excalibur.Data.ElasticSearch.ConnectionPoolType.Sniffing;
 
-	// Order projections
-	projections.Add<OrderSearchProjection>(options =>
-	{
-		options.IndexPrefix = "orders";
-		options.CreateIndexOnInitialize = true;
-		options.NumberOfShards = 1;
-		options.NumberOfReplicas = 0;
-	});
+// Environment-based index prefix prevents dev/test/prod index collisions
+// when sharing a cluster. Produces: "dev-customers", "test-orders", "prod-analytics", etc.
+// Elasticsearch index names must be lowercase.
+#pragma warning disable CA1308 // Normalize strings to uppercase -- ES index names require lowercase
+var envPrefix = builder.Environment.EnvironmentName.ToLowerInvariant();
+#pragma warning restore CA1308
 
-	// Analytics projections
-	projections.Add<OrderAnalyticsProjection>(options =>
+// Register all Elasticsearch projection stores using the shared options API.
+// This configures a multi-node cluster with connection pooling and replication.
+builder.Services.AddElasticSearchProjections(
+	shared =>
 	{
-		options.IndexPrefix = "analytics";
-		options.CreateIndexOnInitialize = true;
-	});
-	projections.Add<DailyOrderSummaryProjection>(options =>
+		shared.NodeUris = elasticsearchNodeUris.Select(u => new Uri(u)).ToList();
+		shared.ConnectionPoolType = poolType;
+		shared.RequestTimeoutSeconds = 30;
+
+		if (!string.IsNullOrEmpty(elasticsearchApiKey))
+		{
+			shared.Auth.ApiKey = elasticsearchApiKey;
+		}
+	},
+	projections =>
 	{
-		options.IndexPrefix = "analytics";
-		options.CreateIndexOnInitialize = true;
+		// Customer projections -- 2 shards for horizontal scaling, 1 replica for HA
+		projections.Add<CustomerSearchProjection>(options =>
+		{
+			options.IndexPrefix = $"{envPrefix}-customers";
+			options.CreateIndexOnInitialize = true;
+			options.NumberOfShards = 2;
+			options.NumberOfReplicas = 1;
+		});
+		projections.Add<CustomerTierSummaryProjection>(options =>
+		{
+			options.IndexPrefix = $"{envPrefix}-customers";
+			options.CreateIndexOnInitialize = true;
+			options.NumberOfShards = 1;
+			options.NumberOfReplicas = 1;
+		});
+
+		// Order projections -- higher shard count for write-heavy workloads
+		projections.Add<OrderSearchProjection>(options =>
+		{
+			options.IndexPrefix = $"{envPrefix}-orders";
+			options.CreateIndexOnInitialize = true;
+			options.NumberOfShards = 3;
+			options.NumberOfReplicas = 1;
+		});
+
+		// Analytics projections -- time-series friendly settings
+		projections.Add<OrderAnalyticsProjection>(options =>
+		{
+			options.IndexPrefix = $"{envPrefix}-analytics";
+			options.CreateIndexOnInitialize = true;
+			options.NumberOfShards = 2;
+			options.NumberOfReplicas = 1;
+		});
+		projections.Add<DailyOrderSummaryProjection>(options =>
+		{
+			options.IndexPrefix = $"{envPrefix}-analytics";
+			options.CreateIndexOnInitialize = true;
+			options.NumberOfShards = 1;
+			options.NumberOfReplicas = 1;
+		});
 	});
-});
 
 // ============================================================================
 // Custom Elasticsearch Repository (Native Query Features)
@@ -287,14 +323,20 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 
 builder.Services.AddSingleton<ElasticsearchClient>(_ =>
 {
-	var settings = new ElasticsearchClientSettings(new Uri(elasticsearchUri));
+	var nodes = elasticsearchNodeUris.Select(u => new Uri(u));
+	var pool = new StaticNodePool(nodes);
+	var settings = new ElasticsearchClientSettings(pool)
+		.RequestTimeout(TimeSpan.FromSeconds(30));
+
+	if (!string.IsNullOrEmpty(elasticsearchApiKey))
+	{
+		settings = settings.Authentication(new ApiKey(elasticsearchApiKey));
+	}
+
 	return new ElasticsearchClient(settings);
 });
 
 builder.Services.AddScoped<OrderFullTextSearchRepository>();
-
-// Projection handlers (auto-discovered from assembly via IProjectionHandler marker)
-builder.Services.AddProjectionHandlersFromAssembly(typeof(Program).Assembly);
 
 // Projection processing options
 builder.Services.Configure<ProjectionOptions>(builder.Configuration.GetSection("Projections"));

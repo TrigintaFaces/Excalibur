@@ -1,0 +1,11 @@
+#nullable enable
+Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions
+Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.AwsS3ColdEventStoreOptions() -> void
+Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.BucketName.get -> string?
+Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.BucketName.set -> void
+Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.KeyPrefix.get -> string!
+Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.KeyPrefix.set -> void
+Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.Region.get -> string?
+Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.Region.set -> void
+Microsoft.Extensions.DependencyInjection.AwsS3ColdEventStoreExtensions
+static Microsoft.Extensions.DependencyInjection.AwsS3ColdEventStoreExtensions.UseAwsS3ColdEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

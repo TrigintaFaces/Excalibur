@@ -118,7 +118,7 @@ builder.Services.AddExcaliburEventSourcing(es =>
 });
 ```
 
-See [Projections -- Inline Projections](../event-sourcing/projections.md#inline-projections-projection-builder-api) for failure handling and recovery.
+See [Projections -- Failure Handling](../event-sourcing/projections.md#failure-handling) for failure handling and recovery.
 
 ### Async Projections (Background Processing)
 

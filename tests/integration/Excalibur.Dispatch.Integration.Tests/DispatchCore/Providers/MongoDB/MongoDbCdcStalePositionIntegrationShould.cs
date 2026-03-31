@@ -38,7 +38,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.MongoDB;
 [IntegrationTest]
 [Collection(ContainerCollections.MongoDB)]
 [Trait("Component", "CDC")]
-[Trait("Provider", "MongoDB")]
+[Trait("Database", "MongoDB")]
 [Trait("SubComponent", "StalePositionRecovery")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]

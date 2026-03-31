@@ -1,0 +1,11 @@
+#nullable enable
+Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions
+Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions.AzureBlobColdEventStoreOptions() -> void
+Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions.ConnectionString.get -> string?
+Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions.ContainerName.get -> string!
+Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions.ContainerName.set -> void
+Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions.CreateContainerIfNotExists.get -> bool
+Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions.CreateContainerIfNotExists.set -> void
+Microsoft.Extensions.DependencyInjection.AzureBlobColdEventStoreExtensions
+static Microsoft.Extensions.DependencyInjection.AzureBlobColdEventStoreExtensions.UseAzureBlobColdEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.AzureBlob.DependencyInjection.AzureBlobColdEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

@@ -37,7 +37,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Firestore;
 /// </remarks>
 [IntegrationTest]
 [Trait("Component", "CDC")]
-[Trait("Provider", "Firestore")]
+[Trait("Database", "Firestore")]
 [Trait("SubComponent", "StalePositionRecovery")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]

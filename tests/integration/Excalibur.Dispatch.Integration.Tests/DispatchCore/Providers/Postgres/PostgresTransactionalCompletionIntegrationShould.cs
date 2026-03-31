@@ -32,7 +32,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [IntegrationTest]
 [Collection(ContainerCollections.Postgres)]
 [Trait("Component", "TransactionalCompletion")]
-[Trait("Provider", "Postgres")]
+[Trait("Database", "Postgres")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 public sealed class PostgresTransactionalCompletionIntegrationShould : IntegrationTestBase

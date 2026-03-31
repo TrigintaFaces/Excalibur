@@ -41,6 +41,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
     <!-- Sprint 691: InMemorySnapshotStore consolidated into Data.InMemory -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <!-- Sprint 733: OpenSearch parity -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.OpenSearch\Excalibur.Data.OpenSearch.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Postgres driver for unit tests -->

@@ -807,7 +807,8 @@
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )",
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.13.0, )",
-          "OpenTelemetry.Extensions.Hosting": "[1.13.0, )"
+          "OpenTelemetry.Extensions.Hosting": "[1.13.0, )",
+          "System.IO.Hashing": "[10.0.1, )"
         }
       },
       "excalibur.eventsourcing.abstractions": {
@@ -1512,6 +1513,12 @@
           "Microsoft.IdentityModel.JsonWebTokens": "8.14.0",
           "Microsoft.IdentityModel.Tokens": "8.14.0"
         }
+      },
+      "System.IO.Hashing": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.1, )",
+        "resolved": "10.0.1",
+        "contentHash": "Dy6ULPb2S0GmNndjKrEIpfibNsc8+FTOoZnqygtFDuyun8vWboQbfMpQtKUXpgTxokR5E4zFHETpNnGfeWY6NA=="
       },
       "System.Threading.RateLimiting": {
         "type": "CentralTransitive",

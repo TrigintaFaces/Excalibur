@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 
 using ProjectionsSample.Domain;
@@ -23,7 +22,7 @@ namespace ProjectionsSample.Projections;
 /// within a category. It maintains internal state to accurately calculate
 /// statistics like average price and total inventory value.
 /// </remarks>
-public sealed class CategorySummaryProjectionHandler : IProjectionHandler
+public sealed class CategorySummaryProjectionHandler
 {
 	private readonly IProjectionStore<CategorySummaryProjection> _store;
 

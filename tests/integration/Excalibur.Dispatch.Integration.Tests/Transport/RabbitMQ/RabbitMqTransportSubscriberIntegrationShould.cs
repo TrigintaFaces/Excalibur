@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 /// </summary>
 [Collection(ContainerCollections.RabbitMQ)]
 [Trait("Category", "Integration")]
-[Trait("Provider", "RabbitMQ")]
+[Trait("Database", "RabbitMQ")]
 [Trait("Component", "Transport")]
 public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetime
 {

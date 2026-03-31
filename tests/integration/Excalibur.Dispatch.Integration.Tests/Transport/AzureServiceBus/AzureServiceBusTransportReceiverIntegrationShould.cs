@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AzureServiceBus;
 /// </remarks>
 [Collection(ContainerCollections.AzureServiceBus)]
 [Trait("Category", "Integration")]
-[Trait("Provider", "AzureServiceBus")]
+[Trait("Database", "AzureServiceBus")]
 [Trait("Component", "Transport")]
 public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLifetime, IDisposable
 {

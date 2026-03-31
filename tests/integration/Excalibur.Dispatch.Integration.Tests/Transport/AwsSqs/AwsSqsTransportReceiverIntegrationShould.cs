@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AwsSqs;
 /// </remarks>
 [Collection(ContainerCollections.AwsSqs)]
 [Trait("Category", "Integration")]
-[Trait("Provider", "AwsSqs")]
+[Trait("Database", "AwsSqs")]
 [Trait("Component", "Transport")]
 public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, IDisposable
 {

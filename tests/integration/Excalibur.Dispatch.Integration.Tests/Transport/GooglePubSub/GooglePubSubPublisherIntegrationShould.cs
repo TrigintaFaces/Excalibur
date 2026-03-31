@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.GooglePubSub;
 /// single publishes, batch publishes, attribute support, and data round-tripping.
 /// </summary>
 [Trait("Category", "Integration")]
-[Trait("Provider", "GooglePubSub")]
+[Trait("Database", "GooglePubSub")]
 [Trait("Component", "Transport")]
 [Collection(GooglePubSubTransportCollection.Name)]
 public sealed class GooglePubSubPublisherIntegrationShould : IAsyncLifetime

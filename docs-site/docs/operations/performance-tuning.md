@@ -200,35 +200,48 @@ public record OrderCreated(
 
 ## Projection Optimization
 
-### Using IProjectionEventProcessor
+### Using Inline Projection Handlers
 
-Excalibur provides `IProjectionEventProcessor` for projection processing. Implement this interface for your handlers:
+Excalibur provides two approaches for inline projections. For simple cases, use `When<T>` lambdas. For complex logic needing DI, implement `IProjectionEventHandler<TProjection, TEvent>`:
 
 ```csharp
-public class OrderProjectionHandler : IProjectionEventProcessor
-{
-    private readonly IProjectionStore<OrderProjection> _store;
-
-    public OrderProjectionHandler(IProjectionStore<OrderProjection> store)
-        => _store = store;
-
-    public async Task HandleAsync(object eventData, CancellationToken ct)
+// Tier 1: Simple lambda (zero allocation, fastest)
+builder.AddProjection<OrderProjection>(p => p
+    .Inline()
+    .When<OrderCreated>((proj, e) =>
     {
-        // Handle events and update projections
-        if (eventData is OrderCreated e)
-        {
-            await _store.UpsertAsync(e.OrderId.ToString(), new OrderProjection
-            {
-                OrderId = e.OrderId,
-                CustomerId = e.CustomerId,
-                Status = "Created"
-            }, ct);
-        }
+        proj.OrderId = e.OrderId;
+        proj.CustomerId = e.CustomerId;
+        proj.Status = "Created";
+    }));
+
+// Tier 3: DI-resolved handler (when you need logging, async, or custom IDs)
+public sealed class OrderCreatedHandler
+    : IProjectionEventHandler<OrderProjection, OrderCreated>
+{
+    private readonly ILogger<OrderCreatedHandler> _logger;
+
+    public OrderCreatedHandler(ILogger<OrderCreatedHandler> logger)
+        => _logger = logger;
+
+    public Task HandleAsync(
+        OrderProjection projection,
+        OrderCreated @event,
+        ProjectionHandlerContext context,
+        CancellationToken cancellationToken)
+    {
+        projection.OrderId = @event.OrderId;
+        projection.CustomerId = @event.CustomerId;
+        projection.Status = "Created";
+        _logger.LogDebug("Projected order {OrderId}", @event.OrderId);
+        return Task.CompletedTask;
     }
 }
 
-// Register projection handler via DI
-builder.Services.AddSingleton<IProjectionEventProcessor, OrderProjectionHandler>();
+// Registration -- handler is auto-registered in DI as Transient
+builder.AddProjection<OrderProjection>(p => p
+    .Inline()
+    .WhenHandledBy<OrderCreated, OrderCreatedHandler>());
 ```
 
 ### Batch Projection Updates
@@ -236,26 +249,19 @@ builder.Services.AddSingleton<IProjectionEventProcessor, OrderProjectionHandler>
 For high-throughput scenarios, batch your projection writes:
 
 ```csharp
-public class BatchingOrderProjectionHandler : IProjectionEventProcessor
+// Use async projections (GlobalStreamProjectionHost) with CDC for high-throughput batch processing.
+// The inline projection pipeline handles events per-aggregate during SaveAsync().
+// For cross-aggregate batch scenarios, configure CDC-based async projections:
+services.AddCdcProcessor(cdc =>
 {
-    private readonly IProjectionStore<OrderProjection> _store;
-    private readonly List<OrderProjection> _batch = new();
-    private const int BatchSize = 100;
-
-    public async Task HandleAsync(object eventData, CancellationToken ct)
-    {
-        if (eventData is OrderCreated e)
-        {
-            _batch.Add(new OrderProjection { OrderId = e.OrderId });
-
-            if (_batch.Count >= BatchSize)
-            {
-                await _store.UpsertManyAsync(_batch, ct);
-                _batch.Clear();
-            }
-        }
-    }
-}
+    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+       .TrackTable("dbo.Orders", table =>
+       {
+           table.MapInsert<OrderCreatedEvent>()
+                .MapUpdate<OrderUpdatedEvent>();
+       })
+       .EnableBackgroundProcessing();
+});
 ```
 
 ### Denormalization

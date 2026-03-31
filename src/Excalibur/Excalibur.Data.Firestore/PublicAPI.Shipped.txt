@@ -258,3 +258,18 @@ static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions
 const Excalibur.Data.Firestore.Diagnostics.FirestorePersistenceTelemetryConstants.MeterName = "Excalibur.Data.Firestore.Persistence" -> string!
 const Excalibur.Data.Firestore.Diagnostics.FirestorePersistenceTelemetryConstants.Version = "1.0.0" -> string!
 Excalibur.Data.Firestore.Diagnostics.FirestorePersistenceTelemetryConstants
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>.FirestoreProjectionStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection!>!>! logger) -> void
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions.FirestoreProjectionStoreOptions() -> void
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions.CollectionName.get -> string!
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions.CollectionName.set -> void
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions.ProjectId.get -> string?
+Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions.ProjectId.set -> void
+Microsoft.Extensions.DependencyInjection.FirestoreProjectionStoreExtensions
+static Microsoft.Extensions.DependencyInjection.FirestoreProjectionStoreExtensions.AddFirestoreProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Firestore.Projections.FirestoreProjectionStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

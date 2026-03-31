@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Redis;
 [IntegrationTest]
 [Collection(ContainerCollections.Redis)]
 [Trait("Component", "Inbox")]
-[Trait("Provider", "Redis")]
+[Trait("Database", "Redis")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 public sealed class RedisInboxStoreIntegrationShould : IntegrationTestBase

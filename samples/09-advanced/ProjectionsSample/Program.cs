@@ -57,25 +57,19 @@ services.AddExcaliburEventSourcing(builder =>
 	// -----------------------------------------------------------------------
 	// Inline projection: ProductCatalogProjection
 	// -----------------------------------------------------------------------
-	// This projection is keyed by aggregate ID (product ID) and updates
-	// automatically during SaveAsync(). No manual event iteration needed.
+	// This projection demonstrates all three handler tiers:
+	//
+	// Tier 1: When<TEvent> lambdas -- simple, synchronous, no DI
+	// Tier 3: WhenHandledBy<TEvent, THandler> -- DI-resolved, async, logging
+	//
 	// The framework loads the projection from IProjectionStore<T>, applies
-	// each When<TEvent> handler, then saves it back -- all within SaveAsync().
+	// each handler, then saves it back -- all within SaveAsync().
+	// WhenHandledBy handlers are resolved from DI and registered automatically.
 	builder.AddProjection<ProductCatalogProjection>(p => p
 		.Inline()
-		.When<ProductCreated>((proj, e) =>
-		{
-			proj.Id = e.ProductId.ToString();
-			proj.Name = e.Name;
-			proj.Category = e.Category;
-			proj.CurrentPrice = e.Price;
-			proj.OriginalPrice = e.Price;
-			proj.StockLevel = e.InitialStock;
-			proj.IsActive = true;
-			proj.CreatedAt = e.OccurredAt;
-			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version = e.Version;
-		})
+		// Tier 3: DI-resolved handler (has ILogger injection, see ProductCreatedHandler)
+		.WhenHandledBy<ProductCreated, ProductCreatedHandler>()
+		// Tier 1: Simple lambdas for straightforward property updates
 		.When<ProductPriceChanged>((proj, e) =>
 		{
 			proj.CurrentPrice = e.NewPrice;
@@ -94,12 +88,8 @@ services.AddExcaliburEventSourcing(builder =>
 			proj.LastModified = DateTimeOffset.UtcNow;
 			proj.Version = e.Version;
 		})
-		.When<ProductDiscontinued>((proj, e) =>
-		{
-			proj.IsActive = false;
-			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version = e.Version;
-		}));
+		// Tier 3: DI-resolved handler (logs discontinuation reason)
+		.WhenHandledBy<ProductDiscontinued, ProductDiscontinuedHandler>());
 });
 services.AddInMemoryEventStore();
 

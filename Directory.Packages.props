@@ -9,6 +9,7 @@
 		<PackageVersion Include="System.Text.Json" Version="10.0.0" />
 		<PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="10.0.0" />
 		<PackageVersion Include="System.Threading.RateLimiting" Version="10.0.0" />
+		<PackageVersion Include="System.IO.Hashing" Version="10.0.1" />
 		<PackageVersion Include="System.IO.Pipelines" Version="10.0.0" />
 		<PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
 		<PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
@@ -248,6 +249,7 @@
 		<PackageVersion Include="YamlDotNet" Version="16.3.0" />
 		<PackageVersion Include="protobuf-net" Version="3.2.45" />
 		<PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.1" />
+		<PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.0" />
 		<PackageVersion Include="MassTransit" Version="8.4.1" />
 		<PackageVersion Include="MediatR" Version="12.2.0" />
 		<PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
@@ -257,6 +259,7 @@
 		<PackageVersion Include="IdentityModel" Version="7.0.0" />
 		<PackageVersion Include="System.Diagnostics.PerformanceCounter" Version="9.0.0" />
 		<PackageVersion Include="Elastic.Clients.Elasticsearch" Version="8.15.0" />
+		<PackageVersion Include="OpenSearch.Client" Version="1.8.0" />
 		<PackageVersion Include="Elastic.Transport" Version="0.4.22" />
 		<PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.6" />
 		<PackageVersion Include="Serilog" Version="3.1.1" />

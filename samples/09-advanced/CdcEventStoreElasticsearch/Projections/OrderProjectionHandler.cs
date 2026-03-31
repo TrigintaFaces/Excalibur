@@ -11,7 +11,7 @@ namespace CdcEventStoreElasticsearch.Projections;
 /// <summary>
 /// Handles domain events to update the order search projection in Elasticsearch.
 /// </summary>
-public sealed class OrderSearchProjectionHandler : IProjectionHandler
+public sealed class OrderSearchProjectionHandler
 {
 	private readonly IProjectionStore<OrderSearchProjection> _projectionStore;
 	private readonly IProjectionStore<CustomerSearchProjection> _customerProjectionStore;
@@ -296,7 +296,7 @@ public sealed class OrderSearchProjectionHandler : IProjectionHandler
 /// Handles domain events to update order analytics projections.
 /// Updates both the global analytics and daily summary projections.
 /// </summary>
-public sealed class OrderAnalyticsProjectionHandler : IProjectionHandler
+public sealed class OrderAnalyticsProjectionHandler
 {
 	private const string GlobalAnalyticsId = "global";
 	private readonly IProjectionStore<OrderAnalyticsProjection> _analyticsStore;

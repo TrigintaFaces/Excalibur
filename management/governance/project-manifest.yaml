@@ -163,6 +163,7 @@ projects:
   - path: src/Excalibur/Excalibur.Data.Firestore/Excalibur.Data.Firestore.csproj
   - path: src/Excalibur/Excalibur.Data.InMemory/Excalibur.Data.InMemory.csproj
   - path: src/Excalibur/Excalibur.Data.MongoDB/Excalibur.Data.MongoDB.csproj
+  - path: src/Excalibur/Excalibur.Data.OpenSearch/Excalibur.Data.OpenSearch.csproj
   - path: src/Excalibur/Excalibur.Data.MySql/Excalibur.Data.MySql.csproj
   - path: src/Excalibur/Excalibur.Data.Postgres/Excalibur.Data.Postgres.csproj
   - path: src/Excalibur/Excalibur.Data.Redis/Excalibur.Data.Redis.csproj
@@ -172,10 +173,14 @@ projects:
   - path: src/Excalibur/Excalibur.EventSourcing.Abstractions/Excalibur.EventSourcing.Abstractions.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.CosmosDb/Excalibur.EventSourcing.CosmosDb.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.DynamoDb/Excalibur.EventSourcing.DynamoDb.csproj
+  - path: src/Excalibur/Excalibur.EventSourcing.AwsS3/Excalibur.EventSourcing.AwsS3.csproj
+  - path: src/Excalibur/Excalibur.EventSourcing.AzureBlob/Excalibur.EventSourcing.AzureBlob.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.Firestore/Excalibur.EventSourcing.Firestore.csproj
+  - path: src/Excalibur/Excalibur.EventSourcing.Gcs/Excalibur.EventSourcing.Gcs.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.InMemory/Excalibur.EventSourcing.InMemory.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.Postgres/Excalibur.EventSourcing.Postgres.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.Redis/Excalibur.EventSourcing.Redis.csproj
+  - path: src/Excalibur/Excalibur.EventSourcing.Sqlite/Excalibur.EventSourcing.Sqlite.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.SqlServer/Excalibur.EventSourcing.SqlServer.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.MongoDB/Excalibur.EventSourcing.MongoDB.csproj
   - path: src/Excalibur/Excalibur.EventSourcing/Excalibur.EventSourcing.csproj

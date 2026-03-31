@@ -764,11 +764,6 @@
         "resolved": "10.0.0",
         "contentHash": "uaFRda9NjtbJRkdx311eXlAA3n2em7223c1A8d1VWyl+4FL9vkG7y2lpPfBU9HYdj/9KgdRNdn1vFK8ZYCYT/A=="
       },
-      "System.IO.Hashing": {
-        "type": "Transitive",
-        "resolved": "8.0.0",
-        "contentHash": "ne1843evDugl0md7Fjzy6QjJrzsjh46ZKbhf8GwBXb5f/gw97J4bxMs0NQKifDuThh/f0bZ0e62NPl1jzTuRqA=="
-      },
       "System.Management": {
         "type": "Transitive",
         "resolved": "9.0.5",
@@ -1034,7 +1029,8 @@
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )",
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.13.0, )",
-          "OpenTelemetry.Extensions.Hosting": "[1.13.0, )"
+          "OpenTelemetry.Extensions.Hosting": "[1.13.0, )",
+          "System.IO.Hashing": "[10.0.1, )"
         }
       },
       "excalibur.eventsourcing.abstractions": {
@@ -1652,6 +1648,12 @@
           "Microsoft.IdentityModel.JsonWebTokens": "8.14.0",
           "Microsoft.IdentityModel.Tokens": "8.14.0"
         }
+      },
+      "System.IO.Hashing": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.1, )",
+        "resolved": "10.0.1",
+        "contentHash": "Dy6ULPb2S0GmNndjKrEIpfibNsc8+FTOoZnqygtFDuyun8vWboQbfMpQtKUXpgTxokR5E4zFHETpNnGfeWY6NA=="
       },
       "System.Threading.RateLimiting": {
         "type": "CentralTransitive",

@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.InMemory;
 /// </remarks>
 [IntegrationTest]
 [Trait("Component", "MultiTenancy")]
-[Trait("Provider", "InMemory")]
+[Trait("Database", "InMemory")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 public sealed class InMemoryMultiTenancyIntegrationShould : IntegrationTestBase

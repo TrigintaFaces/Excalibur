@@ -789,7 +789,7 @@ Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Start = 0 -> Excalibur.D
 Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Validation = 200 -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage
 Excalibur.Dispatch.Abstractions.DispatchRequestDelegate
 Excalibur.Dispatch.Abstractions.DomainEvent
-Excalibur.Dispatch.Abstractions.DomainEvent.WithCausationId(string! causationId) -> Excalibur.Dispatch.Abstractions.DomainEvent!
+Excalibur.Dispatch.Abstractions.DomainEvent.WithCausationId(string? causationId) -> Excalibur.Dispatch.Abstractions.DomainEvent!
 Excalibur.Dispatch.Abstractions.DomainEvent.WithCorrelationId(System.Guid correlationId) -> Excalibur.Dispatch.Abstractions.DomainEvent!
 Excalibur.Dispatch.Abstractions.DomainEvent.WithMetadata(string! key, object! value) -> Excalibur.Dispatch.Abstractions.DomainEvent!
 Excalibur.Dispatch.Abstractions.ErrorConstants
@@ -1395,13 +1395,7 @@ Excalibur.Dispatch.Abstractions.IProjection<TKey>
 Excalibur.Dispatch.Abstractions.IProjection<TKey>.Id.get -> TKey
 Excalibur.Dispatch.Abstractions.IProjection<TKey>.LastModified.get -> System.DateTimeOffset
 Excalibur.Dispatch.Abstractions.IProjection<TKey>.Version.get -> long
-Excalibur.Dispatch.Abstractions.IProjectionDispatcher
-Excalibur.Dispatch.Abstractions.IProjectionDispatcher.DispatchAsync<TKey>(Excalibur.Dispatch.Abstractions.Messaging.IEventStoreMessage<TKey>! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Abstractions.IProjectionEventHandlerRegistry
-Excalibur.Dispatch.Abstractions.IProjectionEventHandlerRegistry.ResolveHandler<TKey>(string! eventType) -> Excalibur.Dispatch.Abstractions.IProjectionHandler?
-Excalibur.Dispatch.Abstractions.IProjectionEventProcessor
-Excalibur.Dispatch.Abstractions.IProjectionEventProcessor.HandleAsync(object! eventData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Abstractions.IProjectionHandler
+
 Excalibur.Dispatch.Abstractions.IRetryStrategy
 Excalibur.Dispatch.Abstractions.IRetryStrategy.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.IRetryStrategy.ExecuteAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
@@ -3194,3 +3188,10 @@ Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitBreakerOpenExce
 Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.CircuitName.get -> string?
 Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.get -> System.TimeSpan?
 Excalibur.Dispatch.Resilience.CircuitBreakerOpenException.RetryAfter.init -> void
+Excalibur.Dispatch.Abstractions.IDomainEvent.CorrelationId.get -> string?
+Excalibur.Dispatch.Abstractions.IDomainEvent.CausationId.get -> string?
+virtual Excalibur.Dispatch.Abstractions.DomainEvent.CorrelationId.get -> string?
+virtual Excalibur.Dispatch.Abstractions.DomainEvent.CorrelationId.init -> void
+virtual Excalibur.Dispatch.Abstractions.DomainEvent.CausationId.get -> string?
+virtual Excalibur.Dispatch.Abstractions.DomainEvent.CausationId.init -> void
+Excalibur.Dispatch.Abstractions.DomainEvent.WithCorrelationId(string? correlationId) -> Excalibur.Dispatch.Abstractions.DomainEvent!

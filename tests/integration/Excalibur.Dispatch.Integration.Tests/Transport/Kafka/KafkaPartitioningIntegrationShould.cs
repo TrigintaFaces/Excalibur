@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 /// and maintain ordering within that partition.
 /// </summary>
 [Trait("Category", "Integration")]
-[Trait("Provider", "Kafka")]
+[Trait("Database", "Kafka")]
 [Trait("Component", "Transport")]
 [Collection(ContainerCollections.Kafka)]
 public sealed class KafkaPartitioningIntegrationShould

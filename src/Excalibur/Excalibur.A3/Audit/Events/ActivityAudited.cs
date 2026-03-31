@@ -58,7 +58,7 @@ public sealed record ActivityAudited : DomainEvent, IActivityAudited
 	public string? ClientAddress { get; init; }
 
 	/// <inheritdoc />
-	public Guid CorrelationId { get; init; }
+	public new Guid CorrelationId { get; init; }
 
 	/// <inheritdoc />
 	public string? Exception { get; init; }

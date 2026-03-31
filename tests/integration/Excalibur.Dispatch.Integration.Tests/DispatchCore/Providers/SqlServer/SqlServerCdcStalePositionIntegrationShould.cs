@@ -39,7 +39,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [IntegrationTest]
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", "CDC")]
-[Trait("Provider", "SqlServer")]
+[Trait("Database", "SqlServer")]
 [Trait("SubComponent", "StalePositionRecovery")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]

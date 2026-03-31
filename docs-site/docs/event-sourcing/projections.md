@@ -40,65 +40,452 @@ flowchart LR
     end
 ```
 
-## Defining Projections
+## Choosing the Right Approach
 
-Projections use `IProjectionStore<T>` for storage and custom handlers that process events:
+Excalibur offers several projection approaches. Use this decision tree to pick the right one:
 
-### Using IProjectionStore
+```mermaid
+flowchart TD
+    START[I need a projection] --> Q1{Must the read model<br/>be up-to-date immediately<br/>after SaveAsync?}
+
+    Q1 -->|Yes| Q2{Is my state type<br/>a C# record or<br/>immutable?}
+    Q1 -->|No| Q3{Do I need the result<br/>persisted?}
+
+    Q2 -->|Yes| IMMUTABLE[AddImmutableProjection&lt;T&gt;<br/>.Inline]
+    Q2 -->|No| Q4{Do I need DI,<br/>logging, or async<br/>in my handler?}
+
+    Q4 -->|No| INLINE_LAMBDA["AddProjection&lt;T&gt;<br/>.Inline().When&lt;TEvent&gt;(lambda)"]
+    Q4 -->|Yes| INLINE_DI["AddProjection&lt;T&gt;<br/>.Inline().WhenHandledBy&lt;TEvent, THandler&gt;()"]
+
+    Q3 -->|No| EPHEMERAL["AddProjection&lt;T&gt;<br/>.Ephemeral()"]
+    Q3 -->|Yes| ASYNC["AddProjection&lt;T&gt;<br/>.Async()"]
+```
+
+### Quick Comparison
+
+| Approach | Consistency | State Type | DI Support | Best For |
+|----------|------------|------------|------------|----------|
+| **Inline lambda** | Immediate | Mutable class | No | Simple property mapping |
+| **Inline DI handler** | Immediate | Mutable class | Yes | Complex logic, logging |
+| **Inline immutable** | Immediate | Records, immutable | Yes | Functional patterns, audit trails |
+| **Async** | Eventual | Any | Yes | Reporting, search indexes |
+| **Ephemeral** | On-demand | Any | No | Debugging, ad-hoc queries |
+
+---
+
+## Quick Start: Inline Lambda Projection
+
+The simplest and most common approach. Events update a read model during `SaveAsync()`:
 
 ```csharp
-public class OrderSummaryProjectionHandler
+services.AddExcaliburEventSourcing(builder =>
 {
-    private readonly IProjectionStore<OrderSummary> _store;
+    builder.AddAggregate<OrderAggregate>(agg => agg.UseInMemoryStore());
 
-    public OrderSummaryProjectionHandler(IProjectionStore<OrderSummary> store)
-    {
-        _store = store;
-    }
-
-    public async Task HandleAsync(IDomainEvent @event, CancellationToken ct)
-    {
-        switch (@event)
+    builder.AddProjection<OrderSummary>(p => p
+        .Inline()
+        .When<OrderPlaced>((proj, e) =>
         {
-            case OrderCreated e:
-                await _store.UpsertAsync(e.OrderId.ToString(), new OrderSummary
-                {
-                    OrderId = e.OrderId,
-                    CustomerId = e.CustomerId,
-                    Status = "Created",
-                    TotalAmount = 0,
-                    LineCount = 0,
-                    CreatedAt = e.OccurredAt
-                }, ct);
-                break;
+            proj.Status = "Placed";
+            proj.Total = e.Total;
+            proj.CreatedAt = e.OccurredAt;
+        })
+        .When<OrderShipped>((proj, e) =>
+        {
+            proj.Status = "Shipped";
+            proj.ShippedAt = e.ShippedAt;
+        }));
+});
+```
 
-            case OrderLineAdded e:
-                var summary = await _store.GetByIdAsync(e.OrderId.ToString(), ct);
-                if (summary is not null)
-                {
-                    summary.TotalAmount += e.Quantity * e.UnitPrice;
-                    summary.LineCount++;
-                    await _store.UpsertAsync(e.OrderId.ToString(), summary, ct);
-                }
-                break;
+After `SaveAsync`, the read model is immediately consistent:
 
-            case OrderShipped e:
-                var order = await _store.GetByIdAsync(e.OrderId.ToString(), ct);
-                if (order is not null)
-                {
-                    order.Status = "Shipped";
-                    order.ShippedAt = e.ShippedAt;
-                    await _store.UpsertAsync(e.OrderId.ToString(), order, ct);
-                }
-                break;
-        }
+```csharp
+await repository.SaveAsync(order, cancellationToken);
+var summary = await projectionStore.GetByIdAsync(order.Id, cancellationToken);
+// summary.Status == "Placed" -- guaranteed, not eventual
+```
+
+---
+
+## Inline Projections (Mutable)
+
+Inline projections run during `SaveAsync()` and guarantee read-after-write consistency. The projection type must be a mutable class with a parameterless constructor (`new()` constraint).
+
+### Lambda Handlers (Tier 1)
+
+Zero-allocation, zero-DI. Best for simple property mapping:
+
+```csharp
+builder.AddProjection<OrderSummary>(p => p
+    .Inline()
+    .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; proj.Total = e.Total; })
+    .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
+```
+
+### DI-Resolved Handlers (Tier 3)
+
+When your projection logic needs dependency injection, async operations, or custom projection IDs, implement `IProjectionEventHandler<TProjection, TEvent>`:
+
+```csharp
+public sealed class CustomerCreatedHandler
+    : IProjectionEventHandler<CustomerSearchProjection, CustomerCreated>
+{
+    private readonly ILogger<CustomerCreatedHandler> _logger;
+
+    public CustomerCreatedHandler(ILogger<CustomerCreatedHandler> logger)
+        => _logger = logger;
+
+    public Task HandleAsync(
+        CustomerSearchProjection projection,
+        CustomerCreated @event,
+        ProjectionHandlerContext context,
+        CancellationToken cancellationToken)
+    {
+        projection.Name = @event.Name;
+        projection.Email = @event.Email;
+        projection.IsActive = true;
+        _logger.LogDebug("Projected customer {Id}", context.AggregateId);
+        return Task.CompletedTask;
     }
 }
 ```
 
-### IProjectionStore Interface
+Register with `WhenHandledBy`. You can mix lambdas and DI handlers in the same projection:
 
-The `IProjectionStore<T>` interface provides CRUD operations with dictionary-based querying:
+```csharp
+builder.AddProjection<CustomerSearchProjection>(p => p
+    .Inline()
+    .WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
+    .WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
+    .When<CustomerDeactivated>((proj, e) => { proj.IsActive = false; }));
+```
+
+`WhenHandledBy` auto-registers the handler in DI as `Transient` -- no manual `services.AddTransient<THandler>()` needed.
+
+### Assembly Scanning
+
+For projects with many handlers, scan an assembly to auto-discover all `IProjectionEventHandler<T, TEvent>` implementations:
+
+```csharp
+builder.AddProjection<CustomerSearchProjection>(p => p
+    .Inline()
+    .AddProjectionHandlersFromAssembly(typeof(CustomerCreatedHandler).Assembly));
+```
+
+:::warning AOT Compatibility
+Assembly scanning uses reflection and is annotated with `[RequiresUnreferencedCode]`. For AOT/trimming scenarios, use explicit `WhenHandledBy<TEvent, THandler>()` instead.
+:::
+
+### Custom Projection IDs
+
+By default, projections are keyed by aggregate ID. Set `OverrideProjectionId` in a DI handler to key by a different concept:
+
+```csharp
+public sealed class TierSummaryOnCustomerCreated
+    : IProjectionEventHandler<TierSummaryProjection, CustomerCreated>
+{
+    public Task HandleAsync(
+        TierSummaryProjection projection,
+        CustomerCreated @event,
+        ProjectionHandlerContext context,
+        CancellationToken cancellationToken)
+    {
+        context.OverrideProjectionId = "Bronze"; // Key by tier, not aggregate
+        projection.CustomerCount++;
+        return Task.CompletedTask;
+    }
+}
+```
+
+### ProjectionHandlerContext
+
+Every DI handler receives aggregate metadata:
+
+```csharp
+public sealed class ProjectionHandlerContext
+{
+    public string AggregateId { get; }
+    public string AggregateType { get; }
+    public long CommittedVersion { get; }
+    public DateTimeOffset Timestamp { get; }
+    public string? OverrideProjectionId { get; set; }
+}
+```
+
+### Handler Tier Comparison
+
+| Tier | API | DI | Async | Custom ID | AOT-Safe | Best For |
+|------|-----|-----|-------|-----------|----------|----------|
+| 1 | `When<TEvent>(lambda)` | No | No | No | Yes | Simple property mapping |
+| 2 | `IProjectionConfiguration<T>` | No | No | No | Yes | Organized lambda groups |
+| 3 | `WhenHandledBy<TEvent, THandler>()` | Yes | Yes | Yes | Yes | Complex logic, logging, cross-aggregate |
+
+### Performance
+
+| Scenario | Overhead per Event | Allocation |
+|----------|-------------------|------------|
+| `When<T>` lambda (Tier 1) | Baseline | Zero |
+| `WhenHandledBy` singleton handler | ~20-50ns (`GetRequiredService`) | Zero |
+| `WhenHandledBy` transient handler | ~20-50ns + constructor | Handler instance |
+
+When all handlers in a projection are Tier 1 lambdas, the pipeline uses a zero-allocation fast path. Adding any Tier 3 handler activates the multi-ID code path with `Dictionary<string, TProjection>` tracking.
+
+### IProjectionBuilder&lt;T&gt; API Reference
+
+| Method | Description |
+|--------|-------------|
+| `.Inline()` | Run during `SaveAsync()` for immediate consistency |
+| `.Async()` | Run via background host (default if neither is called) |
+| `.Ephemeral()` | Build on-demand, no persistence |
+| `.When<TEvent>(Action<TProjection, TEvent>)` | Register a synchronous event handler (Tier 1) |
+| `.WhenHandledBy<TEvent, THandler>()` | Register a DI-resolved async event handler (Tier 3) |
+| `.AddProjectionHandlersFromAssembly(Assembly)` | Discover handlers via assembly scanning |
+| `.WithCacheTtl(TimeSpan)` | Optional caching for ephemeral projection results |
+
+:::tip
+A second `AddProjection<T>()` call for the same projection type **replaces** the first registration. This is useful for testing and conditional reconfiguration.
+:::
+
+---
+
+## Immutable Projections
+
+For projections backed by C# records or other immutable types, use `AddImmutableProjection<T>()`. Unlike `AddProjection<T>()`, this builder has **no `new()` constraint** -- it uses factory and reducer patterns instead of in-place mutation:
+
+```csharp
+public record OrderSummaryRecord(
+    string OrderId,
+    decimal Total,
+    string Status,
+    DateTimeOffset? ShippedAt = null);
+
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.AddImmutableProjection<OrderSummaryRecord>(p => p
+        .Inline()
+        .WhenCreating<OrderPlaced>(e =>
+            new OrderSummaryRecord(e.AggregateId, e.Amount, "Placed"))
+        .WhenTransforming<OrderShipped>((proj, e) =>
+            proj with { Status = "Shipped", ShippedAt = e.ShippedAt }));
+});
+```
+
+### WhenCreating vs WhenTransforming
+
+| Handler | Input | Output | Use Case |
+|---------|-------|--------|----------|
+| `WhenCreating<TEvent>(Func<TEvent, T>)` | Event only | New projection | First event that initializes the projection |
+| `WhenTransforming<TEvent>(Func<T, TEvent, T>)` | Current state + Event | New projection | Subsequent events that evolve state |
+
+**Null-current semantics:**
+
+| Current State | Handler Type | Behavior |
+|---------------|-------------|----------|
+| `null` | `WhenCreating` | Factory creates new instance |
+| `null` | `WhenTransforming` | Throws `InvalidOperationException` |
+| non-null | `WhenTransforming` | Reducer produces new instance |
+| non-null | `WhenCreating` | Factory replaces (last-wins) |
+
+:::warning
+If the first event for a projection ID uses `WhenTransforming` without a prior `WhenCreating` event, the pipeline throws `InvalidOperationException`. Always register a `WhenCreating` handler for the event that initializes the projection.
+:::
+
+### Custom Projection IDs (Multi-ID)
+
+Lambda handlers (`WhenCreating`, `WhenTransforming`) always key the projection by aggregate ID. They do **not** support `OverrideProjectionId` because the lambda signature has no access to `ProjectionHandlerContext`.
+
+If you need to key an immutable projection by something other than aggregate ID (e.g., by customer, by region, by tier), use a DI-resolved handler via `WhenHandledBy`:
+
+```csharp
+public sealed class RegionSummaryOnOrderPlaced
+    : IImmutableProjectionHandler<RegionSummaryRecord, OrderPlaced>
+{
+    public Task<RegionSummaryRecord> TransformAsync(
+        RegionSummaryRecord? current,
+        OrderPlaced @event,
+        ProjectionHandlerContext context,
+        CancellationToken cancellationToken)
+    {
+        context.OverrideProjectionId = @event.Region; // Key by region, not aggregate
+        var record = current ?? new RegionSummaryRecord(@event.Region, 0, 0m);
+        return Task.FromResult(record with
+        {
+            OrderCount = record.OrderCount + 1,
+            TotalRevenue = record.TotalRevenue + @event.Amount
+        });
+    }
+}
+
+builder.AddImmutableProjection<RegionSummaryRecord>(p => p
+    .Inline()
+    .WhenHandledBy<OrderPlaced, RegionSummaryOnOrderPlaced>());
+```
+
+:::note Multi-ID Summary
+| Handler Type | Custom Projection ID | Reason |
+|---|---|---|
+| `WhenCreating` / `WhenTransforming` (lambdas) | Not supported | No `ProjectionHandlerContext` in lambda signature |
+| `WhenHandledBy` (DI handler) | Supported via `context.OverrideProjectionId` | Handler receives full context |
+
+This is a deliberate design decision (Q2) to keep lambda signatures simple. If you need multi-ID, use `WhenHandledBy`.
+:::
+
+### DI-Resolved Immutable Handlers
+
+For complex transforms that need DI, implement `IImmutableProjectionHandler<TProjection, TEvent>`. This interface **returns a new instance** instead of mutating:
+
+```csharp
+public interface IImmutableProjectionHandler<TProjection, in TEvent>
+    where TProjection : class
+    where TEvent : IDomainEvent
+{
+    Task<TProjection> TransformAsync(
+        TProjection? current,     // null on first event
+        TEvent @event,
+        ProjectionHandlerContext context,
+        CancellationToken cancellationToken);
+}
+```
+
+Register with `WhenHandledBy`:
+
+```csharp
+builder.AddImmutableProjection<CustomerRecord>(p => p
+    .Inline()
+    .WhenHandledBy<CustomerCreated, CustomerCreatedImmutableHandler>()
+    .WhenTransforming<CustomerDeactivated>((proj, e) =>
+        proj with { IsActive = false }));
+```
+
+Assembly scanning is also supported:
+
+```csharp
+builder.AddImmutableProjection<CustomerRecord>(p => p
+    .Inline()
+    .AddImmutableProjectionHandlersFromAssembly(typeof(CustomerCreatedImmutableHandler).Assembly));
+```
+
+### IImmutableProjectionBuilder&lt;T&gt; API Reference
+
+| Method | Description |
+|--------|-------------|
+| `.Inline()` | Run during `SaveAsync()` |
+| `.Async()` | Run via background host (default) |
+| `.WhenCreating<TEvent>(Func<TEvent, T>)` | Factory: event -> new projection |
+| `.WhenTransforming<TEvent>(Func<T, TEvent, T>)` | Reducer: (current, event) -> new projection |
+| `.WhenHandledBy<TEvent, THandler>()` | DI-resolved immutable handler |
+| `.AddImmutableProjectionHandlersFromAssembly(Assembly)` | Assembly scanning |
+| `.WithCacheTtl(TimeSpan)` | Optional caching for ephemeral results |
+
+### When to Use Immutable vs Mutable
+
+| Factor | `AddProjection<T>()` (Mutable) | `AddImmutableProjection<T>()` (Immutable) |
+|--------|-------------------------------|------------------------------------------|
+| State type | `class` with `new()` | Any `class` (records, init-only) |
+| Handler pattern | Mutate in-place | Return new instance |
+| Thread safety | Projection locked per batch | Naturally thread-safe (no shared mutation) |
+| Best for | Simple POCO read models | C# records, audit trails, versioned state |
+
+---
+
+## Async Projections
+
+Async projections are updated in the background, eventually consistent with the event stream. Use them for reporting, search indexes, and read models that don't need immediate consistency.
+
+```csharp
+builder.AddProjection<OrderSearchIndex>(p => p
+    .Async()
+    .When<OrderPlaced>((proj, e) => { /* index update */ }));
+```
+
+Async projections are processed by `GlobalStreamProjectionHost` using checkpoint-based delivery. For CDC-based processing, see [CDC Pattern](../patterns/cdc.md).
+
+### Parallel Catch-Up
+
+When catching up from position 0 on a large global stream (100B+ events), sequential processing would take years. Enable parallel catch-up to split the stream into ranges and process them concurrently:
+
+```csharp
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.UseParallelCatchUp(opts =>
+    {
+        opts.Strategy = CatchUpStrategy.RangePartitioned;
+        opts.WorkerCount = Environment.ProcessorCount;
+        opts.BatchSize = 1000;
+        opts.CheckpointInterval = 5000;
+    });
+});
+```
+
+The infrastructure:
+
+1. **Partitions** the global stream into position ranges via `IGlobalStreamPartitioner`
+2. **Spawns** one worker per range
+3. **Checkpoints** each worker independently
+4. **Merges** cursors using a low-watermark strategy (global position = minimum of all worker checkpoints)
+
+```mermaid
+flowchart LR
+    subgraph Global Stream
+        R1["Range 0..25M"] --> W1[Worker 0]
+        R2["Range 25M..50M"] --> W2[Worker 1]
+        R3["Range 50M..75M"] --> W3[Worker 2]
+        R4["Range 75M..100M"] --> W4[Worker 3]
+    end
+
+    W1 & W2 & W3 & W4 --> CP[Low Watermark Checkpoint]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `Strategy` | `Sequential` | `Sequential`, `RangePartitioned`, or `PerShard` |
+| `WorkerCount` | `ProcessorCount` | Number of parallel workers |
+| `BatchSize` | 1000 | Events per batch read |
+| `CheckpointInterval` | 5000 | Events between checkpoints |
+| `MaxRetries` | 3 | Retry attempts for failed workers |
+| `WorkerHeartbeatTimeout` | 60s | Timeout for detecting hung workers |
+
+Parallel processing activates only during catch-up. Once caught up, the host automatically switches to sequential single-worker processing for lower latency.
+
+**Provider support:** SQL Server (indexed `GlobalPosition` range queries). PostgreSQL planned for Phase 2. Providers without range query support fall back to sequential automatically.
+
+:::note Idempotency Requirement
+Projections used with parallel catch-up **must** handle duplicate events, since range boundaries may overlap slightly.
+:::
+
+---
+
+## Ephemeral Projections
+
+Ephemeral projections build a read model on-demand by replaying events **without persisting** the result. Useful for debugging, ad-hoc queries, and audit trails:
+
+```csharp
+builder.AddProjection<OrderAuditTrail>(p => p
+    .Ephemeral()
+    .When<OrderPlaced>((proj, e) => { proj.Events.Add($"Placed: {e.Total}"); })
+    .When<OrderShipped>((proj, e) => { proj.Events.Add($"Shipped: {e.ShippedAt}"); }));
+```
+
+```csharp
+var engine = serviceProvider.GetRequiredService<IEphemeralProjectionEngine>();
+var auditTrail = await engine.BuildAsync<OrderAuditTrail>(
+    orderId, "OrderAggregate", cancellationToken);
+```
+
+Key characteristics:
+- Uses the **same `When<T>` handlers** as inline and async projections
+- Returns a **fresh instance** on every call (no shared mutable state)
+- **Never invoked** by the notification broker -- consumer-initiated only
+- Optional caching via `IDistributedCache` when configured with `.WithCacheTtl()`
+
+---
+
+## Projection Stores
+
+### IProjectionStore&lt;T&gt;
+
+The standard storage interface for all projection backends:
 
 ```csharp
 public interface IProjectionStore<TProjection> where TProjection : class
@@ -114,232 +501,64 @@ public interface IProjectionStore<TProjection> where TProjection : class
 }
 ```
 
-### Typed Event Handlers (Async Projections)
-
-:::tip Prefer AddProjection for inline projections
-For projections that must be immediately consistent after `SaveAsync()`, use the [Inline Projections builder API](#inline-projections-projection-builder-api) below instead of `IEventHandler<T>`. The builder approach is simpler and guarantees read-after-write consistency.
-
-Use `IEventHandler<T>` (shown here) for **async projections** that are updated via background processing or Dispatch event handlers.
-:::
-
-Use Dispatch event handlers to process events and update projections asynchronously:
+### Registering Store Backends
 
 ```csharp
-public class OrderCreatedProjectionHandler : IEventHandler<OrderCreated>
-{
-    private readonly IProjectionStore<OrderSummary> _store;
-
-    public OrderCreatedProjectionHandler(IProjectionStore<OrderSummary> store)
-    {
-        _store = store;
-    }
-
-    public async Task HandleAsync(OrderCreated @event, CancellationToken ct)
-    {
-        await _store.UpsertAsync(@event.OrderId.ToString(), new OrderSummary
-        {
-            OrderId = @event.OrderId,
-            CustomerId = @event.CustomerId,
-            Status = "Created",
-            CreatedAt = @event.OccurredAt
-        }, ct);
-    }
-}
-
-public class OrderLineAddedProjectionHandler : IEventHandler<OrderLineAdded>
-{
-    private readonly IProjectionStore<OrderSummary> _store;
-
-    public async Task HandleAsync(OrderLineAdded @event, CancellationToken ct)
-    {
-        var summary = await _store.GetByIdAsync(@event.OrderId.ToString(), ct);
-        if (summary is null) return;
-
-        summary.TotalAmount += @event.Quantity * @event.UnitPrice;
-        summary.LineCount++;
-        await _store.UpsertAsync(@event.OrderId.ToString(), summary, ct);
-    }
-}
-```
-
-## Configuration
-
-### Register Projection Stores
-
-Configure projection stores based on your storage backend:
-
-```csharp
-// ElasticSearch -- register all projections together (shared cluster)
-services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
-{
-    projections.Add<OrderSummary>();
-    projections.Add<CustomerProfile>(o => o.IndexName = "customers");
-    projections.Add<ProductCatalog>(o => o.NumberOfShards = 3);
-});
-
-// MongoDB -- batch registration (shared connection)
-services.AddMongoDbProjections(mongoConnectionString, "projections", projections =>
-{
-    projections.Add<OrderSummary>();
-    projections.Add<CustomerProfile>(o => o.CollectionName = "customers");
-});
-
-// CosmosDB -- batch registration
-services.AddCosmosDbProjections(cosmosConnectionString, "projections", projections =>
-{
-    projections.Add<OrderSummary>();
-});
-
-// SQL Server -- batch registration
+// SQL Server
 services.AddSqlServerProjections(sqlConnectionString, projections =>
 {
     projections.Add<OrderSummary>(o => o.TableName = "OrderSummaries");
 });
 
-// PostgreSQL -- batch registration
+// PostgreSQL
 services.AddPostgresProjections(pgConnectionString, projections =>
 {
     projections.Add<OrderSummary>(o => o.TableName = "order_summaries");
 });
 
-// Per-projection registration (when you need individual control)
-services.AddPostgresProjectionStore<OrderSummary>(options =>
-{
-    options.ConnectionString = pgConnectionString;
-    options.TableName = "order_summaries";
-});
-```
-
-#### ElasticSearch Index Naming
-
-The index name follows the convention `{IndexPrefix}-{IndexName ?? typeof(T).Name.ToLower()}`:
-
-```csharp
+// ElasticSearch
 services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
 {
-    // "production-customers" (IndexName overrides the class name)
-    projections.Add<CustomerProjection>(o =>
+    projections.Add<OrderSummary>();
+    projections.Add<CustomerProfile>(o => o.IndexName = "customers");
+});
+
+// MongoDB
+services.AddMongoDbProjections(mongoConnectionString, "projections", projections =>
+{
+    projections.Add<OrderSummary>();
+});
+
+// CosmosDB
+services.AddCosmosDbProjections(cosmosConnectionString, "projections", projections =>
+{
+    projections.Add<OrderSummary>();
+});
+```
+
+### Querying Read Models
+
+`IProjectionStore<T>` supports dictionary-based filters with operator suffixes:
+
+```csharp
+var results = await projectionStore.QueryAsync(
+    new Dictionary<string, object>
     {
-        o.IndexPrefix = "production";
-        o.IndexName = "customers";
-    });
+        ["CustomerId"] = customerId,
+        ["Status:neq"] = "Deleted",
+        ["TotalAmount:gte"] = 100m
+    },
+    new QueryOptions { Skip = 0, Take = 25, SortBy = "CreatedAt", SortDescending = true },
+    cancellationToken);
 
-    // "production-ordersummary" (default: prefix + lowercase type name)
-    projections.Add<OrderSummary>(o => o.IndexPrefix = "production");
-
-    // "ordersummary" (no prefix when IndexPrefix is empty)
-    projections.Add<OrderSummary>(o => o.IndexPrefix = "");
-});
+var summary = await projectionStore.GetByIdAsync(orderId.ToString(), cancellationToken);
 ```
 
-#### ElasticSearch Multi-Node Cluster
+For most use cases, `IProjectionStore<T>` is all you need. Graduate to a custom repository only when you need backend-native features (full-text search, aggregations, SQL joins).
 
-Per-projection overrides support multi-node clusters and authentication:
+---
 
-```csharp
-services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
-{
-    projections.Add<OrderSummary>(o =>
-    {
-        o.NodeUris = new[]
-        {
-            new Uri("https://es-node1.example.com:9200"),
-            new Uri("https://es-node2.example.com:9200"),
-            new Uri("https://es-node3.example.com:9200"),
-        };
-        o.ConnectionPoolType = ConnectionPoolType.Sniffing;
-        o.Auth.ApiKey = "your-api-key";
-    });
-});
-```
-
-:::tip
-For a single projection or when projections target different clusters, use the per-projection overload:
-```csharp
-services.AddElasticSearchProjectionStore<OrderSummary>("https://es.example.com:9200");
-```
-:::
-
-### Register Projection Handlers
-
-Register projection handlers using assembly scanning or explicit registration:
-
-```csharp
-// Assembly scanning -- discovers all IProjectionHandler implementations
-// ⚠️ Requires [RequiresUnreferencedCode] (not AOT-safe)
-services.AddProjectionHandlersFromAssembly(typeof(OrderCreatedProjectionHandler).Assembly);
-
-// With custom lifetime (default is Singleton)
-services.AddProjectionHandlersFromAssembly(
-    typeof(OrderCreatedProjectionHandler).Assembly,
-    ServiceLifetime.Transient);
-```
-
-Assembly scanning finds all concrete (non-abstract, non-interface) classes implementing `IProjectionHandler` and registers them with `TryAdd` semantics -- existing registrations are not overwritten.
-
-### Register Event Handlers
-
-Register Dispatch event handlers to process events and update projections:
-
-```csharp
-services.AddDispatch(builder =>
-{
-    builder.AddHandlersFromAssembly(typeof(OrderCreatedProjectionHandler).Assembly);
-});
-```
-
-### Projection Modes
-
-Projections support three modes, configured per projection via `IProjectionBuilder<T>`:
-
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| **Inline** | Updated synchronously during `SaveAsync()`, before returning to caller | Read models requiring immediate read-after-write consistency |
-| **Async** | Updated by `GlobalStreamProjectionHost` (background, checkpoint-based) | Eventually-consistent read models, reporting |
-| **Ephemeral** | Built on-demand by replaying events, no persistence | Ad-hoc queries, debugging, auditing |
-
-## Inline Projections (Projection Builder API)
-
-Inline projections run during `SaveAsync()` and guarantee that the read model is up-to-date **before** the call returns. Configure them with the fluent `IProjectionBuilder<T>` API:
-
-```csharp
-services.AddExcaliburEventSourcing(builder =>
-{
-    builder.AddAggregate<OrderAggregate>(agg => agg.UseInMemoryStore());
-
-    // Inline: updated synchronously during SaveAsync()
-    builder.AddProjection<OrderSummary>(p => p
-        .Inline()
-        .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; proj.Total = e.Total; })
-        .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
-
-    // Async: updated by GlobalStreamProjectionHost (default mode)
-    builder.AddProjection<OrderSearchIndex>(p => p
-        .Async()
-        .When<OrderPlaced>((proj, e) => { /* index update */ }));
-});
-```
-
-After `SaveAsync`, inline projections are immediately consistent:
-
-```csharp
-await repository.SaveAsync(order, cancellationToken);
-var summary = await projectionStore.GetByIdAsync(order.Id, cancellationToken);
-// summary.Status == "Placed" -- guaranteed, not eventual
-```
-
-### IProjectionBuilder&lt;T&gt; API
-
-| Method | Description |
-|--------|-------------|
-| `.Inline()` | Run during `SaveAsync()` for immediate consistency |
-| `.Async()` | Run via background host (default if neither is called) |
-| `.When<TEvent>(Action<TProjection, TEvent>)` | Register an event handler for a specific domain event type |
-| `.WithCacheTtl(TimeSpan)` | Optional caching for ephemeral projection results |
-
-:::tip
-A second `AddProjection<T>()` call for the same projection type **replaces** the first registration. This is useful for testing and conditional reconfiguration.
-:::
+## Execution and Failure Handling
 
 ### Execution Order
 
@@ -373,10 +592,6 @@ services.Configure<EventNotificationOptions>(options =>
 | `Propagate` (default) | Failed projections throw `InlineProjectionException`. Events remain committed. **Do NOT retry `SaveAsync`**. |
 | `LogAndContinue` | Failures logged at Error level. Processing continues. Async path catches up. |
 
-:::warning
-When `FailurePolicy` is `Propagate` and an inline projection fails, the events **are already committed** to the event store. Never retry `SaveAsync()` -- this would duplicate events. Use `IProjectionRecovery` instead.
-:::
-
 ### Recovery
 
 Use `IProjectionRecovery` to recover failed inline projections without re-appending events:
@@ -388,17 +603,13 @@ try
 }
 catch (InlineProjectionException ex)
 {
-    // Events ARE committed -- recover the failed projection
-    logger.LogError(ex, "Projection {Type} failed for {AggregateId}",
-        ex.FailedProjectionType.Name, ex.AggregateId);
-
-    // Re-apply all events to the projection (no re-append)
+    // Events ARE committed -- recover the projection only
     var recovery = serviceProvider.GetRequiredService<IProjectionRecovery>();
     await recovery.ReapplyAsync<OrderSummary>(ex.AggregateId, cancellationToken);
 }
 ```
 
-`IProjectionRecovery` is automatically registered when you call `UseEventNotification()` or `AddProjection<T>()`. You can also register it standalone via `UseProjectionRecovery()`.
+`IProjectionRecovery` is automatically registered when you call `UseEventNotification()` or `AddProjection<T>()`.
 
 ### Event Notification Handlers
 
@@ -413,193 +624,35 @@ public class OrderPlacedNotificationHandler : IEventNotificationHandler<OrderPla
         CancellationToken cancellationToken)
     {
         // Runs after ALL inline projections complete (Phase 2)
-        // context.AggregateId, context.CommittedVersion available
         return Task.CompletedTask;
     }
 }
 ```
 
 :::note
-`IEventNotificationHandler<T>` is distinct from `IEventHandler<T>` in the Dispatch layer. Dispatch handlers are transport-aware and participate in the messaging pipeline. Notification handlers are EventSourcing-level, in-process only, and invoked during `SaveAsync`.
+`IEventNotificationHandler<T>` is distinct from `IEventHandler<T>` in the Dispatch layer. Notification handlers are EventSourcing-level, in-process only, and invoked during `SaveAsync`.
 :::
 
 ### Zero-Overhead Opt-In
 
 If you never call `AddProjection<T>()` or `UseEventNotification()`, the broker is not registered in DI. `SaveAsync` behaves identically to pre-notification behavior with zero overhead.
 
-See [Async Projection Processing](#async-projection-processing) for CDC configuration.
+---
 
-## Read Models
+## Advanced Patterns
 
-### Define Read Model
+### List View vs Detail View
 
-```csharp
-public class OrderSummary
-{
-    public Guid OrderId { get; set; }
-    public string CustomerId { get; set; }
-    public string Status { get; set; }
-    public decimal TotalAmount { get; set; }
-    public int LineCount { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? ShippedAt { get; set; }
-    public DateTime? DeliveredAt { get; set; }
-}
-
-public class SalesReport
-{
-    public DateTime Date { get; set; }
-    public int OrderCount { get; set; }
-    public decimal TotalRevenue { get; set; }
-    public decimal AverageOrderValue { get; set; }
-    public Dictionary<string, int> OrdersByStatus { get; set; }
-}
-```
-
-### Querying Read Models
-
-`IProjectionStore<T>` is the default query interface -- it works across all backends (SQL, ElasticSearch, MongoDB, CosmosDB) and supports dictionary-based filters with operator suffixes:
+A common CQRS pattern uses separate projections for list and detail views, backed by different stores:
 
 ```csharp
-// No custom repository needed for standard queries
-var results = await projectionStore.QueryAsync(
-    new Dictionary<string, object>
-    {
-        ["CustomerId"] = customerId,
-        ["Status:neq"] = "Deleted",
-        ["TotalAmount:gte"] = 100m
-    },
-    new QueryOptions { Skip = 0, Take = 25, SortBy = "CreatedAt", SortDescending = true },
-    cancellationToken);
-
-// Single record lookup
-var summary = await projectionStore.GetByIdAsync(orderId.ToString(), cancellationToken);
-```
-
-For most use cases, `IProjectionStore<T>` is all you need. Graduate to a custom repository only when you need backend-native features.
-
-### Custom Repositories (Advanced)
-
-When you need capabilities beyond `IProjectionStore<T>` -- such as full-text search, aggregations, or SQL joins -- build a custom repository targeting your chosen backend.
-
-#### SQL Server (Dapper)
-
-```csharp
-public class SqlServerOrderSummaryRepository
-{
-    private readonly IDbConnection _db;
-
-    public async Task<OrderSummary?> GetByIdAsync(Guid orderId, CancellationToken ct)
-    {
-        return await _db.QuerySingleOrDefaultAsync<OrderSummary>(
-            "SELECT * FROM OrderSummaries WHERE OrderId = @OrderId",
-            new { OrderId = orderId });
-    }
-
-    public async Task<IReadOnlyList<OrderSummary>> SearchAsync(
-        OrderSearchCriteria criteria,
-        CancellationToken ct)
-    {
-        var sql = new StringBuilder("SELECT * FROM OrderSummaries WHERE 1=1");
-        var parameters = new DynamicParameters();
-
-        if (!string.IsNullOrEmpty(criteria.CustomerId))
-        {
-            sql.Append(" AND CustomerId = @CustomerId");
-            parameters.Add("CustomerId", criteria.CustomerId);
-        }
-
-        if (criteria.Status is not null)
-        {
-            sql.Append(" AND Status = @Status");
-            parameters.Add("Status", criteria.Status);
-        }
-
-        sql.Append(" ORDER BY CreatedAt DESC");
-        sql.Append(" OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY");
-        parameters.Add("Skip", criteria.Skip);
-        parameters.Add("Take", criteria.Take);
-
-        var results = await _db.QueryAsync<OrderSummary>(sql.ToString(), parameters);
-        return results.ToList();
-    }
-}
-```
-
-#### ElasticSearch (Full-Text Search, Aggregations)
-
-When projections are backed by ElasticSearch and you need native query features (full-text search, faceted filtering, aggregations, geo queries), extend `ElasticRepositoryBase<T>`. Use `ElasticSearchProjectionIndexConvention` to resolve the same index name that `IProjectionStore<T>` uses:
-
-```csharp
-public class OrderSearchRepository : ElasticRepositoryBase<OrderSummary>
-{
-    public OrderSearchRepository(
-        ElasticsearchClient client,
-        IOptionsMonitor<ElasticSearchProjectionStoreOptions> optionsMonitor)
-        : base(client, ElasticSearchProjectionIndexConvention.GetIndexName<OrderSummary>(
-            optionsMonitor.Get(nameof(OrderSummary))))
-    {
-    }
-
-    public async Task<SearchResponse<OrderSummary>> FullTextSearchAsync(
-        string searchText,
-        CancellationToken ct)
-    {
-        return await SearchAsync(s => s
-            .Query(q => q.MultiMatch(mm => mm
-                .Query(searchText)
-                .Fields(new[] { "customerId", "status" })))
-            .Aggregations(a => a
-                .Add("by_status", agg => agg
-                    .Terms(t => t.Field("status.keyword")))),
-            ct);
-    }
-}
-```
-
-:::tip
-`ElasticSearchProjectionIndexConvention.GetIndexName<T>()` ensures both `IProjectionStore<T>` and your custom repository resolve to the same index from a single source of truth. If you change the `IndexPrefix` in options, both paths stay in sync automatically.
-:::
-
-### List View vs Detail View (Multiple Projections)
-
-A common CQRS pattern uses separate read models for list and detail views, each optimized for its query pattern. Define two projection types and optionally back them with different storage:
-
-```csharp
-// Slim model for list/search views
-public class OrderListItem
-{
-    public Guid OrderId { get; set; }
-    public string CustomerName { get; set; }
-    public string Status { get; set; }
-    public decimal Total { get; set; }
-    public DateTime CreatedAt { get; set; }
-}
-
-// Rich model for single-record detail views
-public class OrderDetail
-{
-    public Guid OrderId { get; set; }
-    public string CustomerName { get; set; }
-    public string Status { get; set; }
-    public decimal Total { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public List<OrderLineItem> Lines { get; set; }
-    public string ShippingAddress { get; set; }
-    public string Notes { get; set; }
-}
-```
-
-Register separate projections -- they can target different backends:
-
-```csharp
-// List view: ElasticSearch for fast full-text search and faceted filtering
+// List view: ElasticSearch for fast search
 services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
 {
     projections.Add<OrderListItem>(o => o.IndexPrefix = $"{env}-projections");
 });
 
-// Detail view: SQL Server for strong consistency and relational queries
+// Detail view: SQL Server for strong consistency
 services.AddSqlServerProjectionStore<OrderDetail>(options =>
 {
     options.ConnectionString = sqlConnectionString;
@@ -608,214 +661,34 @@ services.AddSqlServerProjectionStore<OrderDetail>(options =>
 
 services.AddExcaliburEventSourcing(builder =>
 {
-    // List projection: fewer fields, async (eventually consistent)
     builder.AddProjection<OrderListItem>(p => p
         .Async()
         .When<OrderPlaced>((proj, e) =>
         {
             proj.OrderId = e.OrderId;
-            proj.CustomerName = e.CustomerName;
             proj.Status = "Placed";
             proj.Total = e.Total;
-            proj.CreatedAt = e.OccurredAt;
         })
         .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
 
-    // Detail projection: all fields, inline (immediately consistent)
     builder.AddProjection<OrderDetail>(p => p
         .Inline()
         .When<OrderPlaced>((proj, e) =>
         {
             proj.OrderId = e.OrderId;
-            proj.CustomerName = e.CustomerName;
             proj.Status = "Placed";
             proj.Total = e.Total;
-            proj.CreatedAt = e.OccurredAt;
             proj.ShippingAddress = e.ShippingAddress;
-        })
-        .When<OrderLineAdded>((proj, e) =>
-        {
-            proj.Lines.Add(new OrderLineItem
-            {
-                ProductId = e.ProductId,
-                Quantity = e.Quantity,
-                UnitPrice = e.UnitPrice
-            });
         })
         .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
 });
 ```
 
-Both projections stay in sync automatically because they are fed by the same event stream -- events are the synchronization mechanism, not any cross-store sync process.
-
-## Async Projection Processing
-
-For eventually-consistent projections, use CDC (Change Data Capture) rather than polling:
-
-```csharp
-// Configure CDC for async projections
-services.AddCdcProcessor(cdc =>
-{
-    cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
-       .TrackTable("dbo.Orders", table =>
-       {
-           table.MapInsert<OrderCreatedEvent>()
-                .MapUpdate<OrderUpdatedEvent>();
-       })
-       .EnableBackgroundProcessing();
-});
-```
-
-CDC automatically handles:
-- **Position tracking** — Checkpoints managed internally
-- **Subscription-based delivery** — Events pushed to handlers, not polled
-- **Scalability** — Partition-aware processing
-
-See [CDC Pattern](../patterns/cdc.md) for complete configuration.
-
-## Rebuilding Projections
-
-Projection rebuilds are typically triggered through operational tooling or the ElasticSearch lifecycle services (see below).
-
-For custom rebuild scenarios, clear the projection store and replay events through your handlers:
-
-```csharp
-public class ProjectionRebuildService
-{
-    private readonly IProjectionStore<OrderSummary> _store;
-    private readonly IEventSourcedRepository<Order, Guid> _repository;
-
-    public async Task RebuildOrderSummariesAsync(
-        IEnumerable<Guid> orderIds,
-        CancellationToken ct)
-    {
-        foreach (var orderId in orderIds)
-        {
-            // Delete existing projection
-            await _store.DeleteAsync(orderId.ToString(), ct);
-
-            // Load aggregate and rebuild from its events
-            var order = await _repository.GetByIdAsync(orderId, ct);
-            if (order is null) continue;
-
-            // Create fresh projection from aggregate state
-            await _store.UpsertAsync(orderId.ToString(), new OrderSummary
-            {
-                OrderId = order.Id,
-                CustomerId = order.CustomerId,
-                Status = order.Status.ToString(),
-                TotalAmount = order.TotalAmount,
-                CreatedAt = order.CreatedAt
-            }, ct);
-        }
-    }
-}
-```
-
-For large-scale rebuilds with ElasticSearch, use the `IProjectionRebuildManager` (see below).
-
-## ElasticSearch Projection Lifecycle
-
-When projections are backed by ElasticSearch, use the lifecycle services to manage indexing and schema changes.
-
-### Configuration
-
-```csharp
-services.Configure<ProjectionSettings>(options =>
-{
-    // Index name is composed as: {IndexPrefix}-{projectionType}
-    options.IndexPrefix = "orders";
-});
-```
-
-### Rebuild Manager
-
-Use `IProjectionRebuildManager` for index migrations and rebuilds:
-
-```csharp
-public class ProjectionMigrationService
-{
-    private readonly IProjectionRebuildManager _rebuildManager;
-
-    public async Task MigrateToNewSchemaAsync(CancellationToken ct)
-    {
-        var rebuildRequest = new ProjectionRebuildRequest
-        {
-            ProjectionType = nameof(OrderSummaryProjection),
-            SourceIndexName = "orders-v1",
-            TargetIndexName = "orders-v2",
-            CreateNewIndex = true,
-            UseAliasing = true
-        };
-
-        var result = await _rebuildManager.StartRebuildAsync(rebuildRequest, ct);
-
-        // Monitor progress
-        var status = await _rebuildManager.GetRebuildStatusAsync(result.OperationId, ct);
-    }
-}
-```
-
-### Schema Evolution
-
-Use `ISchemaEvolutionHandler` to compare and migrate index schemas:
-
-```csharp
-public class SchemaComparisonService
-{
-    private readonly ISchemaEvolutionHandler _schemaEvolution;
-
-    public async Task<SchemaComparisonResult> CompareVersionsAsync(CancellationToken ct)
-    {
-        return await _schemaEvolution.CompareSchemaAsync("orders-v1", "orders-v2", ct);
-    }
-}
-```
-
-## Aggregating Projections
-
-### Daily Sales Report
-
-Use `IEventHandler<T>` to build aggregate projections across multiple event types:
-
-```csharp
-public class DailySalesOrderCreatedHandler : IEventHandler<OrderCreated>
-{
-    private readonly IProjectionStore<SalesReport> _store;
-
-    public async Task HandleAsync(OrderCreated @event, CancellationToken ct)
-    {
-        var dateKey = @event.OccurredAt.Date.ToString("yyyy-MM-dd");
-        var report = await _store.GetByIdAsync(dateKey, ct)
-            ?? new SalesReport { Date = @event.OccurredAt.Date };
-
-        report.OrderCount++;
-        report.TotalRevenue += @event.TotalAmount;
-        report.AverageOrderValue = report.TotalRevenue / report.OrderCount;
-
-        await _store.UpsertAsync(dateKey, report, ct);
-    }
-}
-
-public class DailySalesOrderShippedHandler : IEventHandler<OrderShipped>
-{
-    private readonly IProjectionStore<SalesReport> _store;
-
-    public async Task HandleAsync(OrderShipped @event, CancellationToken ct)
-    {
-        var dateKey = @event.ShippedAt.Date.ToString("yyyy-MM-dd");
-        var report = await _store.GetByIdAsync(dateKey, ct);
-        if (report is null) return;
-
-        report.ShippedCount++;
-        await _store.UpsertAsync(dateKey, report, ct);
-    }
-}
-```
+Both projections stay in sync automatically -- events are the synchronization mechanism.
 
 ### Cross-Aggregate Projections
 
-Build projections that span multiple aggregates:
+Build projections that span multiple aggregates by keying on a shared business concept (e.g., customer ID):
 
 ```csharp
 public class CustomerOrderHistoryHandler : IEventHandler<OrderCreated>
@@ -830,18 +703,116 @@ public class CustomerOrderHistoryHandler : IEventHandler<OrderCreated>
         history.TotalOrders++;
         history.TotalSpent += @event.TotalAmount;
         history.LastOrderDate = @event.OccurredAt;
-        history.Orders.Add(new OrderHistoryItem
-        {
-            OrderId = @event.OrderId,
-            Amount = @event.TotalAmount,
-            Status = "Created",
-            Date = @event.OccurredAt
-        });
 
         await _store.UpsertAsync(@event.CustomerId, history, ct);
     }
 }
 ```
+
+### Custom Repositories
+
+When you need capabilities beyond `IProjectionStore<T>` -- such as full-text search, aggregations, or SQL joins -- build a custom repository targeting your backend:
+
+```csharp
+// SQL Server (Dapper)
+public class SqlServerOrderSummaryRepository
+{
+    private readonly IDbConnection _db;
+
+    public async Task<IReadOnlyList<OrderSummary>> SearchAsync(
+        OrderSearchCriteria criteria, CancellationToken ct)
+    {
+        var sql = new StringBuilder("SELECT * FROM OrderSummaries WHERE 1=1");
+        var parameters = new DynamicParameters();
+
+        if (!string.IsNullOrEmpty(criteria.CustomerId))
+        {
+            sql.Append(" AND CustomerId = @CustomerId");
+            parameters.Add("CustomerId", criteria.CustomerId);
+        }
+
+        sql.Append(" ORDER BY CreatedAt DESC");
+        sql.Append(" OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY");
+        parameters.Add("Skip", criteria.Skip);
+        parameters.Add("Take", criteria.Take);
+
+        var results = await _db.QueryAsync<OrderSummary>(sql.ToString(), parameters);
+        return results.ToList();
+    }
+}
+```
+
+```csharp
+// ElasticSearch (full-text search + aggregations)
+public class OrderSearchRepository : ElasticRepositoryBase<OrderSummary>
+{
+    public OrderSearchRepository(
+        ElasticsearchClient client,
+        IOptionsMonitor<ElasticSearchProjectionStoreOptions> optionsMonitor)
+        : base(client, ElasticSearchProjectionIndexConvention.GetIndexName<OrderSummary>(
+            optionsMonitor.Get(nameof(OrderSummary))))
+    {
+    }
+
+    public async Task<SearchResponse<OrderSummary>> FullTextSearchAsync(
+        string searchText, CancellationToken ct)
+    {
+        return await SearchAsync(s => s
+            .Query(q => q.MultiMatch(mm => mm
+                .Query(searchText)
+                .Fields(new[] { "customerId", "status" })))
+            .Aggregations(a => a
+                .Add("by_status", agg => agg
+                    .Terms(t => t.Field("status.keyword")))),
+            ct);
+    }
+}
+```
+
+:::tip
+`ElasticSearchProjectionIndexConvention.GetIndexName<T>()` ensures both `IProjectionStore<T>` and your custom repository resolve to the same index from a single source of truth.
+:::
+
+### Incremental Snapshots
+
+Incremental snapshots reduce storage overhead by saving only the **delta** (changes) since the last full snapshot:
+
+:::info Unique Feature
+No competing .NET event sourcing framework offers incremental snapshots.
+:::
+
+```csharp
+builder.AddAggregate<OrderAggregate>(agg =>
+{
+    agg.UseInMemoryStore();
+    agg.UseSnapshotStrategy(new IncrementalSnapshotStrategy(compactionThreshold: 10));
+});
+```
+
+How it works:
+1. **Every commit:** A delta snapshot is saved (only changes)
+2. **On load:** Base + ordered deltas are merged to reconstruct full state
+3. **Compaction:** After `compactionThreshold` deltas (default 10), a full snapshot replaces the base
+
+### ElasticSearch Projection Lifecycle
+
+When projections are backed by ElasticSearch, use the lifecycle services for index management:
+
+```csharp
+// Rebuild Manager
+var result = await rebuildManager.StartRebuildAsync(new ProjectionRebuildRequest
+{
+    ProjectionType = nameof(OrderSummaryProjection),
+    SourceIndexName = "orders-v1",
+    TargetIndexName = "orders-v2",
+    CreateNewIndex = true,
+    UseAliasing = true
+}, ct);
+
+var status = await rebuildManager.GetRebuildStatusAsync(result.OperationId, ct);
+```
+
+---
 
 ## Testing Projections
 
@@ -862,7 +833,6 @@ public class OrderSummaryProjectionTests
     [Fact]
     public async Task Projects_OrderCreated_To_Summary()
     {
-        // Arrange
         var @event = new OrderCreated("order-123", 1)
         {
             OrderId = Guid.NewGuid(),
@@ -870,10 +840,8 @@ public class OrderSummaryProjectionTests
             TotalAmount = 100m
         };
 
-        // Act
         await _handler.HandleAsync(@event, CancellationToken.None);
 
-        // Assert
         var summary = await _store.GetByIdAsync(
             @event.OrderId.ToString(), CancellationToken.None);
         summary.Should().NotBeNull();
@@ -882,7 +850,6 @@ public class OrderSummaryProjectionTests
     }
 }
 
-// Simple in-memory store for testing
 public class InMemoryProjectionStore<T> : IProjectionStore<T> where T : class
 {
     private readonly ConcurrentDictionary<string, T> _data = new();
@@ -913,203 +880,102 @@ public class InMemoryProjectionStore<T> : IProjectionStore<T> where T : class
 }
 ```
 
-## Ephemeral Projections (On-Demand)
+---
 
-Ephemeral projections build a read model by replaying events on-demand **without persisting** the result. Equivalent to Marten's "Live" projection mode. Useful for ad-hoc queries, debugging, and audit trails.
-
-```csharp
-// Register an ephemeral projection (same handlers as inline/async)
-services.AddExcaliburEventSourcing(builder =>
-{
-    builder.AddProjection<OrderAuditTrail>(p => p
-        .Ephemeral()
-        .When<OrderPlaced>((proj, e) => { proj.Events.Add($"Placed: {e.Total}"); })
-        .When<OrderShipped>((proj, e) => { proj.Events.Add($"Shipped: {e.ShippedAt}"); }));
-});
-
-// Build the projection on-demand (not persisted)
-var engine = serviceProvider.GetRequiredService<IEphemeralProjectionEngine>();
-var auditTrail = await engine.BuildAsync<OrderAuditTrail>(
-    orderId, "OrderAggregate", cancellationToken);
-// auditTrail.Events contains the full history, built fresh from events
-```
-
-### Key Characteristics
-
-- Uses the **same `When<T>` handlers** as inline and async projections
-- Returns a **fresh instance** on every call (no shared mutable state)
-- **Never invoked** by the notification broker -- consumer-initiated only
-- Optional caching via `IDistributedCache` when configured with `.WithCacheTtl()`
-
-## Incremental Snapshots
-
-Incremental snapshots reduce storage overhead by saving only the **delta** (changes) since the last full snapshot, rather than the complete aggregate state on every save.
-
-:::info Unique Feature
-No competing .NET event sourcing framework offers incremental snapshots. This is a unique competitive advantage of Excalibur.
-:::
-
-```csharp
-services.AddExcaliburEventSourcing(builder =>
-{
-    builder.AddAggregate<OrderAggregate>(agg =>
-    {
-        agg.UseInMemoryStore();
-        // Use incremental snapshot strategy -- saves a delta on every commit
-        agg.UseSnapshotStrategy(new IncrementalSnapshotStrategy(compactionThreshold: 10));
-    });
-});
-```
-
-### How It Works
-
-1. **Every commit:** A delta snapshot is saved (only changes, not full state)
-2. **On load:** Base snapshot + ordered deltas are merged to reconstruct full state
-3. **Compaction:** After `CompactionThreshold` deltas (default 10), a full snapshot replaces the base and deletes prior deltas
-
-### IIncrementalSnapshotStore&lt;T&gt;
-
-```csharp
-public interface IIncrementalSnapshotStore<TState> where TState : class
-{
-    // Load base + merge deltas to reconstruct full state
-    Task<TState?> LoadAsync(string aggregateId, string aggregateType,
-        CancellationToken cancellationToken);
-
-    // Save only the delta (changes since last save)
-    Task SaveDeltaAsync(string aggregateId, string aggregateType,
-        TState delta, long version, CancellationToken cancellationToken);
-
-    // Compact: save full state, delete prior deltas
-    Task SaveFullAsync(string aggregateId, string aggregateType,
-        TState state, long version, CancellationToken cancellationToken);
-}
-```
-
-## Projection Observability
-
-The projection system exposes OpenTelemetry-compatible metrics and an ASP.NET Core health check for production monitoring. All observability services are automatically registered when you call `UseEventNotification()` or `AddProjection<T>()`.
+## Observability
 
 ### Metrics
 
+All metrics use the shared `Excalibur.EventSourcing.Projections` Meter via `IMeterFactory`:
+
 | Metric | Type | Description |
 |--------|------|-------------|
-| `excalibur.projection.lag.events` | UpDownCounter | Events an async projection is behind the global stream head |
+| `excalibur.projection.lag.events` | UpDownCounter | Events an async projection is behind the stream head |
 | `excalibur.projection.error.count` | Counter | Total projection processing errors |
-| `excalibur.projection.rebuild.duration` | Histogram (ms) | Duration of projection rebuild operations |
-| `excalibur.projection.cursor_map.positions` | Observable Gauge | Current cursor map position per stream per projection |
-
-All metrics use the shared `Excalibur.EventSourcing.Projections` Meter via `IMeterFactory`.
+| `excalibur.projection.rebuild.duration` | Histogram (ms) | Duration of rebuild operations |
+| `excalibur.projection.cursor_map.positions` | Observable Gauge | Current cursor position per projection |
 
 ### Health Check
 
-The built-in `ProjectionHealthCheck` is automatically registered as an ASP.NET Core health check named `"projections"`. It reports:
+The built-in `ProjectionHealthCheck` is automatically registered as `"projections"`:
 
 - **Healthy:** No inline errors in window AND async lag below thresholds
-- **Degraded:** Inline projection error within the last 5 minutes, or lag > 100 events
+- **Degraded:** Inline error within last 5 minutes, or lag > 100 events
 - **Unhealthy:** Async projection lag > 1000 events
 
-The health check reads from `ProjectionHealthState`, which is updated in real-time by the inline projection processor and async projection host.
+---
 
-## Gotchas and Common Mistakes
+## Gotchas
 
 ### Inline projection failures do NOT roll back events
 
-When an inline projection fails during `SaveAsync()`, the events are **already committed** to the event store. The projection just didn't update. This is the most dangerous gotcha in event sourcing with Excalibur.
-
-**The mistake:** Catching `InlineProjectionException` and retrying `SaveAsync()`:
+When an inline projection fails during `SaveAsync()`, events are **already committed**. Never retry `SaveAsync()` -- use `IProjectionRecovery.ReapplyAsync<T>()` instead.
 
 ```csharp
-// WRONG: This duplicates events! Events were already committed.
-try
-{
-    await repository.SaveAsync(order, cancellationToken);
-}
-catch (InlineProjectionException)
-{
-    // DO NOT retry SaveAsync -- events are already in the store!
-    await repository.SaveAsync(order, cancellationToken); // Duplicates events!
-}
-```
+// WRONG: This duplicates events!
+try { await repository.SaveAsync(order, ct); }
+catch (InlineProjectionException) { await repository.SaveAsync(order, ct); }
 
-**Correct approach:** Use `IProjectionRecovery` to re-apply the projection without re-appending events:
-
-```csharp
-try
-{
-    await repository.SaveAsync(order, cancellationToken);
-}
+// CORRECT: Recover the projection only
+try { await repository.SaveAsync(order, ct); }
 catch (InlineProjectionException ex)
 {
-    // Events ARE committed -- recover the projection only
-    var recovery = serviceProvider.GetRequiredService<IProjectionRecovery>();
-    await recovery.ReapplyAsync<OrderSummary>(ex.AggregateId, cancellationToken);
+    var recovery = sp.GetRequiredService<IProjectionRecovery>();
+    await recovery.ReapplyAsync<OrderSummary>(ex.AggregateId, ct);
 }
 ```
 
 ### Don't retry `SaveAsync` on `ConcurrencyException` without reloading
 
-`ConcurrencyException` means another process modified the aggregate since you loaded it. The correct recovery is to **reload the aggregate** and re-apply your changes, not to retry the same save:
-
 ```csharp
-// WRONG: retrying the same stale aggregate
-try
-{
-    await repository.SaveAsync(order, cancellationToken);
-}
-catch (ConcurrencyException)
-{
-    await repository.SaveAsync(order, cancellationToken); // Same stale version -- fails again!
-}
+// WRONG: Same stale version fails again
+catch (ConcurrencyException) { await repository.SaveAsync(order, ct); }
 
-// CORRECT: reload and re-apply domain logic
-try
-{
-    await repository.SaveAsync(order, cancellationToken);
-}
+// CORRECT: Reload and re-apply domain logic
 catch (ConcurrencyException)
 {
-    // Reload fresh aggregate state
-    var freshOrder = await repository.GetByIdAsync(order.Id, cancellationToken);
-    freshOrder.AddLine(productId, quantity, price); // Re-apply domain operation
-    await repository.SaveAsync(freshOrder, cancellationToken);
+    var fresh = await repository.GetByIdAsync(order.Id, ct);
+    fresh.AddLine(productId, quantity, price);
+    await repository.SaveAsync(fresh, ct);
 }
 ```
 
 ### Projection handlers must be idempotent
 
-Both inline and async projections may replay events during recovery or rebuild. Your projection logic must produce the same result when applied multiple times:
+Both inline and async projections may replay events during recovery or rebuild:
 
 ```csharp
-// Wrong: incrementing without checking -- replays double-count
+// Wrong: replays double-count
 report.OrderCount++;
 
-// Correct: use upsert with idempotent logic
+// Correct: guard against replays
 var existing = await _store.GetByIdAsync(key, ct);
-if (existing?.LastProcessedVersion >= @event.Version) return; // Already applied
+if (existing?.LastProcessedVersion >= @event.Version) return;
 ```
+
+---
 
 ## Best Practices
 
 | Practice | Recommendation |
 |----------|----------------|
-| Idempotency | Make projections idempotent (safe to replay) |
-| Denormalization | Don't be afraid to duplicate data for query optimization |
-| Indexing | Index read model tables for your query patterns |
-| Batch processing | Process events in batches for async projections |
-| Monitoring | Use projection observability metrics and health check |
-| Mode selection | Use **inline** for immediate consistency, **async** for eventual, **ephemeral** for ad-hoc |
-| Failure recovery | Use `IProjectionRecovery.ReapplyAsync<T>()` for failed inline projections |
+| **Start simple** | Use inline lambdas. Graduate to DI handlers or immutable projections only when needed |
+| **Idempotency** | Make all projection handlers safe to replay |
+| **Denormalization** | Don't be afraid to duplicate data for query optimization |
+| **Mode selection** | Inline for immediate consistency, async for eventual, ephemeral for ad-hoc |
+| **Failure recovery** | Use `IProjectionRecovery.ReapplyAsync<T>()`, never retry `SaveAsync` |
+| **Monitoring** | Use projection observability metrics and health checks |
+| **Indexing** | Index read model tables for your query patterns |
 
 ## Next Steps
 
-- [Event Store](event-store.md) — Understand event persistence
-- [Event Versioning](versioning.md) — Handle schema evolution
-- [Snapshots](snapshots.md) — Snapshot strategies including incremental snapshots
-- [Handlers](../handlers.md) — React to events
+- [Event Store](event-store.md) -- Understand event persistence
+- [Event Versioning](versioning.md) -- Handle schema evolution
+- [Snapshots](snapshots.md) -- Snapshot strategies including incremental snapshots
+- [Handlers](../handlers.md) -- React to events
 
 ## See Also
 
-- [Materialized Views](./materialized-views.md) - Schedule-driven, query-optimized views for reporting and analytics
-- [Event Sourcing Overview](./index.md) - Core concepts and getting started with event sourcing
-- [CDC Pattern](../patterns/cdc.md) - Change Data Capture for async projection processing
+- [Materialized Views](./materialized-views.md) -- Schedule-driven, query-optimized views for reporting and analytics
+- [Event Sourcing Overview](./index.md) -- Core concepts and getting started with event sourcing
+- [CDC Pattern](../patterns/cdc.md) -- Change Data Capture for async projection processing

@@ -40,7 +40,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [IntegrationTest]
 [Collection(ContainerCollections.Postgres)]
 [Trait("Component", "CDC")]
-[Trait("Provider", "Postgres")]
+[Trait("Database", "Postgres")]
 [Trait("SubComponent", "StalePositionRecovery")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]

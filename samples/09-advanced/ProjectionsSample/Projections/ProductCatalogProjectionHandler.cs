@@ -1,156 +1,100 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-
 using Excalibur.EventSourcing.Abstractions;
+
+using Microsoft.Extensions.Logging;
 
 using ProjectionsSample.Domain;
 
 namespace ProjectionsSample.Projections;
 
 // ============================================================================
-// Product Catalog Projection Handler (Alternative: Manual Handler Approach)
+// Tier 3: DI-Resolved Typed Handler (IProjectionEventHandler<T, TEvent>)
 // ============================================================================
-// This handler demonstrates the MANUAL projection pattern where events are
-// iterated explicitly and handlers are called directly. This is the OLD pattern.
+// This demonstrates the NEW IProjectionEventHandler pattern for projection logic
+// that needs dependency injection, async operations, or custom projection IDs.
 //
-// ** The PREFERRED approach is AddProjection<T>().Inline() **
-// See Program.cs for the inline projection registration that replaces this handler.
-// The framework automatically runs inline projections during SaveAsync(),
-// eliminating the need for manual event iteration.
+// Registration: builder.WhenHandledBy<ProductCreated, ProductCreatedHandler>()
+// The framework resolves the handler from DI, passes the projection instance,
+// and handles load/upsert automatically.
 //
-// This file is kept as a reference for the handler-based approach, which is still
-// useful for multi-stream projections (like CategorySummaryProjectionHandler)
-// where the projection key differs from the aggregate ID.
+// For simple projections, prefer When<T> lambdas (see Program.cs).
+// Mix and match both approaches within the same projection.
 
 /// <summary>
-/// Handles events for the ProductCatalogProjection.
+/// Handles <see cref="ProductCreated"/> events for the <see cref="ProductCatalogProjection"/>.
+/// Demonstrates DI-resolved handler with constructor injection.
 /// </summary>
 /// <remarks>
-/// <para>
-/// This is the handler-based projection approach. For single-stream projections
-/// keyed by aggregate ID, prefer <c>AddProjection&lt;T&gt;().Inline()</c> instead,
-/// which runs automatically during <c>SaveAsync()</c>.
-/// </para>
-/// <para>
-/// See <c>Program.cs</c> for the inline projection registration that replaces
-/// direct usage of this handler.
-/// </para>
+/// Registered via <c>WhenHandledBy&lt;ProductCreated, ProductCreatedHandler&gt;()</c>.
+/// The framework loads the projection, passes it to this handler, then upserts the result.
 /// </remarks>
-public sealed class ProductCatalogProjectionHandler : IProjectionHandler
+public sealed class ProductCreatedHandler
+	: IProjectionEventHandler<ProductCatalogProjection, ProductCreated>
 {
-	private readonly IProjectionStore<ProductCatalogProjection> _store;
+	private readonly ILogger<ProductCreatedHandler> _logger;
 
-	public ProductCatalogProjectionHandler(IProjectionStore<ProductCatalogProjection> store)
+	public ProductCreatedHandler(ILogger<ProductCreatedHandler> logger)
 	{
-		_store = store ?? throw new ArgumentNullException(nameof(store));
+		_logger = logger;
 	}
 
-	/// <summary>
-	/// Handles a ProductCreated event.
-	/// </summary>
-	public async Task HandleAsync(ProductCreated @event, CancellationToken cancellationToken)
+	public Task HandleAsync(
+		ProductCatalogProjection projection,
+		ProductCreated @event,
+		ProjectionHandlerContext context,
+		CancellationToken cancellationToken)
 	{
-		var projection = new ProductCatalogProjection
-		{
-			Id = @event.ProductId.ToString(),
-			Name = @event.Name,
-			Category = @event.Category,
-			CurrentPrice = @event.Price,
-			OriginalPrice = @event.Price,
-			StockLevel = @event.InitialStock,
-			IsActive = true,
-			CreatedAt = @event.OccurredAt,
-			LastModified = DateTimeOffset.UtcNow,
-			Version = @event.Version
-		};
+		projection.Id = @event.ProductId.ToString();
+		projection.Name = @event.Name;
+		projection.Category = @event.Category;
+		projection.CurrentPrice = @event.Price;
+		projection.OriginalPrice = @event.Price;
+		projection.StockLevel = @event.InitialStock;
+		projection.IsActive = true;
+		projection.CreatedAt = @event.OccurredAt;
+		projection.LastModified = context.Timestamp;
+		projection.Version = @event.Version;
 
-		await _store.UpsertAsync(projection.Id, projection, cancellationToken).ConfigureAwait(false);
+		_logger.LogDebug(
+			"Created product catalog projection for {ProductId} ({Name})",
+			@event.ProductId,
+			@event.Name);
+
+		return Task.CompletedTask;
+	}
+}
+
+/// <summary>
+/// Handles <see cref="ProductDiscontinued"/> events for the <see cref="ProductCatalogProjection"/>.
+/// Demonstrates DI-resolved handler for events that need logging or external service calls.
+/// </summary>
+public sealed class ProductDiscontinuedHandler
+	: IProjectionEventHandler<ProductCatalogProjection, ProductDiscontinued>
+{
+	private readonly ILogger<ProductDiscontinuedHandler> _logger;
+
+	public ProductDiscontinuedHandler(ILogger<ProductDiscontinuedHandler> logger)
+	{
+		_logger = logger;
 	}
 
-	/// <summary>
-	/// Handles a ProductPriceChanged event.
-	/// </summary>
-	public async Task HandleAsync(ProductPriceChanged @event, CancellationToken cancellationToken)
+	public Task HandleAsync(
+		ProductCatalogProjection projection,
+		ProductDiscontinued @event,
+		ProjectionHandlerContext context,
+		CancellationToken cancellationToken)
 	{
-		var projection = await _store.GetByIdAsync(@event.ProductId.ToString(), cancellationToken)
-			.ConfigureAwait(false);
+		projection.IsActive = false;
+		projection.LastModified = context.Timestamp;
+		projection.Version = @event.Version;
 
-		if (projection != null)
-		{
-			projection.CurrentPrice = @event.NewPrice;
-			projection.LastModified = DateTimeOffset.UtcNow;
-			projection.Version = @event.Version;
+		_logger.LogInformation(
+			"Product {ProductId} discontinued: {Reason}",
+			@event.ProductId,
+			@event.Reason);
 
-			await _store.UpsertAsync(projection.Id, projection, cancellationToken).ConfigureAwait(false);
-		}
+		return Task.CompletedTask;
 	}
-
-	/// <summary>
-	/// Handles a ProductStockAdded event.
-	/// </summary>
-	public async Task HandleAsync(ProductStockAdded @event, CancellationToken cancellationToken)
-	{
-		var projection = await _store.GetByIdAsync(@event.ProductId.ToString(), cancellationToken)
-			.ConfigureAwait(false);
-
-		if (projection != null)
-		{
-			projection.StockLevel = @event.NewStockLevel;
-			projection.LastModified = DateTimeOffset.UtcNow;
-			projection.Version = @event.Version;
-
-			await _store.UpsertAsync(projection.Id, projection, cancellationToken).ConfigureAwait(false);
-		}
-	}
-
-	/// <summary>
-	/// Handles a ProductStockRemoved event.
-	/// </summary>
-	public async Task HandleAsync(ProductStockRemoved @event, CancellationToken cancellationToken)
-	{
-		var projection = await _store.GetByIdAsync(@event.ProductId.ToString(), cancellationToken)
-			.ConfigureAwait(false);
-
-		if (projection != null)
-		{
-			projection.StockLevel = @event.NewStockLevel;
-			projection.LastModified = DateTimeOffset.UtcNow;
-			projection.Version = @event.Version;
-
-			await _store.UpsertAsync(projection.Id, projection, cancellationToken).ConfigureAwait(false);
-		}
-	}
-
-	/// <summary>
-	/// Handles a ProductDiscontinued event.
-	/// </summary>
-	public async Task HandleAsync(ProductDiscontinued @event, CancellationToken cancellationToken)
-	{
-		var projection = await _store.GetByIdAsync(@event.ProductId.ToString(), cancellationToken)
-			.ConfigureAwait(false);
-
-		if (projection != null)
-		{
-			projection.IsActive = false;
-			projection.LastModified = DateTimeOffset.UtcNow;
-			projection.Version = @event.Version;
-
-			await _store.UpsertAsync(projection.Id, projection, cancellationToken).ConfigureAwait(false);
-		}
-	}
-
-	/// <summary>
-	/// Dispatches an event to the appropriate handler method.
-	/// </summary>
-	public Task HandleEventAsync(IDomainEvent @event, CancellationToken cancellationToken) => @event switch
-	{
-		ProductCreated e => HandleAsync(e, cancellationToken),
-		ProductPriceChanged e => HandleAsync(e, cancellationToken),
-		ProductStockAdded e => HandleAsync(e, cancellationToken),
-		ProductStockRemoved e => HandleAsync(e, cancellationToken),
-		ProductDiscontinued e => HandleAsync(e, cancellationToken),
-		_ => Task.CompletedTask // Unknown event, ignore
-	};
 }

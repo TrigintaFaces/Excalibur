@@ -887,9 +887,6 @@ Excalibur.Dispatch.Delivery.Pipeline.PipelineProfile.PipelineProfile(string! nam
 Excalibur.Dispatch.Delivery.Pipeline.PipelineProfile.SupportedMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
 Excalibur.Dispatch.Delivery.ProjectionBase<TKey>
 Excalibur.Dispatch.Delivery.ProjectionBase<TKey>.ProjectionBase() -> void
-Excalibur.Dispatch.Delivery.ProjectionDispatcher
-Excalibur.Dispatch.Delivery.ProjectionDispatcher.DispatchAsync<TKey>(Excalibur.Dispatch.Abstractions.Messaging.IEventStoreMessage<TKey>! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.ProjectionDispatcher.ProjectionDispatcher(Excalibur.Dispatch.Abstractions.IProjectionEventHandlerRegistry! registry) -> void
 Excalibur.Dispatch.Delivery.ProjectionEventHandlerBase<TProjection, TKey, TEvent>
 Excalibur.Dispatch.Delivery.ProjectionEventHandlerBase<TProjection, TKey, TEvent>.ProjectionEventHandlerBase() -> void
 Excalibur.Dispatch.Delivery.RecurringCronJob
@@ -991,10 +988,6 @@ Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.SnapshotEnvelope() -> void
 Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.SnapshotMetadata.get -> string!
 Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.SnapshotMetadata.init -> void
 Excalibur.Dispatch.Delivery.SnapshotMetadataFactory
-Excalibur.Dispatch.Delivery.StaticProjectionEventHandlerRegistry
-Excalibur.Dispatch.Delivery.StaticProjectionEventHandlerRegistry.Register<TKey>(string! eventType, Excalibur.Dispatch.Abstractions.IProjectionHandler! handler) -> void
-Excalibur.Dispatch.Delivery.StaticProjectionEventHandlerRegistry.ResolveHandler<TKey>(string! eventType) -> Excalibur.Dispatch.Abstractions.IProjectionHandler?
-Excalibur.Dispatch.Delivery.StaticProjectionEventHandlerRegistry.StaticProjectionEventHandlerRegistry() -> void
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats.CachedItems.get -> int
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats.CachedItems.set -> void
@@ -1728,7 +1721,6 @@ Excalibur.Dispatch.Messaging.MessageResultOfT<T>
 Excalibur.Dispatch.Messaging.MessageResultOfT<T>.MessageResultOfT(bool succeeded, T? returnValue, Excalibur.Dispatch.Abstractions.IMessageProblemDetails? problemDetails = null, Excalibur.Dispatch.Abstractions.Routing.RoutingDecision? routingDecision = null, Excalibur.Dispatch.Abstractions.Validation.IValidationResult? validationResult = null, Excalibur.Dispatch.Abstractions.IAuthorizationResult? authorizationResult = null, bool cacheHit = false) -> void
 Excalibur.Dispatch.Messaging.MessageResultOfT<T>.ReturnValue.get -> T?
 Excalibur.Dispatch.Messaging.MessageResultOfT<T>.ReturnValue.set -> void
-Excalibur.Dispatch.Messaging.ProjectionHandlerExtensions
 Excalibur.Dispatch.Messaging.SkipBehavior
 Excalibur.Dispatch.Messaging.SkipBehavior.LogOnly = 1 -> Excalibur.Dispatch.Messaging.SkipBehavior
 Excalibur.Dispatch.Messaging.SkipBehavior.Silent = 0 -> Excalibur.Dispatch.Messaging.SkipBehavior
@@ -5970,7 +5962,6 @@ static Excalibur.Dispatch.Messaging.MessageResult.Success(Excalibur.Dispatch.Abs
 static Excalibur.Dispatch.Messaging.MessageResultOfT<T>.Cancelled() -> Excalibur.Dispatch.Messaging.MessageResultOfT<T>!
 static Excalibur.Dispatch.Messaging.MessageResultOfT<T>.Failure(Excalibur.Dispatch.Abstractions.IMessageProblemDetails! problemDetails, Excalibur.Dispatch.Abstractions.Routing.RoutingDecision? routingDecision = null, Excalibur.Dispatch.Abstractions.Validation.IValidationResult? validationResult = null, Excalibur.Dispatch.Abstractions.IAuthorizationResult? authorizationResult = null) -> Excalibur.Dispatch.Messaging.MessageResultOfT<T>!
 static Excalibur.Dispatch.Messaging.MessageResultOfT<T>.Success(T? returnValue, Excalibur.Dispatch.Abstractions.Routing.RoutingDecision? routingDecision = null, Excalibur.Dispatch.Abstractions.Validation.IValidationResult? validationResult = null, Excalibur.Dispatch.Abstractions.IAuthorizationResult? authorizationResult = null, bool cacheHit = false) -> Excalibur.Dispatch.Messaging.MessageResultOfT<T>!
-static Excalibur.Dispatch.Messaging.ProjectionHandlerExtensions.DispatchAsync<TKey>(this Excalibur.Dispatch.Abstractions.IProjectionHandler! handler, Excalibur.Dispatch.Abstractions.Messaging.IEventStoreMessage<TKey>! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static Excalibur.Dispatch.Metadata.MessageMetadata.CreateDefault() -> Excalibur.Dispatch.Metadata.MessageMetadata!
 static Excalibur.Dispatch.Metadata.MessageMetadata.FromLegacyMetadata(Excalibur.Dispatch.Abstractions.IMessageMetadata! legacy, Excalibur.Dispatch.Abstractions.IMessageContext? context = null) -> Excalibur.Dispatch.Metadata.MessageMetadata!
 static Excalibur.Dispatch.Metadata.MessageMetadataExtensions.ApplyToContext(this Excalibur.Dispatch.Abstractions.IMessageMetadata! metadata, Excalibur.Dispatch.Abstractions.IMessageContext! context) -> void

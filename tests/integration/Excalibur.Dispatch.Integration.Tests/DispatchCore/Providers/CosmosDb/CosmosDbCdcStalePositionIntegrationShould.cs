@@ -34,7 +34,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.CosmosDb;
 /// </remarks>
 [IntegrationTest]
 [Trait("Component", "CDC")]
-[Trait("Provider", "CosmosDB")]
+[Trait("Database", "CosmosDB")]
 [Trait("SubComponent", "StalePositionRecovery")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]

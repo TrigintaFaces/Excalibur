@@ -74,8 +74,14 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	private readonly bool _enableAutoSnapshotUpgrade;
 	private readonly int _targetSnapshotVersion;
 	private readonly Func<TKey, TAggregate> _aggregateFactory;
+	private readonly IOptionsMonitor<Abstractions.AutoSnapshotOptions>? _autoSnapshotOptions;
 	private readonly IEventNotificationBroker? _eventNotificationBroker;
+	private readonly TimeProvider _timeProvider;
 	private readonly ILogger? _logger;
+
+	// Tracked per aggregate load for auto-snapshot decision context
+	private long? _lastLoadedSnapshotVersion;
+	private DateTimeOffset? _lastLoadedSnapshotTimestamp;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate, TKey}" /> class.
@@ -92,6 +98,8 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
 	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
+	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
+	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
@@ -104,7 +112,9 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		SnapshotVersionManager? snapshotVersionManager = null,
 		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
 		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null,
-		IEventNotificationBroker? eventNotificationBroker = null)
+		IEventNotificationBroker? eventNotificationBroker = null,
+		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
+		TimeProvider? timeProvider = null)
 	{
 		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
@@ -118,7 +128,9 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		_enableAutoSnapshotUpgrade = snapshotUpgradingOptions?.Value.EnableAutoUpgradeOnLoad ?? false;
 		_targetSnapshotVersion = snapshotUpgradingOptions?.Value.CurrentSnapshotVersion ?? 1;
 		_eventNotificationBroker = eventNotificationBroker;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_logger = logger;
+		_autoSnapshotOptions = autoSnapshotOptions;
 	}
 
 	/// <summary>
@@ -136,6 +148,8 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
 	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
+	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
+	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
@@ -147,7 +161,9 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		IEventSourcedOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
 		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null,
-		IEventNotificationBroker? eventNotificationBroker = null)
+		IEventNotificationBroker? eventNotificationBroker = null,
+		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(eventStore);
 		ArgumentNullException.ThrowIfNull(eventSerializer);
@@ -166,7 +182,9 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		_enableAutoSnapshotUpgrade = options.Value.EnableAutoSnapshotUpgrade;
 		_targetSnapshotVersion = options.Value.TargetSnapshotVersion;
 		_eventNotificationBroker = eventNotificationBroker;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_logger = logger;
+		_autoSnapshotOptions = autoSnapshotOptions;
 	}
 
 	/// <inheritdoc />
@@ -192,6 +210,10 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				snapshot = TryUpgradeSnapshot(snapshot, aggregateType);
 				aggregate.LoadFromSnapshot(snapshot);
 				snapshotVersion = snapshot.Version;
+
+				// Track snapshot state for auto-snapshot decisions in SaveAsync
+				_lastLoadedSnapshotVersion = snapshot.Version;
+				_lastLoadedSnapshotTimestamp = snapshot.CreatedAt;
 			}
 		}
 
@@ -317,6 +339,10 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 					.ConfigureAwait(false);
 				await _snapshotManager.SaveSnapshotAsync(stringId, snapshot, cancellationToken)
 					.ConfigureAwait(false);
+
+				// Update tracked state after successful snapshot
+				_lastLoadedSnapshotVersion = aggregate.Version;
+				_lastLoadedSnapshotTimestamp = DateTimeOffset.UtcNow;
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
@@ -325,6 +351,58 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 					"Snapshot creation failed after successful save for aggregate '{AggregateId}'. " +
 					"The aggregate was saved correctly; snapshot will be retried on next save.",
 					stringId);
+			}
+		}
+
+		// Auto-snapshot check: evaluate configured thresholds (best-effort, failure must not fail save)
+		if (_autoSnapshotOptions is not null && _snapshotManager is not null)
+		{
+			var autoOptions = _autoSnapshotOptions.Get(aggregate.AggregateType);
+
+			// Skip evaluation when no thresholds are configured (zero overhead)
+			if (autoOptions.EventCountThreshold is not null
+				|| autoOptions.TimeThreshold is not null
+				|| autoOptions.VersionThreshold is not null
+				|| autoOptions.CustomPolicy is not null)
+			{
+				var eventsSinceSnapshot = (int)(aggregate.Version - (_lastLoadedSnapshotVersion ?? 0));
+				var decisionContext = new Abstractions.SnapshotDecisionContext(
+					stringId,
+					aggregate.AggregateType,
+					aggregate.Version,
+					_lastLoadedSnapshotVersion,
+					_lastLoadedSnapshotTimestamp,
+					eventsSinceSnapshot);
+
+				Snapshots.AutoSnapshotMetrics.Evaluated.Add(1);
+
+				if (Snapshots.AutoSnapshotPolicy.ShouldSnapshot(autoOptions, decisionContext, _timeProvider))
+				{
+					try
+					{
+						var snapshot = await _snapshotManager.CreateSnapshotAsync(aggregate, cancellationToken)
+							.ConfigureAwait(false);
+						await _snapshotManager.SaveSnapshotAsync(stringId, snapshot, cancellationToken)
+							.ConfigureAwait(false);
+
+						// Update tracked state after successful auto-snapshot
+						_lastLoadedSnapshotVersion = aggregate.Version;
+						_lastLoadedSnapshotTimestamp = _timeProvider.GetUtcNow();
+
+						Snapshots.AutoSnapshotMetrics.Created.Add(1);
+					}
+					catch (Exception ex) when (ex is not OperationCanceledException)
+					{
+						Snapshots.AutoSnapshotMetrics.Failed.Add(1);
+
+						_logger?.LogWarning(
+							ex,
+							"Auto-snapshot failed for aggregate '{AggregateId}' at version {Version}. " +
+							"The aggregate was saved correctly; snapshot will be retried on next save.",
+							stringId,
+							aggregate.Version);
+					}
+				}
 			}
 		}
 	}
@@ -674,6 +752,8 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
 	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
+	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
+	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
@@ -686,9 +766,12 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 		SnapshotVersionManager? snapshotVersionManager = null,
 		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
 		ILogger<EventSourcedRepository<TAggregate, string>>? logger = null,
-		IEventNotificationBroker? eventNotificationBroker = null)
-		: base(eventStore, eventSerializer, aggregateFactory, upcastingPipeline, snapshotManager, snapshotStrategy, upcastingOptions,
-			outboxStore, snapshotVersionManager, snapshotUpgradingOptions, logger, eventNotificationBroker)
+		IEventNotificationBroker? eventNotificationBroker = null,
+		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
+		TimeProvider? timeProvider = null)
+		: base(eventStore, eventSerializer, aggregateFactory, upcastingPipeline, snapshotManager, snapshotStrategy,
+			upcastingOptions, outboxStore, snapshotVersionManager, snapshotUpgradingOptions, logger,
+			eventNotificationBroker, autoSnapshotOptions, timeProvider)
 	{
 	}
 }

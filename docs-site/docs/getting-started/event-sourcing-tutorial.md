@@ -298,7 +298,7 @@ public class GetCustomerOrdersHandler(
 An event handler listens to domain events and updates the read model. This is the "projection" -- it projects events into a queryable shape.
 
 :::tip Inline projections for immediate consistency
-This tutorial uses `IEventHandler<T>` for projections, which processes events through the Dispatch pipeline (eventually consistent). For **immediate read-after-write consistency**, use the `AddProjection<T>().Inline()` builder API instead -- see [Inline Projections](../event-sourcing/projections.md#inline-projections-projection-builder-api) and the [CQRS Program.cs template](./program-cs-templates.md#cqrs-with-event-sourcing-and-projections) for a complete example.
+This tutorial uses `IEventHandler<T>` for projections, which processes events through the Dispatch pipeline (eventually consistent). For **immediate read-after-write consistency**, use the `AddProjection<T>().Inline()` builder API instead -- see [Inline Projections](../event-sourcing/projections.md#inline-projections-mutable) and the [CQRS Program.cs template](./program-cs-templates.md#cqrs-with-event-sourcing-and-projections) for a complete example.
 :::
 
 ```csharp title="Projections/OrderSummaryProjection.cs"

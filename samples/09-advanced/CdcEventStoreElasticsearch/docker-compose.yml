@@ -9,7 +9,7 @@
 #
 #   - SQL Server #1 (port 1433): CDC source database (legacy system simulation)
 #   - SQL Server #2 (port 1434): Event Store database
-#   - Elasticsearch (port 9200): Projections and materialized views
+#   - Elasticsearch 3-node cluster (ports 9200, 9201, 9202): Projections with replication
 #   - Kibana (port 5601): Optional - Elasticsearch visualization
 #
 # Usage:
@@ -58,19 +58,22 @@ services:
       retries: 10
       start_period: 30s
 
-  # Elasticsearch - Projections
-  elasticsearch:
+  # Elasticsearch - 3-Node Cluster
+  elasticsearch-node1:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
-    container_name: excalibur-elasticsearch
+    container_name: excalibur-es-node1
     environment:
-      - discovery.type=single-node
+      - node.name=es-node1
+      - cluster.name=excalibur-cluster
+      - discovery.seed_hosts=es-node2,es-node3
+      - cluster.initial_master_nodes=es-node1,es-node2,es-node3
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
       - "9300:9300"
     volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
+      - elasticsearch-node1-data:/usr/share/elasticsearch/data
     healthcheck:
       test: curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"'
       interval: 10s
@@ -78,16 +81,52 @@ services:
       retries: 10
       start_period: 60s
 
+  elasticsearch-node2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: excalibur-es-node2
+    environment:
+      - node.name=es-node2
+      - cluster.name=excalibur-cluster
+      - discovery.seed_hosts=es-node1,es-node3
+      - cluster.initial_master_nodes=es-node1,es-node2,es-node3
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9201:9200"
+    volumes:
+      - elasticsearch-node2-data:/usr/share/elasticsearch/data
+    depends_on:
+      elasticsearch-node1:
+        condition: service_healthy
+
+  elasticsearch-node3:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: excalibur-es-node3
+    environment:
+      - node.name=es-node3
+      - cluster.name=excalibur-cluster
+      - discovery.seed_hosts=es-node1,es-node2
+      - cluster.initial_master_nodes=es-node1,es-node2,es-node3
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9202:9200"
+    volumes:
+      - elasticsearch-node3-data:/usr/share/elasticsearch/data
+    depends_on:
+      elasticsearch-node1:
+        condition: service_healthy
+
   # Kibana - Optional visualization
   kibana:
     image: docker.elastic.co/kibana/kibana:8.13.0
     container_name: excalibur-kibana
     environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_HOSTS=http://elasticsearch-node1:9200
     ports:
       - "5601:5601"
     depends_on:
-      elasticsearch:
+      elasticsearch-node1:
         condition: service_healthy
     profiles:
       - visualization
@@ -95,7 +134,9 @@ services:
 volumes:
   sqlserver-cdc-data:
   sqlserver-eventstore-data:
-  elasticsearch-data:
+  elasticsearch-node1-data:
+  elasticsearch-node2-data:
+  elasticsearch-node3-data:
 
 # ============================================================================
 # Quick Start Commands

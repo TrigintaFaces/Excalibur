@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+#pragma warning disable CA1506 // Excessive class coupling -- test methods create repository with many DI parameters by design
+
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
@@ -234,9 +236,9 @@ public sealed class EventSourcedRepositoryShould
 	}
 
 	[Fact]
-#pragma warning disable CA1506 // Excessive class coupling -- test requires many fakes for constructor
+// CA1506 suppressed at file level
 	public async Task UpcastVersionedEventsWhenEnabled()
-#pragma warning restore CA1506
+// CA1506 suppressed at file level
 	{
 		// Arrange
 		var aggregateId = "agg-1";

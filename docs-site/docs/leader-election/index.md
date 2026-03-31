@@ -1041,7 +1041,7 @@ public class ProjectionWorker : BackgroundService
     private readonly ILeaderElection _leaderElection;
     private readonly IEventStore _eventStore;
     private readonly ICheckpointStore _checkpointStore;
-    private readonly IEnumerable<IProjectionHandler> _projections;
+    private readonly IProjectionRegistry _projections;
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {

@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.GooglePubSub;
 /// against a real Pub/Sub emulator container.
 /// </summary>
 [Trait("Category", "Integration")]
-[Trait("Provider", "GooglePubSub")]
+[Trait("Database", "GooglePubSub")]
 [Trait("Component", "Transport")]
 [Collection(GooglePubSubTransportCollection.Name)]
 public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime

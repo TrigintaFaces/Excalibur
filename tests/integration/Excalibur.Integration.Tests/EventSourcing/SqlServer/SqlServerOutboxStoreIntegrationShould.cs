@@ -24,7 +24,7 @@ namespace Excalibur.Integration.Tests.EventSourcing.SqlServer;
 /// bd-gvrmb: SqlServer OutboxStore Tests (10 tests).
 /// </remarks>
 [Trait("Category", "Integration")]
-[Trait("Provider", "SqlServer")]
+[Trait("Database", "SqlServer")]
 [Trait("Component", "OutboxStore")]
 [SuppressMessage("Design", "CA1506", Justification = "Integration test requires multiple dependencies for proper setup")]
 public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime

@@ -36,7 +36,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [IntegrationTest]
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", "SagaStore")]
-[Trait("Provider", "SqlServer")]
+[Trait("Database", "SqlServer")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
