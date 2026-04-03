@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Data.CosmosDb</PackageId>
     <Description>Azure Cosmos DB data provider implementation for Excalibur cloud-native data access.</Description>
     <PackageTags>excalibur;data;cosmosdb;azure;cloud-native;document-database</PackageTags>
+    <!-- AOT: NOT compatible. Microsoft.Azure.Cosmos uses reflection for document serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>

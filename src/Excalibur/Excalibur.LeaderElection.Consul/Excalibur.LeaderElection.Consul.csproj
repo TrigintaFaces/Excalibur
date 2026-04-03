@@ -4,6 +4,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.LeaderElection.Consul</RootNamespace>
     <!-- Not AOT compatible due to Consul client reflection usage -->
+    <!-- AOT: NOT compatible. Consul uses reflection-based HTTP client serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>

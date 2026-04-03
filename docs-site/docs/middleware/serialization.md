@@ -38,9 +38,8 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
-// Default: MemoryPack is used for internal serialization.
-// To use System.Text.Json for patterns/hosting:
-services.AddJsonSerialization();
+// Default: JSON (System.Text.Json) is used for serialization.
+// No extra configuration needed -- works with any POCO event type.
 ```
 
 ### Custom JSON Options
@@ -67,8 +66,8 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
-// Register MemoryPack as internal serializer
-// MemoryPack is auto-registered by AddDispatch(). For alternatives:
+// Register MemoryPack as the serializer (opt-in, replaces JSON default)
+services.AddEventSerializer(builder => builder.UseMemoryPack());
 
 // Messages must be MemoryPack-compatible
 [MemoryPackable]
@@ -222,7 +221,7 @@ services.AddJsonSerialization(options =>
 ### MemoryPack AOT
 
 ```csharp
-// MemoryPack is AOT-friendly by default
+// MemoryPack is AOT-friendly via source generation
 [MemoryPackable]
 public partial record CreateOrderAction(...) : IDispatchAction;
 ```
@@ -379,12 +378,13 @@ The built-in `SpanEventSerializer` implements `IEventSerializer` and wraps the p
 
 ```csharp
 // SpanEventSerializer delegates to the configured ISerializer
-// Prefers MemoryPack for best Span support
+// Prefers the current/default serializer (JSON-first per ADR-295),
+// falls back to MemoryPack only if no current serializer is configured
 public SpanEventSerializer(ISerializerRegistry registry)
 {
-    _serializer = registry.GetByName("MemoryPack")
-        ?? registry.GetById(SerializerIds.MemoryPack)
-        ?? registry.GetCurrent().Serializer;
+    _serializer = registry.GetCurrent().Serializer
+        ?? registry.GetByName("MemoryPack")
+        ?? registry.GetById(SerializerIds.MemoryPack);
 }
 ```
 

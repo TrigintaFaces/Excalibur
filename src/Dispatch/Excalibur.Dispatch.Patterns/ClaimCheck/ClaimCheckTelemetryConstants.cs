@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 /// <summary>
 /// Constants for Claim Check OpenTelemetry telemetry names and semantic conventions.
 /// </summary>
-public static class ClaimCheckTelemetryConstants
+internal static class ClaimCheckTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for claim check telemetry.

@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.Migration;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -52,6 +53,36 @@ public static class MigrationServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = services.AddOptions<MigrationOptions>()
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		// Register services
+		services.TryAddSingleton<IEventBatchMigrator, EventBatchMigrator>();
+		services.TryAddSingleton<IMigrationRunner, MigrationRunner>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds event sourcing migration services to the service collection
+	/// using an <see cref="IConfiguration"/> section for migration runner options.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind migration runner options from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddEventSourcingMigration(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<MigrationRunnerOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

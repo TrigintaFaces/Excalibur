@@ -6,7 +6,7 @@ Thank you for your contribution! Please complete all sections.
 - What change does this PR introduce?
 - Why is this change needed?
 
-## Requirement IDs (from `management/Specs/Dispatch.Requirements.*.md` / `management/Specs/requirements-index.md`)
+## Requirement IDs (from `management/specs/Dispatch.Requirements.*.md` / `management/specs/requirements-index.md`)
 - List all impacted MUST/SHALL IDs (e.g., R0.2, R1.5, R14.1)
 - For each ID, link to evidence (code/tests/docs):
   - R__: path/to/file:line — short note

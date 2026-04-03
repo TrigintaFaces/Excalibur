@@ -50,10 +50,4 @@ internal sealed class PluggableSerializationBuilder : ISerializationBuilder
 		return this;
 	}
 
-	/// <inheritdoc />
-	public ISerializationBuilder DisableAutoRegistration()
-	{
-		_options.AutoRegisterMemoryPack = false;
-		return this;
-	}
 }

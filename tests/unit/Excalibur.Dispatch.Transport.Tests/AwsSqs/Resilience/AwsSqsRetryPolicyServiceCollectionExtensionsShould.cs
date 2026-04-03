@@ -23,7 +23,7 @@ public sealed class AwsSqsRetryPolicyServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsSqsRetryPolicy(null!));
+			services.AddAwsSqsRetryPolicy((Action<AwsSqsRetryOptions>)null!));
 	}
 
 	[Fact]

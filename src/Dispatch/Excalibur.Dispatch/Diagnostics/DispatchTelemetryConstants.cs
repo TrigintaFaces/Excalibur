@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// Centralizes all telemetry naming to ensure consistency across the Excalibur framework. Follows OpenTelemetry semantic conventions where
 /// applicable and provides custom conventions for Dispatch-specific operations.
 /// </remarks>
-public static class DispatchTelemetryConstants
+internal static class DispatchTelemetryConstants
 {
 	/// <summary>
 	/// Base namespace for all Dispatch telemetry.

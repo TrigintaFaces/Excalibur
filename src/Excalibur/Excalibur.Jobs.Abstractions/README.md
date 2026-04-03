@@ -12,8 +12,8 @@ dotnet add package Excalibur.Jobs.Abstractions
 
 - `IBackgroundJob` - Background job interface (simple jobs)
 - `IBackgroundJob<TContext>` - Background job with typed context data
-- `IConfigurableJob<TConfig>` - Configurable job interface
-- `IJobConfig` - Job configuration interface
+- `IConfigurableJob<TOptions>` - Configurable job interface
+- `IJobOptions` - Job configuration interface
 
 ## License
 

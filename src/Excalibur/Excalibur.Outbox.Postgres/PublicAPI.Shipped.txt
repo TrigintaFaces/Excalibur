@@ -16,8 +16,6 @@ const Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresEventId.OutboxReserveM
 const Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresEventId.OutboxSaveMessages = 101900 -> int
 const Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresEventId.OutboxUnreserveMessages = 101902 -> int
 const Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresEventId.StoredDeadLetterMessage = 102000 -> int
-const Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresTelemetryConstants.MeterName = "Excalibur.Outbox.Postgres" -> string!
-const Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresTelemetryConstants.Version = "1.0" -> string!
 Excalibur.Outbox.Postgres.DeadLetterRecord
 Excalibur.Outbox.Postgres.DeadLetterRecord.Attempts.get -> int
 Excalibur.Outbox.Postgres.DeadLetterRecord.Attempts.set -> void
@@ -37,7 +35,6 @@ Excalibur.Outbox.Postgres.DeadLetterRecord.OccurredOn.set -> void
 Excalibur.Outbox.Postgres.DeleteOutboxMessage
 Excalibur.Outbox.Postgres.DeleteOutboxMessage.DeleteOutboxMessage(string! messageId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresEventId
-Excalibur.Outbox.Postgres.Diagnostics.OutboxPostgresTelemetryConstants
 Excalibur.Outbox.Postgres.GetDeadLetterMessages
 Excalibur.Outbox.Postgres.GetDeadLetterMessages.GetDeadLetterMessages(string! deadLetterTableName, int maxRetries, System.DateTimeOffset? olderThan, int batchSize, int offset, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.IncrementOutboxMessageAttempts

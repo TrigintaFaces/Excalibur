@@ -314,9 +314,7 @@ Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.Timestamp.get
 Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.Timestamp.set -> void
 Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.TraceParent.get -> string?
 Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.TraceParent.set -> void
-Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants
 Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId
-Excalibur.Dispatch.Observability.Http.W3CTraceContextTelemetryConstants
 Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics
 Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.CircuitBreakerMetrics() -> void
 Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.CircuitBreakerMetrics(System.Diagnostics.Metrics.IMeterFactory! meterFactory) -> void
@@ -459,9 +457,6 @@ Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.Telemetr
 Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions
 Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ObservabilityServiceCollectionExtensions
-const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Observability.Context" -> string!
-const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.MeterName = "Excalibur.Dispatch.Observability.Context" -> string!
-const Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.MiddlewareActivitySourceName = "Excalibur.Dispatch.Observability.ContextMiddleware" -> string!
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ActivityEnriched = 80204 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.BaggagePropagated = 80206 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CausationIdExtracted = 80208 -> int
@@ -543,7 +538,6 @@ const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TracePar
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceSampled = 80405 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceStarted = 80400 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TrackedFieldModified = 80110 -> int
-const Excalibur.Dispatch.Observability.Http.W3CTraceContextTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Observability.W3CTraceContext" -> string!
 const Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.MeterName = "Excalibur.Dispatch.CircuitBreaker" -> string!
 const Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.MeterName = "Excalibur.Dispatch.DeadLetterQueue" -> string!
 const Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Name = "Excalibur.Dispatch" -> string!
@@ -596,5 +590,3 @@ static Microsoft.Extensions.DependencyInjection.ObservabilityServiceCollectionEx
 static Microsoft.Extensions.DependencyInjection.ObservabilityServiceCollectionExtensions.AddDispatchObservability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ObservabilityServiceCollectionExtensions.AddDispatchObservability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Observability.Context.ContextObservabilityOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ObservabilityServiceCollectionExtensions.UseContextObservability(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static readonly Excalibur.Dispatch.Observability.Diagnostics.ContextObservabilityTelemetryConstants.Version -> string!
-static readonly Excalibur.Dispatch.Observability.Http.W3CTraceContextTelemetryConstants.Version -> string!

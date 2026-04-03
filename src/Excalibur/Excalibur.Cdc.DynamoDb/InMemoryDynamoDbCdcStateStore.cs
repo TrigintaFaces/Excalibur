@@ -16,7 +16,7 @@ namespace Excalibur.Cdc.DynamoDb;
 /// This implementation is intended for testing and development.
 /// Positions are not persisted and will be lost when the process exits.
 /// </remarks>
-public sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
+internal sealed class InMemoryDynamoDbCdcStateStore : IDynamoDbCdcStateStore
 {
 	private readonly ConcurrentDictionary<string, DynamoDbCdcStateEntry> _positions = new();
 	private volatile bool _disposed;

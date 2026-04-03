@@ -23,7 +23,7 @@ public sealed class JobHealthCheckExtendedShould
 		var tracker = new JobHeartbeatTracker();
 		tracker.RecordHeartbeat("test-job");
 
-		var config = new OutboxJobConfig
+		var config = new OutboxJobOptions
 		{
 			JobName = "test-job",
 			DegradedThreshold = TimeSpan.FromMinutes(5),
@@ -43,7 +43,7 @@ public sealed class JobHealthCheckExtendedShould
 	{
 		// Arrange
 		var tracker = new JobHeartbeatTracker();
-		var config = new OutboxJobConfig
+		var config = new OutboxJobOptions
 		{
 			JobName = "test-job",
 			DegradedThreshold = TimeSpan.FromMinutes(5),
@@ -70,7 +70,7 @@ public sealed class JobHealthCheckExtendedShould
 	public void ThrowWhenTrackerIsNull()
 	{
 		// Arrange
-		var config = new OutboxJobConfig { JobName = "test-job" };
+		var config = new OutboxJobOptions { JobName = "test-job" };
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>

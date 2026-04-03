@@ -357,11 +357,11 @@ public static class CdcBuilderSqlServerExtensions
 		// Register default CdcRecoveryOptions if not already registered
 		builder.Services.TryAddSingleton(Options.Create(new CdcRecoveryOptions()));
 
-		// Auto-register IDatabaseConfig when configured via the builder.
+		// Auto-register IDatabaseOptions when configured via the builder.
 		// TryAdd ensures manual registration still takes precedence.
 		if (sqlOptions.HasDatabaseConfig)
 		{
-			builder.Services.TryAddSingleton<IDatabaseConfig>(new DatabaseConfig
+			builder.Services.TryAddSingleton<IDatabaseOptions>(new DatabaseOptions
 			{
 				DatabaseName = sqlOptions.DatabaseName!,
 				DatabaseConnectionIdentifier = sqlOptions.DatabaseConnectionIdentifier
@@ -408,9 +408,9 @@ public static class CdcBuilderSqlServerExtensions
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
 			var logger = sp.GetRequiredService<ILogger<CdcProcessor>>();
 
-			var databaseConfig = sp.GetService<IDatabaseConfig>()
+			var databaseConfig = sp.GetService<IDatabaseOptions>()
 								 ?? throw new InvalidOperationException(
-									 "IDatabaseConfig is required for CdcProcessor. Register an implementation or use the " +
+									 "IDatabaseOptions is required for CdcProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
 			var cdcConnection = sourceFactory();
@@ -438,9 +438,9 @@ public static class CdcBuilderSqlServerExtensions
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
 			var logger = sp.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
-			var databaseConfig = sp.GetService<IDatabaseConfig>()
+			var databaseConfig = sp.GetService<IDatabaseOptions>()
 								 ?? throw new InvalidOperationException(
-									 "IDatabaseConfig is required for DataChangeEventProcessor. Register an implementation or use the " +
+									 "IDatabaseOptions is required for DataChangeEventProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
 			var cdcConnection = sourceFactory();

@@ -19,7 +19,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// </remarks>
 internal sealed partial class CdcCheckpointManager
 {
-	private readonly IDatabaseConfig _dbConfig;
+	private readonly IDatabaseOptions _dbConfig;
 	private readonly ICdcRepository _cdcRepository;
 	private readonly ISqlServerCdcStateStore _stateStore;
 	private readonly ILogger _logger;
@@ -35,7 +35,7 @@ internal sealed partial class CdcCheckpointManager
 #endif
 
 	internal CdcCheckpointManager(
-		IDatabaseConfig dbConfig,
+		IDatabaseOptions dbConfig,
 		ICdcRepository cdcRepository,
 		ISqlServerCdcStateStore stateStore,
 		ILogger logger)

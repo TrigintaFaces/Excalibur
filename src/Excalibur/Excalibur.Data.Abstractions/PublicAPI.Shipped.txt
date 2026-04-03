@@ -41,12 +41,6 @@ const Excalibur.Data.Abstractions.Observability.WriteStoreTelemetry.Tags.Store =
 const Excalibur.Data.Abstractions.Observability.WriteStoreTelemetry.Tags.TraceId = "trace.id" -> string!
 const Excalibur.Data.Abstractions.OperationFailedException.DefaultMessage = "The operation failed." -> string!
 const Excalibur.Data.Abstractions.OperationFailedException.DefaultStatusCode = 500 -> int
-const Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants.AttributeOperation = "persistence.operation" -> string!
-const Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants.AttributeProviderName = "persistence.provider.name" -> string!
-const Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants.AttributeProviderType = "persistence.provider.type" -> string!
-const Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants.AttributeRequestType = "persistence.request.type" -> string!
-const Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants.SourceName = "Excalibur.Data.Persistence" -> string!
-const Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants.Version = "1.0.0" -> string!
 Excalibur.Data.Abstractions.CloudNative.CdcHealthCheckOptions
 Excalibur.Data.Abstractions.CloudNative.CdcHealthCheckOptions.CdcHealthCheckOptions() -> void
 Excalibur.Data.Abstractions.CloudNative.CdcHealthCheckOptions.DegradedInactivityTimeout.get -> System.TimeSpan
@@ -640,7 +634,6 @@ Excalibur.Data.Abstractions.Persistence.PersistenceProviderType.MongoDB = 2 -> E
 Excalibur.Data.Abstractions.Persistence.PersistenceProviderType.Postgres = 1 -> Excalibur.Data.Abstractions.Persistence.PersistenceProviderType
 Excalibur.Data.Abstractions.Persistence.PersistenceProviderType.Redis = 4 -> Excalibur.Data.Abstractions.Persistence.PersistenceProviderType
 Excalibur.Data.Abstractions.Persistence.PersistenceProviderType.SqlServer = 0 -> Excalibur.Data.Abstractions.Persistence.PersistenceProviderType
-Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants
 Excalibur.Data.Abstractions.Persistence.TransactionScopeBase
 Excalibur.Data.Abstractions.Persistence.TransactionScopeBase.Dispose() -> void
 Excalibur.Data.Abstractions.Persistence.TransactionScopeBase.Disposed.get -> bool
@@ -799,8 +792,6 @@ static Excalibur.Data.Abstractions.DbConnectionExtensions.Ready(this System.Data
 static Excalibur.Data.Abstractions.DbConnectionExtensions.ResolveAsync<TModel>(this System.Data.IDbConnection! connection, Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, TModel>! dataRequest) -> System.Threading.Tasks.Task<TModel>!
 static Excalibur.Data.Abstractions.Observability.WriteStoreTelemetry.BeginLogScope(Microsoft.Extensions.Logging.ILogger! logger, string! store, string! provider, string? operation = null, string? messageId = null, string? correlationId = null, string? causationId = null) -> System.IDisposable?
 static Excalibur.Data.Abstractions.Observability.WriteStoreTelemetry.RecordOperation(string! store, string! provider, string! operation, string! result, System.TimeSpan duration) -> void
-static Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants.ActivitySource.get -> System.Diagnostics.ActivitySource!
-static Excalibur.Data.Abstractions.Persistence.PersistenceTelemetryConstants.Meter.get -> System.Diagnostics.Metrics.Meter!
 static Excalibur.Data.Abstractions.ResourceException.FormatMessage(string! resource, string? resourceId) -> string!
 static Excalibur.Data.Abstractions.ResourceException.ForResource(string! resource, string? resourceId = null) -> Excalibur.Data.Abstractions.ResourceException!
 static Excalibur.Data.Abstractions.ResourceNotFoundException.ForEntity<TEntity>(object! id) -> Excalibur.Data.Abstractions.ResourceNotFoundException!
@@ -840,3 +831,6 @@ Excalibur.Data.Abstractions.Sharding.TenantShardNotFoundException.TenantId.get -
 Excalibur.Data.Abstractions.Sharding.TenantShardNotFoundException.TenantShardNotFoundException(string! tenantId) -> void
 Excalibur.Data.Abstractions.Sharding.ITenantPlacementStrategy
 Excalibur.Data.Abstractions.Sharding.ITenantPlacementStrategy.SelectShard(string! tenantId, System.Collections.Generic.IReadOnlyCollection<string!>! availableShardIds) -> string!
+Excalibur.Data.Abstractions.IDataRequestResolver<TConnection>
+Excalibur.Data.Abstractions.IDataRequestResolver<TConnection>.ExecuteAsync(Excalibur.Data.Abstractions.IDataRequest<TConnection, int>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Abstractions.IDataRequestResolver<TConnection>.QueryAsync<TModel>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TModel>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TModel>!

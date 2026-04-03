@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Data.Firestore</PackageId>
     <Description>Google Cloud Firestore data provider implementation for Excalibur cloud-native data access.</Description>
     <PackageTags>excalibur;data;firestore;google-cloud;cloud-native;document-database</PackageTags>
+    <!-- AOT: NOT compatible. Google.Cloud.Firestore uses reflection-based attribute mapping for document conversion. -->
     <IsAotCompatible>false</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>

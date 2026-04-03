@@ -75,7 +75,7 @@ public sealed class LocalMessageBusShould
 		_ = A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
 		_ = A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
 
-		HandlerRegistryEntry? entry;
+		IHandlerRegistryEntry? entry;
 		_ = A.CallTo(() => _registry.TryGetHandler(A<Type>._, out entry))
 			.Returns(false);
 
@@ -96,7 +96,7 @@ public sealed class LocalMessageBusShould
 
 		var handlerType = typeof(TestActionHandler);
 		var entry = new HandlerRegistryEntry(typeof(IDispatchAction), handlerType, false);
-		HandlerRegistryEntry? outEntry = entry;
+		IHandlerRegistryEntry? outEntry = entry;
 		_ = A.CallTo(() => _registry.TryGetHandler(A<Type>._, out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(entry);
@@ -130,7 +130,7 @@ public sealed class LocalMessageBusShould
 
 		var handlerType = typeof(TestActionHandler);
 		var entry = new HandlerRegistryEntry(typeof(IDispatchAction), handlerType, expectsResponse: true);
-		HandlerRegistryEntry? outEntry = entry;
+		IHandlerRegistryEntry? outEntry = entry;
 		_ = A.CallTo(() => _registry.TryGetHandler(A<Type>._, out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(entry);
@@ -185,7 +185,7 @@ public sealed class LocalMessageBusShould
 
 		var handlerType = typeof(TestActionHandler);
 		var entry = new HandlerRegistryEntry(typeof(IDispatchAction), handlerType, false);
-		HandlerRegistryEntry? outEntry = entry;
+		IHandlerRegistryEntry? outEntry = entry;
 		_ = A.CallTo(() => _registry.TryGetHandler(A<Type>._, out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(entry);
@@ -244,7 +244,7 @@ public sealed class LocalMessageBusShould
 		_ = A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
 
 		_ = A.CallTo(() => _registry.GetAll())
-			.Returns(Array.Empty<HandlerRegistryEntry>());
+			.Returns(Array.Empty<IHandlerRegistryEntry>());
 
 		// Act - Should not throw
 		await _bus.PublishAsync(evt, context, CancellationToken.None);
@@ -264,10 +264,10 @@ public sealed class LocalMessageBusShould
 
 		var handler1Type = typeof(TestEventHandler1);
 		var handler2Type = typeof(TestEventHandler2);
-		var entries = new HandlerRegistryEntry[]
+		var entries = new IHandlerRegistryEntry[]
 		{
-			new(typeof(TestEvent), handler1Type, false),
-			new(typeof(TestEvent), handler2Type, false)
+			new HandlerRegistryEntry(typeof(TestEvent), handler1Type, false),
+			new HandlerRegistryEntry(typeof(TestEvent), handler2Type, false)
 		};
 
 		_ = A.CallTo(() => _registry.GetAll())
@@ -329,7 +329,7 @@ public sealed class LocalMessageBusShould
 		var context = A.Fake<IMessageContext>();
 		_ = A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
 
-		HandlerRegistryEntry? entry;
+		IHandlerRegistryEntry? entry;
 		_ = A.CallTo(() => _registry.TryGetHandler(A<Type>._, out entry))
 			.Returns(false);
 
@@ -348,7 +348,7 @@ public sealed class LocalMessageBusShould
 
 		var handlerType = typeof(TestDocumentHandler);
 		var entry = new HandlerRegistryEntry(typeof(IDispatchDocument), handlerType, false);
-		HandlerRegistryEntry? outEntry = entry;
+		IHandlerRegistryEntry? outEntry = entry;
 		_ = A.CallTo(() => _registry.TryGetHandler(A<Type>._, out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(entry);
@@ -384,7 +384,7 @@ public sealed class LocalMessageBusShould
 
 		var handlerType = typeof(TestActionHandler);
 		var entry = new HandlerRegistryEntry(typeof(IDispatchAction), handlerType, false);
-		HandlerRegistryEntry? outEntry = entry;
+		IHandlerRegistryEntry? outEntry = entry;
 		_ = A.CallTo(() => _registry.TryGetHandler(A<Type>._, out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(entry);
@@ -414,7 +414,7 @@ public sealed class LocalMessageBusShould
 
 		var handlerType = typeof(TestDocumentHandler);
 		var entry = new HandlerRegistryEntry(typeof(IDispatchDocument), handlerType, false);
-		HandlerRegistryEntry? outEntry = entry;
+		IHandlerRegistryEntry? outEntry = entry;
 		_ = A.CallTo(() => _registry.TryGetHandler(A<Type>._, out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(entry);
@@ -602,7 +602,7 @@ public sealed class LocalMessageBusShould
 		var bus = new LocalMessageBus(provider, registry, new HandlerActivator(), invoker, logger);
 
 		var entry = new HandlerRegistryEntry(action.GetType(), typeof(SingletonNoContextHandler), false);
-		HandlerRegistryEntry? outEntry = entry;
+		IHandlerRegistryEntry? outEntry = entry;
 		_ = A.CallTo(() => registry.TryGetHandler(A<Type>._, out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(entry);
@@ -639,7 +639,7 @@ public sealed class LocalMessageBusShould
 		var bus = new LocalMessageBus(provider, registry, new HandlerActivator(), invoker, logger);
 
 		var entry = new HandlerRegistryEntry(action.GetType(), typeof(SingletonWithContextHandler), false);
-		HandlerRegistryEntry? outEntry = entry;
+		IHandlerRegistryEntry? outEntry = entry;
 		_ = A.CallTo(() => registry.TryGetHandler(A<Type>._, out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(entry);

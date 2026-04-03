@@ -22,6 +22,7 @@ namespace Excalibur.Data.OpenSearch.Resilience;
 /// <param name="options"> The resilience configuration options. </param>
 /// <param name="logger"> The logger for diagnostic information. </param>
 /// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
+#pragma warning disable RS0016 // Analyzer cannot resolve nullable annotations for OpenSearch.Client generic types
 public sealed class ResilientOpenSearchClient(
 	OpenSearchClient client,
 	IOpenSearchRetryPolicy retryPolicy,

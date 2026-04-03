@@ -1,11 +1,12 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.AuditLogging.Splunk;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -30,27 +31,27 @@ public static class SplunkServiceCollectionExtensions
 
 		_ = services.Configure(configure);
 
-		_ = services.AddHttpClient<SplunkAuditExporter>((sp, client) =>
-			{
-				var options = sp.GetRequiredService<Options.IOptions<SplunkExporterOptions>>().Value;
-				client.Timeout = options.Batch.RequestTimeout;
-			})
-			.ConfigurePrimaryHttpMessageHandler(sp =>
-			{
-				var options = sp.GetRequiredService<Options.IOptions<SplunkExporterOptions>>().Value;
+		RegisterSplunkAuditExporterCore(services);
 
-				var handler = new HttpClientHandler();
+		return services;
+	}
 
-				if (!options.Connection.ValidateCertificate)
-				{
-					handler.ServerCertificateCustomValidationCallback =
-						HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-				}
+	/// <summary>
+	/// Adds the Splunk audit log exporter to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="SplunkExporterOptions"/>. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddSplunkAuditExporter(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
 
-				return handler;
-			});
+		_ = services.AddOptions<SplunkExporterOptions>().Bind(configuration);
 
-		services.TryAddSingleton<IAuditLogExporter, SplunkAuditExporter>();
+		RegisterSplunkAuditExporterCore(services);
 
 		return services;
 	}
@@ -74,6 +75,13 @@ public static class SplunkServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		RegisterSplunkAuditExporterCore(services);
+
+		return services;
+	}
+
+	private static void RegisterSplunkAuditExporterCore(IServiceCollection services)
+	{
 		_ = services.AddHttpClient<SplunkAuditExporter>((sp, client) =>
 			{
 				var options = sp.GetRequiredService<Options.IOptions<SplunkExporterOptions>>().Value;
@@ -95,7 +103,5 @@ public static class SplunkServiceCollectionExtensions
 			});
 
 		services.TryAddSingleton<IAuditLogExporter, SplunkAuditExporter>();
-
-		return services;
 	}
 }

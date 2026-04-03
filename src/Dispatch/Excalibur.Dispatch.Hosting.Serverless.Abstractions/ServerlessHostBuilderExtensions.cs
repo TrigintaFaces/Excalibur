@@ -4,6 +4,8 @@
 
 using Excalibur.Dispatch.Hosting.Serverless;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.Hosting;
 
 /// <summary>
@@ -33,6 +35,45 @@ public static class ServerlessHostBuilderExtensions
 		{
 			// Add serverless hosting services
 			services.AddServerlessHosting(configureOptions);
+
+			// Capture the extracted options, not the hostBuilder
+			var capturedOptions = eagerOptions;
+
+			// Configure the appropriate provider based on detected platform
+			services.AddSingleton<IHostedService>(sp =>
+			{
+				var factory = sp.GetRequiredService<IServerlessHostProviderFactory>();
+				var logger = sp.GetRequiredService<ILogger<ServerlessHostingService>>();
+
+				var provider = factory.CreateProvider(capturedOptions.PreferredPlatform);
+
+				return new ServerlessHostingService(provider, logger);
+			});
+		});
+	}
+
+	/// <summary>
+	/// Configures the host builder for serverless execution
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="hostBuilder"> The host builder. </param>
+	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
+	/// <returns> The host builder for chaining. </returns>
+	public static IHostBuilder UseServerlessHosting(
+		this IHostBuilder hostBuilder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(hostBuilder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Bind options eagerly to determine preferred platform
+		var eagerOptions = new ServerlessHostOptions();
+		configuration.Bind(eagerOptions);
+
+		return hostBuilder.ConfigureServices((_, services) =>
+		{
+			// Add serverless hosting services with IConfiguration binding
+			services.AddServerlessHosting(configuration);
 
 			// Capture the extracted options, not the hostBuilder
 			var capturedOptions = eagerOptions;

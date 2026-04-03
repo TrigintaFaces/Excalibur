@@ -19,7 +19,7 @@ namespace Excalibur.Saga.Orchestration;
 /// <param name="sagaStore"> Persistent store for saga state management and retrieval operations. </param>
 /// <param name="serviceProvider"> Service provider for DI-aware saga instantiation via ActivatorUtilities. </param>
 /// <param name="loggerFactory"> Factory for creating saga-specific loggers for business logic tracing. </param>
-public sealed class SagaManager(ISagaStore sagaStore, IServiceProvider serviceProvider, ILoggerFactory loggerFactory)
+internal sealed class SagaManager(ISagaStore sagaStore, IServiceProvider serviceProvider, ILoggerFactory loggerFactory)
 {
 	/// <summary>
 	/// Handles an event for a specific saga instance by loading state, processing the event, and persisting changes. This method manages

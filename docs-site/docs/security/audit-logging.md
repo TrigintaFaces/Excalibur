@@ -158,6 +158,7 @@ public enum AuditOutcome
 | `ResourceId` | string | No | Target resource identifier |
 | `ResourceType` | string | No | Type of resource |
 | `TenantId` | string | No | Tenant identifier |
+| `ApplicationName` | string | No | Application that produced the event |
 | `CorrelationId` | string | No | Distributed tracing ID |
 | `PreviousEventHash` | string | Auto | Hash of previous event |
 | `EventHash` | string | Auto | Hash of this event |
@@ -413,8 +414,9 @@ var query = new AuditQuery
     ActorId = "user-123",
     ResourceType = "Order",
 
-    // Multi-tenant
+    // Multi-tenant / multi-app
     TenantId = "tenant-abc",
+    ApplicationName = "OrderService",
 
     // Pagination
     MaxResults = 50,

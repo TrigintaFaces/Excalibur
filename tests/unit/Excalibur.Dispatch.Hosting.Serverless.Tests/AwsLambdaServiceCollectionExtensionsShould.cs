@@ -39,7 +39,7 @@ public sealed class AwsLambdaServiceCollectionExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() => AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(null!, _ => { }));
-		Should.Throw<ArgumentNullException>(() => services.AddAwsLambdaServerless(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddAwsLambdaServerless((Action<ServerlessHostOptions>)null!));
 	}
 
 	[Fact]

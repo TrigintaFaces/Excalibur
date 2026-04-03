@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Transport.AwsSqs;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -52,6 +54,30 @@ public static class CloudWatchMetricsServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds AWS CloudWatch metrics export support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="CloudWatchMetricsOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddAwsCloudWatchMetricsExporter(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<CloudWatchMetricsOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds a concrete AWS CloudWatch metrics exporter with the specified configuration.
 	/// </summary>
 	/// <typeparam name="TImplementation">
@@ -73,6 +99,36 @@ public static class CloudWatchMetricsServiceCollectionExtensions
 
 		_ = services.AddOptions<CloudWatchMetricsOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.AddSingleton<ICloudWatchMetricsExporter, TImplementation>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds a concrete AWS CloudWatch metrics exporter using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TImplementation">
+	/// The concrete type implementing <see cref="ICloudWatchMetricsExporter"/>.
+	/// </typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="CloudWatchMetricsOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddAwsCloudWatchMetricsExporter<TImplementation>(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		where TImplementation : class, ICloudWatchMetricsExporter
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<CloudWatchMetricsOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

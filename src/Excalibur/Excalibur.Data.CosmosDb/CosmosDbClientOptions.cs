@@ -58,7 +58,7 @@ public sealed class CosmosDbClientOptions
 	/// <summary>
 	/// Gets or sets the preferred regions for geo-redundant operations.
 	/// </summary>
-	public IReadOnlyList<string>? PreferredRegions { get; set; }
+	public List<string>? PreferredRegions { get; set; }
 
 	/// <summary>
 	/// Gets or sets the resilience options (retry, timeout, write response).

@@ -23,16 +23,6 @@ Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.GetAllStatesAsync(string! processorI
 Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.GetLastPositionAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.MongoDB.MongoDbCdcPosition>!
 Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.SavePositionAsync(string! processorId, Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.SaveStateAsync(Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.Clear() -> void
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.ClearStateAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.Dispose() -> void
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.GetAllStatesAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry!>!>!
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.GetLastPositionAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.MongoDB.MongoDbCdcPosition>!
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.InMemoryMongoDbCdcStateStore() -> void
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.SavePositionAsync(string! processorId, Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.SaveStateAsync(Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.MongoDB.MongoDbArrayTruncation
 Excalibur.Cdc.MongoDB.MongoDbArrayTruncation.Field.get -> string!
 Excalibur.Cdc.MongoDB.MongoDbArrayTruncation.Field.init -> void

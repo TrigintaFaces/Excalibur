@@ -693,7 +693,7 @@ public sealed class DispatcherShould
 			typeof(LocalTransportNullableQuery),
 			typeof(LocalTransportNullableQueryHandler),
 			expectsResponse: true);
-		HandlerRegistryEntry outEntry = handlerEntry;
+		IHandlerRegistryEntry outEntry = handlerEntry;
 		_ = A.CallTo(() => registry.TryGetHandler(typeof(LocalTransportNullableQuery), out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(handlerEntry);
@@ -753,7 +753,7 @@ public sealed class DispatcherShould
 			typeof(LocalTransportNullableQuery),
 			typeof(LocalTransportNullableQueryHandler),
 			expectsResponse: true);
-		HandlerRegistryEntry outEntry = handlerEntry;
+		IHandlerRegistryEntry outEntry = handlerEntry;
 		_ = A.CallTo(() => registry.TryGetHandler(typeof(LocalTransportNullableQuery), out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(handlerEntry);
@@ -824,7 +824,7 @@ public sealed class DispatcherShould
 			typeof(LocalTransportContextAction),
 			typeof(LocalTransportContextActionHandler),
 			expectsResponse: false);
-		HandlerRegistryEntry outEntry = handlerEntry;
+		IHandlerRegistryEntry outEntry = handlerEntry;
 		_ = A.CallTo(() => registry.TryGetHandler(typeof(LocalTransportContextAction), out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(handlerEntry);
@@ -1023,7 +1023,7 @@ public sealed class DispatcherShould
 		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
 		var handlerEntry = new HandlerRegistryEntry(typeof(LocalTransportAction), typeof(LocalTransportActionHandler), expectsResponse: false);
-		HandlerRegistryEntry outEntry = handlerEntry;
+		IHandlerRegistryEntry outEntry = handlerEntry;
 		_ = A.CallTo(() => registry.TryGetHandler(typeof(LocalTransportAction), out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(handlerEntry);
@@ -1074,7 +1074,7 @@ public sealed class DispatcherShould
 		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
 		var handlerEntry = new HandlerRegistryEntry(typeof(LocalTransportQuery), typeof(LocalTransportQueryHandler), expectsResponse: true);
-		HandlerRegistryEntry outEntry = handlerEntry;
+		IHandlerRegistryEntry outEntry = handlerEntry;
 		_ = A.CallTo(() => registry.TryGetHandler(typeof(LocalTransportQuery), out outEntry))
 			.Returns(true)
 			.AssignsOutAndRefParameters(handlerEntry);
@@ -1123,7 +1123,7 @@ public sealed class DispatcherShould
 		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
 		var busOptionsMap = new Dictionary<string, MessageBusOptions>();
 
-		HandlerRegistryEntry? missingEntry;
+		IHandlerRegistryEntry? missingEntry;
 		_ = A.CallTo(() => registry.TryGetHandler(A<Type>._, out missingEntry))
 			.Returns(false);
 		_ = A.CallTo(() => registry.GetAll()).Returns([]);

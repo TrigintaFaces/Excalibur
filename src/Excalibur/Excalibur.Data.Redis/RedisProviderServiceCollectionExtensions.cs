@@ -3,6 +3,7 @@
 
 using Excalibur.Data.Redis;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +29,30 @@ public static class RedisProviderServiceCollectionExtensions
 
 		_ = services.AddOptions<RedisProviderOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RedisProviderOptions>, RedisProviderOptionsValidator>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Redis provider options with validation to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddRedisProvider(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RedisProviderOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

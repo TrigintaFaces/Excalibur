@@ -79,7 +79,7 @@ These standalone methods remain available for consumers who prefer direct regist
 | `UseCaching()` | Caching (on `IDispatchBuilder`) | `Excalibur.Dispatch.Caching` |
 | `UseSecurity()` | Security (on `IDispatchBuilder`) | `Excalibur.Dispatch.Security` |
 | `AddMessagePackSerialization()` | MessagePack serialization | `Excalibur.Dispatch.Serialization.MessagePack` |
-| `AddPluggableSerialization()` | Pluggable serialization (MemoryPack default) | `Excalibur.Dispatch` |
+| `AddPluggableSerialization()` | Pluggable serialization (JSON default) | `Excalibur.Dispatch` |
 
 ## Common Configuration Patterns
 
@@ -140,7 +140,7 @@ builder.Services.AddDispatch(dispatch =>
 });
 
 // Serialization
-// MemoryPack is auto-registered by AddDispatch(). For alternatives:
+// JSON is the default with AddDispatch(). For binary serializers, install the provider package:
 
 // Health checks
 builder.Services.AddHealthChecks()

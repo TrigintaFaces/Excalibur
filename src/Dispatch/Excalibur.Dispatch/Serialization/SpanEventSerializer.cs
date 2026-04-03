@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// <remarks>
 /// <para>
 /// This serializer implements <see cref="IEventSerializer"/> by delegating to the
-/// configured <see cref="ISerializer"/> (typically MemoryPack for highest performance).
+/// configured <see cref="ISerializer"/> (the current/default serializer, typically JSON).
 /// Also provides Span-based overloads for zero-allocation scenarios.
 /// </para>
 /// <para>
@@ -61,18 +61,19 @@ public sealed class SpanEventSerializer : IEventSerializer
 	/// <param name="registry">The serializer registry.</param>
 	/// <exception cref="ArgumentNullException">Thrown when registry is null.</exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown when MemoryPack serializer is not registered.
+	/// Thrown when no serializer is available.
 	/// </exception>
 	public SpanEventSerializer(ISerializerRegistry registry)
 	{
 		ArgumentNullException.ThrowIfNull(registry);
 
-		// Prefer MemoryPack for best Span support, fall back to current serializer
-		_pluggable = registry.GetByName("MemoryPack")
+		// Prefer the current/default serializer (JSON-first per ADR-295),
+		// fall back to MemoryPack only if no current serializer is configured
+		_pluggable = registry.GetCurrent().Serializer
+					 ?? registry.GetByName("MemoryPack")
 					 ?? registry.GetById(SerializerIds.MemoryPack)
-					 ?? registry.GetCurrent().Serializer
 					 ?? throw new InvalidOperationException(
-						"No serializer available. Register MemoryPack or configure a default serializer.");
+						"No serializer available. Configure a default serializer via AddPluggableSerialization().");
 	}
 
 	#region Span-based methods

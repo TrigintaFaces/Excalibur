@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -34,15 +35,29 @@ public static class Soc2ServiceCollectionExtensions
 
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 
-		// Register core services
-		_ = services.AddScoped<ISoc2ComplianceService, Soc2ComplianceService>();
-		_ = services.AddScoped<IControlValidationService, ControlValidationService>();
+		RegisterSoc2ComplianceCore(services);
 
-		// Register report generation services
-		_ = services.AddScoped<ISoc2ReportGenerator, Soc2ReportGenerator>();
+		return services;
+	}
 
-		// Register export services
-		_ = services.AddScoped<ISoc2ReportExporter, Soc2ReportExporter>();
+	/// <summary>
+	/// Adds SOC 2 compliance services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="Soc2Options"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSoc2Compliance(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<Soc2Options>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterSoc2ComplianceCore(services);
 
 		return services;
 	}
@@ -103,14 +118,22 @@ public static class Soc2ServiceCollectionExtensions
 		Action<Soc2Options>? configureOptions = null)
 	{
 		_ = services.AddSoc2Compliance(configureOptions);
+		RegisterBuiltInValidators(services);
+		return services;
+	}
 
-		// Register built-in validators
-		_ = services.AddSingleton<IControlValidator, EncryptionControlValidator>();
-		_ = services.AddSingleton<IControlValidator, AuditLogControlValidator>();
-		_ = services.AddSingleton<IControlValidator, AvailabilityControlValidator>();
-		_ = services.AddSingleton<IControlValidator, ProcessingIntegrityControlValidator>();
-		_ = services.AddSingleton<IControlValidator, ConfidentialityControlValidator>();
-
+	/// <summary>
+	/// Adds SOC 2 compliance with all built-in validators using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="Soc2Options"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSoc2ComplianceWithBuiltInValidators(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		_ = services.AddSoc2Compliance(configuration);
+		RegisterBuiltInValidators(services);
 		return services;
 	}
 
@@ -173,7 +196,7 @@ public static class Soc2ServiceCollectionExtensions
 	/// <remarks>
 	/// This is a convenience method that combines:
 	/// <list type="bullet">
-	/// <item><description><see cref="AddSoc2ComplianceWithBuiltInValidators"/></description></item>
+	/// <item><description><see cref="AddSoc2ComplianceWithBuiltInValidators(IServiceCollection, Action{Soc2Options}?)"/></description></item>
 	/// <item><description><see cref="AddSoc2ContinuousMonitoring"/></description></item>
 	/// </list>
 	/// </remarks>
@@ -184,5 +207,43 @@ public static class Soc2ServiceCollectionExtensions
 		_ = services.AddSoc2ComplianceWithBuiltInValidators(configureOptions);
 		_ = services.AddSoc2ContinuousMonitoring();
 		return services;
+	}
+
+	/// <summary>
+	/// Adds SOC 2 compliance with built-in validators and continuous monitoring
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="Soc2Options"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSoc2ComplianceWithMonitoring(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		_ = services.AddSoc2ComplianceWithBuiltInValidators(configuration);
+		_ = services.AddSoc2ContinuousMonitoring();
+		return services;
+	}
+
+	private static void RegisterSoc2ComplianceCore(IServiceCollection services)
+	{
+		// Register core services
+		_ = services.AddScoped<ISoc2ComplianceService, Soc2ComplianceService>();
+		_ = services.AddScoped<IControlValidationService, ControlValidationService>();
+
+		// Register report generation services
+		_ = services.AddScoped<ISoc2ReportGenerator, Soc2ReportGenerator>();
+
+		// Register export services
+		_ = services.AddScoped<ISoc2ReportExporter, Soc2ReportExporter>();
+	}
+
+	private static void RegisterBuiltInValidators(IServiceCollection services)
+	{
+		_ = services.AddSingleton<IControlValidator, EncryptionControlValidator>();
+		_ = services.AddSingleton<IControlValidator, AuditLogControlValidator>();
+		_ = services.AddSingleton<IControlValidator, AvailabilityControlValidator>();
+		_ = services.AddSingleton<IControlValidator, ProcessingIntegrityControlValidator>();
+		_ = services.AddSingleton<IControlValidator, ConfidentialityControlValidator>();
 	}
 }

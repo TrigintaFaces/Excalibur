@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Middleware.Timeout;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -41,6 +42,25 @@ public static class HandlerTimeoutServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		services.Configure(configure);
+		services.TryAddSingleton<HandlerTimeoutMiddleware>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds per-handler timeout middleware using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="HandlerTimeoutOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddHandlerTimeoutMiddleware(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<HandlerTimeoutOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
 		services.TryAddSingleton<HandlerTimeoutMiddleware>();
 
 		return services;

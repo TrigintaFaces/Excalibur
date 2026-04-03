@@ -71,10 +71,10 @@ builder.Services.AddDispatch(dispatch =>
     });
 });
 
-// Serialization: MemoryPack is auto-registered by default with AddDispatch().
-// To use a different serializer, configure via the builder:
+// Serialization: JSON (System.Text.Json) is the default with AddDispatch().
+// For binary serialization, install the provider package and configure:
+// dispatch.WithSerialization(s => s.UseMemoryPack());
 // dispatch.WithSerialization(s => s.UseMessagePack());
-// dispatch.WithSerialization(s => s.UseJson());
 ```
 
 ### Handler Registration

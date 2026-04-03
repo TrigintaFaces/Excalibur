@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Transport.RabbitMQ;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -59,6 +61,30 @@ public static class ManagementServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds RabbitMQ Management API client support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RabbitMqManagementOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddRabbitMqManagement(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RabbitMqManagementOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds a concrete RabbitMQ Management API client with the specified configuration.
 	/// </summary>
 	/// <typeparam name="TImplementation">
@@ -80,6 +106,36 @@ public static class ManagementServiceCollectionExtensions
 
 		_ = services.AddOptions<RabbitMqManagementOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.AddSingleton<IRabbitMqManagementClient, TImplementation>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds a concrete RabbitMQ Management API client using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TImplementation">
+	/// The concrete type implementing <see cref="IRabbitMqManagementClient"/>.
+	/// </typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RabbitMqManagementOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddRabbitMqManagement<TImplementation>(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		where TImplementation : class, IRabbitMqManagementClient
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RabbitMqManagementOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

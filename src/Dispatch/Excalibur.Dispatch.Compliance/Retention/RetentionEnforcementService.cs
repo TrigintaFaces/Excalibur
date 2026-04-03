@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Excalibur.Dispatch.Compliance.Diagnostics;
@@ -43,6 +44,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
 	public Task<RetentionEnforcementResult> EnforceRetentionAsync(
 		CancellationToken cancellationToken)
 	{
@@ -70,6 +72,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
 	public Task<IReadOnlyList<RetentionPolicy>> GetRetentionPoliciesAsync(
 		CancellationToken cancellationToken)
 	{
@@ -77,6 +80,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 		return Task.FromResult<IReadOnlyList<RetentionPolicy>>(policies);
 	}
 
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() for runtime type scanning.")]
 	private static List<RetentionPolicy> DiscoverRetentionPolicies()
 	{
 		var policies = new List<RetentionPolicy>();

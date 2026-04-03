@@ -6,7 +6,7 @@ namespace Excalibur.Dispatch.Observability.Http;
 /// <summary>
 /// Telemetry constants for the W3C Trace Context propagation middleware.
 /// </summary>
-public static class W3CTraceContextTelemetryConstants
+internal static class W3CTraceContextTelemetryConstants
 {
 	/// <summary>
 	/// The ActivitySource name for W3C trace context propagation.

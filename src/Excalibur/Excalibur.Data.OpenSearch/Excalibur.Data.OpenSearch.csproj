@@ -5,9 +5,10 @@
     <PackageId>Excalibur.Data.OpenSearch</PackageId>
     <Description>OpenSearch data provider implementation for Excalibur, including projection store for event sourcing read models.</Description>
     <PackageTags>excalibur;data;opensearch;projections;event-sourcing;search;document-database</PackageTags>
+    <!-- AOT: NOT compatible. OpenSearch.Client uses reflection for query DSL and document serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
-    <!-- PublicAPI baseline will be populated by DocumentationWriter (T.15) -->
-    <NoWarn>$(NoWarn);RS0016;RS0017</NoWarn>
+    <!-- PublicAPI baseline populated in Sprint 739 (A.10) -->
+    <!-- NoWarn RS0016/RS0017 removed: baseline being populated -->
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -25,8 +26,5 @@
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
-  </ItemGroup>
+  <!-- AdditionalFiles for PublicAPI.Shipped/Unshipped.txt are registered by Directory.Build.props -->
 </Project>

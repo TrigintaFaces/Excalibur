@@ -138,4 +138,28 @@ public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTe
 		StoreAsync_ShouldComputeEventHash();
 
 	#endregion Hash Chain Tests
+
+	#region ApplicationName Tests
+
+	[Fact]
+	public Task StoreAsync_WithApplicationName_ShouldPersistApplicationName_Test() =>
+		StoreAsync_WithApplicationName_ShouldPersistApplicationName();
+
+	[Fact]
+	public Task StoreAsync_WithNullApplicationName_ShouldPersistNull_Test() =>
+		StoreAsync_WithNullApplicationName_ShouldPersistNull();
+
+	[Fact]
+	public Task QueryAsync_ByApplicationName_ShouldFilter_Test() =>
+		QueryAsync_ByApplicationName_ShouldFilter();
+
+	[Fact]
+	public Task CountAsync_ByApplicationName_ShouldCount_Test() =>
+		CountAsync_ByApplicationName_ShouldCount();
+
+	[Fact]
+	public Task StoreAsync_DifferentApplicationName_ShouldProduceDifferentHash_Test() =>
+		StoreAsync_DifferentApplicationName_ShouldProduceDifferentHash();
+
+	#endregion ApplicationName Tests
 }

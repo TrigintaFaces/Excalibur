@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -37,23 +38,29 @@ public static class ErasureServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
-		// Register cross-property validator (TryAddEnumerable to coexist with DataAnnotation validators)
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ErasureOptions>, ErasureOptionsValidator>());
+		RegisterGdprErasureCore(services);
 
-		// Ensure signing options are available (defaults to empty key for dev/test)
-		services.TryAddSingleton(Options.Options.Create(new ErasureSigningOptions()));
+		return services;
+	}
 
-		// Register core service with factory to resolve optional dependencies
-		services.TryAddScoped<IErasureService>(sp => new ErasureService(
-			sp.GetRequiredService<IErasureStore>(),
-			sp.GetRequiredService<IKeyManagementProvider>(),
-			sp.GetRequiredService<IKeyManagementAdmin>(),
-			sp.GetRequiredService<IOptions<ErasureOptions>>(),
-			sp.GetRequiredService<IOptions<ErasureSigningOptions>>(),
-			sp.GetRequiredService<ILogger<ErasureService>>(),
-			sp.GetService<ILegalHoldService>(),
-			sp.GetService<IDataInventoryService>(),
-			sp.GetServices<IErasureContributor>()));
+	/// <summary>
+	/// Adds GDPR erasure services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="ErasureOptions"/>. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddGdprErasure(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ErasureOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterGdprErasureCore(services);
 
 		return services;
 	}
@@ -198,6 +205,26 @@ public static class ErasureServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds the erasure scheduler background service using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="ErasureSchedulerOptions"/>. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddErasureScheduler(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ErasureSchedulerOptions>().Bind(configuration);
+
+		_ = services.AddSingleton<ErasureSchedulerBackgroundService>();
+		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ErasureSchedulerBackgroundService>());
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds the legal hold expiration background service for automatic release of expired holds.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -219,6 +246,26 @@ public static class ErasureServiceCollectionExtensions
 		{
 			services.TryAddSingleton(Options.Options.Create(new LegalHoldExpirationOptions()));
 		}
+
+		_ = services.AddSingleton<LegalHoldExpirationService>();
+		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<LegalHoldExpirationService>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the legal hold expiration background service using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="LegalHoldExpirationOptions"/>. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddLegalHoldExpiration(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<LegalHoldExpirationOptions>().Bind(configuration);
 
 		_ = services.AddSingleton<LegalHoldExpirationService>();
 		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<LegalHoldExpirationService>());
@@ -250,11 +297,15 @@ public static class ErasureServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		RegisterGdprErasureCore(services);
+
+		return services;
+	}
+
+	private static void RegisterGdprErasureCore(IServiceCollection services)
+	{
 		// Register cross-property validator (TryAddEnumerable to coexist with DataAnnotation validators)
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ErasureOptions>, ErasureOptionsValidator>());
-
-		// Ensure signing options are available (defaults to empty key for dev/test)
-		services.TryAddSingleton(Options.Options.Create(new ErasureSigningOptions()));
 
 		// Register core service with factory to resolve optional dependencies
 		services.TryAddScoped<IErasureService>(sp => new ErasureService(
@@ -262,12 +313,9 @@ public static class ErasureServiceCollectionExtensions
 			sp.GetRequiredService<IKeyManagementProvider>(),
 			sp.GetRequiredService<IKeyManagementAdmin>(),
 			sp.GetRequiredService<IOptions<ErasureOptions>>(),
-			sp.GetRequiredService<IOptions<ErasureSigningOptions>>(),
 			sp.GetRequiredService<ILogger<ErasureService>>(),
 			sp.GetService<ILegalHoldService>(),
 			sp.GetService<IDataInventoryService>(),
 			sp.GetServices<IErasureContributor>()));
-
-		return services;
 	}
 }

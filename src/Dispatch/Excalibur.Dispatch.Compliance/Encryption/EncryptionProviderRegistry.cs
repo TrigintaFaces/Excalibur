@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// and explicit locking for primary/legacy list modifications.
 /// </para>
 /// </remarks>
-public sealed class EncryptionProviderRegistry : IEncryptionProviderRegistry
+internal sealed class EncryptionProviderRegistry : IEncryptionProviderRegistry
 {
 	private static readonly CompositeFormat ProviderAlreadyRegisteredFormat =
 		CompositeFormat.Parse(Resources.EncryptionProviderRegistry_ProviderAlreadyRegistered);

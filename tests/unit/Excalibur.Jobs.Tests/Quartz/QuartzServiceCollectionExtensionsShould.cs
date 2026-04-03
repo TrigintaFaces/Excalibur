@@ -86,7 +86,7 @@ public sealed class QuartzServiceCollectionExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddJobWatcher<TestConfigurableJob, TestJobConfig>(section));
+			services.AddJobWatcher<TestConfigurableJob, TestJobOptions>(section));
 	}
 
 	[Fact]
@@ -97,7 +97,7 @@ public sealed class QuartzServiceCollectionExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddJobWatcher<TestConfigurableJob, TestJobConfig>(null!));
+			services.AddJobWatcher<TestConfigurableJob, TestJobOptions>(null!));
 	}
 
 	[Fact]
@@ -109,7 +109,7 @@ public sealed class QuartzServiceCollectionExtensionsShould
 		var section = config.GetSection("Jobs:Test");
 
 		// Act
-		services.AddJobWatcher<TestConfigurableJob, TestJobConfig>(section);
+		services.AddJobWatcher<TestConfigurableJob, TestJobOptions>(section);
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -119,7 +119,7 @@ public sealed class QuartzServiceCollectionExtensionsShould
 
 	// --- Test helpers ---
 
-	private sealed class TestJobConfig : JobConfig;
+	private sealed class TestJobOptions : JobOptions;
 
-	private sealed class TestConfigurableJob : IConfigurableJob<TestJobConfig>;
+	private sealed class TestConfigurableJob : IConfigurableJob<TestJobOptions>;
 }

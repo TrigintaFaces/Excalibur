@@ -4,6 +4,7 @@
 using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.MongoDB;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,33 @@ public static class MongoDbServiceCollectionExtensions
 
 		_ = services.AddOptions<MongoDbProviderOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton<MongoDbPersistenceProvider>();
+		services.AddKeyedSingleton<IPersistenceProvider>("mongodb",
+			(sp, _) => sp.GetRequiredService<MongoDbPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("mongodb"));
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds MongoDB persistence services to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddExcaliburMongoDb(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<MongoDbProviderOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

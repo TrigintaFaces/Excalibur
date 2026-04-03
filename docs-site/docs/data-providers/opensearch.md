@@ -208,11 +208,45 @@ await host.RunAsync();
 | Resilient client | `AddResilientElasticsearchServices()` | `IResilientOpenSearchClient` + options |
 | Tenant sharding | `UseElasticSearchTenantProjectionStore<T>` | `UseOpenSearchTenantProjectionStore<T>` |
 | Event ID range | 106000-106999 | 108000-108999 |
+| Audit sink | `AddElasticsearchAuditSink()` | `AddOpenSearchAuditSink()` |
+| Audit exporter | `AddElasticsearchAuditExporter()` | `AddOpenSearchAuditExporter()` |
+| Audit event IDs | 93471-93475 | 93490-93505 |
 
 The two packages provide **feature parity**. Choose based on your search engine.
+
+## Audit Sink
+
+A separate package provides an OpenSearch audit sink for real-time audit event indexing:
+
+```bash
+dotnet add package Excalibur.Dispatch.AuditLogging.OpenSearch
+```
+
+```csharp
+// With options callback
+services.AddOpenSearchAuditSink(options =>
+{
+    // Single node
+    options.OpenSearchUrl = "https://os.example.com:9200";
+
+    // Or cluster (round-robin)
+    options.NodeUrls = ["https://os1:9200", "https://os2:9200", "https://os3:9200"];
+
+    options.IndexPrefix = "dispatch-audit";
+    options.ApplicationName = "MyApp"; // fallback if AuditEvent.ApplicationName is null
+});
+
+// Or from IConfiguration
+services.AddOpenSearchAuditSink(configuration.GetSection("AuditSink:OpenSearch"));
+```
+
+:::info
+OpenSearch serves as a search/analytics sink, not a compliance-grade audit store. Use SQL Server for tamper-evident hash-chained storage. See [ADR-290](../compliance/audit-logging.md#provider-compliance-boundary) and [Audit Logging Providers](../observability/audit-logging-providers.md#opensearch-audit-sink).
+:::
 
 ## See Also
 
 - [Elasticsearch Provider](./elasticsearch.md) -- Elastic-based equivalent
 - [Projections](../event-sourcing/projections.md) -- Projection concepts and builder API
+- [Audit Logging Providers](../observability/audit-logging-providers.md) -- All audit backend configurations
 - [Event Store Providers](../event-sourcing/providers.md) -- Event store provider comparison

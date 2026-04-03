@@ -1,1 +1,3 @@
 #nullable enable
+Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher
+Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher.TryValidate(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.IServiceProvider! provider) -> Excalibur.Dispatch.Abstractions.Validation.IValidationResult?

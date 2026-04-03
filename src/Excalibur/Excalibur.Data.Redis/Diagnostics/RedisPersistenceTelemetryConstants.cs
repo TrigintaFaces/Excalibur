@@ -6,7 +6,7 @@ namespace Excalibur.Data.Redis.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for Redis persistence instrumentation.
 /// </summary>
-public static class RedisPersistenceTelemetryConstants
+internal static class RedisPersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for Redis persistence metrics.

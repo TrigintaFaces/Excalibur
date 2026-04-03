@@ -166,6 +166,7 @@ static Excalibur.Testing.Conformance.TestDomainEvent.Create(string! aggregateId,
 static Excalibur.Testing.Conformance.TestSagaState.Create(System.Guid sagaId) -> Excalibur.Testing.Conformance.TestSagaState!
 static Excalibur.Testing.Conformance.TestSnapshot.Create(string! aggregateId, string! aggregateType, long version, string? state = null) -> Excalibur.Testing.Conformance.TestSnapshot!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CleanupAsync() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CountAsync_ByApplicationName_ShouldCount() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CountAsync_EmptyResult_ShouldReturnZero() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CountAsync_WithFilters_ShouldReturnCount() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CreateAuditEvent(string? eventId = null, Excalibur.Dispatch.Compliance.AuditEventType? eventType = null, string? actorId = null, string? tenantId = null, System.DateTimeOffset? timestamp = null) -> Excalibur.Dispatch.Compliance.AuditEvent!
@@ -175,14 +176,18 @@ virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetByIdAsync_
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetByIdAsync_NullOrEmpty_ShouldThrow() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetLastEventAsync_DefaultTenant_ShouldReturnLast() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetLastEventAsync_WithTenant_ShouldReturnLastForTenant() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByApplicationName_ShouldFilter() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByActorId_ShouldFilter() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByDateRange_ShouldReturnMatching() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByEventType_ShouldFilter() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_Pagination_ShouldRespectSkipAndMaxResults() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.StoreAsync_DifferentApplicationName_ShouldProduceDifferentHash() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.StoreAsync_DuplicateId_ShouldThrowInvalidOperationException() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.StoreAsync_ShouldComputeEventHash() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.StoreAsync_ShouldPersistEvent() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.StoreAsync_ShouldSetPreviousEventHash() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.StoreAsync_WithApplicationName_ShouldPersistApplicationName() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.StoreAsync_WithNullApplicationName_ShouldPersistNull() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.StoreAsync_WithNullEvent_ShouldThrow() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.VerifyChainIntegrityAsync_EmptyRange_ShouldReturnValidWithZeroEvents() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.VerifyChainIntegrityAsync_ValidChain_ShouldReturnValid() -> System.Threading.Tasks.Task!

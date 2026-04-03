@@ -1,6 +1,12 @@
 #nullable enable
 Excalibur.SqlServer.ExcaliburSqlServerOptions
-Microsoft.Extensions.DependencyInjection.ExcaliburSqlServerServiceCollectionExtensions
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureAuditLogging(System.Action<Excalibur.Dispatch.AuditLogging.SqlServer.SqlServerAuditOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureErasure(System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureInbox(System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureKeyEscrow(System.Action<Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureLeaderElection(System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureSaga(System.Action<Excalibur.Saga.SqlServer.SqlServerSagaStoreOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConnectionString.get -> string!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConnectionString.set -> void
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ExcaliburSqlServerOptions() -> void
@@ -14,11 +20,6 @@ Excalibur.SqlServer.ExcaliburSqlServerOptions.UseLeaderElection.get -> bool
 Excalibur.SqlServer.ExcaliburSqlServerOptions.UseLeaderElection.set -> void
 Excalibur.SqlServer.ExcaliburSqlServerOptions.UseSaga.get -> bool
 Excalibur.SqlServer.ExcaliburSqlServerOptions.UseSaga.set -> void
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureInbox(System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureSaga(System.Action<Excalibur.Saga.SqlServer.SqlServerSagaStoreOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureLeaderElection(System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureAuditLogging(System.Action<Excalibur.Dispatch.AuditLogging.SqlServer.SqlServerAuditOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureKeyEscrow(System.Action<Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureErasure(System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Microsoft.Extensions.DependencyInjection.ExcaliburSqlServerServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.ExcaliburSqlServerServiceCollectionExtensions.AddExcaliburSqlServer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ExcaliburSqlServerServiceCollectionExtensions.AddExcaliburSqlServer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.SqlServer.ExcaliburSqlServerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

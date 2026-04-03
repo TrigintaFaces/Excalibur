@@ -127,8 +127,39 @@ Manage indices, templates, aliases, and ILM policies:
 - `IIndexOperationsManager` — CRUD operations on indices
 - `IIndexAliasManager` — Manage index aliases
 
+## Audit Sink
+
+A separate package provides an Elasticsearch audit sink for real-time audit event indexing:
+
+```bash
+dotnet add package Excalibur.Dispatch.AuditLogging.Elasticsearch
+```
+
+```csharp
+// With options callback
+services.AddElasticsearchAuditSink(options =>
+{
+    // Single node
+    options.ElasticsearchUrl = "https://es.example.com:9200";
+
+    // Or cluster (round-robin)
+    options.NodeUrls = ["https://es1:9200", "https://es2:9200", "https://es3:9200"];
+
+    options.IndexPrefix = "dispatch-audit";
+    options.ApplicationName = "MyApp"; // fallback if AuditEvent.ApplicationName is null
+});
+
+// Or from IConfiguration
+services.AddElasticsearchAuditSink(configuration.GetSection("AuditSink:Elasticsearch"));
+```
+
+:::info
+Elasticsearch serves as a search/analytics sink, not a compliance-grade audit store. Use SQL Server for tamper-evident hash-chained storage. See [ADR-290](../compliance/audit-logging.md#provider-compliance-boundary) and [Audit Logging Providers](../observability/audit-logging-providers.md#elasticsearch-audit-sink).
+:::
+
 ## See Also
 
 - [Data Providers Overview](./index.md) — Architecture and core abstractions
 - [MongoDB Provider](./mongodb.md) — Document store alternative
+- [Audit Logging Providers](../observability/audit-logging-providers.md) — All audit backend configurations
 - [Observability](../observability/index.md) — Elasticsearch for log aggregation

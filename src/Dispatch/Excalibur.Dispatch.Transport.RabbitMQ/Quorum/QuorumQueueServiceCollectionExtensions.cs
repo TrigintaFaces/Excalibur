@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Transport.RabbitMQ;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -51,6 +53,30 @@ public static class QuorumQueueServiceCollectionExtensions
 
 		_ = services.AddOptions<QuorumQueueOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds RabbitMQ quorum queue support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="QuorumQueueOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddRabbitMqQuorumQueues(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<QuorumQueueOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

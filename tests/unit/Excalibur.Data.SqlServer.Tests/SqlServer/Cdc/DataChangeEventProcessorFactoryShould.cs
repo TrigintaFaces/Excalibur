@@ -62,7 +62,7 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 	public void Create_ThrowsArgumentNullException_WhenCdcConnectionIsNull()
 	{
 		var factory = CreateFactory();
-		var dbConfig = A.Fake<IDatabaseConfig>();
+		var dbConfig = A.Fake<IDatabaseOptions>();
 
 		Should.Throw<ArgumentNullException>(() =>
 			factory.Create(
@@ -75,7 +75,7 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 	public void Create_ThrowsArgumentNullException_WhenStateStoreConnectionIsNull()
 	{
 		var factory = CreateFactory();
-		var dbConfig = A.Fake<IDatabaseConfig>();
+		var dbConfig = A.Fake<IDatabaseOptions>();
 
 		Should.Throw<ArgumentNullException>(() =>
 			factory.Create(
@@ -98,7 +98,7 @@ public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 			provider.GetRequiredService<IHostApplicationLifetime>(),
 			provider.GetRequiredService<IDataAccessPolicyFactory>());
 
-		var dbConfig = A.Fake<IDatabaseConfig>();
+		var dbConfig = A.Fake<IDatabaseOptions>();
 		A.CallTo(() => dbConfig.QueueSize).Returns(32);
 		A.CallTo(() => dbConfig.ProducerBatchSize).Returns(16);
 		A.CallTo(() => dbConfig.ConsumerBatchSize).Returns(8);

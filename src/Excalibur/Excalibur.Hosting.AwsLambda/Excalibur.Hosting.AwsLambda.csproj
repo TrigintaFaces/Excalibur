@@ -39,6 +39,7 @@
     <PackageReference Include="Amazon.Lambda.DynamoDBEvents" />
     <PackageReference Include="Amazon.Lambda.KinesisEvents" Condition="'$(AllowAwsSdkV4)' == 'true'" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />

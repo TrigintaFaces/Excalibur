@@ -202,7 +202,7 @@ docker-compose --profile visualization up -d
 | `AddExcaliburSqlServices` | `Excalibur.Data.SqlServer` | SQL services, Dapper handlers |
 | `AddCdcProcessor` | `Excalibur.Data.SqlServer` | CDC processor factory |
 | `IDataChangeEventProcessorFactory` | `Excalibur.Data.SqlServer` | Creates CDC processors |
-| `IDatabaseConfig` | `Excalibur.Data.SqlServer.Cdc` | CDC configuration |
+| `IDatabaseOptions` | `Excalibur.Data.SqlServer.Cdc` | CDC configuration |
 | `CdcRecoveryOptions` | `Excalibur.Data.SqlServer.Cdc` | Stale position recovery |
 | `ElasticSearchProjectionStore` | `Excalibur.Data.ElasticSearch` | Elasticsearch projections |
 

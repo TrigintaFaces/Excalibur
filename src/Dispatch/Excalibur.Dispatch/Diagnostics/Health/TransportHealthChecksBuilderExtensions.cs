@@ -4,6 +4,7 @@
 
 using Excalibur.Dispatch.Transport;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -51,7 +52,7 @@ public static class TransportHealthChecksBuilderExtensions
 	/// <returns>The <see cref="IHealthChecksBuilder"/> for chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// This health check monitors all transports registered in the <see cref="TransportRegistry"/>
+	/// This health check monitors all transports registered in the <see cref="ITransportRegistry"/>
 	/// and reports aggregate health status:
 	/// </para>
 	/// <list type="bullet">
@@ -94,7 +95,7 @@ public static class TransportHealthChecksBuilderExtensions
 			name,
 			sp =>
 			{
-				var registry = sp.GetRequiredService<TransportRegistry>();
+				var registry = sp.GetRequiredService<ITransportRegistry>();
 				var options = sp.GetService<MultiTransportHealthCheckOptions>();
 				return new MultiTransportHealthCheck(registry, options);
 			},
@@ -161,7 +162,55 @@ public static class TransportHealthChecksBuilderExtensions
 			name,
 			sp =>
 			{
-				var registry = sp.GetRequiredService<TransportRegistry>();
+				var registry = sp.GetRequiredService<ITransportRegistry>();
+				return new MultiTransportHealthCheck(registry, options);
+			},
+			failureStatus,
+			tags ?? defaultTags,
+			timeout));
+	}
+
+	/// <summary>
+	/// Adds health checks for all registered transport adapters with options bound from
+	/// an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The <see cref="IHealthChecksBuilder"/> to add the health check to.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="MultiTransportHealthCheckOptions"/>.</param>
+	/// <param name="name">
+	/// The name of the health check. Defaults to "transports".
+	/// </param>
+	/// <param name="failureStatus">
+	/// The <see cref="HealthStatus"/> to report when the health check fails.
+	/// Defaults to <see cref="HealthStatus.Unhealthy"/>.
+	/// </param>
+	/// <param name="tags">
+	/// Optional tags for the health check. If not specified, defaults to "transport", "messaging", "ready".
+	/// </param>
+	/// <param name="timeout">
+	/// Optional timeout for the health check execution.
+	/// </param>
+	/// <returns>The <see cref="IHealthChecksBuilder"/> for chaining.</returns>
+	public static IHealthChecksBuilder AddTransportHealthChecks(
+		this IHealthChecksBuilder builder,
+		IConfiguration configuration,
+		string name = DefaultHealthCheckName,
+		HealthStatus? failureStatus = null,
+		IEnumerable<string>? tags = null,
+		TimeSpan? timeout = null)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var options = new MultiTransportHealthCheckOptions();
+		configuration.Bind(options);
+
+		var defaultTags = new[] { "transport", "messaging", "ready" };
+
+		return builder.Add(new HealthCheckRegistration(
+			name,
+			sp =>
+			{
+				var registry = sp.GetRequiredService<ITransportRegistry>();
 				return new MultiTransportHealthCheck(registry, options);
 			},
 			failureStatus,

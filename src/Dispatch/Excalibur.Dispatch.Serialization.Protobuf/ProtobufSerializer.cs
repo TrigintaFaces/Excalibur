@@ -31,8 +31,8 @@ namespace Excalibur.Dispatch.Serialization.Protobuf;
 /// enforce this since <see cref="ISerializer"/> uses unconstrained generics.
 /// </para>
 /// </remarks>
-[RequiresUnreferencedCode("Protobuf serialization may require unreferenced code for type-specific handling.")]
-[RequiresDynamicCode("Protobuf serialization may require dynamic code generation for type-specific handling.")]
+[RequiresUnreferencedCode("ProtobufSerializer uses reflection (GetProperty) to access static Parser/Descriptor properties on Google.Protobuf generated types.")]
+[RequiresDynamicCode("ProtobufSerializer uses reflection-based property access that may not be available in AOT scenarios.")]
 public sealed class ProtobufSerializer : ISerializer
 {
 	private static readonly CompositeFormat TypeNotIMessageFormat =

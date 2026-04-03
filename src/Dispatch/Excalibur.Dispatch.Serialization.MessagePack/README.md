@@ -25,12 +25,12 @@ Provides high-performance MessagePack binary serialization for:
 Use the pluggable serialization builder for internal persistence:
 
 ```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
+services.AddDispatch(dispatch =>
+    dispatch.WithSerialization(config =>
     {
         config.RegisterMessagePack();  // Register MessagePack (ID: 3)
         config.UseMessagePack();       // Use for new messages
-    });
+    }));
 ```
 
 ### Standalone Registration
@@ -98,7 +98,7 @@ Use `[MessagePackObject]` and `[Key]` attributes with source generators for opti
 
 This package follows the Dispatch serialization policy (R0.14):
 
-- **Core** (`Excalibur.Dispatch`) - MemoryPack only (internal wire format)
+- **Core** (`Excalibur.Dispatch`) - System.Text.Json (default, ADR-295)
 - **Public Edges** (`Excalibur.Dispatch.Hosting.Web`, etc.) - System.Text.Json with source-gen
 - **Opt-In Alternatives** (`Excalibur.Dispatch.Serialization.*`) - Pay-for-play binary serializers
 

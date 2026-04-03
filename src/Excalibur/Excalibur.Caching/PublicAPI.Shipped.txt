@@ -53,9 +53,6 @@ const Excalibur.Caching.Diagnostics.CachingEventId.ResolverInvocationFailed = 15
 const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedMetricsUpdated = 151901 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedTtlCalculated = 151900 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.SetCacheKey = 151802 -> int
-const Excalibur.Caching.Diagnostics.CachingTelemetryConstants.ActivitySourceName = "Excalibur.Caching" -> string!
-const Excalibur.Caching.Diagnostics.CachingTelemetryConstants.MeterName = "Excalibur.Caching" -> string!
-const Excalibur.Caching.Diagnostics.CachingTelemetryConstants.Version = "1.0.0" -> string!
 Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache
 Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.AdaptiveTtlCache(Microsoft.Extensions.Caching.Distributed.IDistributedCache! innerCache, Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy! ttlStrategy, Microsoft.Extensions.Logging.ILogger<Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache!>! logger, Excalibur.Caching.AdaptiveTtl.ISystemLoadMonitor! loadMonitor, System.TimeProvider? timeProvider = null) -> void
 Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.Dispose() -> void
@@ -235,7 +232,6 @@ Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.RuleBasedTtlOptions() -> void
 Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.TimeOfDay.get -> Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions!
 Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.TimeOfDay.set -> void
 Excalibur.Caching.Diagnostics.CachingEventId
-Excalibur.Caching.Diagnostics.CachingTelemetryConstants
 Excalibur.Caching.Projections.IProjectionCacheInvalidator
 Excalibur.Caching.Projections.IProjectionCacheInvalidator.InvalidateCacheAsync(object! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Caching.Projections.IProjectionInvalidationTags

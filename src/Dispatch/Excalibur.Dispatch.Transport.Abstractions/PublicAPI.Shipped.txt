@@ -165,31 +165,6 @@ const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.Tra
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.TransportAdapterInitialized = 20003 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.WaitingForInFlightOperations = 20116 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.WatchError = 20131 -> int
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.BatchSize = "dispatch.transport.batch.size" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.HandlerDuration = "dispatch.transport.handler.duration" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.HandlerErrors = "dispatch.transport.handler.errors" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.MessagesAcknowledged = "dispatch.transport.messages.acknowledged" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.MessagesDeadLettered = "dispatch.transport.messages.dead_lettered" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.MessagesReceived = "dispatch.transport.messages.received" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.MessagesRejected = "dispatch.transport.messages.rejected" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.MessagesRequeued = "dispatch.transport.messages.requeued" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.MessagesSendFailed = "dispatch.transport.messages.send_failed" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.MessagesSent = "dispatch.transport.messages.sent" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.ReceiveDuration = "dispatch.transport.receive.duration" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames.SendDuration = "dispatch.transport.send.duration" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.PropertyKeys.DeduplicationId = "dispatch.deduplication.id" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.PropertyKeys.DelaySeconds = "dispatch.delay.seconds" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.PropertyKeys.OrderingKey = "dispatch.ordering.key" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.PropertyKeys.PartitionKey = "dispatch.partition.key" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.PropertyKeys.Priority = "dispatch.priority" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.PropertyKeys.ScheduledTime = "dispatch.scheduled.time" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.Tags.Destination = "dispatch.transport.destination" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.Tags.ErrorType = "error.type" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.Tags.IsRetryable = "error.retryable" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.Tags.MessageType = "message.type" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.Tags.Operation = "dispatch.transport.operation" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.Tags.Source = "dispatch.transport.source" -> string!
-const Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.Tags.TransportName = "dispatch.transport.name" -> string!
 Excalibur.Dispatch.CloudEvents.IEnvelopeCloudEventBridge (forwarded, contained in Excalibur.Dispatch)
 Excalibur.Dispatch.CloudEvents.IEnvelopeCloudEventBridge.FromTransportAsync(object! transportMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.MessageEnvelope!>! (forwarded, contained in Excalibur.Dispatch)
 Excalibur.Dispatch.CloudEvents.IEnvelopeCloudEventBridge.ToTransportAsync<TTransportMessage>(Excalibur.Dispatch.Abstractions.MessageEnvelope! envelope, Excalibur.Dispatch.CloudEvents.CloudEventMode mode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TTransportMessage>! (forwarded, contained in Excalibur.Dispatch)
@@ -550,10 +525,6 @@ Excalibur.Dispatch.Transport.DestinationType.Topic = 1 -> Excalibur.Dispatch.Tra
 Excalibur.Dispatch.Transport.Diagnostics.TagCardinalityGuard
 Excalibur.Dispatch.Transport.Diagnostics.TagCardinalityGuard.Guard(string? tagValue) -> string!
 Excalibur.Dispatch.Transport.Diagnostics.TagCardinalityGuard.TagCardinalityGuard(int maxCardinality = 100, string! overflowValue = "__other__") -> void
-Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants
-Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MetricNames
-Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.PropertyKeys
-Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.Tags
 Excalibur.Dispatch.Transport.DispatchSessionState
 Excalibur.Dispatch.Transport.DispatchSessionState.Active = 0 -> Excalibur.Dispatch.Transport.DispatchSessionState
 Excalibur.Dispatch.Transport.DispatchSessionState.Closed = 5 -> Excalibur.Dispatch.Transport.DispatchSessionState
@@ -1164,8 +1135,6 @@ static Excalibur.Dispatch.Transport.ChannelConsumeOptions.Default.get -> Excalib
 static Excalibur.Dispatch.Transport.ChannelConsumeOptions.HighThroughput.get -> Excalibur.Dispatch.Transport.ChannelConsumeOptions!
 static Excalibur.Dispatch.Transport.ChannelConsumeOptions.Ordered.get -> Excalibur.Dispatch.Transport.ChannelConsumeOptions!
 static Excalibur.Dispatch.Transport.ChannelConsumeOptions.Reliable.get -> Excalibur.Dispatch.Transport.ChannelConsumeOptions!
-static Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.ActivitySourceName(string! transportName) -> string!
-static Excalibur.Dispatch.Transport.Diagnostics.TransportTelemetryConstants.MeterName(string! transportName) -> string!
 static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishActionAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.Abstractions.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishDocumentAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.Abstractions.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static Excalibur.Dispatch.Transport.MessageBusPublishing.PublishEventAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Func<string!, byte[]!, Excalibur.Dispatch.Abstractions.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! publishFunc, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

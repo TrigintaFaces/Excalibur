@@ -123,6 +123,7 @@ public sealed record AuditEvent
 
     // Context
     public string? TenantId { get; init; }
+    public string? ApplicationName { get; init; }
     public string? CorrelationId { get; init; }
     public string? Reason { get; init; }
 
@@ -194,6 +195,25 @@ var query = new AuditQuery
 var userActivity = await _auditStore.QueryAsync(query, ct);
 ```
 
+### Filter by Application
+
+In shared audit backends, filter events by the producing application:
+
+```csharp
+var query = new AuditQuery
+{
+    ApplicationName = "OrderService",
+    StartDate = DateTimeOffset.UtcNow.AddDays(-7),
+    EndDate = DateTimeOffset.UtcNow
+};
+
+var appEvents = await _auditStore.QueryAsync(query, ct);
+```
+
+:::tip
+`ApplicationName` is set automatically from `ApplicationContext.ApplicationName` when not provided explicitly on the `AuditEvent`. Configure it once via hosting and all audit events will carry the application identity.
+:::
+
 ### Filter by Resource
 
 ```csharp
@@ -246,6 +266,7 @@ Audit queries are optimized for indexed fields:
 | StartDate/EndDate | Yes | Always include time range |
 | ActorId | Yes | User activity reports |
 | TenantId | Yes | Multi-tenant isolation |
+| ApplicationName | Yes | Multi-app shared backends |
 | ResourceId | Yes | Resource history |
 | CorrelationId | Yes | Request tracing |
 | EventType | Yes | Filter by category |
@@ -363,6 +384,7 @@ CREATE TABLE [audit].[AuditEvents] (
 
     -- Context and correlation
     [TenantId] NVARCHAR(64) NULL,
+    [ApplicationName] NVARCHAR(256) NULL,
     [CorrelationId] NVARCHAR(64) NULL,
     [SessionId] NVARCHAR(64) NULL,
 
@@ -394,6 +416,10 @@ INCLUDE ([EventType], [Action], [ResourceId]);
 CREATE INDEX [IX_AuditEvents_TenantId_Timestamp]
 ON [audit].[AuditEvents] ([TenantId], [Timestamp] DESC)
 WHERE [TenantId] IS NOT NULL;
+
+CREATE INDEX [IX_AuditEvents_ApplicationName_Timestamp]
+ON [audit].[AuditEvents] ([ApplicationName], [Timestamp] DESC)
+WHERE [ApplicationName] IS NOT NULL;
 
 CREATE INDEX [IX_AuditEvents_ResourceId_Timestamp]
 ON [audit].[AuditEvents] ([ResourceId], [Timestamp] DESC)
@@ -555,6 +581,45 @@ public async Task Should_Detect_Tampering()
 | HIPAA | Access logs for PHI | ActorId, ResourceId, Classification |
 | GDPR | Processing records | Timestamp, Action, Outcome |
 | PCI-DSS | Cardholder data access logs | ResourceType filtering |
+
+## Provider Compliance Boundary
+
+:::warning ADR-290: Not All Backends Are Compliance-Grade
+Elasticsearch and OpenSearch are **audit sinks** -- write-only, search-optimized projections. They do **not** implement `IAuditStore` and cannot provide tamper-evident hash chain verification.
+:::
+
+Only backends that can guarantee monotonic sequencing, document immutability, and transactional atomicity qualify as `IAuditStore` implementations:
+
+| Backend | Role | Hash Chain | Tamper-Evident | Compliance-Grade |
+|---------|------|-----------|----------------|------------------|
+| **SQL Server** | `IAuditStore` | Yes | Yes (IDENTITY + DENY) | Yes |
+| **Elasticsearch** | Audit Sink | No | No (mutable documents) | No |
+| **OpenSearch** | Audit Sink | No | No (mutable documents) | No |
+
+### Why Elasticsearch/OpenSearch Cannot Be Compliance Stores
+
+1. **No monotonic sequencing** -- wall-clock timestamps, not database IDENTITY columns
+2. **Documents are mutable** -- anyone with cluster access can PUT/DELETE
+3. **Eventually consistent reads** -- NRT refresh delay means stale hash chain reads
+4. **No transactional atomicity** -- HTTP calls, not database transactions
+5. **ILM/ISM can delete indexes** -- silently destroying audit records
+
+### Recommended Architecture
+
+```mermaid
+flowchart LR
+    AE[Audit Events] --> SQL["SqlServerAuditStore<br/>(compliance, hash-chained)"]
+    AE --> ES["ElasticsearchAuditSink<br/>(search, dashboards)"]
+    AE --> OS["OpenSearchAuditSink<br/>(search, dashboards)"]
+
+    SQL --> V[Verify Chain Integrity]
+    ES --> K[Kibana / Dashboards]
+    OS --> OSD[OpenSearch Dashboards]
+```
+
+Consumers who need both compliance **and** search should register SQL as their `IAuditStore` and ES/OS as an audit sink. The sink receives copies for fast full-text search, dashboards, and alerting. SQL is the source of truth for chain verification and regulatory compliance.
+
+For full details, see ADR-290 in `management/architecture/adr-290-elasticsearch-audit-sink-not-store.md`.
 
 ## Next Steps
 

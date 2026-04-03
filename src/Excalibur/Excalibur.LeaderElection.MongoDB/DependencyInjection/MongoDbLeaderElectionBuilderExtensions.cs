@@ -9,6 +9,7 @@ using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.MongoDB;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -58,26 +59,31 @@ public static class MongoDbLeaderElectionBuilderExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
-		builder.Services.TryAddSingleton(sp =>
-		{
-			var client = sp.GetRequiredService<IMongoClient>();
-			var mongoOptions = sp.GetRequiredService<IOptions<MongoDbLeaderElectionOptions>>();
-			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
-			var logger = sp.GetRequiredService<ILogger<MongoDbLeaderElection>>();
-			return new MongoDbLeaderElection(client, resourceName, mongoOptions, electionOptions, logger);
-		});
-		builder.Services.AddKeyedSingleton<ILeaderElection>("mongodb", (sp, _) =>
-		{
-			var inner = sp.GetRequiredService<MongoDbLeaderElection>();
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElection(inner, meter, activitySource, "MongoDB");
-		});
-		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
-			sp.GetRequiredKeyedService<ILeaderElection>("mongodb"));
+		return builder.UseMongoDBCore(resourceName);
+	}
 
-		return builder;
+	/// <summary>
+	/// Configures the leader election builder to use the MongoDB provider with an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The leader election builder.</param>
+	/// <param name="resourceName">The resource name for the election lock.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="MongoDbLeaderElectionOptions"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	public static ILeaderElectionBuilder UseMongoDB(
+		this ILeaderElectionBuilder builder,
+		string resourceName,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<MongoDbLeaderElectionOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.UseMongoDBCore(resourceName);
 	}
 
 	/// <summary>
@@ -108,5 +114,31 @@ public static class MongoDbLeaderElectionBuilderExtensions
 		{
 			options.ConnectionString = connectionString;
 		});
+	}
+
+	private static ILeaderElectionBuilder UseMongoDBCore(
+		this ILeaderElectionBuilder builder,
+		string resourceName)
+	{
+		builder.Services.TryAddSingleton(sp =>
+		{
+			var client = sp.GetRequiredService<IMongoClient>();
+			var mongoOptions = sp.GetRequiredService<IOptions<MongoDbLeaderElectionOptions>>();
+			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
+			var logger = sp.GetRequiredService<ILogger<MongoDbLeaderElection>>();
+			return new MongoDbLeaderElection(client, resourceName, mongoOptions, electionOptions, logger);
+		});
+		builder.Services.AddKeyedSingleton<ILeaderElection>("mongodb", (sp, _) =>
+		{
+			var inner = sp.GetRequiredService<MongoDbLeaderElection>();
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
+			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
+			return new TelemetryLeaderElection(inner, meter, activitySource, "MongoDB");
+		});
+		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("mongodb"));
+
+		return builder;
 	}
 }

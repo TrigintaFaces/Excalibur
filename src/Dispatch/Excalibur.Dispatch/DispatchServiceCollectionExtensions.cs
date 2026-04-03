@@ -40,7 +40,11 @@ public static class DispatchServiceCollectionExtensions
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "Handler activator registration remains trim-aware; AOT paths rely on generated handlers and precompiled activators.")]
+		Justification = "Handler activator and LocalMessageBus use reflection for dispatch plan construction; AOT paths rely on source-generated handlers and precompiled activators.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "HandlerActivator and LocalMessageBus require dynamic code for typed invoker construction. In AOT scenarios, source-generated dispatchers bypass these code paths.")]
 	public static IServiceCollection AddDispatchPipeline(this IServiceCollection services)
 	{
 		services.TryAddSingleton<IMessageBusProvider, MessageBusProvider>();
@@ -110,6 +114,10 @@ public static class DispatchServiceCollectionExtensions
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
 			"Handler registration uses source generation when USE_SOURCE_GENERATION is defined, falls back to reflection otherwise.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Handler warmup uses expression compilation. In AOT scenarios, source-generated dispatchers bypass these code paths.")]
 	public static IServiceCollection AddDispatchHandlers(this IServiceCollection services, params Assembly[]? assembliesToScan)
 	{
 		ArgumentNullException.ThrowIfNull(services);

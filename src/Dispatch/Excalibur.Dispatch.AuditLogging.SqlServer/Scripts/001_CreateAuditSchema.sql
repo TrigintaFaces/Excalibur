@@ -34,6 +34,7 @@ BEGIN
 
         -- Context and correlation
         [TenantId] NVARCHAR(64) NULL,
+        [ApplicationName] NVARCHAR(256) NULL,
         [CorrelationId] NVARCHAR(64) NULL,
         [SessionId] NVARCHAR(64) NULL,
 
@@ -73,6 +74,15 @@ BEGIN
     CREATE NONCLUSTERED INDEX [IX_AuditEvents_TenantId_Timestamp]
     ON [audit].[AuditEvents] ([TenantId], [Timestamp] DESC)
     WHERE [TenantId] IS NOT NULL;
+END
+GO
+
+-- Index for application-scoped queries (multi-application shared backends)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_AuditEvents_ApplicationName_Timestamp' AND object_id = OBJECT_ID('[audit].[AuditEvents]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_AuditEvents_ApplicationName_Timestamp]
+    ON [audit].[AuditEvents] ([ApplicationName], [Timestamp] DESC)
+    WHERE [ApplicationName] IS NOT NULL;
 END
 GO
 

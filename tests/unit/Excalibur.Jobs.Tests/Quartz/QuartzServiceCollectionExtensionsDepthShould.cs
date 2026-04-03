@@ -86,7 +86,7 @@ public sealed class QuartzServiceCollectionExtensionsDepthShould
 	}
 }
 
-internal sealed class QuartzExtTestWatcherConfig : JobConfig
+internal sealed class QuartzExtTestWatcherConfig : JobOptions
 {
 }
 

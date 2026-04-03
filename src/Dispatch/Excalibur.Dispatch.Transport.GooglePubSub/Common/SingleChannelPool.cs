@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// A simple channel pool that maintains a single gRPC channel.
 /// </summary>
-public sealed class SingleChannelPool : IDisposable
+internal sealed class SingleChannelPool : IDisposable
 {
 	private volatile bool _disposed;
 

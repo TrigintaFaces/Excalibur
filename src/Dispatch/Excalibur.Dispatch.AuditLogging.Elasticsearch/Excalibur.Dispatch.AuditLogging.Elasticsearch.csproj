@@ -5,7 +5,7 @@
     <RootNamespace>Excalibur.Dispatch.AuditLogging.Elasticsearch</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.AuditLogging.Elasticsearch</AssemblyName>
     <PackageId>Excalibur.Dispatch.AuditLogging.Elasticsearch</PackageId>
-    <Description>Elasticsearch audit log exporter for the Excalibur framework. Supports the Elasticsearch Bulk API for efficient audit log ingestion.</Description>
+    <Description>Elasticsearch audit backend for the Excalibur framework. Provides IAuditLogExporter and audit sink for real-time indexing of audit events to Elasticsearch.</Description>
     <PackageTags>dispatch;audit;logging;siem;elasticsearch;compliance</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
@@ -13,6 +13,7 @@
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
   </ItemGroup>
   <ItemGroup>
@@ -24,5 +25,13 @@
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.AuditLogging.Elasticsearch.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>DynamicProxyGenAssembly2</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>

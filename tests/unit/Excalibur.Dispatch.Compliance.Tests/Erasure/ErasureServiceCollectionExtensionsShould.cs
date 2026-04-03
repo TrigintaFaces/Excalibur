@@ -203,6 +203,6 @@ public sealed class ErasureServiceCollectionExtensionsShould
 	{
 		var services = new ServiceCollection();
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddGdprErasureFromConfiguration(null!));
+			services.AddGdprErasureFromConfiguration((Action<ErasureOptions>)null!));
 	}
 }

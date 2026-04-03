@@ -16,7 +16,7 @@ namespace Excalibur.Cdc.Firestore;
 /// This implementation is intended for testing and development.
 /// Positions are not persisted and will be lost when the process exits.
 /// </remarks>
-public sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
+internal sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
 {
 	private readonly ConcurrentDictionary<string, FirestoreCdcStateEntry> _positions = new();
 	private volatile bool _disposed;

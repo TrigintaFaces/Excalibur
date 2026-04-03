@@ -97,6 +97,11 @@ public static class CloudEventsServiceCollectionExtensions
 
 	[UnconditionalSuppressMessage(
 		"AOT",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification =
+			"Mapper resolution is opt-in and based on runtime transport types. Consumers targeting AOT should register concrete mappers explicitly.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
 		"IL3050:Using member which requires dynamic code can break when AOT compiling",
 		Justification =
 			"Mapper resolution is opt-in and based on runtime transport types. Consumers targeting AOT should register concrete mappers explicitly.")]

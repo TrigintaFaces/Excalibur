@@ -392,7 +392,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		const string keyId = "test-key-1";
 		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
 		RegisterKey(keyId, keyMaterial);
-		var custodians = new[] { "Alice", "Bob", "Charlie", "Dave", "Eve" };
+		var custodians = new List<string> { "Alice", "Bob", "Charlie", "Dave", "Eve" };
 		var options = new BackupShareOptions { CustodianIds = custodians };
 
 		// Act

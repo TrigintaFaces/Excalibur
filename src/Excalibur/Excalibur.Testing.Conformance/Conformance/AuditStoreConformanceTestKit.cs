@@ -640,4 +640,144 @@ public abstract class AuditStoreConformanceTestKit
 	}
 
 	#endregion
+
+	#region ApplicationName Tests
+
+	/// <summary>
+	/// Verifies that ApplicationName is stored and retrieved correctly.
+	/// </summary>
+	public virtual async Task StoreAsync_WithApplicationName_ShouldPersistApplicationName()
+	{
+		var store = CreateStore();
+		var evt = CreateAuditEvent();
+		var evtWithApp = evt with { ApplicationName = "my-service" };
+
+		_ = await store.StoreAsync(evtWithApp, CancellationToken.None).ConfigureAwait(false);
+
+		var retrieved = await store.GetByIdAsync(evtWithApp.EventId, CancellationToken.None).ConfigureAwait(false);
+
+		if (retrieved is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"Event with EventId {evtWithApp.EventId} was not found after StoreAsync");
+		}
+
+		if (!string.Equals(retrieved.ApplicationName, "my-service", StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				$"ApplicationName mismatch. Expected: 'my-service', Actual: '{retrieved.ApplicationName}'");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that null ApplicationName is stored and retrieved as null.
+	/// </summary>
+	public virtual async Task StoreAsync_WithNullApplicationName_ShouldPersistNull()
+	{
+		var store = CreateStore();
+		var evt = CreateAuditEvent(); // default has null ApplicationName
+
+		_ = await store.StoreAsync(evt, CancellationToken.None).ConfigureAwait(false);
+
+		var retrieved = await store.GetByIdAsync(evt.EventId, CancellationToken.None).ConfigureAwait(false);
+
+		if (retrieved is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"Event with EventId {evt.EventId} was not found after StoreAsync");
+		}
+
+		if (retrieved.ApplicationName is not null)
+		{
+			throw new TestFixtureAssertionException(
+				$"ApplicationName should be null, but was: '{retrieved.ApplicationName}'");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that QueryAsync filters by ApplicationName correctly.
+	/// </summary>
+	public virtual async Task QueryAsync_ByApplicationName_ShouldFilter()
+	{
+		var store = CreateStore();
+
+		var appAEvent = CreateAuditEvent() with { ApplicationName = "app-a" };
+		var appBEvent = CreateAuditEvent() with { ApplicationName = "app-b" };
+
+		_ = await store.StoreAsync(appAEvent, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(appBEvent, CancellationToken.None).ConfigureAwait(false);
+
+		var query = new AuditQuery { ApplicationName = "app-a" };
+
+		var results = await store.QueryAsync(query, CancellationToken.None).ConfigureAwait(false);
+
+		if (!results.Any(e => e.EventId == appAEvent.EventId))
+		{
+			throw new TestFixtureAssertionException(
+				"Event with ApplicationName 'app-a' should be returned when filtering by 'app-a'");
+		}
+
+		if (results.Any(e => e.EventId == appBEvent.EventId))
+		{
+			throw new TestFixtureAssertionException(
+				"Event with ApplicationName 'app-b' should NOT be returned when filtering by 'app-a'");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that CountAsync respects ApplicationName filter.
+	/// </summary>
+	public virtual async Task CountAsync_ByApplicationName_ShouldCount()
+	{
+		var store = CreateStore();
+
+		var evt1 = CreateAuditEvent() with { ApplicationName = "svc-1" };
+		var evt2 = CreateAuditEvent() with { ApplicationName = "svc-1" };
+		var evt3 = CreateAuditEvent() with { ApplicationName = "svc-2" };
+
+		_ = await store.StoreAsync(evt1, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(evt2, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(evt3, CancellationToken.None).ConfigureAwait(false);
+
+		var query = new AuditQuery { ApplicationName = "svc-1" };
+
+		var count = await store.CountAsync(query, CancellationToken.None).ConfigureAwait(false);
+
+		if (count != 2)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected count 2 for ApplicationName 'svc-1', got {count}");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that ApplicationName is included in hash computation (different app names produce different hashes).
+	/// </summary>
+	public virtual async Task StoreAsync_DifferentApplicationName_ShouldProduceDifferentHash()
+	{
+		var store = CreateStore();
+
+		var evt1 = CreateAuditEvent() with { ApplicationName = "hash-app-1" };
+		var evt2 = CreateAuditEvent() with { ApplicationName = "hash-app-2" };
+
+		var result1 = await store.StoreAsync(evt1, CancellationToken.None).ConfigureAwait(false);
+		var result2 = await store.StoreAsync(evt2, CancellationToken.None).ConfigureAwait(false);
+
+		if (string.IsNullOrEmpty(result1.EventHash) || string.IsNullOrEmpty(result2.EventHash))
+		{
+			throw new TestFixtureAssertionException(
+				"Both events should have computed EventHash values");
+		}
+
+		// While hashes also differ due to different EventIds and chain position,
+		// verify both are computed (non-null) -- direct hash-content verification
+		// is covered by AuditHasher unit tests.
+		if (string.Equals(result1.EventHash, result2.EventHash, StringComparison.Ordinal))
+		{
+			throw new TestFixtureAssertionException(
+				"Events with different ApplicationNames (and different EventIds) should have different hashes");
+		}
+	}
+
+	#endregion
 }

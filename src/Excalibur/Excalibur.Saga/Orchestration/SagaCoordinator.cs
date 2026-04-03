@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
@@ -74,6 +75,21 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		}
 
 		var sagaStateType = sagaInfo.StateType;
+
+		// AOT path: use pre-registered typed dispatch delegate
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			var registry = serviceProvider.GetService<ISagaDispatchRegistry>();
+			var dispatcher = registry?.GetDispatcher(sagaType, sagaStateType)
+				?? throw new PlatformNotSupportedException(
+					$"Saga dispatch for {sagaType.Name}/{sagaStateType.Name} requires a typed dispatch registration " +
+					"in AOT mode. Register via ISagaDispatchRegistry at DI time or use the SagaRegistrationGenerator source generator.");
+
+			await dispatcher(this, messageContext, evt, sagaInfo, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
+		// JIT path: use cached MakeGenericMethod
 		var cacheKey = (sagaType, sagaStateType);
 
 		MethodInfo method;

@@ -3,6 +3,7 @@ using Excalibur.Dispatch.AuditLogging.Encryption;
 using Excalibur.Dispatch.AuditLogging.Retention;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -254,7 +255,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
         var services = new ServiceCollection();
 
         Should.Throw<ArgumentNullException>(() =>
-            services.AddAuditAlerting(null!));
+            services.AddAuditAlerting((Action<AuditAlertOptions>)null!));
     }
 
     [Fact]
@@ -304,7 +305,66 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
         var services = new ServiceCollection();
 
         Should.Throw<ArgumentNullException>(() =>
-            services.AddAuditRetention(null!));
+            services.AddAuditRetention((Action<AuditRetentionOptions>)null!));
+    }
+
+    // --- IConfiguration overload tests ---
+
+    [Fact]
+    public void Register_alerting_with_IConfiguration_overload()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MaxAlertsPerMinute"] = "50"
+            })
+            .Build();
+
+        services.AddAuditAlerting(config);
+
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditAlertService) &&
+            d.ImplementationType == typeof(DefaultAuditAlertService));
+    }
+
+    [Fact]
+    public void Throw_for_null_configuration_in_alerting()
+    {
+        var services = new ServiceCollection();
+
+        Should.Throw<ArgumentNullException>(() =>
+            services.AddAuditAlerting((IConfiguration)null!));
+    }
+
+    [Fact]
+    public void Register_retention_with_IConfiguration_overload()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAuditLogging();
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["CleanupInterval"] = "01:00:00"
+            })
+            .Build();
+
+        services.AddAuditRetention(config);
+
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditRetentionService) &&
+            d.ImplementationType == typeof(DefaultAuditRetentionService));
+    }
+
+    [Fact]
+    public void Throw_for_null_configuration_in_retention()
+    {
+        var services = new ServiceCollection();
+
+        Should.Throw<ArgumentNullException>(() =>
+            services.AddAuditRetention((IConfiguration)null!));
     }
 
     [Fact]

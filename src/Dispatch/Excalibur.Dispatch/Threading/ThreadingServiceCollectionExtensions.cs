@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Options.Threading;
 using Excalibur.Dispatch.Threading;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 
@@ -25,6 +26,24 @@ public static class ThreadingServiceCollectionExtensions
 	public static IServiceCollection AddDispatchThreading(this IServiceCollection services, Action<ThreadingOptions>? configure = null)
 	{
 		_ = services.ConfigureOptions(configure, static _ => { });
+		_ = services.AddSingleton<IKeyedLock, KeyedLock>();
+		services.TryAddSingleton<BackgroundExecutionMiddleware>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers threading services including keyed locks and background execution middleware
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection to add services to. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="ThreadingOptions"/>. </param>
+	/// <returns> The service collection for method chaining. </returns>
+	public static IServiceCollection AddDispatchThreading(this IServiceCollection services, IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ThreadingOptions>().Bind(configuration);
 		_ = services.AddSingleton<IKeyedLock, KeyedLock>();
 		services.TryAddSingleton<BackgroundExecutionMiddleware>();
 

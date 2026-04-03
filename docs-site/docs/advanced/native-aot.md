@@ -175,7 +175,7 @@ public static partial class ResultFactoryRegistry
 }
 ```
 
-Under `#if AOT_ENABLED`, `FinalDispatchHandler.CreateTypedResult()` calls `ResultFactoryRegistry.GetFactory()` instead of using `MakeGenericMethod()`.
+When publishing with NativeAOT, `FinalDispatchHandler.CreateTypedResult()` automatically uses `ResultFactoryRegistry.GetFactory()` instead of reflection.
 
 ### Service Registration (`GeneratedServiceCollectionExtensions.g.cs`)
 
@@ -245,6 +245,26 @@ This affects serialization (`SpanEventSerializer`, `SerializerMigrationService`)
 
 ---
 
+## How AOT Works Under the Hood
+
+When you publish with `PublishAot=true`, the framework automatically switches internal code paths from reflection to source-generated registries. No consumer action is needed beyond referencing the source generators package.
+
+Key behaviors:
+
+- **Enum serialization** uses typed `JsonStringEnumConverter<TEnum>` and source-generated JSON contexts -- zero reflection.
+- **Event serialization** uses `JsonSerializerContext.GetTypeInfo()` for type-safe serialization without `Type.GetType()`.
+- **Handler resolution**, **saga coordination**, **caching**, and **projection invalidation** all use pre-compiled registries instead of `MakeGenericType()`.
+- **Runtime branching** via `RuntimeFeature.IsDynamicCodeSupported` ensures JIT builds keep their existing behavior with zero overhead, while AOT builds use the source-generated path.
+- **Annotation propagation**: Core dispatch paths (`Dispatcher`, `FinalDispatchHandler`, `IDirectLocalDispatcher`, etc.) carry `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` attributes so the trimmer accurately reports any reflection-dependent call sites. Source-generated alternatives eliminate these warnings when the generators package is referenced.
+
+All of this is transparent to consumers. The same `AddDispatch()`, `AddSaga()`, and `AddProjection()` DI entry points work identically under both JIT and AOT.
+
+### CI Enforcement
+
+The AOT validation CI gate (`aot-validation.yml`) runs on every push and pull request. It publishes the AOT sample with `PublishAot=true` and fails the build if any new IL2XXX/IL3XXX warnings are introduced. A baseline file (`eng/ci/aot-warning-baseline.json`) tracks known false-positives from third-party dependencies that cannot be resolved upstream.
+
+---
+
 ## Trimmer Configuration
 
 `TrimmerRoots.xml` preserves critical types during IL trimming:
@@ -297,22 +317,26 @@ The sample showcases:
 - `PrecompiledHandlerRegistry` with `ResolveHandlerType` and `CreateHandler`
 - `ResultFactoryRegistry` for AOT result creation
 - `DiscoveredMessageTypeMetadata` for compile-time type registry
+- Full pipeline dispatch via `IDispatcher.DispatchAsync()` (AOT-safe via source-generated interceptors)
 
 ---
 
 ## Transport AOT Compatibility
 
-All 5 transport packages have been verified for AOT compatibility. The builder pattern (`Action<IXxxTransportBuilder>`) used by all transports avoids generic type parameters on public DI methods, making most transports inherently AOT-safe.
+All 7 transport packages have been classified for AOT compatibility. The builder pattern (`Action<IXxxTransportBuilder>`) used by all transports avoids generic type parameters on public DI methods, making some transports inherently AOT-safe. Others have third-party SDK dependencies that use reflection.
 
 ### Transport Status
 
 | Transport | AOT Status | Notes |
 |-----------|-----------|-------|
-| RabbitMQ | AOT-safe | No annotations needed — builder pattern only |
-| Azure Service Bus | AOT-safe | No annotations needed — builder pattern only |
-| AWS SQS | AOT-safe | No annotations needed — builder pattern only |
-| Google Pub/Sub | AOT-safe | No annotations needed — builder pattern only |
-| **Kafka** | **Requires annotation** | SchemaRegistry uses `Activator.CreateInstance` for custom strategies |
+| RabbitMQ | **AOT-safe** | Builder pattern only, no reflection |
+| AWS SQS | **AOT-safe** | Builder pattern only, no reflection |
+| Azure Service Bus | **Not compatible** | Azure SDK dependency uses reflection internally |
+| Google Pub/Sub | **Not compatible** | Google Cloud SDK dependency uses reflection internally |
+| Kafka | **Not compatible** | Confluent.Kafka SchemaRegistry uses `Activator.CreateInstance` |
+| gRPC | **Not compatible** | gRPC code generation not AOT-safe |
+
+See the [AOT Compatibility Matrix](aot-compatibility.md) for the full per-package table.
 
 ### Kafka SchemaRegistry Warning
 
@@ -346,19 +370,14 @@ services.AddKafkaTransport("kafka", builder => { ... });
 
 | Package | AOT Status |
 |---------|-----------|
-| `Excalibur.Dispatch` | Zero reflection (source-generated) |
+| `Excalibur.Dispatch` | Annotated (`[RequiresUnreferencedCode]` on reflection paths, source-gen alternative) |
 | `Excalibur.Dispatch.Abstractions` | Fully AOT-compatible |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | AOT-safe |
-| `Excalibur.Dispatch.Transport.Kafka` | Annotated (SchemaRegistry) |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | AOT-safe |
 | `Excalibur.Dispatch.Transport.AwsSqs` | AOT-safe |
-| `Excalibur.Dispatch.Transport.GooglePubSub` | AOT-safe |
-
-### Deferred
-
-- Saga generators
-- `Excalibur.Dispatch.Security` annotations
-- Validation source generator
+| `Excalibur.Dispatch.Transport.Kafka` | Not compatible (SchemaRegistry reflection) |
+| `Excalibur.Dispatch.Transport.AzureServiceBus` | Not compatible (Azure SDK reflection) |
+| `Excalibur.Dispatch.Transport.GooglePubSub` | Not compatible (Google Cloud SDK reflection) |
+| `Excalibur.Dispatch.Transport.Grpc` | Not compatible (gRPC code generation) |
 
 ### Known Constraints
 
@@ -396,12 +415,13 @@ The `ResultFactoryRegistry` is generated from `IDispatchAction<T>` and `IActionH
 
 1. Ensure your action/query types implement `IDispatchAction<TResult>` with concrete result types
 2. Verify the generator is active: check for `ResultFactoryRegistry.g.cs` in generated output
-3. The `#if AOT_ENABLED` path in `FinalDispatchHandler` requires the `AOT_ENABLED` constant
+3. The `RuntimeFeature.IsDynamicCodeSupported` branch in `FinalDispatchHandler` automatically selects the AOT path when publishing with NativeAOT
 
 ---
 
 ## Related Documentation
 
+- [AOT Compatibility Matrix](./aot-compatibility.md) - Per-package AOT status for all 173 packages
 - [Source Generators](./source-generators.md) - Full generator reference
 - [Viewing Generated Code](./viewing-generated-code.md) - Inspect generated output
 - [Deployment](./deployment.md) - Deployment patterns

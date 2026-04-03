@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Abstractions;
 
 /// <summary>
@@ -19,6 +21,8 @@ public interface IDirectLocalDispatcher
 	/// <param name="message">The message instance.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A value task representing completion.</returns>
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	ValueTask DispatchLocalAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
 		where TMessage : IDispatchAction;
 
@@ -30,6 +34,8 @@ public interface IDirectLocalDispatcher
 	/// <param name="message">The message instance.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A value task containing the handler response.</returns>
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	ValueTask<TResponse?> DispatchLocalAsync<TMessage, TResponse>(TMessage message, CancellationToken cancellationToken)
 		where TMessage : IDispatchAction<TResponse>;
 }

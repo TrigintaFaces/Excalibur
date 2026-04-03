@@ -340,6 +340,4 @@ static Microsoft.Extensions.DependencyInjection.MongoDbSnapshotStoreExtensions.A
 Microsoft.Extensions.DependencyInjection.MongoDbServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.MongoDbServiceCollectionExtensions.AddExcaliburMongoDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MongoDB.MongoDbProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.TransactionCallbackException = 104605 -> int
-const Excalibur.Data.MongoDB.Diagnostics.MongoDbPersistenceTelemetryConstants.MeterName = "Excalibur.Data.MongoDB.Persistence" -> string!
-const Excalibur.Data.MongoDB.Diagnostics.MongoDbPersistenceTelemetryConstants.Version = "1.0.0" -> string!
-Excalibur.Data.MongoDB.Diagnostics.MongoDbPersistenceTelemetryConstants
+static Microsoft.Extensions.DependencyInjection.MongoDbServiceCollectionExtensions.AddExcaliburMongoDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -47,6 +47,7 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 	/// </summary>
 	/// <param name="optionsMonitor">The options monitor for named options resolution.</param>
 	/// <param name="logger">The logger instance.</param>
+#pragma warning disable RS0016 // Analyzer cannot resolve nullable annotations for OpenSearch.Client types
 	public OpenSearchProjectionStore(
 		IOptionsMonitor<OpenSearchProjectionStoreOptions> optionsMonitor,
 		ILogger<OpenSearchProjectionStore<TProjection>> logger)
@@ -79,6 +80,7 @@ public sealed class OpenSearchProjectionStore<TProjection> : IProjectionStore<TP
 		OpenSearchClient client,
 		IOptionsMonitor<OpenSearchProjectionStoreOptions> optionsMonitor,
 		ILogger<OpenSearchProjectionStore<TProjection>> logger)
+#pragma warning restore RS0016
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(optionsMonitor);

@@ -666,6 +666,87 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			.MustNotHaveHappened();
 	}
 
+	[Fact]
+#pragma warning disable CA1506 // Test method orchestrates multiple fakes/probes by design.
+	public async Task ResolveTimeoutType_ViaSagaTypeRegistry_WhenProvided()
+	{
+		// Arrange
+		var sagaId = Guid.NewGuid().ToString();
+		var timeoutId = Guid.NewGuid().ToString();
+		var deliveredObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		// Use a type name that won't resolve via assembly scanning -- registry must handle it
+		var registryTypeName = typeof(TestTimeoutMessage).FullName!;
+
+		var timeout = CreateTimeout(
+			timeoutId,
+			sagaId,
+			registryTypeName,
+			JsonSerializer.SerializeToUtf8Bytes(new TestTimeoutMessage { Value = "registry-resolved" }));
+
+		var typeRegistry = new SagaTypeRegistry();
+		typeRegistry.RegisterType(typeof(TestTimeoutMessage));
+
+		var hasReturned = false;
+		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				if (!hasReturned)
+				{
+					hasReturned = true;
+					return new List<SagaTimeout> { timeout };
+				}
+				return new List<SagaTimeout>();
+			});
+
+		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(MessageResult.Success()));
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.Invokes(() => _ = deliveredObserved.TrySetResult())
+			.Returns(Task.CompletedTask);
+
+		using var cts = new CancellationTokenSource();
+		var service = new SagaTimeoutDeliveryService(
+			_timeoutStore, _serviceProvider, _logger, _options, typeRegistry);
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			deliveredObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
+		await cts.CancelAsync();
+
+		try
+		{
+			await service.StopAsync(CancellationToken.None);
+		}
+		catch (OperationCanceledException)
+		{
+			// Expected
+		}
+
+		// Assert - should dispatch successfully using registry-resolved type
+		A.CallTo(() => _dispatcher.DispatchAsync(
+			A<IDispatchMessage>._,
+			A<IMessageContext>._,
+			A<CancellationToken>._))
+			.MustHaveHappened();
+
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.MustHaveHappened();
+	}
+#pragma warning restore CA1506
+
+	[Fact]
+	public void AcceptNullSagaTypeRegistry()
+	{
+		// The typeRegistry parameter is optional -- null is valid
+		var service = new SagaTimeoutDeliveryService(
+			_timeoutStore, _serviceProvider, _logger, _options, typeRegistry: null);
+
+		service.ShouldNotBeNull();
+	}
+
 	#endregion
 
 	#region Helper Methods

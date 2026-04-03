@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Options.Validation;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Validation.Context;
@@ -45,6 +46,26 @@ public static class ContextValidationDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		_ = builder.Services.AddContextValidation(configureOptions);
+
+		return builder.UseMiddleware<ContextValidationMiddleware>();
+	}
+
+	/// <summary>
+	/// Adds context validation with options bound from an <see cref="IConfiguration"/> section
+	/// to the dispatch pipeline.
+	/// </summary>
+	/// <param name="builder"> The dispatch builder. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="ContextValidationOptions"/>. </param>
+	/// <returns> The dispatch builder for chaining. </returns>
+	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
+	public static IDispatchBuilder UseContextValidation(
+		this IDispatchBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddContextValidation(configuration);
 
 		return builder.UseMiddleware<ContextValidationMiddleware>();
 	}

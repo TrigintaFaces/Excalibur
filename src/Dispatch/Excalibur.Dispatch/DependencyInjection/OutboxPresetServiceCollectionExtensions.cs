@@ -4,6 +4,8 @@
 
 using Excalibur.Dispatch.Options.Delivery;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -16,15 +18,15 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </para>
 /// <list type="bullet">
 ///   <item>
-///     <term><see cref="AddOutboxHighThroughput"/></term>
+///     <term><see cref="AddOutboxHighThroughput(IServiceCollection, Action{OutboxDeliveryOptions}?)"/></term>
 ///     <description>Maximum throughput (10K+ msg/s) for event sourcing, analytics.</description>
 ///   </item>
 ///   <item>
-///     <term><see cref="AddOutboxBalanced"/></term>
+///     <term><see cref="AddOutboxBalanced(IServiceCollection, Action{OutboxDeliveryOptions}?)"/></term>
 ///     <description>Good throughput (3-5K msg/s) for general purpose workloads.</description>
 ///   </item>
 ///   <item>
-///     <term><see cref="AddOutboxHighReliability"/></term>
+///     <term><see cref="AddOutboxHighReliability(IServiceCollection, Action{OutboxDeliveryOptions}?)"/></term>
 ///     <description>Maximum reliability with smallest failure window for critical messages.</description>
 ///   </item>
 /// </list>
@@ -80,6 +82,30 @@ public static class OutboxPresetServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Configures outbox options with the high throughput preset, then applies overrides
+	/// from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind overrides from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddOutboxHighThroughput(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.Configure<OutboxDeliveryOptions>(options =>
+		{
+			var preset = OutboxDeliveryOptions.HighThroughput();
+			CopyFrom(options, preset);
+			configuration.Bind(options);
+		});
+
+		return services;
+	}
+
+	/// <summary>
 	/// Configures outbox options with the balanced preset.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -119,6 +145,30 @@ public static class OutboxPresetServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Configures outbox options with the balanced preset, then applies overrides
+	/// from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind overrides from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddOutboxBalanced(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.Configure<OutboxDeliveryOptions>(options =>
+		{
+			var preset = OutboxDeliveryOptions.Balanced();
+			CopyFrom(options, preset);
+			configuration.Bind(options);
+		});
+
+		return services;
+	}
+
+	/// <summary>
 	/// Configures outbox options with the high reliability preset.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -152,6 +202,30 @@ public static class OutboxPresetServiceCollectionExtensions
 			var preset = OutboxDeliveryOptions.HighReliability();
 			CopyFrom(options, preset);
 			configure?.Invoke(options);
+		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Configures outbox options with the high reliability preset, then applies overrides
+	/// from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind overrides from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddOutboxHighReliability(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.Configure<OutboxDeliveryOptions>(options =>
+		{
+			var preset = OutboxDeliveryOptions.HighReliability();
+			CopyFrom(options, preset);
+			configuration.Bind(options);
 		});
 
 		return services;

@@ -557,6 +557,7 @@
           "Excalibur.A3.Abstractions": "[0.1.0-local, )",
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
           "Excalibur.Domain": "[0.1.0-local, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )"
         }
       },
@@ -595,6 +596,7 @@
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Options": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )"
         }
       },
@@ -670,9 +672,7 @@
           "Cronos": "[0.11.1, )",
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
           "Excalibur.Dispatch.Compliance.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Serialization.MemoryPack": "[0.1.0-local, )",
           "Medo.Uuid7": "[1.4.0, )",
-          "MemoryPack": "[1.21.4, )",
           "Microsoft.ApplicationInsights": "[2.23.0, )",
           "Microsoft.AspNetCore.Authorization": "[9.0.9, )",
           "Microsoft.Extensions.DependencyInjection": "[10.0.0, )",
@@ -704,8 +704,10 @@
           "Microsoft.Extensions.Caching.Hybrid": "[9.9.0, )",
           "Microsoft.Extensions.Caching.Memory": "[10.0.0, )",
           "Microsoft.Extensions.Caching.StackExchangeRedis": "[10.0.0, )",
+          "Microsoft.Extensions.Configuration.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )"
         }
       },
@@ -716,11 +718,13 @@
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
           "Excalibur.Dispatch.Compliance.Abstractions": "[0.1.0-local, )",
           "Microsoft.Extensions.Caching.Memory": "[10.0.0, )",
+          "Microsoft.Extensions.Configuration.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Options": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )",
           "MongoDB.Driver": "[2.25.0, )",
           "Npgsql": "[9.0.4, )",
@@ -789,7 +793,8 @@
           "Medo.Uuid7": "[1.4.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.DependencyInjection": "[10.0.0, )",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )"
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )"
         }
       },
       "excalibur.eventsourcing": {
@@ -800,10 +805,12 @@
           "Excalibur.Dispatch.Compliance.Abstractions": "[0.1.0-local, )",
           "Excalibur.EventSourcing.Abstractions": "[0.1.0-local, )",
           "Excalibur.Hosting": "[0.1.0-local, )",
+          "Microsoft.Extensions.Configuration.Binder": "[10.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Options": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )",
           "NCrontab": "[3.4.0, )",
           "OpenTelemetry.Api": "[1.13.0, )",
@@ -886,6 +893,7 @@
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Options": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )"
         }
       },
@@ -896,7 +904,8 @@
           "Excalibur.LeaderElection": "[0.1.0-local, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
-          "Microsoft.Extensions.Options": "[10.0.0, )"
+          "Microsoft.Extensions.Options": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )"
         }
       },
       "excalibur.leaderelection.sqlserver": {
@@ -917,12 +926,14 @@
           "Excalibur.Data.Abstractions": "[0.1.0-local, )",
           "Excalibur.Dispatch": "[0.1.0-local, )",
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
+          "Excalibur.Dispatch.Serialization.MemoryPack": "[0.1.0-local, )",
           "Excalibur.Hosting": "[0.1.0-local, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
-          "Microsoft.Extensions.Options": "[10.0.0, )"
+          "Microsoft.Extensions.Options": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )"
         }
       },
       "excalibur.outbox.sqlserver": {
@@ -951,6 +962,7 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Options": "[10.0.0, )",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.0, )"
         }
       },

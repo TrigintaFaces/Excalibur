@@ -15,10 +15,10 @@ namespace Excalibur.Dispatch.Configuration.Transport;
 /// <remarks> Initializes a new instance of the <see cref="BindingConfigurationBuilder" /> class. </remarks>
 /// <param name="transportRegistry"> The transport registry. </param>
 /// <param name="bindingRegistry"> The binding registry. </param>
-internal sealed class BindingConfigurationBuilder(TransportRegistry transportRegistry, TransportBindingRegistry bindingRegistry)
+internal sealed class BindingConfigurationBuilder(ITransportRegistry transportRegistry, TransportBindingRegistry bindingRegistry)
 	: ITransportBindingBuilder
 {
-	private readonly TransportRegistry _transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
+	private readonly ITransportRegistry _transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
 
 	private readonly TransportBindingRegistry
 		_bindingRegistry = bindingRegistry ?? throw new ArgumentNullException(nameof(bindingRegistry));

@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.AuditLogging.Datadog;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,39 @@ public static class DatadogServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		RegisterDatadogAuditExporterCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Datadog audit log exporter services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="DatadogExporterOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
+	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	public static IServiceCollection AddDatadogAuditExporter(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<DatadogExporterOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterDatadogAuditExporterCore(services);
+
+		return services;
+	}
+
+	private static void RegisterDatadogAuditExporterCore(IServiceCollection services)
+	{
 		_ = services.AddHttpClient<DatadogAuditExporter>((sp, client) =>
 		{
 			var options = sp.GetRequiredService<IOptions<DatadogExporterOptions>>().Value;
@@ -44,7 +78,5 @@ public static class DatadogServiceCollectionExtensions
 		});
 
 		_ = services.AddSingleton<IAuditLogExporter, DatadogAuditExporter>();
-
-		return services;
 	}
 }

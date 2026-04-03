@@ -205,7 +205,7 @@ Because all packages share the same `Excalibur.*` namespace, you never rewrite e
 
 | Package | Description |
 |---------|-------------|
-| `Excalibur.Dispatch.Serialization.MemoryPack` | High-performance binary serialization (default) |
+| `Excalibur.Dispatch.Serialization.MemoryPack` | High-performance binary serialization (opt-in) |
 | `Excalibur.Dispatch.Serialization.MessagePack` | MessagePack serialization |
 | `Excalibur.Dispatch.Serialization.Protobuf` | Protocol Buffers serialization |
 

@@ -13,6 +13,7 @@ using Excalibur.Dispatch.Transport.Azure;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -72,6 +73,42 @@ public static class EventGridTransportServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		RegisterEventGridCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the Azure Event Grid transport sender using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="EventGridTransportOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddEventGridTransport(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<EventGridTransportOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterEventGridCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers the core Event Grid services shared by all overloads.
+	/// </summary>
+	private static void RegisterEventGridCore(IServiceCollection services)
+	{
 		services.TryAddSingleton(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<EventGridTransportOptions>>().Value;
@@ -101,7 +138,5 @@ public static class EventGridTransportServiceCollectionExtensions
 				.UseTelemetry("eventgrid", meter, activitySource)
 				.Build();
 		});
-
-		return services;
 	}
 }

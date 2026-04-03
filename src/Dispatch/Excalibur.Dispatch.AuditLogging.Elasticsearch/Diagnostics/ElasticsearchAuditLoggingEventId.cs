@@ -30,4 +30,22 @@ public static class ElasticsearchAuditLoggingEventId
 
 	/// <summary>Elasticsearch forward failed (batch chunk).</summary>
 	public const int ForwardFailedBatchChunk = 93470;
+
+	// Sink event IDs (93471-93479)
+
+	/// <summary>Elasticsearch sink event written.</summary>
+	public const int SinkEventWritten = 93471;
+
+	/// <summary>Elasticsearch sink write failed (status response).</summary>
+	public const int SinkWriteFailed = 93472;
+
+	/// <summary>Elasticsearch sink write failed (HTTP error).</summary>
+	public const int SinkHttpError = 93473;
+
+	/// <summary>Elasticsearch sink write failed (timeout).</summary>
+	public const int SinkTimeout = 93474;
+
+	/// <summary>Elasticsearch sink write retried.</summary>
+	public const int SinkRetried = 93475;
+
 }

@@ -6,6 +6,7 @@ using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Sqlite;
 using Excalibur.EventSourcing.Sqlite.DependencyInjection;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
@@ -46,6 +47,35 @@ public static class SqliteEventSourcingServiceCollectionExtensions
 		var options = new SqliteEventSourcingOptions();
 		configure(options);
 
+		return builder.UseSqliteCore(options);
+	}
+
+	/// <summary>
+	/// Configures SQLite as the event sourcing provider using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SqliteEventSourcingOptions"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown when <see cref="SqliteEventSourcingOptions.ConnectionString"/> is not configured.
+	/// </exception>
+	public static IEventSourcingBuilder UseSqlite(
+		this IEventSourcingBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var options = new SqliteEventSourcingOptions();
+		configuration.Bind(options);
+
+		return builder.UseSqliteCore(options);
+	}
+
+	private static IEventSourcingBuilder UseSqliteCore(
+		this IEventSourcingBuilder builder,
+		SqliteEventSourcingOptions options)
+	{
 		if (string.IsNullOrWhiteSpace(options.ConnectionString))
 		{
 			throw new InvalidOperationException(

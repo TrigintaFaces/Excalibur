@@ -2,6 +2,7 @@
 Microsoft.Extensions.DependencyInjection.A3CoreServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.A3CoreServiceCollectionExtensions.AddExcaliburA3Core(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
 Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions.AddRoles(this Excalibur.A3.IA3Builder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.RoleServiceCollectionExtensions.AddRoles(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.A3.Abstractions.Authorization.RoleOptions!>? configure = null) -> Excalibur.A3.IA3Builder!
 Excalibur.A3.Authorization.Events.GrantAdded
 Excalibur.A3.Authorization.Events.GrantAdded.ApplicationName.get -> string!

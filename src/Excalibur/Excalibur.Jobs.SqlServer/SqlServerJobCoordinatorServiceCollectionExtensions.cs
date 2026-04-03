@@ -4,6 +4,8 @@
 using Excalibur.Jobs.Abstractions.Coordination;
 using Excalibur.Jobs.SqlServer;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -29,6 +31,36 @@ public static class SqlServerJobCoordinatorServiceCollectionExtensions
 
 		_ = services.AddOptions<SqlServerJobCoordinatorOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = services.AddSingleton<SqlServerJobCoordinator>();
+		_ = services.AddSingleton<IJobLockProvider>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
+		_ = services.AddSingleton<IJobRegistry>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
+		_ = services.AddSingleton<IJobDistributor>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds distributed job coordination services using SQL Server as the coordination backend,
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection to configure.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The configured <see cref="IServiceCollection"/>.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddSqlServerJobCoordinator(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqlServerJobCoordinatorOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

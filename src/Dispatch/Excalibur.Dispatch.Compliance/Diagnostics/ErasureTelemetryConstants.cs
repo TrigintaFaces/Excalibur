@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Compliance.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for GDPR erasure instrumentation.
 /// </summary>
-public static class ErasureTelemetryConstants
+internal static class ErasureTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for erasure metrics.

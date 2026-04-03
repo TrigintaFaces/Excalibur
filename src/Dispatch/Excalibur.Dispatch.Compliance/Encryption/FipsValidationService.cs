@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// unit tests to mock the FIPS status without requiring actual OS configuration changes.
 /// </para>
 /// </remarks>
-public sealed class FipsValidationService
+internal sealed class FipsValidationService
 {
 	private readonly IFipsDetector _fipsDetector;
 

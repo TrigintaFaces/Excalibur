@@ -189,16 +189,6 @@ Excalibur.Cdc.InMemory.InMemoryCdcProcessor.Dispose() -> void
 Excalibur.Cdc.InMemory.InMemoryCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Cdc.InMemory.InMemoryCdcProcessor.InMemoryCdcProcessor(Excalibur.Cdc.InMemory.IInMemoryCdcStore! store, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.InMemory.InMemoryCdcOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.InMemory.InMemoryCdcProcessor!>! logger) -> void
 Excalibur.Cdc.InMemory.InMemoryCdcProcessor.ProcessChangesAsync(System.Func<Excalibur.Cdc.InMemory.InMemoryCdcChange!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! changeHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Cdc.InMemory.InMemoryCdcStore
-Excalibur.Cdc.InMemory.InMemoryCdcStore.AddChange(Excalibur.Cdc.InMemory.InMemoryCdcChange! change) -> void
-Excalibur.Cdc.InMemory.InMemoryCdcStore.AddChanges(System.Collections.Generic.IEnumerable<Excalibur.Cdc.InMemory.InMemoryCdcChange!>! changes) -> void
-Excalibur.Cdc.InMemory.InMemoryCdcStore.Clear() -> void
-Excalibur.Cdc.InMemory.InMemoryCdcStore.GetHistory() -> System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.InMemory.InMemoryCdcChange!>!
-Excalibur.Cdc.InMemory.InMemoryCdcStore.GetPendingChanges(int maxCount) -> System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.InMemory.InMemoryCdcChange!>!
-Excalibur.Cdc.InMemory.InMemoryCdcStore.GetPendingCount() -> int
-Excalibur.Cdc.InMemory.InMemoryCdcStore.InMemoryCdcStore() -> void
-Excalibur.Cdc.InMemory.InMemoryCdcStore.InMemoryCdcStore(Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.InMemory.InMemoryCdcOptions!>! options) -> void
-Excalibur.Cdc.InMemory.InMemoryCdcStore.MarkAsProcessed(System.Collections.Generic.IEnumerable<Excalibur.Cdc.InMemory.InMemoryCdcChange!>! changes) -> void
 Excalibur.Cdc.Processing.CdcProcessingOptions
 Excalibur.Cdc.Processing.CdcProcessingOptions.CdcProcessingOptions() -> void
 Excalibur.Cdc.Processing.CdcProcessingOptions.DrainTimeout.get -> System.TimeSpan
@@ -273,3 +263,4 @@ static Microsoft.Extensions.DependencyInjection.CdcHealthChecksBuilderExtensions
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.ICdcBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.HasCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
+static Microsoft.Extensions.DependencyInjection.CdcHealthChecksBuilderExtensions.AddCdcHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! name = "cdc", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

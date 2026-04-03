@@ -14,16 +14,16 @@ namespace Excalibur.Jobs.Quartz;
 /// A hosted service wrapper that creates the actual job watcher service asynchronously to avoid blocking async calls during DI registration.
 /// </summary>
 /// <typeparam name="TJob"> The type of the job to be managed. </typeparam>
-/// <typeparam name="TConfig"> The type of the job configuration. </typeparam>
-internal sealed class AsyncFactoryHostedService<TJob, TConfig> : IHostedService
-	where TJob : IConfigurableJob<TConfig>
-	where TConfig : class, IJobConfig
+/// <typeparam name="TOptions"> The type of the job configuration. </typeparam>
+internal sealed class AsyncFactoryHostedService<TJob, TOptions> : IHostedService
+	where TJob : IConfigurableJob<TOptions>
+	where TOptions : class, IJobOptions
 {
 	private readonly IServiceProvider _serviceProvider;
-	private IJobConfigHostedWatcherService? _innerService;
+	private IJobOptionsHostedWatcherService? _innerService;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="AsyncFactoryHostedService{TJob, TConfig}" /> class.
+	/// Initializes a new instance of the <see cref="AsyncFactoryHostedService{TJob, TOptions}" /> class.
 	/// </summary>
 	/// <param name="serviceProvider"> The service provider for resolving dependencies. </param>
 	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="serviceProvider" /> is null. </exception>
@@ -37,8 +37,8 @@ internal sealed class AsyncFactoryHostedService<TJob, TConfig> : IHostedService
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
 		// Create the actual service asynchronously during startup
-		var factory = _serviceProvider.GetRequiredService<IJobConfigHostedWatcherServiceFactory>();
-		_innerService = await factory.CreateAsync<TJob, TConfig>().ConfigureAwait(false);
+		var factory = _serviceProvider.GetRequiredService<IJobOptionsHostedWatcherServiceFactory>();
+		_innerService = await factory.CreateAsync<TJob, TOptions>().ConfigureAwait(false);
 
 		// Start the inner service
 		await _innerService.StartAsync(cancellationToken).ConfigureAwait(false);

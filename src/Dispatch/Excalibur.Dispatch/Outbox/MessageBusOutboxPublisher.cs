@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Globalization;
 
@@ -32,7 +32,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	private readonly IMultiTransportOutboxStoreAdmin? _multiTransportStoreAdmin;
 	private readonly IPayloadSerializer _serializer;
 	private readonly IMessageBusAdapter? _messageBus;
-	private readonly TransportRegistry? _transportRegistry;
+	private readonly ITransportRegistry? _transportRegistry;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<MessageBusOutboxPublisher> _logger;
 
@@ -78,7 +78,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	public MessageBusOutboxPublisher(
 		IOutboxStore outboxStore,
 		IPayloadSerializer serializer,
-		TransportRegistry transportRegistry,
+		ITransportRegistry transportRegistry,
 		IServiceProvider serviceProvider,
 		ILogger<MessageBusOutboxPublisher> logger)
 	{

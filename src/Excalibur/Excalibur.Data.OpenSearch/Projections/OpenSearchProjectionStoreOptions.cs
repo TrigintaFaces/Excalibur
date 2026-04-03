@@ -57,7 +57,7 @@ public sealed class OpenSearchProjectionStoreOptions
 	/// <summary>
 	/// Gets or sets the cluster node URIs for multi-node configuration.
 	/// </summary>
-	public IReadOnlyList<Uri>? NodeUris { get; set; }
+	public List<Uri>? NodeUris { get; set; }
 
 	/// <summary>
 	/// Gets or sets whether to enable debug mode (buffered request/response bodies).

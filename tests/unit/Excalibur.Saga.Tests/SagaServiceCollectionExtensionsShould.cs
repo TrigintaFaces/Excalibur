@@ -142,4 +142,47 @@ public sealed class SagaServiceCollectionExtensionsShould : UnitTestBase
 		// Assert
 		result.ShouldBeSameAs(services);
 	}
+
+	[Fact]
+	public void AddExcaliburSaga_RegistersISagaTypeRegistry()
+	{
+		var services = new ServiceCollection();
+
+		_ = services.AddExcaliburSaga();
+		var provider = services.BuildServiceProvider();
+
+		var registry = provider.GetService<ISagaTypeRegistry>();
+		registry.ShouldNotBeNull();
+		registry.ShouldBeOfType<SagaTypeRegistry>();
+	}
+
+	[Fact]
+	public void AddExcaliburSaga_RegistersISagaDispatchRegistry()
+	{
+		var services = new ServiceCollection();
+
+		_ = services.AddExcaliburSaga();
+		var provider = services.BuildServiceProvider();
+
+		var registry = provider.GetService<ISagaDispatchRegistry>();
+		registry.ShouldNotBeNull();
+		registry.ShouldBeOfType<SagaDispatchRegistry>();
+	}
+
+	[Fact]
+	public void AddExcaliburSaga_RegistersRegistriesAsSingletons()
+	{
+		var services = new ServiceCollection();
+
+		_ = services.AddExcaliburSaga();
+		var provider = services.BuildServiceProvider();
+
+		var typeReg1 = provider.GetService<ISagaTypeRegistry>();
+		var typeReg2 = provider.GetService<ISagaTypeRegistry>();
+		typeReg1.ShouldBeSameAs(typeReg2);
+
+		var dispatchReg1 = provider.GetService<ISagaDispatchRegistry>();
+		var dispatchReg2 = provider.GetService<ISagaDispatchRegistry>();
+		dispatchReg1.ShouldBeSameAs(dispatchReg2);
+	}
 }

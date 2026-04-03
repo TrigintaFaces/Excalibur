@@ -4,6 +4,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.LeaderElection.Kubernetes</RootNamespace>
     <!-- Not AOT compatible due to KubernetesClient reflection usage -->
+    <!-- AOT: NOT compatible. KubernetesClient uses reflection for API object deserialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>

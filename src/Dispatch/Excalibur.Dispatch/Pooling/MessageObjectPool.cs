@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Pooling;
 /// A high-performance, thread-safe object pool implementation.
 /// </summary>
 /// <typeparam name="T"> The type of objects to pool. </typeparam>
-public sealed class MessageObjectPool<T> : ObjectPool<T>
+internal sealed class MessageObjectPool<T> : ObjectPool<T>
 	where T : class
 {
 	private readonly ConcurrentBag<T> _pool = [];
@@ -169,7 +169,7 @@ public sealed class MessageObjectPool<T> : ObjectPool<T>
 /// <param name="ReturnCount">Total number of return operations.</param>
 /// <param name="CreateCount">Total number of objects created on demand (cache misses).</param>
 /// <param name="DiscardCount">Total number of objects discarded instead of returned.</param>
-public readonly record struct PoolMetrics(
+internal readonly record struct PoolMetrics(
 	int AvailableCount,
 	int TotalCreated,
 	long RentCount,

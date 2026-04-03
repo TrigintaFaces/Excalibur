@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Transport.Grpc.Diagnostics;
 
 using Grpc.Net.Client;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -36,6 +37,20 @@ public static class GrpcTransportServiceCollectionExtensions
 		=> AddGrpcTransport(services, "default", configure);
 
 	/// <summary>
+	/// Adds the gRPC transport using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="GrpcTransportOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddGrpcTransport(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		=> AddGrpcTransport(services, "default", configuration);
+
+	/// <summary>
 	/// Adds the gRPC transport with the specified name and configuration.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -59,6 +74,45 @@ public static class GrpcTransportServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		RegisterGrpcCore(services, name);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the gRPC transport with the specified name using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="name">The transport name used as the keyed service key.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="GrpcTransportOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddGrpcTransport(
+		this IServiceCollection services,
+		string name,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<GrpcTransportOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterGrpcCore(services, name);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers the core gRPC transport services shared by all overloads.
+	/// </summary>
+	private static void RegisterGrpcCore(IServiceCollection services, string name)
+	{
 		services.TryAddSingleton(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<GrpcTransportOptions>>().Value;
@@ -121,7 +175,5 @@ public static class GrpcTransportServiceCollectionExtensions
 			ServiceDescriptor.Singleton<ITransportAdapter, GrpcTransportAdapter>());
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<ITransportHealthChecker, GrpcTransportAdapter>());
-
-		return services;
 	}
 }

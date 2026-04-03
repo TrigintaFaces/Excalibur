@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,39 @@ public static class GcsClaimCheckServiceCollectionExtensions
 		if (configureClaimCheck is not null)
 		{
 			claimCheckBuilder.Configure(configureClaimCheck);
+		}
+
+		claimCheckBuilder.ValidateDataAnnotations().ValidateOnStart();
+
+		services.TryAddSingleton<IClaimCheckProvider, GcsClaimCheckStore>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the Google Cloud Storage Claim Check provider using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="GcsClaimCheckOptions"/>.</param>
+	/// <param name="claimCheckConfiguration">Optional configuration section for core <see cref="ClaimCheckOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddGcsClaimCheck(
+		this IServiceCollection services,
+		IConfiguration configuration,
+		IConfiguration? claimCheckConfiguration = null)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<GcsClaimCheckOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		var claimCheckBuilder = services.AddOptions<ClaimCheckOptions>();
+		if (claimCheckConfiguration is not null)
+		{
+			claimCheckBuilder.Bind(claimCheckConfiguration);
 		}
 
 		claimCheckBuilder.ValidateDataAnnotations().ValidateOnStart();

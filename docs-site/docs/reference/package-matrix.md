@@ -98,7 +98,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.Serialization.MemoryPack` | MemoryPack binary serialization (default) |
+| `Excalibur.Dispatch.Serialization.MemoryPack` | MemoryPack binary serialization (opt-in) |
 | `Excalibur.Dispatch.Serialization.MessagePack` | MessagePack binary serialization |
 | `Excalibur.Dispatch.Serialization.Protobuf` | Protocol Buffers serialization |
 | `Excalibur.Dispatch.Serialization.Avro` | Apache Avro serialization |

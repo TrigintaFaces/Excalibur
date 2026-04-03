@@ -166,7 +166,6 @@ Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.DefaultCacheKeyBuilder(Excalib
 Excalibur.Dispatch.Caching.DefaultResultCachePolicy
 Excalibur.Dispatch.Caching.DefaultResultCachePolicy.DefaultResultCachePolicy(System.Func<Excalibur.Dispatch.Abstractions.IDispatchMessage!, object?, bool>! policy) -> void
 Excalibur.Dispatch.Caching.DefaultResultCachePolicy.ShouldCache(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, object? result) -> bool
-Excalibur.Dispatch.Caching.Diagnostics.DispatchCachingTelemetryConstants
 Excalibur.Dispatch.Caching.DistributedCacheConfiguration
 Excalibur.Dispatch.Caching.DistributedCacheConfiguration.DistributedCacheConfiguration() -> void
 Excalibur.Dispatch.Caching.DistributedCacheConfiguration.KeyPrefix.get -> string!
@@ -177,10 +176,6 @@ Excalibur.Dispatch.Caching.DistributedCacheConfiguration.RetryDelay.get -> Syste
 Excalibur.Dispatch.Caching.DistributedCacheConfiguration.RetryDelay.set -> void
 Excalibur.Dispatch.Caching.DistributedCacheConfiguration.UseBinarySerialization.get -> bool
 Excalibur.Dispatch.Caching.DistributedCacheConfiguration.UseBinarySerialization.set -> void
-Excalibur.Dispatch.Caching.HybridCacheInvalidationService
-Excalibur.Dispatch.Caching.HybridCacheInvalidationService.HybridCacheInvalidationService(Microsoft.Extensions.Caching.Hybrid.HybridCache! cache) -> void
-Excalibur.Dispatch.Caching.HybridCacheInvalidationService.InvalidateKeysAsync(System.Collections.Generic.IEnumerable<string!>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Caching.HybridCacheInvalidationService.InvalidateTagsAsync(System.Collections.Generic.IEnumerable<string!>! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Caching.ICacheHealthMonitor
 Excalibur.Dispatch.Caching.ICacheHealthMonitor.GetHealthStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Caching.CacheHealthStatus!>!
 Excalibur.Dispatch.Caching.ICacheHealthMonitor.GetPerformanceSnapshot() -> Excalibur.Dispatch.Caching.CachePerformanceSnapshot!
@@ -245,9 +240,6 @@ Excalibur.Dispatch.Caching.MemoryCacheConfiguration.MemoryCacheConfiguration() -
 Excalibur.Dispatch.Caching.MemoryCacheConfiguration.SizeLimit.get -> long?
 Excalibur.Dispatch.Caching.MemoryCacheConfiguration.SizeLimit.set -> void
 Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions
-const Excalibur.Dispatch.Caching.Diagnostics.DispatchCachingTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Caching" -> string!
-const Excalibur.Dispatch.Caching.Diagnostics.DispatchCachingTelemetryConstants.MeterName = "Excalibur.Dispatch.Caching" -> string!
-const Excalibur.Dispatch.Caching.Diagnostics.DispatchCachingTelemetryConstants.Version = "1.0.0" -> string!
 override Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ToString() -> string!
 override Excalibur.Dispatch.Caching.CachedValueJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Excalibur.Dispatch.Caching.CachedValue?
 override Excalibur.Dispatch.Caching.CachedValueJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Excalibur.Dispatch.Caching.CachedValue! value, System.Text.Json.JsonSerializerOptions! options) -> void
@@ -265,3 +257,8 @@ static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensio
 Excalibur.Dispatch.Caching.CacheOptions.TagTrackerCapacity.get -> int
 Excalibur.Dispatch.Caching.CacheOptions.TagTrackerCapacity.set -> void
 Excalibur.Dispatch.Caching.InMemoryCacheTagTracker.InMemoryCacheTagTracker(System.Diagnostics.Metrics.IMeterFactory! meterFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Caching.CacheOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Caching.InMemoryCacheTagTracker!>? logger = null) -> void
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchDistributedCaching<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! cachingConfiguration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchHybridCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration? hybridConfiguration, Microsoft.Extensions.Configuration.IConfiguration? redisConfiguration, Microsoft.Extensions.Configuration.IConfiguration? cachingConfiguration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchMemoryCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration? memoryCacheConfiguration, Microsoft.Extensions.Configuration.IConfiguration? cachingConfiguration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchRedisCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! redisConfiguration, Microsoft.Extensions.Configuration.IConfiguration? cachingConfiguration = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

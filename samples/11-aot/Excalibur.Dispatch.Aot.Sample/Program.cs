@@ -14,11 +14,14 @@
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Aot.Sample.Handlers;
 using Excalibur.Dispatch.Aot.Sample.Messages;
 using Excalibur.Dispatch.Aot.Sample.Serialization;
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -46,6 +49,9 @@ services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
 // Configure Dispatch with source-generator-discovered handlers
 services.AddDispatch(dispatch => dispatch.AddHandlersFromAssembly(typeof(Program).Assembly));
 
+// Register InMemory transport (zero native dependencies, AOT-safe)
+services.AddInMemoryTransport("demo");
+
 // Configure source-generated JSON serializer options
 services.AddSingleton(AppJsonSerializerContext.Default.Options);
 
@@ -55,7 +61,8 @@ var provider = services.BuildServiceProvider();
 _ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 
 // Get services
-var directLocal = provider.GetRequiredService<IDirectLocalDispatcher>();
+var dispatcher = provider.GetRequiredService<IDispatcher>();
+var contextFactory = provider.GetService<IMessageContextFactory>();
 
 // ============================================================================
 // Demo 1: Command with Response
@@ -78,9 +85,11 @@ var json = JsonSerializer.Serialize(createOrder, AppJsonSerializerContext.Defaul
 Console.WriteLine($"  {json}");
 Console.WriteLine();
 
-// Dispatch the command
-var orderId = await directLocal.DispatchLocalAsync<CreateOrderCommand, Guid>(createOrder, cancellationToken: default)
+// Dispatch the command via the pipeline (AOT-safe via source-generated interceptors)
+var context = contextFactory?.CreateContext() ?? new MessageContext();
+var result = await dispatcher.DispatchAsync<CreateOrderCommand, Guid>(createOrder, context, cancellationToken: default)
 	.ConfigureAwait(false);
+var orderId = result.ReturnValue;
 Console.WriteLine($"Order created: {orderId}");
 Console.WriteLine();
 
@@ -109,8 +118,10 @@ GetOrderHandler.AddOrder(new OrderDto
 });
 
 var query = new GetOrderQuery { OrderId = orderId };
-var order = await directLocal.DispatchLocalAsync<GetOrderQuery, OrderDto>(query, cancellationToken: default)
+var queryContext = contextFactory?.CreateContext() ?? new MessageContext();
+var queryResult = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(query, queryContext, cancellationToken: default)
 	.ConfigureAwait(false);
+var order = queryResult.ReturnValue;
 Console.WriteLine("Order retrieved (source-generated serialization):");
 var orderJson = JsonSerializer.Serialize(order, AppJsonSerializerContext.Default.OrderDto);
 Console.WriteLine($"  {orderJson}");
@@ -125,7 +136,8 @@ Console.WriteLine("--- Demo 4: Query Non-Existent Order ---");
 var missingQuery = new GetOrderQuery { OrderId = Guid.NewGuid() };
 try
 {
-	_ = await directLocal.DispatchLocalAsync<GetOrderQuery, OrderDto>(missingQuery, cancellationToken: default)
+	var missingContext = contextFactory?.CreateContext() ?? new MessageContext();
+	_ = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(missingQuery, missingContext, cancellationToken: default)
 		.ConfigureAwait(false);
 	Console.WriteLine("Unexpected: found order");
 }
@@ -133,6 +145,40 @@ catch (InvalidOperationException ex)
 {
 	Console.WriteLine($"Order not found (as expected): {ex.Message}");
 }
+Console.WriteLine();
+
+// ============================================================================
+// Demo 5: Serialization Round-Trip (AOT Source-Gen Verification)
+// ============================================================================
+Console.WriteLine("--- Demo 5: Serialization Round-Trip ---");
+
+var originalCommand = new CreateOrderCommand
+{
+	CustomerId = "CUST-RT",
+	Items = [new OrderItem("ROUND-TRIP", 1, 9.99m)]
+};
+
+var serialized = JsonSerializer.Serialize(originalCommand, AppJsonSerializerContext.Default.CreateOrderCommand);
+Console.WriteLine($"Serialized:   {serialized}");
+
+var deserialized = JsonSerializer.Deserialize(serialized, AppJsonSerializerContext.Default.CreateOrderCommand);
+Console.WriteLine($"Deserialized: CustomerId={deserialized?.CustomerId}, Items={deserialized?.Items.Count}");
+
+var match = deserialized is not null
+	&& deserialized.CustomerId == originalCommand.CustomerId
+	&& deserialized.Items.Count == originalCommand.Items.Count
+	&& deserialized.Items[0].Sku == originalCommand.Items[0].Sku;
+Console.WriteLine($"Round-trip match: {match}");
+Console.WriteLine();
+
+// ============================================================================
+// Demo 6: Transport Registration Verification
+// ============================================================================
+Console.WriteLine("--- Demo 6: InMemory Transport Registration ---");
+
+var transport = provider.GetRequiredKeyedService<InMemoryTransportAdapter>("demo");
+Console.WriteLine($"Transport registered: Name={transport.Name}, Type={transport.TransportType}");
+Console.WriteLine($"Transport running: {transport.IsRunning}");
 Console.WriteLine();
 
 // ============================================================================

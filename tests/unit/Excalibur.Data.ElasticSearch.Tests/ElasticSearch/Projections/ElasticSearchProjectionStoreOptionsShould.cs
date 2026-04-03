@@ -145,12 +145,12 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	{
 		var sut = new ElasticSearchProjectionStoreOptions
 		{
-			NodeUris = new[]
-			{
+			NodeUris =
+			[
 				new Uri("http://node1:9200"),
 				new Uri("http://node2:9200"),
 				new Uri("http://node3:9200"),
-			}
+			]
 		};
 		Should.NotThrow(() => sut.Validate());
 	}
@@ -160,7 +160,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	{
 		var sut = new ElasticSearchProjectionStoreOptions
 		{
-			NodeUris = (IReadOnlyList<Uri>)new Uri[] { new Uri("http://node1:9200"), null! }
+			NodeUris = [new Uri("http://node1:9200"), null!]
 		};
 		Should.Throw<InvalidOperationException>(() => sut.Validate())
 			.Message.ShouldContain("NodeUris");
@@ -173,7 +173,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 		var sut = new ElasticSearchProjectionStoreOptions
 		{
 			NodeUri = "not-a-uri",
-			NodeUris = new[] { new Uri("http://node1:9200") }
+			NodeUris = [new Uri("http://node1:9200")]
 		};
 		Should.NotThrow(() => sut.Validate());
 	}
@@ -184,7 +184,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 		var sut = new ElasticSearchProjectionStoreOptions
 		{
 			NodeUri = "not-a-uri",
-			NodeUris = Array.Empty<Uri>()
+			NodeUris = []
 		};
 		Should.Throw<InvalidOperationException>(() => sut.Validate())
 			.Message.ShouldContain("not a valid URI");

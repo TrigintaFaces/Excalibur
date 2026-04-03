@@ -27,7 +27,11 @@ public static class SqlServerLegalHoldStoreServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
+		_ = services.AddOptions<SqlServerLegalHoldStoreOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
 		services.TryAddSingleton<SqlServerLegalHoldStore>();
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());

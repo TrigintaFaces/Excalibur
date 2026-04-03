@@ -79,6 +79,4 @@ Excalibur.Data.Redis.RedisProviderOptions.UseSsl.get -> bool
 Excalibur.Data.Redis.RedisProviderOptions.UseSsl.set -> void
 Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddRedisProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Redis.RedisProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-const Excalibur.Data.Redis.Diagnostics.RedisPersistenceTelemetryConstants.MeterName = "Excalibur.Data.Redis.Persistence" -> string!
-const Excalibur.Data.Redis.Diagnostics.RedisPersistenceTelemetryConstants.Version = "1.0.0" -> string!
-Excalibur.Data.Redis.Diagnostics.RedisPersistenceTelemetryConstants
+static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddRedisProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

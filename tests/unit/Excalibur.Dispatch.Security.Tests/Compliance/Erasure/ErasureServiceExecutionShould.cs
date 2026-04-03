@@ -19,7 +19,6 @@ public sealed class ErasureServiceExecutionShould
 	private readonly IKeyManagementProvider _keyProvider;
 	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly ErasureOptions _erasureOptions;
-	private readonly IOptions<ErasureSigningOptions> _signingOptions;
 	private readonly ErasureService _sut;
 
 	public ErasureServiceExecutionShould()
@@ -38,11 +37,11 @@ public sealed class ErasureServiceExecutionShould
 			MaximumGracePeriod = TimeSpan.FromDays(30),
 			EnableAutoDiscovery = true,
 			Retention = new ErasureRetentionOptions
-		{
-			CertificateRetentionPeriod = TimeSpan.FromDays(365),
-		}
+			{
+				CertificateRetentionPeriod = TimeSpan.FromDays(365),
+				SigningKey = new byte[32],
+			},
 		};
-		_signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions { SigningKey = new byte[32] });
 
 		// Wire up GetService to return sub-stores
 		_ = A.CallTo(() => _store.GetService(typeof(IErasureCertificateStore)))
@@ -55,7 +54,6 @@ public sealed class ErasureServiceExecutionShould
 			_keyProvider,
 			_keyAdmin,
 			Microsoft.Extensions.Options.Options.Create(_erasureOptions),
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService,
 			_dataInventoryService);
@@ -522,7 +520,6 @@ public sealed class ErasureServiceExecutionShould
 			_keyProvider,
 			_keyAdmin,
 			Microsoft.Extensions.Options.Options.Create(_erasureOptions),
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null);

@@ -36,6 +36,7 @@
     <PackageReference Include="Google.Cloud.Storage.V1" />
     <PackageReference Include="Google.Cloud.Firestore" />
     <PackageReference Include="Google.Events.Protobuf" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />

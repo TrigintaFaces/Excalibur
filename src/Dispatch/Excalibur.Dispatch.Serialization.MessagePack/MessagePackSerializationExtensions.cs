@@ -57,16 +57,13 @@ public static class MessagePackSerializationExtensions
 	/// <b>Usage:</b>
 	/// </para>
 	/// <code>
-	/// // Register via the builder pattern (preferred)
-	/// services.AddDispatch()
-	///     .ConfigurePluggableSerialization(config =>
+	/// // Register MessagePack via the builder pattern (opt-in, replaces JSON default)
+	/// services.AddDispatch(dispatch =>
+	///     dispatch.WithSerialization(config =>
 	///     {
-	///         config.RegisterMessagePack();  // Auto-registers from this package
-	///     });
-	///
-	/// // Or register manually via ISerializerRegistry
-	/// var registry = services.GetRequiredService&lt;ISerializerRegistry&gt;();
-	/// registry.Register(SerializerIds.MessagePack, MessagePackSerializationExtensions.GetPluggableSerializer());
+	///         config.RegisterMessagePack();
+	///         config.UseMessagePack();
+	///     }));
 	/// </code>
 	/// <para>
 	/// See the pluggable serialization architecture documentation.
@@ -151,7 +148,7 @@ public static class MessagePackSerializationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="setAsCurrent">
 	/// Whether to set MessagePack as the current serializer for new payloads.
-	/// Default is <c>false</c> (MemoryPack remains default).
+	/// Default is <c>false</c> (JSON remains default per ADR-295).
 	/// </param>
 	/// <returns>The service collection for method chaining.</returns>
 	/// <remarks>
@@ -199,7 +196,7 @@ public static class MessagePackSerializationExtensions
 	/// <param name="options">Custom MessagePack serializer options.</param>
 	/// <param name="setAsCurrent">
 	/// Whether to set MessagePack as the current serializer for new payloads.
-	/// Default is <c>false</c> (MemoryPack remains default).
+	/// Default is <c>false</c> (JSON remains default per ADR-295).
 	/// </param>
 	/// <returns>The service collection for method chaining.</returns>
 	public static IServiceCollection AddMessagePackPluggableSerialization(

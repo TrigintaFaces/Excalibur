@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Data.DynamoDb</PackageId>
     <Description>AWS DynamoDB data provider implementation for Excalibur cloud-native data access.</Description>
     <PackageTags>excalibur;data;dynamodb;aws;cloud-native;document-database</PackageTags>
+    <!-- AOT: NOT compatible. AWSSDK.DynamoDBv2 uses reflection for document model serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

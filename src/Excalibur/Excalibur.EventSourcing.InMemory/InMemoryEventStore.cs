@@ -30,7 +30,7 @@ namespace Excalibur.EventSourcing.InMemory;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
+internal sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 {
 	private readonly ConcurrentDictionary<(string AggregateId, string AggregateType), List<StoredEvent>> _events = new();
 	private readonly ConcurrentDictionary<string, StoredEvent> _eventsById = new();

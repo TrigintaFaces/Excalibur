@@ -6,6 +6,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.A3.Authorization.Roles;
 using Excalibur.A3.Authorization.Stores.InMemory;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -53,6 +54,32 @@ public static class RoleServiceCollectionExtensions
 		optionsBuilder.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		return builder.AddRolesCore();
+	}
+
+	/// <summary>
+	/// Adds role management services to the A3 builder using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The A3 builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RoleOptions"/>.</param>
+	/// <returns>The <see cref="IA3Builder"/> for fluent chaining.</returns>
+	public static IA3Builder AddRoles(
+		this IA3Builder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<RoleOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.AddRolesCore();
+	}
+
+	private static IA3Builder AddRolesCore(this IA3Builder builder)
+	{
 		// Fallback in-memory store (overridable)
 		builder.Services.TryAddSingleton<IRoleStore, InMemoryRoleStore>();
 

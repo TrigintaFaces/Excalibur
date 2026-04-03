@@ -1,10 +1,11 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Dispatch.Validation.FluentValidation</PackageId>
     <Description>FluentValidation integration for the Excalibur framework. Provides IValidatorResolver implementation using FluentValidation validators.</Description>
     <PackageTags>dispatch;validation;fluentvalidation;cqrs;messaging</PackageTags>
+    <!-- AOT: NOT compatible. FluentValidatorResolver uses MakeGenericType for IValidator<T> resolution; AotFluentValidatorResolver requires source generator. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

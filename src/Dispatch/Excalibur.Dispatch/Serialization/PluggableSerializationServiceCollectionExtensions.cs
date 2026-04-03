@@ -32,7 +32,8 @@ public static class PluggableSerializationServiceCollectionExtensions
 	///   <item><see cref="IPayloadSerializer"/> - Singleton facade for internal serialization</item>
 	/// </list>
 	/// <para>
-	/// By default, MemoryPack is auto-registered and set as the current serializer.
+	/// By default, JSON (System.Text.Json) is the current serializer (ADR-295).
+	/// MemoryPack and other binary formats are opt-in via provider packages.
 	/// Use <see cref="WithSerialization"/> to customize this behavior.
 	/// </para>
 	/// </remarks>
@@ -51,28 +52,16 @@ public static class PluggableSerializationServiceCollectionExtensions
 			var options = sp.GetRequiredService<IOptions<PluggableSerializationOptions>>().Value;
 			var registry = new SerializerRegistry();
 
-			// Auto-register MemoryPack if enabled (default: true)
-			if (options.AutoRegisterMemoryPack && !registry.IsRegistered(SerializerIds.MemoryPack))
-			{
-				registry.Register(
-					SerializerIds.MemoryPack,
-					MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
-			}
-
-			// Execute all registration actions
+			// Execute all registration actions (serializer packages add their own registrations)
 			foreach (var action in options.RegistrationActions)
 			{
 				action(registry);
 			}
 
-			// Set current serializer if specified, otherwise default to MemoryPack if auto-registered
+			// Set current serializer if specified
 			if (!string.IsNullOrEmpty(options.CurrentSerializerName))
 			{
 				registry.SetCurrent(options.CurrentSerializerName);
-			}
-			else if (options.AutoRegisterMemoryPack)
-			{
-				registry.SetCurrent("MemoryPack");
 			}
 
 			return registry;
@@ -190,22 +179,22 @@ public static class PluggableSerializationServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for method chaining.</returns>
 	/// <remarks>
-	/// Registers <see cref="SpanEventSerializer"/> as <see cref="IEventSerializer"/>.
-	/// Requires <see cref="AddPluggableSerialization"/> to be called first.
+	/// <para>
+	/// Registers <see cref="JsonEventSerializer"/> as <see cref="IEventSerializer"/> by default.
+	/// JSON provides zero-ceremony serialization that works with any event type.
+	/// </para>
+	/// <para>
+	/// For binary serialization (MemoryPack, etc.), use the opt-in provider packages:
+	/// <c>builder.UseMemoryPackEventSerializer()</c>.
+	/// </para>
 	/// </remarks>
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
 	public static IServiceCollection AddEventSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Ensure pluggable serialization is registered (provides ISerializerRegistry)
-		_ = services.AddPluggableSerialization();
-
-		// Register SpanEventSerializer as IEventSerializer
-		services.TryAddSingleton<IEventSerializer>(sp =>
-		{
-			var registry = sp.GetRequiredService<ISerializerRegistry>();
-			return new SpanEventSerializer(registry);
-		});
+		// Register JsonEventSerializer as IEventSerializer (ADR-295: JSON default, binary opt-in)
+		services.TryAddSingleton<IEventSerializer>(new JsonEventSerializer());
 
 		return services;
 	}

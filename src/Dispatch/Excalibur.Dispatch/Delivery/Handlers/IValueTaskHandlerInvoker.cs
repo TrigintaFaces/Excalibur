@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.Dispatch.Delivery.Handlers;
@@ -14,5 +16,6 @@ internal interface IValueTaskHandlerInvoker
 	/// <summary>
 	/// Invokes a handler and returns a ValueTask for allocation-free synchronous completion.
 	/// </summary>
+	[RequiresUnreferencedCode("Handler invocation may require reflection to call handler methods")]
 	ValueTask<object?> InvokeValueTaskAsync(object handler, IDispatchMessage message, CancellationToken cancellationToken);
 }

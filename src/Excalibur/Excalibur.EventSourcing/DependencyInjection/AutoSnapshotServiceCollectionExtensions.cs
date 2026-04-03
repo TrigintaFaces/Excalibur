@@ -4,6 +4,7 @@
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Snapshots;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -26,7 +27,7 @@ public static class AutoSnapshotServiceCollectionExtensions
 	/// Snapshot creation is best-effort -- failure does not fail the save.
 	/// </para>
 	/// <para>
-	/// Use <see cref="UseAutoSnapshots{TAggregate}"/> to override thresholds
+	/// Use <see cref="UseAutoSnapshots{TAggregate}(IEventSourcingBuilder, Action{AutoSnapshotOptions})"/> to override thresholds
 	/// for specific aggregate types.
 	/// </para>
 	/// </remarks>
@@ -57,6 +58,43 @@ public static class AutoSnapshotServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Configures automatic snapshot creation with global default options bound from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="configuration">The configuration section to bind <see cref="AutoSnapshotOptions"/> from.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This overload binds options from configuration (e.g., <c>appsettings.json</c>) instead of
+	/// an imperative <see cref="Action{T}"/> delegate. Data annotations are validated on start.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// {
+	///     builder.UseAutoSnapshots(configuration.GetSection("AutoSnapshot"));
+	/// });
+	/// </code>
+	/// </example>
+	public static IEventSourcingBuilder UseAutoSnapshots(
+		this IEventSourcingBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		builder.Services.AddOptions<AutoSnapshotOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AutoSnapshotOptions>, AutoSnapshotOptionsValidator>());
+
+		return builder;
+	}
+
+	/// <summary>
 	/// Configures automatic snapshot creation with per-aggregate-type overrides.
 	/// </summary>
 	/// <typeparam name="TAggregate">The aggregate type to configure specific thresholds for.</typeparam>
@@ -66,7 +104,8 @@ public static class AutoSnapshotServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// Per-aggregate-type options are registered as named options using the aggregate type name.
-	/// They take precedence over the global defaults configured via <see cref="UseAutoSnapshots"/>.
+	/// They take precedence over the global defaults configured via
+	/// <see cref="UseAutoSnapshots(IEventSourcingBuilder, Action{AutoSnapshotOptions})"/>.
 	/// </para>
 	/// </remarks>
 	/// <example>
@@ -99,6 +138,39 @@ public static class AutoSnapshotServiceCollectionExtensions
 		// Register as named options using the aggregate type name
 		var aggregateTypeName = typeof(TAggregate).Name;
 		builder.Services.Configure(aggregateTypeName, configure);
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Configures automatic snapshot creation with per-aggregate-type overrides bound from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TAggregate">The aggregate type to configure specific thresholds for.</typeparam>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="configuration">The configuration section to bind <see cref="AutoSnapshotOptions"/> from.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Per-aggregate-type options are registered as named options using the aggregate type name.
+	/// They take precedence over the global defaults configured via
+	/// <see cref="UseAutoSnapshots(IEventSourcingBuilder, Action{AutoSnapshotOptions})"/>.
+	/// </para>
+	/// </remarks>
+#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
+	public static IEventSourcingBuilder UseAutoSnapshots<TAggregate>(
+		this IEventSourcingBuilder builder,
+		IConfiguration configuration)
+		where TAggregate : class
+#pragma warning restore RS0016
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var aggregateTypeName = typeof(TAggregate).Name;
+		builder.Services.AddOptions<AutoSnapshotOptions>(aggregateTypeName)
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return builder;
 	}

@@ -520,6 +520,40 @@ public sealed class TransportRegistryShould
 
 	#endregion Thread Safety Tests
 
+	#region Interface Extraction Tests (Sprint 739 A.7)
+
+	[Fact]
+	public void BeInternalSealed()
+	{
+		// TransportRegistry was narrowed to internal sealed in Sprint 739 A.7
+		var type = typeof(TransportRegistry);
+		type.IsPublic.ShouldBeFalse();
+		type.IsSealed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void ImplementITransportRegistry()
+	{
+		var registry = new TransportRegistry();
+		registry.ShouldBeAssignableTo<ITransportRegistry>();
+	}
+
+	[Fact]
+	public void ITransportRegistry_BePublic()
+	{
+		typeof(ITransportRegistry).IsPublic.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void ITransportRegistry_HaveExpectedMethodCount()
+	{
+		// Microsoft quality gate: interfaces should have <=5 methods
+		var methods = typeof(ITransportRegistry).GetMethods();
+		methods.Length.ShouldBeLessThanOrEqualTo(5);
+	}
+
+	#endregion Interface Extraction Tests (Sprint 739 A.7)
+
 	private static ITransportAdapter CreateAdapter(string name)
 	{
 		var adapter = A.Fake<ITransportAdapter>();

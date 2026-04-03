@@ -152,6 +152,10 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		"IL2072:'serviceType' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicConstructors' in call to 'Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddScoped(IServiceCollection, Type)'",
 		Justification =
 			"Middleware types are registered at configuration time and are preserved through explicit registration. All middleware types implement IDispatchMiddleware and have their constructors preserved.")]
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "HandlerLifetimeAnalyzer uses reflection for handler constructor inspection which is safe for known registered handler types.")]
 	internal IDispatcher Build()
 	{
 		// Register the synthesizer used during runtime construction
@@ -219,6 +223,10 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		_disposed = true;
 	}
 
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "ValidateDataAnnotations() uses reflection but DispatchOptions properties are all primitive types preserved by the trimmer.")]
 	private void RegisterOptions()
 	{
 		Services.TryAddEnumerable(

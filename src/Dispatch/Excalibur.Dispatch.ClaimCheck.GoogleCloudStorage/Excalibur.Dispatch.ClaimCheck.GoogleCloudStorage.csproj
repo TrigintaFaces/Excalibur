@@ -4,13 +4,16 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Google Cloud Storage Claim Check provider for large-message handling in the Excalibur framework.</Description>
     <PackageTags>dispatch;claimcheck;gcp;google-cloud-storage;large-messages</PackageTags>
+    <!-- AOT: NOT compatible. Google.Cloud.Storage.V1 uses reflection-based gRPC serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Google.Cloud.Storage.V1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
   </ItemGroup>
   <ItemGroup>

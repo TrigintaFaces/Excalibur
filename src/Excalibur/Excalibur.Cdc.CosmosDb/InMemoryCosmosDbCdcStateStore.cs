@@ -16,7 +16,7 @@ namespace Excalibur.Cdc.CosmosDb;
 /// This implementation stores positions in memory and is not persistent across restarts.
 /// Use only for testing and development purposes.
 /// </remarks>
-public sealed class InMemoryCosmosDbCdcStateStore : ICosmosDbCdcStateStore
+internal sealed class InMemoryCosmosDbCdcStateStore : ICosmosDbCdcStateStore
 {
 	private readonly ConcurrentDictionary<string, CosmosDbCdcStateEntry> _positions = new(StringComparer.Ordinal);
 	private volatile bool _disposed;

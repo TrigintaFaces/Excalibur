@@ -305,11 +305,15 @@ Standard transport metric names follow `dispatch.transport.*` convention:
 
 ## Message Serialization
 
-By default, messages are serialized using MemoryPack. You can configure different serializers:
+By default, messages are serialized using JSON (System.Text.Json). You can configure different serializers:
 
 ```csharp
-// Use System.Text.Json for cross-language compatibility
-services.AddJsonSerialization();
+// Use MemoryPack for .NET-only maximum performance
+services.AddDispatch(dispatch => dispatch.WithSerialization(config =>
+{
+    config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+    config.UseMemoryPack();
+}));
 
 // Or MessagePack for compact binary format
 services.AddMessagePackSerialization();
@@ -317,8 +321,8 @@ services.AddMessagePackSerialization();
 
 | Serializer | Package | Best For |
 |------------|---------|----------|
-| MemoryPack (default) | Built-in | .NET-only, maximum performance |
-| System.Text.Json | Built-in | Cross-language, debugging |
+| System.Text.Json (default) | Built-in | General purpose, cross-language, debugging |
+| MemoryPack | `Excalibur.Dispatch.Serialization.MemoryPack` | .NET-only, maximum performance |
 | MessagePack | `Excalibur.Dispatch.Serialization.MessagePack` | Cross-language, compact |
 | Protobuf | `Excalibur.Dispatch.Serialization.Protobuf` | Schema-based, cross-language |
 

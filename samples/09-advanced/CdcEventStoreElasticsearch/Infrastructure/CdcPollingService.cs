@@ -58,7 +58,7 @@ public sealed class CdcPollingOptions
 public sealed class CdcPollingBackgroundService : BackgroundService
 {
 	private readonly IDataChangeEventProcessorFactory _processorFactory;
-	private readonly IDatabaseConfig _dbConfig;
+	private readonly IDatabaseOptions _dbConfig;
 	private readonly CdcPollingOptions _options;
 	private readonly ILogger<CdcPollingBackgroundService> _logger;
 
@@ -69,7 +69,7 @@ public sealed class CdcPollingBackgroundService : BackgroundService
 	/// </summary>
 	public CdcPollingBackgroundService(
 		IDataChangeEventProcessorFactory processorFactory,
-		IDatabaseConfig dbConfig,
+		IDatabaseOptions dbConfig,
 		IOptions<CdcPollingOptions> options,
 		ILogger<CdcPollingBackgroundService> logger)
 	{
@@ -193,7 +193,7 @@ public sealed class CdcPollingBackgroundService : BackgroundService
 /// <summary>
 /// Sample database configuration for CDC processing with recovery options.
 /// </summary>
-public sealed class SampleCdcDatabaseConfig : IDatabaseConfig
+public sealed class SampleCdcDatabaseOptions : IDatabaseOptions
 {
 	/// <inheritdoc/>
 	public required string DatabaseName { get; init; }
@@ -228,13 +228,13 @@ public sealed class SampleCdcDatabaseConfig : IDatabaseConfig
 	/// <summary>
 	/// Creates a configuration with production-recommended recovery settings.
 	/// </summary>
-	public static SampleCdcDatabaseConfig CreateWithRecovery(
+	public static SampleCdcDatabaseOptions CreateWithRecovery(
 		string databaseName,
 		string[] captureInstances,
 		StalePositionRecoveryStrategy recoveryStrategy = StalePositionRecoveryStrategy.FallbackToEarliest,
 		CdcPositionResetHandler? onPositionReset = null)
 	{
-		return new SampleCdcDatabaseConfig
+		return new SampleCdcDatabaseOptions
 		{
 			DatabaseName = databaseName,
 			DatabaseConnectionIdentifier = $"cdc-{databaseName}",

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Dispatch.Compliance;
 
@@ -12,11 +13,13 @@ public sealed record BatchMigrationOptions
 	/// <summary>
 	/// Gets the maximum degree of parallelism for batch migrations.
 	/// </summary>
+	[Range(1, int.MaxValue)]
 	public int MaxDegreeOfParallelism { get; init; } = 4;
 
 	/// <summary>
 	/// Gets the batch size for processing items.
 	/// </summary>
+	[Range(1, int.MaxValue)]
 	public int BatchSize { get; init; } = 100;
 
 	/// <summary>
@@ -63,21 +66,29 @@ public sealed record EncryptionMigrationProgress
 	/// <summary>
 	/// Gets the total number of items to migrate.
 	/// </summary>
+	[Required]
+	[Range(0, int.MaxValue)]
 	public required int TotalItems { get; init; }
 
 	/// <summary>
 	/// Gets the number of items completed.
 	/// </summary>
+	[Required]
+	[Range(0, int.MaxValue)]
 	public required int CompletedItems { get; init; }
 
 	/// <summary>
 	/// Gets the number of items that succeeded.
 	/// </summary>
+	[Required]
+	[Range(0, int.MaxValue)]
 	public required int SucceededItems { get; init; }
 
 	/// <summary>
 	/// Gets the number of items that failed.
 	/// </summary>
+	[Required]
+	[Range(0, int.MaxValue)]
 	public required int FailedItems { get; init; }
 
 	/// <summary>

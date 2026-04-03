@@ -6,6 +6,7 @@
     <PackageId>Excalibur.Caching</PackageId>
     <Description>Advanced caching patterns and adaptive TTL strategies for the Excalibur framework.</Description>
     <PackageTags>excalibur;caching;adaptive-ttl;performance</PackageTags>
+    <!-- AOT: NOT compatible. Adaptive TTL strategies use Expression.Compile for dynamic cache policy evaluation. -->
     <IsAotCompatible>false</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>

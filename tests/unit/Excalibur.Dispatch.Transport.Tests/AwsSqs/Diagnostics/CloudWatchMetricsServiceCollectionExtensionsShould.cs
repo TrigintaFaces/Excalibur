@@ -23,7 +23,7 @@ public sealed class CloudWatchMetricsServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsCloudWatchMetricsExporter(null!));
+			services.AddAwsCloudWatchMetricsExporter((Action<CloudWatchMetricsOptions>)null!));
 	}
 
 	[Fact]

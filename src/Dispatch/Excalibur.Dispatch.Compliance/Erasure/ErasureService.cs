@@ -76,7 +76,6 @@ public sealed partial class ErasureService : IErasureService
 	private readonly IKeyManagementProvider _keyProvider;
 	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<ErasureOptions> _options;
-	private readonly IOptions<ErasureSigningOptions> _signingOptions;
 	private readonly ILogger<ErasureService> _logger;
 	private readonly IEnumerable<IErasureContributor> _contributors;
 
@@ -86,8 +85,7 @@ public sealed partial class ErasureService : IErasureService
 	/// <param name="store">The erasure store for persistence.</param>
 	/// <param name="keyProvider">The key management provider for core key operations.</param>
 	/// <param name="keyAdmin">The key management admin provider for key deletion.</param>
-	/// <param name="options">The erasure options.</param>
-	/// <param name="signingOptions">The HMAC signing options for certificate signatures.</param>
+	/// <param name="options">The erasure options (includes signing configuration via <see cref="ErasureRetentionOptions.SigningKey"/>).</param>
 	/// <param name="logger">The logger.</param>
 	/// <param name="legalHoldService">Optional legal hold service for Article 17(3) checks. Pass <see langword="null"/> if not available.</param>
 	/// <param name="dataInventoryService">Optional data inventory service for discovery. Pass <see langword="null"/> if not available.</param>
@@ -97,7 +95,6 @@ public sealed partial class ErasureService : IErasureService
 		IKeyManagementProvider keyProvider,
 		IKeyManagementAdmin keyAdmin,
 		IOptions<ErasureOptions> options,
-		IOptions<ErasureSigningOptions> signingOptions,
 		ILogger<ErasureService> logger,
 		ILegalHoldService? legalHoldService,
 		IDataInventoryService? dataInventoryService,
@@ -107,7 +104,6 @@ public sealed partial class ErasureService : IErasureService
 		_keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
 		_keyAdmin = keyAdmin ?? throw new ArgumentNullException(nameof(keyAdmin));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
-		_signingOptions = signingOptions ?? throw new ArgumentNullException(nameof(signingOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_legalHoldService = legalHoldService;
 		_dataInventoryService = dataInventoryService;
@@ -514,7 +510,7 @@ public sealed partial class ErasureService : IErasureService
 
 	private string GenerateSignature(Guid requestId, ErasureStatus status)
 	{
-		var signingKey = _signingOptions.Value.SigningKey;
+		var signingKey = _options.Value.Retention.SigningKey;
 		var dataToSign = $"{requestId}|{status.DataSubjectIdHash}|{status.CompletedAt:O}";
 		var dataBytes = Encoding.UTF8.GetBytes(dataToSign);
 

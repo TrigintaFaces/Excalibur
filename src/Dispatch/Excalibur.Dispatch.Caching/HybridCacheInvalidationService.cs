@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Caching;
 /// invalidation functionality.
 /// </summary>
 /// <param name="cache"> The hybrid cache instance for performing invalidation operations. </param>
-public sealed class HybridCacheInvalidationService(HybridCache cache) : ICacheInvalidationService
+internal sealed class HybridCacheInvalidationService(HybridCache cache) : ICacheInvalidationService
 {
 	/// <inheritdoc />
 	public async Task InvalidateTagsAsync(IEnumerable<string> tags, CancellationToken cancellationToken)

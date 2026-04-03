@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.AzureServiceBus;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -42,6 +43,17 @@ public static class ServiceBusDeadLetterServiceCollectionExtensions
 		=> AddServiceBusDeadLetterQueue(services, "default", configure);
 
 	/// <summary>
+	/// Adds Azure Service Bus dead letter queue support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="ServiceBusDeadLetterOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddServiceBusDeadLetterQueue(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		=> AddServiceBusDeadLetterQueue(services, "default", configuration);
+
+	/// <summary>
 	/// Adds Azure Service Bus dead letter queue support with the specified transport name and configuration.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -64,6 +76,31 @@ public static class ServiceBusDeadLetterServiceCollectionExtensions
 		{
 			_ = services.Configure<ServiceBusDeadLetterOptions>(_ => { });
 		}
+
+		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
+			(sp, _) => sp.GetRequiredService<ServiceBusDeadLetterQueueManager>());
+		services.TryAddSingleton<ServiceBusDeadLetterQueueManager>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Azure Service Bus dead letter queue support with the specified transport name using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="transportName">The transport name used as the keyed service key.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="ServiceBusDeadLetterOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddServiceBusDeadLetterQueue(
+		this IServiceCollection services,
+		string transportName,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ServiceBusDeadLetterOptions>().Bind(configuration);
 
 		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
 			(sp, _) => sp.GetRequiredService<ServiceBusDeadLetterQueueManager>());

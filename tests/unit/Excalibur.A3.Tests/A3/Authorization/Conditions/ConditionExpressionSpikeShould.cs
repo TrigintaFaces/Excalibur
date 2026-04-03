@@ -11,6 +11,7 @@ namespace Excalibur.A3.Tests.A3.Authorization.Conditions;
 /// Spike validation tests for the Phase 4 condition expression parser and evaluator.
 /// These tests validate the proof-of-concept; production tests come in implementation sprint.
 /// </summary>
+[Collection("Performance Tests")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public class ConditionExpressionSpikeShould

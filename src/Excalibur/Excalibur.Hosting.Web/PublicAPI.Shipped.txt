@@ -11,7 +11,7 @@ Excalibur.Hosting.Web.Diagnostics.ProblemDetailsOptions.SupportedLocales.get -> 
 Excalibur.Hosting.Web.Diagnostics.SwaggerGenOptionsExtensions
 Excalibur.Hosting.Web.HttpContextExtensions
 Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions
-Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ExcaliburWebServiceCollectionExtensions
 static Excalibur.Hosting.Web.Diagnostics.ProblemDetailsOpenApi.GetYamlPath() -> string!
 static Excalibur.Hosting.Web.Diagnostics.SwaggerGenOptionsExtensions.AddProblemDetailsSchema(this Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenOptions! options) -> void
 static Excalibur.Hosting.Web.HttpContextExtensions.CorrelationId(this Microsoft.AspNetCore.Http.HttpContext! context) -> System.Guid
@@ -23,5 +23,5 @@ static Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions.UseCor
 static Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions.UseETagMiddleware(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
 static Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions.UseExcaliburWebHost(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
 static Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions.UseTenantIdMiddleware(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddExcaliburWebServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddGlobalExceptionHandler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Hosting.Web.Diagnostics.ProblemDetailsOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ExcaliburWebServiceCollectionExtensions.AddExcaliburWebServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, params System.Reflection.Assembly![]! assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ExcaliburWebServiceCollectionExtensions.AddGlobalExceptionHandler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Hosting.Web.Diagnostics.ProblemDetailsOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

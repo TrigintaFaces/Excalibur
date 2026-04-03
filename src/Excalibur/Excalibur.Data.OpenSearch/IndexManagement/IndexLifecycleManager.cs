@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
@@ -33,6 +34,8 @@ internal partial class IndexLifecycleManager(IOpenSearchClient client, ILogger<I
 	private readonly ILogger<IndexLifecycleManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "BuildIsmPolicyBody uses anonymous types for dynamic OpenSearch ISM API payloads.")]
 	public async Task<bool> CreateLifecyclePolicyAsync(string policyName, IndexLifecyclePolicy policy,
 		CancellationToken cancellationToken)
 	{
@@ -278,10 +281,9 @@ internal partial class IndexLifecycleManager(IOpenSearchClient client, ILogger<I
 
 				// Use ISM change policy or retry API to force transition
 				// POST _plugins/_ism/change_policy/{index}
-				var changePolicyBody = JsonSerializer.Serialize(new
-				{
-					state = nextPhase
-				});
+				var changePolicyBody = JsonSerializer.Serialize(
+					new IsmRetryRequest { State = nextPhase },
+					OpenSearchJsonContext.Default.IsmRetryRequest);
 
 				var response = await _client.LowLevel.DoRequestAsync<StringResponse>(
 					HttpMethod.POST,
@@ -315,6 +317,7 @@ internal partial class IndexLifecycleManager(IOpenSearchClient client, ILogger<I
 	/// </summary>
 	/// <param name="policy"> The lifecycle policy configuration. </param>
 	/// <returns> The ISM policy JSON string. </returns>
+	[RequiresUnreferencedCode("ISM policy serialization uses anonymous types and List<object> for dynamic OpenSearch API payloads.")]
 	private static string BuildIsmPolicyBody(IndexLifecyclePolicy policy)
 	{
 		// OpenSearch ISM uses a state machine model with states, transitions, and actions.

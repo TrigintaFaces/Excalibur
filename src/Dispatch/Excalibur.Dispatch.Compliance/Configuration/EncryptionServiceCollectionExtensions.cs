@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Compliance.Diagnostics;
 using Excalibur.Dispatch.Compliance.Encryption;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
@@ -95,6 +96,26 @@ public static class EncryptionServiceCollectionExtensions
 		{
 			_ = optionsBuilder.Configure(configure);
 		}
+
+		services.TryAddSingleton<HkdfKeyDeriver>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds HKDF (RFC 5869) key derivation services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="HkdfKeyDerivationOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddHkdfKeyDerivation(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<HkdfKeyDerivationOptions>().Bind(configuration);
 
 		services.TryAddSingleton<HkdfKeyDeriver>();
 

@@ -1,15 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Hosting;
 
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
-namespace Excalibur.Hosting;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Provides extension methods for adding memory-related health checks to the application's health monitoring system.
 /// </summary>
-public static class HealthChecksBuilderExtensions
+public static class MemoryHealthChecksBuilderExtensions
 {
 	/// <summary>
 	/// Adds health checks to monitor process-allocated memory and working set memory
@@ -39,6 +40,34 @@ public static class HealthChecksBuilderExtensions
 		var options = new MemoryHealthCheckOptions();
 		configure(options);
 
+		return healthChecks.AddMemoryHealthChecksCore(options);
+	}
+
+	/// <summary>
+	/// Adds health checks to monitor process-allocated memory and working set memory
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="healthChecks"> The <see cref="IHealthChecksBuilder" /> to configure. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="MemoryHealthCheckOptions"/>. </param>
+	/// <returns> The configured <see cref="IHealthChecksBuilder" /> for chaining additional health checks. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="healthChecks" /> or <paramref name="configuration"/> is null. </exception>
+	public static IHealthChecksBuilder AddMemoryHealthChecks(
+		this IHealthChecksBuilder healthChecks,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(healthChecks);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var options = new MemoryHealthCheckOptions();
+		configuration.Bind(options);
+
+		return healthChecks.AddMemoryHealthChecksCore(options);
+	}
+
+	private static IHealthChecksBuilder AddMemoryHealthChecksCore(
+		this IHealthChecksBuilder healthChecks,
+		MemoryHealthCheckOptions options)
+	{
 		// Add a health check for process-allocated memory
 		_ = healthChecks
 			.AddProcessAllocatedMemoryHealthCheck(

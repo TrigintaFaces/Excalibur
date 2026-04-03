@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.AuditLogging;
 /// </para>
 /// <para> For production, use a persistent store implementation (SQL Server, Postgres, etc.). </para>
 /// </remarks>
-public sealed class InMemoryAuditStore : IAuditStore
+internal sealed class InMemoryAuditStore : IAuditStore
 {
 	private readonly ConcurrentDictionary<string, AuditEvent> _eventsById = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, List<AuditEvent>> _eventsByTenant = new(StringComparer.Ordinal);
@@ -306,6 +306,11 @@ public sealed class InMemoryAuditStore : IAuditStore
 		if (query.MinimumClassification.HasValue)
 		{
 			events = events.Where(e => e.ResourceClassification >= query.MinimumClassification.Value);
+		}
+
+		if (!string.IsNullOrEmpty(query.ApplicationName))
+		{
+			events = events.Where(e => string.Equals(e.ApplicationName, query.ApplicationName, StringComparison.Ordinal));
 		}
 
 		if (!string.IsNullOrEmpty(query.CorrelationId))

@@ -4,6 +4,7 @@
 
 using Excalibur.Domain.BoundedContext;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -43,5 +44,27 @@ public static class BoundedContextServiceCollectionExtensions
 	public static IServiceCollection AddBoundedContextEnforcement(this IServiceCollection services)
 	{
 		return services.AddBoundedContextEnforcement(_ => { });
+	}
+
+	/// <summary>
+	/// Adds bounded context enforcement services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddBoundedContextEnforcement(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<BoundedContextOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IBoundedContextValidator, DefaultBoundedContextValidator>();
+
+		return services;
 	}
 }

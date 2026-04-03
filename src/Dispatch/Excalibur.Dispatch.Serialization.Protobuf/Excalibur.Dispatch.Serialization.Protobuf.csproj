@@ -8,7 +8,7 @@
     <Description>Protobuf serialization support for the Excalibur framework (opt-in package for GCP/AWS interoperability).</Description>
     <PackageTags>protobuf;serialization;dispatch;messaging;opt-in;gcp;aws</PackageTags>
   </PropertyGroup>
-  <!-- AOT: NOT compatible — protobuf-net uses reflection-based serialization -->
+  <!-- AOT: NOT compatible — ProtobufSerializer.GetParser/GetDescriptor use reflection (GetProperty with BindingFlags) to access static Parser/Descriptor properties on Google.Protobuf generated types -->
   <PropertyGroup>
     <IsAotCompatible>false</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>

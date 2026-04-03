@@ -79,7 +79,7 @@ public static class DispatchTelemetryServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(sectionName);
 
 		// Bind configuration
-		_ = services.Configure<DispatchTelemetryOptions>(configuration.GetSection(sectionName));
+		_ = services.AddOptions<DispatchTelemetryOptions>().Bind(configuration.GetSection(sectionName)).ValidateDataAnnotations().ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DispatchTelemetryOptions>, DispatchTelemetryOptionsValidator>());
 
 		// Register core telemetry components

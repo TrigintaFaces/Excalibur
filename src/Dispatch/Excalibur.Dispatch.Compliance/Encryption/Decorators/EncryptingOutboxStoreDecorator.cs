@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Text.Json;
 
@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-public sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStoreAdmin
+internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStoreAdmin
 {
 	private readonly IOutboxStore _inner;
 	private readonly IOutboxStoreAdmin? _innerAdmin;

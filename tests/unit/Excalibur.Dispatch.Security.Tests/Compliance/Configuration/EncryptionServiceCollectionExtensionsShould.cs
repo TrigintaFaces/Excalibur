@@ -69,7 +69,7 @@ public sealed class EncryptionServiceCollectionExtensionsShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddEncryption(null!));
+			services.AddEncryption((Action<EncryptionConfigurationBuilder>)null!));
 	}
 
 	#endregion AddEncryption Tests

@@ -4,6 +4,7 @@
 
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -36,10 +37,34 @@ public static class MigrationServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.Configure(configureOptions ?? (_ => { }));
+		RegisterMigrationCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds encryption migration services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="MigrationOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddEncryptionMigration(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<MigrationOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+		RegisterMigrationCore(services);
+
+		return services;
+	}
+
+	private static void RegisterMigrationCore(IServiceCollection services)
+	{
 		services.TryAddSingleton<MigrationService>();
 		services.TryAddSingleton<IMigrationService>(sp => sp.GetRequiredService<MigrationService>());
 		services.TryAddSingleton<IMigrationInfo>(sp => sp.GetRequiredService<MigrationService>());
-
-		return services;
 	}
 }

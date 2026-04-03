@@ -1,12 +1,16 @@
 ﻿---
 sidebar_position: 8
 title: Audit Logging Providers
-description: Per-provider setup for Datadog, Splunk, Sentinel, and SQL Server audit log exporters.
+description: Per-provider setup for Elasticsearch, OpenSearch, Datadog, Splunk, Sentinel, and SQL Server audit backends.
 ---
 
 # Audit Logging Providers
 
-Dispatch audit logging uses `IAuditStore` as its core abstraction. Provider-specific exporters ship audit events to external platforms for analysis, alerting, and compliance reporting.
+Dispatch audit logging uses `IAuditStore` as its core abstraction for compliance-grade storage and `IAuditLogExporter` / audit sinks for search and analytics projections. Provider-specific backends ship audit events to external platforms for analysis, alerting, and compliance reporting.
+
+:::info Compliance Boundary (ADR-290)
+Only SQL Server (and Postgres) backends implement `IAuditStore` with tamper-evident hash chains. Elasticsearch and OpenSearch serve as **audit sinks** -- write-only, search-optimized projections. They are not compliance-grade stores. See [Compliance Audit Logging](../compliance/audit-logging.md#provider-compliance-boundary) for details.
+:::
 
 ## Before You Start
 
@@ -46,6 +50,126 @@ services.AddRbacAuditStore();
 
 ```csharp
 services.AddAuditRoleProvider<MyRoleProvider>();
+```
+
+---
+
+## Elasticsearch (Audit Sink)
+
+Index audit events into Elasticsearch for full-text search, aggregation dashboards, and real-time alerting. This is a **sink** (write-only) -- not an `IAuditStore` implementation. See [ADR-290](../compliance/audit-logging.md#provider-compliance-boundary) for rationale.
+
+### Installation
+
+```bash
+dotnet add package Excalibur.Dispatch.AuditLogging.Elasticsearch
+```
+
+**Dependencies:** `Excalibur.Dispatch.Compliance.Abstractions`, `Microsoft.Extensions.Http`
+
+### Audit Sink (Real-Time)
+
+Writes individual audit events via the Bulk API with retry and round-robin cluster support:
+
+```csharp
+// With options callback
+services.AddElasticsearchAuditSink(options =>
+{
+    // Single node
+    options.ElasticsearchUrl = "https://es.example.com:9200";
+
+    // Or cluster (round-robin)
+    options.NodeUrls = ["https://es1:9200", "https://es2:9200", "https://es3:9200"];
+
+    options.IndexPrefix = "dispatch-audit";   // indexes: dispatch-audit-2026.03.31
+    options.ApiKey = "your-api-key";
+    options.ApplicationName = "OrderService"; // fallback if AuditEvent.ApplicationName is null
+    options.MaxRetryAttempts = 3;
+    options.RetryBaseDelay = TimeSpan.FromSeconds(1); // exponential backoff
+});
+
+// Or from IConfiguration (appsettings.json binding)
+services.AddElasticsearchAuditSink(configuration.GetSection("AuditSink:Elasticsearch"));
+```
+
+:::tip ApplicationName Preference
+The indexed `application_name` field uses `AuditEvent.ApplicationName` when set, falling back to the options-level `ApplicationName`. Set it once on the event via `ApplicationContext.ApplicationName` (automatic via DI) and all sinks pick it up.
+:::
+
+### Audit Exporter (Batch)
+
+Bulk-exports audit events from your primary `IAuditStore` (e.g., SQL Server) into Elasticsearch for search indexing:
+
+```csharp
+// With options callback
+services.AddElasticsearchAuditExporter(options =>
+{
+    options.ElasticsearchUrl = "https://es.example.com:9200";
+    options.IndexPrefix = "dispatch-audit";
+    options.BulkBatchSize = 500;
+});
+
+// Or from IConfiguration
+services.AddElasticsearchAuditExporter(configuration.GetSection("AuditExporter:Elasticsearch"));
+```
+
+### Recommended Architecture
+
+```
+SQL Server = IAuditStore (compliance, hash-chained, tamper-evident)
+Elasticsearch = Audit Sink (search, dashboards, alerting)
+```
+
+---
+
+## OpenSearch (Audit Sink)
+
+Full parity with the Elasticsearch audit sink, built on raw `HttpClient` (no `OpenSearch.Client` dependency). Same compliance boundary applies -- OpenSearch is a **sink**, not an `IAuditStore`.
+
+### Installation
+
+```bash
+dotnet add package Excalibur.Dispatch.AuditLogging.OpenSearch
+```
+
+**Dependencies:** `Excalibur.Dispatch.Compliance.Abstractions`, `Microsoft.Extensions.Http`
+
+### Audit Sink (Real-Time)
+
+```csharp
+// With options callback
+services.AddOpenSearchAuditSink(options =>
+{
+    // Single node
+    options.OpenSearchUrl = "https://os.example.com:9200";
+
+    // Or cluster (round-robin)
+    options.NodeUrls = ["https://os1:9200", "https://os2:9200", "https://os3:9200"];
+
+    options.IndexPrefix = "dispatch-audit";
+    options.ApiKey = "your-api-key";
+    options.ApplicationName = "OrderService"; // fallback if AuditEvent.ApplicationName is null
+    options.MaxRetryAttempts = 3;
+});
+
+// Or from IConfiguration (appsettings.json binding)
+services.AddOpenSearchAuditSink(configuration.GetSection("AuditSink:OpenSearch"));
+```
+
+Same `ApplicationName` preference hierarchy as Elasticsearch: event field takes precedence over options-level fallback.
+
+### Audit Exporter (Batch)
+
+```csharp
+// With options callback
+services.AddOpenSearchAuditExporter(options =>
+{
+    options.OpenSearchUrl = "https://os.example.com:9200";
+    options.IndexPrefix = "dispatch-audit";
+    options.BulkBatchSize = 500;
+});
+
+// Or from IConfiguration
+services.AddOpenSearchAuditExporter(configuration.GetSection("AuditExporter:OpenSearch"));
 ```
 
 ---
@@ -162,13 +286,21 @@ services.AddSqlServerAuditStore(auditOptions);
 
 ## Combining Providers
 
-You can register multiple exporters. The core `IAuditStore` dispatches to all registered exporters:
+You can register multiple backends. Use SQL Server as the compliance-grade `IAuditStore` and add sinks/exporters for search and analytics:
 
 ```csharp
 services.AddAuditLogging();
-services.AddSqlServerAuditStore(options => { /* primary store */ });
-services.AddDatadogAuditExporter(options => { /* analytics */ });
-services.AddSentinelAuditExporter(options => { /* SIEM */ });
+
+// Primary: compliance-grade, hash-chained
+services.AddSqlServerAuditStore(options => { /* ... */ });
+
+// Search & analytics sinks
+services.AddElasticsearchAuditSink(options => { /* ... */ });
+services.AddOpenSearchAuditSink(options => { /* ... */ });
+
+// SIEM exporters
+services.AddDatadogAuditExporter(options => { /* ... */ });
+services.AddSentinelAuditExporter(options => { /* ... */ });
 ```
 
 ## See Also

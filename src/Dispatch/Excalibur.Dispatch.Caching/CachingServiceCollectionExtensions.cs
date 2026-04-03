@@ -12,6 +12,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -38,6 +39,27 @@ public static class CachingServiceCollectionExtensions
 		});
 
 		_ = services.AddOptions<CacheOptions>()
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		// Register core caching services (includes HybridCache registration)
+		RegisterCoreCachingServices(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers the caching middleware and related services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="CacheOptions"/>. </param>
+	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	public static IServiceCollection AddDispatchCaching(this IServiceCollection services, IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<CacheOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
@@ -75,6 +97,47 @@ public static class CachingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Configures in-memory caching using IMemoryCache with options from <see cref="IConfiguration"/> sections.
+	/// </summary>
+	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
+	/// <param name="memoryCacheConfiguration"> Optional configuration section for memory cache options. </param>
+	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
+	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	public static IServiceCollection AddDispatchMemoryCaching(
+		this IServiceCollection services,
+		IConfiguration? memoryCacheConfiguration,
+		IConfiguration? cachingConfiguration)
+	{
+		if (cachingConfiguration is not null)
+		{
+			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateDataAnnotations().ValidateOnStart();
+		}
+		else
+		{
+			_ = services.ConfigureOptions<CacheOptions>(null, static defaults =>
+			{
+				defaults.Enabled = true;
+				defaults.CacheMode = CacheMode.Memory;
+			});
+		}
+
+		// Add memory cache with optional configuration
+		if (memoryCacheConfiguration is not null)
+		{
+			_ = services.AddMemoryCache(o => memoryCacheConfiguration.Bind(o));
+		}
+		else
+		{
+			_ = services.AddMemoryCache();
+		}
+
+		// Register core caching services
+		RegisterCoreCachingServices(services);
+
+		return services;
+	}
+
+	/// <summary>
 	/// Configures distributed caching using Redis (StackExchange.Redis). Best for multi-server scenarios requiring shared cache state.
 	/// </summary>
 	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
@@ -96,6 +159,42 @@ public static class CachingServiceCollectionExtensions
 
 		// Add Redis distributed cache
 		_ = services.AddStackExchangeRedisCache(configureRedis);
+
+		// Register core caching services
+		RegisterCoreCachingServices(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Configures distributed caching using Redis with options from <see cref="IConfiguration"/> sections.
+	/// </summary>
+	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
+	/// <param name="redisConfiguration"> The configuration section for Redis cache options. </param>
+	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
+	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	public static IServiceCollection AddDispatchRedisCaching(
+		this IServiceCollection services,
+		IConfiguration redisConfiguration,
+		IConfiguration? cachingConfiguration = null)
+	{
+		ArgumentNullException.ThrowIfNull(redisConfiguration);
+
+		if (cachingConfiguration is not null)
+		{
+			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateDataAnnotations().ValidateOnStart();
+		}
+		else
+		{
+			_ = services.ConfigureOptions<CacheOptions>(null, static defaults =>
+			{
+				defaults.Enabled = true;
+				defaults.CacheMode = CacheMode.Distributed;
+			});
+		}
+
+		// Add Redis distributed cache
+		_ = services.AddStackExchangeRedisCache(o => redisConfiguration.Bind(o));
 
 		// Register core caching services
 		RegisterCoreCachingServices(services);
@@ -139,6 +238,55 @@ public static class CachingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Configures hybrid caching with options from <see cref="IConfiguration"/> sections.
+	/// </summary>
+	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
+	/// <param name="hybridConfiguration"> Optional configuration section for hybrid cache options. </param>
+	/// <param name="redisConfiguration"> Optional configuration section for Redis as the distributed cache backend. </param>
+	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
+	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	public static IServiceCollection AddDispatchHybridCaching(
+		this IServiceCollection services,
+		IConfiguration? hybridConfiguration,
+		IConfiguration? redisConfiguration,
+		IConfiguration? cachingConfiguration)
+	{
+		if (cachingConfiguration is not null)
+		{
+			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateDataAnnotations().ValidateOnStart();
+		}
+		else
+		{
+			_ = services.ConfigureOptions<CacheOptions>(null, static defaults =>
+			{
+				defaults.Enabled = true;
+				defaults.CacheMode = CacheMode.Hybrid;
+			});
+		}
+
+		// Add Redis as the distributed cache backend if configured
+		if (redisConfiguration is not null)
+		{
+			_ = services.AddStackExchangeRedisCache(o => redisConfiguration.Bind(o));
+		}
+
+		// Add hybrid cache with optional configuration
+		if (hybridConfiguration is not null)
+		{
+			_ = services.AddHybridCache(o => hybridConfiguration.Bind(o));
+		}
+		else
+		{
+			_ = services.AddHybridCache();
+		}
+
+		// Register core caching services
+		RegisterCoreCachingServices(services);
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds a custom distributed cache implementation.
 	/// </summary>
 	/// <typeparam name="TImplementation"> The type implementing IDistributedCache. </typeparam>
@@ -156,6 +304,32 @@ public static class CachingServiceCollectionExtensions
 			defaults.Enabled = true;
 			defaults.CacheMode = CacheMode.Distributed;
 		});
+
+		// Register the custom distributed cache
+		services.TryAddSingleton<IDistributedCache, TImplementation>();
+
+		// Register core caching services
+		RegisterCoreCachingServices(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds a custom distributed cache implementation with options from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TImplementation"> The type implementing IDistributedCache. </typeparam>
+	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
+	/// <param name="cachingConfiguration"> The configuration section for general cache options. </param>
+	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	public static IServiceCollection AddDispatchDistributedCaching<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
+		this IServiceCollection services,
+		IConfiguration cachingConfiguration)
+		where TImplementation : class, IDistributedCache
+	{
+		ArgumentNullException.ThrowIfNull(cachingConfiguration);
+
+		_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateDataAnnotations().ValidateOnStart();
 
 		// Register the custom distributed cache
 		services.TryAddSingleton<IDistributedCache, TImplementation>();

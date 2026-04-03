@@ -23,7 +23,7 @@ public sealed class GcsClaimCheckServiceCollectionExtensionsShould : UnitTestBas
 				_ => { }));
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddGcsClaimCheck(null!));
+			services.AddGcsClaimCheck((Action<GcsClaimCheckOptions>)null!));
 	}
 
 	[Fact]

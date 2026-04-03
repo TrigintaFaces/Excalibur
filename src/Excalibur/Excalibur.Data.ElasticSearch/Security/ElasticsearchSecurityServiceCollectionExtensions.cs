@@ -3,6 +3,7 @@
 
 using Excalibur.Data.ElasticSearch.Security;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,30 @@ public static class ElasticsearchSecurityServiceCollectionExtensions
 
 		_ = services.AddOptions<ElasticsearchSecurityOptions>()
 			.Configure(configure)
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IElasticsearchSecurityProvider, DefaultElasticsearchSecurityProvider>();
+		services.TryAddSingleton<SecurityPolicyEngine>();
+		services.TryAddSingleton<SecurityEventAggregator>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Elasticsearch security services to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddElasticsearchSecurity(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ElasticsearchSecurityOptions>()
+			.Bind(configuration)
 			.ValidateOnStart();
 
 		services.TryAddSingleton<IElasticsearchSecurityProvider, DefaultElasticsearchSecurityProvider>();

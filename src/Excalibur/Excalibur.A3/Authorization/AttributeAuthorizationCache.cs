@@ -20,7 +20,7 @@ namespace Excalibur.A3.Authorization;
 /// The cache is thread-safe and uses <see cref="ConcurrentDictionary{TKey, TValue}"/> internally.
 /// </para>
 /// </remarks>
-public class AttributeAuthorizationCache
+internal class AttributeAuthorizationCache
 {
 	private readonly ConcurrentDictionary<Type, RequirePermissionAttribute[]> _attributeCache = new();
 	private readonly ConcurrentDictionary<(Type, string), PropertyInfo?> _propertyCache = new();

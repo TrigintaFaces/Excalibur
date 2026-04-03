@@ -98,7 +98,7 @@ public static class AvroSerializationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="setAsCurrent">
 	/// Whether to set Avro as the current serializer for new payloads.
-	/// Default is <c>false</c> (MemoryPack remains default).
+	/// Default is <c>false</c> (JSON remains default per ADR-295).
 	/// </param>
 	/// <returns>The service collection for method chaining.</returns>
 	/// <remarks>

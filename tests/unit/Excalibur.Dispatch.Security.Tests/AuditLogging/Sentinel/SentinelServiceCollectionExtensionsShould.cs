@@ -84,7 +84,7 @@ public sealed class SentinelServiceCollectionExtensionsShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddSentinelAuditExporter(null!));
+			services.AddSentinelAuditExporter((Action<SentinelExporterOptions>)null!));
 	}
 
 	[Fact]

@@ -72,7 +72,7 @@ public sealed class AwsObservabilityServiceCollectionExtensionsShould
 	{
 		var services = new ServiceCollection();
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsObservability(null!));
+			services.AddAwsObservability((Action<AwsObservabilityOptions>)null!));
 	}
 
 	[Fact]

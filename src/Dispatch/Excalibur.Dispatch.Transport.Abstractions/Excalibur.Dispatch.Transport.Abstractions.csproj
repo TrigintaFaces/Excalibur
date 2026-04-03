@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -41,8 +41,10 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Conformance" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Testing.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Contract.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Benchmarks" />
     <InternalsVisibleTo Include="Tests.Shared" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Testing" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>

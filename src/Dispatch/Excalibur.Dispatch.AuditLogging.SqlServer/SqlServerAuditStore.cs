@@ -72,8 +72,8 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 			await _hashChainLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
-				// Get the previous event's hash for chain linking
-				var lastEvent = await GetLastEventAsync(auditEvent.TenantId, cancellationToken).ConfigureAwait(false);
+				// Get the previous event's hash for chain linking (scoped by tenant + application)
+				var lastEvent = await GetLastEventInternalAsync(auditEvent.TenantId, auditEvent.ApplicationName, cancellationToken).ConfigureAwait(false);
 				previousHash = lastEvent?.EventHash;
 
 				// Compute hash for this event
@@ -137,6 +137,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		parameters.Add("@ResourceClassification",
 			auditEvent.ResourceClassification.HasValue ? (int)auditEvent.ResourceClassification.Value : null);
 		parameters.Add("@TenantId", auditEvent.TenantId);
+		parameters.Add("@ApplicationName", auditEvent.ApplicationName);
 		parameters.Add("@CorrelationId", auditEvent.CorrelationId);
 		parameters.Add("@SessionId", auditEvent.SessionId);
 		parameters.Add("@IpAddress", auditEvent.IpAddress);
@@ -153,12 +154,12 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		var sql = $@"
 			INSERT INTO {_options.FullyQualifiedTableName}
 			(EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
-			 ResourceId, ResourceType, ResourceClassification, TenantId, CorrelationId,
+			 ResourceId, ResourceType, ResourceClassification, TenantId, [ApplicationName], CorrelationId,
 			 SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash)
 			OUTPUT INSERTED.SequenceNumber
 			VALUES
 			(@EventId, @EventType, @Action, @Outcome, @Timestamp, @ActorId, @ActorType,
-			 @ResourceId, @ResourceType, @ResourceClassification, @TenantId, @CorrelationId,
+			 @ResourceId, @ResourceType, @ResourceClassification, @TenantId, @ApplicationName, @CorrelationId,
 			 @SessionId, @IpAddress, @UserAgent, @Reason, @Metadata, @PreviousEventHash, @EventHash)";
 
 		return await connection.ExecuteScalarAsync<long>(
@@ -177,7 +178,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 
 		var sql = $@"
 			SELECT EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
-				   ResourceId, ResourceType, ResourceClassification, TenantId, CorrelationId,
+				   ResourceId, ResourceType, ResourceClassification, TenantId, [ApplicationName], CorrelationId,
 				   SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash
 			FROM {_options.FullyQualifiedTableName}
 			WHERE EventId = @EventId";
@@ -205,7 +206,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 
 		var sql = $@"
 			SELECT EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
-				   ResourceId, ResourceType, ResourceClassification, TenantId, CorrelationId,
+				   ResourceId, ResourceType, ResourceClassification, TenantId, [ApplicationName], CorrelationId,
 				   SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash
 			FROM {_options.FullyQualifiedTableName}
 			{(whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "")}
@@ -255,7 +256,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 
 		var sql = $@"
 			SELECT EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
-				   ResourceId, ResourceType, ResourceClassification, TenantId, CorrelationId,
+				   ResourceId, ResourceType, ResourceClassification, TenantId, [ApplicationName], CorrelationId,
 				   SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash
 			FROM {_options.FullyQualifiedTableName}
 			WHERE [Timestamp] >= @StartDate AND [Timestamp] <= @EndDate
@@ -321,28 +322,48 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 	}
 
 	/// <inheritdoc />
-	public async Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
+	public Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
+	{
+		return GetLastEventInternalAsync(tenantId, applicationName: null, cancellationToken);
+	}
+
+	private async Task<AuditEvent?> GetLastEventInternalAsync(
+		string? tenantId,
+		string? applicationName,
+		CancellationToken cancellationToken)
 	{
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var sql = tenantId is null
-			? $@"
-				SELECT TOP 1 EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
-					   ResourceId, ResourceType, ResourceClassification, TenantId, CorrelationId,
-					   SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash
-				FROM {_options.FullyQualifiedTableName}
-				ORDER BY SequenceNumber DESC"
-			: $@"
-				SELECT TOP 1 EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
-					   ResourceId, ResourceType, ResourceClassification, TenantId, CorrelationId,
-					   SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash
-				FROM {_options.FullyQualifiedTableName}
-				WHERE TenantId = @TenantId
-				ORDER BY SequenceNumber DESC";
+		var whereClauses = new List<string>();
+		var parameters = new DynamicParameters();
+
+		if (tenantId is not null)
+		{
+			whereClauses.Add("TenantId = @TenantId");
+			parameters.Add("@TenantId", tenantId);
+		}
+
+		if (!string.IsNullOrEmpty(applicationName))
+		{
+			whereClauses.Add("[ApplicationName] = @ApplicationName");
+			parameters.Add("@ApplicationName", applicationName);
+		}
+
+		var whereClause = whereClauses.Count > 0
+			? "WHERE " + string.Join(" AND ", whereClauses)
+			: "";
+
+		var sql = $@"
+			SELECT TOP 1 EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
+				   ResourceId, ResourceType, ResourceClassification, TenantId, [ApplicationName], CorrelationId,
+				   SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash
+			FROM {_options.FullyQualifiedTableName}
+			{whereClause}
+			ORDER BY SequenceNumber DESC";
 
 		var row = await connection.QuerySingleOrDefaultAsync<AuditEventRow>(
-				new CommandDefinition(sql, new { TenantId = tenantId }, commandTimeout: _options.CommandTimeoutSeconds,
+				new CommandDefinition(sql, parameters, commandTimeout: _options.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -483,6 +504,12 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 			parameters.Add("@TenantId", query.TenantId);
 		}
 
+		if (!string.IsNullOrEmpty(query.ApplicationName))
+		{
+			whereClauses.Add("[ApplicationName] = @ApplicationName");
+			parameters.Add("@ApplicationName", query.ApplicationName);
+		}
+
 		if (!string.IsNullOrEmpty(query.CorrelationId))
 		{
 			whereClauses.Add("CorrelationId = @CorrelationId");
@@ -521,6 +548,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 				? (DataClassification)row.ResourceClassification.Value
 				: null,
 			TenantId = row.TenantId,
+			ApplicationName = row.ApplicationName,
 			CorrelationId = row.CorrelationId,
 			SessionId = row.SessionId,
 			IpAddress = row.IpAddress,
@@ -585,6 +613,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		public string? ResourceType { get; init; }
 		public int? ResourceClassification { get; init; }
 		public string? TenantId { get; init; }
+		public string? ApplicationName { get; init; }
 		public string? CorrelationId { get; init; }
 		public string? SessionId { get; init; }
 		public string? IpAddress { get; init; }

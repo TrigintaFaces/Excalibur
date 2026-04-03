@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </remarks>
 internal sealed partial class TransportStartupValidator : IHostedService
 {
-	private readonly TransportRegistry _transportRegistry;
+	private readonly ITransportRegistry _transportRegistry;
 	private readonly TransportValidationOptions _options;
 	private readonly ITransportOptionsValidator[] _validators;
 	private readonly ILogger<TransportStartupValidator> _logger;
@@ -43,7 +43,7 @@ internal sealed partial class TransportStartupValidator : IHostedService
 	/// <param name="validators">Optional custom validators for transport options.</param>
 	/// <param name="logger">The logger.</param>
 	internal TransportStartupValidator(
-		TransportRegistry transportRegistry,
+		ITransportRegistry transportRegistry,
 		TransportValidationOptions options,
 		IEnumerable<ITransportOptionsValidator> validators,
 		ILogger<TransportStartupValidator> logger)
@@ -75,9 +75,13 @@ internal sealed partial class TransportStartupValidator : IHostedService
 		}
 
 		// Validate default transport when multiple transports are registered.
+		// HasDefaultTransport/DefaultTransportName are admin properties on the concrete registry.
+		var hasDefault = _transportRegistry is TransportRegistry concreteForDefault && concreteForDefault.HasDefaultTransport;
+		var defaultName = (_transportRegistry as TransportRegistry)?.DefaultTransportName;
+
 		if (_options.RequireDefaultTransportWhenMultiple &&
 			transportCount > 1 &&
-			!_transportRegistry.HasDefaultTransport)
+			!hasDefault)
 		{
 			throw new InvalidOperationException(
 				string.Format(
@@ -87,9 +91,9 @@ internal sealed partial class TransportStartupValidator : IHostedService
 					string.Join(", ", transportNames)));
 		}
 
-		if (_transportRegistry.HasDefaultTransport)
+		if (hasDefault)
 		{
-			LogDefaultTransportConfigured(_transportRegistry.DefaultTransportName);
+			LogDefaultTransportConfigured(defaultName);
 		}
 
 		// Run custom validators for each transport.
@@ -103,7 +107,6 @@ internal sealed partial class TransportStartupValidator : IHostedService
 
 	private async Task RunCustomValidatorsAsync(CancellationToken cancellationToken)
 	{
-		var transports = _transportRegistry.GetAllTransports();
 		var allErrors = new List<string>();
 		var validatorCount = _validators.Length;
 		if (validatorCount == 0)
@@ -111,20 +114,35 @@ internal sealed partial class TransportStartupValidator : IHostedService
 			return;
 		}
 
-		foreach (var (transportName, registration) in transports)
+		// Use concrete registry for full registration details (Options, TransportType) when available.
+		var concreteRegistry = _transportRegistry as TransportRegistry;
+		var transportNames = _transportRegistry.GetTransportNames();
+
+		foreach (var transportName in transportNames)
 		{
+			var adapter = _transportRegistry.GetTransportAdapter(transportName);
+			if (adapter is null)
+			{
+				continue;
+			}
+
+			// Get transport options from concrete registry if available, empty dict otherwise.
+			var options = concreteRegistry?.GetTransportRegistration(transportName)?.Options
+						  ?? new Dictionary<string, object>();
+			var transportType = adapter.TransportType;
+
 			for (var i = 0; i < validatorCount; i++)
 			{
 				var validator = _validators[i];
 				if (!string.Equals(validator.TransportName, transportName, StringComparison.OrdinalIgnoreCase) &&
-				    !string.Equals(validator.TransportName, registration.TransportType, StringComparison.OrdinalIgnoreCase))
+				    !string.Equals(validator.TransportName, transportType, StringComparison.OrdinalIgnoreCase))
 				{
 					continue;
 				}
 
 				LogRunningValidator(transportName);
 
-				var result = await validator.ValidateAsync(registration.Options, cancellationToken)
+				var result = await validator.ValidateAsync(options, cancellationToken)
 					.ConfigureAwait(false);
 
 				if (!result.IsValid)

@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Dispatch.Transport.AzureServiceBus</PackageId>
     <Description>Azure integration for the Excalibur framework. Provides Service Bus, Event Hubs, and Event Grid implementations with CloudEvents support.</Description>
     <PackageTags>messaging;dispatch;azure;servicebus;eventhubs;eventgrid;cloud;aot</PackageTags>
+    <!-- AOT: NOT compatible. Azure.Messaging.ServiceBus uses reflection for AMQP message serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Outbox.MongoDB</PackageId>
     <Description>MongoDB bridge package for the Excalibur outbox pattern. Provides IOutboxBuilder.UseMongoDB() integration.</Description>
     <PackageTags>excalibur;outbox;mongodb;cloud-native;event-sourcing;messaging</PackageTags>
+    <!-- AOT: NOT compatible. MongoDB.Driver uses reflection-based BSON serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

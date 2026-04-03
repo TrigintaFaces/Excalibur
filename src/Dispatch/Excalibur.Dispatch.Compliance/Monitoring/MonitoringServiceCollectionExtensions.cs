@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -77,6 +78,29 @@ public static class MonitoringServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds key rotation alert services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="KeyRotationAlertOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddKeyRotationAlerts(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var options = new KeyRotationAlertOptions();
+		configuration.Bind(options);
+
+		services.TryAddSingleton(options);
+		services.TryAddSingleton<KeyRotationAlertService>();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IKeyRotationAlertHandler, LoggingAlertHandler>());
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds a custom key rotation alert handler.
 	/// </summary>
 	/// <typeparam name="THandler">The handler type.</typeparam>
@@ -124,6 +148,25 @@ public static class MonitoringServiceCollectionExtensions
 
 		_ = services.AddComplianceMetrics();
 		_ = services.AddKeyRotationAlerts(configureAlertOptions);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds all compliance monitoring services using an <see cref="IConfiguration"/> section for alert options.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="alertConfiguration">The configuration section to bind to <see cref="KeyRotationAlertOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddComplianceMonitoring(
+		this IServiceCollection services,
+		IConfiguration alertConfiguration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(alertConfiguration);
+
+		_ = services.AddComplianceMetrics();
+		_ = services.AddKeyRotationAlerts(alertConfiguration);
 
 		return services;
 	}

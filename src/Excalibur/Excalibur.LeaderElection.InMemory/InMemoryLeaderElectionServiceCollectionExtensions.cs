@@ -5,6 +5,7 @@
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.LeaderElection.InMemory;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -46,6 +47,35 @@ public static class InMemoryLeaderElectionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
+		services.AddKeyedSingleton<ILeaderElectionFactory>("inmemory",
+			(sp, _) => sp.GetRequiredService<InMemoryLeaderElectionFactory>());
+		services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElectionFactory>("inmemory"));
+		services.TryAddSingleton<InMemoryLeaderElectionFactory>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds in-memory leader election services to the service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// This is suitable for single-process scenarios, testing, and development.
+	/// For distributed scenarios, use a provider like SqlServer, Redis, Consul, or Kubernetes.
+	/// </remarks>
+	public static IServiceCollection AddInMemoryLeaderElection(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<LeaderElectionOptions>()
+			.Bind(configuration);
 		services.AddKeyedSingleton<ILeaderElectionFactory>("inmemory",
 			(sp, _) => sp.GetRequiredService<InMemoryLeaderElectionFactory>());
 		services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>

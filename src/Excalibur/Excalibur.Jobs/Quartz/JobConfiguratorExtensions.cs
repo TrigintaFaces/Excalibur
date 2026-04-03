@@ -55,7 +55,7 @@ public static class JobConfiguratorExtensions
 	/// <param name="configurator"> The job configurator. </param>
 	/// <param name="configurations"> Array of job configurations. </param>
 	/// <returns> The job configurator for chaining. </returns>
-	public static IJobConfigurator AddJobInstances<TJob>(this IJobConfigurator configurator, params JobConfiguration[] configurations)
+	public static IJobConfigurator AddJobInstances<TJob>(this IJobConfigurator configurator, params QuartzJobOptions[] configurations)
 		where TJob : class, IBackgroundJob
 	{
 		ArgumentNullException.ThrowIfNull(configurator);

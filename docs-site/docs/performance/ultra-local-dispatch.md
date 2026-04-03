@@ -49,6 +49,8 @@ if (dispatcher is IDirectLocalDispatcher direct)
 }
 ```
 
+> **AOT note:** `IDirectLocalDispatcher` methods carry `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` attributes because the internal dispatch plan uses reflection. When source generators are referenced, the source-generated interceptor eliminates these warnings. See [Native AOT](../advanced/native-aot.md) for details.
+
 ## Eligibility and Fallback
 
 Dispatch uses ultra-local/direct-local only when the message can stay on the local fast path. If not, it falls back to the full dispatch pipeline automatically.

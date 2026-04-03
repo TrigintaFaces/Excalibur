@@ -1,10 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
-// AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -409,10 +410,30 @@ public static class ComplianceServiceCollectionExtensions
 
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 
-		// Register the rotation service as both background service and scheduler interface
-		_ = services.AddSingleton<KeyRotationService>();
-		_ = services.AddHostedService(sp => sp.GetRequiredService<KeyRotationService>());
-		services.TryAddSingleton<IKeyRotationScheduler>(sp => sp.GetRequiredService<KeyRotationService>());
+		RegisterKeyRotationCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds automatic key rotation services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="KeyRotationOptions"/>. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddKeyRotation(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<KeyRotationOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterKeyRotationCore(services);
 
 		return services;
 	}
@@ -446,5 +467,42 @@ public static class ComplianceServiceCollectionExtensions
 		services.TryAddSingleton<IKeyRotationScheduler, TScheduler>();
 
 		return services;
+	}
+
+	/// <summary>
+	/// Adds automatic key rotation with a specific scheduler implementation
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TScheduler"> The scheduler implementation type. </typeparam>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="KeyRotationOptions"/>. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddKeyRotation<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+	TScheduler>(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		where TScheduler : class, IKeyRotationScheduler
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<KeyRotationOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		// Register the custom scheduler
+		services.TryAddSingleton<IKeyRotationScheduler, TScheduler>();
+
+		return services;
+	}
+
+	private static void RegisterKeyRotationCore(IServiceCollection services)
+	{
+		// Register the rotation service as both background service and scheduler interface
+		_ = services.AddSingleton<KeyRotationService>();
+		_ = services.AddHostedService(sp => sp.GetRequiredService<KeyRotationService>());
+		services.TryAddSingleton<IKeyRotationScheduler>(sp => sp.GetRequiredService<KeyRotationService>());
 	}
 }

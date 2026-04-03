@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
@@ -130,6 +131,8 @@ internal sealed class Dispatcher(
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the dispatch result. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	public Task<IMessageResult> DispatchAsync<TMessage>(
 		TMessage message,
 		IMessageContext context,
@@ -276,6 +279,8 @@ internal sealed class Dispatcher(
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the dispatch result with response. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	public Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
@@ -355,6 +360,8 @@ internal sealed class Dispatcher(
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	public ValueTask DispatchLocalAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
 		where TMessage : IDispatchAction
 	{
@@ -407,6 +414,8 @@ internal sealed class Dispatcher(
 
 	/// <inheritdoc />
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	public ValueTask<TResponse?> DispatchLocalAsync<TMessage, TResponse>(
 		TMessage message,
 		CancellationToken cancellationToken)
@@ -468,6 +477,8 @@ internal sealed class Dispatcher(
 		return ValueTask.FromException<TResponse?>(CreateMissingLocalHandlerException(messageType));
 	}
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task<IMessageResult> DispatchWithPreRoutingAsync<TMessage>(
 		TMessage message,
 		IMessageContext context,
@@ -538,6 +549,8 @@ internal sealed class Dispatcher(
 		return await DispatchOptimizedAsync(message, context, canBypass, cancellationToken).ConfigureAwait(false);
 	}
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task<IMessageResult<TResponse>> DispatchWithPreRoutingAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
@@ -641,6 +654,8 @@ internal sealed class Dispatcher(
 			$"Direct local dispatch returned {value.GetType().FullName}, expected {typeof(TResponse).FullName}.");
 	}
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task DispatchLocalFallbackAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
 		where TMessage : IDispatchAction
 	{
@@ -656,6 +671,8 @@ internal sealed class Dispatcher(
 		}
 	}
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private async Task<TResponse?> DispatchLocalFallbackWithResponseAsync<TMessage, TResponse>(
 		TMessage message,
 		CancellationToken cancellationToken)
@@ -682,6 +699,8 @@ internal sealed class Dispatcher(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct invocation uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private bool TryInvokeDirectWithLazyContext<TMessage>(
 		TMessage message,
 		CancellationToken cancellationToken,
@@ -707,6 +726,8 @@ internal sealed class Dispatcher(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct invocation uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private bool TryInvokeDirectNoResponseWithLazyContext<TMessage>(
 		TMessage message,
 		CancellationToken cancellationToken,
@@ -1304,6 +1325,8 @@ internal sealed class Dispatcher(
 			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
+	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local action dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private Task<IMessageResult> DispatchDirectLocalActionAsync<TMessage>(
 		TMessage message,
 		IDispatchAction action,
@@ -1392,6 +1415,8 @@ internal sealed class Dispatcher(
 		}
 	}
 
+	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local action dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private Task<IMessageResult<TResponse>> DispatchDirectLocalActionWithResponseAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
@@ -1499,6 +1524,8 @@ internal sealed class Dispatcher(
 		}
 	}
 
+	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local action dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private Task<IMessageResult> DispatchDirectLocalActionUntypedWithResponseAsync<TMessage>(
 		TMessage message,
 		IDispatchAction action,
@@ -1589,6 +1616,8 @@ internal sealed class Dispatcher(
 		}
 	}
 
+	[RequiresUnreferencedCode("Direct local event dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct local event dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private Task<IMessageResult> DispatchDirectLocalEventAsync<TMessage>(
 		TMessage message,
 		IDispatchEvent evt,
@@ -2048,6 +2077,8 @@ internal sealed class Dispatcher(
 	/// <see cref="ConcurrentDictionary{TKey,TValue}"/> access.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Dispatch info resolution uses reflection for type analysis and fast-path invoker construction.")]
+	[RequiresDynamicCode("Dispatch info resolution uses MakeGenericType/MakeGenericMethod for typed invoker construction.")]
 	private MessageDispatchInfo GetMessageDispatchInfo(Type messageType)
 	{
 		if (ReferenceEquals(s_cachedDispatchInfoDispatcher, this) &&
@@ -2122,6 +2153,8 @@ internal sealed class Dispatcher(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Fast-path resolution uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Fast-path resolution uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	private bool TryGetDirectLocalFastPath(
 		Type messageType,
 		out bool expectsResponse,

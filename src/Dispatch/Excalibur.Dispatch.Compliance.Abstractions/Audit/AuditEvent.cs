@@ -77,6 +77,15 @@ public sealed record AuditEvent
 	public string? TenantId { get; init; }
 
 	/// <summary>
+	/// Gets the application name that produced this audit event.
+	/// </summary>
+	/// <remarks>
+	/// Enables filtering and chain scoping in shared audit backends.
+	/// When null, defaults to <c>ApplicationContext.ApplicationName</c> via post-configure.
+	/// </remarks>
+	public string? ApplicationName { get; init; }
+
+	/// <summary>
 	/// Gets the correlation ID linking related audit events.
 	/// </summary>
 	public string? CorrelationId { get; init; }

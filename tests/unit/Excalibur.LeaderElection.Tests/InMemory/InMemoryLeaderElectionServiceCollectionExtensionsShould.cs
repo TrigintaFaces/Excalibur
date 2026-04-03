@@ -82,7 +82,7 @@ public sealed class InMemoryLeaderElectionServiceCollectionExtensionsShould : Un
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddInMemoryLeaderElection(null!));
+			services.AddInMemoryLeaderElection((Action<LeaderElectionOptions>)null!));
 	}
 
 	[Fact]

@@ -38,6 +38,7 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<SagaTimeoutDeliveryService> _logger;
 	private readonly SagaTimeoutOptions _options;
+	private readonly ISagaTypeRegistry? _typeRegistry;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SagaTimeoutDeliveryService"/> class.
@@ -46,16 +47,20 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	/// <param name="serviceProvider">The service provider for creating scoped dispatchers.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="options">The timeout delivery options.</param>
+	/// <param name="typeRegistry">Optional AOT-safe type registry. When provided, type resolution
+	/// uses the registry instead of runtime assembly scanning.</param>
 	public SagaTimeoutDeliveryService(
 		ISagaTimeoutStore timeoutStore,
 		IServiceProvider serviceProvider,
 		ILogger<SagaTimeoutDeliveryService> logger,
-		IOptions<SagaTimeoutOptions> options)
+		IOptions<SagaTimeoutOptions> options,
+		ISagaTypeRegistry? typeRegistry = null)
 	{
 		_timeoutStore = timeoutStore ?? throw new ArgumentNullException(nameof(timeoutStore));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_typeRegistry = typeRegistry;
 	}
 
 	/// <inheritdoc />
@@ -146,8 +151,9 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 
 		try
 		{
-			// Deserialize timeout message
-			var timeoutType = ResolveTypeByName(timeout.TimeoutType);
+			// Resolve timeout type: prefer AOT-safe registry, fall back to assembly scanning
+			var timeoutType = _typeRegistry?.ResolveType(timeout.TimeoutType)
+				?? ResolveTypeByName(timeout.TimeoutType);
 			if (timeoutType is null)
 			{
 				LogTimeoutTypeResolutionFailed(
@@ -211,6 +217,7 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		}
 	}
 
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() for runtime type resolution. Register types via ISagaTypeRegistry for AOT-safe resolution.")]
 	private static Type? ResolveTypeByName(string typeName)
 	{
 		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -241,6 +248,7 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		return null;
 	}
 
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Uses reflection to invoke constructors. Register types via ISagaTypeRegistry for AOT-safe instantiation.")]
 	private static object? CreateTimeoutMessageInstance(Type timeoutType)
 	{
 		var constructor = timeoutType.GetConstructor(Type.EmptyTypes);

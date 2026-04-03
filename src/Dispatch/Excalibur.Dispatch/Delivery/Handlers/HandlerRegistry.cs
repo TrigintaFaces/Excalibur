@@ -22,6 +22,17 @@ internal sealed class HandlerRegistry : IHandlerRegistry
 	private readonly object _updateLock = new();
 #endif
 
+	/// <inheritdoc />
+	IReadOnlyList<IHandlerRegistryEntry> IHandlerRegistry.GetAll() => GetAll();
+
+	/// <inheritdoc />
+	bool IHandlerRegistry.TryGetHandler(Type messageType, out IHandlerRegistryEntry entry)
+	{
+		var found = TryGetHandler(messageType, out var concrete);
+		entry = concrete;
+		return found;
+	}
+
 	/// <summary>
 	/// Gets all registered handler entries.
 	/// </summary>

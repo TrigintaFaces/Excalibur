@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// <summary>
 /// Default implementation of <see cref="IControlValidationService"/>.
 /// </summary>
-public sealed class ControlValidationService : IControlValidationService
+internal sealed class ControlValidationService : IControlValidationService
 {
 	private readonly IEnumerable<IControlValidator> _validators;
 	private readonly Dictionary<string, IControlValidator> _controlToValidator;

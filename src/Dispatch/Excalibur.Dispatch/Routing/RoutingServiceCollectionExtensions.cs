@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Options.Routing;
 using Excalibur.Dispatch.Routing.Builder;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,33 @@ public static class RoutingServiceCollectionExtensions
 
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 
+		RegisterRoutingServices(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds dispatch routing services to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection to add routing services to.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RoutingOptions"/>.</param>
+	/// <returns>The same service collection instance for method chaining.</returns>
+	public static IServiceCollection AddDispatchRouting(this IServiceCollection services, IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RoutingOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterRoutingServices(services);
+
+		return services;
+	}
+
+	private static void RegisterRoutingServices(IServiceCollection services)
+	{
 		// Register default transport selector (routes everything to "local")
 		services.TryAddSingleton<ITransportSelector>(sp =>
 		{
@@ -61,7 +89,5 @@ public static class RoutingServiceCollectionExtensions
 			var endpointRouter = sp.GetRequiredService<IEndpointRouter>();
 			return new DefaultDispatchRouter(transportSelector, endpointRouter);
 		});
-
-		return services;
 	}
 }

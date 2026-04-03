@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </remarks>
 internal sealed class MultiTransportHealthCheck : IHealthCheck
 {
-	private readonly TransportRegistry _registry;
+	private readonly ITransportRegistry _registry;
 	private readonly MultiTransportHealthCheckOptions _options;
 
 	/// <summary>
@@ -35,7 +35,7 @@ internal sealed class MultiTransportHealthCheck : IHealthCheck
 	/// <param name="registry">The transport registry to monitor.</param>
 	/// <param name="options">Optional health check options.</param>
 	public MultiTransportHealthCheck(
-		TransportRegistry registry,
+		ITransportRegistry registry,
 		MultiTransportHealthCheckOptions? options = null)
 	{
 		ArgumentNullException.ThrowIfNull(registry);
@@ -50,14 +50,21 @@ internal sealed class MultiTransportHealthCheck : IHealthCheck
 	{
 		var stopwatch = ValueStopwatch.StartNew();
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
-		var transports = _registry.GetAllTransports();
 
-		data["TransportCount"] = transports.Count;
-		data["HasDefaultTransport"] = _registry.HasDefaultTransport;
-		data["DefaultTransportName"] = _registry.DefaultTransportName ?? "None";
+		// Admin properties available from concrete registry.
+		var concreteRegistry = _registry as TransportRegistry;
+		var hasDefault = concreteRegistry?.HasDefaultTransport ?? false;
+		var defaultName = concreteRegistry?.DefaultTransportName;
+
+		var transportNames = _registry.GetTransportNames().ToList();
+		var transportCount = transportNames.Count;
+
+		data["TransportCount"] = transportCount;
+		data["HasDefaultTransport"] = hasDefault;
+		data["DefaultTransportName"] = defaultName ?? "None";
 
 		// No transports registered
-		if (transports.Count == 0)
+		if (transportCount == 0)
 		{
 			data["Duration"] = stopwatch.Elapsed.TotalMilliseconds;
 
@@ -78,19 +85,25 @@ internal sealed class MultiTransportHealthCheck : IHealthCheck
 		var unhealthyCount = 0;
 		var transportStatuses = new Dictionary<string, object>(StringComparer.Ordinal);
 
-		foreach (var (name, registration) in transports)
+		foreach (var name in transportNames)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
+			var adapter = _registry.GetTransportAdapter(name);
+			if (adapter is null)
+			{
+				continue;
+			}
+
 			var transportData = new Dictionary<string, object>(StringComparer.Ordinal)
 			{
-				["TransportType"] = registration.TransportType,
-				["IsRunning"] = registration.Adapter.IsRunning,
-				["IsDefault"] = name == _registry.DefaultTransportName
+				["TransportType"] = adapter.TransportType,
+				["IsRunning"] = adapter.IsRunning,
+				["IsDefault"] = name == defaultName
 			};
 
 			// Check if adapter implements detailed health checking
-			if (registration.Adapter is ITransportHealthChecker healthChecker)
+			if (adapter is ITransportHealthChecker healthChecker)
 			{
 				try
 				{
@@ -132,7 +145,7 @@ internal sealed class MultiTransportHealthCheck : IHealthCheck
 			else
 			{
 				// Fall back to IsRunning check
-				if (registration.Adapter.IsRunning)
+				if (adapter.IsRunning)
 				{
 					transportData["Status"] = "Running";
 					healthyCount++;
@@ -154,21 +167,21 @@ internal sealed class MultiTransportHealthCheck : IHealthCheck
 		data["Duration"] = stopwatch.Elapsed.TotalMilliseconds;
 
 		// Determine overall status
-		var defaultTransportHealthy = await IsDefaultTransportHealthyAsync(transports, cancellationToken).ConfigureAwait(false);
+		var defaultTransportHealthy = await IsDefaultTransportHealthyAsync(defaultName, cancellationToken).ConfigureAwait(false);
 
 		// All unhealthy
-		if (unhealthyCount == transports.Count)
+		if (unhealthyCount == transportCount)
 		{
 			return MsHealthCheckResult.Unhealthy(
-				$"All {transports.Count} transports are unhealthy.",
+				$"All {transportCount} transports are unhealthy.",
 				data: data);
 		}
 
 		// Default transport is unhealthy (critical)
-		if (_options.RequireDefaultTransportHealthy && _registry.HasDefaultTransport && !defaultTransportHealthy)
+		if (_options.RequireDefaultTransportHealthy && hasDefault && !defaultTransportHealthy)
 		{
 			return MsHealthCheckResult.Unhealthy(
-				$"Default transport '{_registry.DefaultTransportName}' is not healthy.",
+				$"Default transport '{defaultName}' is not healthy.",
 				data: data);
 		}
 
@@ -176,38 +189,39 @@ internal sealed class MultiTransportHealthCheck : IHealthCheck
 		if (degradedCount > 0 || unhealthyCount > 0)
 		{
 			return MsHealthCheckResult.Degraded(
-				$"{healthyCount}/{transports.Count} transports healthy, {degradedCount} degraded, {unhealthyCount} unhealthy.",
+				$"{healthyCount}/{transportCount} transports healthy, {degradedCount} degraded, {unhealthyCount} unhealthy.",
 				data: data);
 		}
 
 		// All healthy
 		return MsHealthCheckResult.Healthy(
-			$"All {transports.Count} transports are healthy.",
+			$"All {transportCount} transports are healthy.",
 			data: data);
 	}
 
 	private async Task<bool> IsDefaultTransportHealthyAsync(
-		IReadOnlyDictionary<string, TransportRegistration> transports,
+		string? defaultTransportName,
 		CancellationToken cancellationToken)
 	{
-		if (!_registry.HasDefaultTransport || _registry.DefaultTransportName is null)
+		if (defaultTransportName is null)
 		{
 			return true; // No default means nothing to check
 		}
 
-		if (!transports.TryGetValue(_registry.DefaultTransportName, out var defaultRegistration))
+		var defaultAdapter = _registry.GetTransportAdapter(defaultTransportName);
+		if (defaultAdapter is null)
 		{
-			return false; // Default transport not found (should not happen)
+			return false; // Default transport not found
 		}
 
 		// Check if running at minimum
-		if (!defaultRegistration.Adapter.IsRunning)
+		if (!defaultAdapter.IsRunning)
 		{
 			return false;
 		}
 
 		// If it has a health checker, use that
-		if (defaultRegistration.Adapter is ITransportHealthChecker healthChecker)
+		if (defaultAdapter is ITransportHealthChecker healthChecker)
 		{
 			try
 			{

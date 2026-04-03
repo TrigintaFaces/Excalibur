@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.ParallelCatchUp;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -30,6 +31,36 @@ public static class ParallelCatchUpServiceCollectionExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ParallelCatchUpOptions>, ParallelCatchUpOptionsValidator>());
 		builder.Services.AddOptionsWithValidateOnStart<ParallelCatchUpOptions>();
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Enables parallel catch-up processing for the global stream projection host,
+	/// with options bound from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="configuration">The configuration section to bind <see cref="ParallelCatchUpOptions"/> from.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This overload binds options from configuration (e.g., <c>appsettings.json</c>) instead of
+	/// an imperative <see cref="Action{T}"/> delegate. Data annotations are validated on start.
+	/// </para>
+	/// </remarks>
+	public static IEventSourcingBuilder UseParallelCatchUp(
+		this IEventSourcingBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		builder.Services.AddOptions<ParallelCatchUpOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ParallelCatchUpOptions>, ParallelCatchUpOptionsValidator>());
 
 		return builder;
 	}

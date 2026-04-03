@@ -258,6 +258,7 @@ public sealed partial class MessageOutbox(
 		return dispatchMessages;
 	}
 
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() for runtime message type resolution.")]
 	private static Type? ResolveMessageType(string typeName)
 	{
 		if (string.IsNullOrWhiteSpace(typeName))

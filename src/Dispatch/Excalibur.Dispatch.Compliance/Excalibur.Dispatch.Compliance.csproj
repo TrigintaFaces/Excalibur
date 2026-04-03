@@ -23,6 +23,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Compliance.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Benchmarks" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Compliance.Benchmarks" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />
     <InternalsVisibleTo Include="Excalibur.Testing.Conformance.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
@@ -35,7 +37,9 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="MongoDB.Driver" />
     <PackageReference Include="Npgsql" />

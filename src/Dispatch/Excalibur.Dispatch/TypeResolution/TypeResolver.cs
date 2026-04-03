@@ -17,7 +17,7 @@ internal static class TypeResolver
 	/// Resolves a type by name using the appropriate method based on runtime mode.
 	/// </summary>
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Conditional compilation ensures AOT compatibility")]
+		Justification = "RuntimeFeature check ensures AOT path avoids reflection")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
 		Justification = "JIT fallback resolves types from loaded assemblies via reflection")]
 	public static Type? ResolveType(string typeName)
@@ -27,19 +27,20 @@ internal static class TypeResolver
 			return null;
 		}
 
-		// Use compile-time conditional for zero overhead
-#if AOT_ENABLED
-		// In AOT mode, only use the registry
-		return TypeResolverRegistry.TryResolveType(typeName, out var type) ? type : null;
-#else
-		// In JIT mode, try registry first, then fall back to loaded assemblies
+		// Try registry first (works in both JIT and AOT)
 		if (TypeResolverRegistry.TryResolveType(typeName, out var type))
 		{
 			return type;
 		}
 
+		// AOT path: registry is the only resolution mechanism
+		if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+		{
+			return null;
+		}
+
+		// JIT path: fall back to loaded assemblies
 		return ResolveFromLoadedAssemblies(typeName);
-#endif
 	}
 
 	/// <summary>

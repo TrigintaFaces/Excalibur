@@ -701,10 +701,6 @@ Excalibur.Saga.Models.StepStatus.Skipped = 4 -> Excalibur.Saga.Models.StepStatus
 Excalibur.Saga.Models.StepStatus.Succeeded = 2 -> Excalibur.Saga.Models.StepStatus
 Excalibur.Saga.Models.StepStatus.TimedOut = 5 -> Excalibur.Saga.Models.StepStatus
 Excalibur.Saga.Orchestration.DispatchOrchestrationExtensions
-Excalibur.Saga.Orchestration.InMemorySagaStore
-Excalibur.Saga.Orchestration.InMemorySagaStore.InMemorySagaStore() -> void
-Excalibur.Saga.Orchestration.InMemorySagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
-Excalibur.Saga.Orchestration.InMemorySagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Orchestration.OrchestrationDispatchBuilderExtensions
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.CancelTimeoutAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -730,9 +726,6 @@ Excalibur.Saga.Orchestration.SagaHandlingMiddleware
 Excalibur.Saga.Orchestration.SagaHandlingMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
 Excalibur.Saga.Orchestration.SagaHandlingMiddleware.SagaHandlingMiddleware(Excalibur.Saga.Orchestration.SagaCoordinator! coordinator, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaHandlingMiddleware!>! logger) -> void
 Excalibur.Saga.Orchestration.SagaHandlingMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
-Excalibur.Saga.Orchestration.SagaManager
-Excalibur.Saga.Orchestration.SagaManager.HandleEventAsync<TSaga, TSagaState>(System.Guid sagaId, object! event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Orchestration.SagaManager.SagaManager(Excalibur.Dispatch.Abstractions.Messaging.ISagaStore! sagaStore, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory) -> void
 Excalibur.Saga.Orchestration.SagaRegistry
 Excalibur.Saga.Outbox.ISagaOutboxMediator
 Excalibur.Saga.Outbox.ISagaOutboxMediator.PublishThroughOutboxAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -922,15 +915,6 @@ Excalibur.Saga.Storage.InMemorySagaMonitoringService.GetRunningCountAsync(string
 Excalibur.Saga.Storage.InMemorySagaMonitoringService.GetStuckSagasAsync(System.TimeSpan threshold, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaInstanceInfo!>!>!
 Excalibur.Saga.Storage.InMemorySagaMonitoringService.InMemorySagaMonitoringService() -> void
 Excalibur.Saga.Storage.InMemorySagaMonitoringService.RecordSaga(Excalibur.Saga.Abstractions.SagaInstanceInfo! info) -> void
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore.CancelAllTimeoutsAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore.CancelTimeoutAsync(string! sagaId, string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore.Clear() -> void
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore.GetDueTimeoutsAsync(System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaTimeout!>!>!
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore.GetPendingCount() -> int
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore.InMemorySagaTimeoutStore() -> void
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore.MarkDeliveredAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.Storage.InMemorySagaTimeoutStore.ScheduleTimeoutAsync(Excalibur.Saga.Abstractions.SagaTimeout! timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Telemetry.SagaInstrumentationOptions
 Excalibur.Saga.Telemetry.SagaInstrumentationOptions.EnableMetrics.get -> bool
 Excalibur.Saga.Telemetry.SagaInstrumentationOptions.EnableMetrics.set -> void
@@ -958,7 +942,7 @@ Microsoft.Extensions.DependencyInjection.SagaDefinitionServiceCollectionExtensio
 Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions
 Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SagaExcaliburBuilderExtensions
-Microsoft.Extensions.DependencyInjection.SagaHealthCheckExtensions
+Microsoft.Extensions.DependencyInjection.SagaHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SagaTelemetryExtensions
 Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions
@@ -1140,8 +1124,8 @@ static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectio
 static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaTimeoutCleanup(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaTimeoutCleanup(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SagaExcaliburBuilderExtensions.AddSagas(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Saga.SagaOptions!>? configure = null) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
-static Microsoft.Extensions.DependencyInjection.SagaHealthCheckExtensions.AddSagaHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Excalibur.Saga.Health.SagaHealthCheckOptions! options, string! name = "sagas", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
-static Microsoft.Extensions.DependencyInjection.SagaHealthCheckExtensions.AddSagaHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "sagas", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null, System.Action<Excalibur.Saga.Health.SagaHealthCheckOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaHealthChecksBuilderExtensions.AddSagaHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Excalibur.Saga.Health.SagaHealthCheckOptions! options, string! name = "sagas", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaHealthChecksBuilderExtensions.AddSagaHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "sagas", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null, System.Action<Excalibur.Saga.Health.SagaHealthCheckOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.AddExcaliburSaga(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.AddExcaliburSaga(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.DependencyInjection.ISagaBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.AddExcaliburSaga(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.SagaOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -1156,3 +1140,16 @@ static Microsoft.Extensions.DependencyInjection.SagasDispatchBuilderExtensions.W
 virtual Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SerializeTimeoutData<T>(T data) -> byte[]!
 virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.get -> string!
 virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.set -> void
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithReminders(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithSnapshots(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithTimeoutCleanup(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaExcaliburBuilderExtensions.AddSagas(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.SagasDispatchBuilderExtensions.WithAdvancedSagas(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDelivery(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDeliveryService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.AddExcaliburSaga(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaReminders(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaSnapshots(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AdvancedSagaServiceCollectionExtensions.AddDispatchAdvancedSagas(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaTimeoutCleanup(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.AddSaga<TSaga, TSagaState>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

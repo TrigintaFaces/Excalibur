@@ -151,9 +151,9 @@ Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeOutbox.get -> bool
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeOutbox.set -> void
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeSaga.get -> bool
 Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeSaga.set -> void
-Microsoft.Extensions.DependencyInjection.DispatchHealthCheckExtensions
+Microsoft.Extensions.DependencyInjection.DispatchHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburBuilderDispatchExtensions
-Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ExcaliburHostingServiceCollectionExtensions
 Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions
 abstract Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult!>!
 const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncColdStartCompleted = 162822 -> int
@@ -321,9 +321,9 @@ static Excalibur.Hosting.Configuration.Validators.CloudProviderValidator.Validat
 static Excalibur.Hosting.Configuration.Validators.CloudProviderValidator.ValidateAzureResourceId(string? resourceId, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, string! configPath) -> bool
 static Excalibur.Hosting.Configuration.Validators.CloudProviderValidator.ValidateRegion(string? region, System.Collections.Generic.IReadOnlySet<string!>! validRegions, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, string! configPath) -> bool
 static Excalibur.Hosting.Configuration.Validators.MessageBrokerValidator.ValidateEndpoint(string? endpoint, System.Collections.Generic.ICollection<Excalibur.Hosting.Configuration.ConfigurationValidationError!>! errors, string! configPath, string? expectedScheme = null) -> bool
-static Microsoft.Extensions.DependencyInjection.DispatchHealthCheckExtensions.AddDispatchHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Hosting.Options.DispatchHealthCheckOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchHealthChecksBuilderExtensions.AddDispatchHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Hosting.Options.DispatchHealthCheckOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.ExcaliburBuilderDispatchExtensions.UseDispatch(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>? configure = null) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddExcalibur(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Hosting.Builders.IExcaliburBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddExcaliburBaseServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly![]! assemblies, bool useLocalClientAddress = false, string! tenantId = "Default") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ExcaliburHostingServiceCollectionExtensions.AddExcalibur(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Hosting.Builders.IExcaliburBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ExcaliburHostingServiceCollectionExtensions.AddExcaliburBaseServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly![]! assemblies, bool useLocalClientAddress = false, string! tenantId = "Default") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions.AddApplicationContext(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions.ConfigureApplicationContext(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!

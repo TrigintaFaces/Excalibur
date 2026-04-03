@@ -38,7 +38,7 @@ public sealed class EncryptionServiceCollectionExtensionsShould
 	public void ThrowWhenConfigureIsNull_AddEncryption()
 	{
 		var services = new ServiceCollection();
-		Should.Throw<ArgumentNullException>(() => services.AddEncryption(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddEncryption((Action<EncryptionConfigurationBuilder>)null!));
 	}
 
 	[Fact]

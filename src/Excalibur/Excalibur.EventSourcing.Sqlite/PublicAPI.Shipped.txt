@@ -19,4 +19,5 @@ Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.Ev
 Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.SnapshotStoreTable.get -> string!
 Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions.SnapshotStoreTable.set -> void
 Microsoft.Extensions.DependencyInjection.SqliteEventSourcingServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.SqliteEventSourcingServiceCollectionExtensions.UseSqlite(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.SqliteEventSourcingServiceCollectionExtensions.UseSqlite(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Sqlite.DependencyInjection.SqliteEventSourcingOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

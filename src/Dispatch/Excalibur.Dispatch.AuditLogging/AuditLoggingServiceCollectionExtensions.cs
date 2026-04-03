@@ -9,6 +9,7 @@ using Excalibur.Dispatch.AuditLogging.Encryption;
 using Excalibur.Dispatch.AuditLogging.Retention;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -288,6 +289,29 @@ public static class AuditLoggingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds real-time audit alerting services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="AuditAlertOptions"/>. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddAuditAlerting(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<AuditAlertOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IAuditAlertService, DefaultAuditAlertService>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds automated audit retention services with a background cleanup service.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -310,6 +334,30 @@ public static class AuditLoggingServiceCollectionExtensions
 
 		_ = services.AddOptions<AuditRetentionOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IAuditRetentionService, DefaultAuditRetentionService>();
+		_ = services.AddHostedService<AuditRetentionBackgroundService>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds automated audit retention services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind to <see cref="AuditRetentionOptions"/>. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddAuditRetention(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<AuditRetentionOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
@@ -358,6 +406,34 @@ public static class AuditLoggingServiceCollectionExtensions
 			_ = services.Configure(configure);
 		}
 
+		RegisterAuditLogEncryptionDecorator(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Decorates the existing <see cref="IAuditStore"/> with field-level encryption at rest
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="AuditEncryptionOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection UseAuditLogEncryption(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<AuditEncryptionOptions>().Bind(configuration);
+
+		RegisterAuditLogEncryptionDecorator(services);
+
+		return services;
+	}
+
+	private static void RegisterAuditLogEncryptionDecorator(IServiceCollection services)
+	{
 		// Find and replace the existing IAuditStore registration with the encrypting decorator
 		var existingDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAuditStore))
 								 ?? throw new InvalidOperationException(
@@ -393,7 +469,5 @@ public static class AuditLoggingServiceCollectionExtensions
 				sp.GetRequiredService<IEncryptionProvider>(),
 				sp.GetRequiredService<IOptions<AuditEncryptionOptions>>()));
 		}
-
-		return services;
 	}
 }

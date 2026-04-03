@@ -133,6 +133,61 @@ public sealed class SpanEventSerializerShould
 		ex.Message.ShouldContain("No serializer available");
 	}
 
+	[Fact]
+	public void PreferCurrentSerializer_OverMemoryPack_WhenBothAvailable()
+	{
+		// Arrange - both current and MemoryPack are available
+		var currentSerializer = A.Fake<ISerializer>();
+		_ = A.CallTo(() => currentSerializer.Name).Returns("SystemTextJson");
+
+		var memoryPackSerializer = A.Fake<ISerializer>();
+		_ = A.CallTo(() => memoryPackSerializer.Name).Returns("MemoryPack");
+
+		// GetCurrent returns the JSON serializer; GetAll/GetById also have MemoryPack
+		_ = A.CallTo(() => _registry.GetCurrent()).Returns((SerializerIds.SystemTextJson, currentSerializer));
+		_ = A.CallTo(() => _registry.GetAll()).Returns(
+			[(SerializerIds.MemoryPack, "MemoryPack", memoryPackSerializer)]);
+		_ = A.CallTo(() => _registry.GetById(SerializerIds.MemoryPack)).Returns(memoryPackSerializer);
+
+		// Act
+		var serializer = new SpanEventSerializer(_registry);
+
+		// Assert - serializer uses the current serializer (JSON), not MemoryPack
+		var testEvent = A.Fake<IDomainEvent>();
+		_ = A.CallTo(() => currentSerializer.SerializeObject(A<object>._, A<Type>._))
+			.Returns(new byte[] { 1, 2, 3 });
+		serializer.SerializeEvent(testEvent);
+
+		A.CallTo(() => currentSerializer.SerializeObject(testEvent, A<Type>._))
+			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => memoryPackSerializer.SerializeObject(A<object>._, A<Type>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public void FallBackToMemoryPack_WhenCurrentSerializerIsNull()
+	{
+		// Arrange - current serializer is null, MemoryPack available via GetAll (for GetByName)
+		var memoryPackSerializer = A.Fake<ISerializer>();
+		_ = A.CallTo(() => memoryPackSerializer.Name).Returns("MemoryPack");
+
+		_ = A.CallTo(() => _registry.GetCurrent()).Returns((SerializerIds.Unknown, (ISerializer)null!));
+		_ = A.CallTo(() => _registry.GetAll()).Returns(
+			[(SerializerIds.MemoryPack, "MemoryPack", memoryPackSerializer)]);
+
+		// Act
+		var serializer = new SpanEventSerializer(_registry);
+
+		// Assert - serializer uses MemoryPack as fallback
+		var testEvent = A.Fake<IDomainEvent>();
+		_ = A.CallTo(() => memoryPackSerializer.SerializeObject(A<object>._, A<Type>._))
+			.Returns(new byte[] { 4, 5, 6 });
+		serializer.SerializeEvent(testEvent);
+
+		A.CallTo(() => memoryPackSerializer.SerializeObject(testEvent, A<Type>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
 	#endregion
 
 	#region SerializeEvent Span Tests

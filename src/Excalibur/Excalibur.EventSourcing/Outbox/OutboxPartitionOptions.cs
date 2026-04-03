@@ -50,7 +50,7 @@ public sealed class OutboxPartitionOptions
 	/// Required when <see cref="Strategy"/> is <see cref="OutboxPartitionStrategy.PerShard"/>.
 	/// </summary>
 	/// <value>The shard IDs. Default is an empty list.</value>
-	public IReadOnlyList<string> ShardIds { get; set; } = [];
+	public List<string> ShardIds { get; set; } = [];
 
 	/// <summary>
 	/// Gets or sets the polling interval when no messages are available in a partition.

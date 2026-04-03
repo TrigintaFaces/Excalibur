@@ -477,7 +477,6 @@ Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ProjectId.get -> stri
 Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ProjectId.set -> void
 Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ResourceType.get -> string!
 Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ResourceType.set -> void
-Excalibur.Dispatch.Transport.Google.GrpcCoreAdapter
 Excalibur.Dispatch.Transport.Google.HistogramSnapshot
 Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Count.get -> long
 Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Count.set -> void
@@ -1143,11 +1142,6 @@ Excalibur.Dispatch.Transport.Google.SerializedBatchResult.Processed.init -> void
 Excalibur.Dispatch.Transport.Google.SerializedBatchResult.SerializedBatchResult(System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.ProcessedMessage!>! Processed, System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.FailedMessage!>! Failed, System.TimeSpan TotalDuration, System.Collections.Generic.Dictionary<string!, object!>? Metrics = null) -> void
 Excalibur.Dispatch.Transport.Google.SerializedBatchResult.TotalDuration.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.Google.SerializedBatchResult.TotalDuration.init -> void
-Excalibur.Dispatch.Transport.Google.SingleChannelPool
-Excalibur.Dispatch.Transport.Google.SingleChannelPool.Dispose() -> void
-Excalibur.Dispatch.Transport.Google.SingleChannelPool.GetChannel() -> Grpc.Net.Client.GrpcChannel!
-Excalibur.Dispatch.Transport.Google.SingleChannelPool.SingleChannelPool(string! address) -> void
-Excalibur.Dispatch.Transport.Google.SingleChannelPool.UnderlyingChannel.get -> Grpc.Net.Client.GrpcChannel!
 Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy
 Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.DetermineNextBatchSize(Excalibur.Dispatch.Transport.Google.BatchingContext! context) -> int
 Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.RecordBatchResult(Excalibur.Dispatch.Transport.Google.BatchResult! result) -> void
@@ -1291,7 +1285,6 @@ Excalibur.Dispatch.Transport.Google.WorkStealingDistributionStrategy.RecordCompl
 Excalibur.Dispatch.Transport.Google.WorkStealingDistributionStrategy.SelectWorker(Excalibur.Dispatch.Transport.Google.WorkDistributionContext! context) -> int
 Excalibur.Dispatch.Transport.Google.WorkStealingDistributionStrategy.WorkStealingDistributionStrategy() -> void
 Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId
-Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants
 Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DispatchBuilderGooglePubSubExtensions
 Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExtensions
@@ -1336,7 +1329,7 @@ Microsoft.Extensions.DependencyInjection.PubSubBatchReceivingServiceCollectionEx
 Microsoft.Extensions.DependencyInjection.PubSubFilterServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PubSubSchemaServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PubSubStreamingPullServiceCollectionExtensions
-Microsoft.Extensions.DependencyInjection.StreamingPullHealthCheckExtensions
+Microsoft.Extensions.DependencyInjection.StreamingPullHealthChecksBuilderExtensions
 abstract Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.GetConfidence(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> double
 abstract Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.GetReason(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> string!
 abstract Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.IsPoison(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> bool
@@ -1506,16 +1499,12 @@ const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSub
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberStopped = 23926 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.UnhealthyStreamsFound = 23216 -> int
 const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.UnorderedMessageError = 23317 -> int
-const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Transport.GooglePubSub" -> string!
-const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.MeterName = "Excalibur.Dispatch.Transport.GooglePubSub" -> string!
-const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.Version = "1.0.0" -> string!
 const Microsoft.Extensions.DependencyInjection.GooglePubSubTransportServiceCollectionExtensions.DefaultTransportName = "google-pubsub" -> string!
 override Excalibur.Dispatch.Transport.Google.CustomPatternRule.GetConfidence(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> double
 override Excalibur.Dispatch.Transport.Google.CustomPatternRule.GetReason(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> string!
 override Excalibur.Dispatch.Transport.Google.CustomPatternRule.IsPoison(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> bool
 override Excalibur.Dispatch.Transport.Google.ProjectName.ToString() -> string!
 static Excalibur.Dispatch.Transport.Google.GooglePubSubOptionsExtensions.WithTelemetry(this Excalibur.Dispatch.Transport.Google.GooglePubSubOptions! options, System.Action<Excalibur.Dispatch.Transport.Google.TelemetryOptions!>! configure) -> Excalibur.Dispatch.Transport.Google.GooglePubSubOptions!
-static Excalibur.Dispatch.Transport.Google.GrpcCoreAdapter.Create(string! address) -> Excalibur.Dispatch.Transport.Google.SingleChannelPool!
 static Excalibur.Dispatch.Transport.Google.ProjectName.FromProject(string! projectId) -> Excalibur.Dispatch.Transport.Google.ProjectName!
 static Excalibur.Dispatch.Transport.Google.ProjectName.FromProjectId(string! projectId) -> Excalibur.Dispatch.Transport.Google.ProjectName!
 static Excalibur.Dispatch.Transport.Google.ProjectName.implicit operator Excalibur.Dispatch.Transport.Google.ProjectName!(string! projectId) -> Excalibur.Dispatch.Transport.Google.ProjectName!
@@ -1526,8 +1515,6 @@ static Excalibur.Dispatch.Transport.Google.PubSubTelemetry.CreatePubSubActivityS
 static Excalibur.Dispatch.Transport.Google.PubSubTelemetry.CreatePubSubMeter(string! name, string! version = "1.0.0") -> System.Diagnostics.Metrics.Meter!
 static Excalibur.Dispatch.Transport.Google.PubSubTelemetry.FormatSubscriptionName(string! subscription) -> string!
 static Excalibur.Dispatch.Transport.Google.PubSubTelemetry.FormatTopicName(string! topic) -> string!
-static Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.SharedActivitySource.get -> System.Diagnostics.ActivitySource!
-static Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.SharedMeter.get -> System.Diagnostics.Metrics.Meter!
 static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddCustomRetryStrategy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! messageType, Excalibur.Dispatch.Transport.Google.RetryStrategy! strategy) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddDeadLetterAnalytics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddGooglePubSubDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -1553,4 +1540,5 @@ static Microsoft.Extensions.DependencyInjection.PubSubSchemaServiceCollectionExt
 static Microsoft.Extensions.DependencyInjection.PubSubSchemaServiceCollectionExtensions.AddGooglePubSubSchemaManager<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubStreamingPullServiceCollectionExtensions.AddGooglePubSubStreamingPull(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubStreamingPullServiceCollectionExtensions.AddGooglePubSubStreamingPull(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.StreamingPullOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.StreamingPullHealthCheckExtensions.AddStreamingPullHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "streaming-pull", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.StreamingPullHealthChecksBuilderExtensions.AddStreamingPullHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "streaming-pull", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.PubSubFilterServiceCollectionExtensions.AddGooglePubSubFilter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

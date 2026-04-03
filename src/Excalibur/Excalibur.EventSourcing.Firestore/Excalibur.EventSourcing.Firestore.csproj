@@ -5,6 +5,7 @@
     <PackageId>Excalibur.EventSourcing.Firestore</PackageId>
     <Description>Google Cloud Firestore event store implementation for Excalibur event sourcing.</Description>
     <PackageTags>excalibur;eventsourcing;firestore;google-cloud;cloud-native;event-store</PackageTags>
+    <!-- AOT: NOT compatible. Google.Cloud.Firestore uses reflection-based attribute mapping for event conversion. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

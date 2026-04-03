@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
@@ -684,6 +685,14 @@ internal sealed class CachingMiddleware(
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			// AOT path: MakeGenericType is unavailable. Per-message cache policies
+			// require explicit closed-generic DI registration in AOT scenarios.
+			// Fall through to global policy.
+			return null;
+		}
+
 		var messageType = message.GetType();
 		var policyType = typeof(IResultCachePolicy<>).MakeGenericType(messageType);
 		return services.GetService(policyType);
@@ -765,8 +774,15 @@ internal sealed class CachingMiddleware(
 		return null;
 	}
 
+	[RequiresDynamicCode("JIT path uses Type.MakeGenericType to construct CachedMessageResult<T>.")]
 	private static IMessageResult CreateCachedMessageResult(Type returnType, object cachedValue)
 	{
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			// AOT path: MakeGenericType is unavailable. Use non-generic wrapper.
+			return new CachedObjectMessageResult(cachedValue);
+		}
+
 		var resultWrapperType = typeof(CachedMessageResult<>).MakeGenericType(returnType);
 		var constructor = resultWrapperType.GetConstructors()
 			.FirstOrDefault(static ctor => ctor.GetParameters().Length == 1)

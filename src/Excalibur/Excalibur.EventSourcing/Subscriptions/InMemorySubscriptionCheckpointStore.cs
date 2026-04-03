@@ -15,7 +15,7 @@ namespace Excalibur.EventSourcing.Subscriptions;
 /// a SQL Server or Redis-based checkpoint store.
 /// </para>
 /// </remarks>
-public sealed class InMemorySubscriptionCheckpointStore : ISubscriptionCheckpointStore
+internal sealed class InMemorySubscriptionCheckpointStore : ISubscriptionCheckpointStore
 {
 	private readonly ConcurrentDictionary<string, long> _checkpoints = new(StringComparer.Ordinal);
 

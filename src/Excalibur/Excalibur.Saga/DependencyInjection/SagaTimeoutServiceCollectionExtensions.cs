@@ -6,6 +6,7 @@ using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Services;
 using Excalibur.Saga.Storage;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -70,6 +71,36 @@ public static class SagaTimeoutServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds the saga timeout delivery background service with in-memory storage
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSagaTimeoutDelivery(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Register options
+		_ = services.AddOptions<SagaTimeoutOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		// Register in-memory store as default (can be overridden)
+		services.TryAddSingleton<InMemorySagaTimeoutStore>();
+		services.TryAddSingleton<ISagaTimeoutStore>(sp => sp.GetRequiredService<InMemorySagaTimeoutStore>());
+
+		// Register hosted service
+		_ = services.AddHostedService<SagaTimeoutDeliveryService>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds the saga timeout delivery background service without registering a timeout store.
 	/// Use this when you register a custom <see cref="ISagaTimeoutStore"/> implementation separately.
 	/// </summary>
@@ -90,6 +121,32 @@ public static class SagaTimeoutServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+
+		// Register hosted service only (store must be registered separately)
+		_ = services.AddHostedService<SagaTimeoutDeliveryService>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the saga timeout delivery background service without registering a timeout store,
+	/// using an <see cref="IConfiguration"/> section.
+	/// Use this when you register a custom <see cref="ISagaTimeoutStore"/> implementation separately.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSagaTimeoutDeliveryService(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SagaTimeoutOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Register hosted service only (store must be registered separately)
 		_ = services.AddHostedService<SagaTimeoutDeliveryService>();

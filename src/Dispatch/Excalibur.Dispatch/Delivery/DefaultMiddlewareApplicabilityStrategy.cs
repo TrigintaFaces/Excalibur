@@ -60,7 +60,9 @@ internal sealed class DefaultMiddlewareApplicabilityStrategy : IMiddlewareApplic
 	/// Uses manual loop to avoid LINQ iterator allocation.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool ImplementsGenericInterface(Type type, Type genericInterfaceDefinition)
+	private static bool ImplementsGenericInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type,
+		Type genericInterfaceDefinition)
 	{
 		var interfaces = type.GetInterfaces();
 		foreach (var iface in interfaces)

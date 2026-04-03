@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
 
 using Amazon;
 
@@ -42,6 +43,7 @@ public sealed class AwsKmsOptions
 	/// Keys are identified by alias: alias/{Prefix}-{purpose}-{environment}.
 	/// Default is "excalibur-dispatch".
 	/// </remarks>
+	[Required]
 	public string KeyAliasPrefix { get; set; } = "excalibur-dispatch";
 
 	/// <summary>

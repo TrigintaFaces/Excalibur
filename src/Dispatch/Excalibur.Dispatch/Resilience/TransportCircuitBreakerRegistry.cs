@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// Each transport (e.g., RabbitMQ, Azure Service Bus, Kafka) gets its own circuit breaker
 /// to prevent failures in one transport from affecting others.
 /// </remarks>
-public sealed class TransportCircuitBreakerRegistry : ITransportCircuitBreakerRegistry, ITransportCircuitBreakerDiagnostics
+internal sealed class TransportCircuitBreakerRegistry : ITransportCircuitBreakerRegistry, ITransportCircuitBreakerDiagnostics
 {
 	private readonly ConcurrentDictionary<string, ICircuitBreakerPolicy> _breakers = new(StringComparer.OrdinalIgnoreCase);
 	private readonly CircuitBreakerOptions _defaultOptions;

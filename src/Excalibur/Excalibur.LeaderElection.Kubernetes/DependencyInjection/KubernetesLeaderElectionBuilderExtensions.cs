@@ -9,6 +9,7 @@ using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.Kubernetes;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -44,6 +45,32 @@ public static class KubernetesLeaderElectionBuilderExtensions
 
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 
+		return builder.UseKubernetesCore();
+	}
+
+	/// <summary>
+	/// Configures the leader election builder to use the Kubernetes provider with an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The leader election builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="KubernetesLeaderElectionOptions"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	public static ILeaderElectionBuilder UseKubernetes(
+		this ILeaderElectionBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<KubernetesLeaderElectionOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.UseKubernetesCore();
+	}
+
+	private static ILeaderElectionBuilder UseKubernetesCore(this ILeaderElectionBuilder builder)
+	{
 		// Register cross-property validators
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<KubernetesLeaderElectionOptions>,

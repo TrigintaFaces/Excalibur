@@ -8,6 +8,7 @@ using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Idempotency;
 using Excalibur.Saga.Implementation;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -42,6 +43,33 @@ public static class AdvancedSagaServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+
+		// Register core services
+		services.TryAddSingleton<ISagaRetryPolicy, DefaultSagaRetryPolicy>();
+		services.TryAddSingleton<ISagaIdempotencyProvider, InMemorySagaIdempotencyProvider>();
+		services.TryAddSingleton<IDispatchMiddleware, AdvancedSagaMiddleware>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds advanced saga orchestration services to the service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddDispatchAdvancedSagas(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<AdvancedSagaOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Register core services
 		services.TryAddSingleton<ISagaRetryPolicy, DefaultSagaRetryPolicy>();

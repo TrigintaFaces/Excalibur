@@ -35,7 +35,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </remarks>
 public sealed partial class TransportAdapterHostedService : ITransportLifecycleManager, IHostedService
 {
-	private readonly TransportRegistry _transportRegistry;
+	private readonly ITransportRegistry _transportRegistry;
 	private readonly TransportAdapterHostedServiceOptions _options;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<TransportAdapterHostedService> _logger;
@@ -133,7 +133,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 	/// <param name="serviceProvider"> The service provider for factory-based transport creation. </param>
 	/// <param name="logger"> The logger. </param>
 	public TransportAdapterHostedService(
-		TransportRegistry transportRegistry,
+		ITransportRegistry transportRegistry,
 		IOptions<TransportAdapterHostedServiceOptions> options,
 		IServiceProvider serviceProvider,
 		ILogger<TransportAdapterHostedService> logger)
@@ -147,33 +147,39 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
-		// Initialize any factory-registered transports first
-		if (_transportRegistry.HasPendingFactories)
+		// Initialize any factory-registered transports first (only applicable for our concrete registry).
+		if (_transportRegistry is TransportRegistry concreteRegistry && concreteRegistry.HasPendingFactories)
 		{
-			LogInitializingFactories(_transportRegistry.PendingFactoryCount);
+			LogInitializingFactories(concreteRegistry.PendingFactoryCount);
 
-			var initialized = _transportRegistry.InitializeFactories(_serviceProvider);
+			var initialized = concreteRegistry.InitializeFactories(_serviceProvider);
 
 			LogInitializedFactories(initialized);
 		}
 
-		var transports = _transportRegistry.GetAllTransports();
+		var transportNames = _transportRegistry.GetTransportNames().ToList();
 
-		if (transports.Count == 0)
+		if (transportNames.Count == 0)
 		{
 			LogNoTransportAdaptersRegistered();
 			return;
 		}
 
-		LogStartingTransportAdapters(transports.Count);
+		LogStartingTransportAdapters(transportNames.Count);
 
-		foreach (var (name, registration) in transports)
+		foreach (var name in transportNames)
 		{
+			var adapter = _transportRegistry.GetTransportAdapter(name);
+			if (adapter is null)
+			{
+				continue;
+			}
+
 			try
 			{
-				LogStartingTransportAdapter(name, registration.TransportType);
+				LogStartingTransportAdapter(name, adapter.TransportType);
 
-				await registration.Adapter.StartAsync(cancellationToken).ConfigureAwait(false);
+				await adapter.StartAsync(cancellationToken).ConfigureAwait(false);
 				_startedAdapters.Add(name);
 
 				LogTransportAdapterStarted(name);
@@ -196,7 +202,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 			}
 		}
 
-		LogTransportAdapterStartupSummary(_startedAdapters.Count, transports.Count);
+		LogTransportAdapterStartupSummary(_startedAdapters.Count, transportNames.Count);
 	}
 
 	/// <inheritdoc/>
@@ -227,9 +233,9 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 		for (var i = _startedAdapters.Count - 1; i >= 0; i--)
 		{
 			var name = _startedAdapters[i];
-			var registration = _transportRegistry.GetTransportRegistration(name);
+			var adapter = _transportRegistry.GetTransportAdapter(name);
 
-			if (registration is null)
+			if (adapter is null)
 			{
 				LogTransportAdapterNotFound(name);
 				continue;
@@ -239,7 +245,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 			{
 				LogStoppingTransportAdapter(name);
 
-				await registration.Adapter.StopAsync(cancellationToken).ConfigureAwait(false);
+				await adapter.StopAsync(cancellationToken).ConfigureAwait(false);
 
 				LogTransportAdapterStopped(name);
 			}
@@ -265,11 +271,15 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 		{
 			lock (_lock)
 			{
-				var transports = _transportRegistry.GetAllTransports();
-				var adapters = new List<ITransportAdapter>(transports.Count);
-				foreach (var transport in transports)
+				var names = _transportRegistry.GetTransportNames();
+				var adapters = new List<ITransportAdapter>();
+				foreach (var name in names)
 				{
-					adapters.Add(transport.Value.Adapter);
+					var adapter = _transportRegistry.GetTransportAdapter(name);
+					if (adapter is not null)
+					{
+						adapters.Add(adapter);
+					}
 				}
 
 				return adapters.AsReadOnly();
@@ -294,21 +304,21 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-		var registration = _transportRegistry.GetTransportRegistration(name)
-						   ?? throw new InvalidOperationException(
-							   $"No transport with name '{name}' is registered. " +
-							   $"Available transports: {string.Join(", ", _transportRegistry.GetTransportNames())}");
+		var adapter = _transportRegistry.GetTransportAdapter(name)
+					  ?? throw new InvalidOperationException(
+						  $"No transport with name '{name}' is registered. " +
+						  $"Available transports: {string.Join(", ", _transportRegistry.GetTransportNames())}");
 
 		// Check if already running
-		if (registration.Adapter.IsRunning)
+		if (adapter.IsRunning)
 		{
 			LogTransportAdapterAlreadyRunning(name);
 			return;
 		}
 
-		LogStartingTransportAdapterViaLifecycleManager(name, registration.TransportType);
+		LogStartingTransportAdapterViaLifecycleManager(name, adapter.TransportType);
 
-		await registration.Adapter.StartAsync(cancellationToken).ConfigureAwait(false);
+		await adapter.StartAsync(cancellationToken).ConfigureAwait(false);
 
 		lock (_lock)
 		{
@@ -326,13 +336,13 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-		var registration = _transportRegistry.GetTransportRegistration(name)
-						   ?? throw new InvalidOperationException(
-							   $"No transport with name '{name}' is registered. " +
-							   $"Available transports: {string.Join(", ", _transportRegistry.GetTransportNames())}");
+		var adapter = _transportRegistry.GetTransportAdapter(name)
+					  ?? throw new InvalidOperationException(
+						  $"No transport with name '{name}' is registered. " +
+						  $"Available transports: {string.Join(", ", _transportRegistry.GetTransportNames())}");
 
 		// Check if already stopped
-		if (!registration.Adapter.IsRunning)
+		if (!adapter.IsRunning)
 		{
 			LogTransportAdapterAlreadyStopped(name);
 			return;
@@ -348,7 +358,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 
 		try
 		{
-			await registration.Adapter.StopAsync(combinedCts.Token).ConfigureAwait(false);
+			await adapter.StopAsync(combinedCts.Token).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) when (drainCts.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
 		{
@@ -376,7 +386,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-		return _transportRegistry.GetTransportRegistration(name) is not null;
+		return _transportRegistry.GetTransportAdapter(name) is not null;
 	}
 
 	private static IReadOnlyCollection<string> MaterializeTransportNames(IEnumerable<string> transportNames)
@@ -412,8 +422,8 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-		var registration = _transportRegistry.GetTransportRegistration(name);
-		return registration?.Adapter.IsRunning ?? false;
+		var adapter = _transportRegistry.GetTransportAdapter(name);
+		return adapter?.IsRunning ?? false;
 	}
 
 	#endregion

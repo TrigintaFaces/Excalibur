@@ -9,6 +9,7 @@ namespace Excalibur.Data.OpenSearch.Resilience;
 /// <summary>
 /// Provides a resilient wrapper around OpenSearch client operations with retry, circuit breaker, and dead letter handling capabilities.
 /// </summary>
+#pragma warning disable RS0016 // Analyzer cannot resolve nullable annotations for OpenSearch.Client generic types
 public interface IResilientOpenSearchClient
 {
 	/// <summary>

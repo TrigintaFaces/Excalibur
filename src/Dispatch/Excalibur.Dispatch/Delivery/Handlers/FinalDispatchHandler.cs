@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -121,6 +121,8 @@ public sealed partial class FinalDispatchHandler(
 		"Design",
 		"CA1506:AvoidExcessiveClassCoupling",
 		Justification = "Multi-target dispatch composes the end-to-end pipeline across messaging abstractions and transports.")]
+	[RequiresUnreferencedCode("Multi-target dispatch uses reflection for action result type resolution.")]
+	[RequiresDynamicCode("Multi-target dispatch uses reflection for typed result construction.")]
 	private async ValueTask<IMessageResult> HandleMultiTargetAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -303,6 +305,8 @@ public sealed partial class FinalDispatchHandler(
 	}
 
 	// PERF-7: Non-async wrapper avoids state machine allocation when handler completes synchronously.
+	[RequiresUnreferencedCode("Action fast-path dispatch uses reflection for result type resolution.")]
+	[RequiresDynamicCode("Action fast-path dispatch uses reflection for typed result construction.")]
 	private ValueTask<IMessageResult> HandleLocalActionFastPathAsync(
 		IDispatchAction action,
 		IMessageContext context,
@@ -336,7 +340,6 @@ public sealed partial class FinalDispatchHandler(
 				}
 
 				return new ValueTask<IMessageResult>(CreateActionDispatchResult(
-					action,
 					context,
 					routingDecision,
 					actionResultType,
@@ -357,6 +360,8 @@ public sealed partial class FinalDispatchHandler(
 		}
 	}
 
+	[RequiresUnreferencedCode("Action fast-path dispatch uses reflection for typed result construction.")]
+	[RequiresDynamicCode("Action fast-path dispatch uses reflection for typed result construction.")]
 	private async ValueTask<IMessageResult> HandleLocalActionFastPathSlowAsync(
 		Task publishTask,
 		IDispatchAction action,
@@ -368,7 +373,6 @@ public sealed partial class FinalDispatchHandler(
 		{
 			await publishTask.ConfigureAwait(false);
 			return CreateActionDispatchResult(
-				action,
 				context,
 				routingDecision,
 				actionResultType,
@@ -380,6 +384,8 @@ public sealed partial class FinalDispatchHandler(
 		}
 	}
 
+	[RequiresUnreferencedCode("Action fast-path dispatch uses reflection for typed result construction.")]
+	[RequiresDynamicCode("Action fast-path dispatch uses reflection for typed result construction.")]
 	private async ValueTask<IMessageResult> HandleLocalActionFastPathWithRetryAsync(
 		IMessageBus localBus,
 		IDispatchAction action,
@@ -399,7 +405,6 @@ public sealed partial class FinalDispatchHandler(
 				}
 
 				return CreateActionDispatchResult(
-					action,
 					context,
 					routingDecision,
 					actionResultType,
@@ -560,6 +565,8 @@ public sealed partial class FinalDispatchHandler(
 
 	// PERF: Non-async wrapper avoids state machine allocation when the bus completes synchronously.
 	// The async slow path is split into HandleSingleTargetSlowAsync.
+	[RequiresUnreferencedCode("Single-target dispatch uses reflection for result type resolution.")]
+	[RequiresDynamicCode("Single-target dispatch uses reflection for typed result construction.")]
 	private ValueTask<IMessageResult> HandleSingleTargetAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -634,12 +641,11 @@ public sealed partial class FinalDispatchHandler(
 						if (!publishTask.IsCompletedSuccessfully)
 						{
 							return HandleSingleTargetActionSlowAsync(
-								publishTask, action, context, routingDecision, actionResultType);
+								publishTask, context, routingDecision, actionResultType);
 						}
 					}
 
 					return new ValueTask<IMessageResult>(CreateActionDispatchResult(
-						action,
 						context,
 						routingDecision,
 						actionResultType,
@@ -723,9 +729,10 @@ public sealed partial class FinalDispatchHandler(
 	}
 
 	// PERF: Async slow-path helpers for HandleSingleTargetAsync, split to avoid state machine on sync completion.
+	[RequiresUnreferencedCode("Action dispatch result uses reflection for typed result construction.")]
+	[RequiresDynamicCode("Action dispatch result uses reflection for typed result construction.")]
 	private async ValueTask<IMessageResult> HandleSingleTargetActionSlowAsync(
 		Task publishTask,
-		IDispatchAction action,
 		IMessageContext context,
 		RoutingDecision? routingDecision,
 		Type? actionResultType)
@@ -733,7 +740,7 @@ public sealed partial class FinalDispatchHandler(
 		try
 		{
 			await publishTask.ConfigureAwait(false);
-			return CreateActionDispatchResult(action, context, routingDecision, actionResultType, hadContextResultBeforeDispatch: false);
+			return CreateActionDispatchResult(context, routingDecision, actionResultType, hadContextResultBeforeDispatch: false);
 		}
 		catch (Exception ex)
 		{
@@ -741,6 +748,8 @@ public sealed partial class FinalDispatchHandler(
 		}
 	}
 
+	[RequiresUnreferencedCode("Action dispatch result uses reflection for typed result construction.")]
+	[RequiresDynamicCode("Action dispatch result uses reflection for typed result construction.")]
 	private async ValueTask<IMessageResult> HandleSingleTargetActionWithRetryAsync(
 		IMessageBus resolvedBus,
 		IDispatchAction action,
@@ -760,7 +769,7 @@ public sealed partial class FinalDispatchHandler(
 					await resolvedBus.PublishAsync(action, context, ct).ConfigureAwait(false);
 				}
 
-				return CreateActionDispatchResult(action, context, routingDecision, actionResultType, hasContextResult);
+				return CreateActionDispatchResult(context, routingDecision, actionResultType, hasContextResult);
 			}
 
 			return await policy.ExecuteAsync(ExecuteActionAsync, cancellationToken).ConfigureAwait(false);
@@ -1395,12 +1404,13 @@ public sealed partial class FinalDispatchHandler(
 	private static IMessageResult CreateTypedResult(IDispatchAction action, IMessageContext context)
 	{
 		var actionResultType = GetActionResultType(action.GetType());
-		return CreateTypedResult(action, context, actionResultType);
+		return CreateTypedResult(context, actionResultType);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Action dispatch result uses reflection for typed result construction.")]
+	[RequiresDynamicCode("Action dispatch result uses reflection for typed result construction.")]
 	private static IMessageResult CreateActionDispatchResult(
-		IDispatchAction action,
 		IMessageContext context,
 		RoutingDecision? routingDecision,
 		Type? actionResultType,
@@ -1411,13 +1421,12 @@ public sealed partial class FinalDispatchHandler(
 			return CreateSuccessResult(context, routingDecision);
 		}
 
-		return CreateTypedResult(action, context, actionResultType);
+		return CreateTypedResult(context, actionResultType);
 	}
 
 	[RequiresUnreferencedCode("This method uses reflection to create typed MessageResult instances and set properties dynamically")]
 	[RequiresDynamicCode("This method uses reflection to construct generic methods at runtime.")]
 	private static IMessageResult CreateTypedResult(
-		IDispatchAction action,
 		IMessageContext context,
 		Type? actionResultType)
 	{
@@ -1457,19 +1466,20 @@ public sealed partial class FinalDispatchHandler(
 			return leanFactory(result, cacheHit);
 		}
 
-#if AOT_ENABLED
 		// AOT path: Use source-generated factory registry (no reflection/MakeGenericMethod)
-		var aotFactory = ResultFactoryRegistry.GetFactory(resultType);
-		if (aotFactory != null)
+		if (!RuntimeFeature.IsDynamicCodeSupported)
 		{
-			return aotFactory(
-				result,
-				routing,
-				validation,
-				authorization as IAuthorizationResult,
-				cacheHit);
+			var aotFactory = ResultFactoryRegistry.GetFactory(resultType);
+			if (aotFactory != null)
+			{
+				return aotFactory(
+					result,
+					routing,
+					validation,
+					authorization as IAuthorizationResult,
+					cacheHit);
+			}
 		}
-#endif
 
 		// Use cached factory delegate instead of per-dispatch reflection
 		var factory = ResultFactoryCache.GetOrCreateFactory(resultType);
@@ -1568,6 +1578,7 @@ public sealed partial class FinalDispatchHandler(
 		return resultType;
 	}
 
+	[RequiresUnreferencedCode("Uses reflection to inspect generic interface types for action result type resolution.")]
 	private static Type? ResolveActionResultType(Type actionType)
 	{
 		var interfaces = actionType.GetInterfaces();

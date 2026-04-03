@@ -76,7 +76,7 @@
     <!-- From Excalibur.Dispatch.Messaging -->
     <PackageReference Include="CloudNative.CloudEvents.SystemTextJson" />
     <PackageReference Include="Cronos" />
-    <PackageReference Include="MemoryPack" />
+    <!-- ADR-295: MemoryPack removed from core; JSON is the default, binary serializers are opt-in provider packages -->
     <PackageReference Include="Microsoft.ApplicationInsights" />
     <PackageReference Include="Microsoft.AspNetCore.Authorization" />
     <!-- Polly removed - Use IRetryPolicy from Excalibur.Dispatch.Resilience or Excalibur.Dispatch.Resilience.Polly -->
@@ -91,7 +91,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
-    <ProjectReference Include="..\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
+    <!-- ADR-295: MemoryPack ProjectReference removed; opt-in via Excalibur.Dispatch.Serialization.MemoryPack package -->
     <!-- PERF-7/PERF-8 (Sprint 452): Source generators always enabled for AOT-compatible handler resolution -->
     <ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- NOTE: Excalibur.Requirements.Generator reference removed to maintain architectural boundaries.
@@ -114,6 +114,9 @@
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Dispatch.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Dispatch.Patterns.Tests</_Parameter1>
@@ -164,6 +167,9 @@
       <_Parameter1>Tests.Shared</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Observability</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Dispatch.Observability.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
@@ -183,6 +189,9 @@
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Outbox</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Cdc.SqlServer</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Dispatch.Messaging.Performance.Tests</_Parameter1>

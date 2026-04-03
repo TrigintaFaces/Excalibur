@@ -7,6 +7,7 @@
     <PackageTags>messaging;dispatch;google;gcp;pubsub;cloud;aot</PackageTags>
     <!-- IL2026: Suppress RequiresUnreferencedCode for source-generated JSON serializer using Exception.TargetSite -->
     <NoWarn>$(NoWarn);IL2026</NoWarn>
+    <!-- AOT: NOT compatible. PubSubBatchSerializer depends on DispatchJsonSerializer dynamic code; Google.Cloud.PubSub.V1 uses reflection. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

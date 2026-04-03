@@ -15,10 +15,9 @@ public sealed class ErasureServiceShould
 
 	public ErasureServiceShould()
 	{
-		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions());
-		var signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions
+		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
 		{
-			SigningKey = new byte[32],
+			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
 		});
 
 		_sut = new ErasureService(
@@ -26,7 +25,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			options,
-			signingOptions,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService,
 			_dataInventoryService);
@@ -491,10 +489,12 @@ public sealed class ErasureServiceShould
 	public async Task Work_without_legal_hold_service()
 	{
 		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions());
-		var signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions { SigningKey = new byte[32] });
+		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+		{
+			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+		});
 		var sut = new ErasureService(
-			_store, _keyProvider, _keyAdmin, options, signingOptions,
+			_store, _keyProvider, _keyAdmin, options,
 			NullLogger<ErasureService>.Instance,
 			null, // no legal hold service
 			null); // no data inventory service
@@ -515,7 +515,6 @@ public sealed class ErasureServiceShould
 		Should.Throw<ArgumentNullException>(() =>
 			new ErasureService(null!, _keyProvider, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
-				Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions()),
 				NullLogger<ErasureService>.Instance,
 				null, null));
 	}
@@ -526,7 +525,6 @@ public sealed class ErasureServiceShould
 		Should.Throw<ArgumentNullException>(() =>
 			new ErasureService(_store, null!, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
-				Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions()),
 				NullLogger<ErasureService>.Instance,
 				null, null));
 	}
@@ -536,18 +534,6 @@ public sealed class ErasureServiceShould
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new ErasureService(_store, _keyProvider, _keyAdmin,
-				null!,
-				Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions()),
-				NullLogger<ErasureService>.Instance,
-				null, null));
-	}
-
-	[Fact]
-	public void Throw_for_null_signing_options()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(_store, _keyProvider, _keyAdmin,
-				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				null!,
 				NullLogger<ErasureService>.Instance,
 				null, null));
@@ -559,7 +545,6 @@ public sealed class ErasureServiceShould
 		Should.Throw<ArgumentNullException>(() =>
 			new ErasureService(_store, _keyProvider, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
-				Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions()),
 				null!,
 				null, null));
 	}
@@ -612,10 +597,12 @@ public sealed class ErasureServiceShould
 		A.CallTo(() => contributor.EraseAsync(A<ErasureContributorContext>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new ErasureContributorResult { Success = true, RecordsAffected = 5 }));
 
-		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions());
-		var signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions { SigningKey = new byte[32] });
+		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+		{
+			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+		});
 		var sut = new ErasureService(
-			_store, _keyProvider, _keyAdmin, options, signingOptions,
+			_store, _keyProvider, _keyAdmin, options,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService, null,
 			[contributor]);

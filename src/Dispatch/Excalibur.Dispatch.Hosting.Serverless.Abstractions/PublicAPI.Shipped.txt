@@ -180,3 +180,5 @@ static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseServerles
 virtual Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Dispose(bool disposing) -> void
 virtual Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.TraceContext.get -> Excalibur.Dispatch.Hosting.Serverless.TraceContext?
 virtual Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.TraceContext.set -> void
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddServerlessHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseServerlessHosting(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.Hosting.IHostBuilder!

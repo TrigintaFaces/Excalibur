@@ -22,7 +22,6 @@ public sealed class ErasureServiceShould
 	private readonly IKeyManagementProvider _keyProvider;
 	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<ErasureOptions> _options;
-	private readonly IOptions<ErasureSigningOptions> _signingOptions;
 	private readonly ErasureService _sut;
 
 	public ErasureServiceShould()
@@ -34,8 +33,10 @@ public sealed class ErasureServiceShould
 		_dataInventoryService = A.Fake<IDataInventoryService>();
 		_keyProvider = A.Fake<IKeyManagementProvider>();
 		_keyAdmin = A.Fake<IKeyManagementAdmin>();
-		_options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions());
-		_signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions { SigningKey = new byte[32] });
+		_options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
+		{
+			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
+		});
 
 		// Wire up GetService to return sub-stores
 		_ = A.CallTo(() => _store.GetService(typeof(IErasureCertificateStore)))
@@ -48,7 +49,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService,
 			_dataInventoryService);
@@ -65,7 +65,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null));
@@ -80,7 +79,6 @@ public sealed class ErasureServiceShould
 			null!,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null));
@@ -95,7 +93,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			null!,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null));
@@ -110,7 +107,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			null!,
 			null,
 			null));
@@ -125,7 +121,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
@@ -142,7 +137,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
@@ -350,7 +344,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			_options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
@@ -424,7 +417,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null);
@@ -477,7 +469,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null);
@@ -510,7 +501,6 @@ public sealed class ErasureServiceShould
 			_keyProvider,
 			_keyAdmin,
 			options,
-			_signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null,
 			null);

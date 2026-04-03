@@ -21,7 +21,7 @@ namespace Excalibur.EventSourcing.Subscriptions;
 /// lazily and can be retrieved by name.
 /// </para>
 /// </remarks>
-public sealed class EventSubscriptionManager : IEventSubscriptionManager
+internal sealed class EventSubscriptionManager : IEventSubscriptionManager
 {
 	private readonly ConcurrentDictionary<string, IEventSubscription> _subscriptions = new();
 	private readonly IEventStore _eventStore;

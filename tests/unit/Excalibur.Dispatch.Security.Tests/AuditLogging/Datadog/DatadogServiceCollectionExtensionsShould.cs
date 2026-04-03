@@ -87,7 +87,7 @@ public sealed class DatadogServiceCollectionExtensionsShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddDatadogAuditExporter(null!));
+			services.AddDatadogAuditExporter((Action<DatadogExporterOptions>)null!));
 	}
 
 	[Fact]

@@ -71,6 +71,6 @@ public sealed class DispatchAzureFunctionsServiceCollectionExtensionsShould : Un
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAzureFunctionsServerless(null!));
+			services.AddAzureFunctionsServerless((Action<ServerlessHostOptions>)null!));
 	}
 }

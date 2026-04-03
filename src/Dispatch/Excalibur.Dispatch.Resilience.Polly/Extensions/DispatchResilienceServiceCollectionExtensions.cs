@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Resilience.Polly;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
@@ -76,6 +77,35 @@ public static class DispatchResilienceServiceCollectionExtensions
 
 		_ = services.AddOptions<HedgingOptions>()
 			.Configure(options => configureOptions?.Invoke(options))
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton(sp =>
+		{
+			var options = sp.GetRequiredService<Options.IOptions<HedgingOptions>>().Value;
+			var logger = sp.GetRequiredService<ILogger<HedgingPolicy>>();
+			return new HedgingPolicy(options, logger);
+		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the hedging policy to the service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind hedging options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddHedgingPolicy(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<HedgingOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

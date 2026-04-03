@@ -40,4 +40,10 @@
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data" />
+    <InternalsVisibleTo Include="Excalibur.Data.Abstractions.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
 </Project>

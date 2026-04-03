@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch.Serialization.MessagePack;
 /// <b>Serializer ID:</b> <see cref="SerializerIds.MessagePack"/> (3)
 /// </para>
 /// </remarks>
-[RequiresUnreferencedCode("MessagePack serialization may require unreferenced code for type-specific handling.")]
-[RequiresDynamicCode("MessagePack serialization may require dynamic code generation for type-specific handling.")]
+[RequiresUnreferencedCode("MessagePack-CSharp uses runtime code generation for formatter resolution (MakeGenericType in StandardResolver).")]
+[RequiresDynamicCode("MessagePack-CSharp uses runtime code generation for formatter resolution. Pre-generated formatters via mpc tool do not eliminate all internal reflection.")]
 public sealed class MessagePackSerializer : ISerializer
 {
 	private readonly MpOptions _options;

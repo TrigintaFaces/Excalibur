@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.AuditLogging.Aws.Tests;
@@ -66,6 +67,38 @@ public sealed class AwsAuditServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsAuditExporter(null!));
+			services.AddAwsAuditExporter((Action<AwsAuditOptions>)null!));
+	}
+
+	// --- IConfiguration overload tests ---
+
+	[Fact]
+	[RequiresDynamicCode("Test")]
+	[RequiresUnreferencedCode("Test")]
+	public void Register_exporter_services_with_IConfiguration_overload()
+	{
+		var services = new ServiceCollection();
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["LogGroupName"] = "test-group",
+				["Region"] = "us-east-1"
+			})
+			.Build();
+
+		services.AddAwsAuditExporter(config);
+
+		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
+	}
+
+	[Fact]
+	[RequiresDynamicCode("Test")]
+	[RequiresUnreferencedCode("Test")]
+	public void Throw_for_null_configuration()
+	{
+		var services = new ServiceCollection();
+
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddAwsAuditExporter((IConfiguration)null!));
 	}
 }

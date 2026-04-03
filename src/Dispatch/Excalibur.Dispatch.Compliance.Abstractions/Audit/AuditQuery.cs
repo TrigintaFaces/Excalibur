@@ -57,6 +57,11 @@ public sealed record AuditQuery
 	public string? TenantId { get; init; }
 
 	/// <summary>
+	/// Gets or sets the application name to filter by.
+	/// </summary>
+	public string? ApplicationName { get; init; }
+
+	/// <summary>
 	/// Gets or sets the correlation ID to filter by.
 	/// </summary>
 	public string? CorrelationId { get; init; }

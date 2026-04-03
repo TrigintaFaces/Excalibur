@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Patterns;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 using Excalibur.Dispatch.Serialization;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,29 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 		{
 			_ = optionsBuilder.Configure(configure);
 		}
+
+		services.TryAddSingleton<DispatchJsonSerializer>();
+		return services;
+	}
+
+	/// <summary>
+	/// Registers the System.Text.Json-based <see cref="DispatchJsonSerializer" /> for Excalibur.Dispatch.Patterns hosting scenarios
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection to configure.</param>
+	/// <param name="configuration">The configuration section to bind JSON serialization options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddJsonSerialization(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<DispatchPatternsJsonOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddSingleton<DispatchJsonSerializer>();
 		return services;

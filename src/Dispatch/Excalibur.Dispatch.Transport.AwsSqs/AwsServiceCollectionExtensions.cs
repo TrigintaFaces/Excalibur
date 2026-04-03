@@ -7,6 +7,7 @@ using Amazon.Scheduler;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Aws;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -42,6 +43,45 @@ public static class AwsServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IAmazonScheduler>(sp =>
+		{
+			var schedulerOptions =
+							sp.GetRequiredService<IOptions<AwsEventBridgeSchedulerOptions>>().Value;
+
+			var config = new AmazonSchedulerConfig
+			{
+				RegionEndpoint = RegionEndpoint.GetBySystemName(
+									schedulerOptions.Region),
+			};
+
+			return new AmazonSchedulerClient(config);
+		});
+
+		services.TryAddSingleton<AwsEventBridgeScheduler>();
+		services.TryAddSingleton<IMessageScheduler>(sp =>
+				sp.GetRequiredService<AwsEventBridgeScheduler>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds AWS EventBridge Scheduler services to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="AwsEventBridgeSchedulerOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddAwsEventBridgeScheduler(
+			this IServiceCollection services,
+			IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<AwsEventBridgeSchedulerOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

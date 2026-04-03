@@ -28,6 +28,12 @@ namespace Excalibur.Dispatch.Messaging;
 /// <param name="activator"> Service responsible for creating instances of message handlers. </param>
 /// <param name="invoker"> Service responsible for invoking handler methods with appropriate parameters. </param>
 /// <param name="logger"> Logger for capturing message bus operations and diagnostics. </param>
+[RequiresUnreferencedCode(
+	"LocalMessageBus uses reflection (MakeGenericType, MakeGenericMethod, Expression.Compile) to build typed dispatch plans. " +
+	"In AOT scenarios, use the source-generated dispatcher from the Excalibur.Dispatch.SourceGenerators package.")]
+[RequiresDynamicCode(
+	"LocalMessageBus uses runtime code generation for typed dispatch plan construction. " +
+	"In AOT scenarios, use the source-generated dispatcher from the Excalibur.Dispatch.SourceGenerators package.")]
 internal sealed partial class LocalMessageBus(
 	IServiceProvider provider,
 	IHandlerRegistry registry,
@@ -37,6 +43,9 @@ internal sealed partial class LocalMessageBus(
 {
 	private const string ResultContextKey = "Dispatch:Result";
 	private const string CacheHitContextKey = "Dispatch:CacheHit";
+
+	// Internal concrete-typed access for performance: avoids IHandlerRegistryEntry → HandlerRegistryEntry casts
+	private readonly HandlerRegistry? _concreteRegistry = registry as HandlerRegistry;
 
 	private readonly FrozenDictionary<Type, HandlerRegistryEntry> _frozenHandlerEntryMap =
 		InitializeFrozenHandlerEntryMap(registry);
@@ -380,6 +389,8 @@ internal sealed partial class LocalMessageBus(
 	public Task PublishAsync(IDispatchDocument doc, IMessageContext context, CancellationToken cancellationToken)
 		=> SendDocumentAsync(doc, context, cancellationToken);
 
+	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct invocation uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeDirect(
 		IDispatchAction action,
@@ -419,6 +430,8 @@ internal sealed partial class LocalMessageBus(
 		return true;
 	}
 
+	[RequiresUnreferencedCode("Direct invocation uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Direct invocation uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeDirectNoResponse(
 		IDispatchAction action,
@@ -485,6 +498,8 @@ internal sealed partial class LocalMessageBus(
 		return true;
 	}
 
+	[RequiresUnreferencedCode("Ultra-local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Ultra-local dispatch uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeUltraLocal(
 		IDispatchAction action,
@@ -494,6 +509,8 @@ internal sealed partial class LocalMessageBus(
 		return TryInvokeUltraLocal(action, cancellationToken, out invocation, out _);
 	}
 
+	[RequiresUnreferencedCode("Ultra-local typed dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Ultra-local typed dispatch uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeUltraLocalTyped<TMessage, TResponse>(
 		TMessage action,
@@ -545,6 +562,8 @@ internal sealed partial class LocalMessageBus(
 		return true;
 	}
 
+	[RequiresUnreferencedCode("Ultra-local dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Ultra-local dispatch uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeUltraLocal(
 		IDispatchAction action,
@@ -586,6 +605,8 @@ internal sealed partial class LocalMessageBus(
 		return true;
 	}
 
+	[RequiresUnreferencedCode("Ultra-local no-response dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Ultra-local no-response dispatch uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeUltraLocalNoResponse(
 		IDispatchAction action,
@@ -595,6 +616,8 @@ internal sealed partial class LocalMessageBus(
 		return TryInvokeUltraLocalNoResponse(action, cancellationToken, out invocation, out _);
 	}
 
+	[RequiresUnreferencedCode("Ultra-local no-response dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Ultra-local no-response dispatch uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeUltraLocalNoResponse(
 		IDispatchAction action,
@@ -672,6 +695,8 @@ internal sealed partial class LocalMessageBus(
 	/// Callers must ensure <paramref name="actionType"/> is eligible for no-context, no-response dispatch.
 	/// This method intentionally avoids metadata resolution work on the hot path.
 	/// </remarks>
+	[RequiresUnreferencedCode("Fast-path dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Fast-path dispatch uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeUltraLocalNoResponseFast(
 		Type actionType,
@@ -732,6 +757,8 @@ internal sealed partial class LocalMessageBus(
 	/// Callers must ensure <paramref name="actionType"/> is eligible for no-context, with-response dispatch.
 	/// This method intentionally avoids metadata resolution work on the hot path.
 	/// </remarks>
+	[RequiresUnreferencedCode("Fast-path dispatch uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Fast-path dispatch uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryInvokeUltraLocalWithResponseFast(
 		Type actionType,
@@ -791,6 +818,8 @@ internal sealed partial class LocalMessageBus(
 	/// <summary>
 	/// Resolves prevalidated ultra-local invokers for a direct action type.
 	/// </summary>
+	[RequiresUnreferencedCode("Fast invoker resolution uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Fast invoker resolution uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryGetUltraLocalFastInvokers(
 		Type actionType,
@@ -899,6 +928,8 @@ internal sealed partial class LocalMessageBus(
 		return false;
 	}
 
+	[RequiresUnreferencedCode("Dispatch metadata resolution uses reflection-based dispatch plan resolution.")]
+	[RequiresDynamicCode("Dispatch metadata resolution uses reflection-based dispatch plan resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal bool TryGetDirectActionDispatchMetadata(
 		Type actionType,
@@ -942,6 +973,8 @@ internal sealed partial class LocalMessageBus(
 		return HandlerActivator.RequiresContextInjection(entry.HandlerType);
 	}
 
+	[RequiresUnreferencedCode("Dispatch plan resolution may create typed invokers via reflection when not cached.")]
+	[RequiresDynamicCode("Dispatch plan resolution may create typed invokers via MakeGenericMethod when not cached.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private bool TryGetDirectActionDispatchPlan(
 		Type actionType,
@@ -1030,7 +1063,7 @@ internal sealed partial class LocalMessageBus(
 			return concreteEntries;
 		}
 
-		var allHandlers = registry.GetAll();
+		var allHandlers = GetConcreteEntries(registry);
 		if (allHandlers.Count == 0)
 		{
 			return [];
@@ -1056,6 +1089,8 @@ internal sealed partial class LocalMessageBus(
 		return resolvedHandlers;
 	}
 
+	[RequiresUnreferencedCode("Event dispatch plan resolution may create typed invokers via reflection.")]
+	[RequiresDynamicCode("Event dispatch plan resolution may create typed invokers via reflection.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private EventDispatchPlan[] GetEventDispatchPlans(Type messageType, HandlerRegistryEntry[] handlers)
 	{
@@ -1074,6 +1109,8 @@ internal sealed partial class LocalMessageBus(
 		return created;
 	}
 
+	[RequiresUnreferencedCode("Creates event dispatch plans via reflection-based typed invoker construction.")]
+	[RequiresDynamicCode("Creates event dispatch plans via reflection-based typed invoker construction.")]
 	private static EventDispatchPlan[] CreateEventDispatchPlans(HandlerRegistryEntry[] handlers)
 	{
 		if (handlers.Length == 0)
@@ -1104,6 +1141,8 @@ internal sealed partial class LocalMessageBus(
 		return plans;
 	}
 
+	[RequiresUnreferencedCode("Creates direct action dispatch plans via reflection-based typed invoker construction.")]
+	[RequiresDynamicCode("Creates direct action dispatch plans via reflection-based typed invoker construction.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private DirectActionDispatchPlan? CreateDirectActionDispatchPlan(Type actionType)
 	{
@@ -1115,6 +1154,8 @@ internal sealed partial class LocalMessageBus(
 		return CreateRuntimeDirectActionDispatchPlan(entry);
 	}
 
+	[RequiresUnreferencedCode("Creates runtime dispatch plans using reflection-based typed invoker construction.")]
+	[RequiresDynamicCode("Creates runtime dispatch plans using reflection-based typed invoker construction.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static DirectActionDispatchPlan CreateRuntimeDirectActionDispatchPlan(HandlerRegistryEntry entry)
 	{
@@ -1133,6 +1174,8 @@ internal sealed partial class LocalMessageBus(
 			InvokeWithResponseAsync: entry.ExpectsResponse ? CreateDirectActionWithResponseAsyncInvoker(entry.HandlerType) : null);
 	}
 
+	[RequiresUnreferencedCode("Creates typed dispatch plans via reflection-based invoker construction.")]
+	[RequiresDynamicCode("Creates typed dispatch plans via reflection-based invoker construction at runtime.")]
 	private static bool TryCreateTypedDirectActionDispatchPlan(
 		HandlerRegistryEntry entry,
 		out DirectActionDispatchPlan plan)
@@ -1174,6 +1217,7 @@ internal sealed partial class LocalMessageBus(
 		return true;
 	}
 
+	[RequiresUnreferencedCode("Inspects action type interfaces via reflection to find IDispatchAction<TResponse>.")]
 	private static bool TryGetActionResponseType(Type actionType, out Type responseType)
 	{
 		foreach (var candidate in actionType.GetInterfaces())
@@ -1190,6 +1234,8 @@ internal sealed partial class LocalMessageBus(
 		return false;
 	}
 
+	[RequiresUnreferencedCode("Uses MakeGenericType/MakeGenericMethod to create typed action invoker delegates.")]
+	[RequiresDynamicCode("Uses MakeGenericType/MakeGenericMethod to create typed action invoker delegates at runtime.")]
 	private static bool TryCreateTypedNoResponseAsyncInvoker(
 		Type actionType,
 		Type handlerType,
@@ -1218,6 +1264,8 @@ internal sealed partial class LocalMessageBus(
 		}
 	}
 
+	[RequiresUnreferencedCode("Uses MakeGenericType/MakeGenericMethod to create typed action-with-response invoker delegates.")]
+	[RequiresDynamicCode("Uses MakeGenericType/MakeGenericMethod to create typed action-with-response invoker delegates at runtime.")]
 	private static bool TryCreateTypedWithResponseAsyncInvoker(
 		Type actionType,
 		Type handlerType,
@@ -1248,6 +1296,8 @@ internal sealed partial class LocalMessageBus(
 		}
 	}
 
+	[RequiresUnreferencedCode("Uses MakeGenericType/MakeGenericMethod to create typed event invoker delegates.")]
+	[RequiresDynamicCode("Uses MakeGenericType/MakeGenericMethod to create typed event invoker delegates at runtime.")]
 	private static bool TryCreateTypedEventAsyncInvoker(
 		Type eventType,
 		Type handlerType,
@@ -1301,6 +1351,7 @@ internal sealed partial class LocalMessageBus(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Precompiled dispatch plan resolution probes assemblies via reflection.")]
 	private bool TryGetPrecompiledDirectActionDispatchPlan(
 		Type actionType,
 		out PrecompiledDirectActionDispatchPlan plan)
@@ -1329,6 +1380,7 @@ internal sealed partial class LocalMessageBus(
 		return true;
 	}
 
+	[RequiresUnreferencedCode("Resolves precompiled dispatch plans via assembly probing and reflection.")]
 	private static PrecompiledDirectActionDispatchPlan? ResolvePrecompiledDirectActionDispatchPlan(Type actionType)
 	{
 		var providers = GetPrecompiledDirectProviders();
@@ -1361,6 +1413,7 @@ internal sealed partial class LocalMessageBus(
 		return null;
 	}
 
+	[RequiresUnreferencedCode("Probes loaded assemblies for precompiled dispatch providers via reflection.")]
 	private static PrecompiledDirectProvider[] GetPrecompiledDirectProviders()
 	{
 		if (_precompiledDirectProvidersInitialized)
@@ -1388,6 +1441,7 @@ internal sealed partial class LocalMessageBus(
 		}
 	}
 
+	[RequiresUnreferencedCode("Uses Assembly.GetType and reflection to discover precompiled direct action dispatch providers.")]
 	private static void TryAddPrecompiledDirectProvider(Assembly assembly, ICollection<PrecompiledDirectProvider> providers)
 	{
 		const string typeName = "Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectActionDispatch";
@@ -2030,14 +2084,27 @@ internal sealed partial class LocalMessageBus(
 			return true;
 		}
 
-		if (!registry.TryGetHandler(messageType, out var resolvedEntry))
+		if (_concreteRegistry is not null)
+		{
+			if (!_concreteRegistry.TryGetHandler(messageType, out var concreteEntry))
+			{
+				entry = default!;
+				return false;
+			}
+
+			entry = concreteEntry;
+			_ = _handlerEntryCache.TryAdd(messageType, concreteEntry);
+			return true;
+		}
+
+		if (!registry.TryGetHandler(messageType, out var ifaceEntry) || ifaceEntry is not HandlerRegistryEntry resolved)
 		{
 			entry = default!;
 			return false;
 		}
 
-		entry = resolvedEntry;
-		_ = _handlerEntryCache.TryAdd(messageType, resolvedEntry);
+		entry = resolved;
+		_ = _handlerEntryCache.TryAdd(messageType, resolved);
 		return true;
 	}
 
@@ -2054,16 +2121,16 @@ internal sealed partial class LocalMessageBus(
 
 	private static FrozenDictionary<Type, HandlerRegistryEntry> InitializeFrozenHandlerEntryMap(IHandlerRegistry registry)
 	{
-		var entries = registry.GetAll();
-		if (entries.Count == 0)
+		var concreteEntries = GetConcreteEntries(registry);
+		if (concreteEntries.Count == 0)
 		{
 			return FrozenDictionary<Type, HandlerRegistryEntry>.Empty;
 		}
 
-		var map = new Dictionary<Type, HandlerRegistryEntry>(entries.Count);
-		for (var index = 0; index < entries.Count; index++)
+		var map = new Dictionary<Type, HandlerRegistryEntry>(concreteEntries.Count);
+		for (var index = 0; index < concreteEntries.Count; index++)
 		{
-			var entry = entries[index];
+			var entry = concreteEntries[index];
 			if (typeof(IDispatchEvent).IsAssignableFrom(entry.MessageType))
 			{
 				continue;
@@ -2080,16 +2147,16 @@ internal sealed partial class LocalMessageBus(
 
 	private static FrozenDictionary<Type, HandlerRegistryEntry[]> InitializeFrozenEventHandlersMap(IHandlerRegistry registry)
 	{
-		var entries = registry.GetAll();
-		if (entries.Count == 0)
+		var concreteEntries = GetConcreteEntries(registry);
+		if (concreteEntries.Count == 0)
 		{
 			return FrozenDictionary<Type, HandlerRegistryEntry[]>.Empty;
 		}
 
 		var grouped = new Dictionary<Type, List<HandlerRegistryEntry>>();
-		for (var index = 0; index < entries.Count; index++)
+		for (var index = 0; index < concreteEntries.Count; index++)
 		{
-			var entry = entries[index];
+			var entry = concreteEntries[index];
 			if (!typeof(IDispatchEvent).IsAssignableFrom(entry.MessageType))
 			{
 				continue;
@@ -2118,6 +2185,8 @@ internal sealed partial class LocalMessageBus(
 		return resolved.ToFrozenDictionary();
 	}
 
+	[RequiresUnreferencedCode("Initializes frozen event dispatch plans via reflection-based typed invoker construction.")]
+	[RequiresDynamicCode("Initializes frozen event dispatch plans via reflection-based typed invoker construction.")]
 	private static FrozenDictionary<Type, EventDispatchPlan[]> InitializeFrozenEventDispatchPlanMap(IHandlerRegistry registry)
 	{
 		var eventHandlers = InitializeFrozenEventHandlersMap(registry);
@@ -2135,9 +2204,11 @@ internal sealed partial class LocalMessageBus(
 		return plans.ToFrozenDictionary();
 	}
 
+	[RequiresUnreferencedCode("Initializes frozen action dispatch plans via reflection-based typed invoker construction.")]
+	[RequiresDynamicCode("Initializes frozen action dispatch plans via reflection-based typed invoker construction.")]
 	private static FrozenDictionary<Type, DirectActionDispatchPlan> InitializeFrozenDirectActionPlanMap(IHandlerRegistry registry)
 	{
-		var entries = registry.GetAll();
+		var entries = GetConcreteEntries(registry);
 		if (entries.Count == 0)
 		{
 			return FrozenDictionary<Type, DirectActionDispatchPlan>.Empty;
@@ -2178,7 +2249,7 @@ internal sealed partial class LocalMessageBus(
 	private static ConcurrentDictionary<Type, DirectActionDispatchPlan?> InitializeDirectActionPlanCache(IHandlerRegistry registry)
 	{
 		var cache = new ConcurrentDictionary<Type, DirectActionDispatchPlan?>();
-		var entries = registry.GetAll();
+		var entries = GetConcreteEntries(registry);
 		for (var index = 0; index < entries.Count; index++)
 		{
 			var entry = entries[index];
@@ -2196,6 +2267,28 @@ internal sealed partial class LocalMessageBus(
 		}
 
 		return cache;
+	}
+
+	/// <summary>
+	/// Returns the concrete-typed entry list from the registry, avoiding interface casts.
+	/// Uses <see cref="HandlerRegistry.GetAll"/> directly when the registry is the default implementation.
+	/// </summary>
+	private static IReadOnlyList<HandlerRegistryEntry> GetConcreteEntries(IHandlerRegistry registry)
+	{
+		if (registry is HandlerRegistry concrete)
+		{
+			return concrete.GetAll();
+		}
+
+		// Fallback: interface path — entries must be HandlerRegistryEntry instances.
+		var iface = registry.GetAll();
+		var result = new List<HandlerRegistryEntry>(iface.Count);
+		for (var i = 0; i < iface.Count; i++)
+		{
+			result.Add((HandlerRegistryEntry)iface[i]);
+		}
+
+		return result;
 	}
 
 	private static async Task AwaitNoResponseAsync(ValueTask<object?> invocation)
@@ -2253,6 +2346,8 @@ internal sealed partial class LocalMessageBus(
 		}
 	}
 
+	[UnconditionalSuppressMessage("Trimming", "IL2069",
+		Justification = "Handler types are registered at startup and preserved by the DI container.")]
 	private readonly record struct DirectActionDispatchPlan(
 		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 		Type HandlerType,

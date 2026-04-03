@@ -36,7 +36,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .DatabaseName("MyDatabase")));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.DatabaseName.ShouldBe("MyDatabase");
 	}
 
@@ -51,7 +51,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .DatabaseName("OrdersDb")));
 
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDatabaseConfig) &&
+			sd.ServiceType == typeof(IDatabaseOptions) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
 	}
 
@@ -66,7 +66,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .DatabaseName("OrdersDb")));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.DatabaseName.ShouldBe("OrdersDb");
 		dbConfig.DatabaseConnectionIdentifier.ShouldBe("cdc-OrdersDb");
 		dbConfig.StateConnectionIdentifier.ShouldBe("state-OrdersDb");
@@ -101,7 +101,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .DatabaseConnectionIdentifier("my-db-conn")));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.DatabaseConnectionIdentifier.ShouldBe("my-db-conn");
 	}
 
@@ -134,7 +134,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .StateConnectionIdentifier("my-state-conn")));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.StateConnectionIdentifier.ShouldBe("my-state-conn");
 	}
 
@@ -167,7 +167,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .CaptureInstances("dbo_Orders", "dbo_Customers")));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.CaptureInstances.ShouldBe(OrderCustomerCaptureInstances);
 	}
 
@@ -194,7 +194,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .DatabaseName("Db")));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.CaptureInstances.ShouldBeEmpty();
 	}
 
@@ -211,7 +211,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .DatabaseName("Db")));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.StopOnMissingTableHandler.ShouldBeTrue();
 	}
 
@@ -227,7 +227,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .StopOnMissingTableHandler(false)));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.StopOnMissingTableHandler.ShouldBeFalse();
 	}
 
@@ -261,7 +261,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		sqlOptions.Value.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
 		sqlOptions.Value.CommandTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.DatabaseName.ShouldBe("AuditDb");
 		dbConfig.DatabaseConnectionIdentifier.ShouldBe("audit-conn");
 		dbConfig.StateConnectionIdentifier.ShouldBe("audit-state-conn");
@@ -269,7 +269,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		dbConfig.StopOnMissingTableHandler.ShouldBeFalse();
 	}
 
-	// --- Without DatabaseName, IDatabaseConfig should NOT be registered ---
+	// --- Without DatabaseName, IDatabaseOptions should NOT be registered ---
 
 	[Fact]
 	public void NoDatabaseName_DoesNotRegisterIDatabaseConfig()
@@ -283,7 +283,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .BatchSize(50)));
 
 		services.ShouldNotContain(sd =>
-			sd.ServiceType == typeof(IDatabaseConfig));
+			sd.ServiceType == typeof(IDatabaseOptions));
 	}
 
 	// --- Connection factory overload also supports new methods ---
@@ -303,7 +303,7 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 				   .StopOnMissingTableHandler(false)));
 
 		var provider = services.BuildServiceProvider();
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.DatabaseName.ShouldBe("FactoryDb");
 		dbConfig.DatabaseConnectionIdentifier.ShouldBe("factory-conn");
 		dbConfig.StateConnectionIdentifier.ShouldBe("factory-state");

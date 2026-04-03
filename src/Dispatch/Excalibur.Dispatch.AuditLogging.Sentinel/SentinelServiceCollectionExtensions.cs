@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.AuditLogging.Sentinel;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,39 @@ public static class SentinelServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		RegisterSentinelAuditExporterCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Azure Sentinel audit log exporter services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SentinelExporterOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+	[RequiresDynamicCode("Binding configuration and validating data annotations require dynamic code generation.")]
+	[RequiresUnreferencedCode("Binding configuration and validating data annotations require unreferenced members.")]
+	public static IServiceCollection AddSentinelAuditExporter(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SentinelExporterOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterSentinelAuditExporterCore(services);
+
+		return services;
+	}
+
+	private static void RegisterSentinelAuditExporterCore(IServiceCollection services)
+	{
 		_ = services.AddHttpClient<SentinelAuditExporter>((sp, client) =>
 		{
 			var options = sp.GetRequiredService<IOptions<SentinelExporterOptions>>().Value;
@@ -44,7 +78,5 @@ public static class SentinelServiceCollectionExtensions
 		});
 
 		_ = services.AddSingleton<IAuditLogExporter, SentinelAuditExporter>();
-
-		return services;
 	}
 }

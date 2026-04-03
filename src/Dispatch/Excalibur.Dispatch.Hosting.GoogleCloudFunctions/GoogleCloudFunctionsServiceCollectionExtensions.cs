@@ -49,4 +49,25 @@ public static class GoogleCloudFunctionsServiceCollectionExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// Adds Google Cloud Functions serverless hosting services to the specified service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection to add services to. </param>
+	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
+	public static IServiceCollection AddGoogleCloudFunctionsServerless(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddGoogleCloudFunctionsServerless();
+		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+
+		return services;
+	}
 }

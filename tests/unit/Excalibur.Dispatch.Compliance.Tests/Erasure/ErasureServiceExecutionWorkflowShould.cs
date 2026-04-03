@@ -22,10 +22,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
 		{
 			EnableAutoDiscovery = true,
-		});
-		var signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions
-		{
-			SigningKey = new byte[32],
+			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
 		});
 
 		return new ErasureService(
@@ -33,7 +30,6 @@ public sealed class ErasureServiceExecutionWorkflowShould
 			_keyProvider,
 			_keyAdmin,
 			options,
-			signingOptions,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService,
 			_dataInventoryService,

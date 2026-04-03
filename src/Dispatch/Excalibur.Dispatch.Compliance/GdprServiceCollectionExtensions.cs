@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
@@ -54,6 +55,28 @@ public static class GdprServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds data portability export services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="DataPortabilityOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddDataPortability(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<DataPortabilityOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddScoped<IDataPortabilityService, DataPortabilityService>();
+		return services;
+	}
+
+	/// <summary>
 	/// Adds subject access request services for GDPR Article 15.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -72,6 +95,28 @@ public static class GdprServiceCollectionExtensions
 		{
 			_ = optionsBuilder.Configure(configureOptions);
 		}
+
+		services.TryAddScoped<ISubjectAccessService, SubjectAccessService>();
+		return services;
+	}
+
+	/// <summary>
+	/// Adds subject access request services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SubjectAccessOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSubjectAccessRequests(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SubjectAccessOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddScoped<ISubjectAccessService, SubjectAccessService>();
 		return services;
@@ -106,6 +151,28 @@ public static class GdprServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds audit log encryption at rest services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="AuditLogEncryptionOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddAuditLogEncryption(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<AuditLogEncryptionOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddScoped<IAuditLogEncryptor, AuditLogEncryptionService>();
+		return services;
+	}
+
+	/// <summary>
 	/// Adds key escrow and backup services with Shamir's Secret Sharing.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -134,6 +201,28 @@ public static class GdprServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds key escrow and backup services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="KeyEscrowBackupOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddKeyEscrow(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<KeyEscrowBackupOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IKeyEscrowService, KeyEscrowBackupService>();
+		return services;
+	}
+
+	/// <summary>
 	/// Adds breach notification services for GDPR Article 33/34.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -152,6 +241,28 @@ public static class GdprServiceCollectionExtensions
 		{
 			_ = optionsBuilder.Configure(configureOptions);
 		}
+
+		services.TryAddSingleton<IBreachNotificationService, BreachNotificationService>();
+		return services;
+	}
+
+	/// <summary>
+	/// Adds breach notification services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="BreachNotificationOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddBreachNotification(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<BreachNotificationOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddSingleton<IBreachNotificationService, BreachNotificationService>();
 		return services;
@@ -184,6 +295,30 @@ public static class GdprServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds retention enforcement services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RetentionEnforcementOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddRetentionEnforcement(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RetentionEnforcementOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddScoped<IRetentionEnforcementService, RetentionEnforcementService>();
+		_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
+		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RetentionEnforcementBackgroundService>());
+		return services;
+	}
+
+	/// <summary>
 	/// Adds consent management services for GDPR Article 7.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -202,6 +337,28 @@ public static class GdprServiceCollectionExtensions
 		{
 			_ = optionsBuilder.Configure(configureOptions);
 		}
+
+		services.TryAddSingleton<IConsentService, ConsentService>();
+		return services;
+	}
+
+	/// <summary>
+	/// Adds consent management services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="ConsentOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddConsentManagement(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<ConsentOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddSingleton<IConsentService, ConsentService>();
 		return services;
@@ -230,6 +387,28 @@ public static class GdprServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds the Postgres compliance store using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="PostgresComplianceOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddPostgresComplianceStore(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<PostgresComplianceOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IComplianceStore, PostgresComplianceStore>();
+		return services;
+	}
+
+	/// <summary>
 	/// Adds the MongoDB compliance store for durable GDPR record storage.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -246,6 +425,28 @@ public static class GdprServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = optionsBuilder.Configure(configureOptions);
+
+		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the MongoDB compliance store using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="MongoDbComplianceOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddMongoDbComplianceStore(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<MongoDbComplianceOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
 		return services;

@@ -25,7 +25,7 @@ namespace Excalibur.Inbox.InMemory;
 /// This store is intended for testing scenarios only. Data is lost on application restart.
 /// </para>
 /// </remarks>
-public sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
+internal sealed class InMemoryInboxStore : IInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, InboxEntry> _entries = new(StringComparer.Ordinal);
 	private readonly InMemoryInboxOptions _options;

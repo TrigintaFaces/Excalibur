@@ -5,6 +5,9 @@
     <!-- Source generators MUST target netstandard2.0 only - override multi-targeting from Directory.Build.props -->
     <TargetFramework>netstandard2.0</TargetFramework>
     <TargetFrameworks></TargetFrameworks>
+    <!-- CPM opt-out: Source generators pin Roslyn SDK to the minimum compiler version they support.
+         These versions must NOT float with Directory.Packages.props — bumping them raises the
+         minimum VS/SDK version for all consumers. Update only when raising the floor intentionally. -->
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <EnableDefaultAnalyzers>false</EnableDefaultAnalyzers>
     <IsRoslynComponent>true</IsRoslynComponent>
@@ -15,11 +18,13 @@
     <IncludeSymbols>false</IncludeSymbols>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
-    <!-- AOT/Trim not applicable for source generators -->
+    <!-- AOT/Trim not applicable for source generators (netstandard2.0) -->
     <IsAotCompatible>false</IsAotCompatible>
     <EnableAotAnalyzer>false</EnableAotAnalyzer>
     <IsTrimmable>false</IsTrimmable>
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
     <Description>C# source generators for AOT optimization and compile-time code generation in the Excalibur framework. Eliminates reflection and improves startup performance.</Description>
     <PackageTags>dispatch;source-generators;aot;roslyn;codegen;performance</PackageTags>
   </PropertyGroup>
@@ -40,8 +45,10 @@
     <PackageReference Remove="Roslynator.Analyzers" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Roslyn 4.14.0 = VS 17.14 / .NET SDK 9.0.300+. Pinned to support this minimum. -->
     <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+    <!-- Must match the version shipped with the target Roslyn SDK to avoid binding redirects. -->
     <PackageReference Include="System.Collections.Immutable" Version="9.0.9" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>

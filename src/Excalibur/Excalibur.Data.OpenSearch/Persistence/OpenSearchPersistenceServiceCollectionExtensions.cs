@@ -4,6 +4,7 @@
 using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.OpenSearch.Persistence;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,38 @@ public static class OpenSearchPersistenceServiceCollectionExtensions
 
         _ = services.AddOptions<OpenSearchPersistenceOptions>()
             .Configure(configure)
+            .ValidateOnStart();
+
+        services.TryAddSingleton<OpenSearchPersistenceProvider>();
+        services.AddKeyedSingleton<IPersistenceProvider>("opensearch",
+            (sp, _) => sp.GetRequiredService<OpenSearchPersistenceProvider>());
+        services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+            sp.GetRequiredKeyedService<IPersistenceProvider>("opensearch"));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the OpenSearch persistence provider to the service collection using an <see cref="IConfiguration"/> section.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">The configuration section to bind options from.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// An <see cref="OpenSearch.Client.OpenSearchClient"/> must be registered
+    /// separately in the service collection before calling this method.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddOpenSearchPersistence(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        _ = services.AddOptions<OpenSearchPersistenceOptions>()
+            .Bind(configuration)
             .ValidateOnStart();
 
         services.TryAddSingleton<OpenSearchPersistenceProvider>();

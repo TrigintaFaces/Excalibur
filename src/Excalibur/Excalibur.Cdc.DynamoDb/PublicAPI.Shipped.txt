@@ -142,15 +142,6 @@ Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition?>!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.Clear() -> void
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.Dispose() -> void
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.GetAllPositions() -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry!>!
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition?>!
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.InMemoryDynamoDbCdcStateStore() -> void
-Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(object? obj) -> bool

@@ -1,16 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Data.OpenSearch;
 
 using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
-namespace Excalibur.Data.OpenSearch;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Provides extension methods for configuring OpenSearch health checks.
 /// </summary>
-public static class HealthChecksBuilderExtensions
+public static class OpenSearchHealthChecksBuilderExtensions
 {
     /// <summary>
     /// Adds an OpenSearch health check using the registered <see cref="OpenSearch.Client.OpenSearchClient"/>.

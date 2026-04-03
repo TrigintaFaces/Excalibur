@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
@@ -274,8 +275,8 @@ public abstract class ProcessManager<TData>(
 			reflectionInfo = HandlerReflectionCache.GetOrAdd(handlerType, static type => ComputeHandlerReflectionInfo(type));
 		}
 
-		// Create the context using cached type info
-		var context = Activator.CreateInstance(reflectionInfo.ContextType, State, message, this)!;
+		// Create the context using AOT-safe factory when available, falling back to Activator
+		var context = CreateContextInstance(handlerType, reflectionInfo.ContextType, State, message);
 
 		// Check condition
 		var shouldHandle = (bool)reflectionInfo.ShouldHandle.Invoke(handler, [State, message])!;
@@ -305,6 +306,38 @@ public abstract class ProcessManager<TData>(
 		}
 	}
 
+	/// <summary>
+	/// Creates a <see cref="SagaContext{TData, TMessage}"/> instance using the AOT-safe factory
+	/// registry when available, falling back to <see cref="Activator.CreateInstance(Type, object[])"/>
+	/// in JIT environments.
+	/// </summary>
+	private object CreateContextInstance(
+		Type handlerType,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type contextType,
+		object state,
+		object message)
+	{
+		var genericArgs = handlerType.GetGenericArguments();
+		if (genericArgs.Length == 2)
+		{
+			var aotContext = SagaContextFactoryRegistry.CreateContext(genericArgs[0], genericArgs[1], state, message, this);
+			if (aotContext is not null)
+			{
+				return aotContext;
+			}
+		}
+
+		// JIT fallback: use Activator.CreateInstance (not available in AOT)
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			throw new PlatformNotSupportedException(
+				$"No AOT-safe context factory registered for handler type '{handlerType.Name}'. " +
+				"Register all saga message handlers via AddSaga<TSaga, TSagaState>() during DI composition.");
+		}
+
+		return Activator.CreateInstance(contextType, state, message, this)!;
+	}
+
 	[RequiresDynamicCode("Process manager uses MakeGenericType to create SagaContext<,> at runtime")]
 	[RequiresUnreferencedCode("Process manager uses reflection (GetMethod, GetProperty) to discover handler members at runtime")]
 	private static HandlerReflectionInfo ComputeHandlerReflectionInfo(Type type)
@@ -319,7 +352,18 @@ public abstract class ProcessManager<TData>(
 
 		var dataType = genericArgs[0];
 		var messageType = genericArgs[1];
-		var contextType = typeof(SagaContext<,>).MakeGenericType(dataType, messageType);
+
+		Type contextType;
+		if (RuntimeFeature.IsDynamicCodeSupported)
+		{
+			// JIT path: use MakeGenericType
+			contextType = typeof(SagaContext<,>).MakeGenericType(dataType, messageType);
+		}
+		else
+		{
+			// AOT path: store the open generic type -- actual construction handled by SagaContextFactoryRegistry
+			contextType = typeof(SagaContext<,>);
+		}
 
 		const BindingFlags nonPublicInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 

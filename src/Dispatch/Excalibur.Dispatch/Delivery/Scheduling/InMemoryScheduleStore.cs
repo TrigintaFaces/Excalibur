@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <summary>
 /// Simple in-memory implementation of <see cref="IScheduleStore" /> used for testing and small deployments.
 /// </summary>
-public sealed class InMemoryScheduleStore : IScheduleStore, IScheduleStoreSignal
+internal sealed class InMemoryScheduleStore : IScheduleStore, IScheduleStoreSignal
 {
 	private readonly ConcurrentDictionary<Guid, IScheduledMessage> _store = new();
 	private readonly Channel<bool> _changeChannel = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)

@@ -33,7 +33,8 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 	private readonly HttpClient _httpClient;
 	private readonly ElasticsearchExporterOptions _options;
 	private readonly ILogger<ElasticsearchAuditExporter> _logger;
-	private readonly Uri _bulkApiUri;
+	private readonly Uri[] _bulkApiUris;
+	private int _nextNodeIndex;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ElasticsearchAuditExporter"/> class.
@@ -54,8 +55,14 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 		_options = options.Value;
 		_logger = logger;
 
-		var baseUrl = _options.ElasticsearchUrl.TrimEnd('/');
-		_bulkApiUri = new Uri($"{baseUrl}/_bulk?refresh={_options.RefreshPolicy}");
+		// Prefer NodeUrls for cluster support, fall back to single ElasticsearchUrl
+		var nodeUrls = _options.NodeUrls is { Count: > 0 }
+			? _options.NodeUrls
+			: [_options.ElasticsearchUrl];
+
+		_bulkApiUris = nodeUrls
+			.Select(url => new Uri($"{url.TrimEnd('/')}/_bulk?refresh={_options.RefreshPolicy}"))
+			.ToArray();
 	}
 
 	/// <inheritdoc />
@@ -196,7 +203,8 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 
 		try
 		{
-			var healthUri = new Uri($"{_options.ElasticsearchUrl.TrimEnd('/')}/_cluster/health");
+			var primaryUrl = _options.NodeUrls is { Count: > 0 } ? _options.NodeUrls[0] : _options.ElasticsearchUrl;
+			var healthUri = new Uri($"{primaryUrl.TrimEnd('/')}/_cluster/health");
 			using var request = new HttpRequestMessage(HttpMethod.Get, healthUri);
 			ApplyAuthentication(request);
 
@@ -260,7 +268,7 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 			_ = sb.Append(JsonSerializer.Serialize(action, ElasticsearchAuditJsonContext.Default.BulkIndexAction));
 			_ = sb.Append('\n');
 
-			var payload = CreatePayload(auditEvent);
+			var payload = CreatePayload(auditEvent, _options.ApplicationName);
 			_ = sb.Append(JsonSerializer.Serialize(payload, ElasticsearchAuditJsonContext.Default.ElasticsearchAuditPayload));
 			_ = sb.Append('\n');
 		}
@@ -268,7 +276,7 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 		return sb.ToString();
 	}
 
-	private static ElasticsearchAuditPayload CreatePayload(AuditEvent auditEvent)
+	internal static ElasticsearchAuditPayload CreatePayload(AuditEvent auditEvent, string? applicationName = null)
 	{
 		return new ElasticsearchAuditPayload
 		{
@@ -289,7 +297,8 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 			UserAgent = auditEvent.UserAgent,
 			Reason = auditEvent.Reason,
 			Metadata = auditEvent.Metadata,
-			EventHash = auditEvent.EventHash
+			EventHash = auditEvent.EventHash,
+			ApplicationName = auditEvent.ApplicationName ?? applicationName
 		};
 	}
 
@@ -353,7 +362,11 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 
 	private HttpRequestMessage CreateRequest(string ndjson)
 	{
-		var request = new HttpRequestMessage(HttpMethod.Post, _bulkApiUri)
+		// Round-robin across cluster nodes
+		var index = Interlocked.Increment(ref _nextNodeIndex);
+		var uri = _bulkApiUris[(((index - 1) % _bulkApiUris.Length) + _bulkApiUris.Length) % _bulkApiUris.Length];
+
+		var request = new HttpRequestMessage(HttpMethod.Post, uri)
 		{
 			Content = new StringContent(ndjson, Encoding.UTF8, "application/x-ndjson")
 		};
@@ -444,6 +457,8 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 		[JsonPropertyName("metadata")] public IReadOnlyDictionary<string, string>? Metadata { get; init; }
 
 		[JsonPropertyName("event_hash")] public string? EventHash { get; init; }
+
+		[JsonPropertyName("application_name")] public string? ApplicationName { get; init; }
 	}
 
 	/// <summary>

@@ -137,8 +137,8 @@ public sealed partial class AuditMiddleware(
 		}
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	[RequiresUnreferencedCode("ActivityAudited.Request property uses reflection-based serialization")]
+	[RequiresDynamicCode("ActivityAudited.Request property uses dynamic code generation")]
 	private async Task SaveToOutboxAsync(ActivityAudited activityAudited, CancellationToken cancellationToken)
 	{
 		var headers = new Dictionary<string, string>
@@ -146,7 +146,9 @@ public sealed partial class AuditMiddleware(
 			{
 				{
 					ExcaliburHeaderNames.RaisedBy,
-					activityContext.AccessToken() is { } token ? JsonSerializer.Serialize(new RaisedBy(token)) : "Unknown"
+					activityContext.AccessToken() is { } token
+						? JsonSerializer.Serialize(new RaisedBy(token), AuditJsonContext.Default.RaisedBy)
+						: "Unknown"
 				},
 				{ ExcaliburHeaderNames.CorrelationId, activityAudited.CorrelationId.ToString() },
 			};
@@ -156,10 +158,12 @@ public sealed partial class AuditMiddleware(
 			headers.Add(ExcaliburHeaderNames.TenantId, activityAudited.TenantId);
 		}
 
+		// ActivityAudited cannot use source-gen because its Request property getter
+		// is annotated with [RequiresUnreferencedCode] / [RequiresDynamicCode]
 		var message = new OutboxMessage(
 			Uuid7Extensions.GenerateString(),
 			nameof(ActivityAudited),
-			JsonSerializer.Serialize(headers),
+			JsonSerializer.Serialize(headers, AuditJsonContext.Default.DictionaryStringString),
 			JsonSerializer.Serialize(activityAudited),
 			DateTimeOffset.UtcNow);
 

@@ -6,6 +6,7 @@
     <Description>Azure Cosmos DB event store implementation for Excalibur event sourcing.</Description>
     <PackageTags>excalibur;eventsourcing;cosmosdb;azure;cqrs;ddd</PackageTags>
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
+    <!-- AOT: NOT compatible. Microsoft.Azure.Cosmos uses reflection for event deserialization. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

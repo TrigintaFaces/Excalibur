@@ -29,8 +29,8 @@ namespace Excalibur.Dispatch.Serialization.Avro;
 /// enforce this since <see cref="ISerializer"/> uses unconstrained generics.
 /// </para>
 /// </remarks>
-[RequiresUnreferencedCode("Avro serialization may require unreferenced code for type-specific handling.")]
-[RequiresDynamicCode("Avro serialization may require dynamic code generation for type-specific handling.")]
+[RequiresUnreferencedCode("Apache.Avro uses runtime schema compilation. AvroSerializer uses Activator.CreateInstance for ISpecificRecord deserialization.")]
+[RequiresDynamicCode("Apache.Avro uses runtime schema compilation. AvroSerializer uses Activator.CreateInstance which requires dynamic code generation.")]
 public sealed class AvroSerializer : ISerializer
 {
 	private readonly int _bufferSize;

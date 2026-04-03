@@ -15,10 +15,9 @@ namespace Excalibur.Dispatch.Serialization;
 /// It is separate from transport serialization which handles message wire formats.
 /// </para>
 /// <para>
-/// <b>Core methods (3):</b> <see cref="Register"/>, <see cref="UseCurrent"/>,
-/// <see cref="DisableAutoRegistration"/>. Format-specific convenience methods
-/// (<c>RegisterMemoryPack</c>, <c>UseMemoryPack</c>, etc.) are available as
-/// extension methods in <see cref="SerializationBuilderExtensions"/>.
+/// <b>Core methods (2):</b> <see cref="Register"/>, <see cref="UseCurrent"/>.
+/// Format-specific convenience methods (format registration, use-current, etc.)
+/// are available as extension methods in <see cref="SerializationBuilderExtensions"/>.
 /// </para>
 /// <para>
 /// Follows the <c>IdentityBuilder</c> pattern from Microsoft.AspNetCore.Identity
@@ -63,20 +62,4 @@ public interface ISerializationBuilder
 	/// </exception>
 	ISerializationBuilder UseCurrent(string serializerName);
 
-	/// <summary>
-	/// Disables automatic registration of the default serializer (MemoryPack).
-	/// </summary>
-	/// <returns>The builder for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// By default, MemoryPack is auto-registered and set as the current serializer.
-	/// Call this method if you want to explicitly control serializer registration
-	/// and do not want MemoryPack included.
-	/// </para>
-	/// <para>
-	/// <b>Note:</b> If you disable auto-registration, you must register
-	/// and set a current serializer before using the serialization infrastructure.
-	/// </para>
-	/// </remarks>
-	ISerializationBuilder DisableAutoRegistration();
 }

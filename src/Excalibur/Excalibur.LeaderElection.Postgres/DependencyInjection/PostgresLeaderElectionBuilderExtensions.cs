@@ -9,6 +9,7 @@ using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.LeaderElection.Diagnostics;
 using Excalibur.LeaderElection.Postgres;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -38,25 +39,29 @@ public static class PostgresLeaderElectionBuilderExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
-		builder.Services.TryAddSingleton(sp =>
-		{
-			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
-			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
-			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
-			return new PostgresLeaderElection(pgOptions, electionOptions, logger);
-		});
-		builder.Services.AddKeyedSingleton<ILeaderElection>("postgres", (sp, _) =>
-		{
-			var inner = sp.GetRequiredService<PostgresLeaderElection>();
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElection(inner, meter, activitySource, "Postgres");
-		});
-		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
-			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
+		return builder.UsePostgresCore();
+	}
 
-		return builder;
+	/// <summary>
+	/// Configures the leader election builder to use the Postgres advisory lock provider
+	/// with an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The leader election builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="PostgresLeaderElectionOptions"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	public static ILeaderElectionBuilder UsePostgres(
+		this ILeaderElectionBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.UsePostgresCore();
 	}
 
 	/// <summary>
@@ -80,6 +85,59 @@ public static class PostgresLeaderElectionBuilderExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		return builder.UsePostgresFactoryCore();
+	}
+
+	/// <summary>
+	/// Configures the leader election builder to use the Postgres factory provider
+	/// with an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The leader election builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="PostgresLeaderElectionOptions"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// Use the factory when you need multiple leader elections with different lock keys.
+	/// </remarks>
+	public static ILeaderElectionBuilder UsePostgresFactory(
+		this ILeaderElectionBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.UsePostgresFactoryCore();
+	}
+
+	private static ILeaderElectionBuilder UsePostgresCore(this ILeaderElectionBuilder builder)
+	{
+		builder.Services.TryAddSingleton(sp =>
+		{
+			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
+			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
+			var logger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
+			return new PostgresLeaderElection(pgOptions, electionOptions, logger);
+		});
+		builder.Services.AddKeyedSingleton<ILeaderElection>("postgres", (sp, _) =>
+		{
+			var inner = sp.GetRequiredService<PostgresLeaderElection>();
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
+			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
+			return new TelemetryLeaderElection(inner, meter, activitySource, "Postgres");
+		});
+		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
+
+		return builder;
+	}
+
+	private static ILeaderElectionBuilder UsePostgresFactoryCore(this ILeaderElectionBuilder builder)
+	{
 		builder.Services.AddKeyedSingleton<ILeaderElectionFactory>("postgres", (sp, _) =>
 		{
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();

@@ -41,6 +41,8 @@ public static class AwsLambdaServiceCollectionExtensions
 	/// <param name="configureOptions"> An action to configure the serverless host options. </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configureOptions is null. </exception>
+	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
+	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
 	public static IServiceCollection AddAwsLambdaServerless(
 		this IServiceCollection services,
 		Action<ServerlessHostOptions> configureOptions)
@@ -49,9 +51,37 @@ public static class AwsLambdaServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		_ = services.AddAwsLambdaServerless();
-		_ = services.Configure(configureOptions);
+		_ = services.AddOptions<ServerlessHostOptions>()
+			.Configure(configureOptions)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds AWS Lambda serverless hosting services to the specified service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection to add services to. </param>
+	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
+	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
+	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	public static IServiceCollection AddAwsLambdaServerless(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddAwsLambdaServerless();
+		_ = services.AddOptions<ServerlessHostOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return services;
 	}
 }
-

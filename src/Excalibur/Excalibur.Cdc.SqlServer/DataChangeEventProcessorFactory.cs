@@ -56,7 +56,7 @@ public sealed class DataChangeEventProcessorFactory : IDataChangeEventProcessorF
 	/// Thrown if <paramref name="dbConfig" />, <paramref name="cdcConnection" />, or <paramref name="stateStoreConnection" /> is <c>
 	/// null </c>.
 	/// </exception>
-	public IDataChangeEventProcessor Create(IDatabaseConfig dbConfig, SqlConnection cdcConnection, SqlConnection stateStoreConnection)
+	public IDataChangeEventProcessor Create(IDatabaseOptions dbConfig, SqlConnection cdcConnection, SqlConnection stateStoreConnection)
 	{
 		ArgumentNullException.ThrowIfNull(dbConfig);
 		ArgumentNullException.ThrowIfNull(cdcConnection);

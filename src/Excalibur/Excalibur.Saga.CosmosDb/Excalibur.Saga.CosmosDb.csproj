@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Saga.CosmosDb</PackageId>
     <Description>Azure Cosmos DB saga store implementation for Excalibur.</Description>
     <PackageTags>excalibur;saga;process-manager;cosmosdb;azure</PackageTags>
+    <!-- AOT: NOT compatible. Microsoft.Azure.Cosmos uses reflection for saga state deserialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>

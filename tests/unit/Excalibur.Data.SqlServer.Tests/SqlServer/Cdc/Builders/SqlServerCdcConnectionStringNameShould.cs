@@ -115,7 +115,7 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 		sqlOptions.Value.BatchSize.ShouldBe(200);
 		sqlOptions.Value.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
 
-		var dbConfig = provider.GetRequiredService<IDatabaseConfig>();
+		var dbConfig = provider.GetRequiredService<IDatabaseOptions>();
 		dbConfig.DatabaseName.ShouldBe("OrdersDb");
 	}
 
@@ -176,7 +176,7 @@ public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 			sd.Lifetime == ServiceLifetime.Singleton);
 
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IDatabaseConfig) &&
+			sd.ServiceType == typeof(IDatabaseOptions) &&
 			sd.Lifetime == ServiceLifetime.Singleton);
 	}
 

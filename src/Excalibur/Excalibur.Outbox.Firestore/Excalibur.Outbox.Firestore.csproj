@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Outbox.Firestore</PackageId>
     <Description>Google Cloud Firestore implementation of the cloud-native outbox pattern for Excalibur event sourcing.</Description>
     <PackageTags>excalibur;outbox;firestore;google-cloud;cloud-native;event-sourcing;messaging</PackageTags>
+    <!-- AOT: NOT compatible. Google.Cloud.Firestore uses reflection-based attribute mapping for outbox conversion. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

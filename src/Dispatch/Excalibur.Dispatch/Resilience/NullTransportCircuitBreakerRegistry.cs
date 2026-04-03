@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// circuit breaker functionality is not configured or not needed. All circuit breakers
 /// returned are in the closed state and pass all operations through without protection.
 /// </remarks>
-public sealed class NullTransportCircuitBreakerRegistry : ITransportCircuitBreakerRegistry, ITransportCircuitBreakerDiagnostics
+internal sealed class NullTransportCircuitBreakerRegistry : ITransportCircuitBreakerRegistry, ITransportCircuitBreakerDiagnostics
 {
 	private NullTransportCircuitBreakerRegistry()
 	{

@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.AuditLogging.GoogleCloud;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -36,6 +37,39 @@ public static class GoogleCloudServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		RegisterGoogleCloudAuditExporterCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Google Cloud Logging audit log exporter services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="GoogleCloudAuditOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
+	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	public static IServiceCollection AddGoogleCloudAuditExporter(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<GoogleCloudAuditOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterGoogleCloudAuditExporterCore(services);
+
+		return services;
+	}
+
+	private static void RegisterGoogleCloudAuditExporterCore(IServiceCollection services)
+	{
 		_ = services.AddHttpClient<GoogleCloudLoggingAuditExporter>((sp, client) =>
 		{
 			var options = sp.GetRequiredService<IOptions<GoogleCloudAuditOptions>>().Value;
@@ -43,7 +77,5 @@ public static class GoogleCloudServiceCollectionExtensions
 		});
 
 		_ = services.AddSingleton<IAuditLogExporter, GoogleCloudLoggingAuditExporter>();
-
-		return services;
 	}
 }

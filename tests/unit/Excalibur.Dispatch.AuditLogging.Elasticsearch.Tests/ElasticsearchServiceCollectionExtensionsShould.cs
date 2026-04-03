@@ -3,7 +3,9 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.AuditLogging.Elasticsearch;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.AuditLogging.Elasticsearch.Tests;
 
@@ -66,6 +68,63 @@ public sealed class ElasticsearchServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddElasticsearchAuditExporter(null!));
+			services.AddElasticsearchAuditExporter((Action<ElasticsearchExporterOptions>)null!));
+	}
+
+	// --- IConfiguration overload tests ---
+
+	[Fact]
+	[RequiresDynamicCode("Test")]
+	[RequiresUnreferencedCode("Test")]
+	public void Register_exporter_services_with_IConfiguration_overload()
+	{
+		var services = new ServiceCollection();
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["ElasticsearchUrl"] = "https://es.local:9200"
+			})
+			.Build();
+
+		services.AddElasticsearchAuditExporter(config);
+
+		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
+	}
+
+	[Fact]
+	[RequiresDynamicCode("Test")]
+	[RequiresUnreferencedCode("Test")]
+	public void Throw_for_null_configuration_on_exporter()
+	{
+		var services = new ServiceCollection();
+
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddElasticsearchAuditExporter((IConfiguration)null!));
+	}
+
+	[Fact]
+	public void Register_sink_services_with_IConfiguration_overload()
+	{
+		var services = new ServiceCollection();
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["ElasticsearchUrl"] = "https://es.local:9200"
+			})
+			.Build();
+
+		services.AddElasticsearchAuditSink(config);
+
+		services.ShouldContain(sd =>
+			sd.ServiceType == typeof(IValidateOptions<ElasticsearchAuditSinkOptions>));
+	}
+
+	[Fact]
+	public void Throw_for_null_configuration_on_sink()
+	{
+		var services = new ServiceCollection();
+
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddElasticsearchAuditSink((IConfiguration)null!));
 	}
 }

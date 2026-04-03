@@ -8,6 +8,8 @@ using Excalibur.Saga.Idempotency;
 using Excalibur.Saga.Reminders;
 using Excalibur.Saga.Snapshots;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -102,6 +104,29 @@ public static class SagaEnhancementsBuilderExtensions
 	}
 
 	/// <summary>
+	/// Adds saga reminder services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The saga builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SagaReminderOptions"/>.</param>
+	/// <returns>The saga builder for chaining.</returns>
+	public static ISagaBuilder WithReminders(
+		this ISagaBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<SagaReminderOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = builder.Services.AddSagaReminders();
+
+		return builder;
+	}
+
+	/// <summary>
 	/// Adds saga state snapshot services.
 	/// </summary>
 	/// <param name="builder">The saga builder.</param>
@@ -121,6 +146,29 @@ public static class SagaEnhancementsBuilderExtensions
 		{
 			_ = builder.Services.AddSagaSnapshots();
 		}
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Adds saga state snapshot services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The saga builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SagaSnapshotOptions"/>.</param>
+	/// <returns>The saga builder for chaining.</returns>
+	public static ISagaBuilder WithSnapshots(
+		this ISagaBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<SagaSnapshotOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = builder.Services.AddSagaSnapshots();
 
 		return builder;
 	}
@@ -161,6 +209,29 @@ public static class SagaEnhancementsBuilderExtensions
 		{
 			_ = builder.Services.AddSagaTimeoutCleanup();
 		}
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Adds the saga timeout cleanup background service using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The saga builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SagaTimeoutCleanupOptions"/>.</param>
+	/// <returns>The saga builder for chaining.</returns>
+	public static ISagaBuilder WithTimeoutCleanup(
+		this ISagaBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<SagaTimeoutCleanupOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = builder.Services.AddSagaTimeoutCleanup();
 
 		return builder;
 	}

@@ -26,6 +26,16 @@ public sealed class ElasticsearchExporterOptions
 	public required string ElasticsearchUrl { get; set; }
 
 	/// <summary>
+	/// Gets or sets the cluster node URLs for multi-node Elasticsearch deployments.
+	/// </summary>
+	/// <remarks>
+	/// If both <see cref="NodeUrls"/> and <see cref="ElasticsearchUrl"/> are set,
+	/// <see cref="NodeUrls"/> takes precedence. Use this for cluster-aware round-robin
+	/// or sniffing configurations.
+	/// </remarks>
+	public List<string>? NodeUrls { get; set; }
+
+	/// <summary>
 	/// Gets or sets the index name prefix for audit documents.
 	/// </summary>
 	/// <remarks>
@@ -69,4 +79,13 @@ public sealed class ElasticsearchExporterOptions
 	/// Gets or sets the HTTP request timeout.
 	/// </summary>
 	public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+
+	/// <summary>
+	/// Gets or sets the application name to include in exported audit events.
+	/// </summary>
+	/// <remarks>
+	/// Used as a fallback when <see cref="Compliance.AuditEvent.ApplicationName"/> is not set
+	/// on individual events. The event-level value takes precedence over this option.
+	/// </remarks>
+	public string? ApplicationName { get; set; }
 }

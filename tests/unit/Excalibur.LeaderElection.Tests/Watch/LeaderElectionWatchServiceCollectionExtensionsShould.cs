@@ -34,7 +34,7 @@ public sealed class LeaderElectionWatchServiceCollectionExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddLeaderElectionWatcher(null!));
+			services.AddLeaderElectionWatcher((Action<LeaderWatchOptions>)null!));
 	}
 
 	[Fact]

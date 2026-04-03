@@ -57,7 +57,7 @@ public sealed class BoundedContextServiceCollectionExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddBoundedContextEnforcement(null!));
+			services.AddBoundedContextEnforcement((Action<BoundedContextOptions>)null!));
 	}
 
 	[Fact]

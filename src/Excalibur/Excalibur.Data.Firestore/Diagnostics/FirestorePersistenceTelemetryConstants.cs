@@ -6,7 +6,7 @@ namespace Excalibur.Data.Firestore.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for Firestore persistence instrumentation.
 /// </summary>
-public static class FirestorePersistenceTelemetryConstants
+internal static class FirestorePersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for Firestore persistence metrics.

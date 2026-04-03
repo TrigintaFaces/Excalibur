@@ -3,7 +3,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -32,7 +31,6 @@ public sealed partial class ContextFlowDiagnostics(
 	IContextFlowMetrics metrics,
 	IOptions<ContextObservabilityOptions> options) : IContextFlowDiagnostics, IDisposable
 {
-	private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 	private static readonly string[] KeyFieldNames = ["MessageId", "CorrelationId", "CausationId", "TenantId", "UserId"];
 	private static readonly string[] PiiPatterns =
 	[
@@ -60,8 +58,7 @@ public sealed partial class ContextFlowDiagnostics(
 	/// </summary>
 	/// <param name="messageId"> The message ID to visualize. </param>
 	/// <returns> A string representation of the context flow. </returns>
-	[RequiresDynamicCode("Calls CompareSnapshots which uses JSON serialization requiring dynamic code")]
-	[RequiresUnreferencedCode("Calls CompareSnapshots which uses JSON serialization that cannot be statically analyzed")]
+
 	public string VisualizeContextFlow(string messageId)
 	{
 		var snapshots = _tracker.GetMessageSnapshots(messageId).ToList();
@@ -130,8 +127,7 @@ public sealed partial class ContextFlowDiagnostics(
 	/// </summary>
 	/// <param name="context"> The message context to analyze. </param>
 	/// <returns> Collection of detected issues. </returns>
-	[RequiresDynamicCode("Calls EstimateContextSize which uses JSON serialization requiring dynamic code")]
-	[RequiresUnreferencedCode("Calls EstimateContextSize which uses JSON serialization that cannot be statically analyzed")]
+
 	public IEnumerable<ContextDiagnosticIssue> AnalyzeContextHealth(IMessageContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
@@ -154,8 +150,7 @@ public sealed partial class ContextFlowDiagnostics(
 	/// <param name="context"> The message context to track. </param>
 	/// <param name="eventType"> Type of event to record. </param>
 	/// <param name="details"> Event details. </param>
-	[RequiresDynamicCode("Calls EstimateContextSize which uses JSON serialization requiring dynamic code")]
-	[RequiresUnreferencedCode("Calls EstimateContextSize which uses JSON serialization that cannot be statically analyzed")]
+
 	public void TrackContextHistory(IMessageContext context, string eventType, string? details = null)
 	{
 		ArgumentNullException.ThrowIfNull(context);
@@ -205,8 +200,7 @@ public sealed partial class ContextFlowDiagnostics(
 	/// </summary>
 	/// <param name="context"> The message context to check. </param>
 	/// <returns> Detected anomalies. </returns>
-	[RequiresDynamicCode("Calls CheckOversizedItem which uses JSON serialization requiring dynamic code")]
-	[RequiresUnreferencedCode("Calls CheckOversizedItem which uses JSON serialization that cannot be statically analyzed")]
+
 	public IEnumerable<ContextAnomaly> DetectAnomalies(IMessageContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
@@ -305,13 +299,9 @@ public sealed partial class ContextFlowDiagnostics(
 	/// </summary>
 	/// <param name="messageId"> Optional message ID to filter by. </param>
 	/// <returns> JSON string containing diagnostic data. </returns>
-	[RequiresUnreferencedCode(
-		"JSON serialization uses reflection which may reference types not preserved during trimming. Ensure serialized types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"JSON serialization for diagnostic data requires dynamic code generation for property reflection and value conversion.")]
 	public string ExportDiagnosticData(string? messageId = null)
 	{
-		var data = new
+		var data = new DiagnosticExportData
 		{
 			Timestamp = DateTimeOffset.UtcNow,
 			MessageId = messageId,
@@ -322,7 +312,7 @@ public sealed partial class ContextFlowDiagnostics(
 			MetricsSummary = _metrics.GetMetricsSummary(),
 		};
 
-		return JsonSerializer.Serialize(data, JsonOptions);
+		return JsonSerializer.Serialize(data, ObservabilityJsonSerializerContext.Default.DiagnosticExportData);
 	}
 
 	/// <summary>
@@ -506,8 +496,7 @@ public sealed partial class ContextFlowDiagnostics(
 		return null;
 	}
 
-	[RequiresDynamicCode("Calls EstimateItemSize which uses JSON serialization requiring dynamic code")]
-	[RequiresUnreferencedCode("Calls EstimateItemSize which uses JSON serialization that cannot be statically analyzed")]
+
 	private static ContextAnomaly? CheckOversizedItem(KeyValuePair<string, object> item, string messageId)
 	{
 		var itemSize = EstimateItemSize(item.Value);
@@ -594,8 +583,6 @@ public sealed partial class ContextFlowDiagnostics(
 		_ = sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $" Preservation Rate: {CalculatePreservationRate(lineage):P1}"));
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private static List<string> CompareSnapshots(ContextSnapshot before, ContextSnapshot after)
 	{
 		var changes = new List<string>();
@@ -612,19 +599,58 @@ public sealed partial class ContextFlowDiagnostics(
 			changes.Add($"Removed: {field}");
 		}
 
-		// Check for modified fields
+		// Check for modified fields using JSON serialization for deep comparison.
+		// ToString() misses changes for complex objects (returns type name, not content).
 		foreach (var field in before.Fields.Keys.Intersect(after.Fields.Keys, StringComparer.Ordinal))
 		{
-			var beforeValue = JsonSerializer.Serialize(before.Fields[field]);
-			var afterValue = JsonSerializer.Serialize(after.Fields[field]);
+			var beforeVal = before.Fields[field];
+			var afterVal = after.Fields[field];
 
-			if (!string.Equals(beforeValue, afterValue, StringComparison.Ordinal))
+			if (!AreFieldValuesEqual(beforeVal, afterVal))
 			{
 				changes.Add($"Modified: {field}");
 			}
 		}
 
 		return changes;
+	}
+
+	private static bool AreFieldValuesEqual(object? before, object? after)
+	{
+		if (ReferenceEquals(before, after))
+		{
+			return true;
+		}
+
+		if (before is null || after is null)
+		{
+			return false;
+		}
+
+		// For primitive types and strings, use direct equality
+		if (before is string || before.GetType().IsPrimitive || before is decimal || before is Guid ||
+			before is DateTimeOffset || before is DateTime || before is TimeSpan)
+		{
+			return before.Equals(after);
+		}
+
+		// For complex objects, compare JSON representation to detect nested changes
+		try
+		{
+			var beforeJson = JsonSerializer.Serialize(before, before.GetType(), ObservabilityJsonSerializerContext.Default);
+			var afterJson = JsonSerializer.Serialize(after, after.GetType(), ObservabilityJsonSerializerContext.Default);
+			return string.Equals(beforeJson, afterJson, StringComparison.Ordinal);
+		}
+		catch (NotSupportedException)
+		{
+			// Fallback to ToString() if serialization fails (unknown type not in source-gen context)
+			return string.Equals(before.ToString(), after.ToString(), StringComparison.Ordinal);
+		}
+		catch (InvalidOperationException)
+		{
+			// Fallback to ToString() if type metadata is not available
+			return string.Equals(before.ToString(), after.ToString(), StringComparison.Ordinal);
+		}
 	}
 
 	private static string FormatFieldValue(object value)
@@ -693,70 +719,58 @@ public sealed partial class ContextFlowDiagnostics(
 		return count;
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	/// <summary>
+	/// Estimates the serialized byte count of a message context using field-length heuristics.
+	/// Returns an approximate byte count (not exact) that is comparable to JSON serialization output size.
+	/// This heuristic avoids reflection-based serialization and is AOT-safe.
+	/// </summary>
 	private static int EstimateContextSize(IMessageContext context)
 	{
-		try
-		{
-			var json = JsonSerializer.Serialize(new
-			{
-				context.MessageId,
-				ExternalId = context.GetExternalId(),
-				UserId = context.GetUserId(),
-				context.CorrelationId,
-				context.CausationId,
-				TraceParent = context.GetTraceParent(),
-				SerializerVersion = context.SerializerVersion(),
-				MessageVersion = context.MessageVersion(),
-				ContractVersion = context.ContractVersion(),
-				DesiredVersion = context.DesiredVersion(),
-				TenantId = context.GetTenantId(),
-				Source = context.GetSource(),
-				MessageType = context.GetMessageType(),
-				ContentType = context.GetContentType(),
-				DeliveryCount = context.GetDeliveryCount(),
-				PartitionKey = context.PartitionKey(),
-				ReplyTo = context.ReplyTo(),
-				ReceivedTimestampUtc = context.GetReceivedTimestampUtc(),
-				SentTimestampUtc = context.GetSentTimestampUtc(),
-				context.Items,
-			});
+		var size = 0;
+		size += EstimateFieldSize(context.MessageId);
+		size += EstimateFieldSize(context.GetExternalId());
+		size += EstimateFieldSize(context.GetUserId());
+		size += EstimateFieldSize(context.CorrelationId);
+		size += EstimateFieldSize(context.CausationId);
+		size += EstimateFieldSize(context.GetTraceParent());
+		size += EstimateFieldSize(context.GetTenantId());
+		size += EstimateFieldSize(context.GetSource());
+		size += EstimateFieldSize(context.GetMessageType());
+		size += EstimateFieldSize(context.GetContentType());
+		size += EstimateFieldSize(context.PartitionKey());
+		size += EstimateFieldSize(context.ReplyTo());
 
-			return Encoding.UTF8.GetByteCount(json);
-		}
-		catch (NotSupportedException)
+		// Fixed-size fields (int/DateTimeOffset): ~10-30 bytes each in JSON
+		const int fixedFieldEstimate = 20;
+		size += fixedFieldEstimate * 6; // SerializerVersion, MessageVersion, ContractVersion, DesiredVersion, DeliveryCount, timestamps
+
+		// Items dictionary overhead
+		if (context.Items.Count > 0)
 		{
-			return 0;
+			size += context.Items.Count * 50; // rough estimate per item entry
 		}
-		catch (ArgumentException)
-		{
-			return 0;
-		}
+
+		// JSON structural overhead (braces, commas, property names)
+		size += 500;
+
+		return size;
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+	private static int EstimateFieldSize(string? value)
+	{
+		return value is null ? 4 : value.Length + 4; // +4 for quotes and separator
+	}
+
 	private static int EstimateItemSize(object? value)
 	{
-		if (value == null)
+		if (value is null)
 		{
 			return 0;
 		}
 
-		try
-		{
-			var json = JsonSerializer.Serialize(value);
-			return Encoding.UTF8.GetByteCount(json);
-		}
-		catch (NotSupportedException)
-		{
-			return value.ToString()?.Length ?? 0;
-		}
-		catch (ArgumentException)
-		{
-			return value.ToString()?.Length ?? 0;
-		}
+		// Use ToString() length as an AOT-safe size estimate
+		// instead of reflection-based JsonSerializer.Serialize(object).
+		return value.ToString()?.Length ?? 0;
 	}
 
 	private static bool ContainsPotentialPII(string text)
@@ -784,8 +798,7 @@ public sealed partial class ContextFlowDiagnostics(
 		}
 	}
 
-	[RequiresDynamicCode("Calls EstimateContextSize which uses JSON serialization requiring dynamic code")]
-	[RequiresUnreferencedCode("Calls EstimateContextSize which uses JSON serialization that cannot be statically analyzed")]
+
 	private void CheckOversizedContext(IMessageContext context, List<ContextDiagnosticIssue> issues)
 	{
 		var contextSize = EstimateContextSize(context);

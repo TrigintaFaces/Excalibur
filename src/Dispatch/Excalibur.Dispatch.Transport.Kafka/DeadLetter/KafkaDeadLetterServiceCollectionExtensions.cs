@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Kafka;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -45,6 +46,17 @@ public static class KafkaDeadLetterServiceCollectionExtensions
 		=> AddKafkaDeadLetterQueue(services, "default", configure);
 
 	/// <summary>
+	/// Adds Kafka dead letter queue support using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="KafkaDeadLetterOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddKafkaDeadLetterQueue(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		=> AddKafkaDeadLetterQueue(services, "default", configuration);
+
+	/// <summary>
 	/// Adds Kafka dead letter queue support with the specified transport name and configuration.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -67,6 +79,36 @@ public static class KafkaDeadLetterServiceCollectionExtensions
 		{
 			_ = services.Configure<KafkaDeadLetterOptions>(_ => { });
 		}
+
+		// Register internal DLQ components
+		services.TryAddSingleton<KafkaDeadLetterProducer>();
+		services.TryAddSingleton<KafkaDeadLetterConsumer>();
+
+		// Register the transport-agnostic IDeadLetterQueueManager (keyed by transport name)
+		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
+			(sp, _) => sp.GetRequiredService<KafkaDeadLetterQueueManager>());
+		services.TryAddSingleton<KafkaDeadLetterQueueManager>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Kafka dead letter queue support with the specified transport name using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="transportName">The transport name used as the keyed service key.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="KafkaDeadLetterOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddKafkaDeadLetterQueue(
+		this IServiceCollection services,
+		string transportName,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<KafkaDeadLetterOptions>().Bind(configuration);
 
 		// Register internal DLQ components
 		services.TryAddSingleton<KafkaDeadLetterProducer>();

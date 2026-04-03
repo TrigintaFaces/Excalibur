@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
@@ -42,6 +43,10 @@ public sealed partial class TypedExceptionHandlerMiddleware(
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.ErrorHandling;
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "MakeGenericType is used to resolve typed exception handlers. Register handlers explicitly for AOT scenarios.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Handler types are preserved through DI registration. Reflection is used for dynamic dispatch to typed handlers.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -115,6 +120,7 @@ public sealed partial class TypedExceptionHandlerMiddleware(
 	/// <summary>
 	/// Resolves the <c>ITypedExceptionHandler&lt;TException&gt;</c> type for the given exception type.
 	/// </summary>
+	[RequiresDynamicCode("Uses Type.MakeGenericType to construct ITypedExceptionHandler<TException> at runtime.")]
 	private static Type ResolveHandlerType(Type exceptionType)
 	{
 		if (HandlerTypeCache.TryGetValue(exceptionType, out var cached))
@@ -136,6 +142,7 @@ public sealed partial class TypedExceptionHandlerMiddleware(
 	/// <summary>
 	/// Invokes the handler using the HandleAsync convention.
 	/// </summary>
+	[RequiresUnreferencedCode("Uses Type.GetMethod to dynamically invoke HandleAsync on resolved exception handlers.")]
 	private static async ValueTask<ExceptionHandlerResult> InvokeHandlerAsync(
 		object handler,
 		Exception exception,

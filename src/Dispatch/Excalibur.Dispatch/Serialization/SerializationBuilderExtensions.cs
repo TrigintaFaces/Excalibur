@@ -4,8 +4,6 @@
 
 using Excalibur.Dispatch.Abstractions.Serialization;
 
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
@@ -19,23 +17,6 @@ namespace Excalibur.Dispatch.Serialization;
 /// </remarks>
 public static class SerializationBuilderExtensions
 {
-	/// <summary>
-	/// Registers MemoryPack serializer (framework-assigned ID: 1).
-	/// </summary>
-	/// <param name="builder">The serialization builder.</param>
-	/// <returns>The builder for method chaining.</returns>
-	/// <remarks>
-	/// MemoryPack is automatically registered by default when using <c>AddDispatch()</c>.
-	/// This method is provided for explicit registration scenarios.
-	/// </remarks>
-	public static ISerializationBuilder RegisterMemoryPack(this ISerializationBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		return builder.Register(
-			MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer(),
-			SerializerIds.MemoryPack);
-	}
-
 	/// <summary>
 	/// Registers System.Text.Json serializer (framework-assigned ID: 2).
 	/// </summary>

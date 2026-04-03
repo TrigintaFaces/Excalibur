@@ -189,11 +189,6 @@ Excalibur.A3.Authorization.ActivityGroupService.ExistsAsync(string! activityGrou
 Excalibur.A3.Authorization.ActivityGroupService.SyncActivityGroupGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.A3.Authorization.ActivityGroupService.SyncActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.A3.Authorization.ActivityGroupService.SyncAllActivityGroupGrantsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.A3.Authorization.AttributeAuthorizationCache
-Excalibur.A3.Authorization.AttributeAuthorizationCache.AttributeAuthorizationCache() -> void
-Excalibur.A3.Authorization.AttributeAuthorizationCache.ExtractResourceId(object! message, string? propertyName) -> string?
-Excalibur.A3.Authorization.AttributeAuthorizationCache.GetAttributes(System.Type! messageType) -> Excalibur.A3.Authorization.RequirePermissionAttribute![]!
-Excalibur.A3.Authorization.AttributeAuthorizationCache.HasAttributes(System.Type! messageType) -> bool
 Excalibur.A3.Authorization.AuthorizationCacheKey
 Excalibur.A3.Authorization.AuthorizationPolicy
 Excalibur.A3.Authorization.AuthorizationPolicy.AuthorizationPolicy(System.Collections.Generic.IDictionary<string!, object!>! grants, System.Collections.Generic.IDictionary<string!, object!>! activityGroups, Excalibur.Dispatch.Abstractions.ITenantId! tenantId, string! userId) -> void
@@ -360,7 +355,7 @@ Excalibur.A3.Exceptions.NotAuthorizedException.UserName.get -> string?
 Excalibur.A3.IAccessToken
 Excalibur.A3.IAccessToken.UserId.get -> string!
 Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions
-Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsError = 181501 -> int
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsRetrieved = 181503 -> int
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGroupsError = 181500 -> int
@@ -396,8 +391,8 @@ static Excalibur.A3.Exceptions.NotAuthorizedException.Because(Excalibur.A3.Authe
 static Excalibur.A3.Exceptions.NotAuthorizedException.BecauseForbidden(Excalibur.A3.Authentication.IAuthenticationToken! user, string! activityName, string? resourceId, System.Exception? exception = null) -> Excalibur.A3.Exceptions.NotAuthorizedException!
 static Excalibur.A3.Exceptions.NotAuthorizedException.BecauseNotAuthenticated(System.Exception? exception = null) -> Excalibur.A3.Exceptions.NotAuthorizedException!
 static Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions.AddDispatchAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddA3DispatchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddExcaliburA3(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
+static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddA3DispatchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddExcaliburA3(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
 static readonly Excalibur.A3.Authentication.AuthClaims.Email -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.FamilyName -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.GivenName -> string!

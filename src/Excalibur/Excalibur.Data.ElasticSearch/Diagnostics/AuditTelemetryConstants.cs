@@ -11,7 +11,7 @@ namespace Excalibur.Data.ElasticSearch.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for security audit instrumentation.
 /// </summary>
-public static class AuditTelemetryConstants
+internal static class AuditTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for audit metrics.

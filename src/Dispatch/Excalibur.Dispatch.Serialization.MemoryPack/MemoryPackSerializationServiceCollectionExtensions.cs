@@ -18,7 +18,7 @@ public static class MemoryPackSerializationServiceCollectionExtensions
 	/// <returns>The MemoryPack pluggable serializer instance.</returns>
 	/// <remarks>
 	/// <para>
-	/// This method provides access to the <see cref="MemoryPackPluggableSerializer"/> for manual registration
+	/// This method provides access to the <see cref="MemoryPackSerializer"/> for manual registration
 	/// with the serializer registry. Use this when you need to register the serializer directly.
 	/// </para>
 	/// <para>
@@ -28,22 +28,18 @@ public static class MemoryPackSerializationServiceCollectionExtensions
 	/// <b>Usage:</b>
 	/// </para>
 	/// <code>
-	/// // Register via the builder pattern (preferred)
-	/// services.AddDispatch()
-	///     .ConfigurePluggableSerialization(config =>
+	/// // Register MemoryPack via the builder pattern (opt-in, replaces JSON default)
+	/// services.AddDispatch(dispatch =>
+	///     dispatch.WithSerialization(config =>
 	///     {
-	///         config.RegisterMemoryPack();  // Auto-registers from this package
-	///     });
-	///
-	/// // Or register manually via ISerializerRegistry
-	/// var registry = services.GetRequiredService&lt;ISerializerRegistry&gt;();
-	/// registry.Register(SerializerIds.MemoryPack, MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
+	///         config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+	///         config.UseMemoryPack();
+	///     }));
 	/// </code>
 	/// <para>
-	/// <b>Note:</b> MemoryPack is the default serializer. When using <c>AddDispatch()</c> or
-	/// <c>AddPluggableSerialization()</c>, MemoryPack is automatically registered and set as current.
-	/// There is no separate <c>AddMemoryPackPluggableSerialization()</c> method because that would
-	/// create a circular dependency (Dispatch references MemoryPack for default serialization).
+	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer (ADR-295).
+	/// MemoryPack is opt-in for high-performance binary serialization in .NET-only environments.
+	/// Register it explicitly via this method when needed.
 	/// </para>
 	/// <para>
 	/// See the pluggable serialization architecture documentation.

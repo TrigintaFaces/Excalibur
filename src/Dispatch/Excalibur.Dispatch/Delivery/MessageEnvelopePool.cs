@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <summary>
 /// Thread-local message envelope pool implementation.
 /// </summary>
-public sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
+internal sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 {
 	private readonly IMessagePool _messagePool;
 	private readonly MessageEnvelopePoolOptions _options;

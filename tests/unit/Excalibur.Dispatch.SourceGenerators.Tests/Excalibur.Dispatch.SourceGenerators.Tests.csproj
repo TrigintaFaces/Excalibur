@@ -19,6 +19,8 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <!-- Roslyn APIs (from SourceGenerators.Tests) -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!-- FluentValidation for generator integration tests -->
+    <PackageReference Include="FluentValidation" />
   </ItemGroup>
   <ItemGroup>
     <!-- Source generator project — preserve ReferenceOutputAssembly setting -->

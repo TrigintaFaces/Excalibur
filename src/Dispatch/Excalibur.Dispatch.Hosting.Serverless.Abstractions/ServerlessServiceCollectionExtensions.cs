@@ -4,6 +4,8 @@
 
 using Excalibur.Dispatch.Hosting.Serverless;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -31,6 +33,29 @@ public static class ServerlessServiceCollectionExtensions
 		{
 			_ = services.Configure(configureOptions);
 		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds serverless hosting services to the service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddServerlessHosting(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Register core services
+		_ = services.AddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
+
+		// Bind options from configuration
+		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
 
 		return services;
 	}

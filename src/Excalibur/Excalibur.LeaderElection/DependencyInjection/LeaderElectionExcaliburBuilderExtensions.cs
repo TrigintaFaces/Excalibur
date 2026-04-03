@@ -4,6 +4,8 @@
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Hosting.Builders;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -33,6 +35,29 @@ public static class LeaderElectionExcaliburBuilderExtensions
 		{
 			_ = builder.Services.AddExcaliburLeaderElection();
 		}
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Configures leader election for the Excalibur host using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The Excalibur builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="LeaderElectionOptions"/>.</param>
+	/// <returns>The same builder for fluent chaining.</returns>
+	public static IExcaliburBuilder AddLeaderElection(
+		this IExcaliburBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<LeaderElectionOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = builder.Services.AddExcaliburLeaderElection();
 
 		return builder;
 	}

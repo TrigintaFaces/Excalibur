@@ -92,6 +92,7 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </code>
 	/// </example>
 	[RequiresUnreferencedCode("Assembly scanning uses reflection to discover IProjectionConfiguration<T> implementations.")]
+	[RequiresDynamicCode("Uses Activator.CreateInstance and MethodInfo.MakeGenericMethod for dynamic projection registration.")]
 	public static IEventSourcingBuilder AddProjectionsFromAssembly(
 		this IEventSourcingBuilder builder,
 		Assembly assembly)

@@ -5,6 +5,7 @@ using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.AccessReviews;
 using Excalibur.A3.Governance.Stores.InMemory;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -51,6 +52,32 @@ public static class AccessReviewGovernanceBuilderExtensions
 		optionsBuilder.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		return builder.AddAccessReviewsCore();
+	}
+
+	/// <summary>
+	/// Adds access review services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The governance builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="AccessReviewOptions"/>.</param>
+	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
+	public static IGovernanceBuilder AddAccessReviews(
+		this IGovernanceBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<AccessReviewOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.AddAccessReviewsCore();
+	}
+
+	private static IGovernanceBuilder AddAccessReviewsCore(this IGovernanceBuilder builder)
+	{
 		// Fallback in-memory store (overridable)
 		builder.Services.TryAddSingleton<IAccessReviewStore, InMemoryAccessReviewStore>();
 

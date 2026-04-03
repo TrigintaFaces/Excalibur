@@ -57,7 +57,9 @@ public sealed partial class AwsSchedulerJobProvider(
 			{
 				Arn = _options.TargetArn,
 				RoleArn = _options.ExecutionRoleArn,
-				Input = JsonSerializer.Serialize(new { JobType = typeof(TJob).AssemblyQualifiedName, JobName = jobName }),
+				Input = JsonSerializer.Serialize(
+						new JobSchedulePayload { JobType = typeof(TJob).AssemblyQualifiedName!, JobName = jobName },
+						JobsAwsJsonContext.Default.JobSchedulePayload),
 			},
 		};
 

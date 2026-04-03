@@ -4,6 +4,7 @@
 using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.InMemory;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -36,6 +37,33 @@ public static class InMemoryServiceCollectionExtensions
 		}
 
 		_ = builder.ValidateDataAnnotations().ValidateOnStart();
+
+		services.TryAddSingleton<InMemoryPersistenceProvider>();
+		services.AddKeyedSingleton<IPersistenceProvider>("inmemory",
+			(sp, _) => sp.GetRequiredService<InMemoryPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("inmemory"));
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds in-memory persistence services to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddExcaliburInMemory(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<InMemoryProviderOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddSingleton<InMemoryPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("inmemory",

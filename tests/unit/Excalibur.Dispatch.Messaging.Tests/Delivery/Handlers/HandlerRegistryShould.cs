@@ -382,4 +382,29 @@ public sealed class HandlerRegistryShould : UnitTestBase
 	}
 
 	#endregion Test Fixtures
+
+	#region Interface Extraction Tests (Sprint 739 F.3)
+
+	[Fact]
+	public void HandlerRegistryEntry_BeInternalSealed()
+	{
+		// HandlerRegistryEntry was narrowed to internal sealed in Sprint 739 F.3
+		typeof(HandlerRegistryEntry).IsPublic.ShouldBeFalse();
+		typeof(HandlerRegistryEntry).IsSealed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void IHandlerRegistryEntry_BePublic()
+	{
+		typeof(IHandlerRegistryEntry).IsPublic.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void HandlerRegistryEntry_ImplementIHandlerRegistryEntry()
+	{
+		new HandlerRegistryEntry(typeof(object), typeof(object), false)
+			.ShouldBeAssignableTo<IHandlerRegistryEntry>();
+	}
+
+	#endregion Interface Extraction Tests (Sprint 739 F.3)
 }

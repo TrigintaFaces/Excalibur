@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// This implementation stores all data in memory and is NOT suitable for production use.
 /// Data is lost when the application restarts.
 /// </remarks>
-public sealed class InMemoryDataInventoryStore : IDataInventoryStore, IDataInventoryQueryStore
+internal sealed class InMemoryDataInventoryStore : IDataInventoryStore, IDataInventoryQueryStore
 {
 	private readonly ConcurrentDictionary<string, DataLocationRegistration> _registrations = new();
 	private readonly ConcurrentDictionary<string, List<DataLocation>> _discoveredLocations = new();

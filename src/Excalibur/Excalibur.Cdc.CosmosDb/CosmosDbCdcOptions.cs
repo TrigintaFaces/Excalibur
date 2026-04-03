@@ -63,7 +63,7 @@ public sealed class CosmosDbCdcOptions
 	/// <remarks>
 	/// If null, all partitions are processed.
 	/// </remarks>
-	public IReadOnlyList<string>? PartitionKeyValues { get; set; }
+	public List<string>? PartitionKeyValues { get; set; }
 
 	/// <summary>
 	/// Gets or sets the Change Feed processing options.

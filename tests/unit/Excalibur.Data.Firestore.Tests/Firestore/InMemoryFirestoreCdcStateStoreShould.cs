@@ -300,10 +300,10 @@ public sealed class InMemoryFirestoreCdcStateStoreShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public void BePublic()
+	public void BeInternal()
 	{
 		// Assert
-		typeof(InMemoryFirestoreCdcStateStore).IsPublic.ShouldBeTrue();
+		typeof(InMemoryFirestoreCdcStateStore).IsPublic.ShouldBeFalse();
 	}
 
 	[Fact]

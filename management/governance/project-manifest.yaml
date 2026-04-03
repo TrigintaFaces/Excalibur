@@ -86,6 +86,7 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.AuditLogging.Aws/Excalibur.Dispatch.AuditLogging.Aws.csproj
   - path: src/Dispatch/Excalibur.Dispatch.AuditLogging.Datadog/Excalibur.Dispatch.AuditLogging.Datadog.csproj
   - path: src/Dispatch/Excalibur.Dispatch.AuditLogging.Elasticsearch/Excalibur.Dispatch.AuditLogging.Elasticsearch.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.AuditLogging.OpenSearch/Excalibur.Dispatch.AuditLogging.OpenSearch.csproj
   - path: src/Dispatch/Excalibur.Dispatch.AuditLogging.GoogleCloud/Excalibur.Dispatch.AuditLogging.GoogleCloud.csproj
   - path: src/Dispatch/Excalibur.Dispatch.AuditLogging.Postgres/Excalibur.Dispatch.AuditLogging.Postgres.csproj
   - path: src/Dispatch/Excalibur.Dispatch.AuditLogging.Sentinel/Excalibur.Dispatch.AuditLogging.Sentinel.csproj

@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// This implementation stores all reports in memory and is NOT suitable for production use.
 /// Data is lost when the application restarts.
 /// </remarks>
-public sealed class InMemorySoc2ReportStore : ISoc2ReportStore
+internal sealed class InMemorySoc2ReportStore : ISoc2ReportStore
 {
 	private readonly ConcurrentDictionary<Guid, Soc2Report> _reports = new();
 

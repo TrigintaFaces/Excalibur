@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// on a single thread with no escaping references.
 /// </para>
 /// </remarks>
-public sealed class MessageContextFactory(IServiceProvider serviceProvider) : IMessageContextFactory
+internal sealed class MessageContextFactory(IServiceProvider serviceProvider) : IMessageContextFactory
 {
 	[ThreadStatic] private static MessageContext? s_cachedContext;
 

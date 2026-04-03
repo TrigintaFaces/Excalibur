@@ -7,6 +7,7 @@ using Amazon.KeyManagementService;
 using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Compliance.Aws;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -58,34 +59,27 @@ public static class AwsComplianceServiceCollectionExtensions
 			_ = services.Configure(configure);
 		}
 
-		// Register AWS KMS client
-		services.TryAddSingleton<IAmazonKeyManagementService>(sp =>
-		{
-			var options = sp.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
-			var config = new AmazonKeyManagementServiceConfig();
+		RegisterAwsKmsCore(services);
 
-			if (options.Region is not null)
-			{
-				config.RegionEndpoint = options.Region;
-			}
+		return services;
+	}
 
-			if (options.UseFipsEndpoint)
-			{
-				config.UseFIPSEndpoint = true;
-			}
+	/// <summary>
+	/// Adds AWS KMS key management provider using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="AwsKmsOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddAwsKmsKeyManagement(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
 
-			if (!string.IsNullOrEmpty(options.ServiceUrl))
-			{
-				config.ServiceURL = options.ServiceUrl;
-			}
+		_ = services.AddOptions<AwsKmsOptions>().Bind(configuration);
 
-			return new AmazonKeyManagementServiceClient(config);
-		});
-
-		// Register the provider
-		services.TryAddSingleton<AwsKmsProvider>();
-		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AwsKmsProvider>());
-		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AwsKmsProvider>());
+		RegisterAwsKmsCore(services);
 
 		return services;
 	}
@@ -210,5 +204,37 @@ public static class AwsComplianceServiceCollectionExtensions
 			options.KeyPolicy.ReplicaRegions = [.. replicaRegions];
 			configure?.Invoke(options);
 		});
+	}
+
+	private static void RegisterAwsKmsCore(IServiceCollection services)
+	{
+		// Register AWS KMS client
+		services.TryAddSingleton<IAmazonKeyManagementService>(sp =>
+		{
+			var options = sp.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
+			var config = new AmazonKeyManagementServiceConfig();
+
+			if (options.Region is not null)
+			{
+				config.RegionEndpoint = options.Region;
+			}
+
+			if (options.UseFipsEndpoint)
+			{
+				config.UseFIPSEndpoint = true;
+			}
+
+			if (!string.IsNullOrEmpty(options.ServiceUrl))
+			{
+				config.ServiceURL = options.ServiceUrl;
+			}
+
+			return new AmazonKeyManagementServiceClient(config);
+		});
+
+		// Register the provider
+		services.TryAddSingleton<AwsKmsProvider>();
+		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AwsKmsProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AwsKmsProvider>());
 	}
 }

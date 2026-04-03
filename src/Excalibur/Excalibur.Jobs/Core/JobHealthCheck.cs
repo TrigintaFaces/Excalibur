@@ -13,10 +13,10 @@ namespace Excalibur.Jobs.Core;
 /// <param name="jobName"> The job name. </param>
 /// <param name="config"> The job configuration. </param>
 /// <param name="heartbeatTracker"> The heartbeat tracker. </param>
-internal sealed class JobHealthCheck(string jobName, JobConfig config, JobHeartbeatTracker heartbeatTracker) : IHealthCheck
+internal sealed class JobHealthCheck(string jobName, JobOptions config, JobHeartbeatTracker heartbeatTracker) : IHealthCheck
 {
 	private readonly string _jobName = jobName;
-	private readonly JobConfig _config = config ?? throw new ArgumentNullException(nameof(config));
+	private readonly JobOptions _config = config ?? throw new ArgumentNullException(nameof(config));
 	private readonly JobHeartbeatTracker _heartbeatTracker = heartbeatTracker ?? throw new ArgumentNullException(nameof(heartbeatTracker));
 
 	/// <inheritdoc />

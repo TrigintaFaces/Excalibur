@@ -13,7 +13,7 @@ namespace Excalibur.Hosting.Tests.HealthChecks;
 [Trait("Component", "Platform")]
 public sealed class HealthCheckJsonSerializerOptionsShould : UnitTestBase
 {
-	private static readonly Type OptionsType = typeof(Excalibur.Hosting.HealthChecksBuilderExtensions).Assembly
+	private static readonly Type OptionsType = typeof(Excalibur.Hosting.MemoryHealthCheckOptions).Assembly
 		.GetType("Excalibur.Hosting.HealthChecks.HealthCheckJsonSerializerOptions")!;
 
 	[Fact]

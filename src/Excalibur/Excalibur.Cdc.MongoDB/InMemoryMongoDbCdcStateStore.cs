@@ -12,7 +12,7 @@ namespace Excalibur.Cdc.MongoDB;
 /// <summary>
 /// In-memory implementation of <see cref="IMongoDbCdcStateStore"/> for testing.
 /// </summary>
-public sealed class InMemoryMongoDbCdcStateStore : IMongoDbCdcStateStore
+internal sealed class InMemoryMongoDbCdcStateStore : IMongoDbCdcStateStore
 {
 	private readonly ConcurrentDictionary<string, MongoDbCdcPosition> _positions = new();
 	private readonly ConcurrentDictionary<string, MongoDbCdcStateEntry> _states = new();

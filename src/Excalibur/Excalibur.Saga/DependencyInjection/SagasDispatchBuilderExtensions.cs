@@ -5,6 +5,8 @@
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Saga;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -79,6 +81,32 @@ public static class SagasDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
 		_ = builder.Services.AddDispatchAdvancedSagas(configureOptions);
+
+		// Add middleware to the pipeline
+		_ = builder.UseMiddleware<AdvancedSagaMiddleware>();
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Adds advanced saga orchestration using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The Dispatch builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="AdvancedSagaOptions"/>.</param>
+	/// <returns>The Dispatch builder for fluent configuration.</returns>
+	public static IDispatchBuilder WithAdvancedSagas(
+		this IDispatchBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<AdvancedSagaOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = builder.Services.AddDispatchAdvancedSagas();
 
 		// Add middleware to the pipeline
 		_ = builder.UseMiddleware<AdvancedSagaMiddleware>();

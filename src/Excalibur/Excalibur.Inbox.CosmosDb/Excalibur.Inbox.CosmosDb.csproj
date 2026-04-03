@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Inbox.CosmosDb</PackageId>
     <Description>Azure Cosmos DB implementation of the inbox pattern for Excalibur, providing idempotent message processing.</Description>
     <PackageTags>excalibur;inbox;idempotent;messaging;cosmosdb;azure</PackageTags>
+    <!-- AOT: NOT compatible. Microsoft.Azure.Cosmos uses reflection for inbox message deserialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>

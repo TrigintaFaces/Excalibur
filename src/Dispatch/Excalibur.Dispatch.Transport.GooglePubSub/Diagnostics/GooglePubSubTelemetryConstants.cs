@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Transport.GooglePubSub;
 /// while falling back to the shared static instance.
 /// </para>
 /// </remarks>
-public static class GooglePubSubTelemetryConstants
+internal static class GooglePubSubTelemetryConstants
 {
 	/// <summary>
 	/// The shared Meter name for all Google Pub/Sub telemetry.

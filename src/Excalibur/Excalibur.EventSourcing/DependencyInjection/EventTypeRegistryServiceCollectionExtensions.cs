@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing.TypeMapping;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -44,6 +45,28 @@ public static class EventTypeRegistryServiceCollectionExtensions
 		{
 			_ = services.Configure(configure);
 		}
+
+		services.TryAddSingleton<IEventTypeRegistry, EventTypeRegistry>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the event type registry for mapping stored event type names to CLR types
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddEventTypeRegistry(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<EventTypeRegistryOptions>()
+			.Bind(configuration);
 
 		services.TryAddSingleton<IEventTypeRegistry, EventTypeRegistry>();
 

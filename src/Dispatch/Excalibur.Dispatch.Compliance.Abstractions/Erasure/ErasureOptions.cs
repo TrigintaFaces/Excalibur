@@ -92,6 +92,16 @@ public sealed class ErasureRetentionOptions
 	/// Gets or sets the signing key identifier for certificate signatures.
 	/// </summary>
 	public string? SigningKeyId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the HMAC-SHA256 signing key for certificate signatures.
+	/// Must be at least 32 bytes for security. Configure from KMS/HSM in production.
+	/// </summary>
+	/// <remarks>
+	/// Previously configured via <c>ErasureSigningOptions</c>; consolidated here
+	/// to reduce constructor parameter count and co-locate signing configuration.
+	/// </remarks>
+	public byte[] SigningKey { get; set; } = [];
 }
 
 /// <summary>

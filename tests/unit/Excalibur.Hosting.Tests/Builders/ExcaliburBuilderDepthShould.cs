@@ -238,7 +238,7 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 		// Act
 		services.AddExcalibur(builder =>
 		{
-			result = builder.AddSagas(null);
+			result = builder.AddSagas((Action<SagaOptions>?)null);
 		});
 
 		// Assert
@@ -311,7 +311,7 @@ public sealed class ExcaliburBuilderDepthShould : UnitTestBase
 		// Act
 		services.AddExcalibur(builder =>
 		{
-			result = builder.AddLeaderElection(null);
+			result = builder.AddLeaderElection((Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions>?)null);
 		});
 
 		// Assert

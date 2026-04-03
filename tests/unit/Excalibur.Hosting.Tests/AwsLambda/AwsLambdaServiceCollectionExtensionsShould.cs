@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Hosting.AwsLambda;
+using Excalibur.Dispatch.Hosting.Serverless;
 
 namespace Excalibur.Hosting.Tests.AwsLambda;
 
@@ -95,7 +96,7 @@ public sealed class AwsLambdaServiceCollectionExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburAwsLambdaServerless(null!));
+		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburAwsLambdaServerless((Action<ServerlessHostOptions>)null!));
 	}
 
 	[Fact]

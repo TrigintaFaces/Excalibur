@@ -22,7 +22,7 @@ public sealed class ElasticsearchPersistenceExtensionsShould
 	{
 		var services = new ServiceCollection();
 		Should.Throw<ArgumentNullException>(
-			() => services.AddElasticsearchPersistence(null!));
+			() => services.AddElasticsearchPersistence((Action<Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions>)null!));
 	}
 
 	[Fact]

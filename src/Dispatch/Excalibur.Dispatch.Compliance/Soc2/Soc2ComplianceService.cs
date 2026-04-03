@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// <summary>
 /// Default implementation of <see cref="ISoc2ComplianceService"/>.
 /// </summary>
-public sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2AuditExporter
+internal sealed class Soc2ComplianceService : ISoc2ComplianceService, ISoc2AuditExporter
 {
 	private readonly Soc2Options _options;
 	private readonly IControlValidationService _controlValidation;

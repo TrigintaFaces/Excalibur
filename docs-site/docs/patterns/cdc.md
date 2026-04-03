@@ -70,7 +70,7 @@ services.AddCdcProcessor(cdc =>
            .StateTableName("CdcProcessingState")
            .PollingInterval(TimeSpan.FromSeconds(5))
            .BatchSize(100)
-           .DatabaseName("OrdersDb")                   // Auto-registers IDatabaseConfig
+           .DatabaseName("OrdersDb")                   // Auto-registers IDatabaseOptions
            .CaptureInstances("dbo_Orders", "dbo_Customers")
            .StopOnMissingTableHandler(false);           // Skip unknown tables in production
     })
@@ -450,7 +450,7 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `PollingInterval(TimeSpan)` | How often to poll for changes | 5 seconds |
 | `BatchSize(int)` | Changes per processing batch | 100 |
 | `CommandTimeout(TimeSpan)` | Database command timeout | 30 seconds |
-| `DatabaseName(string)` | Database name; auto-registers `IDatabaseConfig` | -- |
+| `DatabaseName(string)` | Database name; auto-registers `IDatabaseOptions` | -- |
 | `DatabaseConnectionIdentifier(string)` | Identifier for CDC source connection | `cdc-{DatabaseName}` |
 | `StateConnectionIdentifier(string)` | Identifier for state store connection | `state-{DatabaseName}` |
 | `CaptureInstances(params string[])` | CDC capture instances to process | -- |
@@ -461,8 +461,8 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `StateConnectionFactory(Func<IServiceProvider, Func<SqlConnection>>)` | DI-integrated state connection factory | Source connection |
 | `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
 
-:::tip Auto-Registration of IDatabaseConfig
-When you call `DatabaseName()`, the builder automatically registers an `IDatabaseConfig` singleton with sensible defaults for connection identifiers. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseConfig` registration takes precedence.
+:::tip Auto-Registration of IDatabaseOptions
+When you call `DatabaseName()`, the builder automatically registers an `IDatabaseOptions` singleton with sensible defaults for connection identifiers. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseOptions` registration takes precedence.
 :::
 
 ### Connection Factory

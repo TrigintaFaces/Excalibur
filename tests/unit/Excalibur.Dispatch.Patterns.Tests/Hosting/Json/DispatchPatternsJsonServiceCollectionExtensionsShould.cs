@@ -63,7 +63,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : Unit
 	public void AddJsonSerialization_WithNullConfigure_DoesNotThrow()
 	{
 		// Act & Assert — null configure delegate should be fine
-		_ = Services.AddJsonSerialization(null);
+		_ = Services.AddJsonSerialization((Action<Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions>?)null);
 		BuildServiceProvider();
 		var serializer = GetService<DispatchJsonSerializer>();
 		serializer.ShouldNotBeNull();

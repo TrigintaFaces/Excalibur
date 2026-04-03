@@ -88,7 +88,7 @@ public sealed class BackupShareOptions
 	/// Gets or sets the list of custodian identifiers.
 	/// If provided, must have exactly the same count as totalShares.
 	/// </summary>
-	public IReadOnlyList<string>? CustodianIds { get; set; }
+	public List<string>? CustodianIds { get; set; }
 
 	/// <summary>
 	/// Gets or sets the reason for generating shares (for audit purposes).

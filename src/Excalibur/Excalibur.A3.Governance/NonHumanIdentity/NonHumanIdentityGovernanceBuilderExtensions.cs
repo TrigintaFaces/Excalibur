@@ -4,6 +4,7 @@
 using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.NonHumanIdentity;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -77,6 +78,32 @@ public static class NonHumanIdentityGovernanceBuilderExtensions
 		optionsBuilder.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		return builder.AddApiKeyManagementCore();
+	}
+
+	/// <summary>
+	/// Adds API key management services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The governance builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="ApiKeyOptions"/>.</param>
+	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
+	public static IGovernanceBuilder AddApiKeyManagement(
+		this IGovernanceBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<ApiKeyOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.AddApiKeyManagementCore();
+	}
+
+	private static IGovernanceBuilder AddApiKeyManagementCore(this IGovernanceBuilder builder)
+	{
 		// Cross-property validator
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<

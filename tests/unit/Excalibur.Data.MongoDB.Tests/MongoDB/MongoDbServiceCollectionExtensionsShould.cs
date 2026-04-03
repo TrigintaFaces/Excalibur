@@ -97,6 +97,6 @@ public sealed class MongoDbServiceCollectionExtensionsShould : UnitTestBase
 	public void ThrowOnNullConfigure()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ServiceCollection().AddExcaliburMongoDb(null!));
+			new ServiceCollection().AddExcaliburMongoDb((Action<Excalibur.Data.MongoDB.MongoDbProviderOptions>)null!));
 	}
 }

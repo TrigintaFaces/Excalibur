@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.CloudEvents;
 /// <summary>
 /// In-memory implementation of schema registry for testing.
 /// </summary>
-public sealed class InMemorySchemaRegistry : ISchemaRegistry
+internal sealed class InMemorySchemaRegistry : ISchemaRegistry
 {
 	private readonly ConcurrentDictionary<(string eventType, string version), string> _schemas = new();
 	private readonly ConcurrentDictionary<string, List<string>> _versions = new();

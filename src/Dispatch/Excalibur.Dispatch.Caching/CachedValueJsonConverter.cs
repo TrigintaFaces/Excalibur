@@ -159,6 +159,7 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 		writer.WriteEndObject();
 	}
 
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Assembly.GetType() for runtime type resolution. Use AotCachedValueJsonConverter for AOT-compatible caching.")]
 	private static Type? ResolveTypeByName(string typeName)
 	{
 		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())

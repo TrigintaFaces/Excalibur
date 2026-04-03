@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Dispatch.Compliance;
 
@@ -40,11 +41,13 @@ public sealed class Soc2Options
 	/// <summary>
 	/// Default sample size for control testing.
 	/// </summary>
+	[Range(1, int.MaxValue)]
 	public int DefaultTestSampleSize { get; set; } = 25;
 
 	/// <summary>
 	/// Minimum period length for Type II reports (days).
 	/// </summary>
+	[Range(1, int.MaxValue)]
 	public int MinimumTypeIIPeriodDays { get; set; } = 90;
 
 	/// <summary>
@@ -61,26 +64,31 @@ public sealed class ControlDefinition
 	/// <summary>
 	/// Control identifier.
 	/// </summary>
+	[Required]
 	public required string ControlId { get; init; }
 
 	/// <summary>
 	/// Mapped criterion.
 	/// </summary>
+	[Required]
 	public required TrustServicesCriterion Criterion { get; init; }
 
 	/// <summary>
 	/// Control name.
 	/// </summary>
+	[Required]
 	public required string Name { get; init; }
 
 	/// <summary>
 	/// Control description.
 	/// </summary>
+	[Required]
 	public required string Description { get; init; }
 
 	/// <summary>
 	/// Implementation details.
 	/// </summary>
+	[Required]
 	public required string Implementation { get; init; }
 
 	/// <summary>

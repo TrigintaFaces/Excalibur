@@ -4,55 +4,32 @@ High-performance MemoryPack binary serialization for Excalibur framework.
 
 ## Purpose
 
-Provides the **default** and fastest binary serialization for:
-- Internal persistence (Outbox, Inbox, Event Store)
+Provides **opt-in** high-performance binary serialization for:
 - Maximum throughput scenarios
 - .NET-to-.NET communication
+- Internal persistence (Outbox, Inbox, Event Store)
 - AOT/NativeAOT deployment
 
 ## Key Features
 
-- **Auto-Registered**: Enabled by default when using `AddDispatch()`
+- **Opt-In**: JSON (System.Text.Json) is the default serializer (ADR-295). Install this package and register explicitly when you need maximum .NET performance.
 - **Serializer ID 1**: Magic byte `0x01` in persisted payloads
 - **Zero-Allocation**: ReadOnlySpan-based deserialization
-- **AOT-Compatible**: Full NativeAOT and trimming support
+- **AOT-Compatible**: Full NativeAOT and trimming support via source generation
 
 ## Usage
 
-### Default (Zero Configuration)
+### Registration
 
-MemoryPack is automatically registered and used as the default serializer:
-
-```csharp
-services.AddDispatch();
-// That's it! MemoryPack is auto-registered and set as current.
-```
-
-### Explicit Registration
-
-For clarity or migration scenarios:
+MemoryPack must be explicitly registered. JSON is the default serializer.
 
 ```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
+services.AddDispatch(dispatch =>
+    dispatch.WithSerialization(config =>
     {
-        config.RegisterMemoryPack();  // Register (ID: 1)
-        config.UseMemoryPack();       // Set as current
-    });
-```
-
-### Disable Auto-Registration
-
-When you want explicit control:
-
-```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
-    {
-        config.DisableMemoryPackAutoRegistration();
-        config.RegisterSystemTextJson();
-        config.UseSystemTextJson();
-    });
+        config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+        config.UseMemoryPack();
+    }));
 ```
 
 ## Type Requirements
@@ -111,7 +88,7 @@ Stored Payload: [0x01][MemoryPack binary data...]
                   Magic byte identifies serializer
 ```
 
-## When to Use MemoryPack (Default)
+## When to Use MemoryPack
 
 **Best For:**
 - Internal .NET-to-.NET communication
@@ -121,34 +98,35 @@ Stored Payload: [0x01][MemoryPack binary data...]
 
 **Consider Alternatives When:**
 - Cross-language consumers (use MessagePack - ID: 3)
-- Debugging/human-readable storage (use System.Text.Json - ID: 2)
+- Debugging/human-readable storage (use System.Text.Json - ID: 2, the default)
 - Schema-based contracts (use Protobuf - ID: 4)
 
 ## Migration
 
+### From JSON to MemoryPack
+
+```csharp
+services.AddDispatch(dispatch =>
+    dispatch.WithSerialization(config =>
+    {
+        // JSON (ID: 2) is already registered as default
+        config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+        config.UseMemoryPack();  // Switch new messages to MemoryPack
+    }));
+```
+
+Old JSON data remains readable; new data uses MemoryPack.
+
 ### From MemoryPack to Another Serializer
 
 ```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
+services.AddDispatch(dispatch =>
+    dispatch.WithSerialization(config =>
     {
-        // MemoryPack (ID: 1) auto-registered - keep for existing data
-        config.RegisterMessagePack();     // Add new serializer
-        config.UseMessagePack();          // Use for new messages
-    });
-```
-
-Old MemoryPack data remains readable; new data uses MessagePack.
-
-### To MemoryPack from Another Serializer
-
-```csharp
-services.AddDispatch()
-    .ConfigurePluggableSerialization(config =>
-    {
-        config.RegisterSystemTextJson(); // Keep for existing data
-        config.UseMemoryPack();          // Switch to MemoryPack
-    });
+        // Keep MemoryPack registered for reading existing data
+        config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+        config.UseSystemTextJson();  // Switch new messages to JSON
+    }));
 ```
 
 ## Package Dependencies

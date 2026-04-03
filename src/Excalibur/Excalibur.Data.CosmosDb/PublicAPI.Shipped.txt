@@ -172,7 +172,7 @@ Excalibur.Data.CosmosDb.CosmosDbClientOptions.ConsistencyLevel.set -> void
 Excalibur.Data.CosmosDb.CosmosDbClientOptions.CosmosDbClientOptions() -> void
 Excalibur.Data.CosmosDb.CosmosDbClientOptions.HttpClientFactory.get -> System.Func<System.Net.Http.HttpClient!>?
 Excalibur.Data.CosmosDb.CosmosDbClientOptions.HttpClientFactory.set -> void
-Excalibur.Data.CosmosDb.CosmosDbClientOptions.PreferredRegions.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Excalibur.Data.CosmosDb.CosmosDbClientOptions.PreferredRegions.get -> System.Collections.Generic.List<string!>?
 Excalibur.Data.CosmosDb.CosmosDbClientOptions.PreferredRegions.set -> void
 Excalibur.Data.CosmosDb.CosmosDbClientOptions.Resilience.get -> Excalibur.Data.CosmosDb.CosmosDbClientResilienceOptions!
 Excalibur.Data.CosmosDb.CosmosDbClientOptions.Resilience.set -> void
@@ -333,6 +333,3 @@ static Microsoft.Extensions.DependencyInjection.CosmosDbServiceCollectionExtensi
 static Microsoft.Extensions.DependencyInjection.CosmosDbServiceCollectionExtensions.AddCosmosDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbServiceCollectionExtensions.AddCosmosDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.CosmosDbOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbSnapshotStoreExtensions.AddCosmosDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-const Excalibur.Data.CosmosDb.Diagnostics.CosmosDbPersistenceTelemetryConstants.MeterName = "Excalibur.Data.CosmosDb.Persistence" -> string!
-const Excalibur.Data.CosmosDb.Diagnostics.CosmosDbPersistenceTelemetryConstants.Version = "1.0.0" -> string!
-Excalibur.Data.CosmosDb.Diagnostics.CosmosDbPersistenceTelemetryConstants

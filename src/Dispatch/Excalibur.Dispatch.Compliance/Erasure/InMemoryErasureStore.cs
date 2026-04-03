@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// This implementation stores all data in memory and is NOT suitable for production use.
 /// Data is lost when the application restarts.
 /// </remarks>
-public sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateStore, IErasureQueryStore
+internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateStore, IErasureQueryStore
 {
 	private readonly ConcurrentDictionary<Guid, ErasureRequestData> _requests = new();
 	private readonly ConcurrentDictionary<Guid, ErasureCertificate> _certificates = new();

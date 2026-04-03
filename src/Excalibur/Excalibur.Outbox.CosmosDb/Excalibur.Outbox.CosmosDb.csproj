@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Outbox.CosmosDb</PackageId>
     <Description>Azure Cosmos DB implementation of the cloud-native outbox pattern for Excalibur event sourcing.</Description>
     <PackageTags>excalibur;outbox;cosmosdb;azure;cloud-native;event-sourcing;messaging</PackageTags>
+    <!-- AOT: NOT compatible. Microsoft.Azure.Cosmos uses reflection for outbox message serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>

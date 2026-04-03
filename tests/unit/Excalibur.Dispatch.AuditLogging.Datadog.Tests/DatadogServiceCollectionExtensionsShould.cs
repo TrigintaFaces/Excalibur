@@ -1,6 +1,7 @@
 using Excalibur.Dispatch.AuditLogging.Datadog;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -66,7 +67,38 @@ public sealed class DatadogServiceCollectionExtensionsShould
 		// Act & Assert
 #pragma warning disable IL2026, IL3050
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDatadogAuditExporter(null!));
+			services.AddDatadogAuditExporter((Action<DatadogExporterOptions>)null!));
+#pragma warning restore IL2026, IL3050
+	}
+
+	// --- IConfiguration overload tests ---
+
+	[Fact]
+	public void Register_exporter_with_IConfiguration_overload()
+	{
+		var services = new ServiceCollection();
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["ApiKey"] = "test-key"
+			})
+			.Build();
+
+#pragma warning disable IL2026, IL3050
+		services.AddDatadogAuditExporter(config);
+#pragma warning restore IL2026, IL3050
+
+		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
+	}
+
+	[Fact]
+	public void Throw_for_null_configuration()
+	{
+		var services = new ServiceCollection();
+
+#pragma warning disable IL2026, IL3050
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddDatadogAuditExporter((IConfiguration)null!));
 #pragma warning restore IL2026, IL3050
 	}
 }

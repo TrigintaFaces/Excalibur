@@ -283,14 +283,18 @@ Events are serialized using the configured serializer. Register serialization vi
 // Register event sourcing
 services.AddExcaliburEventSourcing();
 
-// Default: MemoryPack for internal serialization
-// MemoryPack is auto-registered by AddDispatch(). For alternatives:
+// Default: JSON (System.Text.Json) -- works with any POCO event type.
+// For binary serialization, install the provider package:
+
+// MemoryPack for maximum .NET performance (requires [MemoryPackable])
+services.AddDispatch(dispatch => dispatch.WithSerialization(config =>
+{
+    config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+    config.UseMemoryPack();
+}));
 
 // Or MessagePack for cross-language support
 services.AddMessagePackSerialization();
-
-// Or System.Text.Json for patterns/hosting
-services.AddJsonSerialization();
 ```
 
 ### Custom Type Names

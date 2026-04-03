@@ -146,15 +146,6 @@ Excalibur.Cdc.Firestore.IFirestoreCdcStateStore
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition?>!
 Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.Clear() -> void
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.Dispose() -> void
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.GetAllPositions() -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Cdc.Firestore.FirestoreCdcStateEntry!>!
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition?>!
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.InMemoryFirestoreCdcStateStore() -> void
-Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions
 override Excalibur.Cdc.Firestore.FirestoreCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
 override Excalibur.Cdc.Firestore.FirestoreCdcPosition.Equals(object? obj) -> bool

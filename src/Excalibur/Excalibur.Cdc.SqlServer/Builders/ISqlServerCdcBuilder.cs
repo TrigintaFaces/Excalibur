@@ -117,7 +117,7 @@ public interface ISqlServerCdcBuilder
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// When set, an <see cref="IDatabaseConfig"/> is automatically registered
+	/// When set, an <see cref="IDatabaseOptions"/> is automatically registered
 	/// in the service collection, eliminating the need for manual registration.
 	/// </para>
 	/// </remarks>

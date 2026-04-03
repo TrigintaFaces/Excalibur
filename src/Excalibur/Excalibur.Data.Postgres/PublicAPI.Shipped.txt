@@ -43,7 +43,6 @@ Excalibur.Data.Postgres.Authorization.PostgresGrantStore.InsertActivityGroupGran
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.PostgresGrantStore(Excalibur.Data.IDomainDb! domainDb) -> void
 Excalibur.Data.Postgres.Authorization.PostgresGrantStore.SaveGrantAsync(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId
-Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions.ConnectionString.get -> string!
 Excalibur.Data.Postgres.ErrorHandling.PostgresDeadLetterOptions.ConnectionString.set -> void
@@ -444,8 +443,6 @@ const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TransactionStarted
 const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.TypeMappingConfigured = 101302 -> int
 const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.UniqueViolation = 101602 -> int
 const Excalibur.Data.Postgres.Diagnostics.DataPostgresEventId.WaitEventDetected = 101503 -> int
-const Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants.MeterName = "Excalibur.Data.Postgres.Persistence" -> string!
-const Excalibur.Data.Postgres.Diagnostics.PostgresPersistenceTelemetryConstants.Version = "1.0.0" -> string!
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.MeasureOperation<T>(System.Func<T>! operation, System.Action<double>! recordAction) -> T
 static Excalibur.Data.Postgres.Persistence.PostgresPersistenceMetrics.MeasureOperationAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Action<double>! recordAction) -> System.Threading.Tasks.Task<T>!
 static Excalibur.Data.Postgres.RequestProviders.PostgresActivityGroupRequestProvider.ActivityGroupExists(string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> Excalibur.Data.Abstractions.IDataRequest<System.Data.IDbConnection!, bool>!
@@ -479,3 +476,4 @@ virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Dispose(
 virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
+static Microsoft.Extensions.DependencyInjection.PostgresServiceCollectionExtensions.AddPostgresDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -5,6 +5,7 @@ using Excalibur.Data.Abstractions.Sharding;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Sharding;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -64,6 +65,49 @@ public static class TenantShardingServiceCollectionExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ShardMapOptions>, ShardMapOptionsValidator>());
 		builder.Services.AddOptionsWithValidateOnStart<ShardMapOptions>();
+
+		// Register tenant-routing decorators as Scoped (per-request tenant resolution)
+		builder.Services.AddScoped<IEventStore, TenantRoutingEventStore>();
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Enables tenant-aware data sharding for event stores and projection stores,
+	/// with options bound from an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="configuration">The configuration section to bind <see cref="ShardMapOptions"/> from.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Unlike the <see cref="Action{T}"/>-based overload, this always registers the
+	/// tenant-routing decorator. Set <see cref="ShardMapOptions.EnableTenantSharding"/>
+	/// to <see langword="false"/> in configuration to disable sharding at runtime
+	/// via <c>ValidateOnStart</c>.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// {
+	///     builder.EnableTenantSharding(configuration.GetSection("TenantSharding"));
+	/// });
+	/// </code>
+	/// </example>
+	public static IEventSourcingBuilder EnableTenantSharding(
+		this IEventSourcingBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		builder.Services.AddOptions<ShardMapOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ShardMapOptions>, ShardMapOptionsValidator>());
 
 		// Register tenant-routing decorators as Scoped (per-request tenant resolution)
 		builder.Services.AddScoped<IEventStore, TenantRoutingEventStore>();

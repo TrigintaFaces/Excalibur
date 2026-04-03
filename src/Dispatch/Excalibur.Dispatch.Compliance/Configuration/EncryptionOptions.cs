@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
-
+using System.ComponentModel.DataAnnotations;
 
 namespace Excalibur.Dispatch.Compliance;
 
@@ -18,6 +17,7 @@ public sealed class EncryptionOptions
 	/// Used for key selection when <see cref="EncryptionContext.Purpose"/> is not specified.
 	/// Common purposes include "field-encryption", "document-encryption", "api-key-encryption".
 	/// </remarks>
+	[Required]
 	public string DefaultPurpose { get; set; } = "default";
 
 	/// <summary>
@@ -113,6 +113,7 @@ public sealed class EncryptionMigrationOptions
 	/// Larger batch sizes improve throughput but increase memory usage and
 	/// transaction scope. Default is 100.
 	/// </remarks>
+	[Range(1, int.MaxValue)]
 	public int BatchSize { get; set; } = 100;
 
 	/// <summary>
@@ -122,6 +123,7 @@ public sealed class EncryptionMigrationOptions
 	/// Set to 1 for sequential processing. Higher values improve throughput
 	/// but increase load on the key management system. Default is 4.
 	/// </remarks>
+	[Range(1, int.MaxValue)]
 	public int MaxDegreeOfParallelism { get; set; } = 4;
 
 	/// <summary>

@@ -28,7 +28,7 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 	public void AddOutboxHighThroughput_ThrowsWhenServicesIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			OutboxPresetServiceCollectionExtensions.AddOutboxHighThroughput(null!));
+			OutboxPresetServiceCollectionExtensions.AddOutboxHighThroughput((IServiceCollection)null!));
 	}
 
 	[Fact]
@@ -84,7 +84,7 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 	public void AddOutboxBalanced_ThrowsWhenServicesIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			OutboxPresetServiceCollectionExtensions.AddOutboxBalanced(null!));
+			OutboxPresetServiceCollectionExtensions.AddOutboxBalanced((IServiceCollection)null!));
 	}
 
 	[Fact]
@@ -138,7 +138,7 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 	public void AddOutboxHighReliability_ThrowsWhenServicesIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			OutboxPresetServiceCollectionExtensions.AddOutboxHighReliability(null!));
+			OutboxPresetServiceCollectionExtensions.AddOutboxHighReliability((IServiceCollection)null!));
 	}
 
 	[Fact]
@@ -196,20 +196,20 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 	public void AddOutboxHighThroughput_NullConfigure_DoesNotThrow()
 	{
 		var services = new ServiceCollection();
-		Should.NotThrow(() => services.AddOutboxHighThroughput(null));
+		Should.NotThrow(() => services.AddOutboxHighThroughput((Action<Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions>?)null));
 	}
 
 	[Fact]
 	public void AddOutboxBalanced_NullConfigure_DoesNotThrow()
 	{
 		var services = new ServiceCollection();
-		Should.NotThrow(() => services.AddOutboxBalanced(null));
+		Should.NotThrow(() => services.AddOutboxBalanced((Action<Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions>?)null));
 	}
 
 	[Fact]
 	public void AddOutboxHighReliability_NullConfigure_DoesNotThrow()
 	{
 		var services = new ServiceCollection();
-		Should.NotThrow(() => services.AddOutboxHighReliability(null));
+		Should.NotThrow(() => services.AddOutboxHighReliability((Action<Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions>?)null));
 	}
 }

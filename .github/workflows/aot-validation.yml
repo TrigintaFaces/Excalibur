@@ -1,35 +1,38 @@
 name: AOT Build Validation
 
-# DISABLED: Re-enable push/pull_request triggers when AOT validation is ready
-# Re-enable push/pull_request triggers when AOT validation infrastructure is built
-# See: https://github.com/TrigintaFaces/Excalibur/issues/XXX
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'samples/11-aot/**'
+      - 'eng/ci/Invoke-AotPublishValidation.ps1'
+      - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
+      - 'eng/ci/aot-warning-baseline.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'samples/11-aot/**'
+      - 'eng/ci/Invoke-AotPublishValidation.ps1'
+      - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
+      - 'eng/ci/aot-warning-baseline.json'
   workflow_dispatch:
     inputs:
-      verbose:
-        description: "Enable verbose logging"
+      runtime:
+        description: "Target runtime (e.g., linux-x64, win-x64)"
         required: false
-        default: false
-        type: boolean
+        default: 'linux-x64'
+        type: string
 
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  validate-aot:
-    name: Validate AOT Build
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            runtime: linux-x64
-          - os: windows-latest
-            runtime: win-x64
-          - os: macos-latest
-            runtime: osx-x64
+  aot-publish-validation:
+    name: AOT Publish Validation
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,94 +55,106 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Install dependencies
+      - name: Restore dependencies
         run: dotnet restore
 
-      - name: Run AOT validation script
+      - name: Run AOT publish validation
         shell: pwsh
         run: |
-          $params = @{
-            Configuration = 'Release'
-            Runtime = '${{ matrix.runtime }}'
-            OutputPath = './validation-results'
+          $runtime = '${{ inputs.runtime }}'
+          if (-not $runtime) { $runtime = 'linux-x64' }
+          ./eng/ci/Invoke-AotPublishValidation.ps1 `
+            -Configuration Release `
+            -Runtime $runtime `
+            -OutputPath ./validation-results `
+            -BaselinePath ./eng/ci/aot-warning-baseline.json
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::AOT publish validation failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
           }
-          if (${{ inputs.verbose }}) {
-            $params['Verbose'] = $true
+          "## AOT Publish Validation: PASS" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Report warnings to step summary
+        if: always()
+        shell: pwsh
+        run: |
+          $jsonPath = './validation-results/aot-validation-report.json'
+          if (Test-Path $jsonPath) {
+            $report = Get-Content $jsonPath | ConvertFrom-Json
+            "" >> $env:GITHUB_STEP_SUMMARY
+            "## AOT Publish Validation" >> $env:GITHUB_STEP_SUMMARY
+            "" >> $env:GITHUB_STEP_SUMMARY
+            "| Metric | Value |" >> $env:GITHUB_STEP_SUMMARY
+            "|--------|-------|" >> $env:GITHUB_STEP_SUMMARY
+            "| Publish | $(if ($report.PublishSuccess) { 'Success' } else { 'Failed' }) |" >> $env:GITHUB_STEP_SUMMARY
+            "| IL Warnings | $($report.TotalWarnings) |" >> $env:GITHUB_STEP_SUMMARY
+            "| Errors | $($report.TotalErrors) |" >> $env:GITHUB_STEP_SUMMARY
+            "" >> $env:GITHUB_STEP_SUMMARY
+            foreach ($warning in $report.Warnings | Select-Object -First 20) {
+              Write-Host "::warning::$warning"
+            }
+          } else {
+            "## AOT Publish Validation: No report generated" >> $env:GITHUB_STEP_SUMMARY
           }
-          ./eng/ci/Validate-AotBuild.ps1 @params
 
       - name: Upload validation report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: aot-validation-${{ matrix.os }}
+          name: aot-validation-report
           path: |
             validation-results/aot-validation-report.html
             validation-results/aot-validation-report.json
             validation-results/*.log
-      - name: Check for errors
-        if: failure()
+
+  aot-build-analysis:
+    name: AOT Build Analysis (report-only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Run AOT build analysis (report-only)
         shell: pwsh
         run: |
-          $report = Get-Content ./validation-results/aot-validation-report.json | ConvertFrom-Json
-          Write-Host "::error::AOT validation failed with $($report.Errors.Count) errors"
-          foreach ($error in $report.Errors) {
-            Write-Host "::error::$error"
+          # Report-only: capture exit code but do not fail the job
+          $exitCode = 0
+          try {
+            ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath ./aot-build-analysis
+            $exitCode = $LASTEXITCODE
+          } catch {
+            $exitCode = 2
+            Write-Host "::warning::AOT build analysis threw an exception: $_"
           }
+          Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
 
-      - name: Report warnings
+      - name: Upload analysis report
         if: always()
-        shell: pwsh
-        run: |
-          if (Test-Path ./validation-results/aot-validation-report.json) {
-            $report = Get-Content ./validation-results/aot-validation-report.json | ConvertFrom-Json
-            foreach ($warning in $report.Warnings | Select-Object -First 10) {
-              Write-Host "::warning::$warning"
-            }
-          }
-
-  size-analysis:
-    name: Binary Size Analysis
-    needs: validate-aot
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-
-      - name: Analyze binary sizes
-        shell: pwsh
-        run: |
-          Write-Host "## Binary Size Analysis" >> $env:GITHUB_STEP_SUMMARY
-          Write-Host "| Platform | Executable Size | Status |" >> $env:GITHUB_STEP_SUMMARY
-          Write-Host "|----------|----------------|--------|" >> $env:GITHUB_STEP_SUMMARY
-
-          foreach ($artifact in Get-ChildItem -Directory) {
-            $report = Get-Content "$($artifact.Name)/aot-validation-report.json" | ConvertFrom-Json
-            $size = $report.Metrics.ExecutableSize
-            $status = if ($size -lt 50) { "✅" } elseif ($size -lt 100) { "⚠️" } else { "❌" }
-            Write-Host "| $($artifact.Name) | $size MB | $status |" >> $env:GITHUB_STEP_SUMMARY
-          }
-  summary:
-    name: Validation Summary
-    needs: [validate-aot, size-analysis]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Generate summary
-        shell: pwsh
-        run: |
-          Write-Host "# AOT Build Validation Summary" >> $env:GITHUB_STEP_SUMMARY
-          Write-Host "**Date:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" >> $env:GITHUB_STEP_SUMMARY
-          Write-Host "**Status:** ${{ needs.validate-aot.result }}" >> $env:GITHUB_STEP_SUMMARY
-
-          if ('${{ needs.validate-aot.result }}' -eq 'success') {
-            Write-Host "✅ All AOT validations passed!" >> $env:GITHUB_STEP_SUMMARY
-          } else {
-            Write-Host "❌ AOT validation failed. Check the logs for details." >> $env:GITHUB_STEP_SUMMARY
-          }
-
-          Write-Host "" >> $env:GITHUB_STEP_SUMMARY
-          Write-Host "## Next Steps" >> $env:GITHUB_STEP_SUMMARY
-          Write-Host "- Review the validation reports in the artifacts" >> $env:GITHUB_STEP_SUMMARY
-          Write-Host "- Address any trimming warnings" >> $env:GITHUB_STEP_SUMMARY
-          Write-Host "- Optimize binary size if needed" >> $env:GITHUB_STEP_SUMMARY
+        uses: actions/upload-artifact@v4
+        with:
+          name: aot-build-analysis
+          path: |
+            aot-build-analysis/aot-build-analysis.json
+            aot-build-analysis/aot-build-analysis.md
+            aot-build-analysis/*.log

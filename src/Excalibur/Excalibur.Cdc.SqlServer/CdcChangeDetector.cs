@@ -25,7 +25,7 @@ internal sealed partial class CdcChangeDetector
 {
 	private readonly ICdcRepository _cdcRepository;
 	private readonly ICdcRepositoryLsnMapping _cdcLsnMapping;
-	private readonly IDatabaseConfig _dbConfig;
+	private readonly IDatabaseOptions _dbConfig;
 	private readonly IDataAccessPolicyFactory _policyFactory;
 	private readonly CdcCheckpointManager _checkpointManager;
 	private readonly ILogger _logger;
@@ -33,7 +33,7 @@ internal sealed partial class CdcChangeDetector
 	internal CdcChangeDetector(
 		ICdcRepository cdcRepository,
 		ICdcRepositoryLsnMapping cdcLsnMapping,
-		IDatabaseConfig dbConfig,
+		IDatabaseOptions dbConfig,
 		IDataAccessPolicyFactory policyFactory,
 		CdcCheckpointManager checkpointManager,
 		ILogger logger)

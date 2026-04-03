@@ -99,6 +99,8 @@ public static class AuditHasher
 		_ = sb.Append('|');
 		_ = sb.Append(auditEvent.TenantId ?? string.Empty);
 		_ = sb.Append('|');
+		_ = sb.Append(auditEvent.ApplicationName ?? string.Empty);
+		_ = sb.Append('|');
 		_ = sb.Append(auditEvent.CorrelationId ?? string.Empty);
 		_ = sb.Append('|');
 		_ = sb.Append(auditEvent.SessionId ?? string.Empty);

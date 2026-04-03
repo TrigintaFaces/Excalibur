@@ -1,15 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Patterns.ClaimCheck" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MeterName = "Excalibur.Dispatch.Patterns.ClaimCheck" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MetricNames.OperationsFailed = "dispatch.claimcheck.operations.failed" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MetricNames.PayloadsDeleted = "dispatch.claimcheck.payloads.deleted" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MetricNames.PayloadSize = "dispatch.claimcheck.payload.size" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MetricNames.PayloadsRetrieved = "dispatch.claimcheck.payloads.retrieved" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MetricNames.PayloadsStored = "dispatch.claimcheck.payloads.stored" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MetricNames.RetrieveDuration = "dispatch.claimcheck.retrieve.duration" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MetricNames.StoreDuration = "dispatch.claimcheck.store.duration" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.Tags.ErrorType = "error.type" -> string!
-const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.Tags.Operation = "dispatch.claimcheck.operation" -> string!
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckDeleted = 91203 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckDeleteError = 91204 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckNotFound = 91202 -> int
@@ -248,9 +237,6 @@ Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.Operations.get -
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.Operations.set -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.UseHierarchicalStorage.get -> bool
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.UseHierarchicalStorage.set -> void
-Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants
-Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MetricNames
-Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.Tags
 Excalibur.Dispatch.Patterns.ClaimCheck.DefaultClaimCheckNamingStrategy
 Excalibur.Dispatch.Patterns.ClaimCheck.DefaultClaimCheckNamingStrategy.DefaultClaimCheckNamingStrategy(string! prefix = "cc-") -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.DefaultClaimCheckNamingStrategy.GenerateId(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata? metadata = null) -> string!
@@ -265,12 +251,6 @@ Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.DeleteAsync(Excalibur
 Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference! reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.ShouldUseClaimCheck(byte[]! payload) -> bool
 Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.StoreAsync(byte[]! payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata? metadata = null) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference!>!
-Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider
-Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.DeleteAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference! reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference! reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
-Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.ShouldUseClaimCheck(byte[]! payload) -> bool
-Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.StoreAsync(byte[]! payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata? metadata = null) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference!>!
-Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.TelemetryClaimCheckProvider(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider! inner, System.Diagnostics.Metrics.Meter! meter, System.Diagnostics.ActivitySource! activitySource) -> void
 Excalibur.Dispatch.Patterns.DateRange
 Excalibur.Dispatch.Patterns.DateRange.Contains(System.DateOnly date) -> bool
 Excalibur.Dispatch.Patterns.DateRange.DateRange() -> void
@@ -364,3 +344,4 @@ Excalibur.Dispatch.Patterns.TimeRange.StartTime.set -> void
 Excalibur.Dispatch.Patterns.TimeRange.TimeRange() -> void
 Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions.AddClaimCheck<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions!>? configureOptions = null, bool enableCleanup = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions.AddClaimCheck<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, bool enableCleanup = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

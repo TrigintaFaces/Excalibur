@@ -35,7 +35,7 @@ namespace Excalibur.Dispatch.Delivery.BatchProcessing;
 /// Use the pooled variants for high-throughput scenarios where allocation reduction is important.
 /// </para>
 /// </remarks>
-public static class ChannelBatchUtilities
+internal static class ChannelBatchUtilities
 {
 	/// <summary>
 	/// Writes a batch of items to a channel writer.

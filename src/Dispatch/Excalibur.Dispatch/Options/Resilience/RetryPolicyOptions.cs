@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
+
 using Excalibur.Dispatch.Abstractions.Transport;
 
 namespace Excalibur.Dispatch.Options.Resilience;
@@ -14,6 +16,7 @@ public sealed class RetryPolicyOptions
 	/// Gets or sets the maximum number of retry attempts.
 	/// </summary>
 	/// <value>The current <see cref="MaxRetryAttempts"/> value.</value>
+	[Range(1, int.MaxValue)]
 	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
@@ -81,6 +84,7 @@ public sealed class RetryBackoffOptions
 	/// Gets or sets the multiplier for exponential backoff.
 	/// </summary>
 	/// <value>The current <see cref="BackoffMultiplier"/> value.</value>
+	[Range(1.0, double.MaxValue)]
 	public double BackoffMultiplier { get; set; } = 2.0;
 
 	/// <summary>
@@ -93,6 +97,7 @@ public sealed class RetryBackoffOptions
 	/// Gets or sets the jitter factor (0.0 to 1.0) for randomizing retry delays.
 	/// </summary>
 	/// <value>The current <see cref="JitterFactor"/> value.</value>
+	[Range(0.0, 1.0)]
 	public double JitterFactor { get; set; } = 0.1;
 }
 
@@ -111,6 +116,7 @@ public sealed class RetryCircuitBreakerOptions
 	/// Gets or sets the number of consecutive failures before opening the circuit breaker.
 	/// </summary>
 	/// <value>The current <see cref="CircuitBreakerThreshold"/> value.</value>
+	[Range(1, int.MaxValue)]
 	public int CircuitBreakerThreshold { get; set; } = 5;
 
 	/// <summary>

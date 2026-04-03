@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Transport;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -99,6 +100,59 @@ public static class InMemoryTransportServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds an InMemory transport with the specified name using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="name">The transport name for multi-transport routing.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="InMemoryTransportOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="name"/> is null, empty, or whitespace.
+	/// </exception>
+	public static IServiceCollection AddInMemoryTransport(
+		this IServiceCollection services,
+		string name,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Create and configure options from configuration
+		var options = new InMemoryTransportOptions { Name = name };
+		configuration.Bind(options);
+
+		// Register the transport adapter in DI for direct injection
+		_ = services.AddSingleton(sp =>
+		{
+			var logger = sp.GetRequiredService<ILogger<InMemoryTransportAdapter>>();
+			return new InMemoryTransportAdapter(logger, options);
+		});
+
+		// Register as a keyed service for multi-transport scenarios
+		_ = services.AddKeyedSingleton(name, (sp, _) =>
+		{
+			var logger = sp.GetRequiredService<ILogger<InMemoryTransportAdapter>>();
+			return new InMemoryTransportAdapter(logger, options);
+		});
+
+		// Register factory in TransportRegistry for lifecycle management
+		var registry = ServiceCollectionTransportExtensions.GetOrCreateTransportRegistry(services);
+		registry.RegisterTransportFactory(
+			name,
+			InMemoryTransportAdapter.TransportTypeName,
+			sp => sp.GetRequiredKeyedService<InMemoryTransportAdapter>(name));
+
+		// Ensure hosted service lifecycle manager is registered (idempotent)
+		_ = services.AddTransportAdapterLifecycle();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds an InMemory transport with the default name.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -124,5 +178,21 @@ public static class InMemoryTransportServiceCollectionExtensions
 		Action<InMemoryTransportOptions>? configure = null)
 	{
 		return services.AddInMemoryTransport(DefaultTransportName, configure);
+	}
+
+	/// <summary>
+	/// Adds an InMemory transport with the default name using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="InMemoryTransportOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddInMemoryTransport(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		return services.AddInMemoryTransport(DefaultTransportName, configuration);
 	}
 }

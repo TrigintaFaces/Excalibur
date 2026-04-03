@@ -27,7 +27,7 @@ public sealed class PostgresLeaderElectionBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgres(null!));
+			builder.UsePostgres((Action<PostgresLeaderElectionOptions>)null!));
 	}
 
 	[Fact]
@@ -70,7 +70,7 @@ public sealed class PostgresLeaderElectionBuilderExtensionsShould
 		A.CallTo(() => builder.Services).Returns(services);
 
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgresFactory(null!));
+			builder.UsePostgresFactory((Action<PostgresLeaderElectionOptions>)null!));
 	}
 
 	[Fact]

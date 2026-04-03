@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Serialization;
 
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -178,6 +179,6 @@ public sealed class CachingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => services.AddDispatchRedisCaching(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddDispatchRedisCaching((Action<RedisCacheOptions>)null!));
 	}
 }

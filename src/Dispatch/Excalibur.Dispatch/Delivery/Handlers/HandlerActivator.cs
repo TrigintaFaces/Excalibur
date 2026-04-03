@@ -78,9 +78,28 @@ public sealed class HandlerActivator : IHandlerActivator
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(provider);
 
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			ThrowForAotWithoutSourceGenerator(handlerType);
+		}
+
 		// Activation plan captures service resolution path + context setting strategy once per handler type.
 		var activationPlan = GetOrCreateActivationPlan(handlerType);
 		return activationPlan(provider, context);
+	}
+
+	/// <summary>
+	/// Throws <see cref="InvalidOperationException"/> when the reflection-based <see cref="HandlerActivator"/>
+	/// is used in an AOT environment without the source-generated activator available.
+	/// </summary>
+	[DoesNotReturn]
+	private static void ThrowForAotWithoutSourceGenerator(Type handlerType)
+	{
+		throw new InvalidOperationException(
+			$"HandlerActivator cannot activate handler '{handlerType.Name}' in an AOT environment because it requires " +
+			"runtime code generation (Expression.Compile, ActivatorUtilities.CreateFactory). " +
+			"Reference the Excalibur.Dispatch.SourceGenerators package as an Analyzer to generate an AOT-compatible activator, " +
+			"or register a custom IHandlerActivator that does not require dynamic code.");
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveOptimization)]

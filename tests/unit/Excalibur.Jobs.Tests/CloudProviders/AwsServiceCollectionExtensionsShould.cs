@@ -75,7 +75,7 @@ public sealed class AwsServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsScheduler(new AWSOptions(), null!));
+			services.AddAwsScheduler(new AWSOptions(), (Action<Excalibur.Jobs.Aws.AwsSchedulerOptions>)null!));
 	}
 
 	[Fact]

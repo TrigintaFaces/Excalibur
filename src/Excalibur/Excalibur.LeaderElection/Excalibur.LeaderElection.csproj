@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -18,6 +18,12 @@
     <InternalsVisibleTo Include="Excalibur.LeaderElection.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.LeaderElection.Postgres" />
     <InternalsVisibleTo Include="Excalibur.LeaderElection.Redis" />
+    <InternalsVisibleTo Include="Excalibur.LeaderElection.MongoDB" />
+    <InternalsVisibleTo Include="Excalibur.LeaderElection.Kubernetes" />
+    <InternalsVisibleTo Include="Excalibur.LeaderElection.Consul" />
+    <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>
@@ -25,6 +31,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="System.Diagnostics.DiagnosticSource" />

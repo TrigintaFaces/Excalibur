@@ -5,6 +5,7 @@
     <PackageId>Excalibur.EventSourcing.DynamoDb</PackageId>
     <Description>AWS DynamoDB event store implementation for Excalibur event sourcing.</Description>
     <PackageTags>excalibur;eventsourcing;dynamodb;aws;cqrs;ddd</PackageTags>
+    <!-- AOT: NOT compatible. AWSSDK.DynamoDBv2 uses reflection for event document serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

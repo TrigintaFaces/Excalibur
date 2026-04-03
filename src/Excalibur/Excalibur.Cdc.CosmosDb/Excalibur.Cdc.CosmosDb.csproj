@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Cdc.CosmosDb</PackageId>
     <Description>Azure Cosmos DB Change Data Capture (CDC) implementation for Excalibur using change feed.</Description>
     <PackageTags>excalibur;cdc;change-data-capture;cosmosdb;azure;change-feed</PackageTags>
+    <!-- AOT: NOT compatible. Microsoft.Azure.Cosmos uses reflection for change feed deserialization. -->
     <IsAotCompatible>false</IsAotCompatible>
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>
@@ -35,5 +36,9 @@
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.CosmosDb.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 </Project>

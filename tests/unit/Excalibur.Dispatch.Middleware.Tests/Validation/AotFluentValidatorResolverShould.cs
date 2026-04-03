@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Validation.FluentValidation;
 
 using FluentValidation;
+using FluentValidation.Results;
 using DispatchValidationError = Excalibur.Dispatch.Abstractions.Validation.ValidationError;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Validation;
@@ -125,10 +126,9 @@ public sealed class AotFluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ThrowNotSupportedFromTryValidateBecauseSourceGeneratorNotPresent()
+	public void ThrowInvalidOperationWhenNoDispatcherRegistered()
 	{
-		// Arrange
-		// ValidateMessage always throws NotSupportedException (stub for source generator)
+		// Arrange -- no IAotValidationDispatcher in DI
 		var provider = CreateServiceProvider(services =>
 		{
 			_ = services.AddScoped<IValidator<TestAotMessage>, TestAotMessageValidator>();
@@ -137,11 +137,12 @@ public sealed class AotFluentValidatorResolverShould
 		var message = new TestAotMessage("John", 25);
 
 		// Act & Assert
-		_ = Should.Throw<NotSupportedException>(() => sut.TryValidate(message));
+		var ex = Should.Throw<InvalidOperationException>(() => sut.TryValidate(message));
+		ex.Message.ShouldContain("SourceGenerators");
 	}
 
 	[Fact]
-	public void ThrowNotSupportedFromTryValidateWhenNoValidatorsRegistered()
+	public void ThrowInvalidOperationWhenNoDispatcherAndNoValidatorsRegistered()
 	{
 		// Arrange
 		var provider = CreateServiceProvider();
@@ -149,10 +150,92 @@ public sealed class AotFluentValidatorResolverShould
 		var message = new AotMessageWithoutValidator("test");
 
 		// Act & Assert
-		_ = Should.Throw<NotSupportedException>(() => sut.TryValidate(message));
+		_ = Should.Throw<InvalidOperationException>(() => sut.TryValidate(message));
+	}
+
+	[Fact]
+	public void DelegateToDispatcherWhenRegistered()
+	{
+		// Arrange
+		var expected = SerializableValidationResult.Success();
+		var dispatcher = new FakeDispatcher(expected);
+		var provider = CreateServiceProvider(services =>
+		{
+			_ = services.AddSingleton<IAotValidationDispatcher>(dispatcher);
+		});
+		var sut = new AotFluentValidatorResolver(provider);
+		var message = new TestAotMessage("John", 25);
+
+		// Act
+		var result = sut.TryValidate(message);
+
+		// Assert
+		Assert.Same(expected, result);
+		dispatcher.CallCount.ShouldBe(1);
+	}
+
+	[Fact]
+	public void ReturnNullFromDispatcherWhenNoValidatorsForMessageType()
+	{
+		// Arrange -- dispatcher returns null for unknown types
+		var dispatcher = new FakeDispatcher(null);
+		var provider = CreateServiceProvider(services =>
+		{
+			_ = services.AddSingleton<IAotValidationDispatcher>(dispatcher);
+		});
+		var sut = new AotFluentValidatorResolver(provider);
+		var message = new AotMessageWithoutValidator("test");
+
+		// Act
+		var result = sut.TryValidate(message);
+
+		// Assert
+		Assert.Null(result);
+	}
+
+	[Fact]
+	public void CacheDispatcherLookupAcrossMultipleCalls()
+	{
+		// Arrange
+		var dispatcher = new FakeDispatcher(SerializableValidationResult.Success());
+		var provider = CreateServiceProvider(services =>
+		{
+			_ = services.AddSingleton<IAotValidationDispatcher>(dispatcher);
+		});
+		var sut = new AotFluentValidatorResolver(provider);
+		var message = new TestAotMessage("John", 25);
+
+		// Act -- call twice
+		_ = sut.TryValidate(message);
+		_ = sut.TryValidate(message);
+
+		// Assert -- dispatcher was called both times but lookup only happens once
+		dispatcher.CallCount.ShouldBe(2);
 	}
 
 	#endregion TryValidate Tests
+
+	#region FakeDispatcher
+
+	private sealed class FakeDispatcher : IAotValidationDispatcher
+	{
+		private readonly IValidationResult? _returnValue;
+
+		public FakeDispatcher(IValidationResult? returnValue)
+		{
+			_returnValue = returnValue;
+		}
+
+		public int CallCount { get; private set; }
+
+		public IValidationResult? TryValidate(IDispatchMessage message, IServiceProvider provider)
+		{
+			CallCount++;
+			return _returnValue;
+		}
+	}
+
+	#endregion FakeDispatcher
 
 	#region ValidateTyped Tests - No Validators
 

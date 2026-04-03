@@ -25,6 +25,7 @@ Once you've mastered the [core concepts](../core-concepts/index.md), these advan
 | [Testing](testing.md) | Testing strategies | Unit, integration, conformance testing |
 | [Source Generators](source-generators.md) | AOT-compatible code generation | Handler registry, JSON serialization, result factory |
 | [Native AOT](native-aot.md) | Native AOT compilation | Zero-reflection dispatch, trimming, AOT publish |
+| [AOT Compatibility Matrix](aot-compatibility.md) | Per-package AOT status | 139/173 packages AOT-safe, blocking dependencies |
 
 ---
 

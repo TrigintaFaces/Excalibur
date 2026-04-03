@@ -8,6 +8,7 @@ using Excalibur.Data.ElasticSearch.Security;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -37,7 +38,10 @@ public static class SecurityServiceCollectionExtensions
 
 		// Configure security settings
 		var securitySection = configuration.GetSection("Elasticsearch:Security");
-		_ = services.Configure<ElasticsearchSecurityOptions>(securitySection);
+		_ = services.AddOptions<ElasticsearchSecurityOptions>()
+			.Bind(securitySection)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		if (configureOptions != null)
 		{
@@ -68,8 +72,10 @@ public static class SecurityServiceCollectionExtensions
 		IConfiguration configuration)
 	{
 		// Configure authentication settings
-		_ = services.Configure<AuthenticationOptions>(
-			configuration.GetSection("Elasticsearch:Security:Authentication"));
+		_ = services.AddOptions<AuthenticationOptions>()
+			.Bind(configuration.GetSection("Elasticsearch:Security:Authentication"))
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Register authentication provider
 		services.TryAddSingleton<IElasticsearchAuthenticationProvider, SecureElasticsearchAuthenticationProvider>();
@@ -104,7 +110,10 @@ public static class SecurityServiceCollectionExtensions
 	{
 		// Configure key management settings
 		var keyManagementSection = configuration.GetSection("Elasticsearch:Security:Encryption:KeyManagement");
-		_ = services.Configure<KeyManagementOptions>(keyManagementSection);
+		_ = services.AddOptions<KeyManagementOptions>()
+			.Bind(keyManagementSection)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Register key provider based on configuration
 		var provider = keyManagementSection.GetValue<KeyManagementProvider>("Provider");
@@ -131,8 +140,10 @@ public static class SecurityServiceCollectionExtensions
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
-		_ = services.Configure<AzureKeyVaultOptions>(
-			configuration.GetSection("Elasticsearch:Security:KeyManagement:AzureKeyVault"));
+		_ = services.AddOptions<AzureKeyVaultOptions>()
+			.Bind(configuration.GetSection("Elasticsearch:Security:KeyManagement:AzureKeyVault"))
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddSingleton<IElasticsearchKeyProvider, AzureKeyVaultProvider>();
 

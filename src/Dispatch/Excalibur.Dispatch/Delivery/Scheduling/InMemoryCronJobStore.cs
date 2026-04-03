@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <summary>
 /// In-memory implementation of ICronJobStore for development and testing.
 /// </summary>
-public sealed class InMemoryCronJobStore : ICronJobStore
+internal sealed class InMemoryCronJobStore : ICronJobStore
 {
 	private readonly ConcurrentDictionary<string, RecurringCronJob> _jobs = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, List<JobExecutionHistory>> _history = new(StringComparer.Ordinal);

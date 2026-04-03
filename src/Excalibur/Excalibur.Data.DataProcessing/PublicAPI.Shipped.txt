@@ -64,10 +64,6 @@ Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DataProcessor(Microsoft.Ext
 Excalibur.Data.DataProcessing.DataProcessor<TRecord>.Dispose() -> void
 Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.DataProcessing.DataProcessorDefaults
-Excalibur.Data.DataProcessing.DataProcessorRegistry
-Excalibur.Data.DataProcessing.DataProcessorRegistry.DataProcessorRegistry(System.Collections.Generic.IEnumerable<Excalibur.Data.DataProcessing.IDataProcessor!>! processors) -> void
-Excalibur.Data.DataProcessing.DataProcessorRegistry.GetFactory(string! recordType) -> System.Func<System.IServiceProvider!, Excalibur.Data.DataProcessing.IDataProcessor!>!
-Excalibur.Data.DataProcessing.DataProcessorRegistry.TryGetFactory(string! recordType, out System.Func<System.IServiceProvider!, Excalibur.Data.DataProcessing.IDataProcessor!>! processor) -> bool
 Excalibur.Data.DataProcessing.DataTaskRecordTypeAttribute
 Excalibur.Data.DataProcessing.DataTaskRecordTypeAttribute.DataTaskRecordTypeAttribute(string! recordTypeName) -> void
 Excalibur.Data.DataProcessing.DataTaskRecordTypeAttribute.Deconstruct(out string! recordTypeName) -> void

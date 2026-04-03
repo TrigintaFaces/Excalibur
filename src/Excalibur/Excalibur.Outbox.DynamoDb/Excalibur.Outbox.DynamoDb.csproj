@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Outbox.DynamoDb</PackageId>
     <Description>AWS DynamoDB implementation of the cloud-native outbox pattern for Excalibur event sourcing.</Description>
     <PackageTags>excalibur;outbox;dynamodb;aws;cloud-native;event-sourcing;messaging</PackageTags>
+    <!-- AOT: NOT compatible. AWSSDK.DynamoDBv2 uses reflection for outbox document serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

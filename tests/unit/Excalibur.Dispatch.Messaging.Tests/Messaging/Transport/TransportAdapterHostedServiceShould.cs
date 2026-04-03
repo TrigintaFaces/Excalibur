@@ -114,4 +114,67 @@ public sealed class TransportAdapterHostedServiceShould
 
 		sut.ShouldBeAssignableTo<ITransportLifecycleManager>();
 	}
+
+	private static readonly string[] SingleTransportName = ["test-transport"];
+	private static readonly string[] MissingTransportName = ["missing-transport"];
+
+	[Fact]
+	public void AcceptMockITransportRegistry()
+	{
+		// Sprint 740: Constructor now accepts ITransportRegistry (not just concrete TransportRegistry).
+		var fakeRegistry = A.Fake<ITransportRegistry>();
+		A.CallTo(() => fakeRegistry.GetTransportNames()).Returns(Array.Empty<string>());
+
+		var sut = new TransportAdapterHostedService(
+			fakeRegistry,
+			Microsoft.Extensions.Options.Options.Create(new TransportAdapterHostedServiceOptions()),
+			A.Fake<IServiceProvider>(),
+			NullLogger<TransportAdapterHostedService>.Instance);
+
+		sut.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public async Task StartAndStopWithMockITransportRegistry()
+	{
+		// Sprint 740: Verify start/stop works via ITransportRegistry interface (no concrete downcast).
+		var fakeAdapter = A.Fake<ITransportAdapter>();
+		A.CallTo(() => fakeAdapter.IsRunning).Returns(false);
+
+		var fakeRegistry = A.Fake<ITransportRegistry>();
+		A.CallTo(() => fakeRegistry.GetTransportNames()).Returns(SingleTransportName);
+		A.CallTo(() => fakeRegistry.GetTransportAdapter("test-transport")).Returns(fakeAdapter);
+
+		var sut = new TransportAdapterHostedService(
+			fakeRegistry,
+			Microsoft.Extensions.Options.Options.Create(new TransportAdapterHostedServiceOptions()),
+			A.Fake<IServiceProvider>(),
+			NullLogger<TransportAdapterHostedService>.Instance);
+
+		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+		A.CallTo(() => fakeAdapter.StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+
+		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+		A.CallTo(() => fakeAdapter.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task SkipNullAdaptersFromRegistryDuringStart()
+	{
+		// Sprint 740: GetTransportAdapter returns null for unknown names -- verify graceful skip.
+		var fakeRegistry = A.Fake<ITransportRegistry>();
+		A.CallTo(() => fakeRegistry.GetTransportNames()).Returns(MissingTransportName);
+		A.CallTo(() => fakeRegistry.GetTransportAdapter("missing-transport")).Returns(null);
+
+		var sut = new TransportAdapterHostedService(
+			fakeRegistry,
+			Microsoft.Extensions.Options.Options.Create(new TransportAdapterHostedServiceOptions()),
+			A.Fake<IServiceProvider>(),
+			NullLogger<TransportAdapterHostedService>.Instance);
+
+		await Should.NotThrowAsync(
+			() => sut.StartAsync(CancellationToken.None)).ConfigureAwait(false);
+	}
 }

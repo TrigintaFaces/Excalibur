@@ -9,6 +9,7 @@
     <Description>Security implementations for the Excalibur framework, including Argon2id password hashing.</Description>
     <PackageTags>excalibur;security;password;hashing;argon2;cryptography</PackageTags>
     <!-- Project-specific override: not AOT compatible due to Argon2 library -->
+    <!-- AOT: NOT compatible. Security policy resolution uses reflection for claims-based authorization evaluation. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>

@@ -42,7 +42,7 @@ Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.DatabaseId.get -> string!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.DatabaseId.set -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyPath.get -> string?
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyPath.set -> void
-Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyValues.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyValues.get -> System.Collections.Generic.List<string!>?
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.PartitionKeyValues.set -> void
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.ProcessorName.get -> string!
 Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions.ProcessorName.set -> void
@@ -173,15 +173,6 @@ Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition?>!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore.Clear() -> void
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore.Dispose() -> void
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore.GetAllPositions() -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Cdc.CosmosDb.CosmosDbCdcStateEntry!>!
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition?>!
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore.InMemoryCosmosDbCdcStateStore() -> void
-Excalibur.Cdc.CosmosDb.InMemoryCosmosDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Equals(object? obj) -> bool

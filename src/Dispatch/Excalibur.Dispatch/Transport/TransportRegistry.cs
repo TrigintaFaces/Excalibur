@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Registry for managing transport adapters and their configurations.
 /// </summary>
-public sealed class TransportRegistry
+internal sealed class TransportRegistry : ITransportRegistry
 {
 	private static readonly IReadOnlyDictionary<string, TransportRegistration> EmptyTransports =
 		new Dictionary<string, TransportRegistration>(0, StringComparer.Ordinal);

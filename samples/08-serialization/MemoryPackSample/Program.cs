@@ -15,7 +15,6 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Messaging;
@@ -51,12 +50,10 @@ builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-	// Register MemoryPack as the pluggable serializer and set it as active.
-	// MemoryPack is auto-registered by default, but this shows the explicit
-	// builder pattern for clarity and customization.
+	// Set MemoryPack as the active serializer.
+	// JsonEventSerializer is the default; UseMemoryPack() switches to MemoryPack.
 	_ = dispatch.WithSerialization(config =>
 	{
-		config.RegisterMemoryPack();
 		config.UseMemoryPack();
 	});
 });
@@ -65,7 +62,7 @@ builder.Services.AddDispatch(dispatch =>
 // Configure outbox/inbox for reliable messaging
 // ============================================================
 builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 

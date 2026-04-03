@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
+
 using Excalibur.Compliance.Postgres.Erasure;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.AuditLogging.Postgres;
@@ -18,6 +20,7 @@ public sealed class ExcaliburPostgresOptions
 	/// <summary>
 	/// Gets or sets the PostgreSQL connection string shared by all components.
 	/// </summary>
+	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
 	/// <summary>

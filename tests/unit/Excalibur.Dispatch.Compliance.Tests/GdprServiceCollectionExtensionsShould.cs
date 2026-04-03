@@ -281,7 +281,7 @@ public sealed class GdprServiceCollectionExtensionsShould
 	{
 		var services = new ServiceCollection();
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddPostgresComplianceStore(null!));
+			services.AddPostgresComplianceStore((Action<PostgresComplianceOptions>)null!));
 	}
 
 	[Fact]
@@ -312,6 +312,6 @@ public sealed class GdprServiceCollectionExtensionsShould
 	{
 		var services = new ServiceCollection();
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddMongoDbComplianceStore(null!));
+			services.AddMongoDbComplianceStore((Action<MongoDbComplianceOptions>)null!));
 	}
 }

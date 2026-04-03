@@ -5,6 +5,7 @@
 using Excalibur.Dispatch.AuditLogging.SqlServer;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -40,8 +41,27 @@ public static class SqlServerAuditServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
-		services.TryAddSingleton<SqlServerAuditStore>();
-		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<SqlServerAuditStore>());
+		RegisterSqlServerAuditStoreCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds SQL Server audit logging services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SqlServerAuditOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+	public static IServiceCollection AddSqlServerAuditStore(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqlServerAuditOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+		RegisterSqlServerAuditStoreCore(services);
 
 		return services;
 	}
@@ -75,5 +95,11 @@ public static class SqlServerAuditServiceCollectionExtensions
 			o.EnableHashChain = options.EnableHashChain;
 			o.EnableDetailedTelemetry = options.EnableDetailedTelemetry;
 		});
+	}
+
+	private static void RegisterSqlServerAuditStoreCore(IServiceCollection services)
+	{
+		services.TryAddSingleton<SqlServerAuditStore>();
+		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<SqlServerAuditStore>());
 	}
 }

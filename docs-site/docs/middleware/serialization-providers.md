@@ -54,8 +54,15 @@ dotnet add package Excalibur.Dispatch.Serialization.MemoryPack
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Register MemoryPack for internal serialization
-// MemoryPack is auto-registered by AddDispatch(). For alternatives:
+// Register MemoryPack (opt-in, replaces JSON default)
+services.AddDispatch(dispatch =>
+{
+    dispatch.WithSerialization(config =>
+    {
+        config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+        config.UseMemoryPack();
+    });
+});
 ```
 
 ### Message Annotation
@@ -342,8 +349,12 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
-// MemoryPack for internal event store (fastest)
-// MemoryPack is auto-registered by AddDispatch(). For alternatives:
+// MemoryPack for internal event store (fastest, opt-in)
+services.AddDispatch(dispatch => dispatch.WithSerialization(config =>
+{
+    config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+    config.UseMemoryPack();
+}));
 
 // MessagePack for transport serialization (cross-language)
 services.AddMessagePackPluggableSerialization();

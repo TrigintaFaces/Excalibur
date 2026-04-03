@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.ComponentModel.DataAnnotations;
+
 namespace Excalibur.Dispatch.Compliance;
 
 /// <summary>
@@ -48,11 +50,13 @@ public sealed class MultiRegionOptions
 	/// <summary>
 	/// Gets or sets the primary region configuration.
 	/// </summary>
+	[Required]
 	public required RegionConfiguration Primary { get; set; }
 
 	/// <summary>
 	/// Gets or sets the secondary region configuration.
 	/// </summary>
+	[Required]
 	public required RegionConfiguration Secondary { get; set; }
 
 	/// <summary>
@@ -113,6 +117,7 @@ public sealed class MultiRegionFailoverOptions
 	/// Gets or sets the number of consecutive health check failures required to trigger automatic failover.
 	/// </summary>
 	/// <value> Defaults to 3. </value>
+	[Range(1, int.MaxValue)]
 	public int FailoverThreshold { get; set; } = 3;
 
 	/// <summary>
@@ -136,6 +141,7 @@ public sealed class RegionConfiguration
 	/// <summary>
 	/// Gets or sets the region identifier.
 	/// </summary>
+	[Required]
 	public required string RegionId { get; set; }
 
 	/// <summary>
@@ -146,6 +152,7 @@ public sealed class RegionConfiguration
 	/// <summary>
 	/// Gets or sets the endpoint URI for the key management service in this region.
 	/// </summary>
+	[Required]
 	public required Uri Endpoint { get; set; }
 
 	/// <summary>
@@ -157,6 +164,7 @@ public sealed class RegionConfiguration
 	/// Gets or sets the priority for this region (lower = higher priority).
 	/// </summary>
 	/// <value> Defaults to 0 for primary, 1 for secondary. </value>
+	[Range(0, int.MaxValue)]
 	public int Priority { get; set; }
 
 	/// <summary>

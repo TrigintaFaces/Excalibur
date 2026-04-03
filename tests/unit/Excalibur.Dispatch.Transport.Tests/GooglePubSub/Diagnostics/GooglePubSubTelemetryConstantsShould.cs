@@ -195,13 +195,13 @@ public sealed class GooglePubSubTelemetryConstantsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveConstantsClassThatIsStaticAndPublic()
+	public void HaveConstantsClassThatIsStaticAndInternal()
 	{
 		var type = typeof(GooglePubSubTelemetryConstants);
 
 		type.IsAbstract.ShouldBeTrue("Static class should be abstract");
 		type.IsSealed.ShouldBeTrue("Static class should be sealed");
-		type.IsPublic.ShouldBeTrue("Constants class should be public");
+		type.IsNotPublic.ShouldBeTrue("Constants class should be internal per Internal-First API Standard");
 	}
 
 	#endregion

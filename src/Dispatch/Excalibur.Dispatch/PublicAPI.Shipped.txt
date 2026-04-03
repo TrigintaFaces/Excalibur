@@ -31,28 +31,6 @@ Excalibur.Dispatch.Buffers.BufferStatistics.TotalRented.get -> long
 Excalibur.Dispatch.Buffers.BufferStatistics.TotalRented.set -> void
 Excalibur.Dispatch.Buffers.BufferStatistics.TotalReturned.get -> long
 Excalibur.Dispatch.Buffers.BufferStatistics.TotalReturned.set -> void
-Excalibur.Dispatch.Buffers.MessageBufferPool
-Excalibur.Dispatch.Buffers.MessageBufferPool.BufferManager.get -> Excalibur.Dispatch.Abstractions.IPooledBufferService!
-Excalibur.Dispatch.Buffers.MessageBufferPool.Encoding.get -> System.Text.Encoding!
-Excalibur.Dispatch.Buffers.MessageBufferPool.EstimateBufferSize(string! content) -> int
-Excalibur.Dispatch.Buffers.MessageBufferPool.MessageBufferPool(Excalibur.Dispatch.Abstractions.IPooledBufferService? bufferManager = null, System.Text.Encoding? encoding = null) -> void
-Excalibur.Dispatch.Buffers.MessageBufferPool.RentHeaderBuffer() -> Excalibur.Dispatch.Abstractions.IPooledBuffer!
-Excalibur.Dispatch.Buffers.MessageBufferPool.RentJsonBuffer() -> Excalibur.Dispatch.Abstractions.IPooledBuffer!
-Excalibur.Dispatch.Buffers.MessageBufferPool.RentLargeMessageBuffer() -> Excalibur.Dispatch.Abstractions.IPooledBuffer!
-Excalibur.Dispatch.Buffers.MessageBufferPool.RentMediumMessageBuffer() -> Excalibur.Dispatch.Abstractions.IPooledBuffer!
-Excalibur.Dispatch.Buffers.MessageBufferPool.RentSmallMessageBuffer() -> Excalibur.Dispatch.Abstractions.IPooledBuffer!
-Excalibur.Dispatch.Buffers.PooledBufferService
-Excalibur.Dispatch.Buffers.PooledBufferService.GetStatistics() -> Excalibur.Dispatch.Abstractions.BufferPoolStatistics!
-Excalibur.Dispatch.Buffers.PooledBufferService.LargestBufferRequested.get -> int
-Excalibur.Dispatch.Buffers.PooledBufferService.PooledBufferService() -> void
-Excalibur.Dispatch.Buffers.PooledBufferService.PooledBufferService(bool useShared) -> void
-Excalibur.Dispatch.Buffers.PooledBufferService.PooledBufferService(bool useShared, bool clearBuffersByDefault) -> void
-Excalibur.Dispatch.Buffers.PooledBufferService.PooledBufferService(int maxArrayLength, int maxArraysPerBucket, bool clearBuffersByDefault) -> void
-Excalibur.Dispatch.Buffers.PooledBufferService.RentBuffer(int minimumLength, bool clearBuffer = false) -> byte[]!
-Excalibur.Dispatch.Buffers.PooledBufferService.RentedBuffers.get -> int
-Excalibur.Dispatch.Buffers.PooledBufferService.ReturnBuffer(byte[]! buffer, bool clearBuffer = true) -> void
-Excalibur.Dispatch.Buffers.PooledBufferService.TotalRentOperations.get -> long
-Excalibur.Dispatch.Buffers.PooledBufferService.TotalReturnOperations.get -> long
 Excalibur.Dispatch.Bus.InMemoryMessageBusAdapter
 Excalibur.Dispatch.Bus.InMemoryMessageBusAdapter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.Transport.HealthCheckResult!>!
 Excalibur.Dispatch.Bus.InMemoryMessageBusAdapter.Dispose() -> void
@@ -212,7 +190,6 @@ Excalibur.Dispatch.Channels.DispatchChannel<T>.DispatchChannel(Excalibur.Dispatc
 Excalibur.Dispatch.Channels.DispatchChannel<T>.Dispose() -> void
 Excalibur.Dispatch.Channels.DispatchChannel<T>.Reader.get -> Excalibur.Dispatch.Channels.DispatchChannelReader<T>!
 Excalibur.Dispatch.Channels.DispatchChannel<T>.Writer.get -> Excalibur.Dispatch.Channels.DispatchChannelWriter<T>!
-Excalibur.Dispatch.Channels.DispatchChannelFactory
 Excalibur.Dispatch.Channels.DispatchChannelReader<T>
 Excalibur.Dispatch.Channels.DispatchChannelReader<T>.DispatchChannelReader(System.Threading.Channels.ChannelReader<T>! innerReader, Excalibur.Dispatch.Channels.IWaitStrategy! waitStrategy) -> void
 Excalibur.Dispatch.Channels.DispatchChannelWriter<T>
@@ -317,11 +294,6 @@ Excalibur.Dispatch.CloudEvents.ISchemaRegistry
 Excalibur.Dispatch.CloudEvents.ISchemaRegistry.GetSchemaAsync(string! eventType, string! version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
 Excalibur.Dispatch.CloudEvents.ISchemaRegistry.GetVersionsAsync(string! eventType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 Excalibur.Dispatch.CloudEvents.ISchemaRegistry.IsCompatible(string! eventType, string! fromVersion, string! toVersion, Excalibur.Dispatch.CloudEvents.SchemaCompatibilityMode mode) -> bool
-Excalibur.Dispatch.CloudEvents.InMemorySchemaRegistry
-Excalibur.Dispatch.CloudEvents.InMemorySchemaRegistry.GetSchemaAsync(string! eventType, string! version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
-Excalibur.Dispatch.CloudEvents.InMemorySchemaRegistry.GetVersionsAsync(string! eventType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
-Excalibur.Dispatch.CloudEvents.InMemorySchemaRegistry.InMemorySchemaRegistry() -> void
-Excalibur.Dispatch.CloudEvents.InMemorySchemaRegistry.IsCompatible(string! eventType, string! fromVersion, string! toVersion, Excalibur.Dispatch.CloudEvents.SchemaCompatibilityMode mode) -> bool
 Excalibur.Dispatch.CloudEvents.SchemaCompatibilityMode
 Excalibur.Dispatch.CloudEvents.SchemaCompatibilityMode.Backward = 2 -> Excalibur.Dispatch.CloudEvents.SchemaCompatibilityMode
 Excalibur.Dispatch.CloudEvents.SchemaCompatibilityMode.Forward = 1 -> Excalibur.Dispatch.CloudEvents.SchemaCompatibilityMode
@@ -560,7 +532,6 @@ Excalibur.Dispatch.Delivery.BatchProcessing.BatchResult<T>.Span.get -> System.Sp
 Excalibur.Dispatch.Delivery.BatchProcessing.BatchResult<T>.ToArray() -> T[]!
 Excalibur.Dispatch.Delivery.BatchProcessing.BatchResult<T>.this[int index].get -> T
 Excalibur.Dispatch.Delivery.BatchProcessing.Batching
-Excalibur.Dispatch.Delivery.BatchProcessing.ChannelBatchUtilities
 Excalibur.Dispatch.Delivery.BatchProcessing.DynamicBatchSizeCalculator
 Excalibur.Dispatch.Delivery.BatchProcessing.DynamicBatchSizeCalculator.CurrentBatchSize.get -> int
 Excalibur.Dispatch.Delivery.BatchProcessing.DynamicBatchSizeCalculator.DynamicBatchSizeCalculator(int minBatchSize, int maxBatchSize, int initialBatchSize) -> void
@@ -632,12 +603,10 @@ Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerAot.HandlerInvokerAot() -> vo
 Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerAot.InvokeAsync(object! handler, Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<object?>!
 Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerAot.InvokeValueTaskAsync(object! handler, Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<object?>
 Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry
-Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryBootstrapper
-Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryEntry
-Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryEntry.ExpectsResponse.get -> bool
-Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryEntry.HandlerRegistryEntry(System.Type! messageType, System.Type! handlerType, bool expectsResponse) -> void
-Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryEntry.HandlerType.get -> System.Type!
-Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryEntry.MessageType.get -> System.Type!
+Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry
+Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry.ExpectsResponse.get -> bool
+Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry.HandlerType.get -> System.Type!
+Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry.MessageType.get -> System.Type!
 Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryExtensions
 Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>
 Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.Equals(Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult> other) -> bool
@@ -653,9 +622,9 @@ Excalibur.Dispatch.Delivery.Handlers.IHandlerActivator.ActivateHandler(System.Ty
 Excalibur.Dispatch.Delivery.Handlers.IHandlerInvoker
 Excalibur.Dispatch.Delivery.Handlers.IHandlerInvoker.InvokeAsync(object! handler, Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<object?>!
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry
-Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.GetAll() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryEntry!>!
+Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.GetAll() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry!>!
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.Register(System.Type! messageType, System.Type! handlerType, bool expectsResponse) -> void
-Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.TryGetHandler(System.Type! messageType, out Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryEntry! entry) -> bool
+Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry.TryGetHandler(System.Type! messageType, out Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry! entry) -> bool
 Excalibur.Dispatch.Delivery.ICronExpression
 Excalibur.Dispatch.Delivery.ICronExpression.Expression.get -> string!
 Excalibur.Dispatch.Delivery.ICronExpression.GetDescription() -> string!
@@ -725,27 +694,6 @@ Excalibur.Dispatch.Delivery.IScheduledMessage.TraceParent.get -> string?
 Excalibur.Dispatch.Delivery.IScheduledMessage.TraceParent.set -> void
 Excalibur.Dispatch.Delivery.IScheduledMessage.UserId.get -> string?
 Excalibur.Dispatch.Delivery.IScheduledMessage.UserId.set -> void
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.AddJobAsync(Excalibur.Dispatch.Delivery.RecurringCronJob! job, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.Clear() -> void
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.GetActiveJobsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Delivery.RecurringCronJob!>!>!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.GetDueJobsAsync(System.DateTimeOffset cutoffTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Delivery.RecurringCronJob!>!>!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.GetJobAsync(string! jobId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Delivery.RecurringCronJob?>!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.GetJobHistoryAsync(string! jobId, System.Threading.CancellationToken cancellationToken, int limit = 100) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Delivery.JobExecutionHistory!>!>!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.GetJobsByTagAsync(string! tag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Delivery.RecurringCronJob!>!>!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.InMemoryCronJobStore() -> void
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.RecordExecutionAsync(string! jobId, bool success, System.Threading.CancellationToken cancellationToken, string? errorMessage = null) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.RemoveJobAsync(string! jobId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.SetJobEnabledAsync(string! jobId, bool enabled, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.UpdateJobAsync(Excalibur.Dispatch.Delivery.RecurringCronJob! job, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryCronJobStore.UpdateNextRunTimeAsync(string! jobId, System.DateTimeOffset? nextRunUtc, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryScheduleStore
-Excalibur.Dispatch.Delivery.InMemoryScheduleStore.AddOrUpdateAsync(Excalibur.Dispatch.Delivery.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryScheduleStore.CompleteAsync(System.Guid scheduleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryScheduleStore.GetAllAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Delivery.IScheduledMessage!>!>!
-Excalibur.Dispatch.Delivery.InMemoryScheduleStore.InMemoryScheduleStore() -> void
-Excalibur.Dispatch.Delivery.InMemoryScheduleStore.StoreAsync(Excalibur.Dispatch.Delivery.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Delivery.InMemoryScheduleStore.WaitForChangeAsync(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Delivery.JobExecutionHistory
 Excalibur.Dispatch.Delivery.JobExecutionHistory.CompletedUtc.get -> System.DateTimeOffset?
 Excalibur.Dispatch.Delivery.JobExecutionHistory.CompletedUtc.set -> void
@@ -759,23 +707,11 @@ Excalibur.Dispatch.Delivery.JobExecutionHistory.StartedUtc.get -> System.DateTim
 Excalibur.Dispatch.Delivery.JobExecutionHistory.StartedUtc.set -> void
 Excalibur.Dispatch.Delivery.JobExecutionHistory.Success.get -> bool
 Excalibur.Dispatch.Delivery.JobExecutionHistory.Success.set -> void
-Excalibur.Dispatch.Delivery.MessageContextFactory
-Excalibur.Dispatch.Delivery.MessageContextFactory.CreateChildContext(Excalibur.Dispatch.Abstractions.IMessageContext! parent) -> Excalibur.Dispatch.Abstractions.IMessageContext!
-Excalibur.Dispatch.Delivery.MessageContextFactory.CreateContext() -> Excalibur.Dispatch.Abstractions.IMessageContext!
-Excalibur.Dispatch.Delivery.MessageContextFactory.CreateContext(System.Collections.Generic.IDictionary<string!, object!>? properties) -> Excalibur.Dispatch.Abstractions.IMessageContext!
-Excalibur.Dispatch.Delivery.MessageContextFactory.MessageContextFactory(System.IServiceProvider! serviceProvider) -> void
-Excalibur.Dispatch.Delivery.MessageContextFactory.Return(Excalibur.Dispatch.Abstractions.IMessageContext! context) -> void
 Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage>
 Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage>.Dispose() -> void
 Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage>.Envelope.get -> Excalibur.Dispatch.Messaging.MessageEnvelope<TMessage!>!
 Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage>.Equals(Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage!> other) -> bool
 Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage>.MessageEnvelopeHandle() -> void
-Excalibur.Dispatch.Delivery.MessageEnvelopePool
-Excalibur.Dispatch.Delivery.MessageEnvelopePool.Dispose() -> void
-Excalibur.Dispatch.Delivery.MessageEnvelopePool.GetStats() -> Excalibur.Dispatch.Delivery.MessageEnvelopePoolStats!
-Excalibur.Dispatch.Delivery.MessageEnvelopePool.MessageEnvelopePool(Excalibur.Dispatch.Abstractions.IMessagePool! messagePool, Excalibur.Dispatch.Options.Delivery.MessageEnvelopePoolOptions? options = null) -> void
-Excalibur.Dispatch.Delivery.MessageEnvelopePool.Rent<TMessage>(TMessage! message, in Excalibur.Dispatch.Delivery.MessageMetadata metadata) -> Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage!>
-Excalibur.Dispatch.Delivery.MessageEnvelopePool.RentWithContext<TMessage>(TMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context) -> Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage!>
 Excalibur.Dispatch.Delivery.MessageEnvelopePoolStats
 Excalibur.Dispatch.Delivery.MessageEnvelopePoolStats.HitRate.get -> double
 Excalibur.Dispatch.Delivery.MessageEnvelopePoolStats.HitRate.set -> void
@@ -987,7 +923,6 @@ Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.ApplicationState.init -> void
 Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.SnapshotEnvelope() -> void
 Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.SnapshotMetadata.get -> string!
 Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.SnapshotMetadata.init -> void
-Excalibur.Dispatch.Delivery.SnapshotMetadataFactory
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats.CachedItems.get -> int
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats.CachedItems.set -> void
@@ -1008,12 +943,6 @@ Excalibur.Dispatch.Delivery.TimeZoneAwareCronExpression.TimeZone.get -> System.T
 Excalibur.Dispatch.Delivery.TimeZoneAwareCronExpression.TimeZoneAwareCronExpression(string! expression, System.TimeZoneInfo? timeZone = null, bool includeSeconds = false) -> void
 Excalibur.Dispatch.Diagnostics.CoreEventId
 Excalibur.Dispatch.Diagnostics.DeliveryEventId
-Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants
-Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities
-Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources
-Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Meters
-Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues
-Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags
 Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions
 Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions.CopyTo(Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions! target) -> void
 Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions.DispatchTelemetryOptions() -> void
@@ -1071,9 +1000,6 @@ Excalibur.Dispatch.Diagnostics.StageLatency.StageLatency() -> void
 Excalibur.Dispatch.Diagnostics.StageLatency.StageName.get -> string!
 Excalibur.Dispatch.Diagnostics.StageLatency.StageName.set -> void
 Excalibur.Dispatch.Diagnostics.StreamingHandlerEventId
-Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants
-Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.MetricNames
-Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.Tags
 Excalibur.Dispatch.Diagnostics.TelemetryExportOptions
 Excalibur.Dispatch.Diagnostics.TelemetryExportOptions.ExportTimeout.get -> System.TimeSpan
 Excalibur.Dispatch.Diagnostics.TelemetryExportOptions.ExportTimeout.set -> void
@@ -1416,7 +1342,6 @@ Excalibur.Dispatch.Exceptions.ErrorSeverity.Error = 2 -> Excalibur.Dispatch.Exce
 Excalibur.Dispatch.Exceptions.ErrorSeverity.Fatal = 4 -> Excalibur.Dispatch.Exceptions.ErrorSeverity
 Excalibur.Dispatch.Exceptions.ErrorSeverity.Information = 0 -> Excalibur.Dispatch.Exceptions.ErrorSeverity
 Excalibur.Dispatch.Exceptions.ErrorSeverity.Warning = 1 -> Excalibur.Dispatch.Exceptions.ErrorSeverity
-Excalibur.Dispatch.Exceptions.ExceptionFactory
 Excalibur.Dispatch.Exceptions.ForbiddenException
 Excalibur.Dispatch.Exceptions.ForbiddenException.ForbiddenException() -> void
 Excalibur.Dispatch.Exceptions.ForbiddenException.ForbiddenException(string! message) -> void
@@ -3677,7 +3602,7 @@ Excalibur.Dispatch.Outbox.IMessageRoutingConfiguration.GetTargetTransports(strin
 Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher
 Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher.GetStatistics() -> Excalibur.Dispatch.Abstractions.PublisherStatistics!
 Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher.MessageBusOutboxPublisher(Excalibur.Dispatch.Abstractions.IOutboxStore! outboxStore, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Abstractions.Transport.IMessageBusAdapter! messageBus, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher!>! logger) -> void
-Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher.MessageBusOutboxPublisher(Excalibur.Dispatch.Abstractions.IOutboxStore! outboxStore, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Transport.TransportRegistry! transportRegistry, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher!>! logger) -> void
+Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher.MessageBusOutboxPublisher(Excalibur.Dispatch.Abstractions.IOutboxStore! outboxStore, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Transport.ITransportRegistry! transportRegistry, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher!>! logger) -> void
 Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher.PublishAsync(object! message, string! destination, System.DateTimeOffset? scheduledAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.OutboundMessage!>!
 Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher.PublishMultiTransportAsync(object! message, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessageTransport!>! transports, System.Threading.CancellationToken cancellationToken, System.DateTimeOffset? scheduledAt = null) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.OutboundMessage!>!
 Excalibur.Dispatch.Outbox.MessageBusOutboxPublisher.PublishPendingMessagesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.PublishingResult!>!
@@ -3868,38 +3793,6 @@ Excalibur.Dispatch.Pooling.MessageContextPoolAdapter.Rent(Excalibur.Dispatch.Abs
 Excalibur.Dispatch.Pooling.MessageContextPoolAdapter.RentCount.get -> long
 Excalibur.Dispatch.Pooling.MessageContextPoolAdapter.ReturnCount.get -> long
 Excalibur.Dispatch.Pooling.MessageContextPoolAdapter.ReturnToPool(Excalibur.Dispatch.Abstractions.IMessageContext! context) -> void
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.AvailableCount.get -> int
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.CreateCount.get -> long
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.DiscardCount.get -> long
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.GetMetrics() -> Excalibur.Dispatch.Pooling.PoolMetrics
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.MaximumPoolSize.get -> int
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.MessageObjectPool(Microsoft.Extensions.ObjectPool.IPooledObjectPolicy<T!>! policy, int maxSize = 0, int preWarm = 0, bool trackMetrics = false) -> void
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.RentCount.get -> long
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.ReturnCount.get -> long
-Excalibur.Dispatch.Pooling.MessageObjectPool<T>.TotalCreated.get -> int
-Excalibur.Dispatch.Pooling.MessagePoolService
-Excalibur.Dispatch.Pooling.MessagePoolService.Clear() -> void
-Excalibur.Dispatch.Pooling.MessagePoolService.GetAllMetrics() -> System.Collections.Generic.Dictionary<System.Type!, Excalibur.Dispatch.Pooling.PoolMetrics>!
-Excalibur.Dispatch.Pooling.MessagePoolService.GetPool<T>() -> Microsoft.Extensions.ObjectPool.ObjectPool<T!>!
-Excalibur.Dispatch.Pooling.MessagePoolService.MessagePoolService(int maxPoolSize = 0, bool trackMetrics = false) -> void
-Excalibur.Dispatch.Pooling.MessagePoolService.RentMessage<T>() -> T!
-Excalibur.Dispatch.Pooling.MessagePoolService.ReturnMessage<T>(T! message) -> void
-Excalibur.Dispatch.Pooling.PoolMetrics
-Excalibur.Dispatch.Pooling.PoolMetrics.AvailableCount.get -> int
-Excalibur.Dispatch.Pooling.PoolMetrics.AvailableCount.init -> void
-Excalibur.Dispatch.Pooling.PoolMetrics.CreateCount.get -> long
-Excalibur.Dispatch.Pooling.PoolMetrics.CreateCount.init -> void
-Excalibur.Dispatch.Pooling.PoolMetrics.DiscardCount.get -> long
-Excalibur.Dispatch.Pooling.PoolMetrics.DiscardCount.init -> void
-Excalibur.Dispatch.Pooling.PoolMetrics.PoolMetrics() -> void
-Excalibur.Dispatch.Pooling.PoolMetrics.PoolMetrics(int AvailableCount, int TotalCreated, long RentCount, long ReturnCount, long CreateCount, long DiscardCount) -> void
-Excalibur.Dispatch.Pooling.PoolMetrics.RentCount.get -> long
-Excalibur.Dispatch.Pooling.PoolMetrics.RentCount.init -> void
-Excalibur.Dispatch.Pooling.PoolMetrics.ReturnCount.get -> long
-Excalibur.Dispatch.Pooling.PoolMetrics.ReturnCount.init -> void
-Excalibur.Dispatch.Pooling.PoolMetrics.TotalCreated.get -> int
-Excalibur.Dispatch.Pooling.PoolMetrics.TotalCreated.init -> void
 Excalibur.Dispatch.Pooling.PoolStatistics
 Excalibur.Dispatch.Pooling.PoolStatistics.CurrentlyRented.get -> int
 Excalibur.Dispatch.Pooling.PoolStatistics.CurrentlyRented.init -> void
@@ -3977,25 +3870,6 @@ Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry
 Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry.GetOrCreate(string! transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy!
 Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry.GetOrCreate(string! transportName, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions! options) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy!
 Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry.TryGet(string! transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy?
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.Count.get -> int
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.GetAllStates() -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Dispatch.Resilience.CircuitState>!
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.GetOrCreate(string! transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy!
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.GetOrCreate(string! transportName, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions! options) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy!
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.GetTransportNames() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.Remove(string! transportName) -> bool
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.ResetAll() -> void
-Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.TryGet(string! transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy?
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.Count.get -> int
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.GetAllStates() -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Dispatch.Resilience.CircuitState>!
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.GetOrCreate(string! transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy!
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.GetOrCreate(string! transportName, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions! options) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy!
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.GetTransportNames() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.Remove(string! transportName) -> bool
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.ResetAll() -> void
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.TransportCircuitBreakerRegistry(Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions? defaultOptions = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) -> void
-Excalibur.Dispatch.Resilience.TransportCircuitBreakerRegistry.TryGet(string! transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy?
 Excalibur.Dispatch.Routing.Builder.EndpointRoutingRule
 Excalibur.Dispatch.Routing.Builder.EndpointRoutingRule.EndpointRoutingRule(System.Type! MessageType, System.Collections.Generic.IReadOnlyList<string!>! Endpoints, System.Func<Excalibur.Dispatch.Abstractions.IDispatchMessage!, Excalibur.Dispatch.Abstractions.IMessageContext!, bool>? Predicate = null, int Priority = 0, bool StopOnMatch = false) -> void
 Excalibur.Dispatch.Routing.Builder.EndpointRoutingRule.Endpoints.get -> System.Collections.Generic.IReadOnlyList<string!>!
@@ -4289,7 +4163,6 @@ Excalibur.Dispatch.Serialization.IMigrationStore.GetPayloadAsync(string! recordI
 Excalibur.Dispatch.Serialization.IMigrationStore.StoreName.get -> string!
 Excalibur.Dispatch.Serialization.IMigrationStore.UpdatePayloadAsync(string! recordId, byte[]! newPayload, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.Serialization.ISerializationBuilder
-Excalibur.Dispatch.Serialization.ISerializationBuilder.DisableAutoRegistration() -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
 Excalibur.Dispatch.Serialization.ISerializationBuilder.Register(Excalibur.Dispatch.Abstractions.Serialization.ISerializer! serializer, byte id) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
 Excalibur.Dispatch.Serialization.ISerializationBuilder.UseCurrent(string! serializerName) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
 Excalibur.Dispatch.Serialization.IUtf8JsonWriterPool
@@ -4332,8 +4205,6 @@ Excalibur.Dispatch.Serialization.PayloadSerializer.PayloadSerializer(Excalibur.D
 Excalibur.Dispatch.Serialization.PayloadSerializer.Serialize<T>(T value) -> byte[]!
 Excalibur.Dispatch.Serialization.PayloadSerializer.SerializeObject(object! value, System.Type! type) -> byte[]!
 Excalibur.Dispatch.Serialization.PluggableSerializationOptions
-Excalibur.Dispatch.Serialization.PluggableSerializationOptions.AutoRegisterMemoryPack.get -> bool
-Excalibur.Dispatch.Serialization.PluggableSerializationOptions.AutoRegisterMemoryPack.set -> void
 Excalibur.Dispatch.Serialization.PluggableSerializationOptions.CurrentSerializerName.get -> string?
 Excalibur.Dispatch.Serialization.PluggableSerializationOptions.CurrentSerializerName.set -> void
 Excalibur.Dispatch.Serialization.PluggableSerializationOptions.PluggableSerializationOptions() -> void
@@ -4431,7 +4302,6 @@ Excalibur.Dispatch.Threading.KeyedLock
 Excalibur.Dispatch.Threading.KeyedLock.AcquireAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.IDisposable!>!
 Excalibur.Dispatch.Threading.KeyedLock.KeyedLock() -> void
 Excalibur.Dispatch.Threading.ThreadingDispatchBuilderExtensions
-Excalibur.Dispatch.Time.TimeProviderUtilities
 Excalibur.Dispatch.Transport.AwsSnsMappingContext
 Excalibur.Dispatch.Transport.AwsSnsMappingContext.ApplyTo(Excalibur.Dispatch.Transport.TransportMessageContext! context) -> void
 Excalibur.Dispatch.Transport.AwsSnsMappingContext.Attributes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, (string! Value, string! DataType)>!
@@ -4519,8 +4389,6 @@ Excalibur.Dispatch.Transport.CronTimerTriggerMessage.TriggerTimeUtc.get -> Syste
 Excalibur.Dispatch.Transport.CronTimerTriggerMessage.TriggerTimeUtc.init -> void
 Excalibur.Dispatch.Transport.CronTimerTriggerMessage<TTimer>
 Excalibur.Dispatch.Transport.CronTimerTriggerMessage<TTimer>.TimerType.get -> System.Type!
-Excalibur.Dispatch.Transport.DefaultMappingBuilder
-Excalibur.Dispatch.Transport.DefaultMappingBuilder.ForTransport(string! transportName, System.Action<Excalibur.Dispatch.Abstractions.Transport.ITransportMessageContext!>! configure) -> Excalibur.Dispatch.Abstractions.Transport.IDefaultMappingBuilder!
 Excalibur.Dispatch.Transport.DefaultMappingBuilderTransportExtensions
 Excalibur.Dispatch.Transport.DefaultMessageMapper
 Excalibur.Dispatch.Transport.DefaultMessageMapper.CanMap(string! sourceTransport, string! targetTransport) -> bool
@@ -4611,23 +4479,6 @@ Excalibur.Dispatch.Transport.KafkaMessageContext.Topic.get -> string?
 Excalibur.Dispatch.Transport.KafkaMessageContext.Topic.set -> void
 Excalibur.Dispatch.Transport.KafkaToRabbitMqMapper
 Excalibur.Dispatch.Transport.KafkaToRabbitMqMapper.KafkaToRabbitMqMapper() -> void
-Excalibur.Dispatch.Transport.MessageMapperRegistry
-Excalibur.Dispatch.Transport.MessageMapperRegistry.Clear() -> void
-Excalibur.Dispatch.Transport.MessageMapperRegistry.Count.get -> int
-Excalibur.Dispatch.Transport.MessageMapperRegistry.GetAllMappers() -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.Transport.IMessageMapper!>!
-Excalibur.Dispatch.Transport.MessageMapperRegistry.GetMapper(string! sourceTransport, string! targetTransport) -> Excalibur.Dispatch.Abstractions.Transport.IMessageMapper?
-Excalibur.Dispatch.Transport.MessageMapperRegistry.HasMapper(string! sourceTransport, string! targetTransport) -> bool
-Excalibur.Dispatch.Transport.MessageMapperRegistry.MessageMapperRegistry() -> void
-Excalibur.Dispatch.Transport.MessageMapperRegistry.Register(Excalibur.Dispatch.Abstractions.Transport.IMessageMapper! mapper) -> void
-Excalibur.Dispatch.Transport.MessageMapperRegistry.RegisterDefaultMappers() -> Excalibur.Dispatch.Transport.MessageMapperRegistry!
-Excalibur.Dispatch.Transport.MessageMapperRegistry.Remove(string! name) -> bool
-Excalibur.Dispatch.Transport.MessageMappingBuilder
-Excalibur.Dispatch.Transport.MessageMappingBuilder.Add(System.Action<Excalibur.Dispatch.Abstractions.Transport.IMessageMappingConventions!>! convention) -> void
-Excalibur.Dispatch.Transport.MessageMappingBuilder.Build() -> Excalibur.Dispatch.Abstractions.Transport.IMessageMapper!
-Excalibur.Dispatch.Transport.MessageMappingBuilder.MessageMappingBuilder(Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Transport.MessageMapperRegistry! registry) -> void
-Excalibur.Dispatch.Transport.MessageTypeMappingBuilder<TMessage>
-Excalibur.Dispatch.Transport.MessageTypeMappingBuilder<TMessage>.And() -> Excalibur.Dispatch.Abstractions.Transport.IMessageMappingBuilder!
-Excalibur.Dispatch.Transport.MessageTypeMappingBuilder<TMessage>.ToTransport(string! transportName, System.Action<Excalibur.Dispatch.Abstractions.Transport.ITransportMessageContext!>! configure) -> Excalibur.Dispatch.Abstractions.Transport.IMessageTypeMappingBuilder<TMessage!>!
 Excalibur.Dispatch.Transport.MessageTypeMappingBuilderTransportExtensions
 Excalibur.Dispatch.Transport.MultiTransportHealthCheckOptions
 Excalibur.Dispatch.Transport.MultiTransportHealthCheckOptions.MultiTransportHealthCheckOptions() -> void
@@ -4686,7 +4537,7 @@ Excalibur.Dispatch.Transport.TransportAdapterHostedService.StartAsync(System.Thr
 Excalibur.Dispatch.Transport.TransportAdapterHostedService.StartTransportAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.TransportAdapterHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.TransportAdapterHostedService.StopTransportAsync(string! name, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.TransportAdapterHostedService.TransportAdapterHostedService(Excalibur.Dispatch.Transport.TransportRegistry! transportRegistry, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.TransportAdapterHostedServiceOptions!>! options, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.TransportAdapterHostedService!>! logger) -> void
+Excalibur.Dispatch.Transport.TransportAdapterHostedService.TransportAdapterHostedService(Excalibur.Dispatch.Transport.ITransportRegistry! transportRegistry, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.TransportAdapterHostedServiceOptions!>! options, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.TransportAdapterHostedService!>! logger) -> void
 Excalibur.Dispatch.Transport.TransportAdapterHostedService.TransportNames.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
 Excalibur.Dispatch.Transport.TransportAdapterHostedServiceOptions
 Excalibur.Dispatch.Transport.TransportAdapterHostedServiceOptions.DrainTimeout.get -> System.TimeSpan
@@ -4752,25 +4603,12 @@ Excalibur.Dispatch.Transport.TransportRegistration.Options.init -> void
 Excalibur.Dispatch.Transport.TransportRegistration.TransportRegistration(Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter! Adapter, string! TransportType, System.Collections.Generic.Dictionary<string!, object!>! Options) -> void
 Excalibur.Dispatch.Transport.TransportRegistration.TransportType.get -> string!
 Excalibur.Dispatch.Transport.TransportRegistration.TransportType.init -> void
-Excalibur.Dispatch.Transport.TransportRegistry
-Excalibur.Dispatch.Transport.TransportRegistry.Clear() -> void
-Excalibur.Dispatch.Transport.TransportRegistry.DefaultTransportName.get -> string?
-Excalibur.Dispatch.Transport.TransportRegistry.GetAllTransports() -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Dispatch.Transport.TransportRegistration!>!
-Excalibur.Dispatch.Transport.TransportRegistry.GetDefaultTransportAdapter() -> Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter?
-Excalibur.Dispatch.Transport.TransportRegistry.GetDefaultTransportRegistration() -> Excalibur.Dispatch.Transport.TransportRegistration?
-Excalibur.Dispatch.Transport.TransportRegistry.GetPendingFactoryNames() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Dispatch.Transport.TransportRegistry.GetTransportAdapter(string! name) -> Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter?
-Excalibur.Dispatch.Transport.TransportRegistry.GetTransportNames() -> System.Collections.Generic.IEnumerable<string!>!
-Excalibur.Dispatch.Transport.TransportRegistry.GetTransportRegistration(string! name) -> Excalibur.Dispatch.Transport.TransportRegistration?
-Excalibur.Dispatch.Transport.TransportRegistry.HasDefaultTransport.get -> bool
-Excalibur.Dispatch.Transport.TransportRegistry.HasPendingFactories.get -> bool
-Excalibur.Dispatch.Transport.TransportRegistry.InitializeFactories(System.IServiceProvider! serviceProvider) -> int
-Excalibur.Dispatch.Transport.TransportRegistry.PendingFactoryCount.get -> int
-Excalibur.Dispatch.Transport.TransportRegistry.RegisterTransport(string! name, Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter! adapter, string! transportType, System.Collections.Generic.Dictionary<string!, object!>? options = null) -> void
-Excalibur.Dispatch.Transport.TransportRegistry.RegisterTransportFactory(string! name, string! transportType, System.Func<System.IServiceProvider!, Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter!>! factory) -> void
-Excalibur.Dispatch.Transport.TransportRegistry.RemoveTransport(string! name) -> bool
-Excalibur.Dispatch.Transport.TransportRegistry.SetDefaultTransport(string! name) -> void
-Excalibur.Dispatch.Transport.TransportRegistry.TransportRegistry() -> void
+Excalibur.Dispatch.Transport.ITransportRegistry
+Excalibur.Dispatch.Transport.ITransportRegistry.GetTransportAdapter(string! name) -> Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter?
+Excalibur.Dispatch.Transport.ITransportRegistry.GetTransportNames() -> System.Collections.Generic.IEnumerable<string!>!
+Excalibur.Dispatch.Transport.ITransportRegistry.RegisterTransport(string! name, Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter! adapter, string! transportType, System.Collections.Generic.Dictionary<string!, object!>? options = null) -> void
+Excalibur.Dispatch.Transport.ITransportRegistry.RegisterTransportFactory(string! name, string! transportType, System.Func<System.IServiceProvider!, Excalibur.Dispatch.Abstractions.Transport.ITransportAdapter!>! factory) -> void
+Excalibur.Dispatch.Transport.ITransportRegistry.SetDefaultTransport(string! name) -> void
 Excalibur.Dispatch.Transport.TransportRouterMiddleware
 Excalibur.Dispatch.Transport.TransportRouterMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
 Excalibur.Dispatch.Transport.TransportRouterMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
@@ -5276,74 +5114,6 @@ const Excalibur.Dispatch.Diagnostics.DeliveryEventId.TransportRoutingError = 407
 const Excalibur.Dispatch.Diagnostics.DeliveryEventId.TransportRoutingFailure = 40706 -> int
 const Excalibur.Dispatch.Diagnostics.DeliveryEventId.TransportRoutingMessage = 40704 -> int
 const Excalibur.Dispatch.Diagnostics.DeliveryEventId.TransportRoutingSuccess = 40705 -> int
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.BatchProcess = "BatchProcess" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.BulkStore = "BulkStore" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.CleanupCompleted = "CleanupCompleted" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.CleanupFailed = "CleanupFailed" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.CompleteSchedule = "CompleteSchedule" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.GetMessages = "GetMessages" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.GetSchedules = "GetSchedules" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.ProcessMessage = "ProcessMessage" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.StoreMessage = "StoreMessage" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Activities.StoreSchedule = "StoreSchedule" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.AuditLoggingMiddleware = "Excalibur.Dispatch.AuditLoggingMiddleware" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.BatchProcessor = "Excalibur.Dispatch.BatchProcessor" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.ChannelTransport = "Excalibur.Dispatch.Transport.Common" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware = "Excalibur.Dispatch.CircuitBreakerMiddleware" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.Core = "Excalibur.Dispatch.Core" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.Inbox = "Excalibur.Dispatch.Inbox" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.OutboxBackgroundService = "Excalibur.Dispatch.Outbox.Publisher" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.Pipeline = "Excalibur.Dispatch.Pipeline" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.PoisonMessage = "Excalibur.Dispatch.PoisonMessage" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.PoisonMessageCleanup = "Excalibur.Dispatch.PoisonMessage.Cleanup" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.PoisonMessageMiddleware = "Excalibur.Dispatch.PoisonMessage.Middleware" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.RetryMiddleware = "Excalibur.Dispatch.RetryMiddleware" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.TimePolicy = "Excalibur.Dispatch.TimePolicy" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.ActivitySources.UnifiedBatchingMiddleware = "Excalibur.Dispatch.UnifiedBatchingMiddleware" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.BaseNamespace = "Excalibur.Dispatch" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.CoreName = "Excalibur.Dispatch.Core" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Meters.BatchProcessor = "Excalibur.Dispatch.BatchProcessor" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Meters.ChannelTransport = "Excalibur.Dispatch.Transport.Common" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Meters.Core = "Excalibur.Dispatch.Core" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Meters.Messaging = "Excalibur.Dispatch.Messaging" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Meters.Pipeline = "Excalibur.Dispatch.Pipeline" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Meters.Serialization = "Excalibur.Dispatch.Serialization" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Meters.TimePolicy = "Excalibur.Dispatch.TimePolicy" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Cancelled = "cancelled" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Cleanup = "cleanup" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Delete = "delete" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Evicted = "evicted" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Failure = "failure" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Hit = "hit" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.InboxStore = "inbox" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Miss = "miss" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.OutboxStore = "outbox" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Retrieve = "retrieve" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.ScheduleStore = "schedule" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Store = "store" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Success = "success" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Timeout = "timeout" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.TagValues.Update = "update" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.BatchSize = "batch.size" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.CacheHit = "cache.hit" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.ErrorMessage = "error.message" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.ErrorType = "error.type" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.IsDuplicate = "message.is_duplicate" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.IsRetryable = "error.retryable" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.MessageId = "message.id" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.MessageName = "message.name" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.MessageSize = "message.size" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.MessageTenant = "message.tenant" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.MessageType = "message.type" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.OperationResult = "operation.result" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.OperationStage = "operation.stage" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.OperationType = "operation.type" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.ScheduleCount = "schedule.count" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.ScheduleEnabled = "schedule.enabled" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.ScheduleId = "schedule.id" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.ScheduleType = "schedule.type" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.StoreName = "store.name" -> string!
-const Excalibur.Dispatch.Diagnostics.DispatchTelemetryConstants.Tags.StoreType = "store.type" -> string!
 const Excalibur.Dispatch.Diagnostics.MiddlewareEventId.AnonymousAccessAllowed = 30406 -> int
 const Excalibur.Dispatch.Diagnostics.MiddlewareEventId.AuditLogEntryCreated = 31401 -> int
 const Excalibur.Dispatch.Diagnostics.MiddlewareEventId.AuditLogWriteFailed = 31402 -> int
@@ -5539,15 +5309,6 @@ const Excalibur.Dispatch.Diagnostics.StreamingHandlerEventId.HandlerStopped = 60
 const Excalibur.Dispatch.Diagnostics.StreamingHandlerEventId.HealthCheckDegraded = 60301 -> int
 const Excalibur.Dispatch.Diagnostics.StreamingHandlerEventId.HealthCheckFailed = 60302 -> int
 const Excalibur.Dispatch.Diagnostics.StreamingHandlerEventId.HealthCheckPassed = 60300 -> int
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Streaming" -> string!
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.MeterName = "Excalibur.Dispatch.Streaming" -> string!
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.MetricNames.ChunksProduced = "dispatch.streaming.chunks.produced" -> string!
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.MetricNames.DocumentsFailed = "dispatch.streaming.documents.failed" -> string!
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.MetricNames.DocumentsProcessed = "dispatch.streaming.documents.processed" -> string!
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.MetricNames.ProcessingDuration = "dispatch.streaming.processing.duration" -> string!
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.Tags.DocumentType = "streaming.document.type" -> string!
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.Tags.ErrorType = "error.type" -> string!
-const Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.Tags.HandlerType = "streaming.handler.type" -> string!
 const Excalibur.Dispatch.Exceptions.ErrorCodes.ConcurrencyDeadlock = "CON001" -> string!
 const Excalibur.Dispatch.Exceptions.ErrorCodes.ConcurrencyLockContention = "CON003" -> string!
 const Excalibur.Dispatch.Exceptions.ErrorCodes.ConcurrencyOptimisticLockFailed = "CON004" -> string!
@@ -5699,8 +5460,6 @@ override Excalibur.Dispatch.Metrics.ValueGauge.ToString() -> string!
 override Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult.Equals(object? obj) -> bool
 override Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult.GetHashCode() -> int
 override Excalibur.Dispatch.Middleware.PooledDispatchMiddleware.ProcessAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
-override Excalibur.Dispatch.Pooling.MessageObjectPool<T>.Get() -> T!
-override Excalibur.Dispatch.Pooling.MessageObjectPool<T>.Return(T! item) -> void
 override Excalibur.Dispatch.Pooling.PoolStatistics.Equals(object? obj) -> bool
 override Excalibur.Dispatch.Pooling.PoolStatistics.GetHashCode() -> int
 override Excalibur.Dispatch.Serialization.EncryptionMigrationProgress.ToString() -> string!
@@ -5725,7 +5484,6 @@ static Excalibur.Dispatch.Abstractions.DispatcherContextExtensions.DispatchChild
 static Excalibur.Dispatch.Buffers.BclBufferPoolAdapter.Shared.get -> Excalibur.Dispatch.Buffers.BclBufferPoolAdapter!
 static Excalibur.Dispatch.Buffers.BufferSegment.operator !=(Excalibur.Dispatch.Buffers.BufferSegment left, Excalibur.Dispatch.Buffers.BufferSegment right) -> bool
 static Excalibur.Dispatch.Buffers.BufferSegment.operator ==(Excalibur.Dispatch.Buffers.BufferSegment left, Excalibur.Dispatch.Buffers.BufferSegment right) -> bool
-static Excalibur.Dispatch.Buffers.PooledBufferService.Shared.get -> Excalibur.Dispatch.Abstractions.IPooledBufferService!
 static Excalibur.Dispatch.Caching.DelegateCacheExtensions.GetContinuation<T, TResult>(this string! key, System.Func<T, TResult>! selector) -> System.Func<System.Threading.Tasks.Task<T>!, System.Threading.Tasks.Task<TResult>!>!
 static Excalibur.Dispatch.Caching.DelegateCacheExtensions.GetErrorHandler(this string! key, System.Func<System.Exception!, bool>! predicate) -> System.Func<System.Exception!, System.Threading.Tasks.Task<bool>!>!
 static Excalibur.Dispatch.Caching.DelegateCacheExtensions.GetTransform<TInput, TOutput>(this string! key, System.Func<TInput, TOutput>! transform) -> System.Func<TInput, TOutput>!
@@ -5737,13 +5495,6 @@ static Excalibur.Dispatch.Channels.ChannelInstrumentationExtensions.BeginActivit
 static Excalibur.Dispatch.Channels.Diagnostics.ChannelEventSource.GetChannelTypeName<T>() -> string!
 static Excalibur.Dispatch.Channels.DispatchChannel<T>.CreateBounded(int capacity, System.Threading.Channels.BoundedChannelFullMode fullMode = System.Threading.Channels.BoundedChannelFullMode.Wait, bool singleReader = false, bool singleWriter = false) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
 static Excalibur.Dispatch.Channels.DispatchChannel<T>.CreateUnbounded(bool singleReader = false, bool singleWriter = false) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
-static Excalibur.Dispatch.Channels.DispatchChannelFactory.CreateBounded<T>(Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions! options) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
-static Excalibur.Dispatch.Channels.DispatchChannelFactory.CreateBounded<T>(int capacity, System.Threading.Channels.BoundedChannelFullMode fullMode = System.Threading.Channels.BoundedChannelFullMode.Wait, bool singleReader = false, bool singleWriter = false) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
-static Excalibur.Dispatch.Channels.DispatchChannelFactory.CreateCustom<T>(Excalibur.Dispatch.Options.Channels.BoundedDispatchChannelOptions! boundedOptions, Excalibur.Dispatch.Options.Channels.SpinWaitOptions? spinWaitOptions) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
-static Excalibur.Dispatch.Channels.DispatchChannelFactory.CreateCustom<T>(Excalibur.Dispatch.Options.Channels.DispatchChannelOptions! options) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
-static Excalibur.Dispatch.Channels.DispatchChannelFactory.CreateCustom<T>(Excalibur.Dispatch.Options.Channels.DispatchChannelOptions! options, Excalibur.Dispatch.Options.Channels.SpinWaitOptions? spinWaitOptions) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
-static Excalibur.Dispatch.Channels.DispatchChannelFactory.CreateSingleProducerConsumer<T>(int? capacity = null) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
-static Excalibur.Dispatch.Channels.DispatchChannelFactory.CreateUnbounded<T>(bool singleReader = false, bool singleWriter = false) -> Excalibur.Dispatch.Channels.DispatchChannel<T>!
 static Excalibur.Dispatch.CloudEvents.CloudEventContentTypes.CreateContentTypeHeader(string! mediaType, string? charset = "utf-8", System.Collections.Generic.Dictionary<string!, string!>? parameters = null) -> string!
 static Excalibur.Dispatch.CloudEvents.CloudEventContentTypes.Deserialize(byte[]! data, string! contentType, params CloudNative.CloudEvents.CloudEventAttribute![]! extensionAttributes) -> CloudNative.CloudEvents.CloudEvent!
 static Excalibur.Dispatch.CloudEvents.CloudEventContentTypes.DeserializeBatch(byte[]! data, string! contentType = "APPLICATION/CLOUDEVENTS-BATCH+JSON", params CloudNative.CloudEvents.CloudEventAttribute![]! extensionAttributes) -> System.Collections.Generic.IReadOnlyList<CloudNative.CloudEvents.CloudEvent!>!
@@ -5785,13 +5536,6 @@ static Excalibur.Dispatch.Configuration.PipelineProfile.CreateInternalEventProfi
 static Excalibur.Dispatch.Configuration.PipelineProfile.CreateStrictProfile() -> Excalibur.Dispatch.Configuration.PipelineProfile!
 static Excalibur.Dispatch.Delivery.BatchProcessing.Batching.ProcessBatchAsync<T>(System.Collections.Generic.IEnumerable<T>! items, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! processor, int parallelDegree, System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(System.Collections.Generic.List<T>! Successful, System.Collections.Generic.List<(T Item, System.Exception! Exception)>! Failed)>!
 static Excalibur.Dispatch.Delivery.BatchProcessing.Batching.ProcessInBatchesAsync<T>(System.Collections.Generic.IEnumerable<T>! items, int batchSize, System.Func<System.Collections.Generic.List<T>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! batchProcessor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-static Excalibur.Dispatch.Delivery.BatchProcessing.ChannelBatchUtilities.DequeueBatchAsync<T>(System.Threading.Channels.ChannelReader<T>! reader, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<T[]!>
-static Excalibur.Dispatch.Delivery.BatchProcessing.ChannelBatchUtilities.DequeueBatchAsync<T>(System.Threading.Channels.ChannelReader<T>! reader, int batchSize, System.TimeSpan waitTimeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<T[]!>
-static Excalibur.Dispatch.Delivery.BatchProcessing.ChannelBatchUtilities.DequeueBatchPooledAsync<T>(System.Threading.Channels.ChannelReader<T>! reader, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Delivery.BatchProcessing.BatchResult<T>>
-static Excalibur.Dispatch.Delivery.BatchProcessing.ChannelBatchUtilities.DequeueBatchPooledAsync<T>(System.Threading.Channels.ChannelReader<T>! reader, int batchSize, System.TimeSpan waitTimeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Delivery.BatchProcessing.BatchResult<T>>
-static Excalibur.Dispatch.Delivery.BatchProcessing.ChannelBatchUtilities.DrainAvailable<T>(System.Threading.Channels.ChannelReader<T>! reader, int maxItems = 2147483647) -> T[]!
-static Excalibur.Dispatch.Delivery.BatchProcessing.ChannelBatchUtilities.ReadBatchesAsync<T>(System.Threading.Channels.ChannelReader<T>! reader, int batchSize, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<System.Collections.Generic.IReadOnlyList<T>!>!
-static Excalibur.Dispatch.Delivery.BatchProcessing.ChannelBatchUtilities.WriteBatchAsync<T>(System.Threading.Channels.ChannelWriter<T>! writer, System.Collections.Generic.IReadOnlyList<T>! items, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 static Excalibur.Dispatch.Delivery.DeliveryMessageEnvelopeExtensions.AddStructBasedMessageEnvelopes(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.Delivery.MessageEnvelopeOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Dispatch.Delivery.DeliveryMessageEnvelopeExtensions.ToEnvelope<TMessage>(this TMessage message) -> Excalibur.Dispatch.Messaging.MessageEnvelope<TMessage>!
 static Excalibur.Dispatch.Delivery.DeliveryMessageEnvelopeExtensions.ToEnvelope<TMessage>(this TMessage message, System.Func<Excalibur.Dispatch.Delivery.MessageMetadataBuilder!, Excalibur.Dispatch.Messaging.MessageMetadata!>! configureMetadata) -> Excalibur.Dispatch.Messaging.MessageEnvelope<TMessage>!
@@ -5810,7 +5554,6 @@ static Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry.FreezeCache()
 static Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry.IsCacheFrozen.get -> bool
 static Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry.RegisterInvoker<THandler, TMessage, TResult>(System.Func<THandler!, TMessage, System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! invoker) -> void
 static Excalibur.Dispatch.Delivery.Handlers.HandlerInvokerRegistry.RegisterInvoker<THandler, TMessage>(System.Func<THandler!, TMessage, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! invoker) -> void
-static Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryBootstrapper.Bootstrap(Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry! registry, System.Reflection.Assembly![]! fallbackAssemblies) -> void
 static Excalibur.Dispatch.Delivery.Handlers.HandlerRegistryExtensions.RegisterHandlersFromAssemblies(this Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistry! registry, System.Collections.Generic.IEnumerable<System.Reflection.Assembly!>! assemblies) -> void
 static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.FromException(System.Exception! exception) -> Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>
 static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.FromTResult(TResult value) -> Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>
@@ -5842,14 +5585,11 @@ static Excalibur.Dispatch.Delivery.Registry.MessageTypeRegistry.GetType(string! 
 static Excalibur.Dispatch.Delivery.Registry.MessageTypeRegistry.RegisterType(System.Type! type) -> void
 static Excalibur.Dispatch.Delivery.Registry.MessageTypeRegistry.RegisterType<T>() -> void
 static Excalibur.Dispatch.Delivery.Registry.MessageTypeRegistry.TryGetType(string! typeName, out System.Type? type) -> bool
-static Excalibur.Dispatch.Delivery.SnapshotMetadataFactory.Create<TKey>(Excalibur.Dispatch.Abstractions.Messaging.IEventStoreMessage<TKey>! lastEvent, string! serializerVersion, string! snapshotVersion) -> Excalibur.Dispatch.Abstractions.SnapshotMetadata!
 static Excalibur.Dispatch.Delivery.TimeZoneAwareCronExpression.FromTimeZoneId(string! expression, string! timeZoneId, bool includeSeconds = false) -> Excalibur.Dispatch.Delivery.TimeZoneAwareCronExpression!
 static Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions.CreateDevelopmentProfile() -> Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions!
 static Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions.CreateProductionProfile() -> Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions!
 static Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions.CreateThroughputProfile() -> Excalibur.Dispatch.Diagnostics.DispatchTelemetryOptions!
 static Excalibur.Dispatch.Diagnostics.StageLatency.Create(string! stageName) -> Excalibur.Dispatch.Diagnostics.StageLatency!
-static Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.ActivitySource.get -> System.Diagnostics.ActivitySource!
-static Excalibur.Dispatch.Diagnostics.StreamingHandlerTelemetryConstants.Meter.get -> System.Diagnostics.Metrics.Meter!
 static Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.ByDateRange(System.DateTimeOffset from, System.DateTimeOffset to) -> Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter!
 static Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.ByMessageType(string! messageType) -> Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter!
 static Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.ByReason(Excalibur.Dispatch.ErrorHandling.DeadLetterReason reason) -> Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter!
@@ -5870,18 +5610,6 @@ static Excalibur.Dispatch.Exceptions.DispatchProblemDetails.ForNotFound(string! 
 static Excalibur.Dispatch.Exceptions.DispatchProblemDetails.ForUnauthorized(string? reason = null) -> Excalibur.Dispatch.Exceptions.DispatchProblemDetails!
 static Excalibur.Dispatch.Exceptions.DispatchProblemDetails.ForValidation(System.Collections.Generic.IDictionary<string!, string![]!>! errors) -> Excalibur.Dispatch.Exceptions.DispatchProblemDetails!
 static Excalibur.Dispatch.Exceptions.DispatchProblemDetails.FromException(System.Exception! exception, bool includeDetails = false) -> Excalibur.Dispatch.Exceptions.DispatchProblemDetails!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.CircuitBreakerOpen(string! serviceName, System.TimeSpan? retryAfter = null) -> Excalibur.Dispatch.Exceptions.DispatchException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.ConcurrencyConflict(string! resourceType, string? resourceId = null) -> Excalibur.Dispatch.Exceptions.DispatchException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Configuration(string! message, string? configKey = null) -> Excalibur.Dispatch.Exceptions.ConfigurationException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Forbidden(string? reason = null) -> Excalibur.Dispatch.Exceptions.DispatchException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Messaging(string! message, string? messageId = null) -> Excalibur.Dispatch.Exceptions.MessagingException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.ResourceNotFound(string! resourceType, string? resourceId = null) -> Excalibur.Dispatch.Exceptions.DispatchException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Serialization(string! message, System.Type? targetType = null) -> Excalibur.Dispatch.Exceptions.DispatchSerializationException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Timeout(string! operation, System.TimeSpan timeout) -> Excalibur.Dispatch.Exceptions.DispatchException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Unauthorized(string? reason = null) -> Excalibur.Dispatch.Exceptions.DispatchException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Validation(System.Collections.Generic.IDictionary<string!, string![]!>! errors) -> Excalibur.Dispatch.Exceptions.ValidationException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Validation(string! fieldName, string! errorMessage) -> Excalibur.Dispatch.Exceptions.ValidationException!
-static Excalibur.Dispatch.Exceptions.ExceptionFactory.Wrap(System.Exception! innerException, string! message, string? errorCode = null) -> Excalibur.Dispatch.Exceptions.DispatchException!
 static Excalibur.Dispatch.Exceptions.ForbiddenException.MissingRole(string! resource, string! operation, string! requiredRole) -> Excalibur.Dispatch.Exceptions.ForbiddenException!
 static Excalibur.Dispatch.Exceptions.ForbiddenException.SubscriptionRequired(string! feature, string! requiredTier) -> Excalibur.Dispatch.Exceptions.ForbiddenException!
 static Excalibur.Dispatch.Exceptions.MessagingException.BrokerConnectionFailed(string! brokerAddress, System.Exception? innerException = null) -> Excalibur.Dispatch.Exceptions.MessagingException!
@@ -6046,7 +5774,6 @@ static Excalibur.Dispatch.Performance.CacheFreezeStatus.Unfrozen.get -> Excalibu
 static Excalibur.Dispatch.Performance.PerformancePipelineExtensions.UsePerformance(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Pooling.PoolStatistics.operator !=(Excalibur.Dispatch.Pooling.PoolStatistics left, Excalibur.Dispatch.Pooling.PoolStatistics right) -> bool
 static Excalibur.Dispatch.Pooling.PoolStatistics.operator ==(Excalibur.Dispatch.Pooling.PoolStatistics left, Excalibur.Dispatch.Pooling.PoolStatistics right) -> bool
-static Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry.Instance.get -> Excalibur.Dispatch.Resilience.NullTransportCircuitBreakerRegistry!
 static Excalibur.Dispatch.Routing.Builder.TransportRoutingBuilderExtensions.RouteAll(this Excalibur.Dispatch.Routing.Builder.ITransportRoutingBuilder! builder, string! transportName, params System.Type![]! messageTypes) -> Excalibur.Dispatch.Routing.Builder.ITransportRoutingBuilder!
 static Excalibur.Dispatch.Runtime.AotDetection.EnsureAot(string! message = "This operation requires AOT compilation.") -> void
 static Excalibur.Dispatch.Runtime.AotDetection.EnsureNotAot(string! message = "This operation requires JIT compilation and is not supported in AOT mode.") -> void
@@ -6067,7 +5794,6 @@ static Excalibur.Dispatch.Serialization.MessageHeader.operator !=(Excalibur.Disp
 static Excalibur.Dispatch.Serialization.MessageHeader.operator ==(Excalibur.Dispatch.Serialization.MessageHeader left, Excalibur.Dispatch.Serialization.MessageHeader right) -> bool
 static Excalibur.Dispatch.Serialization.PooledSerializationResult.operator !=(Excalibur.Dispatch.Serialization.PooledSerializationResult left, Excalibur.Dispatch.Serialization.PooledSerializationResult right) -> bool
 static Excalibur.Dispatch.Serialization.PooledSerializationResult.operator ==(Excalibur.Dispatch.Serialization.PooledSerializationResult left, Excalibur.Dispatch.Serialization.PooledSerializationResult right) -> bool
-static Excalibur.Dispatch.Serialization.SerializationBuilderExtensions.RegisterMemoryPack(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
 static Excalibur.Dispatch.Serialization.SerializationBuilderExtensions.RegisterSystemTextJson(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
 static Excalibur.Dispatch.Serialization.SerializationBuilderExtensions.UseAvro(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
 static Excalibur.Dispatch.Serialization.SerializationBuilderExtensions.UseMemoryPack(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
@@ -6099,9 +5825,6 @@ static Excalibur.Dispatch.Threading.ThreadingDispatchBuilderExtensions.UseThread
 static Excalibur.Dispatch.Threading.ThreadingDispatchBuilderExtensions.WithKeyedLock(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Excalibur.Dispatch.Threading.IKeyedLock! keyedLock) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Threading.ThreadingDispatchBuilderExtensions.WithThreadingOptions(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Threading.ThreadingDispatchBuilderExtensions.WithThreadingOptions(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Options.Threading.ThreadingOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Time.TimeProviderUtilities.CreateTimeoutCancellationTokenSource(this System.TimeProvider! timeProvider, System.TimeSpan delay) -> System.Threading.CancellationTokenSource?
-static Excalibur.Dispatch.Time.TimeProviderUtilities.DelayAsync(this System.TimeProvider! timeProvider, System.TimeSpan delay, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-static Excalibur.Dispatch.Time.TimeProviderUtilities.GetUtcNowAsDateTime(this System.TimeProvider! timeProvider) -> System.DateTime
 static Excalibur.Dispatch.Transport.DefaultMappingBuilderTransportExtensions.ForAwsSqs(this Excalibur.Dispatch.Abstractions.Transport.IDefaultMappingBuilder! builder, System.Action<Excalibur.Dispatch.Abstractions.Transport.IAwsSqsMappingContext!>! configure) -> Excalibur.Dispatch.Abstractions.Transport.IDefaultMappingBuilder!
 static Excalibur.Dispatch.Transport.DefaultMappingBuilderTransportExtensions.ForAzureServiceBus(this Excalibur.Dispatch.Abstractions.Transport.IDefaultMappingBuilder! builder, System.Action<Excalibur.Dispatch.Abstractions.Transport.IAzureServiceBusMappingContext!>! configure) -> Excalibur.Dispatch.Abstractions.Transport.IDefaultMappingBuilder!
 static Excalibur.Dispatch.Transport.DefaultMappingBuilderTransportExtensions.ForGooglePubSub(this Excalibur.Dispatch.Abstractions.Transport.IDefaultMappingBuilder! builder, System.Action<Excalibur.Dispatch.Abstractions.Transport.IGooglePubSubMappingContext!>! configure) -> Excalibur.Dispatch.Abstractions.Transport.IDefaultMappingBuilder!
@@ -6220,7 +5943,7 @@ static Microsoft.Extensions.DependencyInjection.ServiceCollectionTransportExtens
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionTransportExtensions.AddMultiTransportHealthChecks(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.MultiTransportHealthCheckOptions!>? configure = null, string! name = "transports", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null, System.TimeSpan? timeout = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionTransportExtensions.AddTransportAdapterLifecycle(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.TransportAdapterHostedServiceOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionTransportExtensions.AddTransportValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.TransportValidationOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionTransportExtensions.GetOrCreateTransportRegistry(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.Dispatch.Transport.TransportRegistry!
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionTransportExtensions.GetOrCreateTransportRegistry(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.Dispatch.Transport.ITransportRegistry!
 static Microsoft.Extensions.DependencyInjection.ServiceRegistrationExtensions.HasService<TService>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
 static Microsoft.Extensions.DependencyInjection.ServiceRegistrationExtensions.RemoveService<TService>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceRegistrationExtensions.ReplaceService<TService, TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -6293,3 +6016,13 @@ virtual Excalibur.Dispatch.Routing.LoadBalancing.RouteHealthMonitor.Dispose(bool
 virtual Excalibur.Dispatch.Transport.DefaultMessageMapper.CopyTransportProperties(Excalibur.Dispatch.Abstractions.Transport.ITransportMessageContext! source, Excalibur.Dispatch.Transport.TransportMessageContext! target) -> void
 virtual Excalibur.Dispatch.Transport.DefaultMessageMapper.CreateTargetContext(string! messageId, string! targetTransport) -> Excalibur.Dispatch.Transport.TransportMessageContext!
 virtual Excalibur.Dispatch.Transport.DefaultMessageMapper.Map(Excalibur.Dispatch.Abstractions.Transport.ITransportMessageContext! source, string! targetTransportName) -> Excalibur.Dispatch.Abstractions.Transport.ITransportMessageContext!
+static Excalibur.Dispatch.Validation.Context.ContextValidationDispatchBuilderExtensions.UseContextValidation(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.HandlerTimeoutServiceCollectionExtensions.AddHandlerTimeoutMiddleware(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.InMemoryTransportServiceCollectionExtensions.AddInMemoryTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.InMemoryTransportServiceCollectionExtensions.AddInMemoryTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxPresetServiceCollectionExtensions.AddOutboxBalanced(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxPresetServiceCollectionExtensions.AddOutboxHighReliability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxPresetServiceCollectionExtensions.AddOutboxHighThroughput(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RoutingServiceCollectionExtensions.AddDispatchRouting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ThreadingServiceCollectionExtensions.AddDispatchThreading(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.TransportHealthChecksBuilderExtensions.AddTransportHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! name = "transports", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null, System.TimeSpan? timeout = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

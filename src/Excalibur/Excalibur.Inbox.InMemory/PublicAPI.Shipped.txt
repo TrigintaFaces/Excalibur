@@ -9,20 +9,6 @@ Excalibur.Inbox.InMemory.InMemoryInboxOptions.MaxEntries.get -> int
 Excalibur.Inbox.InMemory.InMemoryInboxOptions.MaxEntries.set -> void
 Excalibur.Inbox.InMemory.InMemoryInboxOptions.RetentionPeriod.get -> System.TimeSpan
 Excalibur.Inbox.InMemory.InMemoryInboxOptions.RetentionPeriod.set -> void
-Excalibur.Inbox.InMemory.InMemoryInboxStore
-Excalibur.Inbox.InMemory.InMemoryInboxStore.CleanupAsync(System.DateTimeOffset olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-Excalibur.Inbox.InMemory.InMemoryInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
-Excalibur.Inbox.InMemory.InMemoryInboxStore.Dispose() -> void
-Excalibur.Inbox.InMemory.InMemoryInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.InMemory.InMemoryInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
-Excalibur.Inbox.InMemory.InMemoryInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry?>
-Excalibur.Inbox.InMemory.InMemoryInboxStore.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
-Excalibur.Inbox.InMemory.InMemoryInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxStatistics!>
-Excalibur.Inbox.InMemory.InMemoryInboxStore.InMemoryInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.InMemory.InMemoryInboxStore!>! logger) -> void
-Excalibur.Inbox.InMemory.InMemoryInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
-Excalibur.Inbox.InMemory.InMemoryInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.InMemory.InMemoryInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.InMemory.InMemoryInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions
 Microsoft.Extensions.DependencyInjection.InMemoryInboxExtensions
 static Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions.UseInMemory(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>? configure = null) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!

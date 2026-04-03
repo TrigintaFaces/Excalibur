@@ -6,7 +6,7 @@ namespace Excalibur.Data.InMemory.Diagnostics;
 /// <summary>
 /// Shared telemetry constants for in-memory persistence instrumentation.
 /// </summary>
-public static class InMemoryPersistenceTelemetryConstants
+internal static class InMemoryPersistenceTelemetryConstants
 {
 	/// <summary>
 	/// The meter name for in-memory persistence metrics.

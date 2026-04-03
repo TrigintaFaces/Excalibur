@@ -1,7 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch.AuditLogging.GoogleCloud;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.AuditLogging.GoogleCloud.Tests;
@@ -64,6 +66,37 @@ public sealed class GoogleCloudServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddGoogleCloudAuditExporter(null!));
+			services.AddGoogleCloudAuditExporter((Action<GoogleCloudAuditOptions>)null!));
+	}
+
+	// --- IConfiguration overload tests ---
+
+	[Fact]
+	[RequiresDynamicCode("Test")]
+	[RequiresUnreferencedCode("Test")]
+	public void Register_exporter_with_IConfiguration_overload()
+	{
+		var services = new ServiceCollection();
+		var config = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["ProjectId"] = "test-project"
+			})
+			.Build();
+
+		services.AddGoogleCloudAuditExporter(config);
+
+		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
+	}
+
+	[Fact]
+	[RequiresDynamicCode("Test")]
+	[RequiresUnreferencedCode("Test")]
+	public void Throw_for_null_configuration()
+	{
+		var services = new ServiceCollection();
+
+		Should.Throw<ArgumentNullException>(() =>
+			services.AddGoogleCloudAuditExporter((IConfiguration)null!));
 	}
 }

@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Buffers;
 /// <remarks> Initializes a new instance of MessageBufferPool. </remarks>
 /// <param name="bufferManager"> The underlying buffer manager. </param>
 /// <param name="encoding"> The text encoding to use (defaults to UTF-8). </param>
-public sealed class MessageBufferPool(
+internal sealed class MessageBufferPool(
 	IPooledBufferService? bufferManager = null,
 	Encoding? encoding = null)
 {

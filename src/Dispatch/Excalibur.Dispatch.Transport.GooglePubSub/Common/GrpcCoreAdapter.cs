@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Helper class for gRPC core adapter operations.
 /// </summary>
-public static class GrpcCoreAdapter
+internal static class GrpcCoreAdapter
 {
 	/// <summary>
 	/// Creates a new channel pool.

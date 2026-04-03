@@ -23,7 +23,7 @@ public sealed class AwsSqsCircuitBreakerServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsSqsCircuitBreaker(null!));
+			services.AddAwsSqsCircuitBreaker((Action<AwsSqsCircuitBreakerOptions>)null!));
 	}
 
 	[Fact]

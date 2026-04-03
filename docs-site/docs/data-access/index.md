@@ -29,6 +29,7 @@ Excalibur provides data access abstractions that work alongside event sourcing a
 |-----------|---------|
 | `IDb` | Database connection abstraction |
 | `IDataRequest` | Query abstraction for data access |
+| `IDataRequestResolver` | Lightweight query executor with connection-per-call lifecycle |
 | `IUnitOfWork` | Transaction management |
 
 ## Choosing Between Direct Dapper and IDataRequest

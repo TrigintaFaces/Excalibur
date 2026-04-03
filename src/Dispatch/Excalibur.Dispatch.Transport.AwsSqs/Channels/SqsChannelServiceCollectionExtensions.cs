@@ -9,6 +9,7 @@ using Amazon.SQS.Model;
 
 using Excalibur.Dispatch.Transport.Aws;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -28,6 +29,33 @@ public static class SqsChannelServiceCollectionExtensions
 		Action<SqsChannelOptions> configureOptions)
 	{
 		_ = services.Configure(configureOptions);
+
+		_ = services.AddSingleton(static provider =>
+		{
+			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
+			var options = provider.GetRequiredService<IOptions<SqsChannelOptions>>().Value;
+			var logger = provider.GetRequiredService<ILogger<SqsChannelAdapter>>();
+
+			return new SqsChannelAdapter(sqsClient, options, logger);
+		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds high-throughput SQS channel adapter to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SqsChannelOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSqsChannelAdapter(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqsChannelOptions>().Bind(configuration);
 
 		_ = services.AddSingleton(static provider =>
 		{
@@ -71,6 +99,42 @@ public static class SqsChannelServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds SQS channel message processor to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TProcessor">The message processor implementation type.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SqsProcessorOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSqsChannelProcessor<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		where TProcessor : class, IMessageProcessor<Message>
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqsProcessorOptions>().Bind(configuration);
+		_ = services.AddTransient<IMessageProcessor<Message>, TProcessor>();
+
+		_ = services.AddSingleton(static provider =>
+		{
+			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
+			var channelAdapter = provider.GetRequiredService<SqsChannelAdapter>();
+			var messageProcessor = provider.GetRequiredService<IMessageProcessor<Message>>();
+			var options = provider.GetRequiredService<IOptions<SqsProcessorOptions>>().Value;
+			var logger = provider.GetRequiredService<ILogger<SqsChannelMessageProcessor>>();
+
+			return new SqsChannelMessageProcessor(
+				sqsClient, channelAdapter, messageProcessor, options, logger);
+		});
+
+		_ = services.AddHostedService<SqsChannelProcessorHostedService>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds SQS batch processor to the service collection.
 	/// </summary>
 	public static IServiceCollection AddSqsBatchProcessor(
@@ -92,6 +156,33 @@ public static class SqsChannelServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds SQS batch processor to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SqsBatchOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSqsBatchProcessor(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqsBatchOptions>().Bind(configuration);
+
+		_ = services.AddSingleton(static provider =>
+		{
+			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
+			var options = provider.GetRequiredService<IOptions<SqsBatchOptions>>().Value;
+			var logger = provider.GetRequiredService<ILogger<SqsBatchProcessor>>();
+
+			return new SqsBatchProcessor(sqsClient, options, logger);
+		});
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds SQS long polling receiver to the service collection.
 	/// </summary>
 	public static IServiceCollection AddSqsLongPollingReceiver(
@@ -99,6 +190,33 @@ public static class SqsChannelServiceCollectionExtensions
 		Action<LongPollingOptions> configureOptions)
 	{
 		_ = services.Configure(configureOptions);
+
+		_ = services.AddSingleton(static provider =>
+		{
+			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
+			var options = provider.GetRequiredService<IOptions<LongPollingOptions>>().Value;
+			var logger = provider.GetRequiredService<ILogger<ChannelLongPollingReceiver>>();
+
+			return new ChannelLongPollingReceiver(sqsClient, options, logger);
+		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds SQS long polling receiver to the service collection using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="LongPollingOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSqsLongPollingReceiver(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<LongPollingOptions>().Bind(configuration);
 
 		_ = services.AddSingleton(static provider =>
 		{

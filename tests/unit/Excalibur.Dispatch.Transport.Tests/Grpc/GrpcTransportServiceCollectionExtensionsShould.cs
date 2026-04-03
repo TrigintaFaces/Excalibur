@@ -90,7 +90,7 @@ public sealed class GrpcTransportServiceCollectionExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddGrpcTransport(null!));
+			services.AddGrpcTransport((Action<GrpcTransportOptions>)null!));
 	}
 
 	[Fact]

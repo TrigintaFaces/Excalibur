@@ -24,7 +24,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// </remarks>
 internal sealed partial class CdcChangeApplier
 {
-	private readonly IDatabaseConfig _dbConfig;
+	private readonly IDatabaseOptions _dbConfig;
 	private readonly IDataAccessPolicyFactory _policyFactory;
 	private readonly CdcCheckpointManager _checkpointManager;
 	private readonly Domain.OrderedEventProcessor _orderedEventProcessor;
@@ -52,7 +52,7 @@ internal sealed partial class CdcChangeApplier
 		"Number of events in a processed batch");
 
 	internal CdcChangeApplier(
-		IDatabaseConfig dbConfig,
+		IDatabaseOptions dbConfig,
 		IDataAccessPolicyFactory policyFactory,
 		CdcCheckpointManager checkpointManager,
 		Domain.OrderedEventProcessor orderedEventProcessor,

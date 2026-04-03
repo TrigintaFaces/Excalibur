@@ -4,6 +4,7 @@
 using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.OrphanedAccess;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -50,6 +51,32 @@ public static class OrphanedAccessGovernanceBuilderExtensions
 		optionsBuilder.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		return builder.AddOrphanedAccessDetectionCore();
+	}
+
+	/// <summary>
+	/// Adds orphaned access detection services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The governance builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="OrphanedAccessOptions"/>.</param>
+	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
+	public static IGovernanceBuilder AddOrphanedAccessDetection(
+		this IGovernanceBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<OrphanedAccessOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.AddOrphanedAccessDetectionCore();
+	}
+
+	private static IGovernanceBuilder AddOrphanedAccessDetectionCore(this IGovernanceBuilder builder)
+	{
 		// Default detector (overridable)
 		builder.Services.TryAddSingleton<IOrphanedAccessDetector, DefaultOrphanedAccessDetector>();
 

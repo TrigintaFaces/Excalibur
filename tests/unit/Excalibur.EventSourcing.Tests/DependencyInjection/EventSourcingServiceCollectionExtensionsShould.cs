@@ -78,7 +78,7 @@ public sealed class EventSourcingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburEventSourcing(null!));
+		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburEventSourcing((Action<IEventSourcingBuilder>)null!));
 	}
 
 	[Fact]

@@ -212,7 +212,7 @@ public sealed class CdcProcessorBehaviorShould : UnitTestBase
 	private static CdcProcessor CreateProcessor()
 	{
 		var appLifetime = A.Fake<IHostApplicationLifetime>();
-		var dbConfig = A.Fake<IDatabaseConfig>();
+		var dbConfig = A.Fake<IDatabaseOptions>();
 		var policyFactory = A.Fake<IDataAccessPolicyFactory>();
 		var logger = A.Fake<ILogger<CdcProcessor>>();
 

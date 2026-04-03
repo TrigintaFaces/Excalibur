@@ -5,7 +5,10 @@ This sample demonstrates **Native AOT compilation** with Dispatch source generat
 ## Prerequisites
 
 - .NET 10 SDK or later
-- C++ Build Tools (for AOT compilation on Windows)
+- Platform-specific AOT toolchain:
+  - **Windows:** Visual Studio with "Desktop development with C++" workload
+  - **Linux:** `clang`, `zlib1g-dev` (Ubuntu/Debian: `sudo apt install clang zlib1g-dev`)
+  - **macOS:** Xcode Command Line Tools (`xcode-select --install`)
 
 ## Quick Start
 
@@ -16,9 +19,57 @@ dotnet run
 # Publish as native AOT executable
 dotnet publish -c Release
 
-# Run the native executable
+# Run the native executable (path varies by OS)
+# Windows:
 ./bin/Release/net10.0/win-x64/publish/Excalibur.Dispatch.Aot.Sample.exe
+# Linux:
+./bin/Release/net10.0/linux-x64/publish/Excalibur.Dispatch.Aot.Sample
+# macOS (Apple Silicon):
+./bin/Release/net10.0/osx-arm64/publish/Excalibur.Dispatch.Aot.Sample
 ```
+
+> **Note:** You do NOT need to pass `-p:PublishAot=true` on the command line. `PublishAot` is already set in the `.csproj`. This is intentional -- passing it on the command line causes NETSDK1207 errors when source generator projects (targeting `netstandard2.0`) are in the dependency graph.
+
+## Expected Output
+
+When you run the sample (JIT or native), you should see output similar to:
+
+```
+================================================
+  Excalibur.Dispatch.Aot.Sample - Native AOT Demo
+================================================
+
+--- Demo 1: Create Order Command ---
+Serializing command (source-generated):
+  {"customerId":"CUST-001","items":[...]}
+Order created: <guid>
+
+--- Demo 2: Event with Multiple Handlers ---
+(OrderCreatedEvent was dispatched by CreateOrderHandler)
+Both OrderEventHandler and OrderAnalyticsHandler processed it.
+
+--- Demo 3: Query Order ---
+Order retrieved (source-generated serialization):
+  {"id":"<guid>","customerId":"CUST-001","status":"Created",...}
+
+--- Demo 4: Query Non-Existent Order ---
+Order not found (as expected): Order <guid> not found
+
+--- Demo 5: Serialization Round-Trip ---
+Serialized:   {"customerId":"CUST-RT","items":[...]}
+Deserialized: CustomerId=CUST-RT, Items=1
+Round-trip match: True
+
+--- Demo 6: InMemory Transport Registration ---
+Transport registered: Name=demo, Type=InMemory
+Transport running: True
+
+================================================
+  AOT Verification Summary
+================================================
+```
+
+All 6 demos should complete without errors in both JIT and native AOT modes.
 
 ## AOT Configuration
 
@@ -156,27 +207,50 @@ Excalibur.Dispatch.Aot.Sample/
 
 After `dotnet publish -c Release`, verify:
 
-1. **No warnings**: Build should complete without trimming warnings
-2. **Native executable**: Check `bin/Release/net10.0/<rid>/publish/`
-3. **Runs correctly**: Execute the native binary and verify output
+1. **Publish succeeds**: The publish should complete without errors (warnings are expected -- see below)
+2. **Native executable exists**: Check `bin/Release/net10.0/<rid>/publish/`
+3. **Runs correctly**: Execute the native binary and verify all 6 demos produce expected output
+4. **File size**: The native executable is typically 15-30 MB (varies by platform and framework version)
+
+### About AOT Warnings
+
+You will see IL2xxx (trim) and IL3xxx (AOT) warnings during publish. As of Sprint 736, the baseline is **~126 warnings** from the Dispatch framework itself. These originate from:
+
+- Reflection-based fallback paths in the core dispatcher (used only when source generators aren't available)
+- `Type.GetType()` calls in event serialization (being addressed in Wave 3)
+- `JsonStringEnumConverter` without generic type parameter (being addressed in Wave 2)
+
+These warnings do **not** prevent successful AOT compilation or runtime execution. The sample uses source-generator paths that bypass all reflection-based code.
 
 ## Common Issues
 
-### Missing C++ Build Tools
+### Missing Native Toolchain
 
-On Windows, AOT compilation requires Visual Studio C++ build tools and proper PATH configuration:
+**Windows** -- C++ build tools required:
 ```
 error NETSDK1182: Publishing to native code is only supported on Windows when using Microsoft Visual Studio.
 ```
-Or:
-```
-'vswhere.exe' is not recognized...
-```
+**Solution**: Install "Desktop development with C++" from Visual Studio Installer, then publish from a Developer Command Prompt.
 
-**Solution**:
-1. Install "Desktop development with C++" workload from Visual Studio Installer
-2. Run `dotnet publish` from a Visual Studio Developer Command Prompt
-3. Or ensure `vswhere.exe` is in your PATH (usually in `C:\Program Files (x86)\Microsoft Visual Studio\Installer\`)
+**Linux** -- clang required:
+```
+error : Unable to find a compatible C compiler...
+```
+**Solution**: `sudo apt install clang zlib1g-dev` (Ubuntu/Debian) or `sudo dnf install clang zlib-devel` (Fedora).
+
+**macOS** -- Xcode tools required:
+```
+error : Unable to find a compatible C compiler...
+```
+**Solution**: `xcode-select --install`
+
+### NETSDK1207 (netstandard2.0 Conflict)
+
+If you see:
+```
+error NETSDK1207: It's not possible to publish an application to a single-file and Native AOT simultaneously when targeting netstandard2.0
+```
+**Cause**: Passing `-p:PublishAot=true` on the command line cascades to source generator analyzer projects. **Solution**: Do NOT pass `-p:PublishAot=true` on the command line. It is already set in the `.csproj`.
 
 ### AOT Warnings from Dispatch Library
 
@@ -205,10 +279,26 @@ System.NotSupportedException: TypeInfo for type 'MyType' was not generated
 
 **Solution**: Add `[JsonSerializable(typeof(MyType))]` to your `JsonSerializerContext`.
 
+## CI Validation
+
+This sample is the validation target for the AOT CI pipeline. The scripts:
+
+- **`eng/ci/Invoke-AotPublishValidation.ps1`** -- Publishes this sample with AOT, parses IL warnings, groups by package
+- **`eng/ci/Invoke-AotBuildAnalysis.ps1`** -- Static analysis across all `src/` packages for AOT readiness
+
+Run locally:
+```powershell
+# Publish validation (same as CI)
+pwsh eng/ci/Invoke-AotPublishValidation.ps1 -Configuration Release
+
+# Static analysis
+pwsh eng/ci/Invoke-AotBuildAnalysis.ps1
+```
+
 ## Related Documentation
 
+- [ADR-292: AOT Wave 0-1 Decisions](../../../management/architecture/adr-292-aot-wave-0-1-decisions.md)
+- [ADR-293: AOT Wave 2-3 Decisions](../../../management/architecture/adr-293-aot-wave-2-3-decisions.md)
 - [Source Generators Guide](../../../docs-site/docs/source-generators/index.md)
 - [Viewing Generated Code](../../../docs-site/docs/advanced/viewing-generated-code.md)
 - [Microsoft AOT Documentation](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/)
-
-

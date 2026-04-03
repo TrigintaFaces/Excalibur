@@ -31,7 +31,7 @@ public sealed class AotFluentValidatorResolverShould
     }
 
     [Fact]
-    public void ThrowNotSupportedExceptionForAnyMessage()
+    public void ThrowInvalidOperationExceptionWhenNoDispatcherRegistered()
     {
         // Arrange
         var provider = new ServiceCollection().BuildServiceProvider();
@@ -39,12 +39,12 @@ public sealed class AotFluentValidatorResolverShould
         var message = new AotResolverTestMessage { Name = "test" };
 
         // Act & Assert
-        // AOT resolver always throws because it requires source-generated dispatch logic
-        Should.Throw<NotSupportedException>(() => sut.TryValidate(message));
+        // AOT resolver throws because no IAotValidationDispatcher is registered
+        Should.Throw<InvalidOperationException>(() => sut.TryValidate(message));
     }
 
     [Fact]
-    public void IncludeHelpfulMessageInNotSupportedException()
+    public void IncludeHelpfulMessageInInvalidOperationException()
     {
         // Arrange
         var provider = new ServiceCollection().BuildServiceProvider();
@@ -52,10 +52,10 @@ public sealed class AotFluentValidatorResolverShould
         var message = new AotResolverTestMessage { Name = "test" };
 
         // Act
-        var ex = Should.Throw<NotSupportedException>(() => sut.TryValidate(message));
+        var ex = Should.Throw<InvalidOperationException>(() => sut.TryValidate(message));
 
         // Assert
-        ex.Message.ShouldContain("source generator");
+        ex.Message.ShouldContain("SourceGenerators");
     }
 
     [Fact]

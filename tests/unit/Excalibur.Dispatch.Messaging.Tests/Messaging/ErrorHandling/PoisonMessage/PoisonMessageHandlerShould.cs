@@ -238,6 +238,63 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 	}
 
 	[Fact]
+	public async Task HandlePoisonMessageAsync_CapturesInnerExceptionDetailsWhenEnabled()
+	{
+		// Arrange
+		var options = Microsoft.Extensions.Options.Options.Create(new PoisonMessageOptions { CaptureExceptionDetails = true });
+		using var sut = new PoisonMessageHandler(_deadLetterStore, _serializer, _serviceProvider, options, _logger);
+
+		var message = new TestMessage();
+		var context = CreateFakeContext();
+		var innerEx = new ArgumentException("Bad argument");
+		var exception = new InvalidOperationException("Outer error", innerEx);
+
+		DeadLetterMessage? capturedMessage = null;
+		_ = A.CallTo(() => _deadLetterStore.StoreAsync(A<DeadLetterMessage>._, A<CancellationToken>._))
+			.Invokes(call => capturedMessage = call.GetArgument<DeadLetterMessage>(0));
+
+		// Act
+		await sut.HandlePoisonMessageAsync(message, context, "reason", CancellationToken.None, exception);
+
+		// Assert
+		_ = capturedMessage.ShouldNotBeNull();
+		_ = capturedMessage.ExceptionDetails.ShouldNotBeNull();
+		capturedMessage.ExceptionDetails.ShouldContain("InvalidOperationException");
+		capturedMessage.ExceptionDetails.ShouldContain("Outer error");
+		capturedMessage.ExceptionDetails.ShouldContain("ArgumentException");
+		capturedMessage.ExceptionDetails.ShouldContain("Bad argument");
+		capturedMessage.ExceptionDetails.ShouldContain("InnerException");
+	}
+
+	[Fact]
+	public async Task HandlePoisonMessageAsync_CapturesExceptionDataWhenEnabled()
+	{
+		// Arrange
+		var options = Microsoft.Extensions.Options.Options.Create(new PoisonMessageOptions { CaptureExceptionDetails = true });
+		using var sut = new PoisonMessageHandler(_deadLetterStore, _serializer, _serviceProvider, options, _logger);
+
+		var message = new TestMessage();
+		var context = CreateFakeContext();
+		var exception = new InvalidOperationException("Data test");
+		exception.Data["OrderId"] = "ORD-123";
+		exception.Data["Retry"] = "3";
+
+		DeadLetterMessage? capturedMessage = null;
+		_ = A.CallTo(() => _deadLetterStore.StoreAsync(A<DeadLetterMessage>._, A<CancellationToken>._))
+			.Invokes(call => capturedMessage = call.GetArgument<DeadLetterMessage>(0));
+
+		// Act
+		await sut.HandlePoisonMessageAsync(message, context, "reason", CancellationToken.None, exception);
+
+		// Assert
+		_ = capturedMessage.ShouldNotBeNull();
+		_ = capturedMessage.ExceptionDetails.ShouldNotBeNull();
+		capturedMessage.ExceptionDetails.ShouldContain("Data");
+		capturedMessage.ExceptionDetails.ShouldContain("OrderId");
+		capturedMessage.ExceptionDetails.ShouldContain("ORD-123");
+	}
+
+	[Fact]
 	public async Task HandlePoisonMessageAsync_DoesNotCaptureExceptionDetailsWhenDisabled()
 	{
 		// Arrange

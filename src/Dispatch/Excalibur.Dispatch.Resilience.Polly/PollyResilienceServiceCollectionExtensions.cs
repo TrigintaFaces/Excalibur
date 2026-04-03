@@ -96,7 +96,7 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		_ = services.AddPollyResilience();
 
-		_ = services.Configure<CircuitBreakerOptions>(name, options => configureOptions?.Invoke(options));
+		_ = services.AddOptions<CircuitBreakerOptions>(name).Configure(options => configureOptions?.Invoke(options)).ValidateDataAnnotations().ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<CircuitBreakerOptions>, CircuitBreakerOptionsValidator>());
 
@@ -185,7 +185,7 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		_ = services.AddPollyResilience();
 
-		_ = services.Configure<BulkheadOptions>(resourceName, options => configureOptions?.Invoke(options));
+		_ = services.AddOptions<BulkheadOptions>(resourceName).Configure(options => configureOptions?.Invoke(options)).ValidateDataAnnotations().ValidateOnStart();
 
 		return services;
 	}
@@ -214,7 +214,7 @@ public static class PollyResilienceServiceCollectionExtensions
 		// Ensure distributed cache is configured
 		_ = services.AddDistributedMemoryCache(); // Default to in-memory, can be overridden
 
-		_ = services.Configure<DistributedCircuitBreakerOptions>(name, options => configureOptions?.Invoke(options));
+		_ = services.AddOptions<DistributedCircuitBreakerOptions>(name).Configure(options => configureOptions?.Invoke(options)).ValidateDataAnnotations().ValidateOnStart();
 
 		return services;
 	}

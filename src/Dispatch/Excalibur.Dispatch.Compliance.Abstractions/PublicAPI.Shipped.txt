@@ -214,7 +214,7 @@ Excalibur.Dispatch.Compliance.BackupShare.TotalShares.get -> int
 Excalibur.Dispatch.Compliance.BackupShare.TotalShares.init -> void
 Excalibur.Dispatch.Compliance.BackupShareOptions
 Excalibur.Dispatch.Compliance.BackupShareOptions.BackupShareOptions() -> void
-Excalibur.Dispatch.Compliance.BackupShareOptions.CustodianIds.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Excalibur.Dispatch.Compliance.BackupShareOptions.CustodianIds.get -> System.Collections.Generic.List<string!>?
 Excalibur.Dispatch.Compliance.BackupShareOptions.CustodianIds.set -> void
 Excalibur.Dispatch.Compliance.BackupShareOptions.ExpiresIn.get -> System.TimeSpan?
 Excalibur.Dispatch.Compliance.BackupShareOptions.ExpiresIn.set -> void
@@ -1027,6 +1027,8 @@ Excalibur.Dispatch.Compliance.ErasureRetentionOptions.CertificateRetentionPeriod
 Excalibur.Dispatch.Compliance.ErasureRetentionOptions.CertificateRetentionPeriod.set -> void
 Excalibur.Dispatch.Compliance.ErasureRetentionOptions.ErasureRetentionOptions() -> void
 Excalibur.Dispatch.Compliance.ErasureRetentionOptions.SigningKeyId.get -> string?
+Excalibur.Dispatch.Compliance.ErasureRetentionOptions.SigningKey.get -> byte[]!
+Excalibur.Dispatch.Compliance.ErasureRetentionOptions.SigningKey.set -> void
 Excalibur.Dispatch.Compliance.ErasureRetentionOptions.SigningKeyId.set -> void
 Excalibur.Dispatch.Compliance.ErasureScope
 Excalibur.Dispatch.Compliance.ErasureScope.Selective = 2 -> Excalibur.Dispatch.Compliance.ErasureScope
@@ -2733,3 +2735,7 @@ static readonly Excalibur.Dispatch.Compliance.EncryptionVersion.Unknown -> Excal
 static readonly Excalibur.Dispatch.Compliance.EncryptionVersion.Version10 -> Excalibur.Dispatch.Compliance.EncryptionVersion
 static readonly Excalibur.Dispatch.Compliance.EncryptionVersion.Version11 -> Excalibur.Dispatch.Compliance.EncryptionVersion
 static Excalibur.Dispatch.Compliance.ErasureExecutionResult.PartiallySucceeded(int keysDeleted, int recordsAffected, string! errorMessage) -> Excalibur.Dispatch.Compliance.ErasureExecutionResult!
+Excalibur.Dispatch.Compliance.AuditEvent.ApplicationName.get -> string?
+Excalibur.Dispatch.Compliance.AuditEvent.ApplicationName.init -> void
+Excalibur.Dispatch.Compliance.AuditQuery.ApplicationName.get -> string?
+Excalibur.Dispatch.Compliance.AuditQuery.ApplicationName.init -> void

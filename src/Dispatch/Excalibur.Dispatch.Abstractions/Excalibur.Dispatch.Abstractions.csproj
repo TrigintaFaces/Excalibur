@@ -53,6 +53,11 @@
       <DependentUpon>ErrorMessages.resx</DependentUpon>
     </Compile>
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Abstractions.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
   <!-- PublicAPI baseline files for breaking change detection -->
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

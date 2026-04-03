@@ -47,13 +47,13 @@ builder.Services.AddEventBindings(static b =>
 var host = builder.Build();
 
 // Demonstrate that the configuration worked
-var transportRegistry = host.Services.GetRequiredService<TransportRegistry>();
+var transportRegistry = host.Services.GetRequiredService<ITransportRegistry>();
 
 Console.WriteLine("\nRegistered Transports:");
 foreach (var transportName in transportRegistry.GetTransportNames())
 {
-	var registration = transportRegistry.GetTransportRegistration(transportName);
-	Console.WriteLine($"  - {transportName} ({registration.TransportType})");
+	var adapter = transportRegistry.GetTransportAdapter(transportName);
+	Console.WriteLine($"  - {transportName} (adapter: {adapter?.GetType().Name ?? "pending"})");
 }
 
 Console.WriteLine("\nTransport Bindings API implementation complete!");

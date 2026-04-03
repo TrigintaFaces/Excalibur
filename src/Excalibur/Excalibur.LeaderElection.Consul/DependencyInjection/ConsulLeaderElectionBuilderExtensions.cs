@@ -11,6 +11,7 @@ using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.LeaderElection.Consul;
 using Excalibur.LeaderElection.Diagnostics;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -42,6 +43,32 @@ public static class ConsulLeaderElectionBuilderExtensions
 
 		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 
+		return builder.UseConsulCore();
+	}
+
+	/// <summary>
+	/// Configures the leader election builder to use the Consul provider with an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The leader election builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="ConsulLeaderElectionOptions"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	public static ILeaderElectionBuilder UseConsul(
+		this ILeaderElectionBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<ConsulLeaderElectionOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.UseConsulCore();
+	}
+
+	private static ILeaderElectionBuilder UseConsulCore(this ILeaderElectionBuilder builder)
+	{
 		// Register cross-property validators
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ConsulLeaderElectionOptions>, ConsulLeaderElectionOptionsValidator>());

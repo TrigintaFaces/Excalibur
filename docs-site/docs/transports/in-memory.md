@@ -44,7 +44,7 @@ builder.Services.AddInMemoryTransport("inmemory", options =>
 The in-memory transport provides properties and methods specifically designed for testing:
 
 ```csharp
-var registry = serviceProvider.GetRequiredService<TransportRegistry>();
+var registry = serviceProvider.GetRequiredService<ITransportRegistry>();
 var adapter = (InMemoryTransportAdapter)registry.GetTransportAdapter("inmemory")!;
 
 // Inspect sent messages (keyed by message ID)
@@ -57,7 +57,7 @@ adapter.ClearSentMessages();
 bool isRunning = adapter.IsRunning;
 ```
 
-Add `using Excalibur.Dispatch.Transport;` to access `TransportRegistry` and `InMemoryTransportAdapter`.
+Add `using Excalibur.Dispatch.Transport;` to access `ITransportRegistry` and `InMemoryTransportAdapter`.
 
 ## Health Checks
 

@@ -204,7 +204,7 @@ cd scripts
 | `Disabled` | Skip job execution | false |
 | `DatabaseConfigs` | Array of database configurations | Required |
 
-### DatabaseConfig Reference
+### DatabaseOptions Reference
 
 | Setting | Description |
 |---------|-------------|
@@ -233,7 +233,7 @@ cd scripts
 | Component | Package | Purpose |
 |-----------|---------|---------|
 | `CdcJob` | `Excalibur.Jobs` | Quartz.NET CDC processing job |
-| `CdcJobConfig` | `Excalibur.Jobs` | Job configuration model |
+| `CdcJobOptions` | `Excalibur.Jobs` | Job configuration model |
 | `AddExcaliburJobHost` | `Excalibur.Jobs` | Quartz.NET + Excalibur integration |
 | `AddCdcProcessor` | `Excalibur.Data.SqlServer` | CDC processor factory |
 | `AddSqlServerEventSourcing` | `Excalibur.EventSourcing.SqlServer` | Event store |

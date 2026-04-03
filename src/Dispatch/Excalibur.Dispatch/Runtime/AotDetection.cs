@@ -16,11 +16,7 @@ public static class AotDetection
 	/// Gets a value indicating whether the application is running with AOT compilation.
 	/// </summary>
 	/// <value>The current <see cref="IsAotCompiled"/> value.</value>
-	public static bool IsAotCompiled { get; }
-
-#if AOT_ENABLED
-		= true;
-#endif
+	public static bool IsAotCompiled { get; } = !RuntimeFeature.IsDynamicCodeSupported;
 
 	/// <summary>
 	/// Gets a value indicating whether dynamic code generation is supported.

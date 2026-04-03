@@ -3,6 +3,9 @@
 
 using System;
 
+using Excalibur.Postgres;
+using Excalibur.SqlServer;
+
 using Microsoft.Extensions.DependencyInjection;
 
 using Shouldly;
@@ -155,7 +158,7 @@ public sealed class MetapackageNullGuardTests
 	{
 		var services = new ServiceCollection();
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddExcaliburSqlServer(null!))
+			services.AddExcaliburSqlServer((Action<ExcaliburSqlServerOptions>)null!))
 			.ParamName.ShouldBe("configure");
 	}
 
@@ -186,7 +189,7 @@ public sealed class MetapackageNullGuardTests
 	{
 		var services = new ServiceCollection();
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddExcaliburPostgres(null!))
+			services.AddExcaliburPostgres((Action<ExcaliburPostgresOptions>)null!))
 			.ParamName.ShouldBe("configure");
 	}
 

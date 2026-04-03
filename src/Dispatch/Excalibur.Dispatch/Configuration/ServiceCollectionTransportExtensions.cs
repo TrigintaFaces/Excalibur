@@ -44,31 +44,33 @@ public static class ServiceCollectionTransportExtensions
 	}
 
 	/// <summary>
-	/// Gets the existing <see cref="TransportRegistry"/> from DI or creates and registers a new one.
+	/// Gets the existing <see cref="ITransportRegistry"/> from DI or creates and registers a new one.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <returns> The singleton <see cref="TransportRegistry"/> instance. </returns>
+	/// <returns> The singleton <see cref="ITransportRegistry"/> instance. </returns>
 	/// <remarks>
 	/// <para>
 	/// This method is public to allow transport-specific packages to register their adapters
-	/// with the shared <see cref="TransportRegistry"/>. Using this method ensures that all
+	/// with the shared <see cref="ITransportRegistry"/>. Using this method ensures that all
 	/// transport adapters are managed by the same registry instance, enabling unified lifecycle
 	/// management via <see cref="TransportAdapterHostedService"/>.
 	/// </para>
 	/// </remarks>
-	public static TransportRegistry GetOrCreateTransportRegistry(IServiceCollection services)
+	public static ITransportRegistry GetOrCreateTransportRegistry(IServiceCollection services)
 	{
 		// Check if already registered
 		var existingDescriptor =
-			services.FirstOrDefault(d => d.ServiceType == typeof(TransportRegistry) && d.ImplementationInstance is not null);
+			services.FirstOrDefault(d => d.ServiceType == typeof(ITransportRegistry) && d.ImplementationInstance is not null);
 
 		if (existingDescriptor?.ImplementationInstance is TransportRegistry existing)
 		{
 			return existing;
 		}
 
-		// Create new instance and register
+		// Create new instance and register as both ITransportRegistry (public contract)
+		// and TransportRegistry (internal, for lifecycle/admin operations within this assembly)
 		var registry = new TransportRegistry();
+		services.TryAddSingleton<ITransportRegistry>(registry);
 		services.TryAddSingleton(registry);
 		return registry;
 	}
@@ -161,7 +163,7 @@ public static class ServiceCollectionTransportExtensions
 	/// <returns> The service collection for fluent configuration. </returns>
 	/// <remarks>
 	/// <para>
-	/// This health check monitors all transports registered in the <see cref="TransportRegistry"/>.
+	/// This health check monitors all transports registered in the <see cref="ITransportRegistry"/>.
 	/// It reports the aggregate health status of all transports and provides detailed status
 	/// for each individual transport in the health check data.
 	/// </para>
@@ -198,7 +200,7 @@ public static class ServiceCollectionTransportExtensions
 			name,
 			sp =>
 			{
-				var registry = sp.GetRequiredService<TransportRegistry>();
+				var registry = sp.GetRequiredService<ITransportRegistry>();
 				var healthCheckOptions = sp.GetService<MultiTransportHealthCheckOptions>()
 										 ?? new MultiTransportHealthCheckOptions();
 				return new MultiTransportHealthCheck(registry, healthCheckOptions);

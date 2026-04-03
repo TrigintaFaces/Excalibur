@@ -69,7 +69,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 			await _hashChainLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
-				var lastEvent = await GetLastEventAsync(auditEvent.TenantId, cancellationToken).ConfigureAwait(false);
+				var lastEvent = await GetLastEventInternalAsync(auditEvent.TenantId, auditEvent.ApplicationName, cancellationToken).ConfigureAwait(false);
 				previousHash = lastEvent?.EventHash;
 				eventHash = AuditHasher.ComputeHash(auditEvent, previousHash);
 			}
@@ -96,6 +96,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 		parameters.Add("ResourceClassification",
 			auditEvent.ResourceClassification.HasValue ? (int)auditEvent.ResourceClassification.Value : null);
 		parameters.Add("TenantId", auditEvent.TenantId);
+		parameters.Add("ApplicationName", auditEvent.ApplicationName);
 		parameters.Add("CorrelationId", auditEvent.CorrelationId);
 		parameters.Add("SessionId", auditEvent.SessionId);
 		parameters.Add("IpAddress", auditEvent.IpAddress);
@@ -112,12 +113,14 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 		var sql = $@"
 			INSERT INTO {_options.FullyQualifiedTableName}
 			(event_id, event_type, action, outcome, timestamp, actor_id, actor_type,
-			 resource_id, resource_type, resource_classification, tenant_id, correlation_id,
-			 session_id, ip_address, user_agent, reason, metadata, previous_event_hash, event_hash)
+			 resource_id, resource_type, resource_classification, tenant_id, application_name,
+			 correlation_id, session_id, ip_address, user_agent, reason, metadata,
+			 previous_event_hash, event_hash)
 			VALUES
 			(@EventId, @EventType, @Action, @Outcome, @Timestamp, @ActorId, @ActorType,
-			 @ResourceId, @ResourceType, @ResourceClassification, @TenantId, @CorrelationId,
-			 @SessionId, @IpAddress, @UserAgent, @Reason, @Metadata::jsonb, @PreviousEventHash, @EventHash)
+			 @ResourceId, @ResourceType, @ResourceClassification, @TenantId, @ApplicationName,
+			 @CorrelationId, @SessionId, @IpAddress, @UserAgent, @Reason, @Metadata::jsonb,
+			 @PreviousEventHash, @EventHash)
 			RETURNING sequence_number";
 
 		var sequenceNumber = await connection.ExecuteScalarAsync<long>(
@@ -146,9 +149,10 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 				   timestamp AS Timestamp, actor_id AS ActorId, actor_type AS ActorType,
 				   resource_id AS ResourceId, resource_type AS ResourceType,
 				   resource_classification AS ResourceClassification, tenant_id AS TenantId,
-				   correlation_id AS CorrelationId, session_id AS SessionId,
-				   ip_address AS IpAddress, user_agent AS UserAgent, reason AS Reason,
-				   metadata AS Metadata, previous_event_hash AS PreviousEventHash, event_hash AS EventHash
+				   application_name AS ApplicationName, correlation_id AS CorrelationId,
+				   session_id AS SessionId, ip_address AS IpAddress, user_agent AS UserAgent,
+				   reason AS Reason, metadata AS Metadata,
+				   previous_event_hash AS PreviousEventHash, event_hash AS EventHash
 			FROM {_options.FullyQualifiedTableName}
 			WHERE event_id = @EventId";
 
@@ -178,9 +182,10 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 				   timestamp AS Timestamp, actor_id AS ActorId, actor_type AS ActorType,
 				   resource_id AS ResourceId, resource_type AS ResourceType,
 				   resource_classification AS ResourceClassification, tenant_id AS TenantId,
-				   correlation_id AS CorrelationId, session_id AS SessionId,
-				   ip_address AS IpAddress, user_agent AS UserAgent, reason AS Reason,
-				   metadata AS Metadata, previous_event_hash AS PreviousEventHash, event_hash AS EventHash
+				   application_name AS ApplicationName, correlation_id AS CorrelationId,
+				   session_id AS SessionId, ip_address AS IpAddress, user_agent AS UserAgent,
+				   reason AS Reason, metadata AS Metadata,
+				   previous_event_hash AS PreviousEventHash, event_hash AS EventHash
 			FROM {_options.FullyQualifiedTableName}
 			{(whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "")}
 			{orderBy}
@@ -232,9 +237,10 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 				   timestamp AS Timestamp, actor_id AS ActorId, actor_type AS ActorType,
 				   resource_id AS ResourceId, resource_type AS ResourceType,
 				   resource_classification AS ResourceClassification, tenant_id AS TenantId,
-				   correlation_id AS CorrelationId, session_id AS SessionId,
-				   ip_address AS IpAddress, user_agent AS UserAgent, reason AS Reason,
-				   metadata AS Metadata, previous_event_hash AS PreviousEventHash, event_hash AS EventHash
+				   application_name AS ApplicationName, correlation_id AS CorrelationId,
+				   session_id AS SessionId, ip_address AS IpAddress, user_agent AS UserAgent,
+				   reason AS Reason, metadata AS Metadata,
+				   previous_event_hash AS PreviousEventHash, event_hash AS EventHash
 			FROM {_options.FullyQualifiedTableName}
 			WHERE timestamp >= @StartDate AND timestamp <= @EndDate
 			ORDER BY sequence_number ASC";
@@ -300,40 +306,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 	/// <inheritdoc />
 	public async Task<AuditEvent?> GetLastEventAsync(string? tenantId, CancellationToken cancellationToken)
 	{
-		await using var connection = new NpgsqlConnection(_options.ConnectionString);
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		var sql = tenantId is null
-			? $@"
-				SELECT event_id AS EventId, event_type AS EventType, action AS Action, outcome AS Outcome,
-					   timestamp AS Timestamp, actor_id AS ActorId, actor_type AS ActorType,
-					   resource_id AS ResourceId, resource_type AS ResourceType,
-					   resource_classification AS ResourceClassification, tenant_id AS TenantId,
-					   correlation_id AS CorrelationId, session_id AS SessionId,
-					   ip_address AS IpAddress, user_agent AS UserAgent, reason AS Reason,
-					   metadata AS Metadata, previous_event_hash AS PreviousEventHash, event_hash AS EventHash
-				FROM {_options.FullyQualifiedTableName}
-				ORDER BY sequence_number DESC
-				LIMIT 1"
-			: $@"
-				SELECT event_id AS EventId, event_type AS EventType, action AS Action, outcome AS Outcome,
-					   timestamp AS Timestamp, actor_id AS ActorId, actor_type AS ActorType,
-					   resource_id AS ResourceId, resource_type AS ResourceType,
-					   resource_classification AS ResourceClassification, tenant_id AS TenantId,
-					   correlation_id AS CorrelationId, session_id AS SessionId,
-					   ip_address AS IpAddress, user_agent AS UserAgent, reason AS Reason,
-					   metadata AS Metadata, previous_event_hash AS PreviousEventHash, event_hash AS EventHash
-				FROM {_options.FullyQualifiedTableName}
-				WHERE tenant_id = @TenantId
-				ORDER BY sequence_number DESC
-				LIMIT 1";
-
-		var row = await connection.QuerySingleOrDefaultAsync<AuditEventRow>(
-				new CommandDefinition(sql, new { TenantId = tenantId }, commandTimeout: _options.CommandTimeoutSeconds,
-					cancellationToken: cancellationToken))
-			.ConfigureAwait(false);
-
-		return row is null ? null : MapToAuditEvent(row);
+		return await GetLastEventInternalAsync(tenantId, applicationName: null, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -344,6 +317,55 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 			_hashChainLock.Dispose();
 			_disposed = true;
 		}
+	}
+
+	private async Task<AuditEvent?> GetLastEventInternalAsync(
+		string? tenantId,
+		string? applicationName,
+		CancellationToken cancellationToken)
+	{
+		await using var connection = new NpgsqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var whereClauses = new List<string>();
+		var parameters = new DynamicParameters();
+
+		if (tenantId is not null)
+		{
+			whereClauses.Add("tenant_id = @TenantId");
+			parameters.Add("TenantId", tenantId);
+		}
+
+		if (!string.IsNullOrEmpty(applicationName))
+		{
+			whereClauses.Add("application_name = @ApplicationName");
+			parameters.Add("ApplicationName", applicationName);
+		}
+
+		var whereClause = whereClauses.Count > 0
+			? "WHERE " + string.Join(" AND ", whereClauses)
+			: "";
+
+		var sql = $@"
+			SELECT event_id AS EventId, event_type AS EventType, action AS Action, outcome AS Outcome,
+				   timestamp AS Timestamp, actor_id AS ActorId, actor_type AS ActorType,
+				   resource_id AS ResourceId, resource_type AS ResourceType,
+				   resource_classification AS ResourceClassification, tenant_id AS TenantId,
+				   application_name AS ApplicationName, correlation_id AS CorrelationId,
+				   session_id AS SessionId, ip_address AS IpAddress, user_agent AS UserAgent,
+				   reason AS Reason, metadata AS Metadata,
+				   previous_event_hash AS PreviousEventHash, event_hash AS EventHash
+			FROM {_options.FullyQualifiedTableName}
+			{whereClause}
+			ORDER BY sequence_number DESC
+			LIMIT 1";
+
+		var row = await connection.QuerySingleOrDefaultAsync<AuditEventRow>(
+				new CommandDefinition(sql, parameters, commandTimeout: _options.CommandTimeoutSeconds,
+					cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
+
+		return row is null ? null : MapToAuditEvent(row);
 	}
 
 	private static (List<string> WhereClauses, DynamicParameters Parameters) BuildQueryClauses(AuditQuery query)
@@ -405,6 +427,12 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 			parameters.Add("TenantId", query.TenantId);
 		}
 
+		if (!string.IsNullOrEmpty(query.ApplicationName))
+		{
+			whereClauses.Add("application_name = @ApplicationName");
+			parameters.Add("ApplicationName", query.ApplicationName);
+		}
+
 		if (!string.IsNullOrEmpty(query.CorrelationId))
 		{
 			whereClauses.Add("correlation_id = @CorrelationId");
@@ -443,6 +471,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 				? (DataClassification)row.ResourceClassification.Value
 				: null,
 			TenantId = row.TenantId,
+			ApplicationName = row.ApplicationName,
 			CorrelationId = row.CorrelationId,
 			SessionId = row.SessionId,
 			IpAddress = row.IpAddress,
@@ -504,6 +533,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 		public string? ResourceType { get; init; }
 		public int? ResourceClassification { get; init; }
 		public string? TenantId { get; init; }
+		public string? ApplicationName { get; init; }
 		public string? CorrelationId { get; init; }
 		public string? SessionId { get; init; }
 		public string? IpAddress { get; init; }

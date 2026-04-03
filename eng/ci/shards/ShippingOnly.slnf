@@ -7,6 +7,7 @@
       "src\\Dispatch\\Excalibur.Dispatch.AuditLogging.Aws\\Excalibur.Dispatch.AuditLogging.Aws.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.AuditLogging.Datadog\\Excalibur.Dispatch.AuditLogging.Datadog.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.AuditLogging.Elasticsearch\\Excalibur.Dispatch.AuditLogging.Elasticsearch.csproj",
+      "src\\Dispatch\\Excalibur.Dispatch.AuditLogging.OpenSearch\\Excalibur.Dispatch.AuditLogging.OpenSearch.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.AuditLogging.GoogleCloud\\Excalibur.Dispatch.AuditLogging.GoogleCloud.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.AuditLogging.Postgres\\Excalibur.Dispatch.AuditLogging.Postgres.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.AuditLogging.Sentinel\\Excalibur.Dispatch.AuditLogging.Sentinel.csproj",

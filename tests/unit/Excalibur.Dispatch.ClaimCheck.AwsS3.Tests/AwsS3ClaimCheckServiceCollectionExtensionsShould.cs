@@ -23,7 +23,7 @@ public sealed class AwsS3ClaimCheckServiceCollectionExtensionsShould : UnitTestB
 				_ => { }));
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsS3ClaimCheck(null!));
+			services.AddAwsS3ClaimCheck((Action<AwsS3ClaimCheckOptions>)null!));
 	}
 
 	[Fact]

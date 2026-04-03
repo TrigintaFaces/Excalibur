@@ -27,10 +27,10 @@ namespace Excalibur.Jobs.Outbox;
 /// defined in the application configuration under "Jobs:OutboxJob".
 /// </remarks>
 [DisallowConcurrentExecution]
-public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
+public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 {
 	/// <summary>
-	/// The configuration section name used to bind <see cref="OutboxJobConfig"/> from application configuration.
+	/// The configuration section name used to bind <see cref="OutboxJobOptions"/> from application configuration.
 	/// </summary>
 	public const string JobConfigSectionName = $"Jobs:{nameof(OutboxJob)}";
 
@@ -68,7 +68,7 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<OutboxJobConfig>(JobConfigSectionName);
+		var jobConfig = configuration.GetJobConfiguration<OutboxJobOptions>(JobConfigSectionName);
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		if (jobConfig.Disabled)
@@ -95,7 +95,7 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		var jobConfig = configuration.GetJobConfiguration<OutboxJobConfig>(JobConfigSectionName);
+		var jobConfig = configuration.GetJobConfiguration<OutboxJobOptions>(JobConfigSectionName);
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",

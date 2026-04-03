@@ -3,6 +3,8 @@
 
 using Excalibur.SqlServer;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -39,6 +41,33 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 		var options = new ExcaliburSqlServerOptions();
 		configure(options);
 
+		return RegisterSqlServerServices(services, options);
+	}
+
+	/// <summary>
+	/// Adds the complete Excalibur SQL Server stack using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configuration"/> is <see langword="null"/>.</exception>
+	public static IServiceCollection AddExcaliburSqlServer(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var options = new ExcaliburSqlServerOptions();
+		configuration.Bind(options);
+
+		return RegisterSqlServerServices(services, options);
+	}
+
+	private static IServiceCollection RegisterSqlServerServices(
+		IServiceCollection services,
+		ExcaliburSqlServerOptions options)
+	{
 		// Core: Dispatch + EventSourcing + Outbox + Hosting (via starter metapackage)
 		_ = services.AddDispatchWithSqlServer(options.ConnectionString, options.DispatchConfiguration);
 

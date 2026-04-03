@@ -27,7 +27,11 @@ public static class SqlServerDataInventoryStoreServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
+		_ = services.AddOptions<SqlServerDataInventoryStoreOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
 		services.TryAddSingleton<SqlServerDataInventoryStore>();
 		services.TryAddSingleton<IDataInventoryStore>(sp => sp.GetRequiredService<SqlServerDataInventoryStore>());
 		services.TryAddSingleton<IDataInventoryQueryStore>(sp => sp.GetRequiredService<SqlServerDataInventoryStore>());

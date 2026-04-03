@@ -78,14 +78,6 @@ const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLostLe
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerRenewalError = 184006 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStarting = 184000 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStopping = 184001 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.ActivitySourceName = "Excalibur.LeaderElection" -> string!
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.MeterName = "Excalibur.LeaderElection" -> string!
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.MetricNames.Acquisitions = "excalibur.leaderelection.acquisitions" -> string!
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.MetricNames.IsLeader = "excalibur.leaderelection.is_leader" -> string!
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.MetricNames.LeaseDuration = "excalibur.leaderelection.lease_duration" -> string!
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.TagNames.Instance = "excalibur.leaderelection.instance" -> string!
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.TagNames.Provider = "excalibur.leaderelection.provider" -> string!
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.TagNames.Result = "excalibur.leaderelection.result" -> string!
 Excalibur.Dispatch.LeaderElection.CandidateHealth (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateHealth() -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateId.get -> string! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
@@ -146,9 +138,6 @@ Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.RetryInterval.set -> voi
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.StepDownWhenUnhealthy.get -> bool (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.StepDownWhenUnhealthy.set -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId
-Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants
-Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.MetricNames
-Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.TagNames
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.CandidateId.get -> string!
@@ -191,25 +180,23 @@ Excalibur.LeaderElection.Watch.LeaderWatchOptions.IncludeHeartbeats.set -> void
 Excalibur.LeaderElection.Watch.LeaderWatchOptions.LeaderWatchOptions() -> void
 Excalibur.LeaderElection.Watch.LeaderWatchOptions.PollInterval.get -> System.TimeSpan
 Excalibur.LeaderElection.Watch.LeaderWatchOptions.PollInterval.set -> void
-Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers
 Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtensions
-Microsoft.Extensions.DependencyInjection.LeaderElectionHealthCheckExtensions
+Microsoft.Extensions.DependencyInjection.LeaderElectionHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers.AddLeaderElection<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers.AddLeaderElectionFactory<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers.AddLeaderElectionHealthCheck(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers.AddLeaderElectionTelemetry(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithFencingTokens(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithHealthChecks(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithOptions(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtensions.AddLeaderElection(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>? configure = null) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
-static Microsoft.Extensions.DependencyInjection.LeaderElectionHealthCheckExtensions.AddLeaderElectionHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "leader-election", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.LeaderElectionHealthChecksBuilderExtensions.AddLeaderElectionHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "leader-election", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Watch.LeaderWatchOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.LeaderElection.LeaderElectionOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtensions.AddLeaderElection(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

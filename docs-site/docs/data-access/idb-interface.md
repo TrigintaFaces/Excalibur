@@ -405,6 +405,81 @@ public async Task<IEnumerable<Order>> ExecuteManuallyAsync(
 }
 ```
 
+## IDataRequestResolver (Lightweight Query Execution)
+
+For simple scenarios like CQRS read-side queries, serverless functions, or ad-hoc reporting where you need to run a single query without standing up a full `IDb` or `IPersistenceProvider`, use `IDataRequestResolver<TConnection>`:
+
+```csharp
+public interface IDataRequestResolver<TConnection>
+{
+    Task<TModel> QueryAsync<TModel>(
+        IDataRequest<TConnection, TModel> request,
+        CancellationToken cancellationToken);
+
+    Task ExecuteAsync(
+        IDataRequest<TConnection, int> request,
+        CancellationToken cancellationToken);
+}
+```
+
+Method naming follows the Dapper convention:
+- **`QueryAsync`** — returns a result (SELECT, scalar)
+- **`ExecuteAsync`** — performs a side effect (INSERT, UPDATE, DELETE)
+
+The resolver handles connection lifecycle automatically: it creates, opens, and disposes a connection per call.
+
+### SQL Server Registration
+
+Install `Excalibur.Data.SqlServer` and register via DI:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+// Register with a connection string
+services.AddSqlDataRequestResolver("Server=.;Database=MyDb;Trusted_Connection=true");
+
+// Or with a connection factory for advanced scenarios
+services.AddSqlDataRequestResolver(() => new SqlConnection(connectionString));
+
+// Keyed registration for multiple databases
+services.AddSqlDataRequestResolver("reporting", reportingConnectionString);
+services.AddSqlDataRequestResolver("operational", operationalConnectionString);
+```
+
+### Usage
+
+```csharp
+public class OrderQueryService
+{
+    private readonly IDataRequestResolver<SqlConnection> _resolver;
+
+    public OrderQueryService(IDataRequestResolver<SqlConnection> resolver)
+        => _resolver = resolver;
+
+    public Task<Order?> GetOrderAsync(Guid orderId, CancellationToken ct)
+    {
+        var request = new GetOrderByIdRequest(orderId, ct);
+        return _resolver.QueryAsync(request, ct);
+    }
+
+    public Task<int> CreateOrderAsync(Order order, CancellationToken ct)
+    {
+        var request = new CreateOrderRequest(order, ct);
+        return _resolver.QueryAsync(request, ct);
+    }
+}
+```
+
+### When to Use IDataRequestResolver vs IDb
+
+| Scenario | Use |
+|----------|-----|
+| Single query, no transaction needed | `IDataRequestResolver` |
+| Multiple queries in a transaction | `IDb` + `IUnitOfWork` |
+| Full persistence with event sourcing | `IPersistenceProvider` |
+| Serverless / Azure Functions | `IDataRequestResolver` (connection-per-call) |
+| Background processing with connection pooling | `IDb` |
+
 ## Multi-Mapping (Joins)
 
 Dapper's multi-mapping maps joined tables to related objects:

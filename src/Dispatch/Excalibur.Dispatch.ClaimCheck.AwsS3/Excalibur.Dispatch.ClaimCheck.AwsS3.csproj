@@ -4,13 +4,16 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>AWS S3 Claim Check provider for large-message handling in the Excalibur framework.</Description>
     <PackageTags>dispatch;claimcheck;aws;s3;large-messages</PackageTags>
+    <!-- AOT: NOT compatible. AWSSDK.S3 uses reflection for request/response serialization. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
   </ItemGroup>
   <ItemGroup>

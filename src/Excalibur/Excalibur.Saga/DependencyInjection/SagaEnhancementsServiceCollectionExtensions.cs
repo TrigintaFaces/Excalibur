@@ -9,6 +9,7 @@ using Excalibur.Saga.Inspection;
 using Excalibur.Saga.Reminders;
 using Excalibur.Saga.Snapshots;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -112,6 +113,27 @@ public static class SagaEnhancementsServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds saga reminder services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSagaReminders(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SagaReminderOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds saga state snapshot services with default options.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -136,6 +158,27 @@ public static class SagaEnhancementsServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaSnapshotOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds saga state snapshot services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSagaSnapshots(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SagaSnapshotOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
@@ -183,6 +226,29 @@ public static class SagaEnhancementsServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaTimeoutCleanupOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = services.AddHostedService<SagaTimeoutCleanupService>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the saga timeout cleanup background service using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddSagaTimeoutCleanup(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SagaTimeoutCleanupOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

@@ -5,6 +5,7 @@ using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.Provisioning;
 using Excalibur.A3.Governance.Stores.InMemory;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -57,6 +58,40 @@ public static class ProvisioningGovernanceBuilderExtensions
 		jitOptionsBuilder.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		return builder.AddProvisioningCore();
+	}
+
+	/// <summary>
+	/// Adds provisioning workflow services using <see cref="IConfiguration"/> sections.
+	/// </summary>
+	/// <param name="builder">The governance builder.</param>
+	/// <param name="provisioningConfiguration">The configuration section to bind to <see cref="ProvisioningOptions"/>.</param>
+	/// <param name="jitConfiguration">The configuration section to bind to <see cref="JitAccessOptions"/>.</param>
+	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
+	public static IGovernanceBuilder AddProvisioning(
+		this IGovernanceBuilder builder,
+		IConfiguration provisioningConfiguration,
+		IConfiguration jitConfiguration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(provisioningConfiguration);
+		ArgumentNullException.ThrowIfNull(jitConfiguration);
+
+		_ = builder.Services.AddOptions<ProvisioningOptions>()
+			.Bind(provisioningConfiguration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		_ = builder.Services.AddOptions<JitAccessOptions>()
+			.Bind(jitConfiguration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.AddProvisioningCore();
+	}
+
+	private static IGovernanceBuilder AddProvisioningCore(this IGovernanceBuilder builder)
+	{
 		// Cross-property validator
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<

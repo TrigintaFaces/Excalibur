@@ -135,6 +135,8 @@ public sealed class MessageTypeSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine(" ];");
 		_ = sb.AppendLine();
 
+		_ = sb.AppendLine(" [UnconditionalSuppressMessage(\"ReflectionAnalysis\", \"IL2062:UnrecognizedReflectionPattern\",");
+		_ = sb.AppendLine("  Justification = \"Types are statically known at compile time via source generator and preserved in the PreservedMessageTypes array\")]");
 		_ = sb.AppendLine(" [UnconditionalSuppressMessage(\"ReflectionAnalysis\", \"IL2072:UnrecognizedReflectionPattern\",");
 		_ = sb.AppendLine("  Justification = \"Types are preserved at compile time by source generator\")]");
 		_ = sb.AppendLine(" static GeneratedMessageTypeRegistrations()");

@@ -50,7 +50,7 @@ public interface IHandlerRegistry
 	/// processing scenarios. The returned entry contains all metadata needed for handler activation and invocation, including response
 	/// expectations and handler type information.
 	/// </remarks>
-	bool TryGetHandler(Type messageType, out HandlerRegistryEntry entry);
+	bool TryGetHandler(Type messageType, out IHandlerRegistryEntry entry);
 
 	/// <summary>
 	/// Retrieves all handler registrations currently maintained by the registry. This method is primarily used for diagnostics,
@@ -70,5 +70,5 @@ public interface IHandlerRegistry
 	/// </para>
 	/// <para>Changes to the registry after calling this method are not reflected in the returned collection.</para>
 	/// </remarks>
-	IReadOnlyList<HandlerRegistryEntry> GetAll();
+	IReadOnlyList<IHandlerRegistryEntry> GetAll();
 }

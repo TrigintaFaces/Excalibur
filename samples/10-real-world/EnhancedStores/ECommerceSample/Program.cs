@@ -5,7 +5,6 @@ using System.Security.Cryptography;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Delivery;
-using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Examples.EnhancedStores.ECommerceSample.Infrastructure;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -185,15 +184,15 @@ public static class Program
 	{
 		_ = services.AddOpenTelemetry()
 			.WithTracing(static builder => builder
-				.AddSource(DispatchTelemetryConstants.ActivitySources.Core)
-				.AddSource(DispatchTelemetryConstants.ActivitySources.Pipeline)
-				.AddSource(DispatchTelemetryConstants.ActivitySources.TimePolicy)
+				.AddSource("Excalibur.Dispatch.Core")
+				.AddSource("Excalibur.Dispatch.Pipeline")
+				.AddSource("Excalibur.Dispatch.TimePolicy")
 				.AddSource("ECommerce.OrderProcessing")
 				.AddConsoleExporter())
 			.WithMetrics(static builder => builder
-				.AddMeter(DispatchTelemetryConstants.Meters.Core)
-				.AddMeter(DispatchTelemetryConstants.Meters.Pipeline)
-				.AddMeter(DispatchTelemetryConstants.Meters.TimePolicy)
+				.AddMeter("Excalibur.Dispatch.Core")
+				.AddMeter("Excalibur.Dispatch.Pipeline")
+				.AddMeter("Excalibur.Dispatch.TimePolicy")
 				.AddMeter("ECommerce.OrderProcessing"));
 
 		// Add health checks

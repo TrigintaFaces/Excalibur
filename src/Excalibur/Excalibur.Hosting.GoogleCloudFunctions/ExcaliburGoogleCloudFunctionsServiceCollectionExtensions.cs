@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -48,6 +50,28 @@ public static class ExcaliburGoogleCloudFunctionsServiceCollectionExtensions
 
 		_ = services.AddExcaliburGoogleCloudFunctionsServerless();
 		_ = services.Configure(configureOptions);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds Excalibur Google Cloud Functions serverless hosting services to the specified service collection
+	/// using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services"> The service collection to add services to. </param>
+	/// <param name="configuration"> The configuration section to bind options from. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
+	public static IServiceCollection AddExcaliburGoogleCloudFunctionsServerless(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddExcaliburGoogleCloudFunctionsServerless();
+		_ = services.AddOptions<ServerlessHostOptions>()
+			.Bind(configuration);
 
 		return services;
 	}

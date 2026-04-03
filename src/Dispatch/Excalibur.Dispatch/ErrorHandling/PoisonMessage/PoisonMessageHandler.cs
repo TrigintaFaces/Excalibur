@@ -26,7 +26,6 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// </summary>
 public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDisposable
 {
-	private static readonly JsonSerializerOptions ExceptionSerializerOptions = new() { WriteIndented = true };
 	private static readonly string[] AllowedContextKeys = ["Environment", "Version", "Component", "Feature"];
 
 	private volatile bool _disposed;
@@ -329,28 +328,32 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 	/// <summary>
 	/// Serializes exception details for storage.
 	/// </summary>
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private static string SerializeException(Exception exception)
 	{
-		var exceptionData = new
+		var exceptionData = new PoisonExceptionInfo
 		{
 			Type = exception.GetType().FullName,
-			exception.Message,
-			exception.StackTrace,
+			Message = exception.Message,
+			StackTrace = exception.StackTrace,
 			InnerException =
 				exception.InnerException != null
-					? new
+					? new PoisonExceptionInfo
 					{
 						Type = exception.InnerException.GetType().FullName,
-						exception.InnerException.Message,
-						exception.InnerException.StackTrace,
+						Message = exception.InnerException.Message,
+						StackTrace = exception.InnerException.StackTrace,
 					}
 					: null,
-			Data = exception.Data.Count > 0 ? exception.Data : null,
+			Data = exception.Data.Count > 0
+				? exception.Data.Cast<System.Collections.DictionaryEntry>()
+					.ToDictionary(
+						e => e.Key.ToString() ?? string.Empty,
+						e => e.Value?.ToString(),
+						StringComparer.Ordinal)
+				: null,
 		};
 
-		return JsonSerializer.Serialize(exceptionData, ExceptionSerializerOptions);
+		return JsonSerializer.Serialize(exceptionData, Serialization.DispatchJsonContext.Default.PoisonExceptionInfo);
 	}
 
 	/// <summary>

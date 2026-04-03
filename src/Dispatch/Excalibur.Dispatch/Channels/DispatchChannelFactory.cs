@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Channels;
 /// <summary>
 /// Non-generic factory class for creating high-performance channels.
 /// </summary>
-public static class DispatchChannelFactory
+internal static class DispatchChannelFactory
 {
 	/// <summary>
 	/// Creates an unbounded high-performance channel.

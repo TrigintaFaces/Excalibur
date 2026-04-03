@@ -17,3 +17,4 @@ Excalibur.Jobs.Azure.AzureLogicAppsOptions.Tags.get -> System.Collections.Generi
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.Tags.set -> void
 Microsoft.Extensions.DependencyInjection.AzureJobsServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.AzureJobsServiceCollectionExtensions.AddAzureLogicApps(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Jobs.Azure.AzureLogicAppsOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureJobsServiceCollectionExtensions.AddAzureLogicApps(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

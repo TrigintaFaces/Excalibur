@@ -35,4 +35,5 @@ Excalibur.Dispatch.AuditLogging.Sentinel.SentinelExporterOptions.Timeout.set -> 
 Excalibur.Dispatch.AuditLogging.Sentinel.SentinelExporterOptions.WorkspaceId.get -> string!
 Excalibur.Dispatch.AuditLogging.Sentinel.SentinelExporterOptions.WorkspaceId.set -> void
 Microsoft.Extensions.DependencyInjection.SentinelServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.SentinelServiceCollectionExtensions.AddSentinelAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SentinelServiceCollectionExtensions.AddSentinelAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Sentinel.SentinelExporterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -33,7 +33,7 @@ public static class PubSubStreamingPullServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		// Register options
-		_ = services.Configure<StreamingPullOptions>(configuration);
+		_ = services.AddOptions<StreamingPullOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
 
 		// Register cross-property validator
 		services.TryAddEnumerable(

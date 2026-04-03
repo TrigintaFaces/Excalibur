@@ -248,18 +248,23 @@ services.AddDispatch(dispatch =>
 
 ## Serialization Considerations
 
-All transports use the same serialization layer. The default is MemoryPack for maximum .NET performance, but if your consumers include non-.NET services, switch to a cross-platform format:
+All transports use the same serialization layer. The default is JSON (System.Text.Json) which works out of the box with any POCO type. For high-throughput .NET-only scenarios, switch to a binary format:
 
 | Scenario | Recommended Serializer |
 |----------|----------------------|
-| .NET-only consumers | MemoryPack (default) |
+| General purpose | System.Text.Json (default) |
+| .NET-only, max performance | MemoryPack (opt-in) |
 | Mixed language consumers | System.Text.Json or Protobuf |
 | Maximum compactness | MessagePack |
 | Schema evolution needed | Protobuf |
 
 ```csharp
-// Switch to JSON for cross-language compatibility
-services.AddJsonSerialization();
+// Switch to MemoryPack for .NET-only maximum performance
+services.AddDispatch(dispatch => dispatch.WithSerialization(config =>
+{
+    config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
+    config.UseMemoryPack();
+}));
 
 // Or MessagePack for compact binary
 services.AddMessagePackSerialization();

@@ -18,7 +18,9 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// <param name="messageType"> The type of message that this handler can process. </param>
 /// <param name="handlerType"> The type of the handler implementation that processes the message. </param>
 /// <param name="expectsResponse"> Indicates whether this handler returns a response after processing. </param>
-public sealed class HandlerRegistryEntry(Type messageType, Type handlerType, bool expectsResponse)
+[UnconditionalSuppressMessage("Trimming", "IL2069",
+	Justification = "Handler types are registered at startup via DI and preserved by the container. The handlerType parameter flows from known handler registrations.")]
+internal sealed class HandlerRegistryEntry(Type messageType, Type handlerType, bool expectsResponse) : IHandlerRegistryEntry
 {
 	/// <summary>
 	/// Gets the type of message that this handler can process. This type is used for message routing and handler resolution during dispatch operations.
@@ -28,7 +30,6 @@ public sealed class HandlerRegistryEntry(Type messageType, Type handlerType, boo
 	/// The message type serves as the primary key for handler lookup during message processing. It must match the generic type parameter of
 	/// the handler implementation to ensure type safety during handler invocation.
 	/// </remarks>
-	/// <value>The current <see cref="MessageType"/> value.</value>
 	public Type MessageType { get; } = messageType;
 
 	/// <summary>
@@ -41,9 +42,7 @@ public sealed class HandlerRegistryEntry(Type messageType, Type handlerType, boo
 	/// dependency injection container for successful activation. This type information enables the framework to instantiate the correct
 	/// handler at runtime. DynamicallyAccessedMembers annotation preserves PublicProperties for reflection-based context injection.
 	/// </remarks>
-	/// <value>The current <see cref="HandlerType"/> value.</value>
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
-	[UnconditionalSuppressMessage("Trimming", "IL2069", Justification = "Handler types are registered via DI and preserved by the container")]
 	public Type HandlerType { get; } = handlerType;
 
 	/// <summary>
@@ -56,6 +55,5 @@ public sealed class HandlerRegistryEntry(Type messageType, Type handlerType, boo
 	/// properly awaited and returned for query operations while allowing fire-and-forget behavior for command operations. This supports the
 	/// CQRS architectural pattern implementation within the messaging framework.
 	/// </remarks>
-	/// <value>The current <see cref="ExpectsResponse"/> value.</value>
 	public bool ExpectsResponse { get; } = expectsResponse;
 }

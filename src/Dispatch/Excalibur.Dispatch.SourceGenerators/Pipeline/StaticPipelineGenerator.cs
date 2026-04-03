@@ -348,6 +348,7 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine();
 
 		_ = sb.AppendLine("using System;");
+		_ = sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
 		_ = sb.AppendLine("using System.Runtime.CompilerServices;");
 		_ = sb.AppendLine("using System.Threading;");
 		_ = sb.AppendLine("using System.Threading.Tasks;");
@@ -453,6 +454,11 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		// InterceptsLocation attribute
 		_ = sb.AppendLine($"        {callSite.InterceptableLocationData}");
 
+		// Suppress AOT warnings -- static pipelines call through Dispatcher which uses reflection-based
+		// handler resolution. The DI entry point (AddDispatchPipeline) already suppresses these warnings.
+		_ = sb.AppendLine("        [UnconditionalSuppressMessage(\"AOT\", \"IL2026:RequiresUnreferencedCode\", Justification = \"Static pipelines call Dispatcher.DispatchAsync which is suppressed at DI entry point AddDispatchPipeline.\")]");
+		_ = sb.AppendLine("        [UnconditionalSuppressMessage(\"AOT\", \"IL3050:RequiresDynamicCode\", Justification = \"Static pipelines call Dispatcher.DispatchAsync which is suppressed at DI entry point AddDispatchPipeline.\")]");
+
 		// Method signature
 		if (callSite.HasResult && callSite.ResultTypeFullName != null)
 		{
@@ -509,11 +515,11 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("                // PERF-23: Pipeline-level exception handling");
 		if (callSite.HasResult && callSite.ResultTypeFullName != null)
 		{
-			_ = sb.AppendLine($"                return Excalibur.Dispatch.Abstractions.MessageResult<{callSite.ResultTypeFullName}>.Exception(ex);");
+			_ = sb.AppendLine($"                return Excalibur.Dispatch.Abstractions.MessageResult.Failed<{callSite.ResultTypeFullName}>(ex.ToString());");
 		}
 		else
 		{
-			_ = sb.AppendLine("                return Excalibur.Dispatch.Abstractions.MessageResult.Exception(ex);");
+			_ = sb.AppendLine("                return Excalibur.Dispatch.Abstractions.MessageResult.Failed(ex.ToString());");
 		}
 		_ = sb.AppendLine("            }");
 		_ = sb.AppendLine("        }");

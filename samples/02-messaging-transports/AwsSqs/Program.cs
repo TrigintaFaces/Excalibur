@@ -24,7 +24,6 @@ using Amazon.SQS;
 
 using AwsSqsSample.Messages;
 
-using Excalibur.Inbox.InMemory;
 using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
@@ -71,7 +70,7 @@ builder.Services.AddDispatch(dispatch =>
 // The outbox pattern ensures messages are persisted before sending,
 // providing at-least-once delivery guarantees.
 builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 

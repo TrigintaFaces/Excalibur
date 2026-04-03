@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.AuditLogging.Postgres;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -32,9 +33,38 @@ public static class PostgresAuditServiceCollectionExtensions
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
-		services.TryAddSingleton<PostgresAuditStore>();
-		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<PostgresAuditStore>());
+		RegisterPostgresAuditStoreCore(services);
 
 		return services;
+	}
+
+	/// <summary>
+	/// Adds Postgres audit logging services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="PostgresAuditOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+	public static IServiceCollection AddPostgresAuditStore(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<PostgresAuditOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		RegisterPostgresAuditStoreCore(services);
+
+		return services;
+	}
+
+	private static void RegisterPostgresAuditStoreCore(IServiceCollection services)
+	{
+		services.TryAddSingleton<PostgresAuditStore>();
+		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<PostgresAuditStore>());
 	}
 }

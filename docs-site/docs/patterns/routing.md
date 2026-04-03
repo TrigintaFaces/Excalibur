@@ -380,7 +380,7 @@ var result = await dispatcher.DispatchAsync(message, ct);
 
 ### When a Transport Name Isn't Registered
 
-If routing selects `"kafka"` but no `AddKafkaTransport("kafka", ...)` was called, `TransportRegistry` throws:
+If routing selects `"kafka"` but no `AddKafkaTransport("kafka", ...)` was called, the transport registry throws:
 
 ```
 InvalidOperationException: Cannot set default transport to 'kafka': transport is not registered.

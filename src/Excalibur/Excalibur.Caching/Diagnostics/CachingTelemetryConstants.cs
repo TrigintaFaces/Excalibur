@@ -8,7 +8,7 @@ namespace Excalibur.Caching.Diagnostics;
 /// All caching components MUST use these constants for Meter and ActivitySource names
 /// to ensure a single, consolidated telemetry surface.
 /// </summary>
-public static class CachingTelemetryConstants
+internal static class CachingTelemetryConstants
 {
 	/// <summary>
 	/// The shared Meter name for all Excalibur.Caching telemetry.

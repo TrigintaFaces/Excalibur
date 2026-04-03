@@ -16,6 +16,7 @@ using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 using Excalibur.EventSourcing.SqlServer.Outbox;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -96,6 +97,35 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds SQL Server event store implementation using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddSqlServerEventStore(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var options = new SqlServerEventStoreOptions();
+		configuration.Bind(options);
+
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			throw new InvalidOperationException(
+				"ConnectionString must be configured for SQL Server event store. " +
+				"Set SqlServerEventStoreOptions:ConnectionString in configuration.");
+		}
+
+		return services.AddSqlServerEventStore(
+			() => new SqlConnection(options.ConnectionString),
+			options.Schema,
+			options.Table);
+	}
+
+	/// <summary>
 	/// Adds SQL Server snapshot store implementation with a connection factory.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -148,6 +178,35 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 			throw new InvalidOperationException(
 				"ConnectionString must be configured for SQL Server snapshot store. " +
 				"Set SqlServerSnapshotStoreOptions.ConnectionString.");
+		}
+
+		return services.AddSqlServerSnapshotStore(
+			() => new SqlConnection(options.ConnectionString),
+			options.Schema,
+			options.Table);
+	}
+
+	/// <summary>
+	/// Adds SQL Server snapshot store implementation using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddSqlServerSnapshotStore(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var options = new SqlServerSnapshotStoreOptions();
+		configuration.Bind(options);
+
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			throw new InvalidOperationException(
+				"ConnectionString must be configured for SQL Server snapshot store. " +
+				"Set SqlServerSnapshotStoreOptions:ConnectionString in configuration.");
 		}
 
 		return services.AddSqlServerSnapshotStore(
@@ -223,6 +282,62 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		}
 
 		_ = services.Configure(configure);
+
+		// Register subscription polling options validator for SQL injection prevention
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SubscriptionPollingOptions>, SubscriptionPollingOptionsValidator>());
+
+		// Register stores using connection factory from resolved connection string
+		Func<SqlConnection> connectionFactory = () => new SqlConnection(options.ConnectionString);
+		_ = services.AddSqlServerEventStore(connectionFactory, options.EventStoreSchema, options.EventStoreTable);
+		_ = services.AddSqlServerSnapshotStore(connectionFactory, options.SnapshotStoreSchema, options.SnapshotStoreTable);
+		_ = services.AddSqlServerOutboxStore(connectionFactory, options.OutboxSchema, options.OutboxTable);
+
+		// Register health checks if enabled
+		if (options.HealthChecks.RegisterHealthChecks)
+		{
+			_ = services.AddHealthChecks()
+				.AddSqlServer(
+					options.ConnectionString,
+					name: options.HealthChecks.EventStoreHealthCheckName,
+					tags: ["eventstore", "sqlserver", "eventsourcing"])
+				.AddSqlServer(
+					options.ConnectionString,
+					name: options.HealthChecks.SnapshotStoreHealthCheckName,
+					tags: ["snapshotstore", "sqlserver", "eventsourcing"])
+				.AddSqlServer(
+					options.ConnectionString,
+					name: options.HealthChecks.OutboxStoreHealthCheckName,
+					tags: ["outbox", "sqlserver", "eventsourcing"]);
+		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds all SQL Server event sourcing implementations using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind options from.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddSqlServerEventSourcing(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		var options = new SqlServerEventSourcingOptions();
+		configuration.Bind(options);
+
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			throw new InvalidOperationException(
+				"ConnectionString must be configured for SQL Server event sourcing. " +
+				"Set SqlServerEventSourcingOptions:ConnectionString in configuration or use the connection factory overloads.");
+		}
+
+		_ = services.AddOptions<SqlServerEventSourcingOptions>()
+			.Bind(configuration);
 
 		// Register subscription polling options validator for SQL injection prevention
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SubscriptionPollingOptions>, SubscriptionPollingOptionsValidator>());

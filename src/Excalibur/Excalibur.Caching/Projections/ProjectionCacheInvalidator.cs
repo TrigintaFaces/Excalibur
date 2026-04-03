@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Caching.Diagnostics;
 using Excalibur.Dispatch.Caching;
@@ -130,16 +131,11 @@ public sealed partial class ProjectionCacheInvalidator(
 		}
 		else if (ResolverTypeCache.Count >= MaxCacheEntries)
 		{
-			var rt = typeof(IProjectionTagResolver<>).MakeGenericType(type);
-			resolverInfo = (rt, rt.GetMethod(GetTagsMethodName));
+			resolverInfo = BuildResolverInfo(type);
 		}
 		else
 		{
-			resolverInfo = ResolverTypeCache.GetOrAdd(type, static t =>
-			{
-				var rt = typeof(IProjectionTagResolver<>).MakeGenericType(t);
-				return (rt, rt.GetMethod(GetTagsMethodName));
-			});
+			resolverInfo = ResolverTypeCache.GetOrAdd(type, static t => BuildResolverInfo(t));
 		}
 
 		var resolver = services.GetService(resolverInfo.ResolverType);
@@ -205,6 +201,33 @@ public sealed partial class ProjectionCacheInvalidator(
 		}
 
 		return fallbackTags;
+	}
+
+	/// <summary>
+	/// Builds resolver type info using AOT-safe registry lookup when available,
+	/// falling back to MakeGenericType in JIT environments.
+	/// </summary>
+	[RequiresDynamicCode("Falls back to MakeGenericType in JIT environments")]
+	[UnconditionalSuppressMessage("Trimming", "IL2075:Type.MakeGenericType may break with trimming",
+		Justification = "Only used in JIT path; AOT path uses pre-registered types")]
+	private static (Type ResolverType, MethodInfo? GetTagsMethod) BuildResolverInfo(Type messageType)
+	{
+		// AOT path: Use pre-registered resolver type from static registry
+		var preRegistered = ProjectionResolverTypeRegistry.GetResolverType(messageType);
+		if (preRegistered is not null)
+		{
+			return (preRegistered, preRegistered.GetMethod(GetTagsMethodName));
+		}
+
+		// JIT path: Use MakeGenericType
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			// No resolver registered and AOT -- skip resolver strategy
+			return (typeof(object), null);
+		}
+
+		var rt = typeof(IProjectionTagResolver<>).MakeGenericType(messageType);
+		return (rt, rt.GetMethod(GetTagsMethodName));
 	}
 
 	// Source-generated logging methods

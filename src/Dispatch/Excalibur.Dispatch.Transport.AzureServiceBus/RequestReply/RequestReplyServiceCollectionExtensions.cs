@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Transport.Azure;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -63,6 +65,36 @@ public static class RequestReplyServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds the Azure Service Bus request/reply client using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <typeparam name="TImplementation">
+	/// The concrete type implementing <see cref="IRequestReplyClient"/>.
+	/// </typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RequestReplyOptions"/>.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
+	/// </exception>
+	public static IServiceCollection AddAzureServiceBusRequestReply<TImplementation>(
+		this IServiceCollection services,
+		IConfiguration configuration)
+		where TImplementation : class, IRequestReplyClient
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<RequestReplyOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.AddSingleton<IRequestReplyClient, TImplementation>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds the Azure Service Bus request/reply client using a factory delegate.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -83,6 +115,35 @@ public static class RequestReplyServiceCollectionExtensions
 
 		_ = services.AddOptions<RequestReplyOptions>()
 			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.AddSingleton(factory);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the Azure Service Bus request/reply client using an <see cref="IConfiguration"/> section and a factory delegate.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="RequestReplyOptions"/>.</param>
+	/// <param name="factory">The factory delegate that creates the request/reply client instance.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/>, <paramref name="configuration"/>, or <paramref name="factory"/> is null.
+	/// </exception>
+	public static IServiceCollection AddAzureServiceBusRequestReply(
+		this IServiceCollection services,
+		IConfiguration configuration,
+		Func<IServiceProvider, IRequestReplyClient> factory)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentNullException.ThrowIfNull(factory);
+
+		_ = services.AddOptions<RequestReplyOptions>()
+			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 

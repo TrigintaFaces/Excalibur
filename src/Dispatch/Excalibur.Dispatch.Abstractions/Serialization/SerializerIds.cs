@@ -35,11 +35,11 @@ public static class SerializerIds
 	// ===== Built-in Serializers (Framework-Assigned) =====
 
 	/// <summary>
-	/// MemoryPack - High-performance binary serializer (default).
+	/// MemoryPack - High-performance binary serializer (opt-in).
 	/// </summary>
 	/// <remarks>
 	/// MemoryPack provides the fastest serialization for .NET-only environments.
-	/// This is the default serializer when no explicit configuration is provided.
+	/// Opt-in via provider package; JSON (System.Text.Json) is the default (ADR-295).
 	/// </remarks>
 	public const byte MemoryPack = 1;
 

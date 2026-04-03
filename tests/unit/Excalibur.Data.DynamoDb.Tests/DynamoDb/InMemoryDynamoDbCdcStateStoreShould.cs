@@ -330,10 +330,10 @@ public sealed class InMemoryDynamoDbCdcStateStoreShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public void IsPublic()
+	public void BeInternal()
 	{
 		// Assert
-		typeof(InMemoryDynamoDbCdcStateStore).IsPublic.ShouldBeTrue();
+		typeof(InMemoryDynamoDbCdcStateStore).IsPublic.ShouldBeFalse();
 	}
 
 	#endregion

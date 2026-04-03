@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// This implementation stores all data in memory and is NOT suitable for production use.
 /// Data is lost when the application restarts.
 /// </remarks>
-public sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryStore
+internal sealed class InMemoryLegalHoldStore : ILegalHoldStore, ILegalHoldQueryStore
 {
 	private readonly ConcurrentDictionary<Guid, LegalHold> _holds = new();
 

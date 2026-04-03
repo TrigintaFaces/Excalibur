@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Exceptions;
 /// <summary>
 /// Factory for creating standardized exceptions with consistent error codes and messages.
 /// </summary>
-public static class ExceptionFactory
+internal static class ExceptionFactory
 {
 	/// <summary>
 	/// Creates a configuration exception.

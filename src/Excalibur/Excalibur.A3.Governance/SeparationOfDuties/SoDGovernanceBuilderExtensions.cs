@@ -6,6 +6,7 @@ using Excalibur.A3.Governance.SeparationOfDuties;
 using Excalibur.A3.Governance.Stores.InMemory;
 using Excalibur.Dispatch.Abstractions;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -52,6 +53,32 @@ public static class SoDGovernanceBuilderExtensions
 		optionsBuilder.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		return builder.AddSeparationOfDutiesCore();
+	}
+
+	/// <summary>
+	/// Adds Separation of Duties services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="builder">The governance builder.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="SoDOptions"/>.</param>
+	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
+	public static IGovernanceBuilder AddSeparationOfDuties(
+		this IGovernanceBuilder builder,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = builder.Services.AddOptions<SoDOptions>()
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		return builder.AddSeparationOfDutiesCore();
+	}
+
+	private static IGovernanceBuilder AddSeparationOfDutiesCore(this IGovernanceBuilder builder)
+	{
 		// Fallback in-memory store (overridable)
 		builder.Services.TryAddSingleton<ISoDPolicyStore, InMemorySoDPolicyStore>();
 

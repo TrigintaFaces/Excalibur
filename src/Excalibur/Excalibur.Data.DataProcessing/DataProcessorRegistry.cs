@@ -13,7 +13,7 @@ namespace Excalibur.Data.DataProcessing;
 /// <summary>
 /// A registry for managing and retrieving <see cref="IDataProcessor" /> implementations based on their associated record types.
 /// </summary>
-public sealed class DataProcessorRegistry : IDataProcessorRegistry
+internal sealed class DataProcessorRegistry : IDataProcessorRegistry
 {
 	private readonly Dictionary<string, Func<IServiceProvider, IDataProcessor>> _factories;
 
