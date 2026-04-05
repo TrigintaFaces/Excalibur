@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.RateLimiting;
 /// <summary>
 /// Unit tests for <see cref="RateLimitKeyPrefixes"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "RateLimiting")]
 public sealed class RateLimitKeyPrefixesShould
 {

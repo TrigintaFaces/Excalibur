@@ -130,10 +130,10 @@ Middleware executes in defined stages for consistent ordering:
 | `Cache` | 400 | Response caching |
 | `Optimization` | 450 | Batching, bulk operations |
 | `Routing` | 500 | Message routing |
+| `Deduplication` | 599 | Deduplication and idempotency checks |
 | `Processing` | 600 | Handler execution |
 | `PostProcessing` | 700 | Result processing |
-| `Error` | 800 | Exception handling |
-| `ErrorHandling` | 801 | Exception handling (alias) |
+| `ErrorHandling` | 800 | Error handling and compensation |
 | `End` | 1000 | Pipeline final stage |
 
 ### Stage Assignment

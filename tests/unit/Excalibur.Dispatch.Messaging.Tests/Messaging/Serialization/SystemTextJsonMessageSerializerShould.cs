@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 /// <summary>
 /// Unit tests for SystemTextJsonSerializer covering JSON serialization scenarios.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 {

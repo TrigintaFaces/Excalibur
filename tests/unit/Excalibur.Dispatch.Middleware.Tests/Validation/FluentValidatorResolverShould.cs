@@ -11,8 +11,8 @@ using DispatchValidationError = Excalibur.Dispatch.Abstractions.Validation.Valid
 
 namespace Excalibur.Dispatch.Middleware.Tests.Validation;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FluentValidatorResolverShould
 {
 	#region Test Messages

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Transport.Builders;
 /// Part of S473.2 - AddRabbitMQTransport single entry point (Sprint 473).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class RabbitMQTransportBuilderShould : UnitTestBase
 {

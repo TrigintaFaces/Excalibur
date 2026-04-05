@@ -3,7 +3,10 @@
 
 
 using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -13,37 +16,49 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class MemoryPackSerializationServiceCollectionExtensions
 {
 	/// <summary>
-	/// Gets the MemoryPack pluggable serializer singleton instance for use with <see cref="ISerializerRegistry"/>.
+	/// Adds MemoryPack as the binary serializer for internal persistence (Outbox, Inbox, Event Store).
 	/// </summary>
-	/// <returns>The MemoryPack pluggable serializer instance.</returns>
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The service collection for method chaining. </returns>
 	/// <remarks>
 	/// <para>
-	/// This method provides access to the <see cref="MemoryPackSerializer"/> for manual registration
-	/// with the serializer registry. Use this when you need to register the serializer directly.
+	/// This is the single entry point for opting into MemoryPack. It registers:
 	/// </para>
-	/// <para>
-	/// <b>Serializer ID:</b> <see cref="SerializerIds.MemoryPack"/> (1)
-	/// </para>
+	/// <list type="bullet">
+	/// <item><description><see cref="ISerializer"/> — MemoryPack serializer singleton.</description></item>
+	/// <item><description><see cref="IBinaryEnvelopeDeserializer"/> — Binary envelope support for inbox/outbox processors.</description></item>
+	/// <item><description>Serializer registry — MemoryPack registered with ID <see cref="SerializerIds.MemoryPack"/> and set as current.</description></item>
+	/// </list>
 	/// <para>
 	/// <b>Usage:</b>
 	/// </para>
 	/// <code>
-	/// // Register MemoryPack via the builder pattern (opt-in, replaces JSON default)
-	/// services.AddDispatch(dispatch =>
-	///     dispatch.WithSerialization(config =>
-	///     {
-	///         config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
-	///         config.UseMemoryPack();
-	///     }));
+	/// services.AddMemoryPackSerializer();
 	/// </code>
 	/// <para>
 	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer (ADR-295).
-	/// MemoryPack is opt-in for high-performance binary serialization in .NET-only environments.
-	/// Register it explicitly via this method when needed.
-	/// </para>
-	/// <para>
-	/// See the pluggable serialization architecture documentation.
+	/// Call this method to opt into MemoryPack for high-performance binary serialization
+	/// in .NET-only environments. Consumer event types do not need <c>[MemoryPackable]</c> —
+	/// only the internal envelope wrapper uses MemoryPack attributes.
 	/// </para>
 	/// </remarks>
-	public static ISerializer GetPluggableSerializer() => new MemoryPackSerializer();
+	public static IServiceCollection AddMemoryPackSerializer(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		var serializer = new MemoryPackSerializer();
+
+		// DI registrations
+		services.TryAddSingleton<ISerializer>(serializer);
+		services.TryAddSingleton<IBinaryEnvelopeDeserializer, MemoryPackEnvelopeDeserializer>();
+
+		// Serializer registry: register MemoryPack and set as current
+		services.PostConfigure<PluggableSerializationOptions>(options =>
+		{
+			options.AddRegistration(registry => registry.Register(SerializerIds.MemoryPack, serializer));
+			options.CurrentSerializerName = "MemoryPack";
+		});
+
+		return services;
+	}
 }

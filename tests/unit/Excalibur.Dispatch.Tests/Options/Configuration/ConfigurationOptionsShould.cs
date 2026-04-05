@@ -6,8 +6,8 @@ using ConfigOutboxOptions = Excalibur.Dispatch.Options.Configuration.OutboxConfi
 
 namespace Excalibur.Dispatch.Tests.Options.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConfigurationOptionsShould
 {
 	[Fact]

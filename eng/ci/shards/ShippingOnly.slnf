@@ -83,6 +83,8 @@
       "src\\Excalibur\\Excalibur.Data.DynamoDb\\Excalibur.Data.DynamoDb.csproj",
       "src\\Excalibur\\Excalibur.Data.ElasticSearch\\Excalibur.Data.ElasticSearch.csproj",
       "src\\Excalibur\\Excalibur.Data.Firestore\\Excalibur.Data.Firestore.csproj",
+      "src\\Excalibur\\Excalibur.Data.IdentityMap\\Excalibur.Data.IdentityMap.csproj",
+      "src\\Excalibur\\Excalibur.Data.IdentityMap.SqlServer\\Excalibur.Data.IdentityMap.SqlServer.csproj",
       "src\\Excalibur\\Excalibur.Data.InMemory\\Excalibur.Data.InMemory.csproj",
       "src\\Excalibur\\Excalibur.Data.MongoDB\\Excalibur.Data.MongoDB.csproj",
       "src\\Excalibur\\Excalibur.Data.OpenSearch\\Excalibur.Data.OpenSearch.csproj",

@@ -73,7 +73,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the command timeout for Postgres operations.</summary>
 	public IPostgresOutboxBuilder CommandTimeout(TimeSpan timeout)
 	{
 		if (timeout <= TimeSpan.Zero)
@@ -86,7 +86,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the reservation timeout for message processing.</summary>
 	public IPostgresOutboxBuilder ReservationTimeout(TimeSpan timeout)
 	{
 		if (timeout <= TimeSpan.Zero)
@@ -98,7 +98,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the maximum delivery attempts before dead lettering.</summary>
 	public IPostgresOutboxBuilder MaxAttempts(int maxAttempts)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maxAttempts, 0);

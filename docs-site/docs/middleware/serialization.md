@@ -18,6 +18,28 @@ Dispatch supports multiple serialization formats for messages. Choose based on y
 - For alternative serializers, install the provider package (e.g., `Excalibur.Dispatch.Serialization.MemoryPack`)
 - Familiarity with [middleware concepts](./index.md) and [pipeline stages](../pipeline/index.md)
 
+## Two-Layer Serialization Architecture
+
+Dispatch uses two independent serialization layers. Understanding this distinction helps you choose the right configuration:
+
+| Layer | Interface | What It Serializes | Default | Consumer Attributes Needed? |
+|-------|-----------|-------------------|---------|---------------------------|
+| **Event storage** | `IEventSerializer` | Your domain events (POCOs) | `JsonEventSerializer` (System.Text.Json) | No |
+| **Envelope transport** | `ISerializer` + `IBinaryEnvelopeDeserializer` | Internal `OutboxEnvelope` / `InboxEnvelope` wrappers | None (JSON fallback) | No |
+
+**How the layers work together:**
+
+```
+Your Event (plain POCO)
+  → IEventSerializer.Serialize() → byte[] payload
+    → wrapped in [MemoryPackable] OutboxEnvelope { Payload = byte[] }
+      → ISerializer (MemoryPack) serializes the envelope → stored/transmitted
+```
+
+The envelope layer is an internal implementation detail. Your consumer event types never need `[MemoryPackable]`, `[MessagePackObject]`, or any serializer-specific attributes -- they remain plain POCOs regardless of which serializer you choose.
+
+`AddDispatch()` auto-registers `JsonEventSerializer` as `IEventSerializer` via `TryAddSingleton`. Calling `services.AddMemoryPackSerializer()` registers MemoryPack for the envelope layer only -- `IEventSerializer` stays as JSON unless you explicitly override it.
+
 ## Serializers
 
 | Serializer | Package | Best For |
@@ -66,16 +88,13 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
-// Register MemoryPack as the serializer (opt-in, replaces JSON default)
-services.AddEventSerializer(builder => builder.UseMemoryPack());
-
-// Messages must be MemoryPack-compatible
-[MemoryPackable]
-public partial record CreateOrderAction(
-    Guid OrderId,
-    string CustomerId,
-    List<OrderItem> Items) : IDispatchAction;
+// One call registers MemoryPack, adds it to the serializer registry, and sets it as current
+services.AddMemoryPackSerializer();
 ```
+
+:::info No attributes needed on your events
+Consumer event types do **not** need `[MemoryPackable]` or any serializer-specific attributes. Only the internal envelope wrapper uses MemoryPack attributes. Your domain events remain plain POCOs.
+:::
 
 ### MessagePack
 
@@ -87,25 +106,10 @@ dotnet add package Excalibur.Dispatch.Serialization.MessagePack
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    // Register MessagePack via the serialization builder (recommended)
-    dispatch.WithSerialization(config =>
-    {
-        config.RegisterMessagePack(opts =>
-        {
-            opts.UseLz4Compression = true;
-        });
-        config.UseMessagePack();
-    });
 });
 
-[MessagePackObject]
-public class CreateOrderAction : IDispatchAction
-{
-    [Key(0)] public Guid OrderId { get; set; }
-    [Key(1)] public string CustomerId { get; set; }
-    [Key(2)] public List<OrderItem> Items { get; set; }
-}
+// One call does everything: DI registration, serializer registry, set as current
+services.AddMessagePackSerializer();
 ```
 
 ### Protobuf
@@ -118,27 +122,13 @@ dotnet add package Excalibur.Dispatch.Serialization.Protobuf
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    // Register Protobuf via the serialization builder (recommended)
-    dispatch.WithSerialization(config =>
-    {
-        config.RegisterProtobuf(opts =>
-        {
-            opts.WireFormat = ProtobufWireFormat.Json; // default: Binary
-        });
-        config.UseProtobuf();
-    });
 });
 
-// Define in .proto file
-// message CreateOrderAction {
-//   string order_id = 1;
-//   string customer_id = 2;
-//   repeated OrderItem items = 3;
-// }
+// One call does everything: DI registration, serializer registry, set as current
+services.AddProtobufSerializer();
 ```
 
-See [Serialization Providers](serialization-providers.md) for detailed provider configuration including Avro, native options, and service collection registration.
+See [Serialization Providers](serialization-providers.md) for detailed provider configuration including Avro, native options, and custom option overloads.
 
 ## Compression
 
@@ -220,11 +210,7 @@ services.AddJsonSerialization(options =>
 
 ### MemoryPack AOT
 
-```csharp
-// MemoryPack is AOT-friendly via source generation
-[MemoryPackable]
-public partial record CreateOrderAction(...) : IDispatchAction;
-```
+MemoryPack is AOT-friendly via source generation. The internal envelope uses `[MemoryPackable]`; your consumer event types do not need any attributes.
 
 ## Multi-Format Support
 
@@ -248,22 +234,8 @@ services.AddDispatch(dispatch =>
     });
 });
 
-// Register pluggable serialization with multiple formats
-services.AddPluggableSerialization();
-services.AddMessagePackPluggableSerialization();
-```
-
-### Pluggable Serialization Registry
-
-```csharp
-// Register multiple serializers via the pluggable system
-services.AddPluggableSerialization();
-services.AddMessagePackPluggableSerialization(setAsCurrent: true);
-
-// Or register manually via ISerializerRegistry
-var registry = services.GetRequiredService<ISerializerRegistry>();
-registry.Register(SerializerIds.MessagePack,
-    MessagePackSerializationExtensions.GetPluggableSerializer());
+// Register the serializer you want for internal persistence
+services.AddMessagePackSerializer();
 ```
 
 ## Custom Serializers
@@ -305,14 +277,10 @@ public class CustomSerializer : ISerializer
 
 ### Registration
 
+For custom serializers, use the `AddPluggableSerializer` extension method to register with the serializer registry:
+
 ```csharp
-// Register your custom serializer via the serialization builder
-services.AddDispatch()
-    .WithSerialization(config =>
-    {
-        config.Register(new CustomSerializer(), id: 200);
-        config.UseCurrent("CustomFormat");
-    });
+services.AddPluggableSerializer(200, new MyCustomSerializer(), setAsCurrent: true);
 ```
 
 ## Pool-Backed Serialization

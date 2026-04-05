@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Timing;
 /// Covers all overloads: default, with IConfiguration, with Action,
 /// without monitoring, adaptive, and replacement methods.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class TimePolicyServiceCollectionExtensionsShould
 {
 	[Fact]

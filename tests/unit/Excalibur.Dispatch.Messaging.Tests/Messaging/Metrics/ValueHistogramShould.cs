@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Metrics;
 /// <remarks>
 /// Tests the value histogram implementation.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Metrics")]
 [Trait("Priority", "0")]
 public sealed class ValueHistogramShould
@@ -34,7 +34,7 @@ public sealed class ValueHistogramShould
 	{
 		// Arrange
 		var metadata = new MetricMetadata(1, "test_histogram", "Test histogram", "microseconds", MetricType.Histogram);
-		var config = HistogramConfiguration.DefaultLatency;
+		var config = HistogramOptions.DefaultLatency;
 
 		// Act
 		var histogram = new ValueHistogram(metadata, config);

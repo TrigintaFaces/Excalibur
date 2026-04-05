@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Options.Serialization;
 /// Sprint 564 S564.49: Serialization ValidateOnStart verification.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class SerializationValidateOnStartRegistrationShould
 {
 	[Fact]

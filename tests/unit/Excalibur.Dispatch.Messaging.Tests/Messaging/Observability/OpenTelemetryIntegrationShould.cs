@@ -11,11 +11,11 @@ using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Excalibur.Inbox.InMemory;
 
-using MessageResult = Excalibur.Dispatch.Tests.TestFakes.MessageResult;
+using MessageResult = Tests.Shared.TestFakes.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 
@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 ///     Tests for OpenTelemetry integration across core messaging components.
 /// </summary>
 [Collection("Observability Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class OpenTelemetryIntegrationShould : IDisposable
 {

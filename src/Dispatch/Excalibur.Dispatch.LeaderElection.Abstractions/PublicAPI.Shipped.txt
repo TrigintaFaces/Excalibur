@@ -1,6 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingResourceIdKey = "FencingResourceId" -> string!
-const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenKey = "FencingToken" -> string!
 Excalibur.Dispatch.LeaderElection.CandidateHealth
 Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateHealth() -> void
 Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateId.get -> string!
@@ -78,5 +76,7 @@ Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator.LeaderElectionOptionsValidator() -> void
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator.Validate(string? name, Excalibur.Dispatch.LeaderElection.LeaderElectionOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
 Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions
+const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingResourceIdKey = "FencingResourceId" -> string!
+const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenKey = "FencingToken" -> string!
 static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenSupport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider! provider) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenSupport<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

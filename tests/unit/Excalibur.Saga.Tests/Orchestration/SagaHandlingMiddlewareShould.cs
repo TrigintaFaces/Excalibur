@@ -19,7 +19,7 @@ namespace Excalibur.Saga.Tests.Orchestration;
 [Trait("Component", "Saga")]
 public sealed class SagaHandlingMiddlewareShould
 {
-	private readonly SagaCoordinator _coordinator;
+	private readonly ISagaCoordinator _coordinator;
 	private readonly SagaHandlingMiddleware _sut;
 
 	public SagaHandlingMiddlewareShould()

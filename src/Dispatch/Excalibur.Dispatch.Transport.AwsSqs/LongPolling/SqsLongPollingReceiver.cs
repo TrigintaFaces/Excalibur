@@ -22,7 +22,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 	private readonly IAmazonSQS _sqsClient;
 	private readonly ILongPollingStrategy _pollingStrategy;
 	private readonly IPollingMetricsCollector _metricsCollector;
-	private readonly LongPollingConfiguration _configuration;
+	private readonly LongPollingOptions _configuration;
 	private readonly ILogger<SqsLongPollingReceiver> _logger;
 	private readonly SemaphoreSlim _receiveLock;
 	private readonly Dictionary<string, CancellationTokenSource> _activePolling;
@@ -45,7 +45,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 		IAmazonSQS sqsClient,
 		ILongPollingStrategy pollingStrategy,
 		IPollingMetricsCollector metricsCollector,
-		LongPollingConfiguration configuration,
+		LongPollingOptions configuration,
 		ILogger<SqsLongPollingReceiver> logger)
 	{
 		_sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
@@ -54,7 +54,6 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 		_configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		_configuration.Validate();
 		_receiveLock = new SemaphoreSlim(1, 1);
 		_activePolling = [];
 		_lastReceiveTime = DateTimeOffset.UtcNow;
@@ -68,7 +67,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 		string queueUrl,
 		CancellationToken cancellationToken)
 	{
-		var options = new ReceiveOptions { MaxNumberOfMessages = _configuration.MaxMessagesPerReceive };
+		var options = new ReceiveOptions { MaxNumberOfMessages = _configuration.Polling.MaxMessagesPerReceive };
 
 		return await ReceiveMessagesAsync(queueUrl, options, cancellationToken).ConfigureAwait(false);
 	}
@@ -94,7 +93,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 			var request = new ReceiveMessageRequest
 			{
 				QueueUrl = queueUrl,
-				MaxNumberOfMessages = options.MaxNumberOfMessages ?? _configuration.MaxMessagesPerReceive,
+				MaxNumberOfMessages = options.MaxNumberOfMessages ?? _configuration.Polling.MaxMessagesPerReceive,
 				WaitTimeSeconds = (int)waitTime.TotalSeconds,
 			};
 
@@ -272,7 +271,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 		TimeSpan estimatedProcessingTime,
 		CancellationToken cancellationToken)
 	{
-		if (!_configuration.EnableVisibilityTimeoutOptimization)
+		if (!_configuration.Visibility.EnableOptimization)
 		{
 			return;
 		}
@@ -280,7 +279,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 		try
 		{
 			var optimizedTimeout = TimeSpan.FromMilliseconds(
-				estimatedProcessingTime.TotalMilliseconds * _configuration.VisibilityTimeoutBufferFactor);
+				estimatedProcessingTime.TotalMilliseconds * _configuration.Visibility.BufferFactor);
 
 			// AWS SQS maximum visibility timeout is 12 hours
 			if (optimizedTimeout > TimeSpan.FromHours(12))

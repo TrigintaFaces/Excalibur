@@ -10,6 +10,8 @@ using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
@@ -82,7 +84,7 @@ public sealed partial class TransportRouterMiddleware(ILogger<TransportRouterMid
 				Detail = $"Message kind {messageKind} not accepted by binding {binding.Name}",
 				Instance = context.MessageId ?? Guid.NewGuid().ToString(),
 			};
-			return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: false, problemDetails: problemDetails);
+			return MR.Failed(problemDetails);
 		}
 
 		// Store adapter name for downstream use (binding is already in context)

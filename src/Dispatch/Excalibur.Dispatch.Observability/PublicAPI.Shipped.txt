@@ -93,6 +93,7 @@ Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.GetContextHistor
 Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.GetRecentAnomalies(int limit = 100) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
 Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.TrackContextHistory(Excalibur.Dispatch.Abstractions.IMessageContext! context, string! eventType, string? details = null) -> void
 Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.VisualizeContextFlow(string! messageId) -> string!
+Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions
 Excalibur.Dispatch.Observability.Context.ContextFlowMetrics
 Excalibur.Dispatch.Observability.Context.ContextFlowMetrics.ContextFlowMetrics(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Observability.Context.ContextObservabilityOptions!>! options) -> void
 Excalibur.Dispatch.Observability.Context.ContextFlowMetrics.ContextFlowMetrics(System.Diagnostics.Metrics.IMeterFactory! meterFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Observability.Context.ContextObservabilityOptions!>! options) -> void
@@ -266,30 +267,30 @@ Excalibur.Dispatch.Observability.Context.DiagnosticSeverity
 Excalibur.Dispatch.Observability.Context.DiagnosticSeverity.Error = 2 -> Excalibur.Dispatch.Observability.Context.DiagnosticSeverity
 Excalibur.Dispatch.Observability.Context.DiagnosticSeverity.Information = 0 -> Excalibur.Dispatch.Observability.Context.DiagnosticSeverity
 Excalibur.Dispatch.Observability.Context.DiagnosticSeverity.Warning = 1 -> Excalibur.Dispatch.Observability.Context.DiagnosticSeverity
+Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics
+Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordContextError(string! errorType, string! stage) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordContextMutation(Excalibur.Dispatch.Observability.Context.ContextChangeType changeType, string! fieldName, string! stage) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordContextSnapshot(string! stage, int fieldCount, int sizeBytes) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordContextValidationFailure(string! failureReason) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowCounterMetrics.RecordCrossBoundaryTransition(string! serviceBoundary, bool contextPreserved) -> void
 Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics
 Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.AnalyzeContextHealth(Excalibur.Dispatch.Abstractions.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextDiagnosticIssue!>!
 Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.DetectAnomalies(Excalibur.Dispatch.Abstractions.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.ExportDiagnosticData(string? messageId = null) -> string!
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.GenerateCorrelationReport(string! correlationId) -> string!
 Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.GetContextHistory(string! messageId) -> Excalibur.Dispatch.Observability.Context.ContextHistory?
-Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.GetRecentAnomalies(int limit = 100) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
 Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.TrackContextHistory(Excalibur.Dispatch.Abstractions.IMessageContext! context, string! eventType, string? details = null) -> void
 Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics.VisualizeContextFlow(string! messageId) -> string!
+Excalibur.Dispatch.Observability.Context.IContextFlowGaugeMetrics
+Excalibur.Dispatch.Observability.Context.IContextFlowGaugeMetrics.GetMetricsSummary() -> Excalibur.Dispatch.Observability.Context.ContextMetricsSummary!
+Excalibur.Dispatch.Observability.Context.IContextFlowGaugeMetrics.RecordContextPreservationSuccess(string! stage) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowGaugeMetrics.UpdateActiveContextCount(int delta) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowGaugeMetrics.UpdateLineageDepth(int depth) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowHistogramMetrics
+Excalibur.Dispatch.Observability.Context.IContextFlowHistogramMetrics.RecordContextSize(string! stage, int sizeBytes) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowHistogramMetrics.RecordContextSizeThresholdExceeded(string! stage, int sizeBytes) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowHistogramMetrics.RecordDeserializationLatency(string! operationType, long latencyMs) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowHistogramMetrics.RecordPipelineStageLatency(string! stage, long latencyMs) -> void
+Excalibur.Dispatch.Observability.Context.IContextFlowHistogramMetrics.RecordSerializationLatency(string! operationType, long latencyMs) -> void
 Excalibur.Dispatch.Observability.Context.IContextFlowMetrics
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.GetMetricsSummary() -> Excalibur.Dispatch.Observability.Context.ContextMetricsSummary!
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordContextError(string! errorType, string! stage) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordContextMutation(Excalibur.Dispatch.Observability.Context.ContextChangeType changeType, string! fieldName, string! stage) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordContextPreservationSuccess(string! stage) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordContextSize(string! stage, int sizeBytes) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordContextSizeThresholdExceeded(string! stage, int sizeBytes) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordContextSnapshot(string! stage, int fieldCount, int sizeBytes) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordContextValidationFailure(string! failureReason) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordCrossBoundaryTransition(string! serviceBoundary, bool contextPreserved) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordDeserializationLatency(string! operationType, long latencyMs) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordPipelineStageLatency(string! stage, long latencyMs) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.RecordSerializationLatency(string! operationType, long latencyMs) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.UpdateActiveContextCount(int delta) -> void
-Excalibur.Dispatch.Observability.Context.IContextFlowMetrics.UpdateLineageDepth(int depth) -> void
 Excalibur.Dispatch.Observability.Context.IContextFlowTracker
 Excalibur.Dispatch.Observability.Context.IContextFlowTracker.CorrelateAcrossBoundary(Excalibur.Dispatch.Abstractions.IMessageContext! context, string! serviceBoundary) -> void
 Excalibur.Dispatch.Observability.Context.IContextFlowTracker.DetectChanges(Excalibur.Dispatch.Abstractions.IMessageContext! context, string! fromStage, string! toStage) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextChange!>!
@@ -330,10 +331,11 @@ Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.DeadLetterQueueM
 Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.DeadLetterQueueMetrics(System.Diagnostics.Metrics.IMeterFactory! meterFactory) -> void
 Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.Dispose() -> void
 Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.Meter.get -> System.Diagnostics.Metrics.Meter!
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.RecordEnqueued(string! messageType, string! reason, string? sourceQueue = null) -> void
+Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.RecordEnqueued(string! messageType, string! reason, string? sourceQueue) -> void
 Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.RecordPurged(long count, string! reason) -> void
 Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.RecordReplayed(string! messageType, bool success) -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.UpdateDepth(long depth, string? queueName = null) -> void
+Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.UpdateDepth(long depth, string? queueName) -> void
+Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetricsExtensions
 Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource
 Excalibur.Dispatch.Observability.Metrics.DispatchBaggageExtensions
 Excalibur.Dispatch.Observability.Metrics.DispatchMetrics
@@ -354,26 +356,26 @@ Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.RecordFailure(st
 Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.RecordRejection(string! circuitName) -> void
 Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.RecordStateChange(string! circuitName, string! previousState, string! newState) -> void
 Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.RecordSuccess(string! circuitName) -> void
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.UpdateState(string! circuitName, int state) -> void
+Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetricsAdmin
+Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetricsAdmin.UpdateState(string! circuitName, int state) -> void
 Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics
 Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.Meter.get -> System.Diagnostics.Metrics.Meter!
-Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.RecordEnqueued(string! messageType, string! reason, string? sourceQueue = null) -> void
+Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.RecordEnqueued(string! messageType, string! reason, string? sourceQueue) -> void
 Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.RecordPurged(long count, string! reason) -> void
 Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.RecordReplayed(string! messageType, bool success) -> void
-Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.UpdateDepth(long depth, string? queueName = null) -> void
+Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.UpdateDepth(long depth, string? queueName) -> void
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordMessageFailed(string! messageType, string! errorType, int retryAttempt) -> void
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordMessageProcessed(string! messageType, string! handlerType, params (string! Key, object? Value)[]! tags) -> void
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordMessagePublished(string! messageType, string! destination) -> void
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordProcessingDuration(double duration, string! messageType, bool success) -> void
-Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.UpdateActiveSessions(int delta) -> void
+Excalibur.Dispatch.Observability.Metrics.IDispatchMetricsAdmin
+Excalibur.Dispatch.Observability.Metrics.IDispatchMetricsAdmin.UpdateActiveSessions(int delta) -> void
 Excalibur.Dispatch.Observability.Metrics.MetricsDispatchBuilderExtensions
 Excalibur.Dispatch.Observability.Metrics.MetricsWarningLogger
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ActivitySourceName.get -> string!
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.ActivitySourceName.set -> void
-Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.EnableDetailedTiming.get -> bool
-Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.EnableDetailedTiming.set -> void
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.EnableLogging.get -> bool
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.EnableLogging.set -> void
 Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions.EnableMetrics.get -> bool
@@ -544,6 +546,11 @@ const Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Name = "Ex
 const Excalibur.Dispatch.Observability.Metrics.DispatchMetrics.MeterName = "Excalibur.Dispatch.Core" -> string!
 const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.SpanIdTag = "span_id" -> string!
 const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.TraceIdTag = "trace_id" -> string!
+static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.ExportDiagnosticData(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, string? messageId = null) -> string!
+static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.GenerateCorrelationReport(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, string! correlationId) -> string!
+static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.GetRecentAnomalies(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, int limit = 100) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
+static Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetricsExtensions.RecordEnqueued(this Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics! metrics, string! messageType, string! reason) -> void
+static Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetricsExtensions.UpdateDepth(this Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics! metrics, long depth) -> void
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.StartActivity(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, string! activityName) -> System.Diagnostics.Activity?
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.StartHandleActivity(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, System.Type! handlerType) -> System.Diagnostics.Activity?
@@ -567,6 +574,7 @@ static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddAllDi
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddAllDispatchMetrics(this OpenTelemetry.Metrics.MeterProviderBuilder! builder) -> OpenTelemetry.Metrics.MeterProviderBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddAllDispatchTracing(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddAllDispatchTracing(this OpenTelemetry.Trace.TracerProviderBuilder! builder) -> OpenTelemetry.Trace.TracerProviderBuilder!
+static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddDispatchInstrumentation(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddDispatchMetrics(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddDispatchMetrics(this OpenTelemetry.Metrics.MeterProviderBuilder! builder) -> OpenTelemetry.Metrics.MeterProviderBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddTransportMetrics(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!

@@ -12,7 +12,7 @@ Excalibur.Dispatch.Transport.Google.AckError.Exception.init -> void
 Excalibur.Dispatch.Transport.Google.AckError.Message.get -> string!
 Excalibur.Dispatch.Transport.Google.AckError.Message.init -> void
 Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy
-Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.AdaptiveBatchingStrategy(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.Google.BatchConfiguration!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy!>! logger) -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.AdaptiveBatchingStrategy(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.Google.BatchOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy!>! logger) -> void
 Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.DetermineNextBatchSize(Excalibur.Dispatch.Transport.Google.BatchingContext! context) -> int
 Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.GetStatistics() -> Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics!
 Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.RecordBatchResult(Excalibur.Dispatch.Transport.Google.BatchResult! result) -> void
@@ -51,32 +51,12 @@ Excalibur.Dispatch.Transport.Google.BatchAckStrategy.BatchComplete = 1 -> Excali
 Excalibur.Dispatch.Transport.Google.BatchAckStrategy.Individual = 2 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
 Excalibur.Dispatch.Transport.Google.BatchAckStrategy.Manual = 3 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
 Excalibur.Dispatch.Transport.Google.BatchAckStrategy.OnSuccess = 0 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
-Excalibur.Dispatch.Transport.Google.BatchConfiguration
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.AckDeadlineSeconds.get -> int
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.AckDeadlineSeconds.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.AckStrategy.get -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.AckStrategy.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.BatchConfiguration() -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.Clone() -> Excalibur.Dispatch.Transport.Google.BatchConfiguration!
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.ConcurrentBatchProcessors.get -> int
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.ConcurrentBatchProcessors.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.EnableAdaptiveBatching.get -> bool
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.EnableAdaptiveBatching.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.EnableMetricsCompression.get -> bool
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.EnableMetricsCompression.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxBatchSizeBytes.get -> long
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxBatchSizeBytes.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxBatchWaitTime.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxBatchWaitTime.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxMessagesPerBatch.get -> int
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxMessagesPerBatch.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.MinMessagesPerBatch.get -> int
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.MinMessagesPerBatch.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.PreserveMessageOrder.get -> bool
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.PreserveMessageOrder.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.TargetBatchProcessingTime.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.TargetBatchProcessingTime.set -> void
-Excalibur.Dispatch.Transport.Google.BatchConfiguration.Validate() -> void
+Excalibur.Dispatch.Transport.Google.BatchAcknowledgmentOptions
+Excalibur.Dispatch.Transport.Google.BatchAcknowledgmentOptions.AckDeadlineSeconds.get -> int
+Excalibur.Dispatch.Transport.Google.BatchAcknowledgmentOptions.AckDeadlineSeconds.set -> void
+Excalibur.Dispatch.Transport.Google.BatchAcknowledgmentOptions.AckStrategy.get -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
+Excalibur.Dispatch.Transport.Google.BatchAcknowledgmentOptions.AckStrategy.set -> void
+Excalibur.Dispatch.Transport.Google.BatchAcknowledgmentOptions.BatchAcknowledgmentOptions() -> void
 Excalibur.Dispatch.Transport.Google.BatchMetadata
 Excalibur.Dispatch.Transport.Google.BatchMetadata.BatchMetadata() -> void
 Excalibur.Dispatch.Transport.Google.BatchMetadata.EffectiveBatchSize.get -> int
@@ -87,6 +67,29 @@ Excalibur.Dispatch.Transport.Google.BatchMetadata.Properties.get -> System.Colle
 Excalibur.Dispatch.Transport.Google.BatchMetadata.Properties.set -> void
 Excalibur.Dispatch.Transport.Google.BatchMetadata.PullDurationMs.get -> double
 Excalibur.Dispatch.Transport.Google.BatchMetadata.PullDurationMs.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions
+Excalibur.Dispatch.Transport.Google.BatchOptions.Acknowledgment.get -> Excalibur.Dispatch.Transport.Google.BatchAcknowledgmentOptions!
+Excalibur.Dispatch.Transport.Google.BatchOptions.Acknowledgment.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.BatchOptions() -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.Clone() -> Excalibur.Dispatch.Transport.Google.BatchOptions!
+Excalibur.Dispatch.Transport.Google.BatchOptions.ConcurrentBatchProcessors.get -> int
+Excalibur.Dispatch.Transport.Google.BatchOptions.ConcurrentBatchProcessors.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.EnableAdaptiveBatching.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchOptions.EnableAdaptiveBatching.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.EnableMetricsCompression.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchOptions.EnableMetricsCompression.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.MaxBatchSizeBytes.get -> long
+Excalibur.Dispatch.Transport.Google.BatchOptions.MaxBatchSizeBytes.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.MaxBatchWaitTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.BatchOptions.MaxBatchWaitTime.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.MaxMessagesPerBatch.get -> int
+Excalibur.Dispatch.Transport.Google.BatchOptions.MaxMessagesPerBatch.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.MinMessagesPerBatch.get -> int
+Excalibur.Dispatch.Transport.Google.BatchOptions.MinMessagesPerBatch.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.PreserveMessageOrder.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchOptions.PreserveMessageOrder.set -> void
+Excalibur.Dispatch.Transport.Google.BatchOptions.TargetBatchProcessingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.BatchOptions.TargetBatchProcessingTime.set -> void
 Excalibur.Dispatch.Transport.Google.BatchProcessingResult
 Excalibur.Dispatch.Transport.Google.BatchProcessingResult.Batch.get -> Excalibur.Dispatch.Transport.Google.MessageBatch!
 Excalibur.Dispatch.Transport.Google.BatchProcessingResult.BatchProcessingResult(Excalibur.Dispatch.Transport.Google.MessageBatch! batch, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.Google.ProcessedMessage!>! successfulMessages, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.Google.FailedMessage!>! failedMessages, System.TimeSpan processingDuration) -> void
@@ -96,7 +99,7 @@ Excalibur.Dispatch.Transport.Google.BatchProcessingResult.ProcessingDuration.get
 Excalibur.Dispatch.Transport.Google.BatchProcessingResult.SuccessRate.get -> double
 Excalibur.Dispatch.Transport.Google.BatchProcessingResult.SuccessfulMessages.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.Google.ProcessedMessage!>!
 Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder
-Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.ConfigureOptions(System.Action<Excalibur.Dispatch.Transport.Google.BatchConfiguration!>! configure) -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.ConfigureOptions(System.Action<Excalibur.Dispatch.Transport.Google.BatchOptions!>! configure) -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
 Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.IntegrateWithFlowControl() -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
 Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.UseAdaptiveBatching() -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
 Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.UseCustomBatching<TStrategy>() -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
@@ -413,6 +416,7 @@ Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseExactlyOnce
 Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseExactlyOnceDelivery.set -> void
 Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseOrderingKeys.get -> bool
 Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseOrderingKeys.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubMetricsExtensions
 Excalibur.Dispatch.Transport.Google.GooglePubSubOptions
 Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.Compression.get -> Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions!
 Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.EnableEncryption.get -> bool
@@ -505,15 +509,16 @@ Excalibur.Dispatch.Transport.Google.IDeadLetterAnalyticsService
 Excalibur.Dispatch.Transport.Google.IDeadLetterAnalyticsService.GetAnalyticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics!>!
 Excalibur.Dispatch.Transport.Google.IDeadLetterAnalyticsService.RecordDeadLetterAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics
-Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.BatchCompleted(int size, System.TimeSpan duration) -> void
 Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.BatchCreated(int size) -> void
-Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.ConnectionClosed() -> void
-Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.ConnectionCreated() -> void
 Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.MessageDequeued(System.TimeSpan queueTime) -> void
 Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.MessageEnqueued() -> void
 Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.MessageFailed() -> void
 Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.MessageProcessed(System.TimeSpan duration) -> void
-Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.RecordFlowControl(int permits, int bytes) -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetricsAdmin
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetricsAdmin.BatchCompleted(int size, System.TimeSpan duration) -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetricsAdmin.ConnectionClosed() -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetricsAdmin.ConnectionCreated() -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetricsAdmin.RecordFlowControl(int permits, int bytes) -> void
 Excalibur.Dispatch.Transport.Google.IOrderingKeyProcessor
 Excalibur.Dispatch.Transport.Google.IOrderingKeyProcessor.GetStatistics() -> Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics!
 Excalibur.Dispatch.Transport.Google.IPoisonDetectionRule
@@ -1146,7 +1151,7 @@ Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy
 Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.DetermineNextBatchSize(Excalibur.Dispatch.Transport.Google.BatchingContext! context) -> int
 Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.RecordBatchResult(Excalibur.Dispatch.Transport.Google.BatchResult! result) -> void
 Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.Reset() -> void
-Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.SizeBoundBatchingStrategy(Excalibur.Dispatch.Transport.Google.BatchConfiguration! configuration) -> void
+Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.SizeBoundBatchingStrategy(Excalibur.Dispatch.Transport.Google.BatchOptions! configuration) -> void
 Excalibur.Dispatch.Transport.Google.StreamHealthInfo
 Excalibur.Dispatch.Transport.Google.StreamHealthInfo.AcknowledgmentsFailed.get -> long
 Excalibur.Dispatch.Transport.Google.StreamHealthInfo.AcknowledgmentsFailed.set -> void
@@ -1250,7 +1255,7 @@ Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy
 Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.DetermineNextBatchSize(Excalibur.Dispatch.Transport.Google.BatchingContext! context) -> int
 Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.RecordBatchResult(Excalibur.Dispatch.Transport.Google.BatchResult! result) -> void
 Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.Reset() -> void
-Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.TimeBoundBatchingStrategy(Excalibur.Dispatch.Transport.Google.BatchConfiguration! configuration) -> void
+Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.TimeBoundBatchingStrategy(Excalibur.Dispatch.Transport.Google.BatchOptions! configuration) -> void
 Excalibur.Dispatch.Transport.Google.UnhealthyStreamEventArgs
 Excalibur.Dispatch.Transport.Google.UnhealthyStreamEventArgs.StreamId.get -> string!
 Excalibur.Dispatch.Transport.Google.UnhealthyStreamEventArgs.UnhealthyStreamEventArgs(string! streamId) -> void
@@ -1504,6 +1509,10 @@ override Excalibur.Dispatch.Transport.Google.CustomPatternRule.GetConfidence(Goo
 override Excalibur.Dispatch.Transport.Google.CustomPatternRule.GetReason(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> string!
 override Excalibur.Dispatch.Transport.Google.CustomPatternRule.IsPoison(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> bool
 override Excalibur.Dispatch.Transport.Google.ProjectName.ToString() -> string!
+static Excalibur.Dispatch.Transport.Google.GooglePubSubMetricsExtensions.BatchCompleted(this Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics! metrics, int size, System.TimeSpan duration) -> void
+static Excalibur.Dispatch.Transport.Google.GooglePubSubMetricsExtensions.ConnectionClosed(this Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics! metrics) -> void
+static Excalibur.Dispatch.Transport.Google.GooglePubSubMetricsExtensions.ConnectionCreated(this Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics! metrics) -> void
+static Excalibur.Dispatch.Transport.Google.GooglePubSubMetricsExtensions.RecordFlowControl(this Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics! metrics, int permits, int bytes) -> void
 static Excalibur.Dispatch.Transport.Google.GooglePubSubOptionsExtensions.WithTelemetry(this Excalibur.Dispatch.Transport.Google.GooglePubSubOptions! options, System.Action<Excalibur.Dispatch.Transport.Google.TelemetryOptions!>! configure) -> Excalibur.Dispatch.Transport.Google.GooglePubSubOptions!
 static Excalibur.Dispatch.Transport.Google.ProjectName.FromProject(string! projectId) -> Excalibur.Dispatch.Transport.Google.ProjectName!
 static Excalibur.Dispatch.Transport.Google.ProjectName.FromProjectId(string! projectId) -> Excalibur.Dispatch.Transport.Google.ProjectName!
@@ -1535,10 +1544,10 @@ static Microsoft.Extensions.DependencyInjection.OrderingKeyServiceCollectionExte
 static Microsoft.Extensions.DependencyInjection.OrderingKeyServiceCollectionExtensions.AddGooglePubSubOrderingKey(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.OrderingKeyOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubBatchReceivingServiceCollectionExtensions.AddBatchProcessor<TProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubBatchReceivingServiceCollectionExtensions.AddPubSubBatchReceiving(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PubSubFilterServiceCollectionExtensions.AddGooglePubSubFilter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubFilterServiceCollectionExtensions.AddGooglePubSubFilter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.PubSubFilterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubSchemaServiceCollectionExtensions.AddGooglePubSubSchemaManager(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Excalibur.Dispatch.Transport.Google.IPubSubSchemaManager!>! factory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubSchemaServiceCollectionExtensions.AddGooglePubSubSchemaManager<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubStreamingPullServiceCollectionExtensions.AddGooglePubSubStreamingPull(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PubSubStreamingPullServiceCollectionExtensions.AddGooglePubSubStreamingPull(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.StreamingPullOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.StreamingPullHealthChecksBuilderExtensions.AddStreamingPullHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "streaming-pull", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
-static Microsoft.Extensions.DependencyInjection.PubSubFilterServiceCollectionExtensions.AddGooglePubSubFilter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

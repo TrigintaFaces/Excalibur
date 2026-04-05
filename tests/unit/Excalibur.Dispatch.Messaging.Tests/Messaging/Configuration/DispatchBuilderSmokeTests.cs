@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DispatchBuilderSmokeTests
 {
@@ -68,7 +68,7 @@ public sealed class DispatchBuilderSmokeTests
 		{
 			state.WasExecuted = true;
 			// Return success directly to verify middleware executed without needing full bus setup
-			return new ValueTask<IMessageResult>(Excalibur.Dispatch.Messaging.MessageResult.Success());
+			return new ValueTask<IMessageResult>(Excalibur.Dispatch.Abstractions.MessageResult.Success());
 		}
 	}
 }

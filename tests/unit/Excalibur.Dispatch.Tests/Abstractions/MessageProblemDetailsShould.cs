@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Abstractions;
 /// Sprint 410 - Foundation Coverage Tests (T410.7).
 /// Target: Increase MessageProblemDetails coverage from 41.1% to 80%.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class MessageProblemDetailsShould
 {

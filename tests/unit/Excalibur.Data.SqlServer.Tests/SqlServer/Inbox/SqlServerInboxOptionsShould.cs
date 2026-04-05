@@ -8,9 +8,9 @@ namespace Excalibur.Data.Tests.SqlServer.Inbox;
 /// <summary>
 /// Unit tests for <see cref="SqlServerInboxOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "Inbox")]
+[Trait(TraitNames.Feature, TestFeatures.Inbox)]
 public sealed class SqlServerInboxOptionsShould : UnitTestBase
 {
 	[Fact]

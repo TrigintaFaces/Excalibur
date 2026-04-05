@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus.Transport.Builders;
 /// Part of S472.3 - AddAzureServiceBusTransport single entry point (Sprint 472).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AzureServiceBusSenderBuilderShould : UnitTestBase
 {

@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.Postgres.Snapshots;
 /// <summary>
 /// Unit tests for <see cref="PostgresSnapshotStoreOptions"/> configuration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class PostgresSnapshotStoreOptionsShould : UnitTestBase
 {
 	[Fact]

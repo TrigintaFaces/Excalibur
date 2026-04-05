@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.RateLimiting;
 /// Covers rate limit exhaustion, key extraction (user, API key, client IP, message type),
 /// tenant-specific limits, disposal, and edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class RateLimitingMiddlewareDepthShould
 {
 	private readonly IDispatchMessage _message;

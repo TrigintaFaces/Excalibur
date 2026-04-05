@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Sprint 415 - Task T415.1: SpanEventSerializer tests (0% to 80%).
 /// Tests critical infrastructure for event sourcing serialization.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class SpanEventSerializerShould
 {
 	private readonly ISerializer _serializer;

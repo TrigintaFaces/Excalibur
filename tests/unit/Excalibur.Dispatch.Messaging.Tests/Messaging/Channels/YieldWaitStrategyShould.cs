@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 /// <remarks>
 /// Tests the Task.Yield-based wait strategy implementation.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Channels")]
 [Trait("Priority", "0")]
 public sealed class YieldWaitStrategyShould : IDisposable

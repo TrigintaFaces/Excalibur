@@ -21,9 +21,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 /// a real RabbitMQ container.
 /// </summary>
 [Collection(ContainerCollections.RabbitMQ)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "RabbitMQ")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetime
 {
     private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(15));

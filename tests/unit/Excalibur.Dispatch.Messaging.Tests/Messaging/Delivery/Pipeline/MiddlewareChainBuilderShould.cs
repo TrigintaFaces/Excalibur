@@ -5,7 +5,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Delivery.Pipeline;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// Sprint 463 - S463.2: Tests for pre-compiled middleware chains (PERF-1).
 /// Tests verify that chains are built at startup and execute without per-dispatch closures.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 [Trait("Priority", "0")]
 public sealed class MiddlewareChainBuilderShould : IDisposable

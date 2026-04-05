@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Tests.Documentation;
 /// Sprint 447 S447.6: Verify documentation code examples compile.
 /// These tests ensure that API examples in documentation match the actual implementation.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Documentation")]
 public sealed class DocumentationExamplesShould
 {

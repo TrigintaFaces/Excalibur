@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// Sprint 460 - Task S460.4: Middleware Pipeline Tests.
 /// Tests the pipeline profile middleware composition and message compatibility.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class PipelineProfileShould
 {

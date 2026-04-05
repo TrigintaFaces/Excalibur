@@ -10,8 +10,8 @@ using ConfigSecurityOptions = Excalibur.Dispatch.Options.Configuration.SecurityO
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConfigurationOptionsShould
 {
 	// --- DispatchOptions ---

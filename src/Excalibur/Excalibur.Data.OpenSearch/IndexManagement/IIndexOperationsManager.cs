@@ -46,16 +46,6 @@ public interface IIndexOperationsManager
 	Task<IEnumerable<IndexHealthStatus>> GetIndexHealthAsync(string? indexPattern, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Optimizes index settings based on usage patterns.
-	/// </summary>
-	/// <param name="indexName"> The name of the index to optimize. </param>
-	/// <param name="optimizationOptions"> The optimization options. </param>
-	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
-	/// <returns> A <see cref="Task{IndexOptimizationResult}" /> containing optimization results. </returns>
-	Task<IndexOptimizationResult> OptimizeIndexAsync(string indexName, IndexOptimizationOptions optimizationOptions,
-		CancellationToken cancellationToken);
-
-	/// <summary>
 	/// Updates index settings dynamically.
 	/// </summary>
 	/// <param name="indexName"> The name of the index to update. </param>
@@ -64,12 +54,4 @@ public interface IIndexOperationsManager
 	/// <returns> A <see cref="Task{Boolean}" /> indicating whether the operation was successful. </returns>
 	Task<bool> UpdateIndexSettingsAsync(string indexName, IIndexSettings settings, CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Forces a merge operation on the specified index.
-	/// </summary>
-	/// <param name="indexName"> The name of the index to merge. </param>
-	/// <param name="maxNumSegments"> The maximum number of segments to merge to. If null, uses OpenSearch default. </param>
-	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
-	/// <returns> A <see cref="Task{Boolean}" /> indicating whether the operation was successful. </returns>
-	Task<bool> ForceMergeAsync(string indexName, int? maxNumSegments, CancellationToken cancellationToken);
 }

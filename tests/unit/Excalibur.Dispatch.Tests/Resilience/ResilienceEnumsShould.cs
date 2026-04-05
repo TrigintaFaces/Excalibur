@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Resilience;
 /// <summary>
 /// Unit tests for resilience enum types: <see cref="DegradationLevel"/> and <see cref="JitterStrategy"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class ResilienceEnumsShould : UnitTestBase
 {
 	#region DegradationLevel

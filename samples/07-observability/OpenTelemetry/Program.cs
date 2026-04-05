@@ -91,7 +91,6 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-	_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 });
 
 var app = builder.Build();

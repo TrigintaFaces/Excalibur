@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Messaging;
 /// <summary>
 /// Unit tests for <see cref="OversizedMessageBehavior"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class OversizedMessageBehaviorShould
 {
 	[Fact]

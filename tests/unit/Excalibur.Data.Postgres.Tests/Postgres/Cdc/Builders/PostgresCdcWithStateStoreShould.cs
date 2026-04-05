@@ -13,8 +13,8 @@ namespace Excalibur.Data.Tests.Postgres.Cdc.Builders;
 /// <see cref="IPostgresCdcBuilder.BindConfiguration"/> methods.
 /// Validates the Microsoft Change Feed Processor pattern: separate source/state connections.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "Postgres")]
 public sealed class PostgresCdcWithStateStoreShould : UnitTestBase
 {

@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing.Builder;
 /// <summary>
 /// Unit tests for <see cref="RoutingBuilder"/> and <see cref="IRoutingBuilder"/> interface.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RoutingBuilderShould
 {
 	#region IRoutingBuilder properties

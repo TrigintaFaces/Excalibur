@@ -25,7 +25,7 @@ public sealed class HandlerInvokerRegistryCollection;
 /// closure allocations when invoking handlers via reflection.
 /// </remarks>
 [Collection("HandlerInvokerRegistry")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 public sealed class HandlerInvokerRegistryShould : IDisposable
 {

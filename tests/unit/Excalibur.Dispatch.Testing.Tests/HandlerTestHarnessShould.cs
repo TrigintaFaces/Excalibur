@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Testing;
 namespace Excalibur.Dispatch.Testing.Tests;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Testing")]
+[Trait(TraitNames.Component, TestComponents.Testing)]
 public sealed class HandlerTestHarnessShould
 {
 	#region ConfigureServices

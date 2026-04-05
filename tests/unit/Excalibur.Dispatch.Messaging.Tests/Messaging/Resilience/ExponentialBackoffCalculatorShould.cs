@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 /// Tests for the <see cref="ExponentialBackoffCalculator"/> class.
 /// Epic 6 (bd-rj9o): Integration tests for exponential backoff with jitter.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class ExponentialBackoffCalculatorShould
 {

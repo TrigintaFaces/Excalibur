@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Buffers;
 /// <summary>
 /// Unit tests for <see cref="BufferSegment"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class BufferSegmentShould
 {
 	[Fact]

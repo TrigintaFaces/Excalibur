@@ -9,8 +9,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// Unit tests for <see cref="InMemoryStorageOptions"/>.
 /// Verifies defaults, validation logic, and PersistToDisk constraint.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryStorageOptionsShould : UnitTestBase
 {
 	[Fact]

@@ -15,8 +15,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AwsSqsMessageBusShould : IAsyncDisposable
 {
 	private readonly IAmazonSQS _sqsClient;

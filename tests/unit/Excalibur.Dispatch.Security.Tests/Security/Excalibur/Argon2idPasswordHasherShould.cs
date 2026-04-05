@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Security.Tests.Excalibur;
 /// <summary>
 /// Unit tests for <see cref="Argon2idPasswordHasher"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class Argon2idPasswordHasherShould
 {
 	private readonly Argon2Options _defaultOptions = new();

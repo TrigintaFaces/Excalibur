@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// implemented in the ClaimCheck subsystem.
 /// Sprint 569 -- Task S569.21: Regression guards for S569.1-S569.7.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "ClaimCheck")]
 public sealed class ClaimCheckS558ConformanceShould
 {

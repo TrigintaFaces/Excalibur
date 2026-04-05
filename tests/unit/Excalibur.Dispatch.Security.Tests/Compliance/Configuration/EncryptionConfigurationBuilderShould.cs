@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Configuration;
 /// Unit tests for <see cref="EncryptionConfigurationBuilder"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class EncryptionConfigurationBuilderShould
 {
 	#region UseInMemoryKeyManagement Tests

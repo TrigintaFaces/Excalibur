@@ -11,8 +11,8 @@ namespace Excalibur.Data.Tests.MongoDB.Cdc.Builders;
 /// <see cref="IMongoDbCdcBuilder.BindConfiguration"/> methods.
 /// Validates the unified WithStateStore(Action&lt;ICdcStateStoreBuilder&gt;) pattern.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MongoDbCdcWithStateStoreShould : UnitTestBase
 {
 	private const string SourceConnectionString = "mongodb://source-host:27017";

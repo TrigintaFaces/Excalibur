@@ -10,6 +10,8 @@ using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.Logging;
 
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
@@ -31,7 +33,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </para>
 /// <para> Implements <see cref="ITransportHealthChecker" /> for integration with ASP.NET Core health checks and the <see cref="MultiTransportHealthCheck" />. </para>
 /// </remarks>
-public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITransportAdapterLifecycle, ITransportHealthChecker, ITransportHealthMetrics, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for cron timer adapters.
@@ -112,7 +114,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 
 		if (!IsRunning)
 		{
-			return Task.FromResult<IMessageResult>(Messaging.MessageResult.Failed(new MessageProblemDetails
+			return Task.FromResult<IMessageResult>(MR.Failed(new MessageProblemDetails
 			{
 				Type = "urn:dispatch:transport:not-running",
 				Title = "Transport Not Running",
@@ -125,7 +127,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 
 		if (transportMessage is not CronTimerTriggerMessage message)
 		{
-			return Task.FromResult<IMessageResult>(Messaging.MessageResult.Failed(new MessageProblemDetails
+			return Task.FromResult<IMessageResult>(MR.Failed(new MessageProblemDetails
 			{
 				Type = "urn:dispatch:transport:invalid-message-type",
 				Title = "Invalid Message Type",
@@ -520,7 +522,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
 			_ = Interlocked.Increment(ref _failedTriggers);
 
-			return Messaging.MessageResult.Failed(new MessageProblemDetails
+			return MR.Failed(new MessageProblemDetails
 			{
 				Type = "urn:dispatch:transport:processing-failed",
 				Title = "Message Processing Failed",

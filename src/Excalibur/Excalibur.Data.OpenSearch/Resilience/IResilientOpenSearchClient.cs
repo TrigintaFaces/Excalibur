@@ -13,12 +13,6 @@ namespace Excalibur.Data.OpenSearch.Resilience;
 public interface IResilientOpenSearchClient
 {
 	/// <summary>
-	/// Gets a value indicating whether the circuit breaker is currently in the open state.
-	/// </summary>
-	/// <value> A <see cref="bool" /> indicating whether the circuit breaker is in open state. </value>
-	bool IsCircuitBreakerOpen { get; }
-
-	/// <summary>
 	/// Executes an OpenSearch search operation with resilience patterns.
 	/// </summary>
 	/// <typeparam name="TDocument"> The type of document to search for. </typeparam>
@@ -81,6 +75,20 @@ public interface IResilientOpenSearchClient
 		Func<GetDescriptor<TDocument>, IGetRequest>? selector,
 		CancellationToken cancellationToken)
 		where TDocument : class;
+}
+
+/// <summary>
+/// Provides diagnostics capabilities for the resilient OpenSearch client including circuit breaker
+/// state and health checking. This is an ISP sub-interface of <see cref="IResilientOpenSearchClient"/>
+/// for consumers that need monitoring and health status.
+/// </summary>
+public interface IResilientOpenSearchClientDiagnostics
+{
+	/// <summary>
+	/// Gets a value indicating whether the circuit breaker is currently in the open state.
+	/// </summary>
+	/// <value> A <see cref="bool" /> indicating whether the circuit breaker is in open state. </value>
+	bool IsCircuitBreakerOpen { get; }
 
 	/// <summary>
 	/// Gets the current health status of the OpenSearch cluster.

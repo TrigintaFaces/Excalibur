@@ -53,7 +53,7 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the number of changes to process in a single batch.</summary>
 	public IMongoDbCdcBuilder BatchSize(int batchSize)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
@@ -61,7 +61,7 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the interval between reconnection attempts.</summary>
 	public IMongoDbCdcBuilder ReconnectInterval(TimeSpan interval)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
@@ -69,7 +69,7 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Configures a separate connection for CDC state persistence.</summary>
 	public IMongoDbCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);

@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Tests.Inbox;
 /// IInboxStore interface contract including idempotency, concurrent access handling,
 /// and status transitions.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryInboxStoreConformanceShould : InboxStoreConformanceTestBase
 {

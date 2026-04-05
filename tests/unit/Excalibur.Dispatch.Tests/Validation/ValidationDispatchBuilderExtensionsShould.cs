@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Tests.Validation;
 /// Verifies the Sprint 720 fix (rak4tc) where UseValidation now
 /// registers ValidationMiddleware into the pipeline.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ValidationDispatchBuilderExtensionsShould
 {
 	[Fact]

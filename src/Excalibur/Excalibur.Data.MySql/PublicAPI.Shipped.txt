@@ -1,30 +1,4 @@
 #nullable enable
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ClearedConnectionPools = 103409 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionClosed = 103001 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionFailed = 103003 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionOpened = 103000 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionPoolCreated = 103002 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionTestFailed = 103404 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionTestSuccessful = 103403 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DeadlockDetected = 103500 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DisposingProvider = 103408 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DuplicateEntry = 103501 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ErrorDisposingProvider = 103410 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ExecutingDataRequest = 103400 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ExecutingDataRequestInTransaction = 103401 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToExecuteDataRequest = 103402 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToRetrieveConnectionPoolStatistics = 103407 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToRetrieveMetrics = 103405 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.InitializingProvider = 103406 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.MySqlError = 103502 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.PersistenceRetryAttempt = 103411 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryExecuted = 103101 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryExecuting = 103100 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryFailed = 103102 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.RetryAttempt = 103300 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionCommitted = 103201 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionRolledBack = 103202 -> int
-const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionStarted = 103200 -> int
 Excalibur.Data.MySql.Diagnostics.DataMySqlEventId
 Excalibur.Data.MySql.MySqlPersistenceProvider
 Excalibur.Data.MySql.MySqlPersistenceProvider.ConnectionString.get -> string!
@@ -59,10 +33,10 @@ Excalibur.Data.MySql.MySqlProviderOptions.ApplicationName.get -> string?
 Excalibur.Data.MySql.MySqlProviderOptions.ApplicationName.set -> void
 Excalibur.Data.MySql.MySqlProviderOptions.CommandTimeout.get -> int
 Excalibur.Data.MySql.MySqlProviderOptions.CommandTimeout.set -> void
-Excalibur.Data.MySql.MySqlProviderOptions.ConnectionString.get -> string!
-Excalibur.Data.MySql.MySqlProviderOptions.ConnectionString.set -> void
 Excalibur.Data.MySql.MySqlProviderOptions.ConnectTimeout.get -> int
 Excalibur.Data.MySql.MySqlProviderOptions.ConnectTimeout.set -> void
+Excalibur.Data.MySql.MySqlProviderOptions.ConnectionString.get -> string!
+Excalibur.Data.MySql.MySqlProviderOptions.ConnectionString.set -> void
 Excalibur.Data.MySql.MySqlProviderOptions.MaxRetryCount.get -> int
 Excalibur.Data.MySql.MySqlProviderOptions.MaxRetryCount.set -> void
 Excalibur.Data.MySql.MySqlProviderOptions.MySqlProviderOptions() -> void
@@ -95,6 +69,32 @@ Excalibur.Data.MySql.MySqlTransactionScope.Timeout.get -> System.TimeSpan
 Excalibur.Data.MySql.MySqlTransactionScope.Timeout.set -> void
 Excalibur.Data.MySql.MySqlTransactionScope.TransactionId.get -> string!
 Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MySql.MySqlProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ClearedConnectionPools = 103409 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionClosed = 103001 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionFailed = 103003 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionOpened = 103000 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionPoolCreated = 103002 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionTestFailed = 103404 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionTestSuccessful = 103403 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DeadlockDetected = 103500 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DisposingProvider = 103408 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DuplicateEntry = 103501 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ErrorDisposingProvider = 103410 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ExecutingDataRequest = 103400 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ExecutingDataRequestInTransaction = 103401 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToExecuteDataRequest = 103402 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToRetrieveConnectionPoolStatistics = 103407 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToRetrieveMetrics = 103405 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.InitializingProvider = 103406 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.MySqlError = 103502 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.PersistenceRetryAttempt = 103411 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryExecuted = 103101 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryExecuting = 103100 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryFailed = 103102 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.RetryAttempt = 103300 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionCommitted = 103201 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionRolledBack = 103202 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionStarted = 103200 -> int
 static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MySql.MySqlProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

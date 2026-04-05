@@ -17,26 +17,21 @@ namespace Excalibur.Dispatch.Serialization.Tests.Protobuf;
 /// unlike hand-rolled TestMessage which lacks static Descriptor.
 /// Serializer instances created via the public RegisterProtobuf builder API.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class ProtobufJsonWireFormatShould
 {
-	private static ISerializer CaptureSerializer(Action<ISerializationBuilder> register)
+	private readonly ISerializer _jsonSerializer = CreateProtobufSerializer(ProtobufWireFormat.Json);
+
+	private readonly ISerializer _binarySerializer = new ProtobufSerializer();
+
+	private static ISerializer CreateProtobufSerializer(ProtobufWireFormat wireFormat)
 	{
-		ISerializer? captured = null;
-		var builder = A.Fake<ISerializationBuilder>();
-		A.CallTo(() => builder.Register(A<ISerializer>._, A<byte>._))
-			.Invokes((ISerializer s, byte _) => captured = s)
-			.Returns(builder);
-		register(builder);
-		return captured ?? throw new InvalidOperationException("Serializer was not captured");
+		var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+		services.AddProtobufSerializer(opts => opts.WireFormat = wireFormat);
+		using var provider = services.BuildServiceProvider();
+		return provider.GetRequiredService<ISerializer>();
 	}
-
-	private readonly ISerializer _jsonSerializer = CaptureSerializer(b =>
-		b.RegisterProtobuf(opts => opts.WireFormat = ProtobufWireFormat.Json));
-
-	private readonly ISerializer _binarySerializer = CaptureSerializer(b =>
-		b.RegisterProtobuf());
 
 	#region ContentType
 

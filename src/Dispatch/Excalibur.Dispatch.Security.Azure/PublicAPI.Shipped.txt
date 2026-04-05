@@ -1,18 +1,18 @@
 #nullable enable
-const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultCredentialStoreCreated = 70900 -> int
-const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRequestFailed = 70909 -> int
-const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieved = 70908 -> int
-const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieveFailed = 70910 -> int
-const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieving = 70906 -> int
-const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultSecretNotFound = 70907 -> int
-const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultStored = 70912 -> int
-const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultStoring = 70911 -> int
 Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore
 Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore.AzureKeyVaultCredentialStore(Microsoft.Extensions.Configuration.IConfiguration! configuration, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore!>! logger) -> void
 Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore.GetCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Security.SecureString?>!
 Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore.StoreCredentialAsync(string! key, System.Security.SecureString! credential, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Security.Azure.AzureSecurityEventId
 Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions
+const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultCredentialStoreCreated = 70900 -> int
+const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRequestFailed = 70909 -> int
+const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieveFailed = 70910 -> int
+const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieved = 70908 -> int
+const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieving = 70906 -> int
+const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultSecretNotFound = 70907 -> int
+const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultStored = 70912 -> int
+const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultStoring = 70911 -> int
 static Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions.AddAzureKeyVaultCredentialStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions.AddAzureServiceBusSecurityValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions.AddDispatchSecurityAzure(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

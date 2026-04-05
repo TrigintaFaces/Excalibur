@@ -1,23 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyCreated = 92614 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFound = 92611 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFoundForDeletion = 92618 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFoundForSuspension = 92620 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotated = 92613 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotationFailed = 92615 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotationUnexpectedError = 92616 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyScheduledForDeletion = 92617 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeySuspended = 92619 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyVersionNotFound = 92612 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.ProviderDisposed = 92621 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.ProviderInitialized = 92610 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.StandardTierWarning = 92622 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyUnwrapFailed = 92634 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyUnwrapped = 92633 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyWrapFailed = 92632 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyWrapped = 92631 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.RsaKeyWrapperDisposed = 92635 -> int
-const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.RsaKeyWrapperInitialized = 92630 -> int
 Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId
 Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions
 Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.AzureKeyVaultOptions() -> void
@@ -83,6 +64,25 @@ Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm
 Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm.RsaOaep = 0 -> Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm
 Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm.RsaOaep256 = 1 -> Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm
 Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyCreated = 92614 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFound = 92611 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFoundForDeletion = 92618 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFoundForSuspension = 92620 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotated = 92613 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotationFailed = 92615 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotationUnexpectedError = 92616 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyScheduledForDeletion = 92617 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeySuspended = 92619 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyVersionNotFound = 92612 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.ProviderDisposed = 92621 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.ProviderInitialized = 92610 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.StandardTierWarning = 92622 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyUnwrapFailed = 92634 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyUnwrapped = 92633 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyWrapFailed = 92632 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyWrapped = 92631 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.RsaKeyWrapperDisposed = 92635 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.RsaKeyWrapperInitialized = 92630 -> int
 static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfigurationSection! configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 /// Unit tests for <see cref="EncryptionAlgorithm"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Configuration")]
+[Trait(TraitNames.Component, TestComponents.Configuration)]
 [Trait("Priority", "0")]
 public sealed class EncryptionAlgorithmShould
 {

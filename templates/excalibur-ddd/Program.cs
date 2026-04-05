@@ -24,6 +24,10 @@ builder.Services.AddExcalibur(excalibur =>
     });
 });
 
+// OpenTelemetry: one call registers all Dispatch meters + activity sources
+builder.Services.AddOpenTelemetry()
+    .AddDispatchInstrumentation();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

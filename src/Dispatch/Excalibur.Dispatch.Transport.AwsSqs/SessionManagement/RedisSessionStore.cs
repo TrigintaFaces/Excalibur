@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Redis-based session store implementation.
 /// </summary>
-internal sealed class RedisSessionStore : ISessionStore
+internal sealed class RedisSessionStore : ISessionStore, ISessionStoreAdmin
 {
 	private readonly IDatabase _database;
 	private readonly ILogger<RedisSessionStore> _logger;

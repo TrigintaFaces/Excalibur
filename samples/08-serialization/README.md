@@ -135,20 +135,14 @@ public partial class OrderPlacedEvent
 ### Dispatch Integration
 
 ```csharp
-// Protobuf
-builder.Services.AddProtobufSerialization(options =>
-{
-    options.WireFormat = ProtobufWireFormat.Binary;
-});
+// Protobuf (one call does everything)
+builder.Services.AddProtobufSerializer();
 
-// MessagePack
-builder.Services.AddMessagePackSerialization(options =>
-{
-    options.UseLz4Compression = true;
-});
+// MessagePack (one call does everything)
+builder.Services.AddMessagePackSerializer();
 
-// MemoryPack (default)
-builder.Services.AddMemoryPackInternalSerialization();
+// MemoryPack (one call does everything)
+builder.Services.AddMemoryPackSerializer();
 ```
 
 ## Prerequisites

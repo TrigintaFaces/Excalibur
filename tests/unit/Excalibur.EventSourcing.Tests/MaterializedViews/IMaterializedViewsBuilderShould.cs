@@ -52,13 +52,17 @@ public sealed class IMaterializedViewsBuilderShould
 	[Fact]
 	public void HaveGenericAddBuilderMethod()
 	{
-		// Arrange
-		var methods = typeof(IMaterializedViewsBuilder).GetMethods()
+		// Arrange - AddBuilder<TView, TBuilder> on interface, AddBuilder<TView>(factory) on extension
+		var interfaceMethod = typeof(IMaterializedViewsBuilder).GetMethods()
+			.Where(m => m.Name == "AddBuilder" && m.IsGenericMethod)
+			.ToList();
+		var extensionMethod = typeof(MaterializedViewsBuilderExtensions).GetMethods()
 			.Where(m => m.Name == "AddBuilder" && m.IsGenericMethod)
 			.ToList();
 
-		// Assert - should have two overloads
-		methods.Count.ShouldBe(2);
+		// Assert - one on interface, one on extension class
+		interfaceMethod.Count.ShouldBe(1);
+		extensionMethod.Count.ShouldBe(1);
 	}
 
 	[Fact]
@@ -75,8 +79,8 @@ public sealed class IMaterializedViewsBuilderShould
 	[Fact]
 	public void AddBuilderWithFactory_ReturnIMaterializedViewsBuilder()
 	{
-		// Arrange
-		var method = typeof(IMaterializedViewsBuilder).GetMethods()
+		// Arrange - AddBuilder<TView>(factory) moved to extension method
+		var method = typeof(MaterializedViewsBuilderExtensions).GetMethods()
 			.First(m => m.Name == "AddBuilder" && m.GetGenericArguments().Length == 1);
 
 		// Assert
@@ -132,22 +136,21 @@ public sealed class IMaterializedViewsBuilderShould
 	#region Configuration Method Tests
 
 	[Fact]
-	public void HaveEnableCatchUpOnStartupMethod()
+	public void HaveEnableCatchUpOnStartupExtensionMethod()
 	{
-		// Arrange
-		var method = typeof(IMaterializedViewsBuilder).GetMethod("EnableCatchUpOnStartup");
+		// Arrange - moved to extension class
+		var method = typeof(MaterializedViewsBuilderExtensions).GetMethod("EnableCatchUpOnStartup");
 
 		// Assert
 		method.ShouldNotBeNull();
 		method.ReturnType.ShouldBe(typeof(IMaterializedViewsBuilder));
-		method.GetParameters().Length.ShouldBe(0);
 	}
 
 	[Fact]
-	public void HaveWithBatchSizeMethod()
+	public void HaveWithBatchSizeExtensionMethod()
 	{
-		// Arrange
-		var method = typeof(IMaterializedViewsBuilder).GetMethod("WithBatchSize");
+		// Arrange - moved to extension class
+		var method = typeof(MaterializedViewsBuilderExtensions).GetMethod("WithBatchSize");
 
 		// Assert
 		method.ShouldNotBeNull();
@@ -157,14 +160,14 @@ public sealed class IMaterializedViewsBuilderShould
 	[Fact]
 	public void WithBatchSize_TakeIntParameter()
 	{
-		// Arrange
-		var method = typeof(IMaterializedViewsBuilder).GetMethod("WithBatchSize");
-		var parameters = method.GetParameters();
+		// Arrange - moved to extension class
+		var method = typeof(MaterializedViewsBuilderExtensions).GetMethod("WithBatchSize");
+		var parameters = method!.GetParameters();
 
-		// Assert
-		parameters.Length.ShouldBe(1);
-		parameters[0].Name.ShouldBe("batchSize");
-		parameters[0].ParameterType.ShouldBe(typeof(int));
+		// Assert - first param is 'this' (builder), second is batchSize
+		parameters.Length.ShouldBe(2);
+		parameters[1].Name.ShouldBe("batchSize");
+		parameters[1].ParameterType.ShouldBe(typeof(int));
 	}
 
 	#endregion

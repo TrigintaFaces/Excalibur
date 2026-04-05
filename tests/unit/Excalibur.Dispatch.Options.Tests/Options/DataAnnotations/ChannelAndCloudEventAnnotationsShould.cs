@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Options.DataAnnotations;
 /// Sprint 564 S564.56: Channel + CloudEvent + Core Options DataAnnotation coverage.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ChannelAndCloudEventAnnotationsShould
 {
 	private static bool TryValidate(object instance, out ICollection<ValidationResult> results)

@@ -13,7 +13,7 @@ namespace Excalibur.Data.OpenSearch.Resilience;
 /// <summary>
 /// Implements retry policy for OpenSearch operations with exponential backoff and jitter.
 /// </summary>
-public sealed class OpenSearchRetryPolicy : IOpenSearchRetryPolicy
+internal sealed class OpenSearchRetryPolicy : IOpenSearchRetryPolicy
 {
 	private readonly OpenSearchRetryPolicyOptions _settings;
 

@@ -9,13 +9,13 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PersistenceOptionsMonitorShould : IDisposable
 {
-	private readonly IOptionsMonitor<ProviderConfiguration> _innerMonitor;
-	private readonly PersistenceOptionsMonitor<ProviderConfiguration> _monitor;
+	private readonly IOptionsMonitor<PersistenceProviderOptions> _innerMonitor;
+	private readonly PersistenceOptionsMonitor<PersistenceProviderOptions> _monitor;
 
-	private static ProviderConfiguration CreateConfig(string name = "default") =>
+	private static PersistenceProviderOptions CreateConfig(string name = "default") =>
 		new()
 		{
 			Name = name,
@@ -25,11 +25,11 @@ public sealed class PersistenceOptionsMonitorShould : IDisposable
 
 	public PersistenceOptionsMonitorShould()
 	{
-		_innerMonitor = A.Fake<IOptionsMonitor<ProviderConfiguration>>();
+		_innerMonitor = A.Fake<IOptionsMonitor<PersistenceProviderOptions>>();
 		var config = A.Fake<IPersistenceConfiguration>();
 		A.CallTo(() => _innerMonitor.CurrentValue).Returns(CreateConfig());
 		A.CallTo(() => _innerMonitor.Get(A<string?>._)).Returns(CreateConfig());
-		_monitor = new PersistenceOptionsMonitor<ProviderConfiguration>(config, _innerMonitor);
+		_monitor = new PersistenceOptionsMonitor<PersistenceProviderOptions>(config, _innerMonitor);
 	}
 
 	[Fact]
@@ -78,7 +78,7 @@ public sealed class PersistenceOptionsMonitorShould : IDisposable
 	public void OnChange_ReturnsDisposable()
 	{
 		var subscription = A.Fake<IDisposable>();
-		A.CallTo(() => _innerMonitor.OnChange(A<Action<ProviderConfiguration, string?>>._))
+		A.CallTo(() => _innerMonitor.OnChange(A<Action<PersistenceProviderOptions, string?>>._))
 			.Returns(subscription);
 
 		var result = _monitor.OnChange((_, _) => { });
@@ -178,7 +178,7 @@ public sealed class PersistenceOptionsMonitorShould : IDisposable
 	[Fact]
 	public void GetChangeToken_ReturnsNonNull()
 	{
-		var token = PersistenceOptionsMonitor<ProviderConfiguration>.GetChangeToken();
+		var token = PersistenceOptionsMonitor<PersistenceProviderOptions>.GetChangeToken();
 		token.ShouldNotBeNull();
 	}
 

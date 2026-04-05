@@ -82,7 +82,7 @@ public sealed class SqlServerCdcOptions
 	/// Gets or sets whether processing should stop when a table handler is missing.
 	/// </summary>
 	/// <value>Default is <see langword="true"/>.</value>
-	public bool StopOnMissingTableHandler { get; set; } = DatabaseConfigDefaults.CdcDefaultStopOnMissingTableHandler;
+	public bool StopOnMissingTableHandler { get; set; } = DatabaseOptionsDefaults.CdcDefaultStopOnMissingTableHandler;
 
 	/// <summary>
 	/// Gets a value indicating whether database configuration was provided via the builder.

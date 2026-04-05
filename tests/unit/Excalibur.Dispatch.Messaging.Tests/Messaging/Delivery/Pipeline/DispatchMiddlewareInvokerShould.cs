@@ -5,7 +5,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Delivery.Pipeline;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// Sprint 449 - S449.5: Tests for closure elimination optimization (S449.2).
 /// Tests verify the struct-based continuation pattern eliminates closure allocations.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 public sealed class DispatchMiddlewareInvokerShould : IDisposable
 {

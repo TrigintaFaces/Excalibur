@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Elasticsearch")]
-[Trait("Feature", "Projections")]
+[Trait(TraitNames.Feature, TestFeatures.Projections)]
 public sealed class CompatibilityLevelShould
 {
 	#region Enum Value Tests

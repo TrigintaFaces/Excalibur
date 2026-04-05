@@ -2,10 +2,10 @@
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.CollectionName.get -> string!
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.CollectionName.set -> void
-Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.ConnectionString.get -> string!
-Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.ConnectionString.set -> void
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.ConnectTimeoutSeconds.get -> int
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.ConnectTimeoutSeconds.set -> void
+Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.ConnectionString.get -> string!
+Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.ConnectionString.set -> void
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.DatabaseName.get -> string!
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.DatabaseName.set -> void
 Excalibur.Outbox.MongoDB.MongoDbOutboxOptions.MaxPoolSize.get -> int
@@ -33,10 +33,10 @@ Excalibur.Outbox.MongoDB.MongoDbOutboxStore.MongoDbOutboxStore(MongoDB.Driver.IM
 Excalibur.Outbox.MongoDB.MongoDbOutboxStore.StageMessageAsync(Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions
 Microsoft.Extensions.DependencyInjection.OutboxBuilderMongoDbExtensions
-static Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions.AddMongoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName = "excalibur") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions.AddMongoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.MongoDB.MongoDbOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions.AddMongoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientProvider, System.Action<Excalibur.Outbox.MongoDB.MongoDbOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions.UseMongoDbOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! connectionString, string! databaseName = "excalibur") -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions.AddMongoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName = "excalibur") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions.UseMongoDbOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Outbox.MongoDB.MongoDbOutboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions.UseMongoDbOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientProvider, System.Action<Excalibur.Outbox.MongoDB.MongoDbOutboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.MongoDbOutboxExtensions.UseMongoDbOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! connectionString, string! databaseName = "excalibur") -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.OutboxBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.MongoDB.MongoDbOutboxOptions!>? configure = null) -> Excalibur.Outbox.IOutboxBuilder!

@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.ElasticSearch.IndexManagement;
 /// <summary>
 ///     Unit tests for <see cref="IndexTemplateManager" />.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class IndexTemplateManagerShould
 {
 	private readonly ElasticsearchClient _fakeClient;

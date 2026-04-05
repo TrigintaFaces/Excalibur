@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// and VerifyKeyDeletionAsync edge cases.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ErasureVerificationServiceReportShould
 {
 	private readonly IErasureStore _erasureStore;

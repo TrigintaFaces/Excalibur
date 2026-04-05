@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// and grace period logic.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ErasureServiceExecutionShould
 {
 	private readonly IErasureStore _store;

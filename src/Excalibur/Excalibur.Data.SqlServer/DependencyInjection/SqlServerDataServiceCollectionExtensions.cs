@@ -68,6 +68,7 @@ public static class SqlServerDataServiceCollectionExtensions
 		// Register dead letter store (uses IOptions pattern via DI)
 		services.TryAddSingleton<SqlServerDeadLetterStore>();
 		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<SqlServerDeadLetterStore>());
+		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterStore>());
 
 		return services;
 	}
@@ -94,6 +95,7 @@ public static class SqlServerDataServiceCollectionExtensions
 		// Register dead letter store (uses IOptions pattern via DI)
 		services.TryAddSingleton<SqlServerDeadLetterStore>();
 		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<SqlServerDeadLetterStore>());
+		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterStore>());
 
 		return services;
 	}

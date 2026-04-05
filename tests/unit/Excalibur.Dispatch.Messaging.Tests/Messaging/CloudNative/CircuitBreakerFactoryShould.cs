@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
 /// <remarks>
 /// Tests the circuit breaker factory for creating and managing circuit breakers.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CloudNative")]
 [Trait("Priority", "0")]
 public sealed class CircuitBreakerFactoryShould : IAsyncDisposable

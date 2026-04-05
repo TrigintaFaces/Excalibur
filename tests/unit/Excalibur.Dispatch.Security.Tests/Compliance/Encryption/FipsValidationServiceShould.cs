@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Uses <see cref="IFipsDetector"/> mock to test FIPS state scenarios.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class FipsValidationServiceShould
 {
 	#region IsFipsEnabled Tests

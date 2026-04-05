@@ -4,8 +4,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// <summary>
 /// Unit tests for InMemoryProviderOptions.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class InMemoryProviderOptionsShould : UnitTestBase
 {
 	[Fact]

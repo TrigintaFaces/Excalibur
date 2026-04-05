@@ -9,8 +9,8 @@ using AwsISessionStore = Excalibur.Dispatch.Transport.Aws.ISessionStore;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.SessionManagement;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class SessionManagerShould
 {
 	private readonly AwsISessionStore _fakeStore = A.Fake<AwsISessionStore>();

@@ -21,8 +21,8 @@ namespace Excalibur.Dispatch.Messaging.Tests.Messaging.Outbox;
 /// Sprint 697: Updated to use ServiceCollection.BuildServiceProvider() because
 /// the validator now uses keyed service resolution (GetKeyedService) for IOutboxStore.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class OutboxStagingOptionsValidatorShould : UnitTestBase
 {
 	[Fact]

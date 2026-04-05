@@ -7,8 +7,8 @@ using Xunit;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Soc2;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ControlValidationShould
 {
     [Fact]

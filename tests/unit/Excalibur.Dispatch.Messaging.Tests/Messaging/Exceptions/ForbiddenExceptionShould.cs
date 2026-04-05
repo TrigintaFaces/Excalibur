@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Tests for <see cref="ForbiddenException"/> to verify permission denied
 /// error handling with HTTP 403 status code support.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ForbiddenExceptionShould
 {
 	[Fact]

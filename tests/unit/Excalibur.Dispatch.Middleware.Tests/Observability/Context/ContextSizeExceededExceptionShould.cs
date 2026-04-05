@@ -8,9 +8,9 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Context;
 /// <summary>
 /// Unit tests for <see cref="ContextSizeExceededException" />.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Excalibur.Dispatch.Observability")]
-[Trait("Feature", "Context")]
+[Trait(TraitNames.Feature, TestFeatures.Context)]
 public sealed class ContextSizeExceededExceptionShould : UnitTestBase
 {
 	#region Constructor Tests

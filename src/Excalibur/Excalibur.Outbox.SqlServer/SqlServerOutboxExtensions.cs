@@ -220,6 +220,7 @@ public static class SqlServerOutboxExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerDeadLetterQueueOptions>, SqlServerDeadLetterQueueOptionsValidator>());
 		services.TryAddSingleton<SqlServerDeadLetterQueue>();
 		services.TryAddSingleton<IDeadLetterQueue>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
+		services.TryAddSingleton<IDeadLetterQueueAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 
 		return services;
 	}

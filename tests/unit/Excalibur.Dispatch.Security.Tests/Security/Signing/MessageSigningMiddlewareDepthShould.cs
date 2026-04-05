@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 /// direction detection, tenant algorithm overrides, key ID extraction, purpose extraction,
 /// missing signature handling, and signing exception paths.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class MessageSigningMiddlewareDepthShould
 {
 	private readonly IMessageSigningService _signingService;

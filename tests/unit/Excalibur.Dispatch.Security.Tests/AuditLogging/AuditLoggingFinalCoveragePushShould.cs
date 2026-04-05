@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// - AuditLoggingServiceCollectionExtensions.cs (InnerAuditStoreResolutionFailed)
 /// - AuditHasher.cs (null EventHash in VerifyHash, metadata null value)
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [UnitTest]
 public sealed class AuditLoggingFinalCoveragePushShould
 {

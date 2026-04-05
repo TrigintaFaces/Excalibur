@@ -13,8 +13,8 @@ namespace Excalibur.Data.Tests.Postgres.Cdc.Builders;
 /// These tests validate the ADR-098 Microsoft-style fluent builder pattern implementation
 /// for the Postgres CDC provider.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "Postgres")]
 public sealed class PostgresCdcBuilderShould : UnitTestBase
 {

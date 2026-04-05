@@ -86,16 +86,6 @@ public sealed class ObservabilityOptionsShould
 	}
 
 	[Fact]
-	public void HaveEnableDetailedTimingFalseByDefault()
-	{
-		// Arrange & Act
-		var options = new ObservabilityOptions();
-
-		// Assert
-		options.EnableDetailedTiming.ShouldBeFalse();
-	}
-
-	[Fact]
 	public void HaveIncludeSensitiveDataFalseByDefault()
 	{
 		// Arrange & Act
@@ -180,16 +170,6 @@ public sealed class ObservabilityOptionsShould
 	}
 
 	[Fact]
-	public void AllowSettingEnableDetailedTiming()
-	{
-		// Arrange & Act
-		var options = new ObservabilityOptions { EnableDetailedTiming = true };
-
-		// Assert
-		options.EnableDetailedTiming.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void AllowSettingIncludeSensitiveData()
 	{
 		// Arrange & Act
@@ -216,7 +196,6 @@ public sealed class ObservabilityOptionsShould
 			MeterName = "CustomMeter",
 			ServiceName = "CustomService",
 			ServiceVersion = "3.0.0",
-			EnableDetailedTiming = true,
 			IncludeSensitiveData = false,
 		};
 
@@ -228,7 +207,6 @@ public sealed class ObservabilityOptionsShould
 		options.MeterName.ShouldBe("CustomMeter");
 		options.ServiceName.ShouldBe("CustomService");
 		options.ServiceVersion.ShouldBe("3.0.0");
-		options.EnableDetailedTiming.ShouldBeTrue();
 		options.IncludeSensitiveData.ShouldBeFalse();
 	}
 

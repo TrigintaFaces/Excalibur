@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Monitoring;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ElasticsearchPerformanceDiagnosticsShould
 {
 	private readonly ElasticsearchPerformanceDiagnostics _sut;

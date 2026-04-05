@@ -15,8 +15,8 @@ using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.HealthChecking;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AwsSnsHealthCheckerShould
 {
 	private readonly IAmazonSimpleNotificationService _snsClient;

@@ -21,6 +21,5 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
-    <ProjectReference Include="..\..\unit\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj" />
   </ItemGroup>
 </Project>

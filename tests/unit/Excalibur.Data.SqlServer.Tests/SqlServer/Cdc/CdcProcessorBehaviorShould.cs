@@ -15,9 +15,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// <summary>
 /// Behavior tests for core CDC processing internals in <see cref="CdcProcessor"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcProcessorBehaviorShould : UnitTestBase
 {
 	private static readonly Type ChangeProcessingStateType = typeof(CdcProcessor)

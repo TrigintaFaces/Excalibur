@@ -21,7 +21,6 @@ namespace Excalibur.Benchmarks.EventSourcing;
 public class ScaleOutBenchmarks
 {
 	private ITenantShardMap _shardMap = null!;
-	private object _snapshotPolicy = null!;
 	private MethodInfo _shouldSnapshotMethod = null!;
 	private AutoSnapshotOptions _snapshotOptions = null!;
 	private SnapshotDecisionContext _snapshotContext = null!;

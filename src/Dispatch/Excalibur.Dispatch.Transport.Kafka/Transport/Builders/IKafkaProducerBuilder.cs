@@ -68,36 +68,6 @@ public interface IKafkaProducerBuilder
 	IKafkaProducerBuilder CompressionType(KafkaCompressionType compressionType);
 
 	/// <summary>
-	/// Enables transactional messaging with the specified transactional ID.
-	/// </summary>
-	/// <param name="transactionalId">The transactional ID for exactly-once processing.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="transactionalId"/> is null, empty, or whitespace.
-	/// </exception>
-	IKafkaProducerBuilder EnableTransactions(string transactionalId);
-
-	/// <summary>
-	/// Sets the maximum time to wait for a batch to fill before sending.
-	/// </summary>
-	/// <param name="linger">The linger time duration.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="linger"/> is negative.
-	/// </exception>
-	IKafkaProducerBuilder LingerMs(TimeSpan linger);
-
-	/// <summary>
-	/// Sets the maximum batch size in bytes.
-	/// </summary>
-	/// <param name="batchSize">The maximum size of a message batch.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="batchSize"/> is less than or equal to zero.
-	/// </exception>
-	IKafkaProducerBuilder BatchSize(int batchSize);
-
-	/// <summary>
 	/// Adds an additional producer configuration property.
 	/// </summary>
 	/// <param name="key">The configuration property key.</param>
@@ -154,7 +124,7 @@ internal sealed class KafkaProducerBuilder : IKafkaProducerBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Enables transactional messaging.</summary>
 	public IKafkaProducerBuilder EnableTransactions(string transactionalId)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(transactionalId);
@@ -163,7 +133,7 @@ internal sealed class KafkaProducerBuilder : IKafkaProducerBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the max time to wait for a batch to fill before sending.</summary>
 	public IKafkaProducerBuilder LingerMs(TimeSpan linger)
 	{
 		if (linger < TimeSpan.Zero)
@@ -175,7 +145,7 @@ internal sealed class KafkaProducerBuilder : IKafkaProducerBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the maximum batch size in bytes.</summary>
 	public IKafkaProducerBuilder BatchSize(int batchSize)
 	{
 		if (batchSize <= 0)

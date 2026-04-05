@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 /// Unit tests for <see cref="EventualConsistencyTracker"/> Dispose functionality.
 /// Verifies Sprint 389 fix: Dispose method properly releases resources.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class EventualConsistencyTrackerDisposeShould : UnitTestBase
 {
 	[Fact]

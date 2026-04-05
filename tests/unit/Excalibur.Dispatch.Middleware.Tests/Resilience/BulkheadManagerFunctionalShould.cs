@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Functional tests for <see cref="BulkheadManager"/> verifying
 /// bulkhead creation, removal, and metrics aggregation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class BulkheadManagerFunctionalShould
 {
 	private BulkheadManager CreateManager()

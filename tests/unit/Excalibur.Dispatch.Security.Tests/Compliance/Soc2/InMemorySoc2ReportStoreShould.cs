@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Unit tests for <see cref="InMemorySoc2ReportStore"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class InMemorySoc2ReportStoreShould
 {
 	private readonly InMemorySoc2ReportStore _sut;

@@ -34,8 +34,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Sagas.Timeouts;
 /// following the Option B design from SoftwareArchitect (AD-3).
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Saga")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Saga)]
 [Trait("Sprint", "215")]
 public sealed class SagaTimeoutMethodsShould
 {

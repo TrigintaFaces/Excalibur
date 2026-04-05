@@ -25,8 +25,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Sprint 414 - Task T414.6: AuthorizationMiddleware tests (0% -> 50%+).
 /// Tests authorization middleware implementation including role-based and policy-based authorization.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class AuthorizationMiddlewareShould
 {
 	private readonly ILogger<AuthorizationMiddleware> _logger;

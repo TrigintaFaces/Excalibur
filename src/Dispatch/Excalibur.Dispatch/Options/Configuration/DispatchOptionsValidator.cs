@@ -19,17 +19,22 @@ internal sealed class DispatchOptionsValidator : IValidateOptions<DispatchOption
 
 		if (options.DefaultTimeout <= TimeSpan.Zero)
 		{
-			failures.Add($"{nameof(DispatchOptions.DefaultTimeout)} must be positive (was {options.DefaultTimeout}).");
+			failures.Add(
+				$"{nameof(DispatchOptions)}.{nameof(DispatchOptions.DefaultTimeout)} must be positive (was {options.DefaultTimeout}). " +
+				$"Configure it via services.Configure<{nameof(DispatchOptions)}>(o => o.DefaultTimeout = TimeSpan.FromSeconds(30)).");
 		}
 
 		if (options.MaxConcurrency < 1)
 		{
-			failures.Add($"{nameof(DispatchOptions.MaxConcurrency)} must be >= 1 (was {options.MaxConcurrency}).");
+			failures.Add(
+				$"{nameof(DispatchOptions)}.{nameof(DispatchOptions.MaxConcurrency)} must be >= 1 (was {options.MaxConcurrency}). " +
+				$"Configure it via services.Configure<{nameof(DispatchOptions)}>(o => o.MaxConcurrency = Environment.ProcessorCount).");
 		}
 
 		if (options.MessageBufferSize < 1)
 		{
-			failures.Add($"{nameof(DispatchOptions.MessageBufferSize)} must be >= 1 (was {options.MessageBufferSize}).");
+			failures.Add(
+				$"{nameof(DispatchOptions)}.{nameof(DispatchOptions.MessageBufferSize)} must be >= 1 (was {options.MessageBufferSize}).");
 		}
 
 		return failures.Count > 0

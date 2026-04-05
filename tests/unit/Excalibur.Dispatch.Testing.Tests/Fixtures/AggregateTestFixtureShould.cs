@@ -8,7 +8,7 @@ using Excalibur.Testing;
 namespace Excalibur.Dispatch.Testing.Tests.Fixtures;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Testing")]
+[Trait(TraitNames.Component, TestComponents.Testing)]
 public sealed class AggregateTestFixtureShould
 {
 	#region Given

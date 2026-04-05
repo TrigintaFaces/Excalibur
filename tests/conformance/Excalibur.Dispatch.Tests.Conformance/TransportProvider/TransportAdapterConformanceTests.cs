@@ -31,6 +31,22 @@ public abstract class TransportAdapterConformanceTests
 	/// </summary>
 	protected abstract string TestDestination { get; }
 
+	/// <summary>
+	///     Gets the lifecycle interface from the adapter, or null if not supported.
+	/// </summary>
+	private static ITransportAdapterLifecycle? GetLifecycle(ITransportAdapter adapter) =>
+		adapter as ITransportAdapterLifecycle;
+
+	/// <summary>
+	///     Gets the lifecycle interface from the adapter, asserting it is available.
+	/// </summary>
+	private static ITransportAdapterLifecycle GetRequiredLifecycle(ITransportAdapter adapter)
+	{
+		var lifecycle = adapter as ITransportAdapterLifecycle;
+		lifecycle.ShouldNotBeNull("Adapter should implement ITransportAdapterLifecycle");
+		return lifecycle;
+	}
+
 	[Fact]
 	public void NameShouldNotBeNullOrEmpty()
 	{
@@ -66,9 +82,10 @@ public abstract class TransportAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetRequiredLifecycle(adapter);
 
 		// Act
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		adapter.IsRunning.ShouldBeTrue();
@@ -79,10 +96,11 @@ public abstract class TransportAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		var lifecycle = GetRequiredLifecycle(adapter);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		adapter.IsRunning.ShouldBeFalse();
@@ -93,11 +111,12 @@ public abstract class TransportAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetRequiredLifecycle(adapter);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(() => adapter.StartAsync(cts.Token)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<OperationCanceledException>(() => lifecycle.StartAsync(cts.Token)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -105,12 +124,13 @@ public abstract class TransportAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		var lifecycle = GetRequiredLifecycle(adapter);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(() => adapter.StopAsync(cts.Token)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<OperationCanceledException>(() => lifecycle.StopAsync(cts.Token)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -234,10 +254,11 @@ public abstract class TransportAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetRequiredLifecycle(adapter);
 
 		// Act
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false); // Second call should not throw
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false); // Second call should not throw
 
 		// Assert
 		adapter.IsRunning.ShouldBeTrue();
@@ -248,11 +269,12 @@ public abstract class TransportAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		var lifecycle = GetRequiredLifecycle(adapter);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false);
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false); // Second call should not throw
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false); // Second call should not throw
 
 		// Assert
 		adapter.IsRunning.ShouldBeFalse();
@@ -263,9 +285,10 @@ public abstract class TransportAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetRequiredLifecycle(adapter);
 
 		// Act & Assert
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false);
 		// Should not throw
 		adapter.IsRunning.ShouldBeFalse();
 	}

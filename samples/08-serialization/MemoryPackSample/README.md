@@ -154,20 +154,19 @@ All serialization code is source-generated at compile time - no runtime reflecti
 
 ## Configuration
 
-MemoryPack can be registered as the binary serializer for outbox/inbox persistence:
+MemoryPack can be registered as the binary serializer for outbox/inbox persistence with a single call:
 
 ```csharp
-// Configure Dispatch with JSON serialization for messaging
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.WithSerialization(config => config.UseSystemTextJson());
 });
 
-// Register MemoryPack as the ISerializer for binary serialization (Outbox/Inbox)
-services.AddSingleton<ISerializer>(
-    MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
+// One call registers MemoryPack as the binary serializer
+services.AddMemoryPackSerializer();
 ```
+
+Consumer event types do **not** need `[MemoryPackable]` or any other serializer-specific attributes. Only the internal envelope wrapper uses MemoryPack attributes.
 
 ## Related Samples
 

@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc.DeadLetter;
 /// Unit tests for <see cref="GrpcDeadLetterQueueManager"/>.
 /// Sprint 697 T.33: gRPC transport test coverage.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcDeadLetterQueueManagerShould
 {
 	private readonly GrpcDeadLetterQueueManager _sut;
@@ -43,7 +43,7 @@ public sealed class GrpcDeadLetterQueueManagerShould
 	public async Task MoveToDeadLetterAsync_GenerateIdWhenNull()
 	{
 		// Arrange
-		var message = new TransportMessage { Id = null };
+		var message = new TransportMessage { Id = null! };
 
 		// Act
 		var result = await _sut.MoveToDeadLetterAsync(

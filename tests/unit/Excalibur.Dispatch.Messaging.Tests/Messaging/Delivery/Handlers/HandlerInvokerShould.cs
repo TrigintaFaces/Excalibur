@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// Sprint 413 - Task T413.2: HandlerInvoker tests (81.3% → 95%).
 /// </remarks>
 [Collection("HandlerInvokerRegistry")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class HandlerInvokerShould : IDisposable
 {

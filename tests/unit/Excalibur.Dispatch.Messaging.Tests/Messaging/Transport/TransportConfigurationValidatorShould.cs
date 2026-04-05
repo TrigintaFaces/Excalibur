@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// <summary>
 /// Unit tests for <see cref="TransportConfigurationValidator"/> (Sprint 211).
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class TransportConfigurationValidatorShould : UnitTestBase
 {

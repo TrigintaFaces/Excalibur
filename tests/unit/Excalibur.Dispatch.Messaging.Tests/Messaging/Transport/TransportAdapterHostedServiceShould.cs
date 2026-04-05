@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 /// <summary>
 ///     Tests for the <see cref="TransportAdapterHostedService" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class TransportAdapterHostedServiceShould
 {
@@ -137,8 +137,9 @@ public sealed class TransportAdapterHostedServiceShould
 	[Fact]
 	public async Task StartAndStopWithMockITransportRegistry()
 	{
-		// Sprint 740: Verify start/stop works via ITransportRegistry interface (no concrete downcast).
-		var fakeAdapter = A.Fake<ITransportAdapter>();
+		// Sprint 740/745: Verify start/stop works via ITransportRegistry + ITransportAdapterLifecycle.
+		// StartAsync/StopAsync moved to ITransportAdapterLifecycle in Sprint 745 ISP split.
+		var fakeAdapter = A.Fake<ITransportAdapter>(o => o.Implements<ITransportAdapterLifecycle>());
 		A.CallTo(() => fakeAdapter.IsRunning).Returns(false);
 
 		var fakeRegistry = A.Fake<ITransportRegistry>();
@@ -153,11 +154,11 @@ public sealed class TransportAdapterHostedServiceShould
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
-		A.CallTo(() => fakeAdapter.StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((ITransportAdapterLifecycle)fakeAdapter).StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		A.CallTo(() => fakeAdapter.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((ITransportAdapterLifecycle)fakeAdapter).StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]

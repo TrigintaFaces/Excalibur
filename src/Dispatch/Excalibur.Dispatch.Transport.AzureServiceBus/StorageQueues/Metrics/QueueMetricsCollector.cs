@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="QueueMetricsCollector" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-public sealed partial class QueueMetricsCollector(ILogger<QueueMetricsCollector> logger) : IQueueMetricsCollector, IDisposable
+public sealed partial class QueueMetricsCollector(ILogger<QueueMetricsCollector> logger) : IQueueMetricsCollector, IQueueMetricsCollectorAdmin, IDisposable
 {
 	private static readonly ActivitySource ActivitySource = new("Excalibur.Dispatch.Transport.AzureServiceBus.StorageQueues", "1.0.0");
 	private static readonly Meter Meter = new("Excalibur.Dispatch.Transport.AzureServiceBus.StorageQueues", "1.0.0");

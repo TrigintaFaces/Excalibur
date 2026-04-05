@@ -123,7 +123,7 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 		{
 			foreach (var p in profileValues)
 			{
-				if (p.IsStrict && p.IsCompatible(message))
+				if (p.IsStrict && IsProfileCompatible(p, message))
 				{
 					return p;
 				}
@@ -134,7 +134,7 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 		{
 			foreach (var p in profileValues)
 			{
-				if (!p.IsStrict && p.SupportedMessageKinds == MessageKinds.Event && p.IsCompatible(message))
+				if (!p.IsStrict && p.SupportedMessageKinds == MessageKinds.Event && IsProfileCompatible(p, message))
 				{
 					return p;
 				}
@@ -145,7 +145,7 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 		IPipelineProfile? bestFallback = null;
 		foreach (var p in profileValues)
 		{
-			if (p.IsCompatible(message))
+			if (IsProfileCompatible(p, message))
 			{
 				if (p.IsStrict)
 				{
@@ -158,6 +158,13 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 
 		return bestFallback;
 	}
+
+	/// <summary>
+	/// Checks whether a profile is compatible with a message by delegating to <see cref="IPipelineProfileMatcher"/>.
+	/// </summary>
+	[RequiresUnreferencedCode("Uses reflection to determine message kind.")]
+	private static bool IsProfileCompatible(IPipelineProfile profile, IDispatchMessage message) =>
+		profile is IPipelineProfileMatcher matcher && matcher.IsCompatible(message);
 
 	/// <summary>
 	/// Freezes the profile selection cache for maximum hot-path performance.

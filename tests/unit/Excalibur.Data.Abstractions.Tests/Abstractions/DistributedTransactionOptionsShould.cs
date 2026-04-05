@@ -3,7 +3,7 @@ using Excalibur.Data.Abstractions.Transactions;
 namespace Excalibur.Data.Tests.Abstractions;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DistributedTransactionOptionsShould
 {
     [Fact]

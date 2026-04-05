@@ -41,29 +41,9 @@ public interface ICronExpression
 	DateTimeOffset? GetNextOccurrence(DateTimeOffset from);
 
 	/// <summary>
-	/// Calculates the next occurrence of the cron expression after the specified time in the expression's timezone.
-	/// </summary>
-	/// <param name="fromUtc"> The UTC time from which to calculate the next occurrence. </param>
-	/// <returns> The next occurrence time in UTC, or null if there is no next occurrence. </returns>
-	DateTimeOffset? GetNextOccurrenceUtc(DateTimeOffset fromUtc);
-
-	/// <summary>
-	/// Gets all occurrences between the specified start and end times.
-	/// </summary>
-	/// <param name="from"> The start time. </param>
-	/// <param name="endTime"> The end time. </param>
-	/// <returns> All occurrences between the specified times. </returns>
-	IEnumerable<DateTimeOffset> GetOccurrencesBetween(DateTimeOffset from, DateTimeOffset endTime);
-
-	/// <summary>
 	/// Validates whether the cron expression is valid.
 	/// </summary>
 	/// <returns> True if the expression is valid; otherwise, false. </returns>
 	bool IsValid();
 
-	/// <summary>
-	/// Gets a human-readable description of the cron expression.
-	/// </summary>
-	/// <returns> A description of when the cron expression runs. </returns>
-	string GetDescription();
 }

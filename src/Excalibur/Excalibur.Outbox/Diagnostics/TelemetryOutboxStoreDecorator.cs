@@ -33,7 +33,7 @@ namespace Excalibur.Outbox.Diagnostics;
 /// </code>
 /// </para>
 /// </remarks>
-internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IDisposable
+internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IOutboxStoreBatch, IDisposable
 {
 	/// <summary>
 	/// The meter name for outbox store metrics.
@@ -118,7 +118,18 @@ internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IDisposable
 	public async ValueTask MarkBatchSentAsync(IReadOnlyList<string> messageIds, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
-		await _inner.MarkBatchSentAsync(messageIds, cancellationToken).ConfigureAwait(false);
+		if (_inner is IOutboxStoreBatch batch)
+		{
+			await batch.MarkBatchSentAsync(messageIds, cancellationToken).ConfigureAwait(false);
+		}
+		else
+		{
+			foreach (var id in messageIds)
+			{
+				await _inner.MarkSentAsync(id, cancellationToken).ConfigureAwait(false);
+			}
+		}
+
 		RecordOperation("mark_batch_sent", messageIds.Count, sw.Elapsed.TotalMilliseconds);
 	}
 
@@ -126,7 +137,18 @@ internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IDisposable
 	public async ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, int retryCount, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
-		await _inner.MarkBatchFailedAsync(messageIds, reason, retryCount, cancellationToken).ConfigureAwait(false);
+		if (_inner is IOutboxStoreBatch batch)
+		{
+			await batch.MarkBatchFailedAsync(messageIds, reason, retryCount, cancellationToken).ConfigureAwait(false);
+		}
+		else
+		{
+			foreach (var id in messageIds)
+			{
+				await _inner.MarkFailedAsync(id, reason, retryCount, cancellationToken).ConfigureAwait(false);
+			}
+		}
+
 		RecordOperation("mark_batch_failed", messageIds.Count, sw.Elapsed.TotalMilliseconds);
 	}
 
@@ -134,7 +156,16 @@ internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IDisposable
 	public async ValueTask<bool> TryMarkSentAndReceivedAsync(string messageId, InboxEntry inboxEntry, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
-		var result = await _inner.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken).ConfigureAwait(false);
+		bool result;
+		if (_inner is IOutboxStoreBatch batch)
+		{
+			result = await batch.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken).ConfigureAwait(false);
+		}
+		else
+		{
+			result = false;
+		}
+
 		RecordOperation("try_mark_sent_received", 1, sw.Elapsed.TotalMilliseconds);
 		return result;
 	}

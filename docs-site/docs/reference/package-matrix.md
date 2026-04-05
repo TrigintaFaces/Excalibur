@@ -81,6 +81,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Dispatch.AuditLogging.Datadog` | Datadog SIEM exporter |
 | `Excalibur.Dispatch.AuditLogging.Aws` | AWS CloudWatch audit exporter |
 | `Excalibur.Dispatch.AuditLogging.GoogleCloud` | Google Cloud audit exporter |
+| `Excalibur.Dispatch.AuditLogging.OpenSearch` | OpenSearch audit store |
 
 ## Transports
 
@@ -103,7 +104,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Dispatch.Serialization.Protobuf` | Protocol Buffers serialization |
 | `Excalibur.Dispatch.Serialization.Avro` | Apache Avro serialization |
 
-## Hosting
+## Dispatch Hosting
 
 | Package | Purpose |
 |---------|---------|
@@ -115,6 +116,22 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Dispatch.LeaderElection.Abstractions` | Leader election interfaces |
 | `Excalibur.Dispatch.ClaimCheck.AwsS3` | AWS S3 claim check storage |
 | `Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage` | Google Cloud Storage claim check |
+
+## Excalibur Hosting
+
+| Package | Purpose |
+|---------|---------|
+| `Excalibur.Hosting` | Core hosting abstractions and composition root |
+| `Excalibur.Hosting.Web` | ASP.NET Core web hosting integration |
+| `Excalibur.Hosting.Aws` | AWS hosting infrastructure |
+| `Excalibur.Hosting.AwsLambda` | AWS Lambda hosting |
+| `Excalibur.Hosting.AzureFunctions` | Azure Functions hosting |
+| `Excalibur.Hosting.GoogleCloudFunctions` | Google Cloud Functions hosting |
+| `Excalibur.Hosting.Serverless` | Serverless hosting abstractions |
+| `Excalibur.Hosting.HealthChecks` | Aggregated health check registration |
+| `Excalibur.Hosting.Jobs` | Background job hosting |
+| `Excalibur.Hosting.Logging.Serilog` | Serilog structured logging integration |
+| `Excalibur.Hosting.Observability` | OpenTelemetry observability integration |
 
 ## Source Generators & Analyzers
 
@@ -154,11 +171,15 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Data.InMemory` | In-memory data store (testing) |
 | `Excalibur.Data.MySql` | MySQL data access |
 | `Excalibur.Data.DataProcessing` | Background data processing |
+| `Excalibur.Data.OpenSearch` | OpenSearch data access |
+| `Excalibur.Data.IdentityMap` | Identity map pattern for aggregate caching |
+| `Excalibur.Data.IdentityMap.SqlServer` | SQL Server identity map store |
 
 ## Event Sourcing
 
 | Package | Purpose |
 |---------|---------|
+| `Excalibur.EventSourcing` | Core event sourcing: repositories, projections, snapshots |
 | `Excalibur.EventSourcing.Abstractions` | `IEventStore`, `ISnapshot` interfaces |
 | `Excalibur.EventSourcing.SqlServer` | SQL Server event store |
 | `Excalibur.EventSourcing.Postgres` | PostgreSQL event store |
@@ -168,6 +189,10 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.EventSourcing.Firestore` | Firestore event store |
 | `Excalibur.EventSourcing.Redis` | Redis event store |
 | `Excalibur.EventSourcing.InMemory` | In-memory event store (testing) |
+| `Excalibur.EventSourcing.Sqlite` | SQLite event store (lightweight/embedded) |
+| `Excalibur.EventSourcing.AwsS3` | AWS S3 event store (cloud object storage) |
+| `Excalibur.EventSourcing.AzureBlob` | Azure Blob Storage event store |
+| `Excalibur.EventSourcing.Gcs` | Google Cloud Storage event store |
 
 ## Outbox
 
@@ -183,7 +208,21 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Outbox.Firestore` | Firestore outbox store |
 | `Excalibur.Outbox.Redis` | Redis outbox store |
 | `Excalibur.Outbox.InMemory` | In-memory outbox store (testing) |
-| `Excalibur.Inbox` | Inbox pattern (idempotent consumer) |
+
+## Inbox
+
+| Package | Purpose |
+|---------|---------|
+| `Excalibur.Inbox` | Inbox pattern core (idempotent consumer) |
+| `Excalibur.Inbox.SqlServer` | SQL Server inbox store |
+| `Excalibur.Inbox.Postgres` | PostgreSQL inbox store |
+| `Excalibur.Inbox.CosmosDb` | Cosmos DB inbox store |
+| `Excalibur.Inbox.DynamoDb` | DynamoDB inbox store |
+| `Excalibur.Inbox.MongoDB` | MongoDB inbox store |
+| `Excalibur.Inbox.ElasticSearch` | Elasticsearch inbox store |
+| `Excalibur.Inbox.Firestore` | Firestore inbox store |
+| `Excalibur.Inbox.Redis` | Redis inbox store |
+| `Excalibur.Inbox.InMemory` | In-memory inbox store (testing) |
 
 ## Sagas
 
@@ -268,17 +307,19 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 
 Which providers support which features:
 
-| Feature | SQL Server | Postgres | CosmosDB | DynamoDB | MongoDB | Firestore | Redis | In-Memory |
-|---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Event Store | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Outbox | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Sagas | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | |
-| Leader Election | ✓ | ✓ | | | ✓ | | ✓ | ✓ |
-| CDC | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | |
-| Data Access | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Audit Logging | ✓ | ✓ | | | | | | |
-| Compliance | ✓ | ✓ | | | | | | |
-| **Complete Metapackage** | **✓** | **✓** | | | | | | |
+| Feature | SQL Server | Postgres | CosmosDB | DynamoDB | MongoDB | Firestore | Redis | Elasticsearch | In-Memory | SQLite | Cloud Storage |
+|---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Event Store | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ | ✓ (S3, Blob, GCS) |
+| Outbox | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| Inbox | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| Sagas | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | | | |
+| Leader Election | ✓ | ✓ | | | ✓ | | ✓ | | ✓ | | |
+| CDC | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | | | |
+| Data Access | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| Identity Map | ✓ | | | | | | | | | | |
+| Audit Logging | ✓ | ✓ | | | | | | ✓ | | | |
+| Compliance | ✓ | ✓ | | | | | | | | | |
+| **Complete Metapackage** | **✓** | **✓** | | | | | | | | | |
 
 ---
 

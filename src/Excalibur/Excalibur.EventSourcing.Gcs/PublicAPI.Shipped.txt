@@ -1,8 +1,8 @@
 #nullable enable
 Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions
-Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.GcsColdEventStoreOptions() -> void
 Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.BucketName.get -> string?
 Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.BucketName.set -> void
+Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.GcsColdEventStoreOptions() -> void
 Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.ObjectPrefix.get -> string!
 Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.ObjectPrefix.set -> void
 Microsoft.Extensions.DependencyInjection.GcsColdEventStoreExtensions

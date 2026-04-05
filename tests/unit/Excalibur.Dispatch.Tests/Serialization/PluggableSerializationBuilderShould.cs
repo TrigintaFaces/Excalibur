@@ -10,16 +10,16 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// <summary>
 /// Unit tests for <see cref="IPluggableSerializationBuilder"/> and
 /// <see cref="PluggableSerializationServiceCollectionExtensions"/> validating
-/// DI configuration and auto-registration behavior.
+/// DI configuration and opt-in serializer registration behavior.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class PluggableSerializationBuilderShould
 {
-	#region AutoRegisterMemoryPack Tests
+	#region Opt-In Serializer Registration Tests
 
 	[Fact]
-	public void NotAutoRegisterMemoryPack_ByDefault()
+	public void NotRegisterMemoryPack_ByDefault()
 	{
 		// ADR-295: MemoryPack is opt-in, not auto-registered
 		var services = new ServiceCollection();
@@ -32,13 +32,13 @@ public sealed class PluggableSerializationBuilderShould
 	}
 
 	[Fact]
-	public void AutoRegisterMemoryPack_WhenOptedIn()
+	public void RegisterMemoryPack_WhenExplicitlyOptedIn()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddPluggableSerialization();
 		_ = services.AddPluggableSerializer(
 			SerializerIds.MemoryPack,
-			MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer(),
+			new Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer(),
 			setAsCurrent: true);
 
 		using var provider = services.BuildServiceProvider();
@@ -51,7 +51,7 @@ public sealed class PluggableSerializationBuilderShould
 	}
 
 	[Fact]
-	public void AllowOnlySystemTextJson_AsDefault()
+	public void UseSystemTextJson_AsDefaultSerializer()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddPluggableSerialization();
@@ -71,7 +71,7 @@ public sealed class PluggableSerializationBuilderShould
 		serializer.Name.ShouldBe("System.Text.Json");
 	}
 
-	#endregion AutoRegisterMemoryPack Tests
+	#endregion Opt-In Serializer Registration Tests
 
 	#region Serializer Registration Tests
 
@@ -82,7 +82,7 @@ public sealed class PluggableSerializationBuilderShould
 		_ = services.AddPluggableSerialization();
 		_ = services.AddPluggableSerializer(
 			SerializerIds.MemoryPack,
-			MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
+			new Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer());
 		_ = services.AddPluggableSerializer(SerializerIds.SystemTextJson, new SystemTextJsonSerializer());
 
 		using var provider = services.BuildServiceProvider();

@@ -97,7 +97,7 @@ public static class PersistenceServiceCollectionExtensions
 		var providersSection = configuration.GetSection("Persistence:Providers");
 		foreach (var providerSection in providersSection.GetChildren())
 		{
-			var providerConfig = new ProviderConfiguration
+			var providerConfig = new PersistenceProviderOptions
 			{
 				Name = providerSection.Key,
 				Type = Enum.Parse<PersistenceProviderType>(

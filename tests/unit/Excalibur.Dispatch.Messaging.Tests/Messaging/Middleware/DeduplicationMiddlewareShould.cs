@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Inbox;
 using Excalibur.Dispatch.Options.Delivery;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Unit tests for the <see cref="IdempotentHandlerMiddleware"/> deduplication behavior.
 /// Sprint 561 S561.39: Validates idempotency key extraction, duplicate detection, and cache integration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class DeduplicationMiddlewareShould
 {
 	private readonly IInMemoryDeduplicator _inMemoryDeduplicator;

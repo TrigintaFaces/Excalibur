@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// <remarks>
 /// Tests the memory-based message implementation for zero-copy operations.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Messaging")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Messaging)]
 [Trait("Priority", "0")]
 public sealed class MemoryMessageShould
 {

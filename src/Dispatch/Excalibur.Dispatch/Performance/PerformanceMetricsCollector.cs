@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Performance;
 /// <summary>
 /// Aggregates and exposes performance metrics collected across the Excalibur framework.
 /// </summary>
-public sealed class PerformanceMetricsCollector : IPerformanceMetricsCollector, IDisposable
+public sealed class PerformanceMetricsCollector : IPerformanceMetricsCollector, IPerformanceMetricsCollectorAdmin, IDisposable
 {
 	private readonly ConcurrentDictionary<string, ComponentMetricsData> _middlewareMetrics = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, BatchProcessingMetricsData> _batchMetrics = new(StringComparer.Ordinal);

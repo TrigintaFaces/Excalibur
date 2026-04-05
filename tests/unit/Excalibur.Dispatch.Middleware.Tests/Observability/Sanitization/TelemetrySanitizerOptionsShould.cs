@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Sanitization;
 /// <summary>
 /// Unit tests for <see cref="TelemetrySanitizerOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class TelemetrySanitizerOptionsShould : UnitTestBase
 {

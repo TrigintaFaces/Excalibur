@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DependencyInjection;
 /// <remarks>
 /// Sprint 501 S501.6: Tests for Phase 3 (bd-6yjcj, bd-rznmq) and Phase 4 (bd-79if7).
 /// </remarks>
-[Trait("Category", "Integration")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 {
 	private ServiceProvider? _serviceProvider;

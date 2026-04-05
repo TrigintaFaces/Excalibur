@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Configuration;
 /// fallback lookup without prefix, null prefix handling, mixed separator conversion,
 /// and the SecureString readonly guarantee.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class EnvironmentVariableCredentialStoreDepthShould : IDisposable
 {
 	private readonly List<string> _envVarsToClean = [];

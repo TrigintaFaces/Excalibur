@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// <remarks>
 /// Tests the tenant identifier implementation.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Delivery")]
 [Trait("Priority", "0")]
 public sealed class TenantIdShould

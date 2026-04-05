@@ -1,5 +1,4 @@
 #nullable enable
-abstract Excalibur.Application.Requests.Jobs.JobHandlerBase<TRequest>.HandleAsync(TRequest action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Application.Requests.Jobs.JobResult>!
 Excalibur.Application.ActivityContext
 Excalibur.Application.ActivityContext.ActivityContext(Excalibur.Dispatch.Abstractions.ITenantId! tenantId, Excalibur.Dispatch.Abstractions.ICorrelationId! correlationId, Excalibur.Domain.Concurrency.IETag! eTag, Microsoft.Extensions.Configuration.IConfiguration! configuration, Excalibur.Domain.IClientAddress! clientAddress, System.IServiceProvider! serviceProvider) -> void
 Excalibur.Application.ActivityContext.ContainsKey(string! key) -> bool
@@ -133,6 +132,7 @@ Excalibur.Application.Requests.Validation.RulesFor<TRequest, TPart>.Validate(TRe
 Excalibur.Application.Requests.Validation.RulesFor<TRequest, TPart>.ValidateAsync(TRequest instance, System.Threading.CancellationToken cancellation) -> System.Threading.Tasks.Task<FluentValidation.Results.ValidationResult!>!
 Excalibur.Application.ValidationExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburApplicationServiceCollectionExtensions
+abstract Excalibur.Application.Requests.Jobs.JobHandlerBase<TRequest>.HandleAsync(TRequest action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Application.Requests.Jobs.JobResult>!
 override Excalibur.Application.Requests.Jobs.JobResult.Equals(object? obj) -> bool
 override Excalibur.Application.Requests.Jobs.JobResult.GetHashCode() -> int
 static Excalibur.Application.OptionsBuilderExtensions.Validate<TOptions, TValidator>(this Microsoft.Extensions.Options.OptionsBuilder<TOptions!>! builder) -> void

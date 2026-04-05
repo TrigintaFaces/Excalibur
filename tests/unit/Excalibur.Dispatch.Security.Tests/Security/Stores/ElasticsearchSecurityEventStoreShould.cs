@@ -12,9 +12,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 /// Note: The constructor has a bug where it adds "Content-Type" to DefaultRequestHeaders
 /// which throws InvalidOperationException. Tests cover constructor validation and type assertions.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Stores")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Stores)]
 public sealed class ElasticsearchSecurityEventStoreShould
 {
 	[Fact]

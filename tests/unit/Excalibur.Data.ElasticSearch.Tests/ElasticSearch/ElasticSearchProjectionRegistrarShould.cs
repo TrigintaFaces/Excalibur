@@ -10,7 +10,7 @@ namespace Excalibur.Data.ElasticSearch.Tests.ElasticSearch;
 /// Unit tests for <see cref="ElasticSearchProjectionRegistrar"/> and <c>AddElasticSearchProjections</c> batch DI extensions.
 /// Validates both string-based and Action-based overloads.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "ElasticSearch")]
 public sealed class ElasticSearchProjectionRegistrarShould : UnitTestBase
 {

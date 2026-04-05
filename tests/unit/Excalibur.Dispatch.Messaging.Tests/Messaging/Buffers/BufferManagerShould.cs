@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Buffers;
 /// <summary>
 /// Unit tests for the BufferManager component.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class BufferManagerShould
 {

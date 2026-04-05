@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Splunk;
 /// Unit tests for <see cref="SplunkExporterOptions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 public sealed class SplunkExporterOptionsShould
 {
 	#region Default Value Tests

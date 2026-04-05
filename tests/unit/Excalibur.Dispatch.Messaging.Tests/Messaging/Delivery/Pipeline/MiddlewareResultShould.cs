@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// Sprint 460 - Task S460.4: Middleware Pipeline Tests.
 /// Tests the result struct used for middleware execution outcomes.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class MiddlewareResultShould
 {

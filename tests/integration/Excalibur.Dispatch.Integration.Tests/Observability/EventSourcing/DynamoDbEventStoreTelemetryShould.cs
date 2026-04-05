@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// - ConditionalCheckFailedException for sequential writes
 /// </remarks>
 [Collection("EventStore Telemetry Tests")]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class DynamoDbEventStoreTelemetryShould : IClassFixture<DynamoDbEventStoreTelemetryTestFixture>, IAsyncLifetime
 {

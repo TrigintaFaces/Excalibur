@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [Collection(ContainerCollections.Postgres)]
 [Trait("Component", TestComponents.Data)]
 [Trait("Infrastructure", TestInfrastructure.Postgres)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class PostgresAuditAndLeaderElectionIntegrationShould : IntegrationTestBase
 {

@@ -36,8 +36,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", "SnapshotStore")]
 [Trait("Database", "SqlServer")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBase
 {
 	private const string TestAggregateType = "TestAggregate";

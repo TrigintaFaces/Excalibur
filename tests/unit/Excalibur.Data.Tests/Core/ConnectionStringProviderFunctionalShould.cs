@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ConnectionStringProviderFunctionalShould
 {
 	private static (ConnectionStringProvider provider, IConfigurationRoot config) CreateProvider(

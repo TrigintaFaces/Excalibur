@@ -12,9 +12,9 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// RuntimeFeature branching, and helper methods.
 /// Sprint 739 B.5: Wave 4 AOT-safe dispatch path tests.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
-[Trait("Feature", "AOT")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
+[Trait(TraitNames.Feature, TestFeatures.AOT)]
 public sealed class AotCompatibilityExtensionsShould
 {
 	#region ConfigureHandlerInvoker Tests

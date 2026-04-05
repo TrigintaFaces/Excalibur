@@ -9,8 +9,8 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// Unit tests for <see cref="DynamoDbConnectionOptions"/>.
 /// Verifies defaults, property assignment, and DataAnnotations range constraints.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DynamoDbConnectionOptionsShould : UnitTestBase
 {
 	[Fact]

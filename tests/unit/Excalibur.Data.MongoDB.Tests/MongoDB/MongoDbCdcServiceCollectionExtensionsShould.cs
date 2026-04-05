@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.MongoDB.Cdc;
 /// <summary>
 /// Unit tests for MongoDB CDC service collection extensions.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "MongoDbCdcServiceCollectionExtensions")]
 public sealed class MongoDbCdcServiceCollectionExtensionsShould : UnitTestBase
 {

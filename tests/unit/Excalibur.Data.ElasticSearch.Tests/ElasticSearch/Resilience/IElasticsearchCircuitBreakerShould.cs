@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.ElasticSearch.Resilience;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Elasticsearch")]
-[Trait("Feature", "Resilience")]
+[Trait(TraitNames.Feature, TestFeatures.Resilience)]
 public sealed class IElasticsearchCircuitBreakerShould
 {
 	#region Interface Definition Tests

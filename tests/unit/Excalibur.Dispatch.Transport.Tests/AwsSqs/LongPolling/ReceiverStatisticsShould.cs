@@ -7,8 +7,8 @@ using AwsPollingStatus = Excalibur.Dispatch.Transport.Aws.SqsPollingStatus;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class ReceiverStatisticsShould
 {
 	[Fact]

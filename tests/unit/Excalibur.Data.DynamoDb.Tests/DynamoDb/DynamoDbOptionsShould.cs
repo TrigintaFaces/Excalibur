@@ -7,8 +7,8 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// <summary>
 /// Unit tests for <see cref="DynamoDbOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 [Trait("Feature", "DynamoDb")]
 public sealed class DynamoDbOptionsShould : UnitTestBase
 {

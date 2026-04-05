@@ -17,9 +17,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 /// file rotation when size threshold is exceeded, compression of rotated files,
 /// cleanup of old files, default config values, and descending timestamp sort order.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Stores")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Stores)]
 public sealed class FileSecurityEventStoreDepthShould : IDisposable
 {
 	private readonly string _tempDirectory;

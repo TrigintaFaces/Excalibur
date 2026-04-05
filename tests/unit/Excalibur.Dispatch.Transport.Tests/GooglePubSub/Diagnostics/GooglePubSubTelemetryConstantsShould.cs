@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.Diagnostics;
 /// and follow the established transport telemetry naming conventions.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport.GooglePubSub")]
+[Trait(TraitNames.Component, TestComponents.GooglePubSub)]
 public sealed class GooglePubSubTelemetryConstantsShould : UnitTestBase
 {
 	#region Non-null / Non-empty Validation

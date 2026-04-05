@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Integration.Tests.CloudEvents;
 /// <summary>
 /// Integration tests for CloudEvents format serialization and transport mapping.
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CloudEventsIntegrationShould : IntegrationTestBase
 {
 	#region CloudEvents Format Tests

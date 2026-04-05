@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Unit tests for <see cref="AesGcmEncryptionProvider"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class AesGcmEncryptionProviderShould : IDisposable
 {
 	private readonly InMemoryKeyManagementProvider _keyManagement;

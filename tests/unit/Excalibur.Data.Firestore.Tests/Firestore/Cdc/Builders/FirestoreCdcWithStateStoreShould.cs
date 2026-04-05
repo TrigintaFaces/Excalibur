@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.Firestore.Cdc.Builders;
 /// Validates the unified WithStateStore(Action&lt;ICdcStateStoreBuilder&gt;) pattern.
 /// Firestore uses project IDs via ConnectionString() instead of traditional connection strings.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FirestoreCdcWithStateStoreShould : UnitTestBase
 {
 	private const string StateProjectId = "my-state-project";

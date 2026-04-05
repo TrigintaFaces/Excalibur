@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// The complete migration flow is: DISABLED → ENCRYPT_NEW → LAZY_MIGRATION → BULK_MIGRATION → ENCRYPT_ALL → KEY_ROTATION
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class EncryptionModeTransitionsShould
 {
 	#region Valid Forward Transition Tests

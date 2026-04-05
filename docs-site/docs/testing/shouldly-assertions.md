@@ -22,7 +22,7 @@ description: Fluent Shouldly assertion extensions for Dispatch testing types
 
 ## Overview
 
-Nine extension methods provide fluent assertions for `IDispatchedMessageLog`, `InMemoryTransportSender`, and `InMemoryTransportReceiver`. All methods are defined in `DispatchTestingShouldlyExtensions`.
+Seventeen extension methods provide fluent assertions for `IDispatchedMessageLog`, `InMemoryTransportSender`, `InMemoryTransportReceiver`, `IMessageResult`, `DispatchTestHarness`, `ISaga`, and `ISaga<TSagaState>`. All methods are defined in `DispatchTestingShouldlyExtensions`.
 
 ```csharp
 // Defined in: Excalibur.Dispatch.Testing.Shouldly/DispatchTestingShouldlyExtensions.cs
@@ -125,6 +125,93 @@ Asserts that exactly `count` messages were rejected:
 receiver.ShouldHaveRejected(0);
 ```
 
+## Message Result Assertions
+
+These methods operate on `IMessageResult`.
+
+### ShouldHaveCompleted()
+
+Asserts that the result indicates success:
+
+```csharp
+var result = await harness.Dispatcher.DispatchAsync<PlaceOrderAction, OrderDto>(action, ct);
+result.ShouldHaveCompleted();
+```
+
+### ShouldHaveFailed()
+
+Asserts that the result indicates failure:
+
+```csharp
+var result = await harness.Dispatcher.DispatchAsync<PlaceOrderAction, OrderDto>(action, ct);
+result.ShouldHaveFailed();
+```
+
+### ShouldHaveFailedWithError(substring?)
+
+Asserts failure with a non-null error message, optionally checking for a substring:
+
+```csharp
+result.ShouldHaveFailedWithError();
+result.ShouldHaveFailedWithError("not found");
+```
+
+## Test Harness Assertions
+
+Shorthand methods on `DispatchTestHarness` that delegate to `Dispatched`.
+
+### ShouldHavePublished&lt;T&gt;()
+
+Asserts that at least one message of type `T` was dispatched through the harness:
+
+```csharp
+harness.ShouldHavePublished<OrderCreatedEvent>();
+```
+
+### ShouldHavePublished&lt;T&gt;(count)
+
+Asserts exactly `count` messages of type `T` were dispatched:
+
+```csharp
+harness.ShouldHavePublished<OrderCreatedEvent>(2);
+```
+
+## Saga Assertions
+
+These methods operate on `ISaga` and `ISaga<TSagaState>`.
+
+### SagaShouldBeCompleted()
+
+Asserts that the saga has completed:
+
+```csharp
+saga.SagaShouldBeCompleted();
+```
+
+### SagaShouldBeActive()
+
+Asserts that the saga is still active (not completed):
+
+```csharp
+saga.SagaShouldBeActive();
+```
+
+### SagaShouldBeInState(bool)
+
+Asserts the saga's completion state matches the expected value:
+
+```csharp
+saga.SagaShouldBeInState(expectedCompleted: true);
+```
+
+### SagaShouldHaveState&lt;TSagaState&gt;(predicate)
+
+Asserts that the typed saga state matches a predicate:
+
+```csharp
+saga.SagaShouldHaveState<OrderSagaState>(s => s.OrderId == expectedOrderId);
+```
+
 ## Complete Example
 
 A test combining the harness, transport test double, and Shouldly assertions:
@@ -225,6 +312,15 @@ Both approaches work. The extensions provide domain-specific failure messages (e
 | `ShouldHaveSentMessageMatching(Func)` | `InMemoryTransportSender` | At least one message matches predicate |
 | `ShouldHaveAcknowledged(int)` | `InMemoryTransportReceiver` | Exactly N messages acknowledged |
 | `ShouldHaveRejected(int)` | `InMemoryTransportReceiver` | Exactly N messages rejected |
+| `ShouldHaveCompleted()` | `IMessageResult` | Result indicates success |
+| `ShouldHaveFailed()` | `IMessageResult` | Result indicates failure |
+| `ShouldHaveFailedWithError(string?)` | `IMessageResult` | Failure with error message (optional substring match) |
+| `ShouldHavePublished<T>()` | `DispatchTestHarness` | Shorthand: at least one `T` dispatched |
+| `ShouldHavePublished<T>(int)` | `DispatchTestHarness` | Shorthand: exactly N of type `T` dispatched |
+| `SagaShouldBeCompleted()` | `ISaga` | Saga has completed |
+| `SagaShouldBeActive()` | `ISaga` | Saga is still active |
+| `SagaShouldBeInState(bool)` | `ISaga` | Saga completion state matches |
+| `SagaShouldHaveState<T>(Func)` | `ISaga<TSagaState>` | Typed saga state matches predicate |
 
 ## See Also
 

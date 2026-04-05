@@ -8,12 +8,12 @@ using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware.Versioning;
 using Excalibur.Dispatch.Middleware.Batch;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class BulkContextShould
 {
 	[Fact]

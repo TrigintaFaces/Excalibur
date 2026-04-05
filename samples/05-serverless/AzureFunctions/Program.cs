@@ -48,7 +48,6 @@ var host = new HostBuilder()
 			_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
 			// Configure JSON serialization
-			_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 		});
 
 		// ============================================================

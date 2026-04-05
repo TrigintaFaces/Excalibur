@@ -7,8 +7,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Tests.Diagnostics;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchTelemetryProviderShould : IDisposable
 {
 	private readonly DispatchTelemetryProvider _provider;

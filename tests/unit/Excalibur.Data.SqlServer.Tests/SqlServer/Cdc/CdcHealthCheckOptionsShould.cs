@@ -8,9 +8,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// <summary>
 /// Unit tests for <see cref="CdcHealthCheckOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcHealthCheckOptionsShould : UnitTestBase
 {
 	[Fact]

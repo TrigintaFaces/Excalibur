@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Azure;
 /// <summary>
 /// Depth coverage tests for <see cref="AzurePatternsServiceCollectionExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class AzurePatternsServiceCollectionExtensionsDepthShould
 {
 	[Fact]

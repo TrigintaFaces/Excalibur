@@ -58,7 +58,7 @@ Messages are routed to RabbitMQ using the `UseRouting` fluent API:
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.WithSerialization(config => config.UseSystemTextJson());
+    // JSON is the default -- no serialization config needed
     dispatch.UseRouting(routing =>
         routing.Transport.Route<PingEvent>().To("rabbitmq"));
 });

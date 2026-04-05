@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <summary>
 /// Unit tests for <see cref="BulkheadManager"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class BulkheadManagerShould : UnitTestBase
 {
 	#region Constructor Tests

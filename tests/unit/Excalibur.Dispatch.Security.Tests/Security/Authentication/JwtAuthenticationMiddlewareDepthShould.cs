@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Authentication;
 /// role extraction, tenant and email claims, token header extraction without Bearer prefix,
 /// property extraction path, and credential store interaction.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class JwtAuthenticationMiddlewareDepthShould
 {
 	private const string TestSigningKey = "ThisIsAVeryLongSigningKeyForHmacSha256ThatExceedsMinimumLengthRequirement!";

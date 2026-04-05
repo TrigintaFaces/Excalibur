@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Performance;
 /// <summary>
 /// Unit tests for <see cref="PipelineMetrics"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 [Trait("Priority", "0")]
 public sealed class PipelineMetricsShould

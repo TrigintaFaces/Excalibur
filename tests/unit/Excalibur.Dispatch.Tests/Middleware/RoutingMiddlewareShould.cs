@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// and context enrichment with routing decisions.
 /// Sprint 560 (S560.43).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class RoutingMiddlewareShould : UnitTestBase
 {
 	private readonly IDispatchRouter _router;

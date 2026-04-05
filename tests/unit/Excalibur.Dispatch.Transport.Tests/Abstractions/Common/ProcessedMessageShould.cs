@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Common;
 /// <summary>
 /// Unit tests for <see cref="ProcessedMessage"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class ProcessedMessageShould
 {
 	[Fact]

@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 /// <summary>
 /// Unit tests for <see cref="PipelineSynthesisException"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PipelineSynthesisExceptionShould
 {
 	[Fact]

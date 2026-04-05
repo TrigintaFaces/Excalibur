@@ -10,7 +10,7 @@ namespace Excalibur.Data.MongoDB.Tests.MongoDB;
 /// Unit tests for <see cref="MongoDbProjectionRegistrar"/> and <c>AddMongoDbProjections</c> batch DI extensions.
 /// Validates both string-based and Action-based overloads.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "MongoDB")]
 public sealed class MongoDbProjectionRegistrarShould : UnitTestBase
 {

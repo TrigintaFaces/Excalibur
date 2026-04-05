@@ -124,7 +124,10 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		_ = services.AddPollyResilience();
 
-		_ = services.Configure<PollyRetryOptions>(name, options => configureOptions?.Invoke(options));
+		_ = services.AddOptions<PollyRetryOptions>(name)
+			.Configure(options => configureOptions?.Invoke(options))
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return services;
 	}
@@ -150,13 +153,16 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		_ = services.AddPollyResilience();
 
-		_ = services.Configure<PollyRetryOptions>(name, options =>
-		{
-			// Set smart defaults for jitter
-			options.JitterStrategy = JitterStrategy.Equal;
-			options.UseJitter = true;
-			configureOptions?.Invoke(options);
-		});
+		_ = services.AddOptions<PollyRetryOptions>(name)
+			.Configure(options =>
+			{
+				// Set smart defaults for jitter
+				options.JitterStrategy = JitterStrategy.Equal;
+				options.UseJitter = true;
+				configureOptions?.Invoke(options);
+			})
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Register factory for creating retry policies
 		services.TryAddTransient<RetryPolicy>();

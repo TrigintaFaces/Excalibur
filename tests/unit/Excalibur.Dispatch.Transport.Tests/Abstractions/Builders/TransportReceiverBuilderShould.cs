@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Builders;
 /// Tests for <see cref="TransportReceiverBuilder"/>.
 /// Verifies decorator composition ordering and Build() behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class TransportReceiverBuilderShould
 {
 	private readonly ITransportReceiver _innerReceiver = A.Fake<ITransportReceiver>();

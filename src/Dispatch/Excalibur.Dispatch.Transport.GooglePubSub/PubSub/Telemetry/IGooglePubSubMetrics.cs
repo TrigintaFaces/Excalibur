@@ -37,27 +37,4 @@ public interface IGooglePubSubMetrics
 	/// <param name="size"> Batch size. </param>
 	void BatchCreated(int size);
 
-	/// <summary>
-	/// Records batch completion.
-	/// </summary>
-	/// <param name="size"> Batch size. </param>
-	/// <param name="duration"> Batch processing duration. </param>
-	void BatchCompleted(int size, TimeSpan duration);
-
-	/// <summary>
-	/// Records connection creation.
-	/// </summary>
-	void ConnectionCreated();
-
-	/// <summary>
-	/// Records connection closure.
-	/// </summary>
-	void ConnectionClosed();
-
-	/// <summary>
-	/// Records flow control state.
-	/// </summary>
-	/// <param name="permits"> Available permits. </param>
-	/// <param name="bytes"> Available bytes. </param>
-	void RecordFlowControl(int permits, int bytes);
 }

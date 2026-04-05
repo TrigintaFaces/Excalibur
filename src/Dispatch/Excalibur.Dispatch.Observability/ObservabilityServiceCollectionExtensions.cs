@@ -52,9 +52,9 @@ public static class ObservabilityServiceCollectionExtensions
 		this IServiceCollection services,
 		Action<ContextObservabilityOptions>? configureOptions = null)
 	{
-		// Configure options
+		// Configure options. The delegate is registered once for DI resolution.
 		var optionsBuilder = services.AddOptions<ContextObservabilityOptions>();
-		if (configureOptions != null)
+		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
 		}
@@ -62,6 +62,14 @@ public static class ObservabilityServiceCollectionExtensions
 		_ = optionsBuilder
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		// Read the Enabled flag eagerly to decide whether to wire OTel,
+		// without calling BuildServiceProvider(). This creates a temporary
+		// instance -- the delegate runs once here and once when DI resolves
+		// IOptions<ContextObservabilityOptions>. The delegate MUST be
+		// side-effect-free (pure configuration mapping only).
+		var snapshot = new ContextObservabilityOptions();
+		configureOptions?.Invoke(snapshot);
 
 		// Register core observability services
 		services.TryAddSingleton<IContextFlowTracker, ContextFlowTracker>();
@@ -81,14 +89,10 @@ public static class ObservabilityServiceCollectionExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Excalibur.Dispatch.Options.Middleware.AuditLoggingOptions>, SensitiveDataPostConfigureOptions>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions>, SensitiveDataPostConfigureOptions>());
 
-		// Apply options to determine OTel configuration without BuildServiceProvider()
-		var options = new ContextObservabilityOptions();
-		configureOptions?.Invoke(options);
-
 		// Configure OpenTelemetry
-		if (options.Enabled)
+		if (snapshot.Enabled)
 		{
-			ConfigureOpenTelemetry(services, options);
+			ConfigureOpenTelemetry(services, snapshot);
 		}
 
 		return services;
@@ -145,7 +149,12 @@ public static class ObservabilityServiceCollectionExtensions
 	{
 		_ = tracerProviderBuilder
 			.SetResourceBuilder(resourceBuilder)
-			.AddSource("Excalibur.Dispatch.Observability.*")
+			.AddSource("Excalibur.Dispatch")
+			.AddSource("Excalibur.Dispatch.*")
+			.AddSource("Excalibur.Dispatch.BackgroundServices")
+			.AddSource("Excalibur.Data.*")
+			.AddSource("Excalibur.EventSourcing.*")
+			.AddSource("Excalibur.LeaderElection")
 			.AddAspNetCoreInstrumentation(options =>
 			{
 				options.RecordException = true;

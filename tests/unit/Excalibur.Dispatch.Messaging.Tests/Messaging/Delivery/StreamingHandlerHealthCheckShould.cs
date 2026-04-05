@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// <summary>
 /// Unit tests for <see cref="StreamingHandlerHealthCheck"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "HealthCheck")]
 public sealed class StreamingHandlerHealthCheckShould
 {

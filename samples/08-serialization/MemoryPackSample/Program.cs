@@ -49,14 +49,10 @@ builder.Services.AddLogging(logging =>
 builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-	// Set MemoryPack as the active serializer.
-	// JsonEventSerializer is the default; UseMemoryPack() switches to MemoryPack.
-	_ = dispatch.WithSerialization(config =>
-	{
-		config.UseMemoryPack();
-	});
 });
+
+// Register MemoryPack as the active serializer (replaces default JSON).
+builder.Services.AddMemoryPackSerializer();
 
 // ============================================================
 // Configure outbox/inbox for reliable messaging

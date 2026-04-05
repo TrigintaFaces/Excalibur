@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Per AD-253-3, these tests verify magic byte detection (0x45 0x58 0x43 0x52 = "EXCR").
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class EncryptedDataShould
 {
 	#region MagicBytes Tests

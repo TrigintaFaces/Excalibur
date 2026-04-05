@@ -1,0 +1,474 @@
+name: Coverage Analysis
+
+on:
+  workflow_call:
+    inputs:
+      checkout-ref:
+        description: 'Git ref to checkout'
+        required: true
+        type: string
+      checkout-token:
+        description: 'Token for checkout'
+        required: true
+        type: string
+      event-name:
+        description: 'The triggering event name (push, pull_request, etc.)'
+        required: true
+        type: string
+      coverage-threshold:
+        description: 'Minimum coverage percentage'
+        required: false
+        type: string
+        default: '65'
+      pr-base-sha:
+        description: 'Base SHA for PR coverage diff (empty if not a PR)'
+        required: false
+        type: string
+        default: ''
+      pr-number:
+        description: 'PR number for coverage diff (empty if not a PR)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
+
+jobs:
+  coverage-enforce:
+    name: Coverage Gate Enforcement
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+      - name: Download unit coverage artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: code-coverage-unit-*
+          path: cov
+          merge-multiple: true
+      - name: Validate coverage artifacts exist
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          reports=(cov/**/coverage.cobertura.xml)
+          count=${#reports[@]}
+          echo "Found ${count} coverage report(s)."
+          if [ ${count} -eq 0 ]; then
+            echo "No coverage reports were downloaded."
+            exit 1
+          fi
+      - name: Measure coverage threshold (report-only)
+        id: coverage_threshold
+        shell: pwsh
+        run: |
+          ./eng/ci/coverage-threshold.ps1 `
+            -CoverageRoot "cov" `
+            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}')
+      - name: Coverage threshold status (report-only)
+        shell: bash
+        run: |
+          combined="${{ steps.coverage_threshold.outputs.coverage_combined_pct }}"
+          dispatch="${{ steps.coverage_threshold.outputs.coverage_dispatch_pct }}"
+          excalibur="${{ steps.coverage_threshold.outputs.coverage_excalibur_pct }}"
+          threshold="${{ env.COVERAGE_THRESHOLD }}"
+
+          echo "Coverage (Dispatch): ${dispatch}%"
+          echo "Coverage (Excalibur): ${excalibur}%"
+          echo "Coverage (Combined): ${combined}%"
+          echo "Target threshold: ${threshold}%"
+
+          if [ -z "$combined" ]; then
+            echo "::warning::Coverage threshold script did not emit combined coverage output."
+            exit 0
+          fi
+
+          if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then
+            echo "::warning::Coverage below target (report-only): combined ${combined}% < required ${threshold}%."
+          else
+            echo "✅ Coverage target met: ${combined}% >= ${threshold}%."
+          fi
+
+  coverage-diff:
+    name: Coverage Diff On Touched Files
+    if: inputs.event-name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v6
+        with:
+          token: ${{ inputs.checkout-token }}
+          ref: ${{ inputs.pr-base-sha }}
+          path: base
+          fetch-depth: 1
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+      - name: Resolve base unit test solution filter
+        working-directory: base
+        shell: bash
+        run: |
+          roots=(
+            "eng/ci/shards"
+            "eng/ci"
+            "."
+          )
+
+          names=(
+            "UnitTests.slnf"
+            "TestsOnly.slnf"
+            "UnitTests-Core.slnf"
+            "Excalibur.sln"
+          )
+
+          selected=""
+          for root in "${roots[@]}"; do
+            for name in "${names[@]}"; do
+              candidate="$root/$name"
+              if [[ -f "$candidate" ]]; then
+                selected="$candidate"
+                break 2
+              fi
+            done
+          done
+
+          if [[ -z "$selected" ]]; then
+            if [[ -f "Excalibur.sln" ]]; then
+              selected="Excalibur.sln"
+            else
+              selected="$(find . -maxdepth 4 -type f \( -name "*.slnf" -o -name "*.sln" \) -print | sort | head -n 1 || true)"
+              selected="${selected#./}"
+            fi
+          fi
+
+          if [[ -z "$selected" ]]; then
+            echo "No supported unit test solution filter found in known shard locations."
+            echo "Searched roots: ${roots[*]}"
+            echo "Available .slnf/.sln files (depth <= 6):"
+            find . -maxdepth 6 -type f \( -name "*.slnf" -o -name "*.sln" \) -print | sort || true
+            exit 1
+          fi
+
+          echo "Using base solution filter: $selected"
+          echo "BASE_UNIT_TESTS_SLNF=$selected" >> "$GITHUB_ENV"
+      - name: Restore & build base
+        id: base_restore_build
+        continue-on-error: true
+        working-directory: base
+        run: |
+          dotnet restore "$BASE_UNIT_TESTS_SLNF"
+          dotnet build "$BASE_UNIT_TESTS_SLNF" --configuration Release --no-restore
+      - name: Mark base build status
+        shell: bash
+        run: |
+          if [[ "${{ steps.base_restore_build.outcome }}" != "success" ]]; then
+            echo "::warning::Base snapshot restore/build failed; skipping coverage diff for this PR."
+            echo "SKIP_COVERAGE_DIFF=true" >> "$GITHUB_ENV"
+          fi
+      - name: Run tests with coverage (base)
+        id: base_test_coverage
+        if: env.SKIP_COVERAGE_DIFF != 'true'
+        continue-on-error: true
+        working-directory: base
+        run: |
+          dotnet test "$BASE_UNIT_TESTS_SLNF" \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=minimal" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ../base-cov \
+            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
+            -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+      - name: Mark base test status
+        if: env.SKIP_COVERAGE_DIFF != 'true'
+        shell: bash
+        run: |
+          if [[ "${{ steps.base_test_coverage.outcome }}" != "success" ]]; then
+            echo "::warning::Base snapshot tests/coverage failed; skipping coverage diff for this PR."
+            echo "SKIP_COVERAGE_DIFF=true" >> "$GITHUB_ENV"
+          fi
+      - name: Create empty changed file set when coverage diff is skipped
+        if: env.SKIP_COVERAGE_DIFF == 'true'
+        shell: bash
+        run: |
+          printf '[]' > changed-files.json
+      - name: Download head coverage artifacts (all shards)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: code-coverage-unit-*
+          path: head-cov
+          merge-multiple: true
+      - name: List changed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${{ inputs.pr-number }}"
+          BASE_SHA="${{ inputs.pr-base-sha }}"
+          PR_REF="refs/remotes/origin/pr-${PR_NUMBER}"
+
+          # Use git-based PR head ref resolution to avoid transient GitHub API failures.
+          if ! git -C base fetch --no-tags --depth=1 origin "refs/pull/${PR_NUMBER}/head:${PR_REF}"; then
+            echo "::warning::Unable to fetch PR head ref for #${PR_NUMBER}; defaulting to an empty changed file set."
+            printf '[]' > changed-files.json
+            exit 0
+          fi
+
+          # Ensure the target base commit exists in the shallow checkout.
+          if ! git -C base cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            if ! git -C base fetch --no-tags --depth=1 origin "${BASE_SHA}"; then
+              echo "::warning::Unable to fetch base SHA ${BASE_SHA}; defaulting to an empty changed file set."
+              printf '[]' > changed-files.json
+              exit 0
+            fi
+          fi
+
+          # With shallow PR fetches, merge-base may be missing; deepen only when necessary.
+          if ! git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+            for depth in 64 256 1024 4096; do
+              if git -C base fetch --no-tags --depth="${depth}" origin "refs/pull/${PR_NUMBER}/head:${PR_REF}" && \
+                 git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+                break
+              fi
+            done
+          fi
+
+          if git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+            git -C base diff --name-only "${BASE_SHA}...${PR_REF}" > changed-files.txt
+          else
+            echo "::warning::No merge base between ${BASE_SHA} and ${PR_REF}; using two-dot diff fallback."
+            git -C base diff --name-only "${BASE_SHA}..${PR_REF}" > changed-files.txt
+          fi
+
+          python3 - <<'PY'
+          import json
+
+          with open("changed-files.txt", "r", encoding="utf-8") as fh:
+              files = [line.strip() for line in fh if line.strip()]
+
+          with open("changed-files.json", "w", encoding="utf-8") as out:
+              json.dump(files, out)
+
+          print(f"Changed files discovered: {len(files)}")
+          PY
+      - name: Enforce ≤1% coverage drop on touched files (Dispatch+Excalibur)
+        shell: pwsh
+        run: |
+          if ($env:SKIP_COVERAGE_DIFF -eq 'true') {
+            Write-Warning 'Base snapshot did not build/test cleanly; skipping coverage diff.'
+            exit 0
+          }
+          $changedFile = "changed-files.json"
+          $changed = @()
+          if (Test-Path $changedFile) {
+            $changed = (Get-Content -Raw -- $changedFile | ConvertFrom-Json)
+          }
+          if (-not $changed) { Write-Host 'No changed files'; exit 0 }
+          function NormalizeSourcePath([string]$path) {
+            if ([string]::IsNullOrWhiteSpace($path)) { return $null }
+            $p = $path.Replace('\','/')
+            $uri = $null
+            if ([Uri]::TryCreate($p, [UriKind]::Absolute, [ref]$uri)) {
+              try { $p = $uri.AbsolutePath } catch { }
+            }
+            if ($p -match '(?i)(src/(Dispatch|Excalibur)/.+)$') { return $Matches[1] }
+            return $null
+          }
+          function GetLineStats([System.Xml.XmlElement]$cls) {
+            $lc = [string]$cls.GetAttribute('lines-covered')
+            $lv = [string]$cls.GetAttribute('lines-valid')
+            if (-not [string]::IsNullOrWhiteSpace($lc) -and -not [string]::IsNullOrWhiteSpace($lv)) {
+              return [pscustomobject]@{ Covered = [int]$lc; Valid = [int]$lv }
+            }
+            [int]$covered = 0
+            [int]$valid = 0
+            foreach ($line in $cls.SelectNodes('lines/line')) {
+              $valid++
+              if ([int]$line.hits -gt 0) { $covered++ }
+            }
+            return [pscustomobject]@{ Covered = $covered; Valid = $valid }
+          }
+          function ReadCoverage([string]$dir) {
+            $map = @{}
+            $covFiles = @(Get-ChildItem -Recurse -Filter coverage.cobertura.xml -Path $dir)
+            $lineHits = @{}
+            foreach ($cov in $covFiles) {
+              $xml = [xml](Get-Content -Raw -- $cov.FullName)
+              foreach ($cls in $xml.SelectNodes('//class')) {
+                $normalized = NormalizeSourcePath ([string]$cls.GetAttribute('filename'))
+                if ($null -eq $normalized) { continue }
+                foreach ($line in $cls.SelectNodes('lines/line')) {
+                  $lineNumber = 0
+                  if (-not [int]::TryParse([string]$line.GetAttribute('number'), [ref]$lineNumber)) { continue }
+                  if ($lineNumber -lt 1) { continue }
+                  $hits = 0
+                  [int]::TryParse([string]$line.GetAttribute('hits'), [ref]$hits) | Out-Null
+                  $lineKey = "$normalized`:$lineNumber"
+                  if ($lineHits.ContainsKey($lineKey)) {
+                    if ($hits -gt [int]$lineHits[$lineKey]) {
+                      $lineHits[$lineKey] = $hits
+                    }
+                  } else {
+                    $lineHits[$lineKey] = $hits
+                  }
+                }
+              }
+            }
+            foreach ($entry in $lineHits.GetEnumerator()) {
+              $separator = $entry.Key.LastIndexOf(':')
+              if ($separator -lt 1) { continue }
+              $filePath = $entry.Key.Substring(0, $separator)
+              if (-not $map.ContainsKey($filePath)) {
+                $map[$filePath] = [pscustomobject]@{ Covered = 0; Valid = 0 }
+              }
+              $map[$filePath].Valid++
+              if ([int]$entry.Value -gt 0) {
+                $map[$filePath].Covered++
+              }
+            }
+            return $map
+          }
+          $baseMap = ReadCoverage "base-cov"
+          $headMap = ReadCoverage "head-cov"
+          $fail = $false
+          foreach ($file in $changed) {
+            $normalizedFile = NormalizeSourcePath $file
+            if ($null -eq $normalizedFile) { continue }
+            $b = $baseMap[$normalizedFile]
+            $h = $headMap[$normalizedFile]
+            if (-not $h) { continue }
+            $bPct = if ($b -and $b.Valid -gt 0) { 100.0 * $b.Covered / $b.Valid } else { 0 }
+            $hPct = if ($h.Valid -gt 0) { 100.0 * $h.Covered / $h.Valid } else { 0 }
+            $delta = [math]::Round($hPct - $bPct, 2)
+            Write-Host "${normalizedFile}: base=$([math]::Round($bPct,2)) head=$([math]::Round($hPct,2)) delta=$delta"
+            if ($delta -lt -1.0) { $fail = $true }
+          }
+          if ($fail) { Write-Error 'Coverage drop >1% on touched src/Dispatch or src/Excalibur files'; exit 1 } else { exit 0 }
+
+  coverage:
+    name: Coverage Analysis
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+
+      - name: Download coverage artifacts (all shards)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: code-coverage-*
+          path: coverage
+          merge-multiple: true
+
+      - name: Install ReportGenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
+      - name: Generate coverage report
+        run: |
+          shopt -s globstar nullglob
+          reports=(coverage/**/coverage.cobertura.xml)
+          if [ ${#reports[@]} -eq 0 ]; then
+            echo "No coverage reports found; generating placeholder summary."
+            mkdir -p management/reports/CoverageReport
+            {
+              echo "Coverage Summary"
+              echo "Line coverage: 0"
+            } > management/reports/CoverageReport/Summary.txt
+            exit 0
+          fi
+
+          reportgenerator \
+            -reports:"coverage/**/coverage.cobertura.xml" \
+            -targetdir:"management/reports/CoverageReport" \
+            -reporttypes:"Html;Cobertura;TextSummary;Badges" \
+            -assemblyfilters:"-*.Tests*;-*Benchmarks*;-*Examples*" \
+            -classfilters:"-*.Migrations.*;-*.Generated.*" \
+            -verbosity:Warning
+
+      - name: Coverage validation
+        run: |
+          if [ -f "management/reports/CoverageReport/Summary.txt" ]; then
+            cat management/reports/CoverageReport/Summary.txt
+
+            # Extract line coverage percentage
+            line_coverage=$(grep -oP 'Line coverage: \K[0-9.]+' management/reports/CoverageReport/Summary.txt || echo "0")
+
+            echo "Line coverage: ${line_coverage}%"
+            echo "COVERAGE_PERCENTAGE=${line_coverage}" >> $GITHUB_ENV
+
+            # Check against threshold
+            if (( $(echo "${line_coverage} < ${COVERAGE_THRESHOLD}" | bc -l) )); then
+              echo "Coverage ${line_coverage}% is below threshold ${COVERAGE_THRESHOLD}%"
+              echo "COVERAGE_STATUS=warning" >> $GITHUB_ENV
+            else
+              echo "Coverage ${line_coverage}% meets threshold ${COVERAGE_THRESHOLD}%"
+              echo "COVERAGE_STATUS=success" >> $GITHUB_ENV
+            fi
+          else
+            echo "Coverage report not found"
+            echo "COVERAGE_STATUS=failed" >> $GITHUB_ENV
+            echo "COVERAGE_PERCENTAGE=0" >> $GITHUB_ENV
+          fi
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: management/reports/CoverageReport
+          retention-days: 30
+
+      - name: Coverage summary
+        run: |
+          echo "## Code Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "**Overall Coverage:** ${{ env.COVERAGE_PERCENTAGE }}%" >> $GITHUB_STEP_SUMMARY
+          echo "**Threshold:** ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ env.COVERAGE_STATUS }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ env.COVERAGE_STATUS }}" = "success" ]; then
+            echo "Coverage meets quality standards" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ env.COVERAGE_STATUS }}" = "warning" ]; then
+            echo "Coverage below threshold but acceptable for current phase" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Coverage analysis failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  coverage-baseline:
+    name: Coverage Baseline Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+      - name: Create coverage baseline markdown
+        shell: bash
+        run: |
+          mkdir -p management/reports
+          f="management/reports/coverage-${GITHUB_RUN_ID}.md"
+          echo "# Coverage Baseline" > "$f"
+          echo "Run: ${GITHUB_RUN_ID}" >> "$f"
+          echo "Workflow: ${GITHUB_WORKFLOW}" >> "$f"
+          echo "Artifacts contain Cobertura XML from CI test jobs." >> "$f"
+          echo "See uploaded artifacts: code-coverage-*" >> "$f"
+      - name: Upload coverage baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-baseline
+          path: management/reports/coverage-${{ github.run_id }}.md

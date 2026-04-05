@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests;
 /// <summary>
 /// Unit tests for <see cref="MessageKinds"/> flags enum.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class MessageKindsShould
 {

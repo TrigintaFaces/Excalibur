@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Configuration;
 /// Covers multi-store fallback, validation of credential complexity requirements,
 /// test pattern detection, prohibited values, rotate with store failures, and cache invalidation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SecureCredentialProviderDepthShould : IDisposable
 {
 	private readonly ILogger<SecureCredentialProvider> _logger;

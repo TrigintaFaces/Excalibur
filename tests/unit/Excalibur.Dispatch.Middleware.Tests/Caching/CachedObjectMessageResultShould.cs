@@ -6,8 +6,8 @@ using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class CachedObjectMessageResultShould : UnitTestBase
 {
 	[Fact]

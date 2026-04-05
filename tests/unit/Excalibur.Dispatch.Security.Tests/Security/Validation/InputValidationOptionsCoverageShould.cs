@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Validation;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class InputValidationOptionsCoverageShould
 {
     [Fact]

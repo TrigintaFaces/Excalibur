@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ;
 /// Sprint 698 T.6 (j6vml): Verifies the connection string overload delegates
 /// to the builder overload and configures options correctly.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMQTransportConnectionStringOverloadShould
 {
 	[Fact]

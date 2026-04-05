@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -55,9 +55,5 @@
     <Compile Remove="AwsSecretsManagerCredentialStore.cs" />
     <!-- R0.3/R0.5: SecureKeyProvider uses Azure.Security.KeyVault.Secrets - move to Excalibur.Dispatch.Security.Azure -->
     <Compile Remove="Signing\SecureKeyProvider.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

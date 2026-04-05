@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Logging;
 using Excalibur.Dispatch.Options.Middleware;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <summary>
 /// Unit tests for the <see cref="AuditLoggingMiddleware"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class AuditLoggingMiddlewareShould
 {
 	private readonly ILogger<AuditLoggingMiddleware> _logger;

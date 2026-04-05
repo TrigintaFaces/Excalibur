@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 public sealed class TracingMiddlewareDepthShould
 {
 	private static IOptions<ObservabilityOptions> DefaultOptions =>
-		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { EnableDetailedTiming = true, IncludeSensitiveData = true });
+		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { IncludeSensitiveData = true });
 
 	/// <summary>
 	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary

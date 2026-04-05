@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Additional depth tests for <see cref="BulkheadPolicy"/> covering
 /// DisposeAsync, queue metrics tracking, concurrent execution, and edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class BulkheadPolicyDepthShould : IAsyncDisposable
 {
 	private BulkheadPolicy? _policy;

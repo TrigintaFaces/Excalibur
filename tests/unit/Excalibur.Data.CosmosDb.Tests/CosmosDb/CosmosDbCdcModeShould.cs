@@ -7,8 +7,8 @@ namespace Excalibur.Data.Tests.CosmosDb.Cdc;
 /// <summary>
 /// Unit tests for <see cref="CosmosDbCdcMode"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 [Trait("Feature", "CosmosDb")]
 public sealed class CosmosDbCdcModeShould : UnitTestBase
 {

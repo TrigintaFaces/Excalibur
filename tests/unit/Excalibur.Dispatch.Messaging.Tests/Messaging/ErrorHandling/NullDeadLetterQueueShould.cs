@@ -8,8 +8,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 /// <summary>
 /// Unit tests for <see cref="NullDeadLetterQueue"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+/// <remarks>
+/// Sprint 745 ISP: ReplayBatchAsync, PurgeAsync, PurgeOlderThanAsync moved to IDeadLetterQueueAdmin.
+/// NullDeadLetterQueue only implements IDeadLetterQueue, so those tests were removed.
+/// </remarks>
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class NullDeadLetterQueueShould
 {
 	[Fact]
@@ -182,92 +186,6 @@ public sealed class NullDeadLetterQueueShould
 	}
 
 	[Fact]
-	public async Task ReplayBatchAsyncReturnsZero()
-	{
-		// Arrange
-		var queue = NullDeadLetterQueue.Instance;
-		var filter = DeadLetterQueryFilter.PendingOnly();
-
-		// Act
-		var result = await queue.ReplayBatchAsync(filter, CancellationToken.None);
-
-		// Assert
-		result.ShouldBe(0);
-	}
-
-	[Fact]
-	public async Task ReplayBatchAsyncReturnsZeroWithComplexFilter()
-	{
-		// Arrange
-		var queue = NullDeadLetterQueue.Instance;
-		var filter = new DeadLetterQueryFilter
-		{
-			Reason = DeadLetterReason.MaxRetriesExceeded,
-			MessageType = "OrderCreated",
-			MinAttempts = 3,
-		};
-
-		// Act
-		var result = await queue.ReplayBatchAsync(filter, CancellationToken.None);
-
-		// Assert
-		result.ShouldBe(0);
-	}
-
-	[Fact]
-	public async Task PurgeAsyncReturnsFalse()
-	{
-		// Arrange
-		var queue = NullDeadLetterQueue.Instance;
-		var entryId = Guid.NewGuid();
-
-		// Act
-		var result = await queue.PurgeAsync(entryId, CancellationToken.None);
-
-		// Assert
-		result.ShouldBeFalse();
-	}
-
-	[Fact]
-	public async Task PurgeAsyncReturnsFalseForEmptyGuid()
-	{
-		// Arrange
-		var queue = NullDeadLetterQueue.Instance;
-
-		// Act
-		var result = await queue.PurgeAsync(Guid.Empty, CancellationToken.None);
-
-		// Assert
-		result.ShouldBeFalse();
-	}
-
-	[Fact]
-	public async Task PurgeOlderThanAsyncReturnsZero()
-	{
-		// Arrange
-		var queue = NullDeadLetterQueue.Instance;
-
-		// Act
-		var result = await queue.PurgeOlderThanAsync(TimeSpan.FromDays(30), CancellationToken.None);
-
-		// Assert
-		result.ShouldBe(0);
-	}
-
-	[Fact]
-	public async Task PurgeOlderThanAsyncReturnsZeroForZeroTimespan()
-	{
-		// Arrange
-		var queue = NullDeadLetterQueue.Instance;
-
-		// Act
-		var result = await queue.PurgeOlderThanAsync(TimeSpan.Zero, CancellationToken.None);
-
-		// Assert
-		result.ShouldBe(0);
-	}
-
-	[Fact]
 	public async Task GetCountAsyncReturnsZero()
 	{
 		// Arrange
@@ -315,15 +233,6 @@ public sealed class NullDeadLetterQueueShould
 		var replayTask = queue.ReplayAsync(Guid.NewGuid(), CancellationToken.None);
 		replayTask.IsCompleted.ShouldBeTrue();
 
-		var replayBatchTask = queue.ReplayBatchAsync(filter, CancellationToken.None);
-		replayBatchTask.IsCompleted.ShouldBeTrue();
-
-		var purgeTask = queue.PurgeAsync(Guid.NewGuid(), CancellationToken.None);
-		purgeTask.IsCompleted.ShouldBeTrue();
-
-		var purgeOlderTask = queue.PurgeOlderThanAsync(TimeSpan.FromDays(1), CancellationToken.None);
-		purgeOlderTask.IsCompleted.ShouldBeTrue();
-
 		var countTask = queue.GetCountAsync(CancellationToken.None);
 		countTask.IsCompleted.ShouldBeTrue();
 
@@ -333,9 +242,6 @@ public sealed class NullDeadLetterQueueShould
 			getEntriesTask,
 			getEntryTask,
 			replayTask,
-			replayBatchTask,
-			purgeTask,
-			purgeOlderTask,
 			countTask);
 	}
 

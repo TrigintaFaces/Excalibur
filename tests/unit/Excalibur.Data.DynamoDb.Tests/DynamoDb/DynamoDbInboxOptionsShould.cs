@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
-[Trait("Feature", "Inbox")]
+[Trait(TraitNames.Feature, TestFeatures.Inbox)]
 public sealed class DynamoDbInboxOptionsShould
 {
 	#region Default Value Tests

@@ -34,8 +34,4 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
   </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
-  </ItemGroup>
 </Project>

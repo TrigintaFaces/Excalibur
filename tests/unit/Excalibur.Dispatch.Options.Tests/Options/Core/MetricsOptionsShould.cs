@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Options.Core;
 /// Unit tests for <see cref="MetricsOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class MetricsOptionsShould
 {

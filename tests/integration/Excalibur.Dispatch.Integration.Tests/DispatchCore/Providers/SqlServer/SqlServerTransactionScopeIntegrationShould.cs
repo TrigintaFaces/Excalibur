@@ -28,10 +28,10 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 /// </summary>
 [IntegrationTest]
 [Collection(ContainerCollections.SqlServer)]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Component, TestComponents.Data)]
 [Trait("Database", "SqlServer")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class SqlServerTransactionScopeIntegrationShould : IntegrationTestBase
 {
 	private readonly SqlServerFixture _sqlFixture;

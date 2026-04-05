@@ -17,6 +17,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Snapshots;
 
 using Microsoft.Extensions.DependencyInjection;

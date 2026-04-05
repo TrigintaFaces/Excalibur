@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing;
 /// <summary>
 /// Unit tests for <see cref="RoutingMiddleware"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RoutingMiddlewareShould
 {
 	#region Constructor and Stage tests

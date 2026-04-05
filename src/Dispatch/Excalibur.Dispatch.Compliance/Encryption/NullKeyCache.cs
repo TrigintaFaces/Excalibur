@@ -4,11 +4,23 @@
 namespace Excalibur.Dispatch.Compliance;
 
 /// <summary>
-/// A null implementation of <see cref="IKeyCache"/> that performs no caching.
+/// A no-op implementation of <see cref="IKeyCache"/> following the Null Object pattern.
 /// </summary>
 /// <remarks>
-/// Use this implementation when caching is disabled or for testing scenarios
-/// where caching should be bypassed.
+/// <para>
+/// This class implements the Null Object design pattern: it fulfills the <see cref="IKeyCache"/>
+/// contract but performs no actual caching. Every call to <see cref="GetOrAddAsync(string, Func{string, CancellationToken, Task{KeyMetadata?}}, CancellationToken)"/>
+/// delegates directly to the factory, and all mutation methods (<see cref="Set(KeyMetadata)"/>,
+/// <see cref="Remove"/>, <see cref="Clear"/>) are intentional no-ops.
+/// </para>
+/// <para>
+/// Use this implementation when:
+/// <list type="bullet">
+///   <item><description>Encryption key caching is explicitly disabled via configuration.</description></item>
+///   <item><description>A test double is needed that guarantees no caching side effects.</description></item>
+///   <item><description>A non-null <see cref="IKeyCache"/> is required by a constructor but caching is unwanted.</description></item>
+/// </list>
+/// </para>
 /// </remarks>
 public sealed class NullKeyCache : IKeyCache
 {
@@ -36,7 +48,15 @@ public sealed class NullKeyCache : IKeyCache
 		return await factory(keyId, cancellationToken).ConfigureAwait(false);
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// No-op get-or-add with TTL for cache bypass scenarios.
+	/// Always calls the factory since nothing is cached.
+	/// </summary>
+	/// <param name="keyId">The key identifier.</param>
+	/// <param name="ttl">The time-to-live (ignored).</param>
+	/// <param name="factory">The factory function to retrieve the key.</param>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <returns>The result from the factory.</returns>
 	public async Task<KeyMetadata?> GetOrAddAsync(
 		string keyId,
 		TimeSpan ttl,
@@ -45,6 +65,7 @@ public sealed class NullKeyCache : IKeyCache
 	{
 		ArgumentNullException.ThrowIfNull(keyId);
 		ArgumentNullException.ThrowIfNull(factory);
+		_ = ttl;
 
 		return await factory(keyId, cancellationToken).ConfigureAwait(false);
 	}
@@ -55,30 +76,41 @@ public sealed class NullKeyCache : IKeyCache
 	/// <inheritdoc />
 	public void Set(KeyMetadata keyMetadata)
 	{
-		// No-op
+		// No-op: Null Object pattern -- caching is intentionally disabled.
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// No-op set with TTL for cache bypass scenarios.
+	/// </summary>
+	/// <param name="keyMetadata">The key metadata (ignored).</param>
+	/// <param name="ttl">The time-to-live (ignored).</param>
 	public void Set(KeyMetadata keyMetadata, TimeSpan ttl)
 	{
-		// No-op
+		ArgumentNullException.ThrowIfNull(keyMetadata);
+		_ = ttl;
 	}
 
 	/// <inheritdoc />
 	public void Remove(string keyId)
 	{
-		// No-op
+		// No-op: Null Object pattern -- nothing to remove.
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// No-op invalidation for cache bypass scenarios.
+	/// </summary>
+	/// <param name="keyId">The key identifier (ignored).</param>
 	public void Invalidate(string keyId)
 	{
-		// No-op
+		ArgumentNullException.ThrowIfNull(keyId);
+		// No-op: Null Object pattern -- nothing to invalidate.
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// No-op clear for cache bypass scenarios.
+	/// </summary>
 	public void Clear()
 	{
-		// No-op
+		// No-op: Null Object pattern -- nothing to clear.
 	}
 }

@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Unit tests for <see cref="ControlValidationService"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class ControlValidationServiceShould
 {
 	private readonly IControlValidator _fakeValidator;

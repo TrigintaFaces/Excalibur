@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.Firestore;
 /// Unit tests for <see cref="FirestorePersistenceProvider"/> constructor validation,
 /// property defaults, disposed guard, and GetService behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class FirestorePersistenceProviderShould : UnitTestBase
 {
 	private readonly ILogger<FirestorePersistenceProvider> _logger;

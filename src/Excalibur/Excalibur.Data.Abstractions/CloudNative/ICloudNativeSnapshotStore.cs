@@ -27,7 +27,7 @@ namespace Excalibur.Data.Abstractions.CloudNative;
 /// <para>
 /// <strong>Retention Strategy:</strong>
 /// Snapshots can be configured with TTL for automatic cleanup,
-/// or managed explicitly via <see cref="DeleteOldSnapshotsAsync"/>.
+/// or managed explicitly via <see cref="ICloudNativeSnapshotStoreAdmin.DeleteOldSnapshotsAsync"/>.
 /// </para>
 /// </remarks>
 public interface ICloudNativeSnapshotStore
@@ -96,7 +96,15 @@ public interface ICloudNativeSnapshotStore
 		string aggregateType,
 		IPartitionKey partitionKey,
 		CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Provides administrative maintenance operations for cloud-native snapshot stores.
+/// This is an ISP sub-interface of <see cref="ICloudNativeSnapshotStore"/> for consumers
+/// that need version-based snapshot cleanup.
+/// </summary>
+public interface ICloudNativeSnapshotStoreAdmin
+{
 	/// <summary>
 	/// Deletes snapshots older than a specified version.
 	/// </summary>

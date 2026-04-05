@@ -42,11 +42,14 @@ public interface ITransportHealthChecker
 	Task<TransportHealthCheckResult> CheckQuickHealthAsync(
 		CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Gets health metrics for this transport.
-	/// </summary>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>Health metrics.</returns>
-	Task<TransportHealthMetrics> GetHealthMetricsAsync(
-		CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides detailed health metrics for a transport.
+/// Implementations should implement this alongside <see cref="ITransportHealthChecker"/>.
+/// </summary>
+public interface ITransportHealthMetrics
+{
+	/// <summary>Gets health metrics for this transport.</summary>
+	Task<TransportHealthMetrics> GetHealthMetricsAsync(CancellationToken cancellationToken);
 }

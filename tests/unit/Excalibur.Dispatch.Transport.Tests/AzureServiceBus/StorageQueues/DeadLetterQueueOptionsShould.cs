@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.Azure;
 
 namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus.StorageQueues;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class DeadLetterQueueOptionsShould
 {

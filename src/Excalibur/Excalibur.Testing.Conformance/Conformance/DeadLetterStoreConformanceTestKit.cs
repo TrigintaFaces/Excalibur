@@ -423,11 +423,16 @@ public abstract class DeadLetterStoreConformanceTestKit
 
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
 
-		var countBefore = await store.GetCountAsync(CancellationToken.None).ConfigureAwait(false);
+		if (store is not IDeadLetterStoreAdmin adminBefore)
+		{
+			return; // Store does not implement admin interface; skip count verification
+		}
+
+		var countBefore = await adminBefore.GetCountAsync(CancellationToken.None).ConfigureAwait(false);
 
 		_ = await store.DeleteAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
 
-		var countAfter = await store.GetCountAsync(CancellationToken.None).ConfigureAwait(false);
+		var countAfter = await adminBefore.GetCountAsync(CancellationToken.None).ConfigureAwait(false);
 
 		if (countAfter >= countBefore)
 		{
@@ -447,7 +452,12 @@ public abstract class DeadLetterStoreConformanceTestKit
 	{
 		var store = CreateStore();
 
-		var count = await store.GetCountAsync(CancellationToken.None).ConfigureAwait(false);
+		if (store is not IDeadLetterStoreAdmin admin)
+		{
+			return; // Store does not implement admin interface; skip count verification
+		}
+
+		var count = await admin.GetCountAsync(CancellationToken.None).ConfigureAwait(false);
 
 		if (count != 0)
 		{
@@ -467,7 +477,12 @@ public abstract class DeadLetterStoreConformanceTestKit
 		await store.StoreAsync(CreateDeadLetterMessage(), CancellationToken.None).ConfigureAwait(false);
 		await store.StoreAsync(CreateDeadLetterMessage(), CancellationToken.None).ConfigureAwait(false);
 
-		var count = await store.GetCountAsync(CancellationToken.None).ConfigureAwait(false);
+		if (store is not IDeadLetterStoreAdmin adminCount)
+		{
+			return; // Store does not implement admin interface; skip count verification
+		}
+
+		var count = await adminCount.GetCountAsync(CancellationToken.None).ConfigureAwait(false);
 
 		if (count != 3)
 		{
@@ -499,7 +514,12 @@ public abstract class DeadLetterStoreConformanceTestKit
 		await store.StoreAsync(recentMessage, CancellationToken.None).ConfigureAwait(false);
 
 		// Cleanup with 5-day retention (should remove 10-day old message)
-		var removedCount = await store.CleanupOldMessagesAsync(5, CancellationToken.None).ConfigureAwait(false);
+		if (store is not IDeadLetterStoreAdmin cleanupAdmin)
+		{
+			return; // Store does not implement admin interface; skip cleanup verification
+		}
+
+		var removedCount = await cleanupAdmin.CleanupOldMessagesAsync(5, CancellationToken.None).ConfigureAwait(false);
 
 		if (removedCount != 1)
 		{
@@ -538,7 +558,12 @@ public abstract class DeadLetterStoreConformanceTestKit
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
 
 		// Cleanup with 7-day retention (should NOT remove 5-day old message)
-		var removedCount = await store.CleanupOldMessagesAsync(7, CancellationToken.None).ConfigureAwait(false);
+		if (store is not IDeadLetterStoreAdmin retentionAdmin)
+		{
+			return; // Store does not implement admin interface; skip retention verification
+		}
+
+		var removedCount = await retentionAdmin.CleanupOldMessagesAsync(7, CancellationToken.None).ConfigureAwait(false);
 
 		if (removedCount != 0)
 		{

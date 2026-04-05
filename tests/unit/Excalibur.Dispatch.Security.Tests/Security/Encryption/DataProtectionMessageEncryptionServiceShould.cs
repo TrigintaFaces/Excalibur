@@ -18,9 +18,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Encryption;
 /// <summary>
 /// Unit tests for <see cref="DataProtectionMessageEncryptionService"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Encryption")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Encryption)]
 public sealed class DataProtectionMessageEncryptionServiceShould : IDisposable
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;

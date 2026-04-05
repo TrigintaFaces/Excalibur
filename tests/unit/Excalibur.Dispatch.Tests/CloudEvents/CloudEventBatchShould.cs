@@ -8,8 +8,8 @@ using Excalibur.Dispatch.Options.CloudEvents;
 
 namespace Excalibur.Dispatch.Tests.CloudEvents;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CloudEventBatchShould
 {
 	private static CloudEvent CreateTestEvent(string? data = null) =>

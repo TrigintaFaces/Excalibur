@@ -10,7 +10,8 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Caching;
-using Excalibur.Dispatch.Messaging;
+
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
 
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -28,8 +29,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// DeserializeCachedValue, ShouldCacheBasedOnPolicy branches), CacheInvalidationMiddleware
 /// fallback paths, CachedValueJsonConverter edge cases, and LruCache GetOrAdd race path.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class CachingCoverageBoostShould : UnitTestBase
 {
 	private readonly TestMeterFactory _meterFactory;
@@ -92,7 +93,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Arrange - make the fake HybridCache actually invoke the factory delegate
 		var middleware = CreateMiddleware();
 		var message = new CacheableQueryWithResult();
-		var handlerResult = MessageResultOfT<string>.Success("handler-output");
+		var handlerResult = MR.Success<string>("handler-output");
 
 		A.CallTo(() => _cache.GetOrCreateAsync(
 			A<string>._,
@@ -136,7 +137,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Arrange - make the fake HybridCache invoke the factory for attribute-based caching
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableAction();
-		var handlerResult = MessageResultOfT<string>.Success("attr-handler-output");
+		var handlerResult = MR.Success<string>("attr-handler-output");
 
 		A.CallTo(() => _cache.GetOrCreateAsync(
 			A<string>._,
@@ -179,7 +180,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Arrange - [CacheResult(OnlyIfSuccess = true)] with no validation/auth in context
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableOnlyIfSuccess();
-		var handlerResult = MessageResultOfT<string>.Success("success-output");
+		var handlerResult = MR.Success<string>("success-output");
 
 		A.CallTo(() => _cache.GetOrCreateAsync(
 			A<string>._,
@@ -222,7 +223,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Arrange - [CacheResult(IgnoreNullResult = true)] with handler returning null
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableIgnoreNull();
-		var handlerResult = MessageResultOfT<string>.Success(returnValue: null);
+		var handlerResult = MR.Success<string>(value: null!);
 
 		A.CallTo(() => _cache.GetOrCreateAsync(
 			A<string>._,
@@ -265,7 +266,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Arrange - ICacheable that returns ShouldCache=false
 		var middleware = CreateMiddleware();
 		var message = new CacheableWithShouldCacheFalse();
-		var handlerResult = MessageResultOfT<int>.Success(42);
+		var handlerResult = MR.Success<int>(42);
 
 		A.CallTo(() => _cache.GetOrCreateAsync(
 			A<string>._,
@@ -628,7 +629,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableOnlyIfSuccess();
-		var handlerResult = MessageResultOfT<string>.Success("output");
+		var handlerResult = MR.Success<string>("output");
 
 		A.CallTo(() => _cache.GetOrCreateAsync(
 			A<string>._,
@@ -1009,7 +1010,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Arrange - CacheResult with OnlyIfSuccess = false, IgnoreNullResult = false
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableAlwaysCache();
-		var handlerResult = MessageResultOfT<string>.Success(returnValue: null);
+		var handlerResult = MR.Success<string>(value: null!);
 
 		A.CallTo(() => _cache.GetOrCreateAsync(
 			A<string>._,

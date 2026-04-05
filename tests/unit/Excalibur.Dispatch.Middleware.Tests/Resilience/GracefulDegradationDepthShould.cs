@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Additional depth tests for <see cref="GracefulDegradationService"/> covering
 /// DisposeAsync, metrics health, auto-adjustment, and fallback escalation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class GracefulDegradationDepthShould : IAsyncDisposable
 {
 	private GracefulDegradationService? _service;

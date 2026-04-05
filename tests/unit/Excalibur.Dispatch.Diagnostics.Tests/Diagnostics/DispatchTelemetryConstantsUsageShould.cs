@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Diagnostics;
 /// Sprint 562 S562.59: Telemetry constants conformance tests for Dispatch core.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Diagnostics")]
+[Trait(TraitNames.Component, TestComponents.Diagnostics)]
 public sealed class DispatchTelemetryConstantsUsageShould
 {
 	[Fact]

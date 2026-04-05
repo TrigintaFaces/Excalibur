@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Tests for the <see cref="PollyCircuitBreakerPolicyAdapter"/> class.
 /// Sprint 45 (bd-5tsb): Unit tests for Polly circuit breaker adapter.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 {

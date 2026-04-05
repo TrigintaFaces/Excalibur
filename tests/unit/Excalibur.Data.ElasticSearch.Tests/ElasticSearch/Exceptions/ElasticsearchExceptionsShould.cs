@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.Exceptions;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Exceptions;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ElasticsearchExceptionsShould
 {
 	// ElasticsearchDeleteException

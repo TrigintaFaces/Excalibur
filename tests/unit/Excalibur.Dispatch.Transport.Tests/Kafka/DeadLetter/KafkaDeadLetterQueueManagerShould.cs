@@ -23,8 +23,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.DeadLetter;
 ///   <item>B2 fix: <c>GetStatisticsAsync</c> uses <c>Peek</c> (non-destructive, no offset commit).</item>
 /// </list>
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KafkaDeadLetterQueueManagerShould : IDisposable
 {
 	private readonly IProducer<string, byte[]> _kafkaProducer;

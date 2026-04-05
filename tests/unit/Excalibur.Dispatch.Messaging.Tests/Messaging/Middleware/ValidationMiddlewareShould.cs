@@ -25,8 +25,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Sprint 414 - Task T414.5: ValidationMiddleware tests (0% → 50%+).
 /// Tests validation middleware implementation including Data Annotations and custom validation.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class ValidationMiddlewareShould
 {
 	private readonly ILogger<ValidationMiddleware> _logger;

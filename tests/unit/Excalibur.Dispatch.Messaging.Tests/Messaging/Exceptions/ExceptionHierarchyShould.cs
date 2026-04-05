@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Sprint 438: Exception Hierarchy Consolidation (bd-0fkmg)
 /// Sprint 585: Persistence exceptions moved to Excalibur.Data.Abstractions
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ExceptionHierarchyShould
 {
 	/// <summary>

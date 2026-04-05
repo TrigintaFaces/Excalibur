@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus.DeadLetter;
 /// Unit tests for <see cref="ServiceBusDeadLetterQueueManager"/>.
 /// Validates Move, Get, Reprocess, Statistics, Purge, and error handling.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 {
 	private readonly ServiceBusClient _fakeClient;

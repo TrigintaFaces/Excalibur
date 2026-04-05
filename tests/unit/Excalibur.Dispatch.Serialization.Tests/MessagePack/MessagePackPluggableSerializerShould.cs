@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// <summary>
 /// Unit tests for <see cref="MpkSerializer" /> (pluggable serializer behavior).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class MessagePackPluggableSerializerShould : UnitTestBase
 {
 	[Fact]

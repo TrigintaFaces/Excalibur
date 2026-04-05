@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Pooling;
 /// Unit tests for <see cref="TypePoolOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class TypePoolOptionsShould
 {

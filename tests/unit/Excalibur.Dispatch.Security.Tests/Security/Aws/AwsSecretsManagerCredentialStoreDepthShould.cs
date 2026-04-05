@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Aws;
 /// Deep coverage tests for <see cref="AwsSecretsManagerCredentialStore"/> covering concurrent access,
 /// store failure wrapping, multiple secrets retrieval, and SecureString conversion edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class AwsSecretsManagerCredentialStoreDepthShould
 {
 	[Fact]

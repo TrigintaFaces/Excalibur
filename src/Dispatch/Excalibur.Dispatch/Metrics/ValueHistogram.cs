@@ -35,7 +35,7 @@ public sealed class ValueHistogram : IMetric
 	/// </summary>
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter",
 		Justification = "Configuration parameter reserved for future histogram bucket customization and statistical algorithm options")]
-	public ValueHistogram(MetricMetadata metadata, HistogramConfiguration configuration)
+	public ValueHistogram(MetricMetadata metadata, HistogramOptions configuration)
 	{
 		Metadata = metadata;
 	}

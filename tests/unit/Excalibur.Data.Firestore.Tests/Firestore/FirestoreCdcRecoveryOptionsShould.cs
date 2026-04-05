@@ -15,7 +15,7 @@ namespace Excalibur.Data.Tests.Firestore;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Firestore")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class FirestoreCdcRecoveryOptionsShould
 {
 	#region Default Value Tests

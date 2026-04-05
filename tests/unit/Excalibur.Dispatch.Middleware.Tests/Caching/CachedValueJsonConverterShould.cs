@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class CachedValueJsonConverterShould : UnitTestBase
 {

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Migration;
 
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class MigrationServiceShould
 {
 	private readonly IEncryptionProvider _encryptionProvider;

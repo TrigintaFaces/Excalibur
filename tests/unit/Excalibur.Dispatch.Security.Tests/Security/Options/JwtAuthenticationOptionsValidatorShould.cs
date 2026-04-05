@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Options;
 /// <summary>
 /// Unit tests for <see cref="JwtAuthenticationOptionsValidator"/> internal class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Options")]
 public sealed class JwtAuthenticationOptionsValidatorShould
 {

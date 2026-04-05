@@ -27,7 +27,7 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	private readonly ConcurrentBag<Activity> _capturedActivities = [];
 
 	private static IOptions<ObservabilityOptions> DefaultOptions =>
-		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { EnableDetailedTiming = true, IncludeSensitiveData = true });
+		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { IncludeSensitiveData = true });
 
 	public TracingMiddlewareFunctionalShould()
 	{

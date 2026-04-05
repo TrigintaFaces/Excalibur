@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.DataProcessing.Exceptions;
 /// Unit tests for <see cref="MultipleDataProcessorException"/>.
 /// </summary>
 [UnitTest]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MultipleDataProcessorExceptionShould : UnitTestBase
 {
 	[Fact]

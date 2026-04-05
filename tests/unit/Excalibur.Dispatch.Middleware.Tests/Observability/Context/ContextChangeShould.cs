@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Context;
 /// <summary>
 /// Unit tests for <see cref="ContextChange"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Observability")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Observability)]
 public sealed class ContextChangeShould : UnitTestBase
 {
 	[Fact]

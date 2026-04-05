@@ -126,32 +126,32 @@ public sealed class CacheIspConformanceShould
 	}
 
 	[Fact]
-	public void MemoryCacheConfiguration_HaveAtMostTenProperties()
+	public void DispatchMemoryCacheOptions_HaveAtMostTenProperties()
 	{
 		// Arrange
-		var optionsType = typeof(MemoryCacheConfiguration);
+		var optionsType = typeof(DispatchMemoryCacheOptions);
 
 		// Act
 		var properties = optionsType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
 		// Assert
 		properties.Length.ShouldBeLessThanOrEqualTo(10,
-			$"MemoryCacheConfiguration has {properties.Length} properties, exceeding the 10-property ISP gate. " +
+			$"DispatchMemoryCacheOptions has {properties.Length} properties, exceeding the 10-property ISP gate. " +
 			$"Properties: {string.Join(", ", properties.Select(p => p.Name))}");
 	}
 
 	[Fact]
-	public void DistributedCacheConfiguration_HaveAtMostTenProperties()
+	public void DistributedCacheOptions_HaveAtMostTenProperties()
 	{
 		// Arrange
-		var optionsType = typeof(DistributedCacheConfiguration);
+		var optionsType = typeof(DistributedCacheOptions);
 
 		// Act
 		var properties = optionsType.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
 		// Assert
 		properties.Length.ShouldBeLessThanOrEqualTo(10,
-			$"DistributedCacheConfiguration has {properties.Length} properties, exceeding the 10-property ISP gate. " +
+			$"DistributedCacheOptions has {properties.Length} properties, exceeding the 10-property ISP gate. " +
 			$"Properties: {string.Join(", ", properties.Select(p => p.Name))}");
 	}
 

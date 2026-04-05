@@ -14,8 +14,8 @@ namespace Excalibur.Data.Tests.Firestore.Snapshots;
 /// Unit tests for the <see cref="FirestoreSnapshotStore"/> dual-constructor pattern.
 /// Verifies both simple (options-based) and advanced (FirestoreDb) constructors.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class FirestoreSnapshotStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<FirestoreSnapshotStore> _logger;

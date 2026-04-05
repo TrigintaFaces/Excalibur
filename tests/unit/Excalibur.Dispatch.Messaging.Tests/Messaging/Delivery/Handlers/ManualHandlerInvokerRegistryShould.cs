@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// Unit tests for <see cref="HandlerInvokerRegistry"/> (Manual implementation).
 /// </summary>
 [Collection("HandlerInvokerRegistry")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Handlers")]
 [Trait("Priority", "0")]
 public sealed class ManualHandlerInvokerRegistryShould : IDisposable

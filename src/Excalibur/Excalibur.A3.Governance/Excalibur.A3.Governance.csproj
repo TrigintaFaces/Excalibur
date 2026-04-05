@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -20,9 +20,5 @@
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.A3.Governance.Abstractions\Excalibur.A3.Governance.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.A3.Core\Excalibur.A3.Core.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

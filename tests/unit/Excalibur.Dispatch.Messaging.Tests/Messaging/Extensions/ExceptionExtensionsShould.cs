@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Extensions;
 /// <remarks>
 /// Tests the exception extension methods for error and status code retrieval.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Extensions")]
 [Trait("Priority", "0")]
 public sealed class ExceptionExtensionsShould

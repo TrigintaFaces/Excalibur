@@ -103,4 +103,4 @@ Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.Timestamp.get -> S
 Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.Timestamp.init -> void
 Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.TransportEnvelope() -> void
 Microsoft.Extensions.DependencyInjection.MemoryPackSerializationServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer() -> Excalibur.Dispatch.Abstractions.Serialization.ISerializer!
+static Microsoft.Extensions.DependencyInjection.MemoryPackSerializationServiceCollectionExtensions.AddMemoryPackSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

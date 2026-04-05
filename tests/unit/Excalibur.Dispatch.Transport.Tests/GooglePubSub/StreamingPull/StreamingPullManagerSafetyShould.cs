@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.StreamingPull;
 /// - S541.5 (bd-mzkx0): CancellationToken propagation (not CancellationToken.None)
 /// - S541.6 (bd-y1lle): Disposal ordering (unsubscribe → cancel → await → dispose)
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StreamingPullManagerSafetyShould : UnitTestBase
 {
 	#region S541.4: Background Task Tracking (bd-p8tok)

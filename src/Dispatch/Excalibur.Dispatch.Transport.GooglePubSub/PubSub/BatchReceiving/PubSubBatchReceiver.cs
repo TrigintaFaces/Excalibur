@@ -23,7 +23,7 @@ internal sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 {
 	private readonly SubscriberServiceApiClient _subscriberClient;
 	private readonly PubSubFlowController _flowController;
-	private readonly IOptions<BatchConfiguration> _options;
+	private readonly IOptions<BatchOptions> _options;
 	private readonly ILogger<PubSubBatchReceiver> _logger;
 	private readonly SemaphoreSlim _concurrencyLimiter;
 	private readonly BatchMetricsCollector _metricsCollector;
@@ -34,7 +34,7 @@ internal sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 	public PubSubBatchReceiver(
 		SubscriberServiceApiClient subscriberClient,
 		PubSubFlowController flowController,
-		IOptions<BatchConfiguration> options,
+		IOptions<BatchOptions> options,
 		ILogger<PubSubBatchReceiver> logger,
 		BatchMetricsCollector metricsCollector)
 	{
@@ -43,8 +43,6 @@ internal sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_metricsCollector = metricsCollector ?? throw new ArgumentNullException(nameof(metricsCollector));
-
-		_options.Value.Validate();
 
 		_concurrencyLimiter = new SemaphoreSlim(
 			_options.Value.ConcurrentBatchProcessors,
@@ -227,7 +225,7 @@ internal sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 	/// <summary>
 	/// Adaptive batch sizer that adjusts batch size based on processing performance.
 	/// </summary>
-	private sealed class AdaptiveBatchSizer(BatchConfiguration config)
+	private sealed class AdaptiveBatchSizer(BatchOptions config)
 	{
 #if NET9_0_OR_GREATER
 		private readonly System.Threading.Lock _lock = new();

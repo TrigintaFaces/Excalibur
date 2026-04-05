@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Excalibur.Dispatch.Hosting.AzureFunctions" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Observability" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.*" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.*" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.*" />
@@ -61,6 +62,7 @@
   <ItemGroup>
     <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Excalibur.Dispatch.Hosting.AwsLambda" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Observability" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Amazon.Lambda.Core" Version="2.*" />
     <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.*" />
     <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="2.*" />
@@ -100,6 +102,7 @@
   <ItemGroup>
     <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Excalibur.Dispatch.Hosting.GoogleCloudFunctions" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Observability" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Google.Cloud.Functions.Framework" Version="2.*" />
     <PackageReference Include="Google.Cloud.Functions.Hosting" Version="2.*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.*" />

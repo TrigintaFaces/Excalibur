@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Routing;
 /// Depth tests for <see cref="RouteHealthMonitorOptions"/>.
 /// Covers all default values and property assignment.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RouteHealthMonitorOptionsShould
 {
 	[Fact]

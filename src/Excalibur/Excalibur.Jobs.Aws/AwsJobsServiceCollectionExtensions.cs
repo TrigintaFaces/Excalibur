@@ -33,7 +33,10 @@ public static class AwsJobsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		// Configure options
-		_ = services.Configure(configure);
+		_ = services.AddOptions<AwsSchedulerOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Add AWS EventBridge Scheduler client
 		_ = services.AddAWSService<IAmazonScheduler>();
@@ -63,7 +66,9 @@ public static class AwsJobsServiceCollectionExtensions
 
 		// Configure options
 		_ = services.AddOptions<AwsSchedulerOptions>()
-			.Bind(configuration);
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Add AWS EventBridge Scheduler client
 		_ = services.AddAWSService<IAmazonScheduler>();
@@ -94,7 +99,10 @@ public static class AwsJobsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		// Configure options
-		_ = services.Configure(configure);
+		_ = services.AddOptions<AwsSchedulerOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Add AWS EventBridge Scheduler client with options
 		_ = services.AddAWSService<IAmazonScheduler>(awsOptions);
@@ -127,7 +135,9 @@ public static class AwsJobsServiceCollectionExtensions
 
 		// Configure options
 		_ = services.AddOptions<AwsSchedulerOptions>()
-			.Bind(configuration);
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Add AWS EventBridge Scheduler client with options
 		_ = services.AddAWSService<IAmazonScheduler>(awsOptions);

@@ -6,7 +6,7 @@ using Excalibur.Data.EventStore;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class EventMetadataShould
 {
 	[Fact]

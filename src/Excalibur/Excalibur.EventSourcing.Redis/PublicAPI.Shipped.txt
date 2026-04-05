@@ -1,19 +1,10 @@
 #nullable enable
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.ConcurrencyConflict = 115200 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventsAppended = 115001 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventsLoaded = 115000 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventStoreOperationFailed = 115004 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.LuaScriptExecuted = 115201 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotLoaded = 115100 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotNotFound = 115103 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotSaved = 115101 -> int
-const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotsDeleted = 115102 -> int
 Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId
 Excalibur.EventSourcing.Redis.EventSourcingBuilderRedisExtensions
 Excalibur.EventSourcing.Redis.RedisEventStore
 Excalibur.EventSourcing.Redis.RedisEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
-Excalibur.EventSourcing.Redis.RedisEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 Excalibur.EventSourcing.Redis.RedisEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Redis.RedisEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 Excalibur.EventSourcing.Redis.RedisEventStore.RedisEventStore(StackExchange.Redis.ConnectionMultiplexer! connection, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Redis.RedisEventStore!>! logger) -> void
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions.ConnectionString.get -> string!
@@ -42,6 +33,15 @@ Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.RedisSnapshotStoreOption
 Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.SnapshotTtlSeconds.get -> int
 Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.SnapshotTtlSeconds.set -> void
 Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.ConcurrencyConflict = 115200 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventStoreOperationFailed = 115004 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventsAppended = 115001 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventsLoaded = 115000 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.LuaScriptExecuted = 115201 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotLoaded = 115100 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotNotFound = 115103 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotSaved = 115101 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotsDeleted = 115102 -> int
 static Excalibur.EventSourcing.Redis.EventSourcingBuilderRedisExtensions.UseRedis(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>! configureEventStore, System.Action<Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions!>! configureSnapshotStore) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>! configureEventStore, System.Action<Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions!>! configureSnapshotStore) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, StackExchange.Redis.ConnectionMultiplexer! connection, System.Action<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

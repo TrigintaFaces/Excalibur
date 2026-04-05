@@ -6,8 +6,8 @@ using Excalibur.Dispatch.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Functional;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class EnvironmentVariableCredentialStoreFunctionalShould : IDisposable
 {
     private readonly List<string> _envVarsToCleanup = [];

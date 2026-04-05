@@ -51,18 +51,14 @@ builder.Services.AddLogging(logging =>
 builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-	// Register MessagePack as the pluggable serializer and set it as active.
-	// The RegisterMessagePack overload accepts MessagePackSerializerOptions
-	// so LZ4 compression can be configured inline.
-	_ = dispatch.WithSerialization(config =>
-	{
-		var lz4Options = MessagePackSerializerOptions.Standard
-			.WithCompression(MessagePackCompression.Lz4BlockArray);
-		config.RegisterMessagePack(lz4Options);
-		config.UseMessagePack();
-	});
 });
+
+// Register MessagePack as the pluggable serializer and set it as active.
+// The AddMessagePackSerializer overload accepts MessagePackSerializerOptions
+// so LZ4 compression can be configured inline.
+var lz4Options = MessagePackSerializerOptions.Standard
+	.WithCompression(MessagePackCompression.Lz4BlockArray);
+builder.Services.AddMessagePackSerializer(lz4Options);
 
 // ============================================================
 // Configure outbox/inbox for reliable messaging
@@ -129,8 +125,8 @@ logger.LogInformation("");
 var uncompressedBytes = MessagePackSerializer.Serialize(orderPlaced);
 
 // Serialize with LZ4 compression
-var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
-var compressedBytes = MessagePackSerializer.Serialize(orderPlaced, lz4Options);
+var lz4CompressionOptions = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
+var compressedBytes = MessagePackSerializer.Serialize(orderPlaced, lz4CompressionOptions);
 
 // Compare with JSON
 var jsonString = System.Text.Json.JsonSerializer.Serialize(new
@@ -157,7 +153,7 @@ logger.LogInformation("");
 logger.LogInformation("=== MessagePack Deserialization Demo ===");
 logger.LogInformation("");
 
-var deserializedEvent = MessagePackSerializer.Deserialize<OrderPlacedEvent>(compressedBytes, lz4Options);
+var deserializedEvent = MessagePackSerializer.Deserialize<OrderPlacedEvent>(compressedBytes, lz4CompressionOptions);
 
 logger.LogInformation("Deserialized event from LZ4 compressed data:");
 logger.LogInformation("  OrderId: {OrderId}", deserializedEvent.OrderId);

@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Tests.Middleware.Versioning;
 /// Sprint 698 T.2 (m5e9u): Tests for the internal middleware that handles message schema versioning
 /// by inspecting transport headers and delegating to registered <see cref="IMessageVersionMapper"/> implementations.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class MessageVersionMiddlewareShould : UnitTestBase
 {
 	private readonly IDispatchMessage _message;

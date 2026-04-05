@@ -21,12 +21,6 @@ public interface IInMemoryCdcStore
 	void AddChange(InMemoryCdcChange change);
 
 	/// <summary>
-	/// Adds multiple simulated CDC changes to the store.
-	/// </summary>
-	/// <param name="changes">The changes to add.</param>
-	void AddChanges(IEnumerable<InMemoryCdcChange> changes);
-
-	/// <summary>
 	/// Gets all pending changes that have not been processed.
 	/// </summary>
 	/// <param name="maxCount">The maximum number of changes to retrieve.</param>
@@ -50,9 +44,4 @@ public interface IInMemoryCdcStore
 	/// <returns>The number of pending changes.</returns>
 	int GetPendingCount();
 
-	/// <summary>
-	/// Gets all changes in the history (if history preservation is enabled).
-	/// </summary>
-	/// <returns>A collection of all processed changes.</returns>
-	IReadOnlyList<InMemoryCdcChange> GetHistory();
 }

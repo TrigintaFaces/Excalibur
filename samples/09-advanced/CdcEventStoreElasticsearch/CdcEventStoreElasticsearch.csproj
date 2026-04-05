@@ -31,6 +31,10 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
   </ItemGroup>
+  <!-- Identity Map (Anti-Corruption Layer ID resolution) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.IdentityMap\Excalibur.Data.IdentityMap.csproj" />
+  </ItemGroup>
   <!-- Elasticsearch projections -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />

@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Decorators;
 /// Tests for <see cref="TelemetryTransportSubscriber"/>.
 /// Verifies OpenTelemetry metrics and tracing for subscription lifecycle and per-message handler.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class TelemetryTransportSubscriberShould : IDisposable
 {
 	private readonly ITransportSubscriber _innerSubscriber = A.Fake<ITransportSubscriber>();

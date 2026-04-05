@@ -57,7 +57,6 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
 	// Configure JSON serialization
-	_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 
 	// Route OrderPlacedEvent to AWS SQS transport
 	_ = dispatch.UseRouting(routing =>

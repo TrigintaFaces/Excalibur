@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Transport.AwsSqs;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Resilience;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class AwsSqsCircuitBreakerOptionsShould
 {

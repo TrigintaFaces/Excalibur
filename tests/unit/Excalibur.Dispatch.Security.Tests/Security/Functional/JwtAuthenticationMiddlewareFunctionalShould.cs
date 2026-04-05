@@ -12,8 +12,8 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Functional;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class JwtAuthenticationMiddlewareFunctionalShould
 {
     private const string TestSigningKey = "ThisIsASecretKeyForTestingPurposesOnly1234567890!";

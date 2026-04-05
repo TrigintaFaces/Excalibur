@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 namespace Excalibur.Dispatch.Tests.Performance;
 
@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Performance;
 /// to avoid flaky failures under CI load while still detecting significant regressions.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Performance")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Performance)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class BenchmarkRegressionShould
 {
 	#region Serialization Regression Gates

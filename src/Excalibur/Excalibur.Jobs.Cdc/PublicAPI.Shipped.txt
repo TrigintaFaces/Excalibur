@@ -1,5 +1,4 @@
 #nullable enable
-const Excalibur.Jobs.Cdc.CdcJob.JobConfigSectionName = "Jobs:CdcJob" -> string!
 Excalibur.Jobs.Cdc.CdcJob
 Excalibur.Jobs.Cdc.CdcJob.CdcJob(Excalibur.Cdc.SqlServer.IDataChangeEventProcessorFactory! factory, Microsoft.Extensions.Configuration.IConfiguration! configuration, Microsoft.Extensions.Options.IOptions<Excalibur.Jobs.Cdc.CdcJobOptions!>! cdcConfigOptions, Excalibur.Jobs.Core.JobHeartbeatTracker! heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Cdc.CdcJob!>! logger) -> void
 Excalibur.Jobs.Cdc.CdcJob.CdcJob(Excalibur.Cdc.SqlServer.IDataChangeEventProcessorFactory! factory, System.Func<string!, Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Jobs.Cdc.CdcJobOptions!>! cdcConfigOptions, Excalibur.Jobs.Core.JobHeartbeatTracker! heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Cdc.CdcJob!>! logger) -> void
@@ -8,5 +7,6 @@ Excalibur.Jobs.Cdc.CdcJobOptions
 Excalibur.Jobs.Cdc.CdcJobOptions.CdcJobOptions() -> void
 Excalibur.Jobs.Cdc.CdcJobOptions.DatabaseConfigs.get -> System.Collections.ObjectModel.Collection<Excalibur.Cdc.SqlServer.DatabaseOptions!>!
 Excalibur.Jobs.Cdc.CdcJobOptions.DatabaseConfigs.init -> void
+const Excalibur.Jobs.Cdc.CdcJob.JobConfigSectionName = "Jobs:CdcJob" -> string!
 static Excalibur.Jobs.Cdc.CdcJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
 static Excalibur.Jobs.Cdc.CdcJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator! configurator, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void

@@ -8,8 +8,8 @@ namespace Excalibur.Data.Tests.DataProcessing.Processing;
 /// <summary>
 /// Unit tests for <see cref="DataProcessingHostedServiceOptionsValidator"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataProcessingHostedServiceOptionsValidatorShould : UnitTestBase
 {
 	private readonly DataProcessingHostedServiceOptionsValidator _sut = new();

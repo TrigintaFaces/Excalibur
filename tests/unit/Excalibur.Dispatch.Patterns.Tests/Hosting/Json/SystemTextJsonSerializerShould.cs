@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Hosting.Json;
 /// Unit tests for DispatchJsonSerializer configured in reflection mode (no source-gen context)
 /// so that arbitrary test types can be serialized and deserialized.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Patterns")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Patterns)]
 [SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code — trimming not required")]
 [SuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Test code — AOT not required")]
 public sealed class SystemTextJsonSerializerShould : IDisposable

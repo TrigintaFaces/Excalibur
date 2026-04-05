@@ -21,7 +21,7 @@ public sealed class SagaDefinitionServiceCollectionExtensionsShould : UnitTestBa
 	private sealed class TestSagaData { }
 	private sealed class OtherSagaData { }
 
-	private sealed class ConcreteSagaDefinition : ISagaDefinition<TestSagaData>
+	private sealed class ConcreteSagaDefinition : ISagaDefinition<TestSagaData>, ISagaDefinitionLifecycle<TestSagaData>
 	{
 		public string Name => "TestSaga";
 		public TimeSpan Timeout => TimeSpan.FromMinutes(5);
@@ -33,28 +33,30 @@ public sealed class SagaDefinitionServiceCollectionExtensionsShould : UnitTestBa
 			Task.CompletedTask;
 	}
 
-	private sealed class MultiInterfaceSagaDefinition : ISagaDefinition<TestSagaData>, ISagaDefinition<OtherSagaData>
+	private sealed class MultiInterfaceSagaDefinition
+		: ISagaDefinition<TestSagaData>, ISagaDefinitionLifecycle<TestSagaData>,
+		  ISagaDefinition<OtherSagaData>, ISagaDefinitionLifecycle<OtherSagaData>
 	{
 		string ISagaDefinition<TestSagaData>.Name => "Multi1";
 		TimeSpan ISagaDefinition<TestSagaData>.Timeout => TimeSpan.FromMinutes(1);
 		IReadOnlyList<ISagaStep<TestSagaData>> ISagaDefinition<TestSagaData>.Steps => [];
 		ISagaRetryPolicy? ISagaDefinition<TestSagaData>.RetryPolicy => null;
-		Task ISagaDefinition<TestSagaData>.OnCompletedAsync(ISagaContext<TestSagaData> context, CancellationToken cancellationToken) =>
+		Task ISagaDefinitionLifecycle<TestSagaData>.OnCompletedAsync(ISagaContext<TestSagaData> context, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
-		Task ISagaDefinition<TestSagaData>.OnFailedAsync(ISagaContext<TestSagaData> context, Exception exception, CancellationToken cancellationToken) =>
+		Task ISagaDefinitionLifecycle<TestSagaData>.OnFailedAsync(ISagaContext<TestSagaData> context, Exception exception, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
 
 		string ISagaDefinition<OtherSagaData>.Name => "Multi2";
 		TimeSpan ISagaDefinition<OtherSagaData>.Timeout => TimeSpan.FromMinutes(1);
 		IReadOnlyList<ISagaStep<OtherSagaData>> ISagaDefinition<OtherSagaData>.Steps => [];
 		ISagaRetryPolicy? ISagaDefinition<OtherSagaData>.RetryPolicy => null;
-		Task ISagaDefinition<OtherSagaData>.OnCompletedAsync(ISagaContext<OtherSagaData> context, CancellationToken cancellationToken) =>
+		Task ISagaDefinitionLifecycle<OtherSagaData>.OnCompletedAsync(ISagaContext<OtherSagaData> context, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
-		Task ISagaDefinition<OtherSagaData>.OnFailedAsync(ISagaContext<OtherSagaData> context, Exception exception, CancellationToken cancellationToken) =>
+		Task ISagaDefinitionLifecycle<OtherSagaData>.OnFailedAsync(ISagaContext<OtherSagaData> context, Exception exception, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
 	}
 
-	private abstract class AbstractSagaDefinition : ISagaDefinition<TestSagaData>
+	private abstract class AbstractSagaDefinition : ISagaDefinition<TestSagaData>, ISagaDefinitionLifecycle<TestSagaData>
 	{
 		public abstract string Name { get; }
 		public abstract TimeSpan Timeout { get; }

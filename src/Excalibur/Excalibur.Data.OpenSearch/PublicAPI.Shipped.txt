@@ -128,17 +128,12 @@ Excalibur.Data.OpenSearch.IndexManagement.IIndexLifecycleManager.RolloverIndexAs
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.CreateIndexAsync(string! indexName, Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.DeleteIndexAsync(string! indexName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.ForceMergeAsync(string! indexName, int? maxNumSegments, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.GetIndexHealthAsync(string? indexPattern, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.OpenSearch.IndexManagement.IndexHealthStatus!>!>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.IndexExistsAsync(string! indexName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.OptimizeIndexAsync(string! indexName, Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions! optimizationOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationResult!>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager.UpdateIndexSettingsAsync(string! indexName, OpenSearch.Client.IIndexSettings! settings, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager
-Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.CreateOrUpdateComponentTemplateAsync(string! templateName, Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.CreateOrUpdateTemplateAsync(string! templateName, Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.DeleteComponentTemplateAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.DeleteTemplateAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.MigrateTemplateAsync(string! templateName, Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration! newTemplate, Excalibur.Data.OpenSearch.IndexManagement.TemplateMigrationOptions! migrationOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.OpenSearch.IndexManagement.TemplateMigrationResult!>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.TemplateExistsAsync(string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager.ValidateTemplateAsync(Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.OpenSearch.IndexManagement.TemplateValidationResult!>!
 Excalibur.Data.OpenSearch.IndexManagement.IndexConfiguration
@@ -193,6 +188,7 @@ Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Lifecycle.get -
 Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Lifecycle.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Optimization.get -> Excalibur.Data.OpenSearch.IndexManagement.OptimizationOptions!
 Excalibur.Data.OpenSearch.IndexManagement.IndexManagementOptions.Optimization.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.IndexOperationsManagerExtensions
 Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions
 Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions.ForceMerge.get -> bool
 Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions.ForceMerge.init -> void
@@ -245,6 +241,7 @@ Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Template.ge
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Template.init -> void
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Version.get -> long?
 Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration.Version.init -> void
+Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateManagerExtensions
 Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions
 Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.ColdPhaseDuration.get -> System.TimeSpan
 Excalibur.Data.OpenSearch.IndexManagement.LifecycleManagementOptions.ColdPhaseDuration.init -> void
@@ -491,30 +488,6 @@ Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy.MaxAttempts.get -> i
 Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy.ShouldRetry(System.Exception! exception, int attemptNumber) -> bool
 Excalibur.Data.OpenSearch.Resilience.IResilientOpenSearchClient
 Excalibur.Data.OpenSearch.Resilience.IResilientOpenSearchClient.BulkAsync(System.Func<OpenSearch.Client.BulkDescriptor!, OpenSearch.Client.IBulkRequest!>! selector, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<OpenSearch.Client.BulkResponse!>!
-Excalibur.Data.OpenSearch.Resilience.IResilientOpenSearchClient.IsCircuitBreakerOpen.get -> bool
-Excalibur.Data.OpenSearch.Resilience.IResilientOpenSearchClient.IsHealthyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.ConsecutiveFailures.get -> int
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.Dispose() -> void
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.FailureRate.get -> double
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.IsHalfOpen.get -> bool
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.IsOpen.get -> bool
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.OpenSearchCircuitBreaker(Microsoft.Extensions.Options.IOptions<Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker!>! logger) -> void
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.RecordFailureAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.RecordSuccessAsync() -> System.Threading.Tasks.Task!
-Excalibur.Data.OpenSearch.Resilience.OpenSearchCircuitBreaker.State.get -> Excalibur.Data.OpenSearch.Resilience.CircuitBreakerState
-Excalibur.Data.OpenSearch.Resilience.OpenSearchRetryPolicy
-Excalibur.Data.OpenSearch.Resilience.OpenSearchRetryPolicy.GetRetryDelay(int attemptNumber) -> System.TimeSpan
-Excalibur.Data.OpenSearch.Resilience.OpenSearchRetryPolicy.MaxAttempts.get -> int
-Excalibur.Data.OpenSearch.Resilience.OpenSearchRetryPolicy.OpenSearchRetryPolicy(Microsoft.Extensions.Options.IOptions<Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions!>! options) -> void
-Excalibur.Data.OpenSearch.Resilience.OpenSearchRetryPolicy.ShouldRetry(System.Exception! exception, int attemptNumber) -> bool
-Excalibur.Data.OpenSearch.Resilience.ResilientOpenSearchClient
-Excalibur.Data.OpenSearch.Resilience.ResilientOpenSearchClient.BulkAsync(System.Func<OpenSearch.Client.BulkDescriptor!, OpenSearch.Client.IBulkRequest!>! selector, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<OpenSearch.Client.BulkResponse!>!
-Excalibur.Data.OpenSearch.Resilience.ResilientOpenSearchClient.Dispose() -> void
-Excalibur.Data.OpenSearch.Resilience.ResilientOpenSearchClient.IsCircuitBreakerOpen.get -> bool
-Excalibur.Data.OpenSearch.Resilience.ResilientOpenSearchClient.IsHealthyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.OpenSearch.Resilience.ResilientOpenSearchClient.ResilientOpenSearchClient(OpenSearch.Client.OpenSearchClient! client, Excalibur.Data.OpenSearch.Resilience.IOpenSearchRetryPolicy! retryPolicy, Excalibur.Data.OpenSearch.Resilience.IOpenSearchCircuitBreaker! circuitBreaker, Microsoft.Extensions.Options.IOptions<Excalibur.Data.OpenSearch.OpenSearchConfigurationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.OpenSearch.Resilience.ResilientOpenSearchClient!>! logger) -> void
 Microsoft.Extensions.DependencyInjection.OpenSearchHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.OpenSearchPersistenceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions
@@ -523,6 +496,11 @@ Microsoft.Extensions.DependencyInjection.OpenSearchTenantShardingExtensions
 const Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.DefaultPositionsIndexName = "materialized-view-positions" -> string!
 const Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions.DefaultViewsIndexName = "materialized-views" -> string!
 static Excalibur.Data.OpenSearch.HostExtensions.VerifyOpenSearchConnectivityAsync(this Microsoft.Extensions.Hosting.IHost! host) -> System.Threading.Tasks.Task!
+static Excalibur.Data.OpenSearch.IndexManagement.IndexOperationsManagerExtensions.ForceMergeAsync(this Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager! manager, string! indexName, int? maxNumSegments, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+static Excalibur.Data.OpenSearch.IndexManagement.IndexOperationsManagerExtensions.OptimizeIndexAsync(this Excalibur.Data.OpenSearch.IndexManagement.IIndexOperationsManager! manager, string! indexName, Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationOptions! optimizationOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.OpenSearch.IndexManagement.IndexOptimizationResult!>!
+static Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateManagerExtensions.CreateOrUpdateComponentTemplateAsync(this Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager! manager, string! templateName, Excalibur.Data.OpenSearch.IndexManagement.ComponentTemplateConfiguration! template, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+static Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateManagerExtensions.DeleteComponentTemplateAsync(this Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager! manager, string! templateName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+static Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateManagerExtensions.MigrateTemplateAsync(this Excalibur.Data.OpenSearch.IndexManagement.IIndexTemplateManager! manager, string! templateName, Excalibur.Data.OpenSearch.IndexManagement.IndexTemplateConfiguration! newTemplate, Excalibur.Data.OpenSearch.IndexManagement.TemplateMigrationOptions! migrationOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.OpenSearch.IndexManagement.TemplateMigrationResult!>!
 static Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewExtensions.UseOpenSearch(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, System.Action<Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 static Excalibur.Data.OpenSearch.MaterializedViews.OpenSearchMaterializedViewExtensions.UseOpenSearch(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, string! nodeUri) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 static Microsoft.Extensions.DependencyInjection.OpenSearchHealthChecksBuilderExtensions.AddOpenSearchHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

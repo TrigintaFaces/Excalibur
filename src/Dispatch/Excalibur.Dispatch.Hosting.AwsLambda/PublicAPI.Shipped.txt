@@ -1,4 +1,6 @@
 #nullable enable
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId
+Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions
 const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupCompleted = 50162 -> int
 const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupFailed = 50163 -> int
 const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupStarting = 50161 -> int
@@ -25,11 +27,9 @@ const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ServicesWarmedUp = 5
 const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupCompleted = 50159 -> int
 const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupFailed = 50160 -> int
 const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupStarting = 50158 -> int
-const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.WarmingUpServices = 50156 -> int
 const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.WarmInstanceDetected = 50152 -> int
+const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.WarmingUpServices = 50156 -> int
 const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.XRayTracingEnabled = 50164 -> int
-Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId
-Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

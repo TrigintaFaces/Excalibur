@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Metrics;
 /// Unit tests for <see cref="CacheLineSize"/> internal class.
 /// Uses reflection to test internal constant.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Metrics")]
 public sealed class CacheLineSizeShould : UnitTestBase
 {

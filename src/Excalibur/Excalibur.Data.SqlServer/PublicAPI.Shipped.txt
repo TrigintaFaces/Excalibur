@@ -39,7 +39,6 @@ Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.GetMessagesAsync
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.MarkAsReplayedAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.SqlServerDeadLetterStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore!>! logger) -> void
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.StoreAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Microsoft.Extensions.DependencyInjection.SqlServerHealthChecksBuilderExtensions
 Excalibur.Data.SqlServer.Persistence.ApplicationIntent
 Excalibur.Data.SqlServer.Persistence.ApplicationIntent.ReadOnly = 1 -> Excalibur.Data.SqlServer.Persistence.ApplicationIntent
 Excalibur.Data.SqlServer.Persistence.ApplicationIntent.ReadWrite = 0 -> Excalibur.Data.SqlServer.Persistence.ApplicationIntent
@@ -262,6 +261,11 @@ Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory.CreateCircuitBreakerPolicy()
 Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory.GetComprehensivePolicy() -> Polly.IAsyncPolicy!
 Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory.GetRetryPolicy() -> Polly.IAsyncPolicy!
 Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory.SqlDataAccessPolicyFactory(Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.SqlDataAccessPolicyFactory!>! logger) -> void
+Excalibur.Data.SqlServer.SqlDataRequestResolver
+Excalibur.Data.SqlServer.SqlDataRequestResolver.ExecuteAsync(Excalibur.Data.Abstractions.IDataRequest<Microsoft.Data.SqlClient.SqlConnection!, int>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.SqlServer.SqlDataRequestResolver.QueryAsync<TModel>(Excalibur.Data.Abstractions.IDataRequest<Microsoft.Data.SqlClient.SqlConnection!, TModel>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TModel>!
+Excalibur.Data.SqlServer.SqlDataRequestResolver.SqlDataRequestResolver(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> void
+Excalibur.Data.SqlServer.SqlDataRequestResolver.SqlDataRequestResolver(string! connectionString) -> void
 Excalibur.Data.SqlServer.SqlDb
 Excalibur.Data.SqlServer.SqlDb.SqlDb(System.Data.IDbConnection! connection) -> void
 Excalibur.Data.SqlServer.SqlServerConnectionOptions
@@ -349,7 +353,9 @@ Excalibur.Data.SqlServer.TypeHandlers.TimeOnlyTypeHandler
 Excalibur.Data.SqlServer.TypeHandlers.TimeOnlyTypeHandler.TimeOnlyTypeHandler(System.IFormatProvider? formatProvider = null) -> void
 Microsoft.Extensions.DependencyInjection.A3BuilderSqlServerExtensions
 Microsoft.Extensions.DependencyInjection.ExcaliburDataSqlServerServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SqlServerDataServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerHealthChecksBuilderExtensions
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.BulkInsertCompleted = 100401 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.BulkInsertStarted = 100400 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.BulkOperationFailed = 100404 -> int
@@ -562,8 +568,6 @@ override Excalibur.Data.SqlServer.TypeHandlers.TimeOnlyTypeHandler.Parse(object!
 override Excalibur.Data.SqlServer.TypeHandlers.TimeOnlyTypeHandler.SetValue(System.Data.IDbDataParameter! parameter, System.TimeOnly value) -> void
 static Excalibur.Data.SqlServer.ConfigurationExtensions.GetSqlConnection(this Microsoft.Extensions.Configuration.IConfiguration! configuration, string! connectionName) -> Microsoft.Data.SqlClient.SqlConnection!
 static Excalibur.Data.SqlServer.ConfigurationExtensions.GetSqlDb(this Microsoft.Extensions.Configuration.IConfiguration! configuration, string! connectionName) -> System.Func<Excalibur.Data.SqlServer.SqlDb!>!
-static Microsoft.Extensions.DependencyInjection.SqlServerHealthChecksBuilderExtensions.AddSqlHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
-static Microsoft.Extensions.DependencyInjection.SqlServerHealthChecksBuilderExtensions.AddSqlHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, string? connectionString, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName = "SqlServerPersistence") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceExtensions.AddSqlServerPersistenceHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "sqlserver-persistence", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null, System.TimeSpan? timeout = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
@@ -591,22 +595,18 @@ static Excalibur.Data.SqlServer.RequestProviders.SqlServerGrantRequestProvider.S
 static Excalibur.Data.SqlServer.ServiceProviderExtensions.BuildConnection(this System.IServiceProvider! provider, string! connectionName) -> Microsoft.Data.SqlClient.SqlConnection!
 static Microsoft.Extensions.DependencyInjection.A3BuilderSqlServerExtensions.UseSqlServer(this Excalibur.A3.IA3Builder! builder) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.ExcaliburDataSqlServerServiceCollectionExtensions.AddExcaliburSqlServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params Dapper.SqlMapper.ITypeHandler![]? additionalTypeHandlers) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! serviceKey, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! serviceKey, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlServerDataServiceCollectionExtensions.AddSqlServerDataExecutors(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.Data.IDbConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerDataServiceCollectionExtensions.AddSqlServerDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlServerDataServiceCollectionExtensions.AddSqlServerDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlServerDataServiceCollectionExtensions.AddSqlServerDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerHealthChecksBuilderExtensions.AddSqlHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.SqlServerHealthChecksBuilderExtensions.AddSqlHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, string? connectionString, string! name, System.TimeSpan timeout) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceMetrics.Dispose(bool disposing) -> void
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.Dispose(bool disposing) -> void
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
-static Microsoft.Extensions.DependencyInjection.SqlServerDataServiceCollectionExtensions.AddSqlServerDeadLetterStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Data.SqlServer.SqlDataRequestResolver
-Excalibur.Data.SqlServer.SqlDataRequestResolver.ExecuteAsync(Excalibur.Data.Abstractions.IDataRequest<Microsoft.Data.SqlClient.SqlConnection!, int>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.SqlServer.SqlDataRequestResolver.QueryAsync<TModel>(Excalibur.Data.Abstractions.IDataRequest<Microsoft.Data.SqlClient.SqlConnection!, TModel>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TModel>!
-Excalibur.Data.SqlServer.SqlDataRequestResolver.SqlDataRequestResolver(string! connectionString) -> void
-Excalibur.Data.SqlServer.SqlDataRequestResolver.SqlDataRequestResolver(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> void
-Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! serviceKey, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqlDataRequestResolverServiceCollectionExtensions.AddSqlDataRequestResolver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! serviceKey, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

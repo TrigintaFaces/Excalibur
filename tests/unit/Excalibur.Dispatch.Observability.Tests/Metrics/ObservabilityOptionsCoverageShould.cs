@@ -23,7 +23,6 @@ public sealed class ObservabilityOptionsCoverageShould
         options.MeterName.ShouldBe(DispatchMetrics.MeterName);
         options.ServiceName.ShouldBe("Excalibur.Dispatch");
         options.ServiceVersion.ShouldBe("1.0.0");
-        options.EnableDetailedTiming.ShouldBeFalse();
         options.IncludeSensitiveData.ShouldBeFalse();
     }
 
@@ -40,7 +39,6 @@ public sealed class ObservabilityOptionsCoverageShould
             MeterName = "MyMeter",
             ServiceName = "MyService",
             ServiceVersion = "2.0.0",
-            EnableDetailedTiming = true,
             IncludeSensitiveData = true,
         };
 
@@ -52,7 +50,6 @@ public sealed class ObservabilityOptionsCoverageShould
         options.MeterName.ShouldBe("MyMeter");
         options.ServiceName.ShouldBe("MyService");
         options.ServiceVersion.ShouldBe("2.0.0");
-        options.EnableDetailedTiming.ShouldBeTrue();
         options.IncludeSensitiveData.ShouldBeTrue();
     }
 }

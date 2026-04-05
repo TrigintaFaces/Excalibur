@@ -20,9 +20,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 /// starting a new container per test (which overwhelms Docker).
 /// </summary>
 [Collection(ContainerCollections.Kafka)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "Kafka")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class KafkaTransportSenderIntegrationShould
 {
 	private readonly KafkaContainerFixture _fixture;

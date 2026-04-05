@@ -82,10 +82,8 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 
 	/// <inheritdoc />
 	// R0.8: Remove unused parameter - public API contract requires cancellationToken even though in-memory operations are synchronous
-#pragma warning disable IDE0060
 
 	public ValueTask<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken)
-#pragma warning restore IDE0060
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		// R0.8: Dispose objects before losing scope - Connection ownership transferred to caller who is responsible for disposal

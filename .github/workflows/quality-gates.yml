@@ -152,14 +152,15 @@ jobs:
             -targetdir:"./coverage/merged" \
             -reporttypes:"Cobertura;HtmlSummary;TextSummary"
 
-      - name: Measure coverage threshold (report-only)
+      - name: Enforce coverage threshold
         id: coverage_threshold
         shell: pwsh
         run: |
           ./eng/ci/coverage-threshold.ps1 `
             -CoverageRoot "coverage" `
-            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}')
-      - name: Coverage threshold status (report-only)
+            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}') `
+            -FailBelowThreshold
+      - name: Coverage threshold status
         shell: bash
         run: |
           combined="${{ steps.coverage_threshold.outputs.coverage_combined_pct }}"

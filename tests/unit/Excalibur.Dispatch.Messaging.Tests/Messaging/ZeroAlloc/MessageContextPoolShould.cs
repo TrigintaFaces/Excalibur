@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ZeroAlloc;
 /// These tests verify the new parameterless Rent() overload that enables lazy message binding,
 /// allowing contexts to be rented from the pool before the message is available.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 public sealed class MessageContextPoolShould : IDisposable
 {

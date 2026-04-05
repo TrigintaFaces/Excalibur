@@ -13,6 +13,8 @@ using Excalibur.Dispatch.Options.ErrorHandling;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+
 namespace Excalibur.Dispatch.ErrorHandling;
 
 /// <summary>
@@ -143,15 +145,11 @@ public sealed partial class PoisonMessageMiddleware : IDispatchMiddleware, IDisp
 						Instance = context.MessageId ?? "Unknown",
 					};
 
-					var result = new Excalibur.Dispatch.Messaging.MessageResult(
-						succeeded: false,
-						problemDetails: problemDetails);
+					_ = (problemDetails.Extensions?.TryAdd("poisonDetector", detectionResult.DetectorName));
+					_ = (problemDetails.Extensions?.TryAdd("processingAttempts", processingInfo.AttemptCount));
+					_ = (problemDetails.Extensions?.TryAdd("movedToDeadLetter", value: true));
 
-					_ = (result.ProblemDetails?.Extensions?.TryAdd("poisonDetector", detectionResult.DetectorName));
-					_ = (result.ProblemDetails?.Extensions?.TryAdd("processingAttempts", processingInfo.AttemptCount));
-					_ = (result.ProblemDetails?.Extensions?.TryAdd("movedToDeadLetter", value: true));
-
-					return result;
+					return MR.Failed(problemDetails);
 				}
 				catch (Exception handlerEx)
 				{

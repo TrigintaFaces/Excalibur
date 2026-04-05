@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Security.Tests.Diagnostics;
 /// Tests for SecurityHealthCheck (Sprint 696 T.21).
 /// Verifies health check correctly reports security configuration status.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SecurityHealthCheckShould
 {
 	[Fact]

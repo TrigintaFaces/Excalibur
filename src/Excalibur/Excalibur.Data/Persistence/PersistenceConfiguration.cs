@@ -12,7 +12,7 @@ namespace Excalibur.Data.Persistence;
 /// <summary>
 /// Implementation of centralized persistence configuration.
 /// </summary>
-public sealed class PersistenceConfiguration : IPersistenceConfiguration
+public sealed class PersistenceConfiguration : IPersistenceConfiguration, IPersistenceConfigurationAdmin
 {
 	private IConfigurationSection? _configurationSection;
 
@@ -20,7 +20,7 @@ public sealed class PersistenceConfiguration : IPersistenceConfiguration
 	public string DefaultProvider { get; set; } = "default";
 
 	/// <inheritdoc />
-	public IDictionary<string, ProviderConfiguration> Providers { get; } = new Dictionary<string, ProviderConfiguration>(StringComparer.Ordinal);
+	public IDictionary<string, PersistenceProviderOptions> Providers { get; } = new Dictionary<string, PersistenceProviderOptions>(StringComparer.Ordinal);
 
 	/// <inheritdoc />
 	public PersistenceOptions GlobalOptions { get; } = new();
@@ -38,15 +38,15 @@ public sealed class PersistenceConfiguration : IPersistenceConfiguration
 		ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
 		ArgumentNullException.ThrowIfNull(options);
 
-		// If it's already a ProviderConfiguration, use it directly
-		if (options is ProviderConfiguration providerConfig)
+		// If it's already a PersistenceProviderOptions, use it directly
+		if (options is PersistenceProviderOptions providerConfig)
 		{
 			Providers[providerName] = providerConfig;
 		}
 		else
 		{
-			// Convert to ProviderConfiguration for storage
-			var config = new ProviderConfiguration
+			// Convert to PersistenceProviderOptions for storage
+			var config = new PersistenceProviderOptions
 			{
 				Name = providerName,
 				ConnectionString = options.ConnectionString ?? string.Empty,
@@ -162,7 +162,7 @@ public sealed class PersistenceConfiguration : IPersistenceConfiguration
 	/// <summary>
 	/// Validates a provider configuration.
 	/// </summary>
-	private static IEnumerable<ConfigurationValidationResult> ValidateProviderConfiguration(string name, ProviderConfiguration config)
+	private static IEnumerable<ConfigurationValidationResult> ValidateProviderConfiguration(string name, PersistenceProviderOptions config)
 	{
 		var results = new List<ConfigurationValidationResult>();
 

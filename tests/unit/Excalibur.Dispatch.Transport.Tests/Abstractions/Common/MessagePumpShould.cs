@@ -10,8 +10,8 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Common;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class MessagePumpShould
 {
     private static Channel<MessageEnvelope> CreateChannel() => Channel.CreateUnbounded<MessageEnvelope>();

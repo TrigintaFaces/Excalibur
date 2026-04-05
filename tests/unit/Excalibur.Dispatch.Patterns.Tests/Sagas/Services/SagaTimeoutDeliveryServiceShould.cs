@@ -31,8 +31,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Sagas.Services;
 /// Full integration tests require a running environment with dispatcher and timeout store.
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Saga")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Saga)]
 [Trait("Sprint", "216")]
 public sealed class SagaTimeoutDeliveryServiceShould
 {

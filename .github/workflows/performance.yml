@@ -1,0 +1,348 @@
+name: Performance Gates
+
+on:
+  workflow_call:
+    inputs:
+      checkout-ref:
+        description: 'Git ref to checkout'
+        required: true
+        type: string
+      checkout-token:
+        description: 'Token for checkout'
+        required: true
+        type: string
+      run-performance-tests:
+        description: 'Whether to run performance tests'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  # Performance gate 1: MediatR local parity (hard threshold)
+  performance-mediatr-parity:
+    name: Performance Gate - MediatR Local Parity
+    runs-on: ubuntu-latest
+    if: inputs.run-performance-tests == 'true'
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build benchmarks
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
+      - name: Run MediatR local parity benchmark gate
+        shell: pwsh
+        run: |
+          Write-Host "Running MediatR local parity benchmark classes..."
+          ./eng/run-benchmark-matrix.ps1 `
+            -Configuration Release `
+            -NoBuild `
+            -NoRestore `
+            -RepeatCount 1 `
+            -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks `
+            -ArtifactsPath ./BenchmarkDotNet.Artifacts.MediatRParity
+
+      - name: Enforce MediatR local parity thresholds
+        shell: pwsh
+        run: |
+          ./eng/validate-performance-gates.ps1 `
+            -Gate MediatRLocalParity `
+            -ResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
+            -MediatRSingleCommandMaxRatio 1.50 `
+            -MediatRQueryMaxRatio 2.20
+
+      - name: Generate protected-row delta report
+        shell: pwsh
+        run: |
+          ./eng/compare-benchmark-delta.ps1 `
+            -BaselineResultsPath ./benchmarks/baselines/net10.0/dispatch-all/results `
+            -CurrentResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
+            -MaxRegressionPercent 5.0 `
+            -FailOnRegression:$false `
+            -OutputPath ./BenchmarkDotNet.Artifacts.MediatRParity/results/mediatr-protected-delta.md
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-mediatr-parity
+          path: BenchmarkDotNet.Artifacts.MediatRParity
+          retention-days: 30
+
+      - name: MediatR parity gate summary
+        if: always()
+        run: |
+          echo "## ⚡ Performance Gate: MediatR Local Parity" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate MediatRLocalParity\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Delta report: \`eng/compare-benchmark-delta.ps1 -FailOnRegression:\$false\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
+          echo "- Hard thresholds: single-command ratio <= 1.50 (strict direct-local), query ratio <= 2.20 (strict direct-local, fallback to default pipeline; higher due to result materialization overhead)" >> $GITHUB_STEP_SUMMARY
+          echo "- Protected-row drift report: strict direct-local single command, query, notification, 10 concurrent, 100 concurrent (report-only vs dispatch-all baseline)" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts: \`benchmark-results-mediatr-parity\`" >> $GITHUB_STEP_SUMMARY
+
+  # Performance gate 2: transport comparison (separate from MediatR local parity)
+  performance-transport-comparison:
+    name: Performance Gate - Transport Comparison
+    runs-on: windows-latest
+    if: inputs.run-performance-tests == 'true'
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build benchmarks
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
+      - name: Run transport comparison benchmark gate
+        shell: pwsh
+        run: |
+          Write-Host "Running queued end-to-end parity comparison benchmark class..."
+          ./eng/run-benchmark-matrix.ps1 `
+            -Configuration Release `
+            -NoBuild `
+            -NoRestore `
+            -RepeatCount 1 `
+            -Classes TransportQueueParityComparisonBenchmarks `
+            -ArtifactsPath ./BenchmarkDotNet.Artifacts.TransportComparison
+
+      - name: Enforce transport comparison thresholds
+        shell: pwsh
+        run: |
+          ./eng/validate-performance-gates.ps1 `
+            -Gate TransportComparison `
+            -ResultsPath ./BenchmarkDotNet.Artifacts.TransportComparison/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
+            -TransportWolverineSingleCommandMinAdvantageRatio 0.40 `
+            -TransportWolverineConcurrent10MinAdvantageRatio 0.60 `
+            -TransportMassTransitSingleCommandMinAdvantageRatio 1.00 `
+            -TransportMassTransitConcurrent10MinAdvantageRatio 1.00
+
+      - name: Upload transport benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-transport-comparison
+          path: BenchmarkDotNet.Artifacts.TransportComparison
+          retention-days: 30
+
+      - name: Transport gate summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## ⚡ Performance Gate: Transport Comparison" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes TransportQueueParityComparisonBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate TransportComparison\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
+          echo "- Thresholds: MassTransit remains a hard floor (>= 1.00x advantage); Wolverine remains a softer parity guard (>= 0.60x on single-command and concurrent(10))" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts: \`benchmark-results-transport-comparison\`" >> $GITHUB_STEP_SUMMARY
+
+  # Performance gate 3: dispatch hot-path regression
+  performance-dispatch-hotpath:
+    name: Performance Gate - Dispatch Hot Path
+    runs-on: ubuntu-latest
+    if: inputs.run-performance-tests == 'true'
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build benchmarks
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
+      - name: Run dispatch hot-path benchmark gate
+        shell: pwsh
+        run: |
+          Write-Host "Running dispatch hot-path benchmark classes..."
+          ./eng/run-benchmark-matrix.ps1 `
+            -Configuration Release `
+            -NoBuild `
+            -NoRestore `
+            -RepeatCount 1 `
+            -Classes DispatchHotPathBreakdownBenchmarks,MiddlewareCostCurveBenchmarks `
+            -ArtifactsPath ./BenchmarkDotNet.Artifacts.DispatchHotPath
+
+      - name: Enforce dispatch hot-path thresholds
+        shell: pwsh
+        run: |
+          ./eng/validate-performance-gates.ps1 `
+            -Gate DispatchHotPath `
+            -ResultsPath ./BenchmarkDotNet.Artifacts.DispatchHotPath/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
+            -HotPathLookupMaxDispatchRatio 0.25 `
+            -HotPathInvokerMaxDispatchRatio 0.95 `
+            -HotPathMiddlewareCurveMinGrowthRatio 3.00 `
+            -HotPathDispatchMaxAllocBytes 512 `
+            -HotPathInvokerMaxAllocBytes 128
+
+      - name: Upload dispatch hot-path benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-dispatch-hotpath
+          path: BenchmarkDotNet.Artifacts.DispatchHotPath
+          retention-days: 30
+
+      - name: Dispatch hot-path gate summary
+        if: always()
+        run: |
+          echo "## ⚡ Performance Gate: Dispatch Hot Path" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes DispatchHotPathBreakdownBenchmarks,MiddlewareCostCurveBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate DispatchHotPath\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
+          echo "- Thresholds: lookup/invoker ratios, dispatch alloc ceiling, middleware 0->10 cost-curve growth" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts: \`benchmark-results-dispatch-hotpath\`" >> $GITHUB_STEP_SUMMARY
+
+  # Performance gate 4: observability overhead
+  performance-observability-overhead:
+    name: Performance Gate - Observability Overhead
+    runs-on: ubuntu-latest
+    if: inputs.run-performance-tests == 'true'
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build benchmarks
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
+      - name: Run observability overhead benchmark gate
+        shell: pwsh
+        run: |
+          Write-Host "Running observability overhead benchmark class..."
+          ./eng/run-benchmark-matrix.ps1 `
+            -Configuration Release `
+            -NoBuild `
+            -NoRestore `
+            -RepeatCount 1 `
+            -Classes MetricsLoggingOverheadBenchmarks `
+            -ArtifactsPath ./BenchmarkDotNet.Artifacts.ObservabilityOverhead
+
+      - name: Enforce observability overhead thresholds
+        shell: pwsh
+        run: |
+          ./eng/validate-performance-gates.ps1 `
+            -Gate ObservabilityOverhead `
+            -ResultsPath ./BenchmarkDotNet.Artifacts.ObservabilityOverhead/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
+            -ObservabilityUtf8BytesMaxRatio 1.10 `
+            -ObservabilitySkippedMaxRatio 0.10 `
+            -ObservabilitySkippedMaxAllocBytes 0
+
+      - name: Upload observability overhead benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-observability-overhead
+          path: BenchmarkDotNet.Artifacts.ObservabilityOverhead
+          retention-days: 30
+
+      - name: Observability gate summary
+        if: always()
+        run: |
+          echo "## ⚡ Performance Gate: Observability Overhead" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes MetricsLoggingOverheadBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate ObservabilityOverhead\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
+          echo "- Thresholds: Utf8Bytes cost ratio, skipped-estimation cost ratio, skipped-estimation zero-allocation" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts: \`benchmark-results-observability-overhead\`" >> $GITHUB_STEP_SUMMARY
+
+  # Performance gate 5: persistence/background smoke
+  performance-persistence-background-smoke:
+    name: Performance Gate - Persistence/Background Smoke
+    runs-on: ubuntu-latest
+    if: inputs.run-performance-tests == 'true'
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build benchmarks
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
+      - name: Run persistence/background benchmark smoke classes
+        shell: pwsh
+        run: |
+          Write-Host "Running persistence/background smoke benchmark classes..."
+          ./eng/run-benchmark-matrix.ps1 `
+            -Configuration Release `
+            -NoBuild `
+            -NoRestore `
+            -RepeatCount 1 `
+            -Classes CdcSmokeBenchmarks,DeliveryGuaranteeBenchmarks `
+            -ArtifactsPath ./BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke
+
+      - name: Enforce persistence/background smoke thresholds
+        shell: pwsh
+        run: |
+          ./eng/validate-performance-gates.ps1 `
+            -Gate PersistenceBackgroundSmoke `
+            -ResultsPath ./BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
+            -PersistenceBackgroundCdcBatch100MaxNs 10000000 `
+            -PersistenceBackgroundProcessBatch100MaxNs 50000 `
+            -PersistenceBackgroundCdcMinimumRows 3 `
+            -PersistenceBackgroundDeliveryMinimumRows 18
+
+      - name: Upload persistence/background benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-persistence-background-smoke
+          path: BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke
+          retention-days: 30
+
+      - name: Persistence/background smoke gate summary
+        if: always()
+        run: |
+          echo "## ⚡ Performance Gate: Persistence/Background Smoke" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes CdcSmokeBenchmarks,DeliveryGuaranteeBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate PersistenceBackgroundSmoke\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
+          echo "- Thresholds: CDC DequeueBatch@100 latency ceiling + Delivery ProcessBatch@100 smoke ceiling + minimum row counts" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts: \`benchmark-results-persistence-background-smoke\`" >> $GITHUB_STEP_SUMMARY

@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Resilience.Polly;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class DistributedCircuitMetricsShould
 {

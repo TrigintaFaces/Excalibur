@@ -1,0 +1,79 @@
+# Sprint 750: Template Validation Workflow
+# Purpose: Validate dotnet new templates produce buildable projects
+# Owner: PlatformDeveloper
+
+name: Templates CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'templates/**'
+      - 'src/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'templates/**'
+      - 'src/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  validate-templates:
+    name: Validate Templates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4.0.1
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-templates-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-templates-
+            ${{ runner.os }}-nuget-
+
+      - name: Run template validation
+        shell: pwsh
+        run: ./eng/test-templates.ps1
+
+      - name: Template validation summary
+        if: always()
+        run: |
+          echo "# Template Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Validates all \`dotnet new\` templates produce buildable projects" >> $GITHUB_STEP_SUMMARY
+          echo "with correct structure across all option combinations." >> $GITHUB_STEP_SUMMARY

@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub;
 /// Verifies cross-property validation in <see cref="StreamingPullOptionsValidator"/>.
 /// Sprint 564 S564.54: StreamingPull IValidateOptions tests.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StreamingPullOptionsValidatorShould
 {
 	private readonly StreamingPullOptionsValidator _sut = new();

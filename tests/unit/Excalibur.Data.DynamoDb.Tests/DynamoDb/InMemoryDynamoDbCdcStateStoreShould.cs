@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class InMemoryDynamoDbCdcStateStoreShould : IAsyncDisposable
 {
 	private readonly InMemoryDynamoDbCdcStateStore _store = new();

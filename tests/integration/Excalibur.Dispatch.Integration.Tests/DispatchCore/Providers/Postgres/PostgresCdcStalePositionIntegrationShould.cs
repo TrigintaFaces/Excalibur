@@ -39,11 +39,11 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 /// </remarks>
 [IntegrationTest]
 [Collection(ContainerCollections.Postgres)]
-[Trait("Component", "CDC")]
+[Trait(TraitNames.Component, TestComponents.CDC)]
 [Trait("Database", "Postgres")]
 [Trait("SubComponent", "StalePositionRecovery")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	private readonly PostgresFixture _pgFixture;

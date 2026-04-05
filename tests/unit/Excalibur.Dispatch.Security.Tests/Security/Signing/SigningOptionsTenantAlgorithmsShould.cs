@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 /// Tests for the <see cref="SigningOptions.TenantAlgorithms"/> dictionary property,
 /// validating multi-tenant signing algorithm configuration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Signing")]
 public sealed class SigningOptionsTenantAlgorithmsShould
 {

@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
 /// <summary>
 /// Unit tests for <see cref="SecurityEventType"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SecurityEventTypeShould
 {
 	[Fact]

@@ -78,8 +78,8 @@ These standalone methods remain available for consumers who prefer direct regist
 | `UseDispatchResilience()` | Resilience (Polly) | `Excalibur.Dispatch.Resilience.Polly` |
 | `UseCaching()` | Caching (on `IDispatchBuilder`) | `Excalibur.Dispatch.Caching` |
 | `UseSecurity()` | Security (on `IDispatchBuilder`) | `Excalibur.Dispatch.Security` |
-| `AddMessagePackSerialization()` | MessagePack serialization | `Excalibur.Dispatch.Serialization.MessagePack` |
-| `AddPluggableSerialization()` | Pluggable serialization (JSON default) | `Excalibur.Dispatch` |
+| `AddMessagePackSerializer()` | MessagePack serialization | `Excalibur.Dispatch.Serialization.MessagePack` |
+| `AddMemoryPackSerializer()` | MemoryPack serialization | `Excalibur.Dispatch.Serialization.MemoryPack` |
 
 ## Common Configuration Patterns
 
@@ -148,7 +148,7 @@ builder.Services.AddHealthChecks()
 
 // OpenTelemetry
 builder.Services.AddOpenTelemetry()
-    .WithTracing(t => t.AddSource("Excalibur.Dispatch.Observability"))
+    .WithTracing(t => t.AddSource("Excalibur.Dispatch"))
     .WithMetrics(m => m.AddDispatchMetrics());
 
 var app = builder.Build();

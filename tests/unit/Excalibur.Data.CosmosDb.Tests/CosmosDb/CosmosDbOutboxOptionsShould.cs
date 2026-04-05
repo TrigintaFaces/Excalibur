@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
-[Trait("Feature", "Outbox")]
+[Trait(TraitNames.Feature, TestFeatures.Outbox)]
 public sealed class CosmosDbOutboxOptionsShould
 {
 	#region Default Value Tests

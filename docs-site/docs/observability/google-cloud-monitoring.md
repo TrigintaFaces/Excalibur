@@ -119,7 +119,7 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
         tracing
-            .AddSource("Excalibur.Dispatch.Observability.*")
+            .AddSource("Excalibur.Dispatch")
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddGrpcClientInstrumentation()

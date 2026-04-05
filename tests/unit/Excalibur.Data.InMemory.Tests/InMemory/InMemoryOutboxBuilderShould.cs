@@ -19,8 +19,8 @@ namespace Excalibur.Data.Tests.InMemory.Builders;
 /// These tests validate the ADR-098 Microsoft-style fluent builder pattern implementation
 /// for the in-memory outbox provider (for testing scenarios).
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryOutboxBuilderShould : UnitTestBase
 {
 	[Fact]

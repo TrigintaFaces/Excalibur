@@ -19,7 +19,7 @@ namespace Excalibur.Data.Tests.MongoDB.Outbox;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "MongoDB")]
-[Trait("Feature", "Outbox")]
+[Trait(TraitNames.Feature, TestFeatures.Outbox)]
 public sealed class MongoDbOutboxStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<MongoDbOutboxStore> _logger;

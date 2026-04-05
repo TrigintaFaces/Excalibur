@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Tests.DependencyInjection;
 /// When AddDispatch(configure) is called, a sentinel is registered to prevent
 /// subsequent parameterless AddDispatch() from overwriting the configured middleware invoker.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchBuilderSentinelShould
 {
 	[Fact]

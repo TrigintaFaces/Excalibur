@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 [Trait("Priority", "0")]
 public sealed class ResilienceEventIdShould : UnitTestBase
 {

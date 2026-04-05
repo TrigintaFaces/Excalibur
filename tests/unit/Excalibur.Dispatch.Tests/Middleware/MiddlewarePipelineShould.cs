@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// Unit tests for middleware pipeline composition, execution, error handling, short-circuiting, and advanced scenarios.
 /// Sprint 168 (bd-ca2e3): 50 tests covering comprehensive middleware pipeline behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class MiddlewarePipelineShould : UnitTestBase
 {
 	#region Pipeline Composition Tests (10 tests)

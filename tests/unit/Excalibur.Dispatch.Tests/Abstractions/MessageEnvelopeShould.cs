@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Tests.Abstractions;
 /// Sprint 410 - Foundation Coverage Tests (T410.5).
 /// Target: Increase MessageEnvelope coverage from 34.1% to 80%.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class MessageEnvelopeShould : IDisposable
 {

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.DependencyInjection;
 /// in Sprint 501 (bd-79if7).
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 public sealed class DispatchOptionsNestedOptionsShould
 {
 	#region SecurityOptions Defaults (AC-1)

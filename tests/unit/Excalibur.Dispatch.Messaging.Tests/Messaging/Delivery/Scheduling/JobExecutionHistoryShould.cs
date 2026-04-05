@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 /// <summary>
 /// Unit tests for <see cref="JobExecutionHistory"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class JobExecutionHistoryShould
 {
 	[Fact]

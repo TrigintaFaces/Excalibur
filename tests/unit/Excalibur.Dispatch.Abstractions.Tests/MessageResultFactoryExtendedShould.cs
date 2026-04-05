@@ -151,4 +151,140 @@ public sealed class MessageResultFactoryExtendedShould
 		result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(404);
 	}
+
+	// --- Sprint 748: nrusce - 5 new factory method tests ---
+
+	[Fact]
+	public void Cancelled_Should_ReturnFailedResult()
+	{
+		// Act
+		var result = MessageResult.Cancelled();
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ErrorMessage.ShouldBeNull();
+		result.ProblemDetails.ShouldBeNull();
+	}
+
+	[Fact]
+	public void Cancelled_Should_ReturnCachedSingleton()
+	{
+		// Act
+		var first = MessageResult.Cancelled();
+		var second = MessageResult.Cancelled();
+
+		// Assert
+		ReferenceEquals(first, second).ShouldBeTrue();
+	}
+
+	[Fact]
+	public void Cancelled_Generic_Should_ReturnFailedResultWithDefaultValue()
+	{
+		// Act
+		var result = MessageResult.Cancelled<int>();
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ReturnValue.ShouldBe(default);
+		result.ErrorMessage.ShouldBeNull();
+		result.ProblemDetails.ShouldBeNull();
+	}
+
+	[Fact]
+	public void Cancelled_Generic_Should_ReturnNullForReferenceType()
+	{
+		// Act
+		var result = MessageResult.Cancelled<string>();
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ReturnValue.ShouldBeNull();
+	}
+
+	[Fact]
+	public void Failed_WithException_Should_ReturnFailedResultWithExceptionDetail()
+	{
+		// Arrange
+		var exception = new InvalidOperationException("Something broke");
+
+		// Act
+		var result = MessageResult.Failed(exception);
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ErrorMessage.ShouldNotBeNull();
+		result.ErrorMessage.ShouldContain("Something broke");
+		result.ErrorMessage.ShouldContain("InvalidOperationException");
+	}
+
+	[Fact]
+	public void Failed_WithException_Should_ThrowOnNull()
+	{
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() => MessageResult.Failed((Exception)null!));
+	}
+
+	[Fact]
+	public void Failed_Generic_WithException_Should_ReturnFailedResultWithExceptionDetail()
+	{
+		// Arrange
+		var exception = new ArgumentException("Bad argument");
+
+		// Act
+		var result = MessageResult.Failed<int>(exception);
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ReturnValue.ShouldBe(default);
+		result.ErrorMessage.ShouldNotBeNull();
+		result.ErrorMessage.ShouldContain("Bad argument");
+		result.ErrorMessage.ShouldContain("ArgumentException");
+	}
+
+	[Fact]
+	public void Failed_Generic_WithException_Should_ThrowOnNull()
+	{
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() => MessageResult.Failed<string>((Exception)null!));
+	}
+
+	[Fact]
+	public void Failed_WithProblemDetailsValidationAndAuth_Should_SetAllProperties()
+	{
+		// Arrange
+		var problemDetails = new MessageProblemDetails
+		{
+			Type = "auth-error",
+			Detail = "Unauthorized access",
+			ErrorCode = 403,
+		};
+		var validationResult = new object();
+		var authorizationResult = new object();
+
+		// Act
+		var result = MessageResult.Failed(problemDetails, validationResult, authorizationResult);
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ErrorMessage.ShouldBe("Unauthorized access");
+		result.ProblemDetails.ShouldNotBeNull();
+		result.ProblemDetails.Type.ShouldBe("auth-error");
+		result.ProblemDetails.ErrorCode.ShouldBe(403);
+		result.ValidationResult.ShouldBe(validationResult);
+		result.AuthorizationResult.ShouldBe(authorizationResult);
+	}
+
+	[Fact]
+	public void Failed_WithNullProblemDetailsValidationAndAuth_Should_ReturnFailedResult()
+	{
+		// Act
+		var result = MessageResult.Failed(null, null, null);
+
+		// Assert
+		result.Succeeded.ShouldBeFalse();
+		result.ErrorMessage.ShouldBeNull();
+		result.ProblemDetails.ShouldBeNull();
+		result.ValidationResult.ShouldBeNull();
+		result.AuthorizationResult.ShouldBeNull();
+	}
 }

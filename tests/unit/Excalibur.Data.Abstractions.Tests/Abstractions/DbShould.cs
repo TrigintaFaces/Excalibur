@@ -8,7 +8,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// Covers AC1-AC10 for task bd-tajqj.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DbShould : IDisposable
 {
 	private readonly IDbConnection _fakeConnection;

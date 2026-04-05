@@ -177,6 +177,7 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             { type: 'doc', id: 'data-access/idb-interface' },
+            { type: 'doc', id: 'data-access/identity-map' },
           ],
         },
         {
@@ -507,6 +508,8 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'advanced/deployment' },
             { type: 'doc', id: 'advanced/source-generators' },
             { type: 'doc', id: 'advanced/native-aot' },
+            { type: 'doc', id: 'advanced/aot-compatibility' },
+            { type: 'doc', id: 'advanced/aot-migration-guide' },
             { type: 'doc', id: 'advanced/viewing-generated-code' },
           ],
         },

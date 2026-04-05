@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Runtime;
 /// <summary>
 /// Provides detection capabilities for AOT (Ahead-of-Time) compilation.
 /// </summary>
-public static class AotDetection
+internal static class AotDetection
 {
 	/// <summary>
 	/// Gets a value indicating whether the application is running with AOT compilation.

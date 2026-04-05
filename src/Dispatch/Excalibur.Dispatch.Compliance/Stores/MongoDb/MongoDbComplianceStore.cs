@@ -232,7 +232,10 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 		{
 			if (string.IsNullOrWhiteSpace(_options.ConnectionString))
 			{
-				throw new InvalidOperationException("MongoDB ConnectionString is required.");
+				throw new InvalidOperationException(
+					$"'{nameof(MongoDbComplianceOptions)}.{nameof(MongoDbComplianceOptions.ConnectionString)}' is required. " +
+					$"Configure it via services.Configure<{nameof(MongoDbComplianceOptions)}>(config.GetSection(\"MongoDbCompliance\")) " +
+					"or set the ConnectionString property directly.");
 			}
 
 			var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);

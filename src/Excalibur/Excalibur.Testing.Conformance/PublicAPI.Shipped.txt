@@ -176,8 +176,8 @@ virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetByIdAsync_
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetByIdAsync_NullOrEmpty_ShouldThrow() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetLastEventAsync_DefaultTenant_ShouldReturnLast() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetLastEventAsync_WithTenant_ShouldReturnLastForTenant() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByApplicationName_ShouldFilter() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByActorId_ShouldFilter() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByApplicationName_ShouldFilter() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByDateRange_ShouldReturnMatching() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_ByEventType_ShouldFilter() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.QueryAsync_Pagination_ShouldRespectSkipAndMaxResults() -> System.Threading.Tasks.Task!

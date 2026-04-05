@@ -13,7 +13,7 @@ using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Routing.Builder;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// Regression tests for Sprint 660 transport hot-path optimizations (T.2-T.5).
 /// Validates that each optimization preserves correct behavior while improving performance.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class TransportHotPathOptimizationsShould
 {
 	private static readonly string[] DefaultEndpoints = ["default"];

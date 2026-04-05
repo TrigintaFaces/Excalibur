@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Integration tests verifying behavioral equivalence between Polly adapters and default implementations.
 /// Sprint 45 (bd-9xis): Behavioral equivalence tests.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 {

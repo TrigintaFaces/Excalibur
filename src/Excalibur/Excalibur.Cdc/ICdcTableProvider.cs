@@ -6,14 +6,14 @@ namespace Excalibur.Cdc;
 /// <summary>
 /// Provider-agnostic interface for types that declare which database tables
 /// they handle. Implementations registered in DI are discovered by
-/// <see cref="ICdcBuilder.TrackTablesFromHandlers"/> at startup.
+/// <see cref="ICdcBuilderDiscovery.TrackTablesFromHandlers"/> at startup.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This interface decouples table discovery from any specific CDC provider.
 /// Provider-specific handler interfaces (e.g., <c>IDataChangeHandler</c> in
 /// <c>Excalibur.Cdc.SqlServer</c>) can extend this interface, enabling
-/// <see cref="ICdcBuilder.TrackTablesFromHandlers"/> to discover tables
+/// <see cref="ICdcBuilderDiscovery.TrackTablesFromHandlers"/> to discover tables
 /// across all providers without taking a dependency on any specific one.
 /// </para>
 /// </remarks>

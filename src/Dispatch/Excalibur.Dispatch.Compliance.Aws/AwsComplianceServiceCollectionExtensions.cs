@@ -53,11 +53,14 @@ public static class AwsComplianceServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Configure options
+		// Configure options with validation
+		var optionsBuilder = services.AddOptions<AwsKmsOptions>();
 		if (configure is not null)
 		{
-			_ = services.Configure(configure);
+			_ = optionsBuilder.Configure(configure);
 		}
+
+		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 
 		RegisterAwsKmsCore(services);
 
@@ -77,7 +80,7 @@ public static class AwsComplianceServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<AwsKmsOptions>().Bind(configuration);
+		_ = services.AddOptions<AwsKmsOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
 
 		RegisterAwsKmsCore(services);
 
@@ -107,11 +110,14 @@ public static class AwsComplianceServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(clientFactory);
 
-		// Configure options
+		// Configure options with validation
+		var optionsBuilder = services.AddOptions<AwsKmsOptions>();
 		if (configure is not null)
 		{
-			_ = services.Configure(configure);
+			_ = optionsBuilder.Configure(configure);
 		}
+
+		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 
 		// Register custom client factory
 		services.TryAddSingleton(clientFactory);
@@ -142,12 +148,15 @@ public static class AwsComplianceServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.Configure<AwsKmsOptions>(options =>
-		{
-			options.ServiceUrl = localStackEndpoint;
-			options.Region = RegionEndpoint.USEast1;
-			configure?.Invoke(options);
-		});
+		_ = services.AddOptions<AwsKmsOptions>()
+			.Configure(options =>
+			{
+				options.ServiceUrl = localStackEndpoint;
+				options.Region = RegionEndpoint.USEast1;
+				configure?.Invoke(options);
+			})
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Register LocalStack-configured client
 		services.TryAddSingleton<IAmazonKeyManagementService>(sp =>

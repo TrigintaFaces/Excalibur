@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 /// combined query filters, boundary conditions, MaxResults edge cases,
 /// and multi-batch accumulation behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class InMemorySecurityEventStoreDepthShould
 {
 	private readonly InMemorySecurityEventStore _sut = new();

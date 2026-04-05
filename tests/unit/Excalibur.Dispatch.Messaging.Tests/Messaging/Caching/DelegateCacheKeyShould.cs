@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// Tests for <see cref="DelegateCacheKey"/> struct.
 /// AD-258-2: Validates zero-allocation cache key implementation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DelegateCacheKeyShould
 {
 	#region Constructor Tests

@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.CloudEvents;
 /// <summary>
 /// Unit tests for <see cref="CloudEventMode"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class CloudEventModeShould
 {

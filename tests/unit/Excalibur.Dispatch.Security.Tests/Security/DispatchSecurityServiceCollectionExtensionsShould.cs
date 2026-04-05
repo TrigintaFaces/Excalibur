@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security;
 /// <summary>
 /// Unit tests for <see cref="DispatchSecurityServiceCollectionExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "DI")]
 public sealed class DispatchSecurityServiceCollectionExtensionsShould
 {

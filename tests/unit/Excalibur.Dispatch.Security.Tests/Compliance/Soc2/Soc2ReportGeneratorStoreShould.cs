@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// and edge cases in report generation.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class Soc2ReportGeneratorStoreShould
 {
 	private readonly IControlValidationService _controlValidation;

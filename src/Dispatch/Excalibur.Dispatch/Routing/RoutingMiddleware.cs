@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+
 namespace Excalibur.Dispatch.Routing;
 
 /// <summary>
@@ -95,7 +97,7 @@ public sealed partial class RoutingMiddleware : IDispatchMiddleware
 		return !string.IsNullOrEmpty(decision.Transport) || !string.IsNullOrEmpty(decision.FailureReason);
 	}
 
-	private IMessageResult CreateFailureResult(string? failureReason, IMessageContext context)
+	private static IMessageResult CreateFailureResult(string? failureReason, IMessageContext context)
 	{
 		var problemDetails = new MessageProblemDetails
 		{
@@ -105,12 +107,10 @@ public sealed partial class RoutingMiddleware : IDispatchMiddleware
 			Detail = $"Routing failed: {failureReason ?? "unspecified"}",
 			Instance = Guid.NewGuid().ToString(),
 		};
-		return new Excalibur.Dispatch.Messaging.MessageResult(
-			succeeded: false,
-			problemDetails: problemDetails,
-			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			validationResult: context.ValidationResult() as IValidationResult,
-			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(
+			problemDetails,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	// Source-generated logging methods

@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.Core.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Component, TestComponents.Data)]
 [Trait("Priority", "0")]
 public sealed class DataEventIdShould : UnitTestBase
 {

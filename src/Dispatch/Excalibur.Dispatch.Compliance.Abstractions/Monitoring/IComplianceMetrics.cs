@@ -41,13 +41,6 @@ public interface IComplianceMetrics
 	void RecordKeyRotationFailure(string keyId, string provider, string errorType);
 
 	/// <summary>
-	/// Updates the count of keys nearing their expiration date.
-	/// </summary>
-	/// <param name="count">The number of keys nearing expiration.</param>
-	/// <param name="provider">The KMS provider name.</param>
-	void UpdateKeysNearingExpiration(int count, string provider);
-
-	/// <summary>
 	/// Records encryption operation latency.
 	/// </summary>
 	/// <param name="durationMs">The duration in milliseconds.</param>
@@ -64,33 +57,4 @@ public interface IComplianceMetrics
 	/// <param name="sizeBytes">The size of the data processed in bytes.</param>
 	void RecordEncryptionOperation(string operation, string provider, long sizeBytes);
 
-	/// <summary>
-	/// Records an audit event being logged.
-	/// </summary>
-	/// <param name="eventType">The type of audit event.</param>
-	/// <param name="outcome">The outcome of the audited action.</param>
-	/// <param name="tenantId">Optional tenant identifier for multi-tenant scenarios.</param>
-	void RecordAuditEventLogged(string eventType, string outcome, string? tenantId = null);
-
-	/// <summary>
-	/// Updates the current audit backlog size.
-	/// </summary>
-	/// <param name="count">The number of audit events waiting to be processed.</param>
-	void UpdateAuditBacklogSize(int count);
-
-	/// <summary>
-	/// Records audit chain integrity verification result.
-	/// </summary>
-	/// <param name="eventsVerified">The number of events verified.</param>
-	/// <param name="violationsFound">The number of violations found.</param>
-	/// <param name="durationMs">The verification duration in milliseconds.</param>
-	void RecordAuditIntegrityCheck(long eventsVerified, int violationsFound, double durationMs);
-
-	/// <summary>
-	/// Records an encryption key usage.
-	/// </summary>
-	/// <param name="keyId">The key identifier.</param>
-	/// <param name="provider">The KMS provider name.</param>
-	/// <param name="operation">The operation performed with the key.</param>
-	void RecordKeyUsage(string keyId, string provider, string operation);
 }

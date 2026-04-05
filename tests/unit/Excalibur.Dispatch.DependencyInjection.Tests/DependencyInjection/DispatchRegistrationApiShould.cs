@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Tests.DependencyInjection;
 /// Sprint 443 S443.3: Add API tests for the unified Dispatch registration API.
 /// </remarks>
 [Trait("Category", "Unit")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 [Trait("Priority", "0")]
 public sealed class DispatchRegistrationApiShould : UnitTestBase
 {

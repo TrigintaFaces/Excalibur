@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// <summary>
 /// Unit tests for <see cref="MessageTypeMetadata"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 [Trait("Priority", "0")]
 public sealed class MessageTypeMetadataShould
 {

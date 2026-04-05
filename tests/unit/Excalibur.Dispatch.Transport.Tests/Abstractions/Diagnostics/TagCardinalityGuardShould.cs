@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Diagnostics;
 /// Tests for <see cref="TagCardinalityGuard"/>.
 /// Verifies cardinality capping, overflow sentinel behavior, and thread safety.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 public sealed class TagCardinalityGuardShould
 {
 	[Fact]

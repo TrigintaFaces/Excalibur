@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ;
 /// Unit tests for RabbitMqMessageBus publish confirmation behavior.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class RabbitMqMessageBusPublishShould : UnitTestBase
 {

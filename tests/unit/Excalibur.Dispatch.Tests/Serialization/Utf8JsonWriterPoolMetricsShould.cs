@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Tests.Serialization;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class Utf8JsonWriterPoolMetricsShould : IDisposable
 {

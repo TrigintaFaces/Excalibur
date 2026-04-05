@@ -38,30 +38,6 @@ public interface IPersistenceMetrics
 	void RecordRowsAffected(int rowCount, string commandType, string providerName);
 
 	/// <summary>
-	/// Records a connection pool metric.
-	/// </summary>
-	/// <param name="activeConnections"> The number of active connections. </param>
-	/// <param name="idleConnections"> The number of idle connections. </param>
-	/// <param name="providerName"> The name of the persistence provider. </param>
-	void RecordConnectionPoolMetrics(int activeConnections, int idleConnections, string providerName);
-
-	/// <summary>
-	/// Records a cache hit or miss.
-	/// </summary>
-	/// <param name="hit"> True if cache hit; false if cache miss. </param>
-	/// <param name="cacheKey"> The cache key. </param>
-	/// <param name="providerName"> The name of the persistence provider. </param>
-	void RecordCacheMetrics(bool hit, string cacheKey, string providerName);
-
-	/// <summary>
-	/// Records transaction metrics.
-	/// </summary>
-	/// <param name="duration"> The duration of the transaction. </param>
-	/// <param name="committed"> Whether the transaction was committed. </param>
-	/// <param name="providerName"> The name of the persistence provider. </param>
-	void RecordTransactionMetrics(TimeSpan duration, bool committed, string providerName);
-
-	/// <summary>
 	/// Records an error that occurred during a persistence operation.
 	/// </summary>
 	/// <param name="exception"> The exception that occurred. </param>
@@ -77,9 +53,4 @@ public interface IPersistenceMetrics
 	/// <returns> The started activity. </returns>
 	Activity? StartActivity(string name, IDictionary<string, object?>? tags = null);
 
-	/// <summary>
-	/// Gets current metrics snapshot.
-	/// </summary>
-	/// <returns> Dictionary of current metric values. </returns>
-	IDictionary<string, object> GetMetricsSnapshot();
 }

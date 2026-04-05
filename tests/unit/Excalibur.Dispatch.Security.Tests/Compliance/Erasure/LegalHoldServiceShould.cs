@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Tests GDPR Article 17(3) legal hold processing per ADR-054.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class LegalHoldServiceShould
 {
 	private readonly ILegalHoldStore _store;

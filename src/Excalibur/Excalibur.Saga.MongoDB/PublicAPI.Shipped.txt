@@ -2,10 +2,10 @@
 Excalibur.Saga.MongoDB.MongoDbSagaOptions
 Excalibur.Saga.MongoDB.MongoDbSagaOptions.CollectionName.get -> string!
 Excalibur.Saga.MongoDB.MongoDbSagaOptions.CollectionName.set -> void
-Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectionString.get -> string!
-Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectionString.set -> void
 Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectTimeoutSeconds.get -> int
 Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectTimeoutSeconds.set -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectionString.get -> string!
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectionString.set -> void
 Excalibur.Saga.MongoDB.MongoDbSagaOptions.DatabaseName.get -> string!
 Excalibur.Saga.MongoDB.MongoDbSagaOptions.DatabaseName.set -> void
 Excalibur.Saga.MongoDB.MongoDbSagaOptions.MaxPoolSize.get -> int
@@ -24,7 +24,7 @@ Excalibur.Saga.MongoDB.MongoDbSagaStore.MongoDbSagaStore(MongoDB.Driver.IMongoCl
 Excalibur.Saga.MongoDB.MongoDbSagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions
 Microsoft.Extensions.DependencyInjection.SagaBuilderMongoDbExtensions
-static Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions.AddMongoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName = "excalibur", string! collectionName = "sagas") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions.AddMongoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.MongoDB.MongoDbSagaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions.AddMongoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory, System.Action<Excalibur.Saga.MongoDB.MongoDbSagaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions.AddMongoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName = "excalibur", string! collectionName = "sagas") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SagaBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.MongoDB.MongoDbSagaOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!

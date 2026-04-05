@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Unit tests for <see cref="ErasureVerificationService"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class ErasureVerificationServiceShould
 {
 	private readonly IErasureStore _fakeStore;

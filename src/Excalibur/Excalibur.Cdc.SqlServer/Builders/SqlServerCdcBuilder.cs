@@ -141,7 +141,11 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Sets a factory function that creates SQL connections for the CDC state store.
+	/// </summary>
+	/// <param name="stateConnectionFactory">A factory function that creates state store SQL connections.</param>
+	/// <returns>The builder for fluent chaining.</returns>
 	public ISqlServerCdcBuilder StateConnectionFactory(Func<IServiceProvider, Func<SqlConnection>> stateConnectionFactory)
 	{
 		ArgumentNullException.ThrowIfNull(stateConnectionFactory);

@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Messaging.Tests.Messaging.Transport;
 /// Regression tests for T.12 (dum10): StreamHealthInfo Interlocked-backed properties.
 /// Verifies that concurrent reads and writes to counter properties are atomic.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StreamHealthInfoAtomicShould
 {
 	[Fact]

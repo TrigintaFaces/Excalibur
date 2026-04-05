@@ -16,7 +16,7 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// Sprint 201 - Unit Test Coverage Epic.
 /// Excalibur.Dispatch-7dm: CDC Unit Tests.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CdcExceptions")]
 public sealed class CdcExceptionsShould : UnitTestBase
 {

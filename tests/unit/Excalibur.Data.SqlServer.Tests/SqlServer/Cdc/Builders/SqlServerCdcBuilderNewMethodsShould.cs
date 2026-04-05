@@ -13,8 +13,8 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc.Builders;
 /// (DatabaseName, DatabaseConnectionIdentifier, StateConnectionIdentifier,
 /// CaptureInstances, StopOnMissingTableHandler).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 {

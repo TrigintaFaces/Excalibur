@@ -18,9 +18,10 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// <param name="messageType"> The type of message that this handler can process. </param>
 /// <param name="handlerType"> The type of the handler implementation that processes the message. </param>
 /// <param name="expectsResponse"> Indicates whether this handler returns a response after processing. </param>
-[UnconditionalSuppressMessage("Trimming", "IL2069",
-	Justification = "Handler types are registered at startup via DI and preserved by the container. The handlerType parameter flows from known handler registrations.")]
-internal sealed class HandlerRegistryEntry(Type messageType, Type handlerType, bool expectsResponse) : IHandlerRegistryEntry
+internal sealed class HandlerRegistryEntry(
+	Type messageType,
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
+	bool expectsResponse) : IHandlerRegistryEntry
 {
 	/// <summary>
 	/// Gets the type of message that this handler can process. This type is used for message routing and handler resolution during dispatch operations.

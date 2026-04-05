@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// validation rules, validation levels, and field constraint enforcement.
 /// Sprint 560 (S560.45).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class ProfileSpecificValidationMiddlewareShould : UnitTestBase
 {
 	private readonly IValidatorResolver _resolver;

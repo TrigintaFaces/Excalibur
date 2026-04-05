@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 /// <summary>
 /// Verifies that DLQ event IDs for each transport are within their assigned ranges.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class DlqEventIdRangeShould
 {
 	[Fact]

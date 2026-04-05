@@ -15,5 +15,5 @@ Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.TargetUrl.set -> void
 Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.TimeZone.get -> string!
 Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.TimeZone.set -> void
 Microsoft.Extensions.DependencyInjection.GoogleCloudJobsServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.GoogleCloudJobsServiceCollectionExtensions.AddGoogleCloudScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GoogleCloudJobsServiceCollectionExtensions.AddGoogleCloudScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GoogleCloudJobsServiceCollectionExtensions.AddGoogleCloudScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

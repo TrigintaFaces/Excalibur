@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Performance;
 /// Tests the centralized cache manager that coordinates freezing across all Dispatch caches.
 /// </remarks>
 [Collection("HandlerInvokerRegistry")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class DispatchCacheManagerShould : IDisposable
 {

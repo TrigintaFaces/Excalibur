@@ -205,6 +205,9 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureEventHubOptions>, AzureEventHubOptionsValidator>());
 	}
 
 	/// <summary>
@@ -279,34 +282,6 @@ public interface IAzureEventHubsTransportBuilder
 	IAzureEventHubsTransportBuilder EventHubName(string eventHubName);
 
 	/// <summary>
-	/// Sets the consumer group name.
-	/// </summary>
-	/// <param name="consumerGroup">The consumer group name.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureEventHubsTransportBuilder ConsumerGroup(string consumerGroup);
-
-	/// <summary>
-	/// Sets the prefetch count for receivers.
-	/// </summary>
-	/// <param name="prefetchCount">The prefetch count.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureEventHubsTransportBuilder PrefetchCount(int prefetchCount);
-
-	/// <summary>
-	/// Sets the maximum batch size for batch operations.
-	/// </summary>
-	/// <param name="maxBatchSize">The maximum batch size.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureEventHubsTransportBuilder MaxBatchSize(int maxBatchSize);
-
-	/// <summary>
-	/// Sets the starting position for event processing.
-	/// </summary>
-	/// <param name="startingPosition">The starting position.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureEventHubsTransportBuilder StartingPosition(EventHubStartingPosition startingPosition);
-
-	/// <summary>
 	/// Configures the Azure Event Hubs options.
 	/// </summary>
 	/// <param name="configure">The configuration action.</param>
@@ -361,7 +336,7 @@ internal sealed class AzureEventHubsTransportBuilder : IAzureEventHubsTransportB
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the consumer group name.</summary>
 	public IAzureEventHubsTransportBuilder ConsumerGroup(string consumerGroup)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
@@ -369,21 +344,21 @@ internal sealed class AzureEventHubsTransportBuilder : IAzureEventHubsTransportB
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the prefetch count for receivers.</summary>
 	public IAzureEventHubsTransportBuilder PrefetchCount(int prefetchCount)
 	{
 		_options.PrefetchCount = prefetchCount;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the maximum batch size for batch operations.</summary>
 	public IAzureEventHubsTransportBuilder MaxBatchSize(int maxBatchSize)
 	{
 		_options.MaxBatchSize = maxBatchSize;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the starting position for event processing.</summary>
 	public IAzureEventHubsTransportBuilder StartingPosition(EventHubStartingPosition startingPosition)
 	{
 		_options.StartingPosition = startingPosition;

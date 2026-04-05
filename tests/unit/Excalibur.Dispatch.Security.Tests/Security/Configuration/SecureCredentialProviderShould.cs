@@ -15,9 +15,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Configuration;
 /// <summary>
 /// Unit tests for <see cref="SecureCredentialProvider"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Configuration")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Configuration)]
 public sealed class SecureCredentialProviderShould : IDisposable
 {
     private readonly ILogger<SecureCredentialProvider> _logger;

@@ -951,6 +951,7 @@
       "excalibur.dispatch.serialization.memorypack": {
         "type": "Project",
         "dependencies": {
+          "Excalibur.Dispatch": "[0.1.0-local, )",
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
           "MemoryPack": "[1.21.4, )"
         }
@@ -1091,7 +1092,6 @@
           "Excalibur.Data.Abstractions": "[0.1.0-local, )",
           "Excalibur.Dispatch": "[0.1.0-local, )",
           "Excalibur.Dispatch.Abstractions": "[0.1.0-local, )",
-          "Excalibur.Dispatch.Serialization.MemoryPack": "[0.1.0-local, )",
           "Excalibur.Hosting": "[0.1.0-local, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.0, )",

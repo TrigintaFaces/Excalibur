@@ -29,22 +29,6 @@ public interface IUtf8JsonWriterPool
 	int Count { get; }
 
 	/// <summary>
-	/// Gets the total number of writers that have been rented from the pool.
-	/// </summary>
-	/// <value>
-	/// The total number of writers that have been rented from the pool.
-	/// </value>
-	long TotalRented { get; }
-
-	/// <summary>
-	/// Gets the total number of writers that have been returned to the pool.
-	/// </summary>
-	/// <value>
-	/// The total number of writers that have been returned to the pool.
-	/// </value>
-	long TotalReturned { get; }
-
-	/// <summary>
 	/// Rents a <see cref="Utf8JsonWriter" /> from the pool or creates a new one if the pool is empty.
 	/// </summary>
 	/// <param name="bufferWriter"> The buffer writer to use for the JSON writer. </param>
@@ -63,9 +47,4 @@ public interface IUtf8JsonWriterPool
 	/// </summary>
 	void Clear();
 
-	/// <summary>
-	/// Pre-warms the pool by creating the specified number of writers.
-	/// </summary>
-	/// <param name="count"> The number of writers to pre-create. </param>
-	void PreWarm(int count);
 }

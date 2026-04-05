@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 /// These tests verify that ISerializer is actually used in processing paths
 /// when configured, and that fallback to JSON works when serializer is null.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SerializationWiringVerificationShould
 {

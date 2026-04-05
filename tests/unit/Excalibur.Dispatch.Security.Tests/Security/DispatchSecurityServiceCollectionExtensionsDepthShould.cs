@@ -26,8 +26,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security;
 /// resolution. Tests that target the <c>DispatchSecurityServiceCollectionExtensions</c>
 /// overload therefore use a fully-qualified static call.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "DI")]
 public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 {

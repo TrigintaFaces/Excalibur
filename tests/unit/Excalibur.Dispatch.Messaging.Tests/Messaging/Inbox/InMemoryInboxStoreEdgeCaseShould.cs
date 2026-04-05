@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Inbox;
 ///     Edge case tests for the <see cref="InMemoryInboxStore" /> class.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 {

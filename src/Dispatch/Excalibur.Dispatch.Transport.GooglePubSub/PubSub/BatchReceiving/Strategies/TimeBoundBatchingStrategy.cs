@@ -10,9 +10,9 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Initializes a new instance of the <see cref="TimeBoundBatchingStrategy" /> class.
 /// </remarks>
 /// <param name="configuration"> Batch configuration. </param>
-public sealed class TimeBoundBatchingStrategy(BatchConfiguration configuration) : IBatchingStrategy
+public sealed class TimeBoundBatchingStrategy(BatchOptions configuration) : IBatchingStrategy
 {
-	private readonly BatchConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+	private readonly BatchOptions _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
 #if NET9_0_OR_GREATER
 	private readonly System.Threading.Lock _lock = new();
 #else

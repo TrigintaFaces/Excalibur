@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Messaging;
 /// Tests for <see cref="DelegatingTransportSubscriber"/> base class.
 /// Verifies all virtual methods forward to the inner subscriber correctly.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class DelegatingTransportSubscriberShould
 {
     private readonly ITransportSubscriber _innerSubscriber = A.Fake<ITransportSubscriber>();

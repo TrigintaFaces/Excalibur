@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Exceptions;
 /// <summary>
 /// Unit tests for <see cref="ResourceException"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class ResourceExceptionShould
 {

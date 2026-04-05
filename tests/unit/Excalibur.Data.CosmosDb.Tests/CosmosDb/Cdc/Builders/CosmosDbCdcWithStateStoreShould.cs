@@ -11,8 +11,8 @@ namespace Excalibur.Data.Tests.CosmosDb.Cdc.Builders;
 /// <see cref="ICosmosDbCdcBuilder.BindConfiguration"/> methods.
 /// Validates the unified WithStateStore(Action&lt;ICdcStateStoreBuilder&gt;) pattern.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CosmosDbCdcWithStateStoreShould : UnitTestBase
 {
 	private const string SourceConnectionString = "AccountEndpoint=https://source-cosmos.documents.azure.com:443/;AccountKey=dGVzdA==;";

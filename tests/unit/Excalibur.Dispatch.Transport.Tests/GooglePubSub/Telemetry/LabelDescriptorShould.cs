@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.Google;
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.Telemetry;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class LabelDescriptorShould
 {
 	[Fact]

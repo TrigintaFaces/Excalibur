@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 /// <summary>
 /// Tests verifying AotJsonSerializer uses ThreadLocal&lt;ArrayBufferWriter&gt; for thread safety (S543.2).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class AotJsonSerializerThreadSafetyShould : UnitTestBase
 {
 	[Fact]

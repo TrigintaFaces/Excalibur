@@ -5,7 +5,7 @@ using Excalibur.Dispatch.Observability.Context;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Observability.Context;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class ContextMutationShould
 {

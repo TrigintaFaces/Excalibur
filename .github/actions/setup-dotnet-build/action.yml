@@ -1,0 +1,77 @@
+name: 'Setup .NET Build Environment'
+description: 'Composite action for shared .NET build setup: checkout, SDK install, NuGet cache, and optional restore/build.'
+
+inputs:
+  checkout-ref:
+    description: 'Git ref to checkout'
+    required: true
+  checkout-token:
+    description: 'Token for checkout'
+    required: true
+  fetch-depth:
+    description: 'Number of commits to fetch (0 for full history)'
+    required: false
+    default: '1'
+  solution-filter:
+    description: 'Solution filter path for restore/build (empty to skip restore/build)'
+    required: false
+    default: ''
+  restore-only:
+    description: 'If true, only restore without building'
+    required: false
+    default: 'false'
+  free-disk-space:
+    description: 'Free disk space on Ubuntu before build (useful for SAST/heavy jobs)'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ inputs.checkout-ref }}
+        token: ${{ inputs.checkout-token }}
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: Free disk space (Ubuntu)
+      if: inputs.free-disk-space == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo rm -rf /usr/share/swift || true
+        sudo rm -rf /usr/local/lib/android || true
+        sudo rm -rf /opt/ghc || true
+        sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+        sudo rm -rf /home/linuxbrew || true
+        sudo rm -rf /usr/local/.ghcup || true
+        sudo rm -rf /usr/local/share/boost || true
+        sudo apt-get clean || true
+        docker system prune -af || true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          8.0.x
+          9.0.x
+          10.0.x
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: .nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      if: inputs.solution-filter != ''
+      shell: bash
+      run: dotnet restore ${{ inputs.solution-filter }} --verbosity quiet
+
+    - name: Build
+      if: inputs.solution-filter != '' && inputs.restore-only != 'true'
+      shell: bash
+      run: dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet

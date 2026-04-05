@@ -12,9 +12,9 @@ namespace Excalibur.Data.Tests.SqlServer.Inbox;
 /// The validator is internal, so tests go through the DI/Options validation pipeline.
 /// Validates that SQL injection payloads in SchemaName/TableName are rejected.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "Inbox")]
+[Trait(TraitNames.Feature, TestFeatures.Inbox)]
 public sealed class SqlServerInboxOptionsValidatorShould
 {
 	[Fact]

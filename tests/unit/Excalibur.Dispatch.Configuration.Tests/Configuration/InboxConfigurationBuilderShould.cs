@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 /// Note: InboxConfigurationBuilder is internal, accessed via InternalsVisibleTo.
 /// </remarks>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InboxConfigurationBuilderShould
 {
 	#region ForHandler Tests

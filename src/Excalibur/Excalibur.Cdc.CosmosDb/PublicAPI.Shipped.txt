@@ -1,14 +1,4 @@
 #nullable enable
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.HttpGone = 410 -> int
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.HttpNotFound = 404 -> int
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.HttpPreconditionFailed = 412 -> int
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ContainerDeleted = "COSMOSDB_CONTAINER_DELETED" -> string!
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ContinuationTokenExpired = "COSMOSDB_CONTINUATION_TOKEN_EXPIRED" -> string!
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ETagMismatch = "COSMOSDB_ETAG_MISMATCH" -> string!
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.PartitionNotFound = "COSMOSDB_PARTITION_NOT_FOUND" -> string!
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.PartitionSplit = "COSMOSDB_PARTITION_SPLIT" -> string!
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ThroughputChange = "COSMOSDB_THROUGHPUT_CHANGE" -> string!
-const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.Unknown = "COSMOSDB_UNKNOWN" -> string!
 Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions
 Excalibur.Cdc.CosmosDb.CosmosDbAllVersionsChangeFeedOptions
 Excalibur.Cdc.CosmosDb.CosmosDbAllVersionsChangeFeedOptions.CosmosDbAllVersionsChangeFeedOptions() -> void
@@ -164,6 +154,14 @@ Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.DatabaseName.get -> string
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.HttpStatusCode.get -> int?
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionException.PartitionKeyRangeId.get -> string?
 Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ChangeFeed(System.Action<Excalibur.Cdc.CosmosDb.CosmosDbChangeFeedOptions!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ContainerId(string! containerId) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.DatabaseId(string! databaseId) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!>!
@@ -174,6 +172,16 @@ Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore.DeletePositionAsync(string! proces
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition?>!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.HttpGone = 410 -> int
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.HttpNotFound = 404 -> int
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.HttpPreconditionFailed = 412 -> int
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ContainerDeleted = "COSMOSDB_CONTAINER_DELETED" -> string!
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ContinuationTokenExpired = "COSMOSDB_CONTINUATION_TOKEN_EXPIRED" -> string!
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ETagMismatch = "COSMOSDB_ETAG_MISMATCH" -> string!
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.PartitionNotFound = "COSMOSDB_PARTITION_NOT_FOUND" -> string!
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.PartitionSplit = "COSMOSDB_PARTITION_SPLIT" -> string!
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.ThroughputChange = "COSMOSDB_THROUGHPUT_CHANGE" -> string!
+const Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.Unknown = "COSMOSDB_UNKNOWN" -> string!
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.GetHashCode() -> int
@@ -183,6 +191,7 @@ override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.ToString() -> string!
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.ToToken() -> string!
 static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Beginning() -> Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!
 static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.FromBase64(string! base64) -> Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!
 static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.FromContinuationToken(string! continuationToken) -> Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!
@@ -197,8 +206,8 @@ static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.CreateEventArgs(Syst
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.GetReasonCode(Microsoft.Azure.Cosmos.CosmosException? exception) -> string!
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.GetStalePositionStatusCode(System.Exception? exception) -> int?
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.IsStalePositionException(System.Exception? exception) -> bool
-static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.IsStalePositionStatusCode(int statusCode) -> bool
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.IsStalePositionStatusCode(System.Net.HttpStatusCode statusCode) -> bool
+static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.IsStalePositionStatusCode(int statusCode) -> bool
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionDetector.StalePositionStatusCodes.get -> System.Collections.Generic.IReadOnlySet<int>!
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.FromErrorMessage(string? errorMessage) -> string!
 static Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes.FromStatusCode(int statusCode) -> string!
@@ -209,12 +218,3 @@ static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExte
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddInMemoryCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.DatabaseId(string! databaseId) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ContainerId(string! containerId) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ChangeFeed(System.Action<Excalibur.Cdc.CosmosDb.CosmosDbChangeFeedOptions!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!

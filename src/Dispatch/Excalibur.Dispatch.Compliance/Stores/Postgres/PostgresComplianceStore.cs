@@ -266,7 +266,11 @@ public sealed partial class PostgresComplianceStore : IComplianceStore
 
 		if (string.IsNullOrWhiteSpace(options.ConnectionString))
 		{
-			throw new ArgumentException("ConnectionString is required.", nameof(options));
+			throw new ArgumentException(
+				$"'{nameof(PostgresComplianceOptions)}.{nameof(PostgresComplianceOptions.ConnectionString)}' is required. " +
+				$"Configure it via services.Configure<{nameof(PostgresComplianceOptions)}>(config.GetSection(\"PostgresCompliance\")) " +
+				"or set the ConnectionString property directly.",
+				nameof(options));
 		}
 
 		return () => new NpgsqlConnection(options.ConnectionString);

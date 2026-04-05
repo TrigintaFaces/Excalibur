@@ -51,7 +51,6 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
 	// Configure JSON serialization
-	_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 
 	// Route SensorReadingEvent to Kafka transport
 	_ = dispatch.UseRouting(routing =>

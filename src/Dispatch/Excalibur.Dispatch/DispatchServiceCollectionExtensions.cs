@@ -87,9 +87,19 @@ public static class DispatchServiceCollectionExtensions
 		services.TryAddSingleton<IHandlerActivator, HandlerActivator>();
 		services.TryAddSingleton<DispatchJsonSerializer>();
 
+		// Default JSON event serializer (ADR-295: JSON-first). Consumers can override with binary
+		// serializer packages (e.g., AddMemoryPackSerializer()) which register their own IEventSerializer.
+		services.TryAddSingleton<IEventSerializer>(static _ => new JsonEventSerializer());
+
 		// Default no-op telemetry sanitizer — overridden by AddDispatchObservability() with HashingTelemetrySanitizer
 		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.Telemetry.ITelemetrySanitizer>(
 			static _ => Excalibur.Dispatch.Abstractions.Telemetry.NullTelemetrySanitizer.Instance);
+
+		// Register telemetry provider by default so metrics and traces are emitted
+		// automatically when the consumer adds OpenTelemetry with AddDispatchInstrumentation().
+		// This follows the ASP.NET Core pattern: instrumentation is always available,
+		// consumers just need to subscribe via AddOpenTelemetry().
+		_ = services.AddDispatchTelemetry();
 
 		services.TryAddSingleton<LocalMessageBus>();
 		_ = services.AddMessageBus(

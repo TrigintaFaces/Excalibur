@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Unit tests for <see cref="SerializerRegistry"/> validating registration,
 /// lookup, and thread-safety behavior.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SerializerRegistryShould
 {

@@ -1,29 +1,4 @@
 #nullable enable
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestFailed = 107002 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestSuccessful = 107001 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DisposeError = 107004 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.Disposing = 107003 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DocumentRetryWarning = 107201 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutingRequest = 107100 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutingRequestInTransaction = 107102 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutionFailed = 107101 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxCleanedUp = 107405 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryCreated = 107400 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryFailed = 107404 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryProcessed = 107401 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxTryMarkProcessedDuplicate = 107403 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxTryMarkProcessedSuccess = 107402 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.Initializing = 107000 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.MetadataRetrievalFailed = 107005 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxCleanedUp = 107304 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageEnqueued = 107301 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageFailed = 107303 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageSent = 107302 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageStaged = 107300 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.PoolStatsFailed = 107006 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ProviderRetryWarning = 107202 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.RetryWarning = 107200 -> int
-const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.TransactionExecutionFailed = 107103 -> int
 Excalibur.Data.Redis.Diagnostics.DataRedisEventId
 Excalibur.Data.Redis.RedisConnectionPoolOptions
 Excalibur.Data.Redis.RedisConnectionPoolOptions.AbortOnConnectFail.get -> bool
@@ -78,5 +53,30 @@ Excalibur.Data.Redis.RedisProviderOptions.RedisProviderOptions() -> void
 Excalibur.Data.Redis.RedisProviderOptions.UseSsl.get -> bool
 Excalibur.Data.Redis.RedisProviderOptions.UseSsl.set -> void
 Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddRedisProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Redis.RedisProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestFailed = 107002 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestSuccessful = 107001 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DisposeError = 107004 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.Disposing = 107003 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DocumentRetryWarning = 107201 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutingRequest = 107100 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutingRequestInTransaction = 107102 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutionFailed = 107101 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxCleanedUp = 107405 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryCreated = 107400 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryFailed = 107404 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryProcessed = 107401 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxTryMarkProcessedDuplicate = 107403 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxTryMarkProcessedSuccess = 107402 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.Initializing = 107000 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.MetadataRetrievalFailed = 107005 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxCleanedUp = 107304 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageEnqueued = 107301 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageFailed = 107303 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageSent = 107302 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageStaged = 107300 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.PoolStatsFailed = 107006 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ProviderRetryWarning = 107202 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.RetryWarning = 107200 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.TransactionExecutionFailed = 107103 -> int
 static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddRedisProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddRedisProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Redis.RedisProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

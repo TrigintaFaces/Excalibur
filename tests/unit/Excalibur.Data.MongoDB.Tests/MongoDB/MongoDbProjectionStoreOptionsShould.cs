@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.MongoDB.Projections;
 /// <summary>
 /// Unit tests for <see cref="MongoDbProjectionStoreOptions"/> configuration and validation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class MongoDbProjectionStoreOptionsShould : UnitTestBase
 {
 	#region Default Values Tests

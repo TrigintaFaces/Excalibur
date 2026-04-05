@@ -33,7 +33,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 ///   <item>Error handling - null values, null types, serialization failures</item>
 /// </list>
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed partial class PayloadSerializerSerializeObjectShould
 {

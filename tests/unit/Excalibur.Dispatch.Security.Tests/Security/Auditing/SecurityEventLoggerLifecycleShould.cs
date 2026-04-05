@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
 /// <summary>
 /// Lifecycle and behavior tests for <see cref="SecurityEventLogger"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Auditing")]
 public sealed class SecurityEventLoggerLifecycleShould : IDisposable
 {

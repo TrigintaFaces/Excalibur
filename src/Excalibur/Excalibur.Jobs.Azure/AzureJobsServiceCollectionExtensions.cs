@@ -29,7 +29,10 @@ public static class AzureJobsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
+		_ = services.AddOptions<AzureLogicAppsOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 		_ = services.AddSingleton(static provider =>
 			new ArmClient(new DefaultAzureCredential()));
 		_ = services.AddSingleton<AzureLogicAppsJobProvider>();
@@ -52,7 +55,9 @@ public static class AzureJobsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		_ = services.AddOptions<AzureLogicAppsOptions>()
-			.Bind(configuration);
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 		_ = services.AddSingleton(static provider =>
 			new ArmClient(new DefaultAzureCredential()));
 		_ = services.AddSingleton<AzureLogicAppsJobProvider>();

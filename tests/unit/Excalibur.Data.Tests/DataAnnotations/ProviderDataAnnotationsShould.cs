@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.DataAnnotations;
 /// Uses reflection to verify annotation presence without instantiating options.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Feature", "DataAnnotations")]
 public sealed class ProviderDataAnnotationsShould : UnitTestBase
 {

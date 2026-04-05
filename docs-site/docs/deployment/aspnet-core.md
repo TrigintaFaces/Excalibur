@@ -400,9 +400,10 @@ Dispatch provides custom ASP.NET Core formatters that bridge `ISerializerRegistr
 // 1. Register serializers
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.WithSerialization(s => s.UseJson());     // application/json
-    dispatch.WithSerialization(s => s.UseMessagePack()); // application/x-msgpack
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
+// MessagePack for content negotiation (application/x-msgpack)
+builder.Services.AddMessagePackSerializer();
 
 // 2. Add content negotiation formatters
 builder.Services.AddControllers()

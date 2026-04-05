@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.Redis;
 /// <summary>
 /// Unit tests for RedisTransactionScope.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class RedisTransactionScopeShould : UnitTestBase
 {
 	// Helper to create RedisTransactionScope (which is internal)

@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Concurrency;
 /// items added between ToArray() and Clear() are lost. The fix replaces this with an atomic swap
 /// pattern using Interlocked.Exchange or a similar mechanism.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConcurrentBagDrainRegressionShould
 {
 	[Fact]

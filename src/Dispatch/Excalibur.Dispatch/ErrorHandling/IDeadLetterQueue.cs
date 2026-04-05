@@ -66,34 +66,26 @@ public interface IDeadLetterQueue
 	Task<bool> ReplayAsync(Guid entryId, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Replays multiple dead letter entries that match the specified filter.
-	/// </summary>
-	/// <param name="filter">Filter criteria for selecting entries to replay.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The number of entries successfully replayed.</returns>
-	Task<int> ReplayBatchAsync(DeadLetterQueryFilter filter, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Purges (permanently deletes) a dead letter entry.
-	/// </summary>
-	/// <param name="entryId">The unique identifier of the entry to purge.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>True if the entry was successfully purged, false if not found.</returns>
-	Task<bool> PurgeAsync(Guid entryId, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Purges all dead letter entries older than the specified age.
-	/// </summary>
-	/// <param name="olderThan">The age threshold for purging entries.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The number of entries purged.</returns>
-	Task<int> PurgeOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken);
-
-	/// <summary>
 	/// Gets the current count of entries in the dead letter queue.
 	/// </summary>
 	/// <param name="filter">Optional filter to count specific entries.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The number of entries matching the filter criteria.</returns>
 	Task<long> GetCountAsync(CancellationToken cancellationToken, DeadLetterQueryFilter? filter = null);
+}
+
+/// <summary>
+/// Provides batch and purge operations for the dead letter queue.
+/// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "DeadLetterQueue is a standard industry term")]
+public interface IDeadLetterQueueAdmin
+{
+	/// <summary>Replays multiple dead letter entries matching the filter.</summary>
+	Task<int> ReplayBatchAsync(DeadLetterQueryFilter filter, CancellationToken cancellationToken);
+
+	/// <summary>Purges a dead letter entry.</summary>
+	Task<bool> PurgeAsync(Guid entryId, CancellationToken cancellationToken);
+
+	/// <summary>Purges all dead letter entries older than the specified age.</summary>
+	Task<int> PurgeOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken);
 }

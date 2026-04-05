@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Performance;
 /// instead of an unbounded lock, and logs a warning on timeout.
 /// </summary>
 [Collection("HandlerInvokerRegistry")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "2")]
 public sealed class DispatchCacheManagerFreezeLockShould : IDisposable
 {

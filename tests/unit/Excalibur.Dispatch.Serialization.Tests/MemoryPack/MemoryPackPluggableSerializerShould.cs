@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 /// <summary>
 /// Unit tests for <see cref="MemoryPackSerializer" />.
 /// </summary>
-[Trait("Component", "Serialization")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class MemoryPackPluggableSerializerShould
 {
 	private readonly MemoryPackSerializer _sut;

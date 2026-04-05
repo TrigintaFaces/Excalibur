@@ -1,4 +1,6 @@
 #nullable enable
+Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId
+Microsoft.Extensions.DependencyInjection.GoogleCloudFunctionsServiceCollectionExtensions
 const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.CloudTraceEnabled = 50464 -> int
 const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.ColdInstanceDetected = 50453 -> int
 const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.ColdStartOptimizationCompleted = 50451 -> int
@@ -26,10 +28,8 @@ const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventI
 const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.SingletonWarmupCompleted = 50459 -> int
 const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.SingletonWarmupFailed = 50460 -> int
 const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.SingletonWarmupStarting = 50458 -> int
-const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.WarmingUpServices = 50456 -> int
 const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.WarmInstanceDetected = 50452 -> int
-Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId
-Microsoft.Extensions.DependencyInjection.GoogleCloudFunctionsServiceCollectionExtensions
+const Excalibur.Dispatch.Hosting.GoogleCloudFunctions.GoogleCloudFunctionsEventId.WarmingUpServices = 50456 -> int
 static Microsoft.Extensions.DependencyInjection.GoogleCloudFunctionsServiceCollectionExtensions.AddGoogleCloudFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.GoogleCloudFunctionsServiceCollectionExtensions.AddGoogleCloudFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GoogleCloudFunctionsServiceCollectionExtensions.AddGoogleCloudFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GoogleCloudFunctionsServiceCollectionExtensions.AddGoogleCloudFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

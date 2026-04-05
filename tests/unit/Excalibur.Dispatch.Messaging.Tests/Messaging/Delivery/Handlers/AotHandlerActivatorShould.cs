@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// Sprint 460 - Task S460.2: Core Dispatch Unit Tests.
 /// Tests the AOT-compatible handler activation that delegates to source-generated code.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class AotHandlerActivatorShould
 {

@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Testing.Tracking;
 namespace Excalibur.Dispatch.Testing.Tests.Tracking;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchedMessageShould
 {
 	[Fact]

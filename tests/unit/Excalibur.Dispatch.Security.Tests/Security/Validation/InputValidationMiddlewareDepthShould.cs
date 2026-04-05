@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Validation;
 /// Covers disabled validation bypass, context validation (correlation ID, message ID, timestamps),
 /// custom validator failure propagation, and the middleware stage property.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class InputValidationMiddlewareDepthShould
 {
 	private readonly ILogger<InputValidationMiddleware> _logger;

@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.Firestore.Authorization;
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "A3")]
-[Trait("Feature", "DependencyInjection")]
+[Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class A3BuilderFirestoreExtensionsShould
 {
 	[Fact]

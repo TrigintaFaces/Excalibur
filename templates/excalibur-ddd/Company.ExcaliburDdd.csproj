@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Excalibur.Dispatch.Hosting.AspNetCore" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Observability" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Excalibur.Domain" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Excalibur.EventSourcing" Version="$(ExcaliburDispatchVersion)" />
     <PackageReference Include="Excalibur.Hosting" Version="$(ExcaliburDispatchVersion)" />

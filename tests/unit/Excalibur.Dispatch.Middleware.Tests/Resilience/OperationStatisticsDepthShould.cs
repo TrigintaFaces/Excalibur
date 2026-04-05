@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <summary>
 /// Depth coverage tests for <see cref="OperationStatistics"/> including thread-safety and edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class OperationStatisticsDepthShould
 {
 	[Fact]

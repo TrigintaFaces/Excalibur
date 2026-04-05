@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.Firestore.Cdc;
 /// <summary>
 /// Unit tests for <see cref="FirestoreCdcStateStoreOptionsValidator"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "FirestoreCdcStateStoreOptionsValidator")]
 public sealed class FirestoreCdcStateStoreOptionsValidatorShould : UnitTestBase
 {

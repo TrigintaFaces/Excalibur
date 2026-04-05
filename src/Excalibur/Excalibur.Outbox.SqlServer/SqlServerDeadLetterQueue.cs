@@ -30,7 +30,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue
+public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueueAdmin
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerDeadLetterQueueOptions _options;

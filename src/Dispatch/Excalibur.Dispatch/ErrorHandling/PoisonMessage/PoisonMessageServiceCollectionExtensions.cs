@@ -77,6 +77,7 @@ public static class PoisonMessageServiceCollectionExtensions
 
 		// Register default in-memory store if no store is registered
 		services.TryAddSingleton<IDeadLetterStore, InMemoryDeadLetterStore>();
+		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => (IDeadLetterStoreAdmin)sp.GetRequiredService<IDeadLetterStore>());
 
 		// Register cleanup service if auto-cleanup is enabled
 		_ = services.AddHostedService<PoisonMessageCleanupService>();
@@ -116,7 +117,10 @@ public static class PoisonMessageServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.RemoveAll<IDeadLetterStore>();
-		_ = services.AddSingleton<IDeadLetterStore, InMemoryDeadLetterStore>();
+		_ = services.RemoveAll<IDeadLetterStoreAdmin>();
+		_ = services.AddSingleton<InMemoryDeadLetterStore>();
+		_ = services.AddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<InMemoryDeadLetterStore>());
+		_ = services.AddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<InMemoryDeadLetterStore>());
 
 		return services;
 	}

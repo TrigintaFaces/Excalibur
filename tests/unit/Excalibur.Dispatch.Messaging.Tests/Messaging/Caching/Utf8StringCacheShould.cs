@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// <remarks>
 /// Tests the high-performance UTF-8 string encoding/decoding cache.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 [Trait("Priority", "0")]
 public sealed class Utf8StringCacheShould : IDisposable
 {

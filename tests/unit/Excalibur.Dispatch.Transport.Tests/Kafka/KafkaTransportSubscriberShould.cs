@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka;
 /// Unit tests for <see cref="KafkaTransportSubscriber"/>.
 /// Validates constructor validation, source property, GetService, disposal, and interface implementation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class KafkaTransportSubscriberShould : IAsyncDisposable
 {
 	private const string TestSource = "orders-topic";

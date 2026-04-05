@@ -17,7 +17,7 @@ namespace Excalibur.Data.Tests.Redis;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Redis")]
-[Trait("Feature", "DependencyInjection")]
+[Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class RedisInboxExtensionsShould
 {
 	#region AddRedisInboxStore with Action Tests

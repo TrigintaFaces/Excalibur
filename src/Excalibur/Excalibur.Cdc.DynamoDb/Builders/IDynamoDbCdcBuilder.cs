@@ -48,27 +48,6 @@ public interface IDynamoDbCdcBuilder
 	IDynamoDbCdcBuilder ProcessorName(string processorName);
 
 	/// <summary>
-	/// Sets the maximum number of records per batch.
-	/// </summary>
-	/// <param name="maxBatchSize">The maximum batch size (1-1000).</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IDynamoDbCdcBuilder MaxBatchSize(int maxBatchSize);
-
-	/// <summary>
-	/// Sets the interval between stream polls when no changes are available.
-	/// </summary>
-	/// <param name="interval">The poll interval.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IDynamoDbCdcBuilder PollInterval(TimeSpan interval);
-
-	/// <summary>
-	/// Configures a separate DynamoDB client factory for CDC state persistence.
-	/// </summary>
-	/// <param name="clientFactory">A factory function that creates a DynamoDB client for state storage.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IDynamoDbCdcBuilder WithStateStore(Func<IServiceProvider, IAmazonDynamoDB> clientFactory);
-
-	/// <summary>
 	/// Configures a separate DynamoDB client factory for CDC state persistence with state store configuration.
 	/// </summary>
 	/// <param name="clientFactory">A factory function that creates a DynamoDB client for state storage.</param>

@@ -11,8 +11,8 @@ using EncryptionOptions = Excalibur.Dispatch.Options.Core.EncryptionOptions;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CoreOptionsDepthShould
 {
 	// --- CompressionOptions ---
@@ -373,7 +373,7 @@ public sealed class CoreOptionsDepthShould
 		var options = new MultiTransportOptions();
 
 		// Act
-		options.Transports["rabbitmq"] = new TransportConfiguration();
+		options.Transports["rabbitmq"] = new TransportOptions();
 
 		// Assert
 		options.Transports.Count.ShouldBe(1);

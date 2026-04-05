@@ -192,7 +192,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			logger ?? NullLogger<OutboxProcessor>.Instance,
 
-			internalSerializer: null,
+			envelopeDeserializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry);
 	}

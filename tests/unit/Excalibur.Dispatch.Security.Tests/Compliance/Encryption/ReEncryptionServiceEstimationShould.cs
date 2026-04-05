@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// and the typed <see cref="ReEncryptionService.EstimateForTypeAsync{T}"/> method.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ReEncryptionServiceEstimationShould
 {
 	private readonly IEncryptionProviderRegistry _registry;

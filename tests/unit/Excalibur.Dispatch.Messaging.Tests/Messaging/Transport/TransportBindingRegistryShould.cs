@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Transport;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class TransportBindingRegistryShould : UnitTestBase
 {
@@ -85,7 +85,7 @@ public sealed class TransportBindingRegistryShould : UnitTestBase
 			() => registry.RegisterBinding(new TestBinding("duplicate", "orders", priority: 20)));
 	}
 
-	private sealed class TestBinding(string name, string endpointPattern, int priority) : ITransportBinding
+	private sealed class TestBinding(string name, string endpointPattern, int priority) : ITransportBinding, ITransportBindingRouting
 	{
 		public string Name { get; } = name;
 		public ITransportAdapter TransportAdapter { get; } = null!;

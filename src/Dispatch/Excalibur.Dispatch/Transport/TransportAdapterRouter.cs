@@ -11,6 +11,8 @@ using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
@@ -86,7 +88,7 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 				},
 			};
 
-			return Messaging.MessageResult.Failure(problemDetails);
+			return MR.Failed(problemDetails);
 		}
 	}
 

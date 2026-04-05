@@ -37,8 +37,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", "SagaStore")]
 [Trait("Database", "SqlServer")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly SqlServerFixture _sqlFixture;

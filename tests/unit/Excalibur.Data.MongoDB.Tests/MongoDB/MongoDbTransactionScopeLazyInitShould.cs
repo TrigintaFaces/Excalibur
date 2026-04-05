@@ -20,8 +20,8 @@ namespace Excalibur.Data.Tests.MongoDB.Transactions;
 /// - Session is created on first Commit/Rollback call
 /// - Thread-safe via double-checked locking pattern
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class MongoDbTransactionScopeLazyInitShould : IDisposable
 {
 	private readonly ILogger<MongoDbPersistenceProvider> _logger;

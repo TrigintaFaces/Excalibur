@@ -98,4 +98,38 @@ internal static class DiagnosticDescriptors
 		isEnabledByDefault: true,
 		description: "Performance optimization suggestions to improve handler throughput and reduce allocations.",
 		helpLinkUri: "https://docs.excalibur-dispatch.dev/docs/diagnostics/DISP004");
+
+	/// <summary>
+	/// DISP005: Handler Should Be Sealed.
+	/// </summary>
+	/// <remarks>
+	/// Warning when a concrete handler class is not sealed. Sealed handlers enable JIT devirtualization
+	/// and prevent accidental inheritance of framework handler types.
+	/// </remarks>
+	public static readonly DiagnosticDescriptor HandlerShouldBeSealed = new(
+		id: "DISP005",
+		title: "Handler should be sealed",
+		messageFormat: "Handler '{0}' should be declared 'sealed' for optimal performance and to prevent accidental inheritance",
+		category: HandlersCategory,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: "Concrete handler classes should be sealed to enable JIT devirtualization, reduce vtable overhead, and prevent accidental inheritance. Add the 'sealed' modifier to the class declaration.",
+		helpLinkUri: "https://docs.excalibur-dispatch.dev/docs/diagnostics/DISP005");
+
+	/// <summary>
+	/// DISP006: Message Type Missing Dispatch Interface.
+	/// </summary>
+	/// <remarks>
+	/// Warning when a class used as a type argument to DispatchAsync does not implement
+	/// IDispatchAction, IDispatchEvent, or IDispatchMessage.
+	/// </remarks>
+	public static readonly DiagnosticDescriptor MessageTypeMissingInterface = new(
+		id: "DISP006",
+		title: "Message type should implement a dispatch interface",
+		messageFormat: "Type '{0}' is used as a dispatch message but does not implement IDispatchAction<T>, IDispatchEvent, or IDispatchMessage. The dispatcher may not be able to route this message.",
+		category: HandlersCategory,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: "Message types dispatched through IDispatcher should implement one of the dispatch marker interfaces (IDispatchAction<T>, IDispatchEvent, or IDispatchMessage) to ensure correct routing and handler resolution.",
+		helpLinkUri: "https://docs.excalibur-dispatch.dev/docs/diagnostics/DISP006");
 }

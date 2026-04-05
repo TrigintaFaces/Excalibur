@@ -8,73 +8,26 @@ Provides high-performance MessagePack binary serialization for:
 - Ultra-low latency scenarios
 - Bandwidth-constrained environments
 - Cross-language interoperability (C++, Python, Rust, etc.)
-- Zero-allocation serialization with `MessagePackZeroCopySerializer`
-
-## Requirements Alignment
-
-- **R0.14**: Serializer segregation (opt-in package)
-- **R0.5**: Transitive bloat guard (pay-for-play)
-- **R9.44**: Internal wire uses MemoryPack (Core unchanged)
-- **R9.46**: Opt-in binary alternatives
-- **R9.47**: AOT/trim safety
 
 ## Usage
 
-### Pluggable Serialization (Recommended)
+### Registration (Single Call)
 
-Use the pluggable serialization builder for internal persistence:
-
-```csharp
-services.AddDispatch(dispatch =>
-    dispatch.WithSerialization(config =>
-    {
-        config.RegisterMessagePack();  // Register MessagePack (ID: 3)
-        config.UseMessagePack();       // Use for new messages
-    }));
-```
-
-### Standalone Registration
+One call does everything -- DI registration, serializer registry entry, and setting MessagePack as the current serializer:
 
 ```csharp
-services.AddDispatch()
-    .ConfigureServices(s => s.AddMessagePackSerialization()); // Opt-in
+services.AddMessagePackSerializer();
 ```
 
 ### With Custom Options
 
-```csharp
-services.AddDispatch()
-    .ConfigureServices(s => s.AddMessagePackSerialization(options =>
-    {
-        options.UseLz4Compression = true;
-    }));
-```
-
-### Using Specific Serializer Implementation
+Pass native `MessagePackSerializerOptions` for custom configuration:
 
 ```csharp
-// Use AOT-compatible serializer
-services.AddMessagePackSerialization<AotMessagePackSerializer>();
-
-// Use general-purpose serializer
-services.AddMessagePackSerialization<DispatchMessagePackSerializer>();
-
-// Use options-based serializer
-services.AddMessagePackSerialization<MessagePackMessageSerializer>(options =>
-{
-    options.UseLz4Compression = true;
-    options.IncludePrivateMembers = false;
-});
+services.AddMessagePackSerializer(
+    MessagePackSerializerOptions.Standard
+        .WithCompression(MessagePackCompression.Lz4BlockArray));
 ```
-
-## Serializer Implementations
-
-| Serializer | Purpose | Performance | AOT Support |
-|------------|---------|-------------|-------------|
-| `MessagePackZeroCopySerializer` | **Default** - zero allocations | Fastest | Full |
-| `AotMessagePackSerializer` | AOT-optimized with source-gen | Fast | Full |
-| `DispatchMessagePackSerializer` | General-purpose | Standard | Full |
-| `MessagePackMessageSerializer` | Options-based configuration | Standard | Full |
 
 ## Package Dependencies
 
@@ -85,11 +38,8 @@ services.AddMessagePackSerialization<MessagePackMessageSerializer>(options =>
 
 **Native AOT compatible** with source-generated formatters and resolvers.
 
-Use `[MessagePackObject]` and `[Key]` attributes with source generators for optimal performance.
-
 ## Performance Characteristics
 
-- **Zero-allocation mode**: No GC pressure in hot paths
 - **Throughput**: ~2-5x faster than JSON for binary payloads
 - **Compression**: Built-in LZ4 support for bandwidth optimization
 - **Latency**: Sub-microsecond serialization for small messages
@@ -104,7 +54,7 @@ This package follows the Dispatch serialization policy (R0.14):
 
 MessagePack is **not** included in `Excalibur.Dispatch` to avoid transitive bloat. Consumers must explicitly opt-in by:
 1. Adding `<PackageReference Include="Excalibur.Dispatch.Serialization.MessagePack" />`
-2. Calling `services.AddMessagePackSerialization()`
+2. Calling `services.AddMessagePackSerializer()`
 
 ## When to Use
 
@@ -124,32 +74,15 @@ MessagePack is **not** included in `Excalibur.Dispatch` to avoid transitive bloa
 - You need the absolute fastest .NET binary serialization
 - You control both producer and consumer code
 
-## Migration from Excalibur.Dispatch
-
-**Before (R0.14 violation):**
-```csharp
-// Old code - MessagePack was in Excalibur.Dispatch
-services.AddDispatch()
-    .Serialization()
-    .UseMessagePack();
-```
-
-**After (R0.14 compliant):**
-```csharp
-// New code - MessagePack is opt-in
-services.AddDispatch()
-    .ConfigureServices(s => s.AddMessagePackSerialization());
-```
-
 ## Pluggable Serialization Integration
 
 MessagePack is assigned **Serializer ID 3** in the pluggable serialization system.
 The magic byte `0x03` prefixes all MessagePack-serialized payloads.
 
 **Migration Support**: When switching from another serializer (e.g., MemoryPack):
-1. Register MessagePack in addition to existing serializer
-2. Switch to MessagePack for new messages
-3. Old messages remain readable via their magic byte
+1. Call `services.AddMessagePackSerializer()` -- old data remains readable via magic byte
+2. New messages use MessagePack
+3. No data migration needed for backward compatibility
 
 ## See Also
 

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class DefaultFipsDetectorShould
 {
 	private readonly ILogger<DefaultFipsDetector> _logger;

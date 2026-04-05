@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Transport.Azure;
 
 namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus.ServiceBus;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class AzureServiceBusOptionsShould
 {

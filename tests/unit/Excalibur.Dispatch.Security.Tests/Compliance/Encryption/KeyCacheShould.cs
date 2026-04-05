@@ -4,7 +4,7 @@
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class KeyCacheShould : IDisposable
 {
 	private readonly KeyCache _sut;

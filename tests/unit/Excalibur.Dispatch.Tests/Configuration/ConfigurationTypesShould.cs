@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ConfigurationTypesShould
 {
 	[Fact]
@@ -22,7 +22,7 @@ public sealed class ConfigurationTypesShould
 	[Fact]
 	public void TransportConfiguration_HaveDefaults()
 	{
-		var config = new TransportConfiguration();
+		var config = new TransportOptions();
 
 		config.Name.ShouldBe(string.Empty);
 		config.Enabled.ShouldBeTrue();
@@ -32,7 +32,7 @@ public sealed class ConfigurationTypesShould
 	[Fact]
 	public void TransportConfiguration_AllowSettingProperties()
 	{
-		var config = new TransportConfiguration
+		var config = new TransportOptions
 		{
 			Name = "rabbitmq",
 			Enabled = false,

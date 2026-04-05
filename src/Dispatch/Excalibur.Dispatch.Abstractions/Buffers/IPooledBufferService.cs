@@ -15,16 +15,6 @@ public interface IPooledBufferService
 	int RentedBuffers { get; }
 
 	/// <summary>
-	/// Gets the total number of rent operations performed.
-	/// </summary>
-	long TotalRentOperations { get; }
-
-	/// <summary>
-	/// Gets the total number of return operations performed.
-	/// </summary>
-	long TotalReturnOperations { get; }
-
-	/// <summary>
 	/// Gets the largest buffer size requested.
 	/// </summary>
 	int LargestBufferRequested { get; }
@@ -54,4 +44,20 @@ public interface IPooledBufferService
 	/// </summary>
 	/// <returns> Buffer usage statistics. </returns>
 	BufferPoolStatistics GetStatistics();
+}
+
+/// <summary>
+/// Provides diagnostics information for pooled buffer services.
+/// </summary>
+public interface IPooledBufferServiceDiagnostics
+{
+	/// <summary>
+	/// Gets the total number of rent operations performed.
+	/// </summary>
+	long TotalRentOperations { get; }
+
+	/// <summary>
+	/// Gets the total number of return operations performed.
+	/// </summary>
+	long TotalReturnOperations { get; }
 }

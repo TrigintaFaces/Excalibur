@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Tests.Workflows.EventSourcing;
 /// </remarks>
 [Trait("Epic", "FunctionalTesting")]
 [Trait("Sprint", "181")]
-[Trait("Component", "EventSourcing")]
+[Trait(TraitNames.Component, TestComponents.EventSourcing)]
 [Trait("Category", "Unit")]
 public sealed class EventSourcingWorkflowShould
 {

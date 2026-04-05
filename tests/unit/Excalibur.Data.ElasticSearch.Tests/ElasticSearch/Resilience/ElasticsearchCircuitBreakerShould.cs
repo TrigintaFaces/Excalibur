@@ -8,8 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Resilience;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 {
 	private readonly ElasticsearchCircuitBreaker _sut;

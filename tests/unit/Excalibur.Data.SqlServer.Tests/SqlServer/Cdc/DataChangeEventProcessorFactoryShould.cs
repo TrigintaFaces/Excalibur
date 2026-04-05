@@ -11,9 +11,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// <summary>
 /// Unit tests for <see cref="DataChangeEventProcessorFactory"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class DataChangeEventProcessorFactoryShould : UnitTestBase
 {
 	[Fact]

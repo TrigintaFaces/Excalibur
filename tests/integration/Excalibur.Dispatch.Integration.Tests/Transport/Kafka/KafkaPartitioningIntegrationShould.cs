@@ -22,9 +22,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 /// Verifies that messages with the same partition key are delivered to the same partition
 /// and maintain ordering within that partition.
 /// </summary>
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "Kafka")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Collection(ContainerCollections.Kafka)]
 public sealed class KafkaPartitioningIntegrationShould
 {

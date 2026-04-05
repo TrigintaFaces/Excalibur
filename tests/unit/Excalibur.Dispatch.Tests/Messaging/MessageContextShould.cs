@@ -8,12 +8,12 @@ using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 namespace Excalibur.Dispatch.Tests.Messaging;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessageContextShould : IDisposable
 {
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();

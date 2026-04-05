@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Decorators;
 /// Tests for <see cref="CloudEventsTransportSender"/>.
 /// Verifies CloudEvent encoding on SendAsync and SendBatchAsync.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class CloudEventsTransportSenderShould
 {
 	private readonly ITransportSender _innerSender = A.Fake<ITransportSender>();

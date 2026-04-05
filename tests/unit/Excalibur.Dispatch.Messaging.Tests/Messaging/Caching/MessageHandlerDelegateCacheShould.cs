@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// Unit tests for <see cref="MessageHandlerDelegateCache{TMessage}"/>.
 /// Verifies caching behavior for async, value task, and sync handlers.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Excalibur.Dispatch.Messaging")]
 [Trait("Priority", "1")]
 public sealed class MessageHandlerDelegateCacheShould

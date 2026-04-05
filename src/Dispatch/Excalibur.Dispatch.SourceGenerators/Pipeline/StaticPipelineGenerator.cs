@@ -515,11 +515,11 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("                // PERF-23: Pipeline-level exception handling");
 		if (callSite.HasResult && callSite.ResultTypeFullName != null)
 		{
-			_ = sb.AppendLine($"                return Excalibur.Dispatch.Abstractions.MessageResult.Failed<{callSite.ResultTypeFullName}>(ex.ToString());");
+			_ = sb.AppendLine($"                return Excalibur.Dispatch.Abstractions.MessageResult.Failed<{callSite.ResultTypeFullName}>(ex);");
 		}
 		else
 		{
-			_ = sb.AppendLine("                return Excalibur.Dispatch.Abstractions.MessageResult.Failed(ex.ToString());");
+			_ = sb.AppendLine("                return Excalibur.Dispatch.Abstractions.MessageResult.Failed(ex);");
 		}
 		_ = sb.AppendLine("            }");
 		_ = sb.AppendLine("        }");

@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Postgres.Requests.Authorization.Grants;
 /// Unit tests for <see cref="MatchingGrantsRequest"/>.
 /// Covers SQL structure, parameter setup, and wildcard matching.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Postgres")]
 public sealed class MatchingGrantsRequestShould
 {

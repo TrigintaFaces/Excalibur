@@ -28,7 +28,7 @@ public sealed class SpanBasedMessageRouter<TMessage>(int maxRoutes, int cacheSiz
 	/*, MetricRegistry? metrics = null*/
 
 	// Metrics initialization will be enabled once high-performance metrics are available: var registry = metrics ?? MetricRegistry.Global;
-	// _routingLatency = registry.Histogram("router_latency_us", HistogramConfiguration.Exponential(0.1, 2, 20)); _routingDecisions =
+	// _routingLatency = registry.Histogram("router_latency_us", HistogramOptions.Exponential(0.1, 2, 20)); _routingDecisions =
 	// registry.Counter("router_decisions"); _cacheHits = registry.Counter("router_cache_hits"); _cacheMisses = registry.Counter("router_cache_misses");
 
 	/// <summary>

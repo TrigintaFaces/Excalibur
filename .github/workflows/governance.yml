@@ -1,0 +1,335 @@
+name: Governance Validation
+
+on:
+  workflow_call:
+    inputs:
+      checkout-ref:
+        description: 'Git ref to checkout'
+        required: true
+        type: string
+      checkout-token:
+        description: 'Token for checkout'
+        required: true
+        type: string
+      event-name:
+        description: 'The triggering event name (push, pull_request, etc.)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  solution-governance:
+    name: Solution Governance Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Validate consolidated governance stack
+        shell: pwsh
+        run: |
+          ./eng/ci/validate-governance-stack.ps1 -Enforce:$true
+
+      - name: Upload governance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solution-governance-report
+          path: |
+            management/reports/SolutionGovernanceReport
+            management/reports/FrameworkGovernanceReport
+          retention-days: 14
+
+  package-dependency-graph:
+    name: Package Dependency Graph Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: 'eng/ci/shards/ShippingOnly.slnf'
+
+      - name: Validate nuspec dependency graph (blocking)
+        shell: pwsh
+        run: |
+          ./eng/ci/validate-nuspec-dependencies.ps1 -SolutionFilter eng/ci/shards/ShippingOnly.slnf -OutDir management/reports/PackageDependencyReport -Version "0.1.0-ci-${{ github.run_number }}" -Enforce:$true
+
+      - name: Upload dependency graph report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-dependency-report
+          path: management/reports/PackageDependencyReport
+          retention-days: 14
+
+  package-composition:
+    name: Package Composition Validation (T2.4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: 'eng/ci/shards/ShippingOnly.slnf'
+
+      - name: Pack Dispatch to local feed
+        shell: pwsh
+        run: |
+          Write-Host "Packing Dispatch projects to local feed..."
+          ./eng/pack-local.ps1 -Version "0.1.0-ci-${{ github.run_number }}" -NoBuild
+          Write-Host "Packages created in artifacts/_packages/"
+
+      - name: Clear NuGet cache (avoid stale packages)
+        run: |
+          dotnet nuget locals http-cache --clear
+          dotnet nuget locals temp --clear
+
+      - name: Restore Excalibur with PackageReference mode
+        run: |
+          echo "Restoring Excalibur with PackageReference mode..."
+          find src/Excalibur -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
+            dotnet restore "$proj" \
+              -p:UsePackageReferences=true \
+              -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
+              -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }}
+          done
+
+      - name: Build Excalibur with PackageReference mode
+        run: |
+          echo "Building Excalibur with PackageReference mode..."
+          find src/Excalibur -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
+            dotnet build "$proj" \
+              --configuration Release \
+              --no-restore \
+              -p:UsePackageReferences=true \
+              -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
+              -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }}
+          done
+
+      - name: Validate sample builds against packages
+        run: |
+          echo "Validating sample compilation..."
+          dotnet build samples/01-getting-started/DispatchMinimal/Excalibur.DispatchMinimal.csproj \
+            --configuration Release \
+            --no-restore \
+            -p:UsePackageReferences=true \
+            -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
+            -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }} || true
+
+      - name: Package composition summary
+        if: always()
+        run: |
+          echo "## Package Composition Validation (T2.4)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package Version:** 0.1.0-ci-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Validation Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Packed Dispatch projects to local feed" >> $GITHUB_STEP_SUMMARY
+          echo "2. Built Excalibur with PackageReference mode" >> $GITHUB_STEP_SUMMARY
+          echo "3. Validated sample compilation" >> $GITHUB_STEP_SUMMARY
+
+  public-api-baselines:
+    name: Public API Baseline Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+
+      - name: Run PublicAPI baseline audit
+        shell: pwsh
+        run: |
+          ./eng/ci/public-api-baseline-audit.ps1 -OutDir management/reports/PublicApiBaselineReport -Enforce $true
+
+      - name: Upload PublicAPI baseline report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-api-baseline-report
+          path: management/reports/PublicApiBaselineReport
+          retention-days: 14
+
+  api-compat:
+    name: API Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Run API compat (blocking)
+        shell: pwsh
+        env:
+          API_ENFORCE: true
+        run: |
+          ./eng/ci/api-compat-run.ps1 -OutputDir management/reports/ApiCompatReport
+
+      - name: Upload ApiCompat report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-compat-report
+          path: management/reports/ApiCompatReport
+          retention-days: 14
+
+  transitive-bloat:
+    name: Transitive Bloat Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Generate transitive bloat report (blocking)
+        shell: pwsh
+        env:
+          PACK_ENFORCE: 'true'
+        run: |
+          ./eng/ci/transitive-bloat-report.ps1 -OutputDir management/reports/TransitiveBloatReport
+
+      - name: Upload transitive bloat report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transitive-bloat-report
+          path: management/reports/TransitiveBloatReport
+          retention-days: 14
+
+  banned-apis:
+    name: Banned APIs Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Banned APIs gate (Roslyn baseline enforcement)
+        shell: pwsh
+        run: |
+          ./eng/ci/banned-apis-gate.ps1 -Solution eng/ci/shards/ShippingOnly.slnf -BaselinePath eng/banned/RS0030.baseline.json -OutDir management/reports/BannedApisReport -Enforce:$true
+
+      - name: Upload banned APIs report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: banned-apis-report
+          path: management/reports/BannedApisReport
+          retention-days: 14
+
+  repo-inventory:
+    name: Repo Inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Generate repository inventory
+        shell: pwsh
+        run: |
+          ./eng/ci/repo-inventory.ps1 `
+            -Output "management/reports/dependency-inventory.md" `
+            -ProjectRoot "src" `
+            -PerProjectTimeoutSeconds 45 `
+            -TotalBudgetMinutes 12 `
+            -MaxDependencyProjects 180 `
+            -FailOnGuardrailBreach
+
+      - name: Upload inventory report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-inventory
+          path: management/reports/dependency-inventory.md
+
+  warnings-ledger:
+    name: Warnings Scan (report-only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Run warnings scan
+        shell: pwsh
+        run: |
+          ./eng/ci/warnings-scan.ps1 -OutDir management/reports/WarningsReport
+
+      - name: Upload warnings report
+        uses: actions/upload-artifact@v4
+        with:
+          name: warnings-report
+          path: management/reports/WarningsReport
+
+  specs-location-lint:
+    name: Specs Location Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
+      - name: Verify specs live under management/specs/**
+        shell: bash
+        run: |
+          set -eo pipefail
+          mkdir -p management/reports
+          report="management/reports/specs-location-violations-${GITHUB_RUN_ID}.md"
+          echo "# Specs Location Violations" > "$report"
+          echo "Run: ${GITHUB_RUN_ID}" >> "$report"
+          echo "" >> "$report"
+          violations=$(git ls-files | grep -Ei '/Specs/' | grep -vi '^management/specs/') || true
+          if [ -n "$violations" ]; then
+            echo "Found specs outside management/specs:" >> "$report"
+            echo "$violations" | sed 's/^/- /' >> "$report"
+            echo "::error::Specs must be under management/specs (see docs/requirements.md R0.10)"
+            exit 1
+          else
+            echo "No violations detected." >> "$report"
+          fi
+
+      - name: Upload specs guard report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: specs-location-violations
+          path: management/reports/specs-location-violations-${{ github.run_id }}.md

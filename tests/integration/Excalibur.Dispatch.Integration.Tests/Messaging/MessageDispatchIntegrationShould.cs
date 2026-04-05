@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Messaging;
 /// Integration tests for message dispatching, handler registration, and routing.
 /// These tests verify that the complete messaging pipeline works correctly.
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessageDispatchIntegrationShould : IntegrationTestBase
 {
 	#region Basic Dispatch Tests

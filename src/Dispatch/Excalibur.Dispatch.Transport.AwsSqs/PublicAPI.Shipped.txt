@@ -188,6 +188,7 @@ Excalibur.Dispatch.Transport.Aws.AwsSqsFifoOptions.HasMessageGroupIdSelector.get
 Excalibur.Dispatch.Transport.Aws.AwsSqsFifoOptions.HasValidDeduplication.get -> bool
 Excalibur.Dispatch.Transport.Aws.AwsSqsFifoOptions.MessageGroupIdSelector.get -> System.Func<object!, string!>?
 Excalibur.Dispatch.Transport.Aws.AwsSqsFifoOptions.MessageGroupIdSelector.set -> void
+Excalibur.Dispatch.Transport.Aws.AwsSqsFilterAttributeBuilderExtensions
 Excalibur.Dispatch.Transport.Aws.AwsSqsFilterCondition
 Excalibur.Dispatch.Transport.Aws.AwsSqsFilterCondition.AwsSqsFilterCondition() -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsFilterCondition.NumericComparison.get -> string?
@@ -215,7 +216,7 @@ Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyScope.MessageAttributes = 0 -
 Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyScope.MessageBody = 1 -> Excalibur.Dispatch.Transport.Aws.AwsSqsFilterPolicyScope
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.AwsSqsOptions() -> void
-Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.BatchConfig.get -> Excalibur.Dispatch.Transport.Aws.BatchConfiguration?
+Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.BatchConfig.get -> Excalibur.Dispatch.Transport.Aws.BatchOptions?
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.BatchConfig.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.ContentBasedDeduplication.get -> bool
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.ContentBasedDeduplication.set -> void
@@ -223,7 +224,7 @@ Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.KmsDataKeyReusePeriodSeconds.get 
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.KmsDataKeyReusePeriodSeconds.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.KmsMasterKeyId.get -> string?
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.KmsMasterKeyId.set -> void
-Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.LongPollingConfig.get -> Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration?
+Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.LongPollingConfig.get -> Excalibur.Dispatch.Transport.Aws.LongPollingOptions?
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.LongPollingConfig.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.MessageRetentionPeriod.get -> int
 Excalibur.Dispatch.Transport.Aws.AwsSqsOptions.MessageRetentionPeriod.set -> void
@@ -279,20 +280,20 @@ Excalibur.Dispatch.Transport.Aws.AwsSqsSubscriptionOptions.RawMessageDelivery.ge
 Excalibur.Dispatch.Transport.Aws.AwsSqsSubscriptionOptions.RawMessageDelivery.set -> void
 Excalibur.Dispatch.Transport.Aws.AwsSqsSubscriptionOptions.TopicArn.get -> string!
 Excalibur.Dispatch.Transport.Aws.AwsSqsSubscriptionOptions.TopicArn.set -> void
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.BatchConfiguration() -> void
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.BatchTimeout.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.BatchTimeout.set -> void
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.EnableAutoRetry.get -> bool
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.EnableAutoRetry.set -> void
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.EnableParallelProcessing.get -> bool
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.EnableParallelProcessing.set -> void
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.MaxBatchSize.get -> int
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.MaxBatchSize.set -> void
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.MaxDegreeOfParallelism.get -> int
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.MaxDegreeOfParallelism.set -> void
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.MaxRetryAttempts.get -> int
-Excalibur.Dispatch.Transport.Aws.BatchConfiguration.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Transport.Aws.BatchOptions
+Excalibur.Dispatch.Transport.Aws.BatchOptions.BatchOptions() -> void
+Excalibur.Dispatch.Transport.Aws.BatchOptions.BatchTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.BatchOptions.BatchTimeout.set -> void
+Excalibur.Dispatch.Transport.Aws.BatchOptions.EnableAutoRetry.get -> bool
+Excalibur.Dispatch.Transport.Aws.BatchOptions.EnableAutoRetry.set -> void
+Excalibur.Dispatch.Transport.Aws.BatchOptions.EnableParallelProcessing.get -> bool
+Excalibur.Dispatch.Transport.Aws.BatchOptions.EnableParallelProcessing.set -> void
+Excalibur.Dispatch.Transport.Aws.BatchOptions.MaxBatchSize.get -> int
+Excalibur.Dispatch.Transport.Aws.BatchOptions.MaxBatchSize.set -> void
+Excalibur.Dispatch.Transport.Aws.BatchOptions.MaxDegreeOfParallelism.get -> int
+Excalibur.Dispatch.Transport.Aws.BatchOptions.MaxDegreeOfParallelism.set -> void
+Excalibur.Dispatch.Transport.Aws.BatchOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Aws.BatchOptions.MaxRetryAttempts.set -> void
 Excalibur.Dispatch.Transport.Aws.BatchProcessorMetrics
 Excalibur.Dispatch.Transport.Aws.BatchProcessorMetrics.AverageDeleteTime.get -> double
 Excalibur.Dispatch.Transport.Aws.BatchProcessorMetrics.AverageReceiveTime.get -> double
@@ -308,6 +309,20 @@ Excalibur.Dispatch.Transport.Aws.BatchProcessorMetrics.RecordReceiveBatch(int co
 Excalibur.Dispatch.Transport.Aws.BatchProcessorMetrics.RecordSendBatch(int count, System.TimeSpan elapsed) -> void
 Excalibur.Dispatch.Transport.Aws.BatchProcessorMetrics.RecordSendErrors(int count) -> void
 Excalibur.Dispatch.Transport.Aws.BatchProcessorMetrics.SendErrors.get -> long
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.AdaptiveIntervalSeconds.get -> int
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.AdaptiveIntervalSeconds.set -> void
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.ChannelCapacity.get -> int
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.ChannelCapacity.set -> void
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.ChannelLongPollingOptions() -> void
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.MaxPollers.get -> int
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.MaxPollers.set -> void
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.MinPollers.get -> int
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.MinPollers.set -> void
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.QueueUrl.get -> System.Uri?
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.QueueUrl.set -> void
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.VisibilityTimeout.get -> int
+Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions.VisibilityTimeout.set -> void
 Excalibur.Dispatch.Transport.Aws.ConnectionHealth
 Excalibur.Dispatch.Transport.Aws.ConnectionHealth.Healthy = 0 -> Excalibur.Dispatch.Transport.Aws.ConnectionHealth
 Excalibur.Dispatch.Transport.Aws.ConnectionHealth.Unhealthy = 1 -> Excalibur.Dispatch.Transport.Aws.ConnectionHealth
@@ -562,7 +577,7 @@ Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.AnythingBut(param
 Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.Between(double lower, double upper) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.Equals(int value) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.Equals(string! value) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
-Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.Exists(bool exists = true) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
+Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.Exists(bool exists) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.GreaterThan(double value) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.GreaterThanOrEqual(double value) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
 Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder.LessThan(double value) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
@@ -612,17 +627,20 @@ Excalibur.Dispatch.Transport.Aws.IErrorTracker.RecordErrorAsync(string! messageI
 Excalibur.Dispatch.Transport.Aws.IHealthCheckableConnectionPool<TConnection>
 Excalibur.Dispatch.Transport.Aws.IHealthCheckableConnectionPool<TConnection>.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Aws.ConnectionPoolHealthCheckResult!>!
 Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.DeleteMessageAsync(string! queueUrl, string! receiptHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.DeleteMessagesAsync(string! queueUrl, System.Collections.Generic.IEnumerable<string!>! receiptHandles, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.GetStatisticsAsync() -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Transport.Aws.ReceiverStatistics!>
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.OptimizeVisibilityTimeoutAsync(string! queueUrl, string! receiptHandle, System.TimeSpan estimatedProcessingTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.ReceiveMessagesAsync(string! queueUrl, Excalibur.Dispatch.Transport.Aws.ReceiveOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Amazon.SQS.Model.Message!>!>
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.ReceiveMessagesAsync(string! queueUrl, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Amazon.SQS.Model.Message!>!>
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.StartContinuousPollingAsync(string! queueUrl, System.Func<Amazon.SQS.Model.Message!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! messageHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.StartContinuousPollingAsync(string! queueUrl, System.Func<System.Collections.Generic.IReadOnlyList<Amazon.SQS.Model.Message!>!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! batchHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.Status.get -> Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
-Excalibur.Dispatch.Transport.Aws.ILongPollingReceiver.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverLifecycle
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverLifecycle.GetStatisticsAsync() -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Transport.Aws.ReceiverStatistics!>
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverLifecycle.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverLifecycle.Status.get -> Excalibur.Dispatch.Transport.Aws.SqsPollingStatus
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverLifecycle.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverMessageManagement
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverMessageManagement.DeleteMessageAsync(string! queueUrl, string! receiptHandle, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverMessageManagement.DeleteMessagesAsync(string! queueUrl, System.Collections.Generic.IEnumerable<string!>! receiptHandles, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverMessageManagement.OptimizeVisibilityTimeoutAsync(string! queueUrl, string! receiptHandle, System.TimeSpan estimatedProcessingTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverPolling
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverPolling.ReceiveMessagesAsync(string! queueUrl, Excalibur.Dispatch.Transport.Aws.ReceiveOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Amazon.SQS.Model.Message!>!>
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverPolling.ReceiveMessagesAsync(string! queueUrl, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Amazon.SQS.Model.Message!>!>
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverPolling.StartContinuousPollingAsync(string! queueUrl, System.Func<Amazon.SQS.Model.Message!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! messageHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Aws.ILongPollingReceiverPolling.StartContinuousPollingAsync(string! queueUrl, System.Func<System.Collections.Generic.IReadOnlyList<Amazon.SQS.Model.Message!>!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! batchHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Transport.Aws.IMessageAnalyzer
 Excalibur.Dispatch.Transport.Aws.IMessageAnalyzer.AnalyzeMessage(Excalibur.Dispatch.Transport.Aws.DlqMessage! message, System.Exception! exception, int attemptCount) -> Excalibur.Dispatch.Transport.Aws.DlqAnalysisResult!
 Excalibur.Dispatch.Transport.Aws.IMessageProcessor<T>
@@ -639,9 +657,10 @@ Excalibur.Dispatch.Transport.Aws.ISessionStore.CreateAsync(string! sessionId, Sy
 Excalibur.Dispatch.Transport.Aws.ISessionStore.CreateOrUpdateAsync(Excalibur.Dispatch.Transport.Aws.SessionData! session, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Aws.ISessionStore.DeleteAsync(string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Aws.ISessionStore.ExistsAsync(string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.Transport.Aws.ISessionStore.GetCountAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Dispatch.Transport.Aws.ISessionStore.TryGetAsync(string! sessionId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Aws.SessionData?>!
 Excalibur.Dispatch.Transport.Aws.ISessionStore.UpdateAsync(Excalibur.Dispatch.Transport.Aws.SessionData! session, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Aws.SessionData!>!
+Excalibur.Dispatch.Transport.Aws.ISessionStoreAdmin
+Excalibur.Dispatch.Transport.Aws.ISessionStoreAdmin.GetCountAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Dispatch.Transport.Aws.ISqsChannelMetricsCollector
 Excalibur.Dispatch.Transport.Aws.ISqsChannelMetricsCollector.GetSummaryAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Aws.SqsChannelMetricsSummary!>!
 Excalibur.Dispatch.Transport.Aws.ISqsChannelMetricsCollector.RecordError(string! queueUrl, string! errorType) -> void
@@ -650,61 +669,24 @@ Excalibur.Dispatch.Transport.Aws.ISqsChannelMetricsCollector.RecordMessageSent(s
 Excalibur.Dispatch.Transport.Aws.ISqsChannelProcessor
 Excalibur.Dispatch.Transport.Aws.ISqsChannelProcessor.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Aws.ISqsChannelProcessor.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.AdaptationWindow.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.AdaptationWindow.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.BatchSize.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.BatchSize.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.CoalescingWindow.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.CoalescingWindow.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.DeleteAfterProcessing.get -> bool
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.DeleteAfterProcessing.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.EnableAdaptivePolling.get -> bool
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.EnableAdaptivePolling.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.EnableRequestCoalescing.get -> bool
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.EnableRequestCoalescing.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.EnableVisibilityTimeoutOptimization.get -> bool
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.EnableVisibilityTimeoutOptimization.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.HighLoadThreshold.get -> double
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.HighLoadThreshold.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.IsFifoQueue.get -> bool
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.IsFifoQueue.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.LongPollingConfiguration() -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.LowLoadThreshold.get -> double
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.LowLoadThreshold.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxMessagesPerReceive.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxMessagesPerReceive.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxNumberOfMessages.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxNumberOfMessages.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxRetryAttempts.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxRetryAttempts.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxWaitTime.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxWaitTimeSeconds.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MaxWaitTimeSeconds.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MessageAttributeNames.get -> string![]!
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MessageAttributeNames.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MinWaitTime.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MinWaitTimeSeconds.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.MinWaitTimeSeconds.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.PollingIntervalMs.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.PollingIntervalMs.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.ProcessingTimeout.get -> System.TimeSpan
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.ProcessingTimeout.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.QueueUrl.get -> System.Uri?
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.QueueUrl.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.ReceiveRequestAttemptId.get -> string?
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.ReceiveRequestAttemptId.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.RetryDelayMs.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.RetryDelayMs.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.SmoothingFactor.get -> double
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.SmoothingFactor.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.SystemAttributeNames.get -> string![]!
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.SystemAttributeNames.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.Validate() -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.VisibilityTimeoutBufferFactor.get -> double
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.VisibilityTimeoutBufferFactor.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.VisibilityTimeoutSeconds.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration.VisibilityTimeoutSeconds.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.AdaptationWindow.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.AdaptationWindow.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.Enabled.get -> bool
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.Enabled.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.HighLoadThreshold.get -> double
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.HighLoadThreshold.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.LongPollingAdaptiveOptions() -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.LowLoadThreshold.get -> double
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.LowLoadThreshold.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.SmoothingFactor.get -> double
+Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions.SmoothingFactor.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAttributeOptions
+Excalibur.Dispatch.Transport.Aws.LongPollingAttributeOptions.LongPollingAttributeOptions() -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAttributeOptions.MessageAttributeNames.get -> string![]!
+Excalibur.Dispatch.Transport.Aws.LongPollingAttributeOptions.MessageAttributeNames.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingAttributeOptions.SystemAttributeNames.get -> string![]!
+Excalibur.Dispatch.Transport.Aws.LongPollingAttributeOptions.SystemAttributeNames.set -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingMetrics
 Excalibur.Dispatch.Transport.Aws.LongPollingMetrics.AveragePollTime.get -> double
 Excalibur.Dispatch.Transport.Aws.LongPollingMetrics.EmptyPolls.get -> long
@@ -717,19 +699,31 @@ Excalibur.Dispatch.Transport.Aws.LongPollingMetrics.RecordError() -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingMetrics.RecordMessagesReceived(int count) -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingMetrics.RecordPollDuration(System.TimeSpan duration) -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingOptions
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.AdaptiveIntervalSeconds.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.AdaptiveIntervalSeconds.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.ChannelCapacity.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.ChannelCapacity.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.Adaptive.get -> Excalibur.Dispatch.Transport.Aws.LongPollingAdaptiveOptions!
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.Attributes.get -> Excalibur.Dispatch.Transport.Aws.LongPollingAttributeOptions!
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.DeleteAfterProcessing.get -> bool
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.DeleteAfterProcessing.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.IsFifoQueue.get -> bool
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.IsFifoQueue.set -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingOptions.LongPollingOptions() -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.MaxPollers.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.MaxPollers.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.MinPollers.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.MinPollers.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.Polling.get -> Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions!
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.Processing.get -> Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions!
 Excalibur.Dispatch.Transport.Aws.LongPollingOptions.QueueUrl.get -> System.Uri?
 Excalibur.Dispatch.Transport.Aws.LongPollingOptions.QueueUrl.set -> void
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.VisibilityTimeout.get -> int
-Excalibur.Dispatch.Transport.Aws.LongPollingOptions.VisibilityTimeout.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.ReceiveRequestAttemptId.get -> string?
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.ReceiveRequestAttemptId.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.Retry.get -> Excalibur.Dispatch.Transport.Aws.LongPollingRetryOptions!
+Excalibur.Dispatch.Transport.Aws.LongPollingOptions.Visibility.get -> Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions!
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.BatchSize.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.BatchSize.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.CoalescingWindowMs.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.CoalescingWindowMs.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.EnableRequestCoalescing.get -> bool
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.EnableRequestCoalescing.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.LongPollingProcessingOptions() -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.ProcessingTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.LongPollingProcessingOptions.ProcessingTimeout.set -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingResult
 Excalibur.Dispatch.Transport.Aws.LongPollingResult.ElapsedTime.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.Aws.LongPollingResult.ElapsedTime.set -> void
@@ -739,6 +733,12 @@ Excalibur.Dispatch.Transport.Aws.LongPollingResult.MessageCount.get -> int
 Excalibur.Dispatch.Transport.Aws.LongPollingResult.MessageCount.set -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingResult.Timestamp.get -> System.DateTimeOffset
 Excalibur.Dispatch.Transport.Aws.LongPollingResult.Timestamp.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingRetryOptions
+Excalibur.Dispatch.Transport.Aws.LongPollingRetryOptions.DelayMs.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingRetryOptions.DelayMs.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingRetryOptions.LongPollingRetryOptions() -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingRetryOptions.MaxAttempts.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingRetryOptions.MaxAttempts.set -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot
 Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot.EmptyPollRate.get -> double
 Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot.EmptyPollRate.init -> void
@@ -752,6 +752,28 @@ Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot.MessageRate.get -> double
 Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot.MessageRate.init -> void
 Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot.MessagesReceived.get -> long
 Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot.MessagesReceived.init -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.LongPollingTimingOptions() -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MaxMessagesPerReceive.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MaxMessagesPerReceive.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MaxNumberOfMessages.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MaxNumberOfMessages.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MaxWaitTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MaxWaitTimeSeconds.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MaxWaitTimeSeconds.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MinWaitTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MinWaitTimeSeconds.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.MinWaitTimeSeconds.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.PollingIntervalMs.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingTimingOptions.PollingIntervalMs.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions
+Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions.BufferFactor.get -> double
+Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions.BufferFactor.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions.EnableOptimization.get -> bool
+Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions.EnableOptimization.set -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions.LongPollingVisibilityOptions() -> void
+Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions.VisibilityTimeoutSeconds.get -> int
+Excalibur.Dispatch.Transport.Aws.LongPollingVisibilityOptions.VisibilityTimeoutSeconds.set -> void
 Excalibur.Dispatch.Transport.Aws.MetricData
 Excalibur.Dispatch.Transport.Aws.MetricData.Dimensions.get -> System.Collections.Generic.Dictionary<string!, string!>!
 Excalibur.Dispatch.Transport.Aws.MetricData.MetricData() -> void
@@ -1524,6 +1546,7 @@ override Excalibur.Dispatch.Transport.Aws.ProcessingResult.Equals(object? obj) -
 override Excalibur.Dispatch.Transport.Aws.ProcessingResult.GetHashCode() -> int
 static Excalibur.Dispatch.Transport.Aws.AwsSqsFifoOptions.EnsureFifoSuffix(string! queueName) -> string!
 static Excalibur.Dispatch.Transport.Aws.AwsSqsFifoOptions.IsValidFifoQueueUrl(string! queueUrl) -> bool
+static Excalibur.Dispatch.Transport.Aws.AwsSqsFilterAttributeBuilderExtensions.Exists(this Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder! builder) -> Excalibur.Dispatch.Transport.Aws.IAwsSqsFilterAttributeBuilder!
 static Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot.operator !=(Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot left, Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot right) -> bool
 static Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot.operator ==(Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot left, Excalibur.Dispatch.Transport.Aws.LongPollingSnapshot right) -> bool
 static Excalibur.Dispatch.Transport.Aws.ProcessingResult.Failed(string! error) -> Excalibur.Dispatch.Transport.Aws.ProcessingResult
@@ -1539,27 +1562,36 @@ static Microsoft.Extensions.DependencyInjection.AwsCloudEventsServiceCollectionE
 static Microsoft.Extensions.DependencyInjection.AwsCoreServiceCollectionExtensions.AddAwsMessageBus(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.AwsMessageBusOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportServiceCollectionExtensions.AddAwsEventBridgeTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IAwsEventBridgeTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsEventBridgeTransportServiceCollectionExtensions.AddAwsEventBridgeTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IAwsEventBridgeTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions.AddAwsEventBridgeScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions.AddAwsEventBridgeScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.AwsEventBridgeSchedulerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsSnsTransportServiceCollectionExtensions.AddAwsSnsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IAwsSnsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsSnsTransportServiceCollectionExtensions.AddAwsSnsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IAwsSnsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AwsSqsCircuitBreakerServiceCollectionExtensions.AddAwsSqsCircuitBreaker(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsSqsCircuitBreakerServiceCollectionExtensions.AddAwsSqsCircuitBreaker(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.AwsSqs.AwsSqsCircuitBreakerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AwsSqsRetryPolicyServiceCollectionExtensions.AddAwsSqsRetryPolicy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsSqsRetryPolicyServiceCollectionExtensions.AddAwsSqsRetryPolicy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.AwsSqs.AwsSqsRetryOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsSqsTransportServiceCollectionExtensions.AddAwsSqsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AwsSqsTransportServiceCollectionExtensions.AddAwsSqsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CloudWatchMetricsServiceCollectionExtensions.AddAwsCloudWatchMetricsExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CloudWatchMetricsServiceCollectionExtensions.AddAwsCloudWatchMetricsExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.AwsSqs.CloudWatchMetricsOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CloudWatchMetricsServiceCollectionExtensions.AddAwsCloudWatchMetricsExporter<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CloudWatchMetricsServiceCollectionExtensions.AddAwsCloudWatchMetricsExporter<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.AwsSqs.CloudWatchMetricsOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderAwsSqsExtensions.UseAwsSqs(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderAwsSqsExtensions.UseAwsSqs(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! name, System.Action<Excalibur.Dispatch.Transport.Aws.IAwsSqsTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPolling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPolling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Transport.Aws.LongPollingOptions! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPolling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPolling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPolling<TStrategy>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPollingWithMetrics<TMetricsCollector>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Transport.Aws.LongPollingConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPolling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.LongPollingOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPolling<TStrategy>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Transport.Aws.LongPollingOptions! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LongPollingServiceCollectionExtensions.AddAwsLongPollingWithMetrics<TMetricsCollector>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Transport.Aws.LongPollingOptions! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsBatchProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsBatchProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.SqsBatchOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsChannelAdapter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsChannelAdapter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.SqsChannelOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsChannelInfrastructure<TProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.SqsChannelInfrastructureOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsChannelProcessor<TProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsChannelProcessor<TProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.SqsProcessorOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsLongPollingReceiver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.LongPollingOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsLongPollingReceiver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsLongPollingReceiver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Aws.ChannelLongPollingOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsBatchOptions.DefaultSendBatchWindow -> System.TimeSpan
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsBatchOptions.MaxRecommendedSendBatchWindow -> System.TimeSpan
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsBatchOptions.MinSendBatchWindow -> System.TimeSpan
@@ -1569,12 +1601,3 @@ static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.MaxMessageRe
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.MaxVisibilityTimeout -> System.TimeSpan
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.MinMessageRetentionPeriod -> System.TimeSpan
 static readonly Excalibur.Dispatch.Transport.Aws.AwsSqsQueueOptions.MinVisibilityTimeout -> System.TimeSpan
-static Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions.AddAwsEventBridgeScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AwsSqsCircuitBreakerServiceCollectionExtensions.AddAwsSqsCircuitBreaker(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AwsSqsRetryPolicyServiceCollectionExtensions.AddAwsSqsRetryPolicy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.CloudWatchMetricsServiceCollectionExtensions.AddAwsCloudWatchMetricsExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.CloudWatchMetricsServiceCollectionExtensions.AddAwsCloudWatchMetricsExporter<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsBatchProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsChannelAdapter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsChannelProcessor<TProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SqsChannelServiceCollectionExtensions.AddSqsLongPollingReceiver(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

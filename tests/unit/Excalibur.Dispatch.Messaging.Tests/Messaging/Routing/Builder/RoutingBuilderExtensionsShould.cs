@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing.Builder;
 /// <summary>
 /// Unit tests for <see cref="RoutingBuilderExtensions"/> (UseRouting DI registration).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RoutingBuilderExtensionsShould
 {
 	#region UseRouting validation tests

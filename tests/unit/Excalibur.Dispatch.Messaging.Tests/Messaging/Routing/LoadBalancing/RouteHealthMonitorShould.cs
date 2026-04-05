@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing.LoadBalancing;
 /// Unit tests for <see cref="RouteHealthMonitor"/>.
 /// Tests TCP health check and queue health check functionality implemented in Sprint 399.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RouteHealthMonitorShould : IDisposable
 {
 	private readonly ILogger<RouteHealthMonitor> _logger;

@@ -51,7 +51,7 @@ public sealed class DeadLetterQueueMetrics : IDeadLetterQueueMetrics, IDisposabl
 	public Meter Meter { get; }
 
 	/// <inheritdoc />
-	public void RecordEnqueued(string messageType, string reason, string? sourceQueue = null)
+	public void RecordEnqueued(string messageType, string reason, string? sourceQueue)
 	{
 		var tags = new List<KeyValuePair<string, object?>>
 		{
@@ -82,7 +82,7 @@ public sealed class DeadLetterQueueMetrics : IDeadLetterQueueMetrics, IDisposabl
 	}
 
 	/// <inheritdoc />
-	public void UpdateDepth(long depth, string? queueName = null)
+	public void UpdateDepth(long depth, string? queueName)
 	{
 		var name = queueName ?? DefaultQueueName;
 		_queueDepths[name] = depth;

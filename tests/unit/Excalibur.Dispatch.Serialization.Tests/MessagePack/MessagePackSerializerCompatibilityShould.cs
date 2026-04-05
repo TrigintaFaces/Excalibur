@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// Cross-serializer compatibility tests to verify data can be shared between
 /// the consolidated <see cref="MpkSerializer"/> and native MessagePack.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 {
 	#region Serializer-to-Native Compatibility

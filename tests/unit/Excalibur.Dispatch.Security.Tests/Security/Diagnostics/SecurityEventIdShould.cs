@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Priority", "0")]
 public sealed class SecurityEventIdShould : UnitTestBase
 {

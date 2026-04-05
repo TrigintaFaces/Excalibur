@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// <remarks>
 /// Sprint 698 T.7 (i4nq8): Verifies keyed DI registration pattern for InMemory persistence.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

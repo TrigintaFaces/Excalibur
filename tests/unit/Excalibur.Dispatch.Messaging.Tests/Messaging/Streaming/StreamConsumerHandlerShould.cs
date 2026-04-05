@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Streaming;
 /// <summary>
 /// Tests for <see cref="IStreamConsumerHandler{TDocument}"/> interface and dispatcher integration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StreamConsumerHandlerShould
 {
 	[Fact]

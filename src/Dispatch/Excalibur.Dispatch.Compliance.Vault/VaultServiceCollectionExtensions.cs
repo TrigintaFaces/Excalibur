@@ -42,8 +42,11 @@ public static class VaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Configure options
-		_ = services.Configure(configure);
+		// Configure options with validation
+		_ = services.AddOptions<VaultOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
@@ -101,7 +104,10 @@ public static class VaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configurationSection);
 
-		_ = services.Configure<VaultOptions>(options => configurationSection.Bind(options));
+		_ = services.AddOptions<VaultOptions>()
+			.Configure(options => configurationSection.Bind(options))
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();

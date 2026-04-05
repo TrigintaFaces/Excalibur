@@ -6,8 +6,8 @@ using Excalibur.Dispatch.Validation;
 
 namespace Excalibur.Dispatch.Tests.Validation;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FieldConstraintsShould
 {
 	// Test message with various typed properties

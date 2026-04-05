@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Tests.Performance;
 /// Sprint 455 - S455.5: Unit tests for auto-freeze functionality.
 /// Tests the hosted service that automatically freezes caches on ApplicationStarted.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class DispatchCacheOptimizationHostedServiceShould : IDisposable
 {

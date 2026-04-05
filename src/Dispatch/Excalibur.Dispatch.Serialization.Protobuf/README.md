@@ -10,16 +10,6 @@ Provides Protocol Buffers (Protobuf) serialization for:
 - High-performance binary protocols
 - External systems using `.proto` schema definitions
 
-## Requirements Alignment
-
-This package satisfies the following framework requirements:
-
-- **R0.14**: Serializer segregation (opt-in package, NOT in Excalibur.Dispatch)
-- **R0.5**: Transitive bloat guard (pay-for-play; only referenced when explicitly needed)
-- **R9.44**: Internal wire uses MemoryPack (Core unchanged; Protobuf is opt-in only)
-- **R9.46**: Opt-in binary alternatives (this package provides Protobuf as opt-in)
-- **R9.47**: AOT/trim safety (source-generated Protobuf types are trim-safe)
-
 ## Installation
 
 ```bash
@@ -28,29 +18,19 @@ dotnet add package Excalibur.Dispatch.Serialization.Protobuf
 
 ## Usage
 
-### Basic Registration
+One call does everything -- DI registration, serializer registry entry, and setting Protobuf as the current serializer:
 
 ```csharp
-using Excalibur.Dispatch.Serialization.Protobuf;
-
-// In your service configuration (Program.cs or Startup.cs):
-services.AddDispatch()
-    .AddProtobufSerialization(); // Opt-in to Protobuf support
+services.AddProtobufSerializer();
 ```
 
 ### Configure Protobuf Options
 
 ```csharp
-services.AddProtobufSerialization(options =>
+services.AddProtobufSerializer(opts =>
 {
     // Wire format: Binary (default) or JSON
-    options.WireFormat = ProtobufWireFormat.Binary;
-
-    // Ignore missing fields during deserialization (default: true)
-    options.IgnoreMissingFields = true;
-
-    // Preserve unknown fields (default: false)
-    options.PreserveUnknownFields = false;
+    opts.WireFormat = ProtobufWireFormat.Binary;
 });
 ```
 
@@ -68,40 +48,14 @@ public partial class UserCreatedEvent : IMessage<UserCreatedEvent>
 }
 ```
 
-### Serialization Example
-
-```csharp
-using Excalibur.Dispatch.Abstractions.Serialization;
-
-public class UserEventHandler
-{
-    private readonly IMessageSerializer _serializer;
-
-    public UserEventHandler(IMessageSerializer serializer)
-    {
-        _serializer = serializer;
-    }
-
-    public async Task HandleAsync(UserCreatedEvent evt, CancellationToken ct)
-    {
-        // Serialize to binary Protobuf
-        byte[] data = _serializer.Serialize(evt);
-
-        // Deserialize from binary
-        var deserialized = _serializer.Deserialize<UserCreatedEvent>(data);
-    }
-}
-```
-
 ## Package Dependencies
 
 - **Google.Protobuf** - Protocol Buffers runtime
 - **Excalibur.Dispatch.Abstractions** - Core contracts only (no Excalibur.Dispatch dependency)
-- **MemoryPack** - Used internally per R9.44 (envelope/headers remain MemoryPack)
 
 ## AOT Compatibility
 
-✅ **Native AOT compatible** with source-generated Protobuf types.
+**Native AOT compatible** with source-generated Protobuf types.
 
 Ensure your `.proto` files are compiled with `protoc` to generate C# code, and the generated types will be trim-safe.
 
@@ -110,7 +64,7 @@ Ensure your `.proto` files are compiled with `protoc` to generate C# code, and t
 ### Binary (Default - Recommended)
 
 ```csharp
-options.WireFormat = ProtobufWireFormat.Binary;
+opts.WireFormat = ProtobufWireFormat.Binary;
 ```
 
 - Compact binary format
@@ -120,7 +74,7 @@ options.WireFormat = ProtobufWireFormat.Binary;
 ### JSON
 
 ```csharp
-options.WireFormat = ProtobufWireFormat.Json;
+opts.WireFormat = ProtobufWireFormat.Json;
 ```
 
 - Human-readable JSON representation
@@ -136,8 +90,8 @@ options.WireFormat = ProtobufWireFormat.Json;
 - You need schema evolution with backward/forward compatibility
 
 **Do NOT use Protobuf when:**
-- Internal Excalibur.Dispatch messaging (use MemoryPack - the default)
-- Public HTTP/REST APIs (use System.Text.Json per R9.45)
+- Internal Excalibur.Dispatch messaging (use MemoryPack or JSON)
+- Public HTTP/REST APIs (use System.Text.Json)
 - No Protobuf schema requirements exist
 
 ## Architecture Notes
@@ -146,17 +100,14 @@ Per Excalibur framework requirements:
 
 1. **Excalibur.Dispatch MUST NOT reference this package** (R0.14 compliance)
 2. **This package is pay-for-play** (R0.5: no transitive bloat)
-3. **MemoryPack remains the internal wire format** (R9.44)
-4. **System.Text.Json is used for public edges** (R9.45)
-5. **This package is opt-in only** (R9.46)
+3. **System.Text.Json is the default serializer** (ADR-295)
+4. **This package is opt-in only** (R9.46)
 
 ## Performance Characteristics
 
-- **Serialization**: ~100-500 ns/op (binary), ~1-5 μs/op (JSON)
+- **Serialization**: ~100-500 ns/op (binary), ~1-5 us/op (JSON)
 - **Allocations**: Minimal (reuses buffers where possible)
 - **Throughput**: ~1-5 million msg/sec (binary), ~200k-1M msg/sec (JSON)
-
-Benchmark results available in: `management/perf/perf-baselines.json`
 
 ## Schema Evolution
 

@@ -79,8 +79,10 @@ public static class ExcaliburHostingServiceCollectionExtensions
 		// Ensure Dispatch primitives are registered (idempotent via TryAdd*)
 		_ = services.AddDispatch();
 
-		// Register ExcaliburOptions so IOptions<ExcaliburOptions> is resolvable from DI
-		_ = services.Configure<ExcaliburOptions>(_ => { });
+		// Register ExcaliburOptions with ValidateOnStart so DataAnnotations are validated at startup
+		_ = services.AddOptions<ExcaliburOptions>()
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		var builder = new ExcaliburBuilder(services);
 		configure(builder);

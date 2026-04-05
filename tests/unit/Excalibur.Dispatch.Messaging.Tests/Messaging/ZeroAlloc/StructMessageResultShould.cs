@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ZeroAlloc;
 /// <summary>
 ///     Tests for the <see cref="StructMessageResult" /> struct.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class StructMessageResultShould
 {
@@ -101,7 +101,7 @@ public sealed class StructMessageResultShould
 /// <summary>
 ///     Tests for the <see cref="StructMessageResult{T}" /> generic struct.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class StructMessageResultOfTShould
 {
 	[Fact]

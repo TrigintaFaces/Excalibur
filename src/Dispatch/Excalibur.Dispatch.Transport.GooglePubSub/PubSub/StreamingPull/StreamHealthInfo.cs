@@ -27,7 +27,7 @@ public sealed class StreamHealthInfo(string streamId)
 	public string StreamId { get; } = streamId ?? throw new ArgumentNullException(nameof(streamId));
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether the stream is connected.
+	/// Gets or sets a value indicating whether the stream is connected.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether the stream is connected.

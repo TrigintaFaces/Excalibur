@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Datadog;
 /// Unit tests for <see cref="DatadogAuditLoggingEventId"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 public sealed class DatadogAuditLoggingEventIdShould
 {
 	#region Event ID Value Tests

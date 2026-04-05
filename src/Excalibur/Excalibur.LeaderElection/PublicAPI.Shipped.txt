@@ -1,83 +1,4 @@
 #nullable enable
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulAcquiredLeadership = 181014 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulAlreadyRunning = 181001 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulCannotAcquireWithoutSession = 181013 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulCreatedSession = 181009 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulDestroyedSession = 181011 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorAcquiringLeadership = 181016 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorDuringMonitoring = 181022 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorDuringRenewal = 181021 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorGettingCandidateHealth = 181008 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorGettingCurrentLeader = 181004 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorReleasingLeadership = 181018 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToAcquireLeadership = 181015 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToCreateSession = 181010 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToDeserializeHealth = 181007 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToDestroySession = 181012 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToUpdateHealth = 181005 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulReleasedLeadership = 181017 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulRenewedSession = 181020 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulRetryAttempt = 181000 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulSessionRenewalFailed = 181019 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulStartingElection = 181002 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulSteppingDownUnhealthy = 181006 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulStoppingElection = 181003 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryAcquiredLeadership = 180004 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryHealthUpdated = 180002 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryRenewalError = 180006 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryRenewedLease = 180005 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryStarted = 180000 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemorySteppedDownUnhealthy = 180003 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryStopped = 180001 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAcquiredLeadership = 182017 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAlreadyRunning = 182002 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAttemptingAcquire = 182013 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesCreatingLease = 182011 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesElectionLoopError = 182012 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesGetHealthFailed = 182008 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesHealthAnnotationParseFailed = 182007 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesInitialized = 182001 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaderChanged = 182020 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaseExists = 182010 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaseExpired = 182015 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLostLeadership = 182019 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLostRace = 182018 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesNamespaceReadFailed = 182009 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesReleaseError = 182024 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesReleasingLeadership = 182023 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewalError = 182022 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewalFailed = 182021 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewedLease = 182016 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewingLease = 182014 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRetryWarning = 182000 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceBecameLeader = 182102 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceLeaderChanged = 182104 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceLostLeadership = 182103 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceStarting = 182100 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceStopping = 182101 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStarting = 182003 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesSteppingDownUnhealthy = 182006 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStoppedNotLeader = 182005 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStopping = 182004 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisBecameLeader = 183008 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockAcquisitionError = 183003 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockAcquisitionFailed = 183002 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockReleased = 183004 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockReleaseError = 183005 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLostLeadership = 183009 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisRenewalError = 183006 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisRenewalWarning = 183007 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisStarting = 183000 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisStopping = 183001 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerBecameLeader = 184007 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockAcquisitionError = 184003 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockAcquisitionFailed = 184002 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockReleased = 184004 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockReleaseError = 184005 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLostLeadership = 184008 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerRenewalError = 184006 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStarting = 184000 -> int
-const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStopping = 184001 -> int
 Excalibur.Dispatch.LeaderElection.CandidateHealth (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateHealth() -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateId.get -> string! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
@@ -186,17 +107,96 @@ Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtension
 Microsoft.Extensions.DependencyInjection.LeaderElectionHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulAcquiredLeadership = 181014 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulAlreadyRunning = 181001 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulCannotAcquireWithoutSession = 181013 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulCreatedSession = 181009 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulDestroyedSession = 181011 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorAcquiringLeadership = 181016 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorDuringMonitoring = 181022 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorDuringRenewal = 181021 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorGettingCandidateHealth = 181008 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorGettingCurrentLeader = 181004 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorReleasingLeadership = 181018 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToAcquireLeadership = 181015 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToCreateSession = 181010 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToDeserializeHealth = 181007 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToDestroySession = 181012 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToUpdateHealth = 181005 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulReleasedLeadership = 181017 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulRenewedSession = 181020 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulRetryAttempt = 181000 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulSessionRenewalFailed = 181019 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulStartingElection = 181002 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulSteppingDownUnhealthy = 181006 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulStoppingElection = 181003 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryAcquiredLeadership = 180004 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryHealthUpdated = 180002 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryRenewalError = 180006 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryRenewedLease = 180005 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryStarted = 180000 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemorySteppedDownUnhealthy = 180003 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryStopped = 180001 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAcquiredLeadership = 182017 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAlreadyRunning = 182002 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAttemptingAcquire = 182013 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesCreatingLease = 182011 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesElectionLoopError = 182012 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesGetHealthFailed = 182008 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesHealthAnnotationParseFailed = 182007 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesInitialized = 182001 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaderChanged = 182020 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaseExists = 182010 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaseExpired = 182015 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLostLeadership = 182019 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLostRace = 182018 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesNamespaceReadFailed = 182009 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesReleaseError = 182024 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesReleasingLeadership = 182023 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewalError = 182022 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewalFailed = 182021 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewedLease = 182016 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewingLease = 182014 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRetryWarning = 182000 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceBecameLeader = 182102 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceLeaderChanged = 182104 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceLostLeadership = 182103 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceStarting = 182100 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceStopping = 182101 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStarting = 182003 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesSteppingDownUnhealthy = 182006 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStoppedNotLeader = 182005 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStopping = 182004 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisBecameLeader = 183008 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockAcquisitionError = 183003 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockAcquisitionFailed = 183002 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockReleaseError = 183005 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockReleased = 183004 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLostLeadership = 183009 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisRenewalError = 183006 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisRenewalWarning = 183007 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisStarting = 183000 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisStopping = 183001 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerBecameLeader = 184007 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockAcquisitionError = 184003 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockAcquisitionFailed = 184002 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockReleaseError = 184005 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockReleased = 184004 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLostLeadership = 184008 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerRenewalError = 184006 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStarting = 184000 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStopping = 184001 -> int
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithFencingTokens(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithHealthChecks(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithOptions(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtensions.AddLeaderElection(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtensions.AddLeaderElection(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>? configure = null) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionHealthChecksBuilderExtensions.AddLeaderElectionHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "leader-election", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.LeaderElection.LeaderElectionOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Watch.LeaderWatchOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.LeaderElection.LeaderElectionOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtensions.AddLeaderElection(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
-static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Watch.LeaderWatchOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

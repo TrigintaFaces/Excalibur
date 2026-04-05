@@ -13,7 +13,7 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
-[Trait("Feature", "DependencyInjection")]
+[Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class DynamoDbAuthorizationExtensionsShould
 {
 	#region AddDynamoDbAuthorization with Action Tests

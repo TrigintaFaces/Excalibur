@@ -34,7 +34,7 @@ public sealed class ProcessorStatistics
 	public int ActiveProcessingThreads { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether the processor is shutting down.
+	/// Gets or sets a value indicating whether the processor is shutting down.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether the processor is shutting down.

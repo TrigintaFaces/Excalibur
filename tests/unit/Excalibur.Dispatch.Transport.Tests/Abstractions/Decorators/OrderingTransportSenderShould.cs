@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Decorators;
 /// Tests for <see cref="OrderingTransportSender"/>.
 /// Verifies ordering key is set in message properties before delegation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class OrderingTransportSenderShould
 {
 	private readonly ITransportSender _innerSender = A.Fake<ITransportSender>();

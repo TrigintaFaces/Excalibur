@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// <summary>
 /// Unit tests for <see cref="SkipBehavior"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class SkipBehaviorShould
 {

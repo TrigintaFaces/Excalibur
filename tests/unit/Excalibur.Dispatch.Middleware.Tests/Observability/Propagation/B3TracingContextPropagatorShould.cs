@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Propagation;
 /// <summary>
 /// Unit tests for <see cref="B3TracingContextPropagator"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class B3TracingContextPropagatorShould : UnitTestBase
 {

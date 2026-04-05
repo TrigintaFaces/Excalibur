@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Conformance.TransportProvider;
 /// </summary>
 /// <remarks>
 ///     This abstract class provides a comprehensive test suite for validating that transport health checker implementations conform to the
-///     expected behavior and contracts defined by the ITransportHealthChecker interface. Concrete test classes should inherit from this
-///     class and implement the factory methods to provide the specific transport health checker under test.
+///     expected behavior and contracts defined by the ITransportHealthChecker interface. Concrete test classes should inherit from this class
+///     and implement the factory methods to provide the specific transport health checker under test.
 /// </remarks>
 [Trait("Component", "Transport")]
 public abstract class TransportHealthCheckerConformanceTests
@@ -35,6 +35,16 @@ public abstract class TransportHealthCheckerConformanceTests
 	///     Gets the expected health check categories supported by the checker.
 	/// </summary>
 	protected virtual TransportHealthCheckCategory ExpectedCategories => TransportHealthCheckCategory.All;
+
+	/// <summary>
+	///     Gets the health metrics interface from the checker, asserting it is available.
+	/// </summary>
+	private static ITransportHealthMetrics GetRequiredHealthMetrics(ITransportHealthChecker checker)
+	{
+		var metrics = checker as ITransportHealthMetrics;
+		metrics.ShouldNotBeNull("Checker should implement ITransportHealthMetrics");
+		return metrics;
+	}
 
 	[Fact]
 	public void NameShouldNotBeNullOrEmpty()
@@ -211,9 +221,10 @@ public abstract class TransportHealthCheckerConformanceTests
 	{
 		// Arrange
 		var checker = CreateHealthChecker();
+		var healthMetrics = GetRequiredHealthMetrics(checker);
 
 		// Act
-		var metrics = await checker.GetHealthMetricsAsync(CancellationToken.None);
+		var metrics = await healthMetrics.GetHealthMetricsAsync(CancellationToken.None);
 
 		// Assert
 		_ = metrics.ShouldNotBeNull();
@@ -234,11 +245,12 @@ public abstract class TransportHealthCheckerConformanceTests
 	{
 		// Arrange
 		var checker = CreateHealthChecker();
+		var healthMetrics = GetRequiredHealthMetrics(checker);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(() => checker.GetHealthMetricsAsync(cts.Token)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<OperationCanceledException>(() => healthMetrics.GetHealthMetricsAsync(cts.Token)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -246,14 +258,15 @@ public abstract class TransportHealthCheckerConformanceTests
 	{
 		// Arrange
 		var checker = CreateHealthChecker();
+		var healthMetrics = GetRequiredHealthMetrics(checker);
 		var context = CreateTestContext();
 
 		// Get initial metrics
-		var initialMetrics = await checker.GetHealthMetricsAsync(CancellationToken.None);
+		var initialMetrics = await healthMetrics.GetHealthMetricsAsync(CancellationToken.None);
 
 		// Act
 		_ = await checker.CheckHealthAsync(context, CancellationToken.None);
-		var updatedMetrics = await checker.GetHealthMetricsAsync(CancellationToken.None);
+		var updatedMetrics = await healthMetrics.GetHealthMetricsAsync(CancellationToken.None);
 
 		// Assert
 		_ = updatedMetrics.ShouldNotBeNull();
@@ -282,9 +295,10 @@ public abstract class TransportHealthCheckerConformanceTests
 	{
 		// Arrange
 		var checker = CreateHealthChecker();
+		var healthMetrics = GetRequiredHealthMetrics(checker);
 
 		// Act
-		var metrics = await checker.GetHealthMetricsAsync(CancellationToken.None);
+		var metrics = await healthMetrics.GetHealthMetricsAsync(CancellationToken.None);
 
 		// Assert
 		_ = metrics.ShouldNotBeNull();
@@ -296,9 +310,10 @@ public abstract class TransportHealthCheckerConformanceTests
 	{
 		// Arrange
 		var checker = CreateHealthChecker();
+		var healthMetrics = GetRequiredHealthMetrics(checker);
 
 		// Act
-		var metrics = await checker.GetHealthMetricsAsync(CancellationToken.None);
+		var metrics = await healthMetrics.GetHealthMetricsAsync(CancellationToken.None);
 
 		// Assert
 		_ = metrics.ShouldNotBeNull();

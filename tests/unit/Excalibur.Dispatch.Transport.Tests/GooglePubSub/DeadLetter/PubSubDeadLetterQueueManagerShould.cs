@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 /// Unit tests for <see cref="PubSubDeadLetterQueueManager"/> aligned to the
 /// shared <see cref="IDeadLetterQueueManager"/> interface (Sprint 526, S526.7).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class PubSubDeadLetterQueueManagerShould : IDisposable
 {
 	private readonly SubscriberServiceApiClient _fakeSubscriber;

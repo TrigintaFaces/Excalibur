@@ -21,6 +21,7 @@ using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
 using IMessageResult = Excalibur.Dispatch.Abstractions.IMessageResult;
 using InboxOptions = Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions;
 using MessageKinds = Excalibur.Dispatch.Abstractions.MessageKinds;
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Middleware.Inbox;
 
@@ -406,11 +407,11 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 					}
 
 					LogMessageBeingProcessed(messageId);
-					return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: true);
+					return MR.Success();
 
 				case InboxStatus.Processed:
 					LogMessageAlreadyProcessed(messageId);
-					return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: true);
+					return MR.Success();
 
 				case InboxStatus.Failed:
 					LogMessagePreviouslyFailed(messageId);
@@ -493,7 +494,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		if (isDuplicate)
 		{
 			LogMessageIsDuplicate(_logger, messageId);
-			return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: true);
+			return MR.Success();
 		}
 
 		try

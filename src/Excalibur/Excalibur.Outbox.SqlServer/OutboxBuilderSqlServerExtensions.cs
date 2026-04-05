@@ -210,6 +210,7 @@ public static class OutboxBuilderSqlServerExtensions
 
 		builder.Services.TryAddSingleton<SqlServerDeadLetterQueue>();
 		builder.Services.TryAddSingleton<IDeadLetterQueue>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
+		builder.Services.TryAddSingleton<IDeadLetterQueueAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 
 		return builder;
 	}

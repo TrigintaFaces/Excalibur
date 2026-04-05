@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Encryption;
 /// ShouldEncryptMessage logic, ISensitiveMessage detection, excluded types, encryption/decryption
 /// flow, missing payload, and EncryptionException handling.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class MessageEncryptionMiddlewareDepthShould
 {
 	private readonly IMessageEncryptionService _encryptionService = A.Fake<IMessageEncryptionService>();

@@ -44,8 +44,4 @@
     <PackageReference Include="Excalibur.EventSourcing.SqlServer" VersionOverride="$(ExcaliburPackageVersion)" />
     <PackageReference Include="Excalibur.EventSourcing.Postgres" VersionOverride="$(ExcaliburPackageVersion)" />
   </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
-  </ItemGroup>
 </Project>

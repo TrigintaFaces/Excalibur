@@ -6,7 +6,7 @@ namespace Company.ExcaliburSaga.Sagas;
 /// Order processing saga that coordinates payment, inventory, and shipping.
 /// Demonstrates a multi-step process manager with compensation logic.
 /// </summary>
-public sealed class OrderSaga : ISagaDefinition<OrderSagaData>
+public sealed class OrderSaga : ISagaDefinition<OrderSagaData>, ISagaDefinitionLifecycle<OrderSagaData>
 {
     /// <inheritdoc />
     public string Name => "OrderProcessing";

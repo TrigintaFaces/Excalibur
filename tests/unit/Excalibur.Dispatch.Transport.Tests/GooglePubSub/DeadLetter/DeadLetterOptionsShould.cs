@@ -5,7 +5,7 @@ using GoogleDeadLetterOptions = Excalibur.Dispatch.Transport.Google.DeadLetterOp
 
 namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.DeadLetter;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
 public sealed class DeadLetterOptionsShould
 {

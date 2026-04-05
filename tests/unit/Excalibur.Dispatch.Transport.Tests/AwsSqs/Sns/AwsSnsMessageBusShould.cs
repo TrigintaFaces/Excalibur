@@ -12,8 +12,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sns;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AwsSnsMessageBusShould : IAsyncDisposable
 {
 	private readonly IAmazonSimpleNotificationService _snsClient;

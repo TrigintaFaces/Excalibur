@@ -17,7 +17,7 @@ namespace Excalibur.Data.Tests.Firestore;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Firestore")]
-[Trait("Feature", "DependencyInjection")]
+[Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class FirestoreInboxExtensionsShould
 {
 	#region AddFirestoreInboxStore with Action Tests

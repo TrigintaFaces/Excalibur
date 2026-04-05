@@ -195,7 +195,10 @@ internal sealed partial class LocalMessageBus(
 		var messageType = action.GetType();
 		if (!TryGetHandlerEntry(messageType, out var entry))
 		{
-			throw new InvalidOperationException($"No handler registered for action {messageType.Name}");
+			throw new InvalidOperationException(
+				$"No handler registered for action '{messageType.FullName}'. " +
+				$"Did you forget to call services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly))? " +
+				$"Alternatively, register the handler directly with services.AddTransient<IActionHandler<{messageType.Name}>, YourHandler>().");
 		}
 
 		var handler = ActivateHandler(entry.HandlerType, context);
@@ -359,7 +362,10 @@ internal sealed partial class LocalMessageBus(
 		var messageType = doc.GetType();
 		if (!TryGetHandlerEntry(messageType, out var entry))
 		{
-			throw new InvalidOperationException($"No handler registered for document {messageType.Name}");
+			throw new InvalidOperationException(
+				$"No handler registered for document '{messageType.FullName}'. " +
+				$"Did you forget to call services.AddDispatch(d => d.AddHandlersFromAssembly(typeof({messageType.Name}).Assembly))? " +
+				$"Alternatively, register the handler directly with services.AddTransient<IDocumentHandler<{messageType.Name}>, YourHandler>().");
 		}
 
 		var handler = ActivateHandler(entry.HandlerType, context);

@@ -84,16 +84,6 @@ public interface ITransportLifecycleManager
 	Task StopTransportAsync(string name, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Gets the transport adapter with the specified name.
-	/// </summary>
-	/// <param name="name">The name of the transport to retrieve.</param>
-	/// <returns>
-	/// The transport adapter if found; otherwise, <see langword="null"/>.
-	/// </returns>
-	/// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is null or empty.</exception>
-	ITransportAdapter? GetTransport(string name);
-
-	/// <summary>
 	/// Checks if a transport with the specified name is registered.
 	/// </summary>
 	/// <param name="name">The name of the transport to check.</param>
@@ -103,15 +93,17 @@ public interface ITransportLifecycleManager
 	/// </returns>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is null or empty.</exception>
 	bool IsRegistered(string name);
+}
 
-	/// <summary>
-	/// Checks if a transport with the specified name is currently running.
-	/// </summary>
-	/// <param name="name">The name of the transport to check.</param>
-	/// <returns>
-	/// <see langword="true"/> if the transport is registered and running;
-	/// otherwise, <see langword="false"/>.
-	/// </returns>
-	/// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is null or empty.</exception>
+/// <summary>
+/// Provides query operations for the transport lifecycle manager.
+/// Implementations should implement this alongside <see cref="ITransportLifecycleManager"/>.
+/// </summary>
+public interface ITransportLifecycleQuery
+{
+	/// <summary>Gets the transport adapter with the specified name.</summary>
+	ITransportAdapter? GetTransport(string name);
+
+	/// <summary>Checks if a transport with the specified name is currently running.</summary>
 	bool IsRunning(string name);
 }

@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// Depth coverage tests for <see cref="GrpcTransportOptions"/> covering
 /// DataAnnotations validation, Range constraint edge cases, and Required attribute behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportOptionsDepthShould
 {
 	[Fact]

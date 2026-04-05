@@ -175,7 +175,7 @@ public sealed partial class ThrottlingMiddleware : IDispatchMiddleware, IAsyncDi
 		return new CombinedRateLimitLease(specificLease, globalLease);
 	}
 
-	private static RateLimiter CreateRateLimiter(RateLimitConfiguration config) =>
+	private static RateLimiter CreateRateLimiter(RateLimitOptions config) =>
 		config.Algorithm switch
 		{
 			MiddlewareRateLimitAlgorithm.TokenBucket => new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions

@@ -471,8 +471,8 @@ public static partial class ResultFactoryRegistry
     {
         return result switch
         {
-            global::Excalibur.Dispatch.Messaging.MessageResult<Guid> r => r.ReturnValue,
-            global::Excalibur.Dispatch.Messaging.MessageResult<OrderDto> r => r.ReturnValue,
+            global::Excalibur.Dispatch.Abstractions.IMessageResult<Guid> r => r.ReturnValue,
+            global::Excalibur.Dispatch.Abstractions.IMessageResult<OrderDto> r => r.ReturnValue,
             _ => null
         };
     }
@@ -481,7 +481,7 @@ public static partial class ResultFactoryRegistry
 
 Under `#if AOT_ENABLED`, `FinalDispatchHandler.CreateTypedResult()` calls `ResultFactoryRegistry.GetFactory()` instead of using reflection. The existing `ResultFactoryCache` remains as the JIT fallback.
 
-**Generated code uses `MessageResult.Success<T>()`** — the `MessageResult<T>` type is constructed via static factory methods in the `Excalibur.Dispatch.Messaging.HighPerformance` namespace.
+**Generated code uses `IMessageResult<T>` interface matching** — return value extraction uses pattern matching on the `Excalibur.Dispatch.Abstractions.IMessageResult<T>` interface, accessing `ReturnValue` directly.
 
 ---
 

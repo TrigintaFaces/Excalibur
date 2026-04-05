@@ -6,14 +6,14 @@ using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class LongPollingServiceCollectionExtensionsShould
 {
 	[Fact]
 	public void ThrowWhenServicesIsNull_Configuration()
 	{
-		var config = new LongPollingConfiguration
+		var config = new LongPollingOptions
 		{
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
 		};
@@ -28,7 +28,7 @@ public sealed class LongPollingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsLongPolling((LongPollingConfiguration)null!));
+			services.AddAwsLongPolling((LongPollingOptions)null!));
 	}
 
 	[Fact]
@@ -44,7 +44,7 @@ public sealed class LongPollingServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsLongPolling((Action<LongPollingConfiguration>)null!));
+			services.AddAwsLongPolling((Action<LongPollingOptions>)null!));
 	}
 
 	[Fact]
@@ -52,17 +52,17 @@ public sealed class LongPollingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var config = new LongPollingConfiguration
+		var config = new LongPollingOptions
 		{
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-			EnableAdaptivePolling = true,
 		};
+		config.Adaptive.Enabled = true;
 
 		// Act
 		services.AddAwsLongPolling(config);
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(LongPollingConfiguration));
+		services.ShouldContain(sd => sd.ServiceType == typeof(LongPollingOptions));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ILongPollingStrategy));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IPollingMetricsCollector));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ILongPollingReceiver));
@@ -74,11 +74,11 @@ public sealed class LongPollingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var config = new LongPollingConfiguration
+		var config = new LongPollingOptions
 		{
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-			EnableAdaptivePolling = false,
 		};
+		config.Adaptive.Enabled = false;
 
 		// Act
 		services.AddAwsLongPolling(config);
@@ -102,7 +102,7 @@ public sealed class LongPollingServiceCollectionExtensionsShould
 		});
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(LongPollingConfiguration));
+		services.ShouldContain(sd => sd.ServiceType == typeof(LongPollingOptions));
 	}
 
 	[Fact]
@@ -110,7 +110,7 @@ public sealed class LongPollingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var config = new LongPollingConfiguration
+		var config = new LongPollingOptions
 		{
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
 		};

@@ -10,7 +10,7 @@ namespace Excalibur.Data.CosmosDb.Tests.Projections;
 /// Unit tests for <see cref="CosmosDbProjectionRegistrar"/> and <c>AddCosmosDbProjections</c> batch DI extensions.
 /// Validates both string-based and Action-based overloads.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
 public sealed class CosmosDbProjectionRegistrarShould : UnitTestBase
 {

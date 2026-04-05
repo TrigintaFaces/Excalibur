@@ -591,10 +591,8 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	}
 
 	/// <inheritdoc/>
-#pragma warning disable IDE0060 // Parameter required by interface contract
 	public Task<IDictionary<string, object>> GetDocumentStoreStatisticsAsync(
 		CancellationToken cancellationToken)
-#pragma warning restore IDE0060
 	{
 		EnsureInitialized();
 

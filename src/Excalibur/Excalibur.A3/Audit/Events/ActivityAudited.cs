@@ -95,7 +95,7 @@ public sealed record ActivityAudited : DomainEvent, IActivityAudited
 	public DateTimeOffset ActivityTimestamp { get; init; }
 
 	/// <inheritdoc />
-	DateTimeOffset IActivityAudited.Timestamp
+	DateTimeOffset IAuditContext.Timestamp
 	{
 		get => ActivityTimestamp;
 		set => _ = value; // Immutable record — timestamp is set via constructor only

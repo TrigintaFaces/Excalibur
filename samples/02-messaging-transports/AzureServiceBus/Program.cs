@@ -54,7 +54,6 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
 	// Configure JSON serialization
-	_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 
 	// Route OrderPlacedEvent to Azure Service Bus transport
 	_ = dispatch.UseRouting(routing =>

@@ -220,9 +220,9 @@ public sealed class PackageDiSmokeTests
 		// ══════════════════════════════════════════════════════════
 
 		yield return Reg("Excalibur.Dispatch.Serialization.MessagePack", s =>
-			s.AddMessagePackSerialization());
+			s.AddMessagePackSerializer());
 		yield return Reg("Excalibur.Dispatch.Serialization.Protobuf", s =>
-			s.AddProtobufSerialization());
+			s.AddProtobufSerializer());
 
 		// ══════════════════════════════════════════════════════════
 		// DISPATCH TRANSPORT

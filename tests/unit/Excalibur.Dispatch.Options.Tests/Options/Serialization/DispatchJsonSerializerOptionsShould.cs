@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Tests.Options.Serialization;
 /// Unit tests for <see cref="DispatchJsonSerializerOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class DispatchJsonSerializerOptionsShould
 {

@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport.Builders;
 /// interface and checking the resulting options state.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsQueueBuilderShould : UnitTestBase
 {

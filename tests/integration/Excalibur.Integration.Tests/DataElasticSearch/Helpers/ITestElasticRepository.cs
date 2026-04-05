@@ -5,6 +5,6 @@ using Excalibur.Data.ElasticSearch;
 
 namespace Excalibur.Integration.Tests.DataElasticSearch.Helpers;
 
-public interface ITestElasticRepository : IElasticRepositoryBase<TestElasticDocument>
+public interface ITestElasticRepository : IElasticRepositoryBase<TestElasticDocument>, IElasticRepositoryBaseQuery<TestElasticDocument>
 {
 }

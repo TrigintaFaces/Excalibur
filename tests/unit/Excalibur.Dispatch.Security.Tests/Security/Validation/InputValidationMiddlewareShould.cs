@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Validation;
 /// <summary>
 /// Unit tests for <see cref="InputValidationMiddleware"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Validation")]
 public sealed class InputValidationMiddlewareShould
 {

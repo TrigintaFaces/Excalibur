@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 /// <summary>
 /// Unit tests for ChannelBatchUtilities to verify batch operations on channels.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class ChannelBatchUtilitiesShould
 {

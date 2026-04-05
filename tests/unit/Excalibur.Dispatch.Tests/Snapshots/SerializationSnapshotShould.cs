@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Snapshots;
 /// remains stable across changes. Uses direct JSON assertions instead of
 /// Verify snapshots to avoid interference from global scrubbing settings.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class SerializationSnapshotShould : UnitTestBase
 {
 	private static readonly JsonSerializerOptions JsonOptions = new()

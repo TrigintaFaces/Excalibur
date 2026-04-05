@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Options.DataAnnotations;
 /// Sprint 564 S564.57: Delivery + Performance + Middleware Options DataAnnotation coverage.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DeliveryPerformanceMiddlewareAnnotationsShould
 {
 	private static bool TryValidate(object instance, out ICollection<ValidationResult> results)
@@ -185,19 +185,19 @@ public sealed class DeliveryPerformanceMiddlewareAnnotationsShould
 	}
 
 	[Fact]
-	public void Inbox_Fail_WhenPerRunTotalIsZero()
+	public void InboxCapacity_Fail_WhenPerRunTotalIsZero()
 	{
-		var options = new InboxOptions { PerRunTotal = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(InboxOptions.PerRunTotal)));
+		var capacity = new InboxCapacityOptions { PerRunTotal = 0 };
+		TryValidate(capacity, out var results).ShouldBeFalse();
+		results.ShouldContain(r => r.MemberNames.Contains(nameof(InboxCapacityOptions.PerRunTotal)));
 	}
 
 	[Fact]
-	public void Inbox_Fail_WhenQueueCapacityIsZero()
+	public void InboxCapacity_Fail_WhenQueueCapacityIsZero()
 	{
-		var options = new InboxOptions { QueueCapacity = 0 };
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(InboxOptions.QueueCapacity)));
+		var capacity = new InboxCapacityOptions { QueueCapacity = 0 };
+		TryValidate(capacity, out var results).ShouldBeFalse();
+		results.ShouldContain(r => r.MemberNames.Contains(nameof(InboxCapacityOptions.QueueCapacity)));
 	}
 
 	#endregion

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 /// <see cref="DispatchServiceCollectionExtensions.AddDispatchWithDefaults"/>.
 /// Sprint 718 T.2 (5zzpvr): Coverage for S717 T.4 WithDefaults + T.3 zero-config.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class PipelineBuilderDefaultsShould
 {

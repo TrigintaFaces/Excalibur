@@ -18,7 +18,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// <summary>
 /// Handles schema evolution and migrations for Elasticsearch projections.
 /// </summary>
-public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, IDisposable
+public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvolutionHandlerAdmin, IDisposable
 {
 	private readonly ElasticsearchClient _client;
 	private readonly IIndexAliasManager _aliasManager;

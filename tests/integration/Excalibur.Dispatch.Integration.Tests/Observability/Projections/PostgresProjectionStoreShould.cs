@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 /// Tests all IProjectionStore operations including CRUD, filtering, pagination, and sorting.
 /// </summary>
 [Collection("Postgres Projection Store Tests")]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
@@ -583,6 +583,6 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 /// Ensures tests run sequentially to avoid database conflicts.
 /// </summary>
 [CollectionDefinition("Postgres Projection Store Tests")]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class PostgresProjectionStoreTestCollection : ICollectionFixture<PostgresFixture>;

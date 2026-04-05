@@ -282,7 +282,7 @@ app.MapHealthChecks("/health");
 
 ```csharp
 builder.Services.AddOpenTelemetry()
-    .WithTracing(b => b.AddSource("Excalibur.Dispatch.Observability"))
+    .WithTracing(b => b.AddSource("Excalibur.Dispatch"))
     .WithMetrics(b => b.AddDispatchMetrics());
 ```
 
@@ -456,7 +456,7 @@ public class MyHandler : IActionHandler<MyMessage>
 ```csharp
 builder.Services.AddHealthChecks().AddTransportHealthChecks();
 builder.Services.AddOpenTelemetry()
-    .WithTracing(b => b.AddSource("Excalibur.Dispatch.Observability"))
+    .WithTracing(b => b.AddSource("Excalibur.Dispatch"))
     .WithMetrics(b => b.AddDispatchMetrics());
 ```
 

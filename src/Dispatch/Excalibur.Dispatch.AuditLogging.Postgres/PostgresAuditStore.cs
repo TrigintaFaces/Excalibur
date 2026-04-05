@@ -46,7 +46,11 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 
 		if (string.IsNullOrEmpty(_options.ConnectionString))
 		{
-			throw new ArgumentException("ConnectionString is required.", nameof(options));
+			throw new ArgumentException(
+				$"'{nameof(PostgresAuditOptions)}.{nameof(PostgresAuditOptions.ConnectionString)}' is required. " +
+				$"Configure it via services.Configure<{nameof(PostgresAuditOptions)}>(config.GetSection(\"PostgresAudit\")) " +
+				"or set the ConnectionString property directly.",
+				nameof(options));
 		}
 
 		ValidateSqlIdentifier(_options.SchemaName, nameof(PostgresAuditOptions.SchemaName));

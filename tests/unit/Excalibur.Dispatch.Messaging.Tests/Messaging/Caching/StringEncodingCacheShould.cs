@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// Tests for Sprint 542 P0 fix S542.7 (bd-6vuk4):
 /// StringEncodingCache bare catch -> selective exception handling.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StringEncodingCacheShould : IDisposable
 {
 	private readonly StringEncodingCache _sut = new(maxCacheSize: 100);

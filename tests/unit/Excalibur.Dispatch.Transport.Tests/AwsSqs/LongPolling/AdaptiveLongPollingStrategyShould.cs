@@ -5,24 +5,25 @@ using Excalibur.Dispatch.Transport.Aws;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 {
-	private readonly LongPollingConfiguration _config;
+	private readonly LongPollingOptions _config;
 	private readonly AdaptiveLongPollingStrategy _strategy;
 
 	public AdaptiveLongPollingStrategyShould()
 	{
-		_config = new LongPollingConfiguration
+		_config = new LongPollingOptions
 		{
-			MaxWaitTimeSeconds = 20,
-			MinWaitTimeSeconds = 1,
-			MaxNumberOfMessages = 10,
-			VisibilityTimeoutSeconds = 30,
-			EnableAdaptivePolling = true,
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
 		};
+		_config.Polling.MaxWaitTimeSeconds = 20;
+		_config.Polling.MinWaitTimeSeconds = 1;
+		_config.Polling.MaxNumberOfMessages = 10;
+		_config.Visibility.VisibilityTimeoutSeconds = 30;
+		_config.Adaptive.Enabled = true;
+
 		_strategy = new AdaptiveLongPollingStrategy(_config);
 	}
 
@@ -36,14 +37,18 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 	public async Task ReturnMaxWaitTimeWhenAdaptivePollingDisabled()
 	{
 		// Arrange
-		_config.EnableAdaptivePolling = false;
-		using var strategy = new AdaptiveLongPollingStrategy(_config);
+		var config = new LongPollingOptions
+		{
+			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
+		};
+		config.Adaptive.Enabled = false;
+		using var strategy = new AdaptiveLongPollingStrategy(config);
 
 		// Act
 		var waitTime = await strategy.CalculateOptimalWaitTimeAsync();
 
 		// Assert
-		waitTime.ShouldBe(_config.MaxWaitTime);
+		waitTime.ShouldBe(config.Polling.MaxWaitTime);
 	}
 
 	[Fact]
@@ -62,7 +67,7 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 	{
 		// Act
 		await _strategy.RecordReceiveResultAsync(5, TimeSpan.FromSeconds(10));
-		var stats = await _strategy.GetStatisticsAsync();
+		var stats = await ((ILongPollingStrategyAdmin)_strategy).GetStatisticsAsync();
 
 		// Assert
 		stats.TotalReceives.ShouldBe(1);
@@ -75,7 +80,7 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 	{
 		// Act
 		await _strategy.RecordReceiveResultAsync(0, TimeSpan.FromSeconds(5));
-		var stats = await _strategy.GetStatisticsAsync();
+		var stats = await ((ILongPollingStrategyAdmin)_strategy).GetStatisticsAsync();
 
 		// Assert
 		stats.TotalReceives.ShouldBe(1);
@@ -134,8 +139,9 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 		await _strategy.RecordReceiveResultAsync(3, TimeSpan.FromSeconds(5));
 
 		// Act
-		await _strategy.ResetAsync();
-		var stats = await _strategy.GetStatisticsAsync();
+		var admin = (ILongPollingStrategyAdmin)_strategy;
+		await admin.ResetAsync();
+		var stats = await admin.GetStatisticsAsync();
 
 		// Assert
 		stats.TotalReceives.ShouldBe(0);
@@ -154,7 +160,7 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 		}
 
 		// Act
-		await _strategy.ResetAsync();
+		await ((ILongPollingStrategyAdmin)_strategy).ResetAsync();
 		var loadFactor = await _strategy.GetCurrentLoadFactorAsync();
 
 		// Assert
@@ -186,7 +192,7 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 		}
 
 		// Act
-		var stats = await _strategy.GetStatisticsAsync();
+		var stats = await ((ILongPollingStrategyAdmin)_strategy).GetStatisticsAsync();
 
 		// Assert — should have saved some API calls
 		stats.ApiCallsSaved.ShouldBeGreaterThan(0);
@@ -196,7 +202,7 @@ public sealed class AdaptiveLongPollingStrategyShould : IDisposable
 	public async Task ReportCorrectCurrentWaitTime()
 	{
 		// Act
-		var stats = await _strategy.GetStatisticsAsync();
+		var stats = await ((ILongPollingStrategyAdmin)_strategy).GetStatisticsAsync();
 
 		// Assert
 		stats.CurrentWaitTime.TotalSeconds.ShouldBeGreaterThan(0);

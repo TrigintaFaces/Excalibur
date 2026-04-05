@@ -9,6 +9,7 @@ using Azure.Storage.Queues;
 using Excalibur.Dispatch.Transport.Azure;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -199,6 +200,9 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureStorageQueueOptions>, AzureStorageQueueOptionsValidator>());
 	}
 
 }
@@ -234,35 +238,6 @@ public interface IAzureStorageQueueTransportBuilder
 	/// <param name="queueName">The queue name.</param>
 	/// <returns>The builder for chaining.</returns>
 	IAzureStorageQueueTransportBuilder QueueName(string queueName);
-
-	/// <summary>
-	/// Sets the visibility timeout for messages.
-	/// </summary>
-	/// <param name="visibilityTimeout">The visibility timeout.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureStorageQueueTransportBuilder VisibilityTimeout(TimeSpan visibilityTimeout);
-
-	/// <summary>
-	/// Sets the maximum number of concurrent messages to process.
-	/// </summary>
-	/// <param name="maxConcurrentMessages">The maximum number of concurrent messages.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureStorageQueueTransportBuilder MaxConcurrentMessages(int maxConcurrentMessages);
-
-	/// <summary>
-	/// Sets the polling interval for checking new messages.
-	/// </summary>
-	/// <param name="pollingInterval">The polling interval.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureStorageQueueTransportBuilder PollingInterval(TimeSpan pollingInterval);
-
-	/// <summary>
-	/// Enables a dead letter queue.
-	/// </summary>
-	/// <param name="deadLetterQueueName">The dead letter queue name.</param>
-	/// <param name="maxDequeueCount">The maximum dequeue count before sending to DLQ.</param>
-	/// <returns>The builder for chaining.</returns>
-	IAzureStorageQueueTransportBuilder EnableDeadLetterQueue(string deadLetterQueueName, int maxDequeueCount = 5);
 
 	/// <summary>
 	/// Configures the Azure Storage Queue options.
@@ -319,28 +294,28 @@ internal sealed class AzureStorageQueueTransportBuilder : IAzureStorageQueueTran
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the visibility timeout for messages.</summary>
 	public IAzureStorageQueueTransportBuilder VisibilityTimeout(TimeSpan visibilityTimeout)
 	{
 		_options.VisibilityTimeout = visibilityTimeout;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the maximum number of concurrent messages to process.</summary>
 	public IAzureStorageQueueTransportBuilder MaxConcurrentMessages(int maxConcurrentMessages)
 	{
 		_options.MaxConcurrentMessages = maxConcurrentMessages;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the polling interval for checking new messages.</summary>
 	public IAzureStorageQueueTransportBuilder PollingInterval(TimeSpan pollingInterval)
 	{
 		_options.PollingInterval = pollingInterval;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Enables a dead letter queue.</summary>
 	public IAzureStorageQueueTransportBuilder EnableDeadLetterQueue(string deadLetterQueueName, int maxDequeueCount = 5)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(deadLetterQueueName);

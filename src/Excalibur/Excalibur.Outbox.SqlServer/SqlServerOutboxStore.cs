@@ -42,7 +42,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin
+public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;

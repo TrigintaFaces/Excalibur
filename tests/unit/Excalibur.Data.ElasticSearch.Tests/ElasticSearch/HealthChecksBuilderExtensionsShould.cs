@@ -7,8 +7,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Excalibur.Data.Tests.ElasticSearch;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class HealthChecksBuilderExtensionsShould
 {
 	[Fact]

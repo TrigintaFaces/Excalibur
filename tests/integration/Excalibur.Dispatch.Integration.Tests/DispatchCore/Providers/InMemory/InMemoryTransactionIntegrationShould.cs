@@ -32,8 +32,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.InMemory;
 [IntegrationTest]
 [Trait("Component", "Transaction")]
 [Trait("Database", "InMemory")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryTransactionIntegrationShould : IntegrationTestBase
 {
 	/// <summary>

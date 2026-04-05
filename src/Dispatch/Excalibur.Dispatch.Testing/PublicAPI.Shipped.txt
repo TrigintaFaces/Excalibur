@@ -1,9 +1,4 @@
 #nullable enable
-abstract Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.CreateReceiverAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportReceiver!>!
-abstract Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.SeedMessagesAsync(Excalibur.Dispatch.Transport.ITransportReceiver! receiver, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportReceivedMessage!>! messages) -> System.Threading.Tasks.Task!
-abstract Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.CreateSenderAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportSender!>!
-abstract Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.CreateSubscriberAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportSubscriber!>!
-abstract Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.PushMessageToSubscriberAsync(Excalibur.Dispatch.Transport.ITransportSubscriber! subscriber, Excalibur.Dispatch.Transport.TransportReceivedMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.MessageAction>!
 Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>
 Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>.Build() -> (TCommand Command, Excalibur.Dispatch.Abstractions.IMessageContext! Context)
 Excalibur.Dispatch.Testing.Builders.CommandBuilder<TCommand>.BuildCommand() -> TCommand
@@ -23,8 +18,8 @@ Excalibur.Dispatch.Testing.Builders.EventBuilder.WithAggregateId(string! aggrega
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithData(string! data) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithEventId(string! eventId) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithEventType(string! eventType) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
-Excalibur.Dispatch.Testing.Builders.EventBuilder.WithMetadata(string! key, object! value) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithMetadata(System.Collections.Generic.IDictionary<string!, object!>! metadata) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithMetadata(string! key, object! value) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithOccurredAt(System.DateTimeOffset occurredAt) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.EventBuilder.WithVersion(long version) -> Excalibur.Dispatch.Testing.Builders.EventBuilder!
 Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
@@ -91,9 +86,9 @@ Excalibur.Dispatch.Testing.DispatchTestHarness
 Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness!
 Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureServices(System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>! configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness!
 Excalibur.Dispatch.Testing.DispatchTestHarness.CreateScope() -> Microsoft.Extensions.DependencyInjection.IServiceScope!
+Excalibur.Dispatch.Testing.DispatchTestHarness.DispatchTestHarness() -> void
 Excalibur.Dispatch.Testing.DispatchTestHarness.Dispatched.get -> Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog!
 Excalibur.Dispatch.Testing.DispatchTestHarness.Dispatcher.get -> Excalibur.Dispatch.Abstractions.IDispatcher!
-Excalibur.Dispatch.Testing.DispatchTestHarness.DispatchTestHarness() -> void
 Excalibur.Dispatch.Testing.DispatchTestHarness.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Testing.DispatchTestHarness.Services.get -> System.IServiceProvider!
 Excalibur.Dispatch.Testing.HandlerTestHarness<THandler>
@@ -244,12 +239,17 @@ Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.VerifyS
 Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.VerifySubscribeStartsAndStops() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.VerifySubscribeThrowsOnNullHandler() -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions
+abstract Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.CreateReceiverAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportReceiver!>!
+abstract Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.SeedMessagesAsync(Excalibur.Dispatch.Transport.ITransportReceiver! receiver, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportReceivedMessage!>! messages) -> System.Threading.Tasks.Task!
+abstract Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.CreateSenderAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportSender!>!
+abstract Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.CreateSubscriberAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportSubscriber!>!
+abstract Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.PushMessageToSubscriberAsync(Excalibur.Dispatch.Transport.ITransportSubscriber! subscriber, Excalibur.Dispatch.Transport.TransportReceivedMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.MessageAction>!
 static Excalibur.Dispatch.Testing.Polling.WaitHelpers.RetryUntilSuccessAsync(System.Func<System.Threading.Tasks.Task!>! action, System.TimeSpan timeout, System.TimeSpan? retryDelay = null, int maxRetries = 2147483647, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
 static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitForValueAsync<T>(System.Func<System.Threading.Tasks.Task<T?>!>! producer, System.TimeSpan timeout, System.TimeSpan? pollInterval = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<T?>!
 static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitForValueAsync<T>(System.Func<T?>! producer, System.TimeSpan timeout, System.TimeSpan? pollInterval = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<T?>!
-static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitUntilAsync(System.Func<bool>! condition, System.TimeSpan timeout, System.TimeSpan? pollInterval = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
 static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitUntilAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<bool>!>! condition, System.TimeSpan timeout, System.TimeSpan? pollInterval = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
 static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitUntilAsync(System.Func<System.Threading.Tasks.Task<bool>!>! condition, System.TimeSpan timeout, System.TimeSpan? pollInterval = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitUntilAsync(System.Func<bool>! condition, System.TimeSpan timeout, System.TimeSpan? pollInterval = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
 static Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests.CreateTestMessage(string! body, string? id = null) -> Excalibur.Dispatch.Transport.TransportReceivedMessage!
 static Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.CreateTestMessage(string! body, string? id = null) -> Excalibur.Dispatch.Transport.TransportReceivedMessage!
 static Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions.AddDispatchTesting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! destination = "test-destination", string! source = "test-source") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

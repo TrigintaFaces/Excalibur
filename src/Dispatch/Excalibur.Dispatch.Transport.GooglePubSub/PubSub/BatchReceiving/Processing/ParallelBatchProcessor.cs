@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <param name="logger"> Logger instance. </param>
 /// <param name="metricsCollector"> Metrics collector. </param>
 internal sealed class ParallelBatchProcessor(
-	IOptions<BatchConfiguration> options,
+	IOptions<BatchOptions> options,
 	Func<ReceivedMessage, CancellationToken, Task<object>> messageProcessor,
 	ILogger<ParallelBatchProcessor> logger,
 	BatchMetricsCollector metricsCollector) : BatchProcessorBase(logger, metricsCollector)

@@ -17,9 +17,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.GooglePubSub;
 /// Verifies message pulling, acknowledgement, nack, fan-out, and ordering
 /// against a real Pub/Sub emulator container.
 /// </summary>
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "GooglePubSub")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Collection(GooglePubSubTransportCollection.Name)]
 public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 {

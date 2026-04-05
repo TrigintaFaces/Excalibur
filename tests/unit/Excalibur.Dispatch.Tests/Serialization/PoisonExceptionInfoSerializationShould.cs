@@ -13,9 +13,9 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// verifying the AOT-safe concrete DTO replaces anonymous types correctly.
 /// Sprint 737 T.2: PoisonMessageHandler anonymous type -> concrete DTO.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
-[Trait("Feature", "AOT")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
+[Trait(TraitNames.Feature, TestFeatures.AOT)]
 public sealed class PoisonExceptionInfoSerializationShould
 {
 	[Fact]

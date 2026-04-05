@@ -159,7 +159,10 @@ public sealed class HandlerInvocationGenerator : IIncrementalGenerator
 		}
 
 		_ = source.AppendLine("""
-					_ => throw new InvalidOperationException($"No handler found for {handler.GetType()} with message {message.GetType()}")
+					_ => throw new InvalidOperationException(
+						$"No handler found for '{handler.GetType().FullName}' with message '{message.GetType().FullName}'. " +
+						"Did you forget to call services.AddDispatch(d => d.AddHandlersFromAssembly(...))? " +
+						"Ensure your handler class implements IActionHandler<TMessage> or IEventHandler<TEvent> and is registered.")
 				};
 			}
 

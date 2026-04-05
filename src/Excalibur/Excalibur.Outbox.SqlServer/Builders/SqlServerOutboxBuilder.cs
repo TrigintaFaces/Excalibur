@@ -59,7 +59,7 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the command timeout for SQL operations.</summary>
 	public ISqlServerOutboxBuilder CommandTimeout(TimeSpan timeout)
 	{
 		if (timeout <= TimeSpan.Zero)
@@ -71,14 +71,14 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Enables or disables row-level locking for concurrent access.</summary>
 	public ISqlServerOutboxBuilder UseRowLocking(bool enable = true)
 	{
 		_options.UseRowLocking = enable;
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>Sets the default batch size for retrieving messages.</summary>
 	public ISqlServerOutboxBuilder DefaultBatchSize(int size)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(size, 0);

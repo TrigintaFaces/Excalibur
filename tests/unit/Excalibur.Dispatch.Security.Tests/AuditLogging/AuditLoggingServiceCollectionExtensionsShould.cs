@@ -5,8 +5,8 @@ using Excalibur.Dispatch.AuditLogging;
 
 namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [UnitTest]
 public sealed class AuditLoggingServiceCollectionExtensionsShould
 {

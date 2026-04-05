@@ -89,7 +89,7 @@ public sealed class SagaDispatchRegistryShould
 		_sut.Register(typeof(string), typeof(int), tracker);
 
 		var dispatcher = _sut.GetDispatcher(typeof(string), typeof(int))!;
-		await dispatcher(new object(), A.Fake<IMessageContext>(), A.Fake<ISagaEvent>(), default, CancellationToken.None);
+		await dispatcher(new object(), A.Fake<IMessageContext>(), A.Fake<ISagaEvent>(), new SagaInfo(typeof(string), typeof(int)), CancellationToken.None);
 
 		invoked.ShouldBeTrue();
 	}

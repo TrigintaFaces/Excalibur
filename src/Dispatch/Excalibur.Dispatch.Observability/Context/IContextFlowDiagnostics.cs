@@ -47,24 +47,4 @@ public interface IContextFlowDiagnostics
 	/// <returns> The recorded history for the given message, if present. </returns>
 	ContextHistory? GetContextHistory(string messageId);
 
-	/// <summary>
-	/// Gets recent anomalies.
-	/// </summary>
-	/// <param name="limit"> The maximum number of anomalies to return. </param>
-	/// <returns> A collection containing the most recent anomalies. </returns>
-	IEnumerable<ContextAnomaly> GetRecentAnomalies(int limit = 100);
-
-	/// <summary>
-	/// Generates a correlation report.
-	/// </summary>
-	/// <param name="correlationId"> The correlation identifier to report on. </param>
-	/// <returns> The correlation report text. </returns>
-	string GenerateCorrelationReport(string correlationId);
-
-	/// <summary>
-	/// Exports diagnostic data.
-	/// </summary>
-	/// <param name="messageId"> Optional message identifier to scope the export. </param>
-	/// <returns> The exported diagnostic payload. </returns>
-	string ExportDiagnosticData(string? messageId = null);
 }

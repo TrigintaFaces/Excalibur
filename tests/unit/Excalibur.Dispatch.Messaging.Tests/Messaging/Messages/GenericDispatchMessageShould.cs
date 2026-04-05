@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Messages;
 /// <remarks>
 /// Tests the generic dispatch message implementation.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Messages")]
 [Trait("Priority", "0")]
 public sealed class GenericDispatchMessageShould

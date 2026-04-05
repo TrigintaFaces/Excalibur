@@ -51,18 +51,16 @@ public interface IDeadLetterStore
 	/// <returns> A task representing the asynchronous operation with a boolean indicating success. </returns>
 	Task<bool> DeleteAsync(string messageId, CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Gets the count of messages in the dead letter queue.
-	/// </summary>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> A task containing the count of messages. </returns>
+}
+
+/// <summary>
+/// Provides administrative operations for the dead letter store.
+/// </summary>
+public interface IDeadLetterStoreAdmin
+{
+	/// <summary>Gets the count of messages in the dead letter queue.</summary>
 	Task<long> GetCountAsync(CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Cleans up old dead letter messages based on retention policy.
-	/// </summary>
-	/// <param name="retentionDays"> The number of days to retain messages. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> A task containing the number of messages cleaned up. </returns>
+	/// <summary>Cleans up old dead letter messages based on retention policy.</summary>
 	Task<int> CleanupOldMessagesAsync(int retentionDays, CancellationToken cancellationToken);
 }

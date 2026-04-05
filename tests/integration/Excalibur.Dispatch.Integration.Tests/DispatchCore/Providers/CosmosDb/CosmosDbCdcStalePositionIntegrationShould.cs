@@ -33,11 +33,11 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.CosmosDb;
 /// </para>
 /// </remarks>
 [IntegrationTest]
-[Trait("Component", "CDC")]
+[Trait(TraitNames.Component, TestComponents.CDC)]
 [Trait("Database", "CosmosDB")]
 [Trait("SubComponent", "StalePositionRecovery")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CosmosDbCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	/// <summary>

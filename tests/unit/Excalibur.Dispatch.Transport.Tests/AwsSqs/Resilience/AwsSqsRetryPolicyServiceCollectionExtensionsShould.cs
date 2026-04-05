@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Transport.AwsSqs;
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Resilience;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AwsSqsRetryPolicyServiceCollectionExtensionsShould
 {
 	[Fact]

@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Routing;
 /// <summary>
 /// Unit tests for <see cref="DateRange"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Patterns")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Patterns)]
 public sealed class DateRangeShould
 {
 	[Fact]

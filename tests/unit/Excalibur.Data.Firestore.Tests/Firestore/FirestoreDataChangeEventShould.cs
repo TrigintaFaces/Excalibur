@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.Firestore;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Firestore")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class FirestoreDataChangeEventShould
 {
 	private const string TestCollectionPath = "test-collection";

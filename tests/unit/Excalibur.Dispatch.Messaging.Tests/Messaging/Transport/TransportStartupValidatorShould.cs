@@ -27,7 +27,7 @@ public sealed class TransportStartupValidatorShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new TransportStartupValidator(null!, options, [], logger));
+			new TransportStartupValidator(null!, options, logger));
 	}
 
 	[Fact]
@@ -39,7 +39,7 @@ public sealed class TransportStartupValidatorShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new TransportStartupValidator(registry, null!, [], logger));
+			new TransportStartupValidator(registry, null!, logger));
 	}
 
 	[Fact]
@@ -51,7 +51,7 @@ public sealed class TransportStartupValidatorShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new TransportStartupValidator(registry, options, [], null!));
+			new TransportStartupValidator(registry, options, null!));
 	}
 
 	#endregion Constructor Tests
@@ -315,7 +315,6 @@ public sealed class TransportStartupValidatorShould
 		return new TransportStartupValidator(
 			registry,
 			options,
-			[],
 			NullLogger<TransportStartupValidator>.Instance);
 	}
 

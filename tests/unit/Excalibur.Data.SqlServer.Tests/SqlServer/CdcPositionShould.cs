@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.Data.Tests.SqlServer;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
 public sealed class CdcPositionShould
 {

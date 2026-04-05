@@ -128,7 +128,7 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 	public Exception? Exception { get; set; }
 
 	/// <inheritdoc />
-	string? IActivityAudited.Exception
+	string? IAuditResult.Exception
 	{
 		get => Exception?.Message;
 		init => _ = value;
@@ -147,7 +147,7 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 	public TRequest Request { get; protected set; }
 
 	/// <inheritdoc />
-	string IActivityAudited.Request
+	string IAuditResult.Request
 	{
 		[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 		[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
@@ -162,7 +162,7 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 	public TResponse? Response { get; set; }
 
 	/// <inheritdoc />
-	string? IActivityAudited.Response
+	string? IAuditResult.Response
 	{
 		get => Response?.ToString();
 		init => _ = value;

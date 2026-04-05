@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Inbox;
 /// Sprint 693, Task T.6 (bd-bcn5s): Closes the gap where no test validates
 /// idempotent message processing behavior.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InboxIdempotencyShould : IAsyncDisposable
 {
 	private readonly InMemoryInboxStore _store;

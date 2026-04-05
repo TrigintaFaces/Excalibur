@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests.Validation;
 /// InputValidationMiddleware now passes CancellationToken to HandleValidationFailureAsync
 /// instead of CancellationToken.None.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class InputValidationMiddlewareCancellationShould
 {
 	[Fact]

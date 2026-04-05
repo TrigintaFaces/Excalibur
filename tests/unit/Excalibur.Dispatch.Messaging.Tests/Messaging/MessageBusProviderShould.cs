@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// Sprint 411 - Core Pipeline Coverage (T411.3).
 /// Target: Increase MessageBusProvider coverage from 44% to 70%.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class MessageBusProviderShould
 {

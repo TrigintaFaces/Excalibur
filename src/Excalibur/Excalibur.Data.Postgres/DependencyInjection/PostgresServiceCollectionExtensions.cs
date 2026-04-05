@@ -57,6 +57,7 @@ public static class PostgresServiceCollectionExtensions
 		// Register dead letter store (uses IOptions pattern via DI)
 		services.TryAddSingleton<PostgresDeadLetterStore>();
 		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<PostgresDeadLetterStore>());
+		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<PostgresDeadLetterStore>());
 
 		return services;
 	}
@@ -80,6 +81,7 @@ public static class PostgresServiceCollectionExtensions
 		// Register dead letter store (uses IOptions pattern via DI)
 		services.TryAddSingleton<PostgresDeadLetterStore>();
 		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<PostgresDeadLetterStore>());
+		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<PostgresDeadLetterStore>());
 
 		return services;
 	}

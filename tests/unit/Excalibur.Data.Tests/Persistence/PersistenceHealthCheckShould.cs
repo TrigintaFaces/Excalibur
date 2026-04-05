@@ -12,7 +12,7 @@ using HealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 namespace Excalibur.Data.Tests.Persistence;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PersistenceHealthCheckShould
 {
 	private readonly IPersistenceProviderFactory _fakeFactory;

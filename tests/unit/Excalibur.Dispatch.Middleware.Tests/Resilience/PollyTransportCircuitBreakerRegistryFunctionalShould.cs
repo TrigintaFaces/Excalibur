@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Functional tests for <see cref="PollyTransportCircuitBreakerRegistry"/> verifying
 /// per-transport circuit breaker creation, lookup, removal, and lifecycle.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class PollyTransportCircuitBreakerRegistryFunctionalShould : IDisposable
 {
 	private readonly PollyTransportCircuitBreakerRegistry _sut;

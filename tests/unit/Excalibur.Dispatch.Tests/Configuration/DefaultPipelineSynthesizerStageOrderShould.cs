@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Tests.Configuration;
 /// Verifies the pipeline stage ordering in DefaultPipelineSynthesizer.
 /// Sprint 694 T.18: Authorization must come before Serialization.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DefaultPipelineSynthesizerStageOrderShould
 {

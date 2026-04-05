@@ -128,15 +128,17 @@ public sealed partial class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	/// <inheritdoc />
 	public Task InitializeAsync(MessageBusOptions options, CancellationToken cancellationToken)
 	{
-		if (_adapterArray.Length == 0)
+		var lifecycleAdapters = GetLifecycleAdapters();
+
+		if (lifecycleAdapters.Count == 0)
 		{
 			return Task.CompletedTask;
 		}
 
-		var tasks = new Task[_adapterArray.Length];
-		for (var i = 0; i < _adapterArray.Length; i++)
+		var tasks = new Task[lifecycleAdapters.Count];
+		for (var i = 0; i < lifecycleAdapters.Count; i++)
 		{
-			tasks[i] = _adapterArray[i].InitializeAsync(options, cancellationToken);
+			tasks[i] = lifecycleAdapters[i].Lifecycle.InitializeAsync(options, cancellationToken);
 		}
 
 		return Task.WhenAll(tasks);

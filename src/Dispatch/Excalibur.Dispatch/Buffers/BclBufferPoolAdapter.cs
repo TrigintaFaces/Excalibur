@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Buffers;
 public sealed class BclBufferPoolAdapter(
 	bool clearBuffers = false,
 	bool trackAllocations = false,
-	ArrayPool<byte>? arrayPool = null) : IPooledBufferService
+	ArrayPool<byte>? arrayPool = null) : IPooledBufferService, IPooledBufferServiceDiagnostics
 {
 	private readonly ArrayPool<byte> _arrayPool = arrayPool ?? ArrayPool<byte>.Shared;
 

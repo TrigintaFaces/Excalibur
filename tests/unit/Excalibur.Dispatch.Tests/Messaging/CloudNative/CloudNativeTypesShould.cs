@@ -6,8 +6,8 @@ using Excalibur.Dispatch.Resilience;
 
 namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CloudNativeTypesShould
 {
 	// Sprint 682 T.24: CloudNative.CircuitBreakerOpenException deleted.

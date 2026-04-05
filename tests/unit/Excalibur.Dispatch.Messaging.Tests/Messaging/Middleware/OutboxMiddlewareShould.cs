@@ -6,7 +6,9 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Outbox;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
+
+using FakeMessageResult = Tests.Shared.TestFakes.MessageResult;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -19,8 +21,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Unit tests for the <see cref="OutboxMiddleware"/> class.
 /// Validates outbox message staging, bypass logic, error handling, and configuration behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class OutboxMiddlewareShould
 {
 	private readonly IOutboxStore _outboxStore;
@@ -49,14 +51,14 @@ public sealed class OutboxMiddlewareShould
 		return (msg, ctx, ct) =>
 		{
 			wasCalled[0] = true;
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 	}
 
 	private static DispatchRequestDelegate CreateFailureDelegate(string errorMessage)
 	{
 		return (msg, ctx, ct) =>
-			new ValueTask<IMessageResult>(TestFakes.MessageResult.Failure(errorMessage));
+			new ValueTask<IMessageResult>(FakeMessageResult.Failure(errorMessage));
 	}
 
 	#region Constructor Tests
@@ -153,7 +155,7 @@ public sealed class OutboxMiddlewareShould
 		var context = new FakeMessageContext { MessageId = "test-123" };
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
-			=> new(TestFakes.MessageResult.Success());
+			=> new(FakeMessageResult.Success());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -168,7 +170,7 @@ public sealed class OutboxMiddlewareShould
 		var message = new FakeDispatchActionMessage();
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
-			=> new(TestFakes.MessageResult.Success());
+			=> new(FakeMessageResult.Success());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -317,7 +319,7 @@ public sealed class OutboxMiddlewareShould
 		{
 			// Simulate handler adding outbound messages to context
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act
@@ -390,7 +392,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act
@@ -419,7 +421,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act
@@ -446,7 +448,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act
@@ -473,7 +475,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act
@@ -500,7 +502,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act
@@ -552,7 +554,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act & Assert
@@ -590,7 +592,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act - should NOT throw because ContinueOnStagingError is true
@@ -624,7 +626,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act
@@ -654,7 +656,7 @@ public sealed class OutboxMiddlewareShould
 		DispatchRequestDelegate stagingDelegate = (msg, ctx, ct) =>
 		{
 			ctx.SetItem("OutboundMessages", outboundMessages);
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 
 		// Act

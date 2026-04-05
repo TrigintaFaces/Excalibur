@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Delivery;
 /// Unit tests for <see cref="InboxOptions"/> in the Delivery namespace.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class DeliveryInboxOptionsShould
 {
@@ -33,7 +33,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.PerRunTotal.ShouldBe(1000);
+		options.Capacity.PerRunTotal.ShouldBe(1000);
 	}
 
 	[Fact]
@@ -43,7 +43,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.QueueCapacity.ShouldBe(1000);
+		options.Capacity.QueueCapacity.ShouldBe(1000);
 	}
 
 	[Fact]
@@ -53,7 +53,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.ProducerBatchSize.ShouldBe(100);
+		options.Capacity.ProducerBatchSize.ShouldBe(100);
 	}
 
 	[Fact]
@@ -63,7 +63,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.ConsumerBatchSize.ShouldBe(100);
+		options.Capacity.ConsumerBatchSize.ShouldBe(100);
 	}
 
 	[Fact]
@@ -103,7 +103,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
+		options.Capacity.ParallelProcessingDegree.ShouldBe(1);
 	}
 
 	[Fact]
@@ -113,7 +113,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchTuning.EnableDynamicBatchSizing.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -123,7 +123,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.BatchProcessing.MinBatchSize.ShouldBe(10);
+		options.BatchTuning.MinBatchSize.ShouldBe(10);
 	}
 
 	[Fact]
@@ -133,7 +133,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.BatchProcessing.MaxBatchSize.ShouldBe(1000);
+		options.BatchTuning.MaxBatchSize.ShouldBe(1000);
 	}
 
 	[Fact]
@@ -143,7 +143,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.BatchTuning.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -153,7 +153,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.EnableBatchDatabaseOperations.ShouldBeTrue();
+		options.BatchTuning.EnableBatchDatabaseOperations.ShouldBeTrue();
 	}
 
 	#endregion
@@ -167,10 +167,10 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Act
-		options.PerRunTotal = 1000;
+		options.Capacity.PerRunTotal = 1000;
 
 		// Assert
-		options.PerRunTotal.ShouldBe(1000);
+		options.Capacity.PerRunTotal.ShouldBe(1000);
 	}
 
 	[Fact]
@@ -180,10 +180,10 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Act
-		options.QueueCapacity = 500;
+		options.Capacity.QueueCapacity = 500;
 
 		// Assert
-		options.QueueCapacity.ShouldBe(500);
+		options.Capacity.QueueCapacity.ShouldBe(500);
 	}
 
 	[Fact]
@@ -193,10 +193,10 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Act
-		options.BatchProcessing.ParallelProcessingDegree = 4;
+		options.Capacity.ParallelProcessingDegree = 4;
 
 		// Assert
-		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(4);
+		options.Capacity.ParallelProcessingDegree.ShouldBe(4);
 	}
 
 	#endregion
@@ -209,12 +209,16 @@ public sealed class DeliveryInboxOptionsShould
 		// Arrange
 		var options = new InboxOptions
 		{
-			PerRunTotal = 100,
-			QueueCapacity = 100,
-			ProducerBatchSize = 50,
-			ConsumerBatchSize = 50,
+			Capacity =
+			{
+				PerRunTotal = 100,
+				QueueCapacity = 100,
+				ProducerBatchSize = 50,
+				ConsumerBatchSize = 50,
+				ParallelProcessingDegree = 1,
+			},
 			MaxAttempts = 3,
-			BatchProcessing = { ParallelProcessingDegree = 1, BatchProcessingTimeout = TimeSpan.FromMinutes(1) },
+			BatchTuning = { BatchProcessingTimeout = TimeSpan.FromMinutes(1) },
 		};
 
 		// Act
@@ -230,10 +234,13 @@ public sealed class DeliveryInboxOptionsShould
 		// Arrange
 		var options = new InboxOptions
 		{
-			PerRunTotal = 100,
-			QueueCapacity = 0,
-			ProducerBatchSize = 50,
-			ConsumerBatchSize = 50,
+			Capacity =
+			{
+				PerRunTotal = 100,
+				QueueCapacity = 0,
+				ProducerBatchSize = 50,
+				ConsumerBatchSize = 50,
+			},
 			MaxAttempts = 3,
 		};
 
@@ -251,12 +258,16 @@ public sealed class DeliveryInboxOptionsShould
 		// Arrange
 		var options = new InboxOptions
 		{
-			PerRunTotal = 100,
-			QueueCapacity = 50,
-			ProducerBatchSize = 100,
-			ConsumerBatchSize = 50,
+			Capacity =
+			{
+				PerRunTotal = 100,
+				QueueCapacity = 50,
+				ProducerBatchSize = 100,
+				ConsumerBatchSize = 50,
+				ParallelProcessingDegree = 1,
+			},
 			MaxAttempts = 3,
-			BatchProcessing = { ParallelProcessingDegree = 1, BatchProcessingTimeout = TimeSpan.FromMinutes(1) },
+			BatchTuning = { BatchProcessingTimeout = TimeSpan.FromMinutes(1) },
 		};
 
 		// Act
@@ -273,14 +284,17 @@ public sealed class DeliveryInboxOptionsShould
 		// Arrange
 		var options = new InboxOptions
 		{
-			PerRunTotal = 100,
-			QueueCapacity = 100,
-			ProducerBatchSize = 50,
-			ConsumerBatchSize = 50,
-			MaxAttempts = 3,
-			BatchProcessing =
+			Capacity =
 			{
+				PerRunTotal = 100,
+				QueueCapacity = 100,
+				ProducerBatchSize = 50,
+				ConsumerBatchSize = 50,
 				ParallelProcessingDegree = 1,
+			},
+			MaxAttempts = 3,
+			BatchTuning =
+			{
 				EnableDynamicBatchSizing = true,
 				MinBatchSize = 100,
 				MaxBatchSize = 50,
@@ -306,17 +320,20 @@ public sealed class DeliveryInboxOptionsShould
 		// Act
 		var options = new InboxOptions
 		{
-			PerRunTotal = 10000,
-			QueueCapacity = 10000,
-			ProducerBatchSize = 1000,
-			ConsumerBatchSize = 1000,
+			Capacity =
+			{
+				PerRunTotal = 10000,
+				QueueCapacity = 10000,
+				ProducerBatchSize = 1000,
+				ConsumerBatchSize = 1000,
+				ParallelProcessingDegree = 8,
+			},
 			MaxAttempts = 3,
-			BatchProcessing = { ParallelProcessingDegree = 8 },
 		};
 
 		// Assert
-		options.ProducerBatchSize.ShouldBeGreaterThan(100);
-		options.BatchProcessing.ParallelProcessingDegree.ShouldBeGreaterThan(1);
+		options.Capacity.ProducerBatchSize.ShouldBeGreaterThan(100);
+		options.Capacity.ParallelProcessingDegree.ShouldBeGreaterThan(1);
 	}
 
 	[Fact]
@@ -325,16 +342,19 @@ public sealed class DeliveryInboxOptionsShould
 		// Act
 		var options = new InboxOptions
 		{
-			PerRunTotal = 100,
-			QueueCapacity = 100,
-			ProducerBatchSize = 10,
-			ConsumerBatchSize = 10,
+			Capacity =
+			{
+				PerRunTotal = 100,
+				QueueCapacity = 100,
+				ProducerBatchSize = 10,
+				ConsumerBatchSize = 10,
+				ParallelProcessingDegree = 1,
+			},
 			MaxAttempts = 10,
-			BatchProcessing = { ParallelProcessingDegree = 1 },
 		};
 
 		// Assert
-		options.ProducerBatchSize.ShouldBeLessThan(100);
+		options.Capacity.ProducerBatchSize.ShouldBeLessThan(100);
 		options.MaxAttempts.ShouldBeGreaterThan(5);
 	}
 

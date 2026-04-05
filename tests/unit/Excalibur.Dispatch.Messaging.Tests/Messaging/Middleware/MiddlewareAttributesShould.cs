@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <summary>
 /// Unit tests for middleware marker attributes.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MiddlewareAttributesShould
 {
 	#region AllowAnonymousAttribute

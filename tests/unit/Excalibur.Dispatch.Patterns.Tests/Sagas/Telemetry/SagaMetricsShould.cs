@@ -30,8 +30,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.Sagas.Telemetry;
 /// </list>
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Saga")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Saga)]
 [Trait("Sprint", "218")]
 public sealed class SagaMetricsShould : IDisposable
 {

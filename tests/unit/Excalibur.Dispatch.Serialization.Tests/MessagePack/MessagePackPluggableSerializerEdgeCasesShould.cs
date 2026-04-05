@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// Targets: SerializeObject/DeserializeObject additional branches, error wrapping details,
 /// ReadOnlySpan overloads, and Version property edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 {
 	#region Name and Version

@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.SqlServer.Authorization;
 /// <summary>
 /// Unit tests for <see cref="SqlServerActivityGroupStore"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "A3")]
 public sealed class SqlServerActivityGroupStoreShould
 {

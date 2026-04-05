@@ -88,7 +88,7 @@ public sealed class MetricRegistry
 		string name,
 		string description = "",
 		string unit = "",
-		HistogramConfiguration? configuration = null) =>
+		HistogramOptions? configuration = null) =>
 		(ValueHistogram)_metrics
 			.GetOrAdd(
 				name,
@@ -96,7 +96,7 @@ public sealed class MetricRegistry
 				{
 					var metricId = Interlocked.Increment(ref state.Self._nextMetricId);
 					var metadata = state.Self.CreateMetadata(metricId, key, state.Description, state.Unit, MetricType.Histogram);
-					var histogram = new ValueHistogram(metadata, state.Configuration ?? HistogramConfiguration.DefaultLatency);
+					var histogram = new ValueHistogram(metadata, state.Configuration ?? HistogramOptions.DefaultLatency);
 					return histogram;
 				},
 				(Self: this, Description: description, Unit: unit, Configuration: configuration));

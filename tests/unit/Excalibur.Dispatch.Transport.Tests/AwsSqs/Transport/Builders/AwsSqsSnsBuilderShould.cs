@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport.Builders;
 /// Part of S471.2 - ConfigureSns builder (Sprint 471).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsSnsBuilderShould : UnitTestBase
 {

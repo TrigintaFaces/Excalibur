@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// Targeted tests to push Excalibur.Dispatch.AuditLogging coverage from 91.5% to 95%+.
 /// Covers branches and paths not exercised by the existing test suites.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [UnitTest]
 public sealed class AuditLoggingCoverageGapShould
 {

@@ -355,8 +355,8 @@ function PerformanceShowcaseSection() {
     { value: '24 B', label: 'Ultra-Local Allocation', detail: 'Near-zero overhead hot path' },
     { value: '~54 ns', label: 'Standard Dispatch', detail: 'Full context + pool per dispatch' },
     { value: '2.6x', label: 'Faster Than Wolverine', detail: 'Single command, in-process' },
-    { value: '40,683+', label: 'Tests Passing', detail: 'Unit, integration, functional' },
-    { value: '40+', label: 'NuGet Packages', detail: 'Install only what you need' },
+    { value: '44,262+', label: 'Tests Passing', detail: 'Unit, integration, functional' },
+    { value: '170+', label: 'NuGet Packages', detail: 'Install only what you need' },
   ];
 
   return (

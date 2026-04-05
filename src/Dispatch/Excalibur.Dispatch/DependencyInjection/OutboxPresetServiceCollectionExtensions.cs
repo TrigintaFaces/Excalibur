@@ -71,12 +71,18 @@ public static class OutboxPresetServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.Configure<OutboxDeliveryOptions>(options =>
-		{
-			var preset = OutboxDeliveryOptions.HighThroughput();
-			CopyFrom(options, preset);
-			configure?.Invoke(options);
-		});
+		var builder = services.AddOptions<OutboxDeliveryOptions>()
+			.Configure(options =>
+			{
+				var preset = OutboxDeliveryOptions.HighThroughput();
+				CopyFrom(options, preset);
+				configure?.Invoke(options);
+			})
+			.Validate(
+				static options => OutboxDeliveryOptions.Validate(options) is null,
+				"OutboxDeliveryOptions failed validation.")
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return services;
 	}
@@ -95,12 +101,18 @@ public static class OutboxPresetServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.Configure<OutboxDeliveryOptions>(options =>
-		{
-			var preset = OutboxDeliveryOptions.HighThroughput();
-			CopyFrom(options, preset);
-			configuration.Bind(options);
-		});
+		var builder = services.AddOptions<OutboxDeliveryOptions>()
+			.Configure(options =>
+			{
+				var preset = OutboxDeliveryOptions.HighThroughput();
+				CopyFrom(options, preset);
+				configuration.Bind(options);
+			})
+			.Validate(
+				static options => OutboxDeliveryOptions.Validate(options) is null,
+				"OutboxDeliveryOptions failed validation.")
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return services;
 	}
@@ -134,12 +146,18 @@ public static class OutboxPresetServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.Configure<OutboxDeliveryOptions>(options =>
-		{
-			var preset = OutboxDeliveryOptions.Balanced();
-			CopyFrom(options, preset);
-			configure?.Invoke(options);
-		});
+		var builder = services.AddOptions<OutboxDeliveryOptions>()
+			.Configure(options =>
+			{
+				var preset = OutboxDeliveryOptions.Balanced();
+				CopyFrom(options, preset);
+				configure?.Invoke(options);
+			})
+			.Validate(
+				static options => OutboxDeliveryOptions.Validate(options) is null,
+				"OutboxDeliveryOptions failed validation.")
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return services;
 	}
@@ -158,12 +176,18 @@ public static class OutboxPresetServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.Configure<OutboxDeliveryOptions>(options =>
-		{
-			var preset = OutboxDeliveryOptions.Balanced();
-			CopyFrom(options, preset);
-			configuration.Bind(options);
-		});
+		var builder = services.AddOptions<OutboxDeliveryOptions>()
+			.Configure(options =>
+			{
+				var preset = OutboxDeliveryOptions.Balanced();
+				CopyFrom(options, preset);
+				configuration.Bind(options);
+			})
+			.Validate(
+				static options => OutboxDeliveryOptions.Validate(options) is null,
+				"OutboxDeliveryOptions failed validation.")
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return services;
 	}
@@ -197,12 +221,18 @@ public static class OutboxPresetServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.Configure<OutboxDeliveryOptions>(options =>
-		{
-			var preset = OutboxDeliveryOptions.HighReliability();
-			CopyFrom(options, preset);
-			configure?.Invoke(options);
-		});
+		var builder = services.AddOptions<OutboxDeliveryOptions>()
+			.Configure(options =>
+			{
+				var preset = OutboxDeliveryOptions.HighReliability();
+				CopyFrom(options, preset);
+				configure?.Invoke(options);
+			})
+			.Validate(
+				static options => OutboxDeliveryOptions.Validate(options) is null,
+				"OutboxDeliveryOptions failed validation.")
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return services;
 	}
@@ -221,12 +251,18 @@ public static class OutboxPresetServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.Configure<OutboxDeliveryOptions>(options =>
-		{
-			var preset = OutboxDeliveryOptions.HighReliability();
-			CopyFrom(options, preset);
-			configuration.Bind(options);
-		});
+		var builder = services.AddOptions<OutboxDeliveryOptions>()
+			.Configure(options =>
+			{
+				var preset = OutboxDeliveryOptions.HighReliability();
+				CopyFrom(options, preset);
+				configuration.Bind(options);
+			})
+			.Validate(
+				static options => OutboxDeliveryOptions.Validate(options) is null,
+				"OutboxDeliveryOptions failed validation.")
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		return services;
 	}

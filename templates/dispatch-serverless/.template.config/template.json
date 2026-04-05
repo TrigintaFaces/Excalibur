@@ -95,17 +95,10 @@
         ]
       }
     },
-    "IncludeDocker": {
-      "type": "parameter",
-      "datatype": "bool",
-      "description": "Include Dockerfile.",
-      "defaultValue": "false"
-    }
   },
   "sources": [
     {
       "modifiers": [
-        { "condition": "(!IncludeDocker)", "exclude": ["Dockerfile", ".dockerignore"] },
         { "condition": "(!UseAzure)", "exclude": ["host.json", "local.settings.json"] },
         { "condition": "(!UseAws)", "exclude": ["aws-lambda-tools-defaults.json"] }
       ]

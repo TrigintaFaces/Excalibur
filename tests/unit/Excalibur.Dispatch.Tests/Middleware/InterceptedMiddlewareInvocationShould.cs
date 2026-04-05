@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// Sprint 456 - S456.4: Runtime tests for intercepted middleware invocation (PERF-10).
 /// Tests verify the middleware invocation patterns that the generated code relies upon.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class InterceptedMiddlewareInvocationShould : UnitTestBase
 {

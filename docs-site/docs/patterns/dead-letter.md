@@ -135,6 +135,19 @@ public interface IDeadLetterQueue
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Gets the current count of entries in the dead letter queue.
+    /// </summary>
+    Task<long> GetCountAsync(
+        CancellationToken cancellationToken,
+        DeadLetterQueryFilter? filter = null);
+}
+
+/// <summary>
+/// Admin operations (batch replay, purge) for the dead letter queue.
+/// </summary>
+public interface IDeadLetterQueueAdmin
+{
+    /// <summary>
     /// Replays multiple dead letter entries that match the specified filter.
     /// </summary>
     Task<int> ReplayBatchAsync(
@@ -154,13 +167,6 @@ public interface IDeadLetterQueue
     Task<int> PurgeOlderThanAsync(
         TimeSpan olderThan,
         CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Gets the current count of entries in the dead letter queue.
-    /// </summary>
-    Task<long> GetCountAsync(
-        CancellationToken cancellationToken,
-        DeadLetterQueryFilter? filter = null);
 }
 ```
 
@@ -285,8 +291,15 @@ var entries = await _dlq.GetEntriesAsync(ct, filter, limit: 50);
 public class DeadLetterRecoveryService
 {
     private readonly IDeadLetterQueue _dlq;
+    private readonly IDeadLetterQueueAdmin _dlqAdmin;
 
-    public DeadLetterRecoveryService(IDeadLetterQueue dlq) => _dlq = dlq;
+    public DeadLetterRecoveryService(
+        IDeadLetterQueue dlq,
+        IDeadLetterQueueAdmin dlqAdmin)
+    {
+        _dlq = dlq;
+        _dlqAdmin = dlqAdmin;
+    }
 
     // Replay a single entry
     public async Task<bool> ReplayEntryAsync(Guid entryId, CancellationToken ct)
@@ -298,7 +311,7 @@ public class DeadLetterRecoveryService
     public async Task<int> ReplayValidationFailuresAsync(CancellationToken ct)
     {
         var filter = DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed);
-        return await _dlq.ReplayBatchAsync(filter, ct);
+        return await _dlqAdmin.ReplayBatchAsync(filter, ct);
     }
 
     // Replay all pending entries for a specific message type
@@ -309,7 +322,7 @@ public class DeadLetterRecoveryService
             MessageType = messageType,
             IsReplayed = false
         };
-        return await _dlq.ReplayBatchAsync(filter, ct);
+        return await _dlqAdmin.ReplayBatchAsync(filter, ct);
     }
 }
 ```
@@ -320,27 +333,32 @@ public class DeadLetterRecoveryService
 public class DeadLetterCleanupService
 {
     private readonly IDeadLetterQueue _dlq;
+    private readonly IDeadLetterQueueAdmin _dlqAdmin;
 
-    public DeadLetterCleanupService(IDeadLetterQueue dlq) => _dlq = dlq;
-
-    // Purge a single entry
-    public async Task<bool> PurgeEntryAsync(Guid entryId, CancellationToken ct)
+    public DeadLetterCleanupService(
+        IDeadLetterQueue dlq,
+        IDeadLetterQueueAdmin dlqAdmin)
     {
-        return await _dlq.PurgeAsync(entryId, ct);
+        _dlq = dlq;
+        _dlqAdmin = dlqAdmin;
     }
 
-    // Purge entries older than 30 days
+    // Purge a single entry (admin operation)
+    public async Task<bool> PurgeEntryAsync(Guid entryId, CancellationToken ct)
+    {
+        return await _dlqAdmin.PurgeAsync(entryId, ct);
+    }
+
+    // Purge entries older than 30 days (admin operation)
     public async Task<int> PurgeOldEntriesAsync(CancellationToken ct)
     {
-        return await _dlq.PurgeOlderThanAsync(TimeSpan.FromDays(30), ct);
+        return await _dlqAdmin.PurgeOlderThanAsync(TimeSpan.FromDays(30), ct);
     }
 
     // Get count of pending entries
     public async Task<long> GetPendingCountAsync(CancellationToken ct)
     {
-        return await _dlq.GetCountAsync(
-            DeadLetterQueryFilter.PendingOnly(),
-            ct);
+        return await _dlq.GetCountAsync(ct, DeadLetterQueryFilter.PendingOnly());
     }
 }
 ```

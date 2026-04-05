@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Unit tests for <see cref="SerializationHealthCheck"/> validating health check behavior
 /// for various serialization configurations.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SerializationHealthCheckShould
 {

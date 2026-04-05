@@ -11,8 +11,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.RateLimiting;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class RateLimitingMiddlewareCoverageShould : IDisposable
 {
     private readonly RateLimitingMiddleware _sut;

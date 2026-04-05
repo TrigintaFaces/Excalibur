@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Consumer;
 /// Unit tests for <see cref="RmqRetryPolicy"/> configuration and delay calculation.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class RetryPolicyShould : UnitTestBase
 {

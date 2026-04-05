@@ -39,7 +39,6 @@ public static class Startup
 			_ = dispatch.AddHandlersFromAssembly(typeof(Startup).Assembly);
 
 			// Configure JSON serialization
-			_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 		});
 
 		// Configure AWS Lambda Serverless hosting

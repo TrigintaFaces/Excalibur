@@ -48,7 +48,13 @@ public interface ISessionStore
 	/// </summary>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	Task<bool> ExistsAsync(string sessionId, CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Provides administrative operations for session store management.
+/// </summary>
+public interface ISessionStoreAdmin
+{
 	/// <summary>
 	/// Gets the count of sessions.
 	/// </summary>

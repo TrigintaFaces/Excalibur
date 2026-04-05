@@ -55,35 +55,4 @@ public interface IIndexTemplateManager
 	/// <returns> A <see cref="Task{IEnumerable}" /> containing the matching templates. </returns>
 	Task<IEnumerable<IndexTemplateItem>> GetTemplatesAsync(string? namePattern, CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Creates or updates a component template in Elasticsearch.
-	/// </summary>
-	/// <param name="templateName"> The name of the component template. </param>
-	/// <param name="template"> The component template configuration. </param>
-	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
-	/// <returns> A <see cref="Task{Boolean}" /> indicating whether the operation was successful. </returns>
-	Task<bool> CreateOrUpdateComponentTemplateAsync(string templateName, ComponentTemplateConfiguration template,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Deletes a component template from Elasticsearch.
-	/// </summary>
-	/// <param name="templateName"> The name of the component template to delete. </param>
-	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
-	/// <returns> A <see cref="Task{Boolean}" /> indicating whether the operation was successful. </returns>
-	Task<bool> DeleteComponentTemplateAsync(string templateName, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Migrates an index template to a new version with support for zero-downtime updates.
-	/// </summary>
-	/// <param name="templateName"> The name of the template to migrate. </param>
-	/// <param name="newTemplate"> The new template configuration. </param>
-	/// <param name="migrationOptions"> Options controlling the migration process. </param>
-	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
-	/// <returns> A <see cref="Task{TemplateMigrationResult}" /> containing migration results. </returns>
-	Task<TemplateMigrationResult> MigrateTemplateAsync(
-		string templateName,
-		IndexTemplateConfiguration newTemplate,
-		TemplateMigrationOptions migrationOptions,
-		CancellationToken cancellationToken);
 }

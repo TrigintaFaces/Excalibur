@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability;
 /// <summary>
 /// Unit tests for TracingMiddleware.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class TracingMiddlewareShould : UnitTestBase
 {
@@ -25,7 +25,7 @@ public sealed class TracingMiddlewareShould : UnitTestBase
 	private readonly TracingMiddleware _middleware;
 
 	private static IOptions<ObservabilityOptions> DefaultOptions =>
-		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { EnableDetailedTiming = true, IncludeSensitiveData = true });
+		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { IncludeSensitiveData = true });
 
 	public TracingMiddlewareShould()
 	{

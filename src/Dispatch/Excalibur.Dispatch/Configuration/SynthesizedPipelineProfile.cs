@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Configuration;
 /// <summary>
 /// A pipeline profile that was synthesized automatically.
 /// </summary>
-internal sealed class SynthesizedPipelineProfile : IPipelineProfile
+internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 {
 	private static readonly IReadOnlySet<DispatchFeatures> NoEnabledFeatures = new HashSet<DispatchFeatures>();
 

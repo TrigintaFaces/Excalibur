@@ -27,7 +27,10 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
+		_ = services.AddOptions<GoogleCloudSchedulerOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 		_ = services.AddSingleton(static _ => CloudSchedulerClient.Create());
 		_ = services.AddSingleton<GoogleCloudSchedulerJobProvider>();
 
@@ -49,7 +52,9 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		_ = services.AddOptions<GoogleCloudSchedulerOptions>()
-			.Bind(configuration);
+			.Bind(configuration)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 		_ = services.AddSingleton(static _ => CloudSchedulerClient.Create());
 		_ = services.AddSingleton<GoogleCloudSchedulerJobProvider>();
 

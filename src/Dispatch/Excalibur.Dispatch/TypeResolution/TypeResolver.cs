@@ -44,41 +44,6 @@ internal static class TypeResolver
 	}
 
 	/// <summary>
-	/// Resolves a type by name using runtime detection.
-	/// </summary>
-	/// <remarks>
-	/// This method uses runtime detection instead of compile-time conditionals, which has a small performance cost but allows for more
-	/// flexible deployment.
-	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Runtime check ensures AOT compatibility")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-		Justification = "JIT fallback resolves types from loaded assemblies via reflection")]
-	public static Type? ResolveTypeRuntime(string typeName)
-	{
-		if (string.IsNullOrEmpty(typeName))
-		{
-			return null;
-		}
-
-		return AotDetection.Execute(
-			aotPath: () =>
-
-				// In AOT mode, only use the registry
-				TypeResolverRegistry.TryResolveType(typeName, out var type) ? type : null,
-			jitPath: () =>
-			{
-				// In JIT mode, try registry first, then fall back to loaded assemblies
-				if (TypeResolverRegistry.TryResolveType(typeName, out var type))
-				{
-					return type;
-				}
-
-				return ResolveFromLoadedAssemblies(typeName);
-			});
-	}
-
-	/// <summary>
 	/// Ensures a type can be resolved, throwing an exception if not found.
 	/// </summary>
 	/// <exception cref="TypeLoadException"> Thrown when the type cannot be resolved. </exception>

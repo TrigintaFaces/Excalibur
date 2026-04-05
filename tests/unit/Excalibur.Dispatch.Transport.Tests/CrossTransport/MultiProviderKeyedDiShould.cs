@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 /// Sprint 698 T.5 (9vk07): Ensures named transport registration configures
 /// per-instance options and keyed service resolution.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class MultiProviderKeyedDiShould
 {
 	[Fact]

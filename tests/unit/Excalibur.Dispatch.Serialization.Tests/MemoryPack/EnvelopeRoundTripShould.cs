@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 /// These tests verify that all internal envelope types serialize and deserialize correctly,
 /// preserving all fields including nullable properties and collection types.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class EnvelopeRoundTripShould
 {
 	private readonly ISerializer _sut;

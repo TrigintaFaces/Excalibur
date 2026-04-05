@@ -42,7 +42,7 @@ public sealed partial class PerformanceBenchmark(IPerformanceMetricsCollector me
 		var results = new BenchmarkResults { TestDate = DateTimeOffset.UtcNow, Iterations = iterations };
 
 		// Reset metrics before starting
-		_metricsCollector.Reset();
+		(_metricsCollector as IPerformanceMetricsCollectorAdmin)?.Reset();
 
 		var stopwatch = ValueStopwatch.StartNew();
 

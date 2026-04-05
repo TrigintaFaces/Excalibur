@@ -8,8 +8,8 @@ using Excalibur.Dispatch.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Signing;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class Ed25519SignatureAlgorithmProviderShould
 {
 	private readonly Ed25519SignatureAlgorithmProvider _sut = new();

@@ -20,9 +20,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 /// Tests push-based subscription, message acknowledgment, rejection, and requeue.
 /// </summary>
 [Collection(ContainerCollections.Kafka)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "Kafka")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class KafkaTransportSubscriberIntegrationShould
 {
 	private static readonly TimeSpan SubscriptionTimeout = TimeSpan.FromSeconds(30);

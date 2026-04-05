@@ -7,8 +7,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing.Sprint523;
 /// Verifies that hardcoded development machine paths have been removed from test infrastructure
 /// (S523.3 QG finding fix — no hardcoded D:\ paths).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CrossPlatformPathResolutionShould
 {
 	[Fact]

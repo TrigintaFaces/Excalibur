@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Configuration;
 /// <summary>
 /// Represents a pipeline profile with ordered middleware for specific message kinds.
 /// </summary>
-public sealed class PipelineProfile : IPipelineProfile
+public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 {
 	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindCache = new();

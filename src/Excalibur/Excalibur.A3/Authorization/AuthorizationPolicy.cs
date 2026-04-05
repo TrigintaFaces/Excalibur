@@ -81,7 +81,7 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 	public string UserId { get; }
 
 	/// <inheritdoc />
-	public bool IsAuthorized(string activityName, string? resourceId = null)
+	public bool IsAuthorized(string activityName, string? resourceId)
 	{
 		var result = Evaluate(activityName, resourceId, resourceType: null);
 

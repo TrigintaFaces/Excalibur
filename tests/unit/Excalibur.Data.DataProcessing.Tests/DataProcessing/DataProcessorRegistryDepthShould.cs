@@ -13,8 +13,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Depth tests for <see cref="DataProcessorRegistry"/>.
 /// Covers registration via constructor, TryGetFactory, GetFactory, and error scenarios.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataProcessorRegistryDepthShould
 {
 	[Fact]

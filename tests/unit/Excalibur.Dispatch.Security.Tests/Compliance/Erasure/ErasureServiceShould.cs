@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Tests GDPR Article 17 erasure request processing per ADR-054.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class ErasureServiceShould
 {
 	private readonly IErasureStore _store;

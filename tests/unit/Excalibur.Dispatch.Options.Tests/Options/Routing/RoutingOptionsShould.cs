@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Options.Routing;
 /// Unit tests for <see cref="RoutingOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class RoutingOptionsShould
 {

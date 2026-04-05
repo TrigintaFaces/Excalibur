@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Tests data registration, discovery, and data map functionality per ADR-054.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class InMemoryDataInventoryStoreShould
 {
 	private readonly InMemoryDataInventoryStore _sut;

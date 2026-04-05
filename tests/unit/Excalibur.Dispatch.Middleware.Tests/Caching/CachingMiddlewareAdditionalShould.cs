@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// and uncovered code paths: GlobalPolicy from options, ShouldCacheBasedOnPolicy branches,
 /// startup warnings for Hybrid mode, ICacheable ShouldCache=false, and TargetException handling.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class CachingMiddlewareAdditionalShould : UnitTestBase
 {
 	private readonly TestMeterFactory _meterFactory;

@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Tests the problem details for timeout errors.
 /// Note: TimeoutProblemDetails is internal, so we use reflection to test it.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 [Trait("Priority", "0")]
 public sealed class TimeoutProblemDetailsShould
 {

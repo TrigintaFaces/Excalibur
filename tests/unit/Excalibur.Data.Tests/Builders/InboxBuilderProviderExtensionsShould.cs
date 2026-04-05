@@ -20,7 +20,7 @@ namespace Excalibur.Data.Tests.Builders;
 /// InMemory, MongoDB, Postgres, Redis, SqlServer).
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InboxBuilderProviderExtensionsShould : UnitTestBase
 {
 	private sealed class TestInboxBuilder : IInboxBuilder

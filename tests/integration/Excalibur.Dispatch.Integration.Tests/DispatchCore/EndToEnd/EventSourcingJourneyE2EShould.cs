@@ -18,9 +18,9 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.EndToEnd;
 /// End-to-end event sourcing journey tests proving CQRS/ES works:
 /// create aggregate -> append events -> load -> snapshot -> reload from snapshot -> project read model.
 /// </summary>
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Category", "EndToEnd")]
-[Trait("Component", "EventSourcing")]
+[Trait(TraitNames.Component, TestComponents.EventSourcing)]
 public sealed class EventSourcingJourneyE2EShould : IAsyncDisposable
 {
 	private readonly ServiceProvider _serviceProvider;

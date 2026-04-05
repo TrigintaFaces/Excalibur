@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.SqlServer.TypeHandlers;
 /// <summary>
 /// Unit tests for <see cref="TimeOnlyTypeHandler"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "TypeHandlers")]
 public sealed class TimeOnlyTypeHandlerShould : UnitTestBase
 {

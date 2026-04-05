@@ -65,7 +65,6 @@ public sealed class MetricsDispatchBuilderExtensionsShould
 		// Act
 		builder.WithMetricsOptions(opts =>
 		{
-			opts.EnableDetailedTiming = true;
 		});
 
 		// Assert — check that options are registered (IConfigureOptions present)

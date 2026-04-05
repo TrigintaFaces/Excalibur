@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Serialization.Tests.Protobuf;
 /// <summary>
 /// Unit tests for <see cref="ProtobufWireFormat"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Serialization.Protobuf")]
 [Trait("Feature", "Wire Format")]
 public sealed class ProtobufWireFormatShould : UnitTestBase

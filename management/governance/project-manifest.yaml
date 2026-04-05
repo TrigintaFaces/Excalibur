@@ -162,6 +162,8 @@ projects:
   - path: src/Excalibur/Excalibur.Data.DynamoDb/Excalibur.Data.DynamoDb.csproj
   - path: src/Excalibur/Excalibur.Data.ElasticSearch/Excalibur.Data.ElasticSearch.csproj
   - path: src/Excalibur/Excalibur.Data.Firestore/Excalibur.Data.Firestore.csproj
+  - path: src/Excalibur/Excalibur.Data.IdentityMap/Excalibur.Data.IdentityMap.csproj
+  - path: src/Excalibur/Excalibur.Data.IdentityMap.SqlServer/Excalibur.Data.IdentityMap.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Data.InMemory/Excalibur.Data.InMemory.csproj
   - path: src/Excalibur/Excalibur.Data.MongoDB/Excalibur.Data.MongoDB.csproj
   - path: src/Excalibur/Excalibur.Data.OpenSearch/Excalibur.Data.OpenSearch.csproj
@@ -249,7 +251,6 @@ projects:
   - path: src/Excalibur/Excalibur.Security/Excalibur.Security.csproj
   - path: src/Excalibur/Excalibur.Testing.Conformance/Excalibur.Testing.Conformance.csproj
   - path: src/Excalibur/Excalibur.Testing/Excalibur.Testing.csproj
-  - path: tests/ArchitectureTests/ArchitectureTests.csproj
   - path: tests/Shared/Excalibur.Dispatch.Testing/Excalibur.Dispatch.Testing.csproj
   - path: tests/Shared/Tests.Shared/Tests.Shared.csproj
   - path: tests/architecture/Boundary.Tests/Boundary.Tests.csproj
@@ -274,6 +275,7 @@ projects:
   - path: tests/unit/Excalibur.Data.DynamoDb.Tests/Excalibur.Data.DynamoDb.Tests.csproj
   - path: tests/unit/Excalibur.Data.ElasticSearch.Tests/Excalibur.Data.ElasticSearch.Tests.csproj
   - path: tests/unit/Excalibur.Data.Firestore.Tests/Excalibur.Data.Firestore.Tests.csproj
+  - path: tests/unit/Excalibur.Data.IdentityMap.Tests/Excalibur.Data.IdentityMap.Tests.csproj
   - path: tests/unit/Excalibur.Data.InMemory.Tests/Excalibur.Data.InMemory.Tests.csproj
   - path: tests/unit/Excalibur.Data.MongoDB.Tests/Excalibur.Data.MongoDB.Tests.csproj
   - path: tests/unit/Excalibur.Data.MySql.Tests/Excalibur.Data.MySql.Tests.csproj

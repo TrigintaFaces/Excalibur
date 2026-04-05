@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Masking;
 /// Unit tests for <see cref="RegexDataMasker"/>.
 /// </summary>
 [UnitTest]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Masking")]
 public sealed class RegexDataMaskerShould
 {

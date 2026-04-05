@@ -77,19 +77,12 @@
       "datatype": "bool",
       "description": "Include Dockerfile and .dockerignore.",
       "defaultValue": "false"
-    },
-    "IncludeTests": {
-      "type": "parameter",
-      "datatype": "bool",
-      "description": "Include a test project.",
-      "defaultValue": "false"
     }
   },
   "sources": [
     {
       "modifiers": [
-        { "condition": "(!IncludeDocker)", "exclude": ["Dockerfile", ".dockerignore"] },
-        { "condition": "(!IncludeTests)", "exclude": ["Company.DispatchMinimalApi.Tests/**"] }
+        { "condition": "(!IncludeDocker)", "exclude": ["Dockerfile", ".dockerignore"] }
       ]
     }
   ]

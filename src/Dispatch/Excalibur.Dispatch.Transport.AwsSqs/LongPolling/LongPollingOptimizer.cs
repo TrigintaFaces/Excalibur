@@ -19,7 +19,7 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 	private readonly ILongPollingReceiver _receiver;
 	private readonly ILongPollingStrategy _strategy;
 	private readonly IPollingMetricsCollector _metricsCollector;
-	private readonly LongPollingConfiguration _configuration;
+	private readonly LongPollingOptions _configuration;
 	private readonly ILogger<LongPollingOptimizer> _logger;
 
 	private readonly ConcurrentDictionary<string, QueuePollingContext> _queueContexts;
@@ -37,7 +37,7 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 		ILongPollingReceiver receiver,
 		ILongPollingStrategy strategy,
 		IPollingMetricsCollector metricsCollector,
-		LongPollingConfiguration configuration,
+		LongPollingOptions configuration,
 		ILogger<LongPollingOptimizer> logger)
 	{
 		_receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
@@ -51,13 +51,13 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 		_coalescingQueue = new ConcurrentQueue<CoalescingRequest>();
 		_shutdownTokenSource = new CancellationTokenSource();
 
-		if (_configuration.EnableRequestCoalescing)
+		if (_configuration.Processing.EnableRequestCoalescing)
 		{
 			_coalescingTimer = new Timer(
 				_ => _ = ProcessCoalescedRequestsAsync(),
 				state: null,
-				_configuration.CoalescingWindow,
-				_configuration.CoalescingWindow);
+				_configuration.Processing.CoalescingWindowMs,
+				_configuration.Processing.CoalescingWindowMs);
 		}
 	}
 
@@ -109,7 +109,7 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 	{
 		ThrowIfDisposed();
 
-		if (!_configuration.EnableRequestCoalescing)
+		if (!_configuration.Processing.EnableRequestCoalescing)
 		{
 			return await _receiver.ReceiveMessagesAsync(queueUrl, cancellationToken)
 				.ConfigureAwait(false);
@@ -132,7 +132,9 @@ internal sealed partial class LongPollingOptimizer : IDisposable
 		try
 		{
 			var receiverStats = await _receiver.GetStatisticsAsync().ConfigureAwait(false);
-			var strategyStats = await _strategy.GetStatisticsAsync().ConfigureAwait(false);
+			var strategyStats = _strategy is ILongPollingStrategyAdmin admin
+				? await admin.GetStatisticsAsync().ConfigureAwait(false)
+				: default;
 
 			var isHealthy = receiverStats.PollingStatus != SqsPollingStatus.Error &&
 							strategyStats.EmptyReceiveRate < 0.9; // Less than 90% empty receives

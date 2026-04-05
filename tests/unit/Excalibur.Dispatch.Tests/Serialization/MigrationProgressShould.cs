@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// <summary>
 /// Unit tests for <see cref="EncryptionMigrationProgress"/> and <see cref="MigrationOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MigrationProgressShould
 {
 	// EncryptionMigrationProgress tests

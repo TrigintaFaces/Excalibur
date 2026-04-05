@@ -95,18 +95,6 @@
         ]
       }
     },
-    "IncludeDocker": {
-      "type": "parameter",
-      "datatype": "bool",
-      "description": "Include Dockerfile and .dockerignore.",
-      "defaultValue": "false"
-    }
-  },
-  "sources": [
-    {
-      "modifiers": [
-        { "condition": "(!IncludeDocker)", "exclude": ["Dockerfile", ".dockerignore"] }
-      ]
-    }
-  ]
+  }
+}
 }

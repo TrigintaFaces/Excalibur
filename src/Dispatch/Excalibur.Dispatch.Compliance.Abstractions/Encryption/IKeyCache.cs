@@ -38,20 +38,6 @@ public interface IKeyCache
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Retrieves key metadata from the cache, or fetches and caches it with a custom TTL if not present.
-	/// </summary>
-	/// <param name="keyId">The key identifier.</param>
-	/// <param name="ttl">The time-to-live for the cached entry.</param>
-	/// <param name="factory">A factory function to retrieve the key if not in cache.</param>
-	/// <param name="cancellationToken">A token to cancel the operation.</param>
-	/// <returns>The key metadata, or null if the key does not exist.</returns>
-	Task<KeyMetadata?> GetOrAddAsync(
-		string keyId,
-		TimeSpan ttl,
-		Func<string, CancellationToken, Task<KeyMetadata?>> factory,
-		CancellationToken cancellationToken);
-
-	/// <summary>
 	/// Attempts to retrieve key metadata from the cache.
 	/// </summary>
 	/// <param name="keyId">The key identifier.</param>
@@ -65,28 +51,10 @@ public interface IKeyCache
 	void Set(KeyMetadata keyMetadata);
 
 	/// <summary>
-	/// Adds or updates key metadata in the cache with a custom TTL.
-	/// </summary>
-	/// <param name="keyMetadata">The key metadata to cache.</param>
-	/// <param name="ttl">The time-to-live for the cached entry.</param>
-	void Set(KeyMetadata keyMetadata, TimeSpan ttl);
-
-	/// <summary>
 	/// Removes key metadata from the cache.
 	/// </summary>
 	/// <param name="keyId">The key identifier to remove.</param>
 	void Remove(string keyId);
-
-	/// <summary>
-	/// Invalidates all cached entries for a specific key, including all versions.
-	/// </summary>
-	/// <param name="keyId">The key identifier.</param>
-	void Invalidate(string keyId);
-
-	/// <summary>
-	/// Clears all cached key metadata.
-	/// </summary>
-	void Clear();
 }
 
 /// <summary>

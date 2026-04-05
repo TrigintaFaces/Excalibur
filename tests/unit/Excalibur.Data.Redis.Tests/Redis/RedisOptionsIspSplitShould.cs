@@ -11,8 +11,8 @@ namespace Excalibur.Data.Tests.Redis;
 /// Tests for RedisProviderOptions ISP split (S560.32) -- verifies sub-option binding,
 /// nested initializer syntax, and DataAnnotations validation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class RedisOptionsIspSplitShould
 {
 	#region Sub-Options Initialization

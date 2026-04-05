@@ -11,7 +11,7 @@ namespace Excalibur.Data.Tests.MongoDB.Cdc;
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "MongoDB")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class IMongoDbCdcStateStoreShould
 {
 	private readonly Type _interfaceType = typeof(IMongoDbCdcStateStore);

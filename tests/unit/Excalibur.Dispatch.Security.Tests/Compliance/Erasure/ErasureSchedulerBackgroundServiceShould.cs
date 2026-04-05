@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// integration tests with real DI container setup.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class ErasureSchedulerBackgroundServiceShould
 {
 	private readonly IServiceScopeFactory _scopeFactory;

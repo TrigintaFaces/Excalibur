@@ -8,7 +8,7 @@ namespace Excalibur.Data.Tests.SqlServer.ErrorHandling;
 /// <summary>
 /// Unit tests for <see cref="SqlServerDeadLetterOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
 [Trait("Feature", "ErrorHandling")]
 public sealed class SqlServerDeadLetterOptionsShould : UnitTestBase

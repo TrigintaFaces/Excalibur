@@ -16,8 +16,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 	Justification = "Test code uses reflection for discovery testing")]
 [SuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 	Justification = "Test code uses dynamic discovery for testing")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataProcessorDiscoveryShould : UnitTestBase
 {
 	[Fact]
@@ -82,8 +82,8 @@ public sealed class DataProcessorDiscoveryShould : UnitTestBase
 [UnitTest]
 [SuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
 	Justification = "Test code uses reflection for discovery testing")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RecordHandlerDiscoveryShould : UnitTestBase
 {
 	[Fact]

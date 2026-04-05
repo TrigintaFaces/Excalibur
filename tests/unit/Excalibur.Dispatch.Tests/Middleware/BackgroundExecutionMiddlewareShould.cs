@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// exception isolation, and cancellation propagation.
 /// Sprint 560 (S560.44).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class BackgroundExecutionMiddlewareShould : UnitTestBase
 {
 	private readonly BackgroundExecutionMiddleware _middleware;

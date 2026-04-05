@@ -1,8 +1,8 @@
 #nullable enable
 Excalibur.Testing.AggregateTestFixture<TAggregate>
 Excalibur.Testing.AggregateTestFixture<TAggregate>.AggregateTestFixture() -> void
-Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(params Excalibur.Dispatch.Abstractions.IDomainEvent![]! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
 Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
+Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(params Excalibur.Dispatch.Abstractions.IDomainEvent![]! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
 Excalibur.Testing.AggregateTestFixture<TAggregate>.ShouldThrow<TException>() -> void
 Excalibur.Testing.AggregateTestFixture<TAggregate>.ShouldThrow<TException>(string! messageContains) -> void
 Excalibur.Testing.AggregateTestFixture<TAggregate>.Then() -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
@@ -18,8 +18,8 @@ Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.ShouldThrow<TException>
 Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.ShouldThrow<TException>(string! messageContains) -> void
 Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.StateShould(System.Func<TAggregate, bool>! predicate, string? message = null) -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
 Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>
-Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.Given(params object![]! events) -> Excalibur.Testing.SagaTestFixture<TSaga, TSagaState!>!
 Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.Given(System.Action<TSagaState!>! setupState) -> Excalibur.Testing.SagaTestFixture<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.Given(params object![]! events) -> Excalibur.Testing.SagaTestFixture<TSaga, TSagaState!>!
 Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.SagaTestFixture() -> void
 Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.ShouldThrowAsync<TException>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.ThenAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState!>!>!

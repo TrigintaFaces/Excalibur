@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Options.CloudEvents;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.CloudEvents;
 /// Unit tests for the <see cref="CloudEventMiddleware"/> class.
 /// Sprint 561 S561.42: Validates CloudEvents envelope, content-type, extensions, and schema processing.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class CloudEventMiddlewareShould
 {
 	private readonly ILogger<CloudEventMiddleware> _logger;

@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Middleware;
 /// retry exhaustion, threshold tracking, and cancellation behavior.
 /// Sprint 560 (S560.41).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class PoisonMessageMiddlewareShould : UnitTestBase
 {
 	private readonly IPoisonMessageDetector _detector;

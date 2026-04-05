@@ -2,8 +2,8 @@ using System.IO.Compression;
 
 namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ClaimCheckCompressionOptionsShould
 {
 	[Fact]

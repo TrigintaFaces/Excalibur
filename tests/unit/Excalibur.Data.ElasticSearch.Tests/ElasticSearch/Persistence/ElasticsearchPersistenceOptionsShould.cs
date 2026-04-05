@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.Persistence;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Persistence;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ElasticsearchPersistenceOptionsShould
 {
 	[Fact]

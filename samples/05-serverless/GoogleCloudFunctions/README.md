@@ -198,7 +198,7 @@ public class Startup : FunctionsStartup
         services.AddDispatch(dispatch =>
         {
             dispatch.AddHandlersFromAssembly(typeof(Startup).Assembly);
-            dispatch.WithSerialization(config => config.UseSystemTextJson());
+            // JSON is the default -- no serialization config needed
         });
 
         // Configure serverless hosting

@@ -10,6 +10,8 @@
     <IsSampleProject>true</IsSampleProject>
     <IsPackable>false</IsPackable>
     <ProjectClassification>Sample</ProjectClassification>
+    <!-- CS1591: Samples are non-shipping code; XML doc enforcement is for shipping packages only -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <!-- ============================================================================================

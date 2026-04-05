@@ -1,12 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.BatchForwarded = 93402 -> int
-const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.EventForwarded = 93401 -> int
-const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedBatchChunk = 93410 -> int
-const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedHttpError = 93408 -> int
-const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedStatus = 93405 -> int
-const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedTimeout = 93409 -> int
-const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardRetried = 93406 -> int
-const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.HealthCheckFailed = 93407 -> int
 Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter
 Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExporterHealthResult!>!
 Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter.ExportAsync(Excalibur.Dispatch.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExportResult!>!
@@ -53,6 +45,14 @@ Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.SplunkExporterOptio
 Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.UseAck.get -> bool
 Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.UseAck.set -> void
 Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configurationSection = "Splunk") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.BatchForwarded = 93402 -> int
+const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.EventForwarded = 93401 -> int
+const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedBatchChunk = 93410 -> int
+const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedHttpError = 93408 -> int
+const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedStatus = 93405 -> int
+const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedTimeout = 93409 -> int
+const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardRetried = 93406 -> int
+const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.HealthCheckFailed = 93407 -> int
 static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configurationSection = "Splunk") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

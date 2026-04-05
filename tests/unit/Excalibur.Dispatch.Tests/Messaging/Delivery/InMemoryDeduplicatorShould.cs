@@ -8,8 +8,8 @@ using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemoryDeduplicatorShould : IDisposable
 {
 	private static readonly TimeSpan ShortExpiry = TimeSpan.FromMilliseconds(100);

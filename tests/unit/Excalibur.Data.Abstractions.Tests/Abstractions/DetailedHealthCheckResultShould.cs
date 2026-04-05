@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.Abstractions;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Data.Abstractions")]
-[Trait("Feature", "HealthChecks")]
+[Trait(TraitNames.Feature, TestFeatures.HealthChecks)]
 public sealed class DetailedHealthCheckResultShould : UnitTestBase
 {
 	#region Constructor Tests

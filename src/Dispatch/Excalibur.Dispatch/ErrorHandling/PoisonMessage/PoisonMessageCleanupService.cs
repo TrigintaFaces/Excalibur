@@ -113,8 +113,13 @@ internal sealed partial class PoisonMessageCleanupService : BackgroundService
 
 		try
 		{
+			if (_deadLetterStore is not IDeadLetterStoreAdmin admin)
+			{
+				return;
+			}
+
 			var retentionDays = (int)_options.Cleanup.DeadLetterRetentionPeriod.TotalDays;
-			var cleanedCount = await _deadLetterStore.CleanupOldMessagesAsync(retentionDays, cancellationToken)
+			var cleanedCount = await admin.CleanupOldMessagesAsync(retentionDays, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (cleanedCount > 0)

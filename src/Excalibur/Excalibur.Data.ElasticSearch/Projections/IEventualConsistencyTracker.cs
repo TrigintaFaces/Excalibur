@@ -50,18 +50,6 @@ public interface IEventualConsistencyTracker
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Gets consistency metrics for all projection types.
-	/// </summary>
-	/// <param name="fromTime"> The start time for metrics calculation. </param>
-	/// <param name="toTime"> The end time for metrics calculation. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> A collection of consistency metrics. </returns>
-	Task<IEnumerable<ConsistencyMetrics>> GetConsistencyMetricsAsync(
-		DateTime fromTime,
-		DateTime toTime,
-		CancellationToken cancellationToken);
-
-	/// <summary>
 	/// Checks if a specific event has been processed by all projections.
 	/// </summary>
 	/// <param name="eventId"> The event identifier to check. </param>
@@ -82,14 +70,34 @@ public interface IEventualConsistencyTracker
 		TimeSpan expectedProcessingTime,
 		int maxResults,
 		CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides administrative and diagnostic operations for eventual consistency tracking.
+/// This is an ISP sub-interface of <see cref="IEventualConsistencyTracker"/> for consumers
+/// that need metrics collection and alert configuration.
+/// </summary>
+public interface IEventualConsistencyTrackerAdmin
+{
+	/// <summary>
+	/// Gets consistency metrics for all projection types.
+	/// </summary>
+	/// <param name="fromTime"> The start time for metrics calculation. </param>
+	/// <param name="toTime"> The end time for metrics calculation. </param>
+	/// <param name="cancellationToken"> The cancellation token. </param>
+	/// <returns> A collection of consistency metrics. </returns>
+	Task<IEnumerable<ConsistencyMetrics>> GetConsistencyMetricsAsync(
+		DateTime fromTime,
+		DateTime toTime,
+		CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Sets up monitoring alerts for consistency violations.
 	/// </summary>
-	/// <param name="config"> The alert configuration. </param>
+	/// <param name="config"> The alert options. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the asynchronous setup operation. </returns>
 	Task ConfigureConsistencyAlertsAsync(
-		ConsistencyAlertConfiguration config,
+		ConsistencyAlertOptions config,
 		CancellationToken cancellationToken);
 }

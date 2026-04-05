@@ -10,11 +10,12 @@ using Excalibur.Dispatch.Extensions;
 
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+
+using MsMemoryCacheOptions = Microsoft.Extensions.Caching.Memory.MemoryCacheOptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -78,7 +79,7 @@ public static class CachingServiceCollectionExtensions
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
 	public static IServiceCollection AddDispatchMemoryCaching(
 		this IServiceCollection services,
-		Action<MemoryCacheOptions>? configureMemory = null,
+		Action<MsMemoryCacheOptions>? configureMemory = null,
 		Action<CacheOptions>? configureCaching = null)
 	{
 		_ = services.ConfigureOptions(configureCaching, static defaults =>

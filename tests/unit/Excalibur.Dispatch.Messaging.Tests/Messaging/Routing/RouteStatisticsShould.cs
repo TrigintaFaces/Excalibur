@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing;
 /// <summary>
 /// Unit tests for <see cref="RouteStatistics"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Routing")]
 [Trait("Priority", "0")]
 public sealed class RouteStatisticsShould

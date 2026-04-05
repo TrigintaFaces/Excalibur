@@ -220,7 +220,8 @@ internal sealed partial class RoutingPolicyFileLoader(
 
 		LogPolicyFileChanged(e.FullPath);
 
-		// Async reload via Task.Run to avoid blocking the ThreadPool thread
+		// Async reload via Task.Run to avoid blocking the FileSystemWatcher callback thread
+#pragma warning disable RS0030 // Intentional: FileSystemWatcher callbacks are synchronous; Task.Run is the correct way to bridge to async
 		_ = Task.Run(async () =>
 		{
 			try
@@ -234,6 +235,7 @@ internal sealed partial class RoutingPolicyFileLoader(
 				// Keep existing rules on reload failure
 			}
 		});
+#pragma warning restore RS0030
 	}
 
 	/// <summary>

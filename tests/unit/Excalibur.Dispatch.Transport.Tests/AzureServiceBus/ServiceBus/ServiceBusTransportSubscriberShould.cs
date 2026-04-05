@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Transport.Tests.AzureServiceBus.ServiceBus;
 /// Unit tests for <see cref="ServiceBusTransportSubscriber"/>.
 /// Validates push-based subscription, message settlement, error handling, and disposal.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class ServiceBusTransportSubscriberShould : IAsyncDisposable
 {
 	private const string TestSource = "orders-queue";

@@ -235,7 +235,11 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 	{
 		using var activity = _activitySource.StartActivity("GetPoisonStatistics");
 
-		var totalCount = await _deadLetterStore.GetCountAsync(cancellationToken).ConfigureAwait(false);
+		long totalCount = 0;
+		if (_deadLetterStore is IDeadLetterStoreAdmin admin)
+		{
+			totalCount = await admin.GetCountAsync(cancellationToken).ConfigureAwait(false);
+		}
 
 		// Get recent messages for time window calculation
 		var recentFilter = new DeadLetterFilter { FromDate = DateTimeOffset.UtcNow.Subtract(_options.Alerting.AlertTimeWindow), MaxResults = 1000 };

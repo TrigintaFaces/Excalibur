@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.Security;
 /// <summary>
 /// Unit tests for KafkaTransportConnection TLS verification.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KafkaTransportConnectionShould
 {
 	#region Constructor Tests

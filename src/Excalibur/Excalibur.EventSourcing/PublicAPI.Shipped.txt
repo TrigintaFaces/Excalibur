@@ -34,57 +34,27 @@ Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder.Add
 Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder.Build() -> Excalibur.EventSourcing.Abstractions.ISnapshotStrategy!
 Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder.CompositeSnapshotStrategyBuilder() -> void
 Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder.RequireAll(bool requireAll = true) -> Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder!
+Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions
 Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder
 Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.AddRepository<TAggregate, TKey>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.AddRepository<TAggregate, TKey>(System.Func<TKey, TAggregate!>! aggregateFactory) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.AddRepository<TAggregate>(System.Func<string!, TAggregate!>! aggregateFactory) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.AddSnapshotStrategy<TStrategy>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.AddSnapshotUpgrading(System.Action<Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.AddUpcastingPipeline(System.Action<Excalibur.Dispatch.Versioning.UpcastingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.ExcaliburEventSourcingBuilder(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
 Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseCompositeSnapshotStrategy(System.Action<Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseEventSerializer<TSerializer>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseEventStore<TEventStore>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseEventStoreErasure<TMapping>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseIntervalSnapshots(int eventInterval = 100) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseNoSnapshots() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseOutboxStore<TOutboxStore>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseSizeBasedSnapshots(long maxSizeInBytes) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseSnapshotManager<TManager>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder.UseTimeBasedSnapshots(System.TimeSpan timeInterval) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder
 Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.AddRepository<TAggregate, TKey>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.AddRepository<TAggregate, TKey>(System.Func<TKey, TAggregate!>! aggregateFactory) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.AddRepository<TAggregate>(System.Func<string!, TAggregate!>! aggregateFactory) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.AddSnapshotStrategy<TStrategy>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.AddSnapshotUpgrading(System.Action<Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.AddUpcastingPipeline(System.Action<Excalibur.Dispatch.Versioning.UpcastingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseCompositeSnapshotStrategy(System.Action<Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseEventSerializer<TSerializer>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseEventStore<TEventStore>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseEventStoreErasure<TMapping>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseIntervalSnapshots(int eventInterval = 100) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseNoSnapshots() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseOutboxStore<TOutboxStore>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseSizeBasedSnapshots(long maxSizeInBytes) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseSnapshotManager<TManager>() -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder.UseTimeBasedSnapshots(System.TimeSpan timeInterval) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder
 Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.AddBuilder<TView, TBuilder>() -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
-Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.AddBuilder<TView>(System.Func<System.IServiceProvider!, Excalibur.EventSourcing.Abstractions.IMaterializedViewBuilder<TView!>!>! builderFactory) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
-Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.EnableCatchUpOnStartup() -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.UseProcessor<TProcessor>() -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
-Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.UseRefreshService() -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
-Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.UseRefreshService(System.Action<Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.UseStore(System.Func<System.IServiceProvider!, Excalibur.EventSourcing.Abstractions.IMaterializedViewStore!>! storeFactory) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.UseStore<TStore>() -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
-Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.WithBatchSize(int batchSize) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
-Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.WithHealthChecks() -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
-Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.WithHealthChecks(System.Action<Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
-Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder.WithMetrics() -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions
 Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder
 Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder.EnableAutoUpgradeOnLoad(bool enable = true) -> Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!
 Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder.RegisterUpgrader(Excalibur.EventSourcing.Abstractions.ISnapshotUpgrader! upgrader) -> Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!
@@ -240,6 +210,9 @@ Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore.DeletePublishedOlderThan
 Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore.GetPendingAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Outbox.OutboxMessage!>!>!
 Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore.IncrementRetryCountAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore.MarkAsPublishedAsync(System.Guid messageId, System.Data.IDbTransaction? transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Outbox.IOutboxPartitioner
+Excalibur.EventSourcing.Outbox.IOutboxPartitioner.GetPartition(string! tenantId) -> int
+Excalibur.EventSourcing.Outbox.IOutboxPartitioner.PartitionCount.get -> int
 Excalibur.EventSourcing.Outbox.OutboxMessage
 Excalibur.EventSourcing.Outbox.OutboxMessage.AggregateId.get -> string!
 Excalibur.EventSourcing.Outbox.OutboxMessage.AggregateId.init -> void
@@ -261,6 +234,54 @@ Excalibur.EventSourcing.Outbox.OutboxMessage.PublishedAt.get -> System.DateTimeO
 Excalibur.EventSourcing.Outbox.OutboxMessage.PublishedAt.init -> void
 Excalibur.EventSourcing.Outbox.OutboxMessage.RetryCount.get -> int
 Excalibur.EventSourcing.Outbox.OutboxMessage.RetryCount.init -> void
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ErrorBackoffInterval.get -> System.TimeSpan
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ErrorBackoffInterval.set -> void
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.OutboxPartitionOptions() -> void
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.PartitionCount.get -> int
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.PartitionCount.set -> void
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.PollingInterval.set -> void
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ProcessorCountPerPartition.get -> int
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ProcessorCountPerPartition.set -> void
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ShardIds.get -> System.Collections.Generic.List<string!>!
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ShardIds.set -> void
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.Strategy.get -> Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
+Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.Strategy.set -> void
+Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
+Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy.ByTenantHash = 2 -> Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
+Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy.None = 0 -> Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
+Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy.PerShard = 1 -> Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
+Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
+Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.PerShard = 2 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
+Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.RangePartitioned = 1 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
+Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.Sequential = 0 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
+Excalibur.EventSourcing.ParallelCatchUp.IGlobalStreamPartitioner
+Excalibur.EventSourcing.ParallelCatchUp.IGlobalStreamPartitioner.Partition(long fromPosition, long toPosition, int workerCount) -> System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.ParallelCatchUp.StreamRange!>!
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.BatchSize.get -> int
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.BatchSize.set -> void
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.CheckpointInterval.get -> int
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.CheckpointInterval.set -> void
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.MaxRetries.get -> int
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.MaxRetries.set -> void
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.ParallelCatchUpOptions() -> void
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.Strategy.get -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.Strategy.set -> void
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerCount.get -> int
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerCount.set -> void
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerHeartbeatTimeout.get -> System.TimeSpan
+Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerHeartbeatTimeout.set -> void
+Excalibur.EventSourcing.ParallelCatchUp.StreamRange
+Excalibur.EventSourcing.ParallelCatchUp.StreamRange.EndPosition.get -> long
+Excalibur.EventSourcing.ParallelCatchUp.StreamRange.EndPosition.init -> void
+Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StartPosition.get -> long
+Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StartPosition.init -> void
+Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StreamRange(long StartPosition, long EndPosition) -> void
+Excalibur.EventSourcing.Projections.DirtyCheckingMode
+Excalibur.EventSourcing.Projections.DirtyCheckingMode.Equality = 1 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
+Excalibur.EventSourcing.Projections.DirtyCheckingMode.None = 0 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
+Excalibur.EventSourcing.Projections.DirtyCheckingMode.ReferenceEquality = 2 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState>
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState>.GlobalStreamProjectionHost(Excalibur.EventSourcing.Queries.IGlobalStreamQuery! globalStreamQuery, Excalibur.EventSourcing.Projections.IGlobalStreamProjection<TState!>! projection, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore! checkpointStore, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState!>!>! logger, System.IServiceProvider! serviceProvider, Excalibur.EventSourcing.Abstractions.ICursorMapStore? cursorMapStore = null) -> void
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions
@@ -560,14 +581,20 @@ Excalibur.EventSourcing.Views.MaterializedViewOptions.MaterializedViewOptions() 
 Excalibur.EventSourcing.Views.MaterializedViewOptionsValidator
 Excalibur.EventSourcing.Views.MaterializedViewOptionsValidator.MaterializedViewOptionsValidator() -> void
 Excalibur.EventSourcing.Views.MaterializedViewOptionsValidator.Validate(string? name, Excalibur.EventSourcing.Views.MaterializedViewOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingOpenTelemetryExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventTypeRegistryServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ImmutableProjectionServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PartitionedOutboxServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions
 abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.AggregateType.get -> string!
 abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.FromVersion.get -> int
 abstract Excalibur.EventSourcing.Snapshots.SnapshotUpgrader<TFrom, TTo>.ToVersion.get -> int
@@ -722,6 +749,26 @@ override Excalibur.EventSourcing.Snapshots.Compression.CompressingSnapshotStore.
 override Excalibur.EventSourcing.Snapshots.Compression.CompressingSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 override Excalibur.EventSourcing.Snapshots.Security.EncryptingSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 override Excalibur.EventSourcing.Snapshots.Security.EncryptingSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.AddSnapshotStrategy<TStrategy>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.AddSnapshotUpgrading(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.DependencyInjection.SnapshotUpgradingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.AddUpcastingPipeline(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Dispatch.Versioning.UpcastingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseCompositeSnapshotStrategy(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.DependencyInjection.CompositeSnapshotStrategyBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseEventSerializer<TSerializer>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseEventStoreErasure<TMapping>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseIntervalSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, int eventInterval = 100) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseNoSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseOutboxStore<TOutboxStore>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseSizeBasedSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, long maxSizeInBytes) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseSnapshotManager<TManager>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseTimeBasedSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.TimeSpan timeInterval) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.AddBuilder<TView>(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, System.Func<System.IServiceProvider!, Excalibur.EventSourcing.Abstractions.IMaterializedViewBuilder<TView!>!>! builderFactory) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.EnableCatchUpOnStartup(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.UseRefreshService(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.UseRefreshService(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, System.Action<Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.WithBatchSize(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, int batchSize) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.WithHealthChecks(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.WithHealthChecks(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, System.Action<Excalibur.EventSourcing.Health.MaterializedViewHealthCheckOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
+static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.WithMetrics(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 static Excalibur.EventSourcing.Observability.EventSourcingActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
 static Excalibur.EventSourcing.Observability.EventSourcingActivitySource.RecordException(this System.Diagnostics.Activity? activity, System.Exception! exception) -> void
 static Excalibur.EventSourcing.Observability.EventSourcingActivitySource.SetOperationResult(this System.Diagnostics.Activity? activity, string! result) -> void
@@ -736,6 +783,9 @@ static Excalibur.EventSourcing.Queries.GlobalStreamPosition.Start.get -> Excalib
 static Excalibur.EventSourcing.Snapshots.NoSnapshotStrategy.Instance.get -> Excalibur.EventSourcing.Snapshots.NoSnapshotStrategy!
 static Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult.Compatible(int version) -> Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult!
 static Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult.Incompatible(int storedVersion, int currentVersion, string? reason = null) -> Excalibur.EventSourcing.Snapshots.Versioning.SnapshotSchemaValidationResult!
+static Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions.UseAutoSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions.UseAutoSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddEventNotificationHandlersFromAssembly(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddProjection<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddProjectionsFromAssembly(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.UseEventNotification(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
@@ -749,16 +799,27 @@ static Microsoft.Extensions.DependencyInjection.EventSourcingServiceCollectionEx
 static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddAggregateBulkOperations<TAggregate, TKey>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddEventStoreThroughputMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! providerName = "default") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddSnapshotCompression(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddSnapshotCompression(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddSnapshotCompression(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Snapshots.Compression.SnapshotCompressionOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddSnapshotEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddSnapshotSchemaVersioning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddSnapshotUpgraderRegistry(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddTimeTravelQuery(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.EventTypeRegistryServiceCollectionExtensions.AddEventTypeRegistry(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventTypeRegistryServiceCollectionExtensions.AddEventTypeRegistry(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.TypeMapping.EventTypeRegistryOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions.AddMaterializedViews(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions.AddMaterializedViews(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MaterializedViewsServiceCollectionExtensions.HasMaterializedViews(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
+static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Migration.MigrationRunnerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions.UseParallelCatchUp(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions.UseParallelCatchUp(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.PartitionedOutboxServiceCollectionExtensions.UsePartitionedOutbox(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.PartitionedOutboxServiceCollectionExtensions.UsePartitionedOutbox(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Outbox.OutboxPartitionOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Data.Abstractions.Sharding.ShardMapOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions.UseTieredStorage(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions.UseTieredStorage(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Abstractions.ArchivePolicy!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 virtual Excalibur.EventSourcing.Decorators.DelegatingEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
 virtual Excalibur.EventSourcing.Decorators.DelegatingEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 virtual Excalibur.EventSourcing.Decorators.DelegatingEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
@@ -767,74 +828,3 @@ virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.DeleteSnapsho
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.DeleteAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions.UseAutoSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Abstractions.AutoSnapshotOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.Data.Abstractions.Sharding.ShardMapOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Microsoft.Extensions.DependencyInjection.ImmutableProjectionServiceCollectionExtensions
-Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions.UseTieredStorage(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Abstractions.ArchivePolicy!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
-Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy.None = 0 -> Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
-Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy.PerShard = 1 -> Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
-Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy.ByTenantHash = 2 -> Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.OutboxPartitionOptions() -> void
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.Strategy.get -> Excalibur.EventSourcing.Outbox.OutboxPartitionStrategy
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.Strategy.set -> void
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.PartitionCount.get -> int
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.PartitionCount.set -> void
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ProcessorCountPerPartition.get -> int
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ProcessorCountPerPartition.set -> void
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ShardIds.get -> System.Collections.Generic.List<string!>!
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ShardIds.set -> void
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.PollingInterval.get -> System.TimeSpan
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.PollingInterval.set -> void
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ErrorBackoffInterval.get -> System.TimeSpan
-Excalibur.EventSourcing.Outbox.OutboxPartitionOptions.ErrorBackoffInterval.set -> void
-Excalibur.EventSourcing.Outbox.IOutboxPartitioner
-Excalibur.EventSourcing.Outbox.IOutboxPartitioner.GetPartition(string! tenantId) -> int
-Excalibur.EventSourcing.Outbox.IOutboxPartitioner.PartitionCount.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.EndPosition.get -> long
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.EndPosition.init -> void
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StartPosition.get -> long
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StartPosition.init -> void
-Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StreamRange(long StartPosition, long EndPosition) -> void
-Excalibur.EventSourcing.ParallelCatchUp.IGlobalStreamPartitioner
-Excalibur.EventSourcing.ParallelCatchUp.IGlobalStreamPartitioner.Partition(long fromPosition, long toPosition, int workerCount) -> System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.ParallelCatchUp.StreamRange!>!
-Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.Sequential = 0 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.RangePartitioned = 1 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy.PerShard = 2 -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.ParallelCatchUpOptions() -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.Strategy.get -> Excalibur.EventSourcing.ParallelCatchUp.CatchUpStrategy
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.Strategy.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerCount.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerCount.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.BatchSize.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.BatchSize.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.CheckpointInterval.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.CheckpointInterval.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.MaxRetries.get -> int
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.MaxRetries.set -> void
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerHeartbeatTimeout.get -> System.TimeSpan
-Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions.WorkerHeartbeatTimeout.set -> void
-Microsoft.Extensions.DependencyInjection.PartitionedOutboxServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.PartitionedOutboxServiceCollectionExtensions.UsePartitionedOutbox(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Outbox.OutboxPartitionOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions.UseParallelCatchUp(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.ParallelCatchUp.ParallelCatchUpOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.EventNotificationServiceCollectionExtensions.AddEventNotificationHandlersFromAssembly(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.Projections.DirtyCheckingMode
-Excalibur.EventSourcing.Projections.DirtyCheckingMode.None = 0 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
-Excalibur.EventSourcing.Projections.DirtyCheckingMode.Equality = 1 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
-Excalibur.EventSourcing.Projections.DirtyCheckingMode.ReferenceEquality = 2 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
-static Microsoft.Extensions.DependencyInjection.AutoSnapshotServiceCollectionExtensions.UseAutoSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.ParallelCatchUpServiceCollectionExtensions.UseParallelCatchUp(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.PartitionedOutboxServiceCollectionExtensions.UsePartitionedOutbox(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions.EnableTenantSharding(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.TieredStorageServiceCollectionExtensions.UseTieredStorage(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.MigrationServiceCollectionExtensions.AddEventSourcingMigration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.EventTypeRegistryServiceCollectionExtensions.AddEventTypeRegistry(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.EventSourcingUtilitiesServiceCollectionExtensions.AddSnapshotCompression(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

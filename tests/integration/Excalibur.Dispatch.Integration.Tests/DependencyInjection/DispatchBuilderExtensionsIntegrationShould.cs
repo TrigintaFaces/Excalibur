@@ -26,8 +26,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DependencyInjection;
 /// Sprint 500 S500.5: Tests for builder-based transport and cross-cutting registration.
 /// Validates S500.2 (bd-g87hd) and S500.4 (bd-onl97) acceptance criteria.
 /// </remarks>
-[Trait("Category", "Integration")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 public sealed class DispatchBuilderExtensionsIntegrationShould
 {
 	#region Transport Builder Extensions (S500.2 — AC-1, AC-2)

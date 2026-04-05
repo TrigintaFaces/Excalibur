@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Validation.Context;
 /// <summary>
 ///     Tests for the <see cref="FieldValidationRule" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class FieldValidationRuleShould
 {

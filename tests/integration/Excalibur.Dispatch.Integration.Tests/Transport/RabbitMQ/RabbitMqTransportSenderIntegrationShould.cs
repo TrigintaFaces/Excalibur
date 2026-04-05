@@ -18,9 +18,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 /// single sends, batch sends, routing key support, and message property mapping.
 /// </summary>
 [Collection(ContainerCollections.RabbitMQ)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "RabbitMQ")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
 {
     private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(15));

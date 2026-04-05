@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Configuration;
 /// <summary>
 /// Unit tests for MiddlewarePresetExtensions including fine-grained stacks (Sprint 656 Q.2).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MiddlewarePresetExtensionsShould : UnitTestBase
 {
 	[Fact]

@@ -306,7 +306,6 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 
 	// IDE0060: Export methods share a consistent (report, options, cancellationToken) signature
 	// for uniformity; not all formats use every parameter.
-#pragma warning disable IDE0060
 	private Task<(byte[] Data, string ContentType, string Extension)> ExportToJsonAsync(
 		Soc2Report report,
 		Soc2ReportExportOptions options,
@@ -712,7 +711,6 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		return Task.FromResult((data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"));
 	}
 #pragma warning restore CA1849
-#pragma warning restore IDE0060
 
 	private static string GenerateExcelSheetXml(Soc2Report report)
 	{

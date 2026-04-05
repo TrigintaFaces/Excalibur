@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Implements a fixed long polling strategy that uses a constant wait time.
 /// </summary>
-internal sealed class FixedLongPollingStrategy : ILongPollingStrategy
+internal sealed class FixedLongPollingStrategy : ILongPollingStrategy, ILongPollingStrategyAdmin
 {
 	private readonly TimeSpan _fixedWaitTime;
 	private long _totalReceives;
@@ -21,12 +21,11 @@ internal sealed class FixedLongPollingStrategy : ILongPollingStrategy
 	/// Initializes a new instance of the <see cref="FixedLongPollingStrategy" /> class.
 	/// </summary>
 	/// <param name="configuration"> The long polling configuration. </param>
-	public FixedLongPollingStrategy(LongPollingConfiguration configuration)
+	public FixedLongPollingStrategy(LongPollingOptions configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
-		configuration.Validate();
 
-		_fixedWaitTime = TimeSpan.FromSeconds(configuration.MaxWaitTimeSeconds);
+		_fixedWaitTime = TimeSpan.FromSeconds(configuration.Polling.MaxWaitTimeSeconds);
 		_lastReceiveTime = DateTimeOffset.UtcNow;
 	}
 

@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Tests bulk decryption and export per AD-255-3.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class EncryptionDecryptionServiceShould
 {
 	private readonly IEncryptionProviderRegistry _registry;

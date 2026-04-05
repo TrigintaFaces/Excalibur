@@ -54,17 +54,17 @@ public interface ITransportAdapter
 		IMessageContext context,
 		CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Starts the transport adapter.
-	/// </summary>
-	/// <param name="cancellationToken"> Cancellation token. </param>
-	/// <returns> A task that represents the asynchronous start operation. </returns>
+}
+
+/// <summary>
+/// Provides lifecycle management for a transport adapter.
+/// Implementations should implement this alongside <see cref="ITransportAdapter"/>.
+/// </summary>
+public interface ITransportAdapterLifecycle
+{
+	/// <summary>Starts the transport adapter.</summary>
 	Task StartAsync(CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Stops the transport adapter.
-	/// </summary>
-	/// <param name="cancellationToken"> Cancellation token. </param>
-	/// <returns> A task that represents the asynchronous stop operation. </returns>
+	/// <summary>Stops the transport adapter.</summary>
 	Task StopAsync(CancellationToken cancellationToken);
 }

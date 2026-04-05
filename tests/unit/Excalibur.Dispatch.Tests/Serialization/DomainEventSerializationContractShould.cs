@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Sprint 693, Task T.1 (bd-jcswc): Closes the critical gap where JSON property renames
 /// or type changes could silently break deserialization of persisted events.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class DomainEventSerializationContractShould
 {
 	[SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code")]

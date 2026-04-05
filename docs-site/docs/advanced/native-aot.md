@@ -167,8 +167,8 @@ public static partial class ResultFactoryRegistry
     {
         return result switch
         {
-            global::Excalibur.Dispatch.Messaging.MessageResult<Guid> r => r.ReturnValue,
-            global::Excalibur.Dispatch.Messaging.MessageResult<OrderDto> r => r.ReturnValue,
+            global::Excalibur.Dispatch.Abstractions.IMessageResult<Guid> r => r.ReturnValue,
+            global::Excalibur.Dispatch.Abstractions.IMessageResult<OrderDto> r => r.ReturnValue,
             _ => null
         };
     }

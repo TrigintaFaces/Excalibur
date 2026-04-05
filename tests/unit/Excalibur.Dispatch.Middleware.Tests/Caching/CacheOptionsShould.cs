@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// Unit tests for <see cref="CacheOptions"/>.
 /// Covers default values, property setters, and the UseDistributedCache convenience property.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class CacheOptionsShould : UnitTestBase
 {
 	[Fact]
@@ -272,7 +272,7 @@ public sealed class CacheOptionsShould : UnitTestBase
 	{
 		// Arrange
 		var options = new CacheOptions();
-		var memoryConfig = new MemoryCacheConfiguration();
+		var memoryConfig = new DispatchMemoryCacheOptions();
 
 		// Act
 		options.Memory = memoryConfig;
@@ -286,7 +286,7 @@ public sealed class CacheOptionsShould : UnitTestBase
 	{
 		// Arrange
 		var options = new CacheOptions();
-		var distConfig = new DistributedCacheConfiguration();
+		var distConfig = new DistributedCacheOptions();
 
 		// Act
 		options.Distributed = distConfig;

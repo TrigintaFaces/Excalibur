@@ -1,12 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.BatchForwarded = 93421 -> int
-const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.EventForwarded = 93420 -> int
-const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedBatchChunk = 93430 -> int
-const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedHttpError = 93428 -> int
-const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedStatus = 93425 -> int
-const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedTimeout = 93429 -> int
-const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardRetried = 93426 -> int
-const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.HealthCheckFailed = 93427 -> int
 Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditExporter
 Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExporterHealthResult!>!
 Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditExporter.DatadogAuditExporter(System.Net.Http.HttpClient! httpClient, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.AuditLogging.Datadog.DatadogExporterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditExporter!>! logger) -> void
@@ -43,5 +35,13 @@ Excalibur.Dispatch.AuditLogging.Datadog.DatadogExporterRetryOptions.RetryBaseDel
 Excalibur.Dispatch.AuditLogging.Datadog.DatadogExporterRetryOptions.Timeout.get -> System.TimeSpan
 Excalibur.Dispatch.AuditLogging.Datadog.DatadogExporterRetryOptions.Timeout.set -> void
 Microsoft.Extensions.DependencyInjection.DatadogServiceCollectionExtensions
+const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.BatchForwarded = 93421 -> int
+const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.EventForwarded = 93420 -> int
+const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedBatchChunk = 93430 -> int
+const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedHttpError = 93428 -> int
+const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedStatus = 93425 -> int
+const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedTimeout = 93429 -> int
+const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardRetried = 93426 -> int
+const Excalibur.Dispatch.AuditLogging.Datadog.DatadogAuditLoggingEventId.HealthCheckFailed = 93427 -> int
 static Microsoft.Extensions.DependencyInjection.DatadogServiceCollectionExtensions.AddDatadogAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DatadogServiceCollectionExtensions.AddDatadogAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Datadog.DatadogExporterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

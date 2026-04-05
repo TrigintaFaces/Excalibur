@@ -297,6 +297,7 @@
       "samples/02-messaging-transports/RabbitMQ/RabbitMQSample.csproj",
       "samples/02-messaging-transports/RemoteBusSample/RemoteBusSample.csproj",
       "samples/02-messaging-transports/TransportBindings/TransportBindings.csproj",
+      "samples/03-cloud-native/CloudEvents/CloudEvents.csproj",
       "samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj",
       "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
       "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
@@ -338,6 +339,7 @@
       "samples/09-advanced/SnapshotStrategies/SnapshotStrategies.csproj",
       "samples/09-advanced/SqlServerEventStore/SqlServerEventStore.csproj",
       "samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj",
+      "samples/09-advanced/Testing/Testing.csproj",
       "samples/09-advanced/TransactionalHandlers/TransactionalHandlers.csproj",
       "samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj",
       "samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj",
@@ -418,6 +420,11 @@
       },
       {
         "project": "samples/02-messaging-transports/TransportBindings/TransportBindings.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/03-cloud-native/CloudEvents/CloudEvents.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
@@ -623,6 +630,11 @@
       },
       {
         "project": "samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/Testing/Testing.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },

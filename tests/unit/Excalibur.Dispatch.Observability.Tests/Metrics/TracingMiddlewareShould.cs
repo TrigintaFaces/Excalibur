@@ -24,7 +24,7 @@ public sealed class TracingMiddlewareShould : IDisposable
 	private readonly List<Activity> _capturedActivities = [];
 
 	private static IOptions<ObservabilityOptions> DefaultOptions =>
-		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { EnableDetailedTiming = true, IncludeSensitiveData = true });
+		Microsoft.Extensions.Options.Options.Create(new ObservabilityOptions { IncludeSensitiveData = true });
 
 	public TracingMiddlewareShould()
 	{

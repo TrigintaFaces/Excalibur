@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.DeadLetterQueue;
 /// Tests both the SQS-specific <see cref="IDlqManager"/> interface and the transport-agnostic
 /// <see cref="IDeadLetterQueueManager"/> interface.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DlqProcessorShould : IDisposable
 {
 	private readonly IAmazonSQS _sqsClient;

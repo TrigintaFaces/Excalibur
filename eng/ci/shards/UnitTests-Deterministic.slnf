@@ -4,7 +4,6 @@
     "projects": [
       "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
       "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
-      "tests\\ArchitectureTests\\ArchitectureTests.csproj",
       "tests\\architecture\\Boundary.Tests\\Boundary.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Tests\\Excalibur.Dispatch.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Abstractions.Tests\\Excalibur.Dispatch.Abstractions.Tests.csproj",
@@ -40,6 +39,7 @@
       "tests\\unit\\Excalibur.Data.CosmosDb.Tests\\Excalibur.Data.CosmosDb.Tests.csproj",
       "tests\\unit\\Excalibur.Data.DynamoDb.Tests\\Excalibur.Data.DynamoDb.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Firestore.Tests\\Excalibur.Data.Firestore.Tests.csproj",
+      "tests\\unit\\Excalibur.Data.IdentityMap.Tests\\Excalibur.Data.IdentityMap.Tests.csproj",
       "tests\\unit\\Excalibur.Data.InMemory.Tests\\Excalibur.Data.InMemory.Tests.csproj",
       "tests\\unit\\Excalibur.Data.MySql.Tests\\Excalibur.Data.MySql.Tests.csproj",
       "tests\\unit\\Excalibur.Data.Postgres.Tests\\Excalibur.Data.Postgres.Tests.csproj",

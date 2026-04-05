@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Performance;
 ///     Tests for the <see cref="PerformanceBenchmark" /> class.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class PerformanceBenchmarkShould
 {

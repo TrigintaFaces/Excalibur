@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 /// <summary>
 ///     Tests for the <see cref="InMemoryCronJobStore" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryCronJobStoreShould
 {

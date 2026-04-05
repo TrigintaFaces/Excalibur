@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 /// <summary>
 /// Unit tests for <see cref="ProcessingAttempt"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "ErrorHandling")]
 [Trait("Priority", "0")]
 public sealed class ProcessingAttemptShould

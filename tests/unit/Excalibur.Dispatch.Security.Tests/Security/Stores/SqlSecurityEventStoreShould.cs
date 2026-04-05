@@ -8,9 +8,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Stores;
 /// <summary>
 /// Unit tests for <see cref="SqlSecurityEventStore"/> internal class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Stores")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Stores)]
 public sealed class SqlSecurityEventStoreShould : IDisposable
 {
 	private readonly SqlSecurityEventStore _sut;

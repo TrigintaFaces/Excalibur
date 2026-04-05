@@ -10,8 +10,8 @@ using AwsMessageContextSerializer = Excalibur.Dispatch.Transport.Aws.MessageCont
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Common;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class MessageContextSerializerShould
 {
 	[Fact]

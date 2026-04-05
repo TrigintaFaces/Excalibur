@@ -16,7 +16,7 @@ namespace Excalibur.Data.Tests.Postgres.Persistence;
 /// Validates default values, setters, ISP property count gates, sub-object initialization,
 /// and validation behavior.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Persistence")]
 public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 {

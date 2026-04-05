@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Metrics;
 /// <summary>
 /// Unit tests for <see cref="MetricsDispatchBuilderExtensions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Observability")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Observability)]
 public sealed class MetricsDispatchBuilderExtensionsShould : UnitTestBase
 {
 	#region UseMetricsInstrumentation Tests

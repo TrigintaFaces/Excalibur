@@ -104,46 +104,4 @@ public interface ISqlServerOutboxBuilder
 	/// </remarks>
 	ISqlServerOutboxBuilder DeadLetterTableName(string tableName);
 
-	/// <summary>
-	/// Sets the command timeout for SQL operations.
-	/// </summary>
-	/// <param name="timeout">The command timeout. Must be positive.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="timeout"/> is not positive.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 30 seconds. Increase for high-volume scenarios or slow networks.
-	/// </para>
-	/// </remarks>
-	ISqlServerOutboxBuilder CommandTimeout(TimeSpan timeout);
-
-	/// <summary>
-	/// Enables or disables row-level locking for concurrent access.
-	/// </summary>
-	/// <param name="enable">True to enable row-level locking.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Default is true. Row locking prevents multiple processors from picking up
-	/// the same messages, which is essential in distributed deployments.
-	/// </para>
-	/// </remarks>
-	ISqlServerOutboxBuilder UseRowLocking(bool enable = true);
-
-	/// <summary>
-	/// Sets the default batch size for retrieving messages.
-	/// </summary>
-	/// <param name="size">The batch size. Must be greater than 0.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="size"/> is less than or equal to 0.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 100. This is the SQL Server-specific batch size for queries.
-	/// </para>
-	/// </remarks>
-	ISqlServerOutboxBuilder DefaultBatchSize(int size);
 }

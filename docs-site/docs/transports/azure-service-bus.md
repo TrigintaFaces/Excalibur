@@ -211,7 +211,7 @@ public class MyHealthCheck(AzureServiceBusHealthChecker checker) : IHealthCheck
 services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
-        tracing.AddSource("Excalibur.Dispatch.Observability");
+        tracing.AddSource("Excalibur.Dispatch");
         tracing.AddSource("Azure.Messaging.ServiceBus");
     })
     .WithMetrics(metrics =>

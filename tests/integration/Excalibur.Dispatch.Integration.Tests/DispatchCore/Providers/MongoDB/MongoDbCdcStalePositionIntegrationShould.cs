@@ -37,11 +37,11 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.MongoDB;
 /// </remarks>
 [IntegrationTest]
 [Collection(ContainerCollections.MongoDB)]
-[Trait("Component", "CDC")]
+[Trait(TraitNames.Component, TestComponents.CDC)]
 [Trait("Database", "MongoDB")]
 [Trait("SubComponent", "StalePositionRecovery")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	private readonly MongoDbContainerFixture _mongoFixture;

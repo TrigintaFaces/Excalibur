@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Collections;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Collections;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class LockFreeBuffersShould
 {
 	// --- LockFreeMpscBuffer ---

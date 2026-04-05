@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs;
 /// Unit tests for <see cref="SqsTransportSubscriber"/>.
 /// Validates constructor validation, source property, GetService, disposal, and interface implementation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 {
 	private const string TestSource = "orders-queue";

@@ -8,8 +8,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Tests.Pooling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessageContextPoolAdapterShould
 {
 	private static IServiceProvider CreateServiceProvider()

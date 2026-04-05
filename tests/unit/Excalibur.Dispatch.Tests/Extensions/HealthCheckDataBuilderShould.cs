@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Extensions;
 /// Covers Add, AddResponseTime, AddException, Stop, Build,
 /// Healthy, Unhealthy, and Degraded methods.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class HealthCheckDataBuilderShould
 {
 	[Fact]

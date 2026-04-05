@@ -18,7 +18,7 @@ namespace Excalibur.Data.Tests.Configuration;
 /// InMemory already covered in <see cref="ValidateOnStartRegistrationShould"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FirestoreRedisPostgresValidateOnStartShould
 {
 	#region Firestore

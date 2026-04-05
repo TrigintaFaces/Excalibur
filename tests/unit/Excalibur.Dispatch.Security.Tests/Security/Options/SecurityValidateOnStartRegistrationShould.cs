@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Options;
 /// for all security options classes.
 /// Sprint 562 S562.51: Security ValidateOnStart registration tests.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SecurityValidateOnStartRegistrationShould
 {
 	#region Encryption

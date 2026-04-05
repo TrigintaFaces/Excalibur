@@ -24,8 +24,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Sprint 414 - Task T414.3: CircuitBreakerMiddleware tests (0% → 50%+).
 /// Tests circuit breaker pattern implementation for resilience.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class CircuitBreakerMiddlewareShould
 {
 	private readonly ILogger<CircuitBreakerMiddleware> _logger;

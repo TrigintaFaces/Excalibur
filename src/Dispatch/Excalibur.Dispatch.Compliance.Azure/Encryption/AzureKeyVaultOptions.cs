@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.ComponentModel.DataAnnotations;
+
 using Azure.Core;
 
 namespace Excalibur.Dispatch.Compliance.Azure;
@@ -25,6 +27,7 @@ public sealed class AzureKeyVaultOptions
 	/// Gets or sets the URI of the Azure Key Vault instance.
 	/// </summary>
 	/// <example> https://my-keyvault.vault.azure.net/ </example>
+	[Required]
 	public Uri? VaultUri { get; set; }
 
 	/// <summary>

@@ -352,7 +352,7 @@ services.AddDispatchCaching(options =>
 | `EnableStatistics` | `bool` | `false` | Collect hit/miss/eviction metrics |
 | `EnableCompression` | `bool` | `false` | Compress values in distributed cache |
 
-### DistributedCacheConfiguration (`options.Distributed`)
+### DistributedCacheOptions (`options.Distributed`)
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|

@@ -93,10 +93,10 @@ public static class DeliveryServiceCollectionExtensions
 		var builder = services.AddOptions<DeliveryInboxOptions>();
 		_ = builder.Configure(static options =>
 		{
-			options.PerRunTotal = DefaultPerRunTotal;
-			options.QueueCapacity = DefaultQueueCapacity;
-			options.ProducerBatchSize = DefaultProducerBatchSize;
-			options.ConsumerBatchSize = DefaultConsumerBatchSize;
+			options.Capacity.PerRunTotal = DefaultPerRunTotal;
+			options.Capacity.QueueCapacity = DefaultQueueCapacity;
+			options.Capacity.ProducerBatchSize = DefaultProducerBatchSize;
+			options.Capacity.ConsumerBatchSize = DefaultConsumerBatchSize;
 			options.MaxAttempts = DefaultMaxAttempts;
 		});
 

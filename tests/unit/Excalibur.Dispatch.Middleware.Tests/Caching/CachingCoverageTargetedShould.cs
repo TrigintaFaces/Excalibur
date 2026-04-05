@@ -27,8 +27,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 /// CachingServiceCollectionExtensions wrapper classes, CachingDispatchBuilderExtensions
 /// Configure lambda, DefaultCacheKeyBuilder fallback, and LruCache timer callback.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class CachingCoverageTargetedShould : UnitTestBase
 {
 	/// <summary>

@@ -1,17 +1,16 @@
 #nullable enable
 Excalibur.Inbox.DependencyInjection.IInboxBuilder
 Excalibur.Inbox.DependencyInjection.IInboxBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Microsoft.Extensions.DependencyInjection.InboxServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.InboxServiceCollectionExtensions.AddExcaliburInbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.DependencyInjection.IInboxBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 Excalibur.Inbox.Observability.InboxActivities
+Excalibur.Inbox.Observability.InboxActivitySource
+Excalibur.Inbox.Observability.InboxTags
+Microsoft.Extensions.DependencyInjection.InboxServiceCollectionExtensions
 const Excalibur.Inbox.Observability.InboxActivities.Cleanup = "inbox.cleanup" -> string!
 const Excalibur.Inbox.Observability.InboxActivities.CreateEntry = "inbox.create_entry" -> string!
 const Excalibur.Inbox.Observability.InboxActivities.Exists = "inbox.exists" -> string!
 const Excalibur.Inbox.Observability.InboxActivities.MarkFailed = "inbox.mark_failed" -> string!
 const Excalibur.Inbox.Observability.InboxActivities.MarkProcessed = "inbox.mark_processed" -> string!
-Excalibur.Inbox.Observability.InboxActivitySource
 const Excalibur.Inbox.Observability.InboxActivitySource.Name = "Excalibur.Inbox" -> string!
-Excalibur.Inbox.Observability.InboxTags
 const Excalibur.Inbox.Observability.InboxTags.HandlerType = "excalibur.inbox.handler_type" -> string!
 const Excalibur.Inbox.Observability.InboxTags.MessageId = "excalibur.inbox.message_id" -> string!
 const Excalibur.Inbox.Observability.InboxTags.MessageType = "excalibur.inbox.message_type" -> string!
@@ -22,3 +21,4 @@ static Excalibur.Inbox.Observability.InboxActivitySource.StartCreateEntryActivit
 static Excalibur.Inbox.Observability.InboxActivitySource.StartExistsActivity(string! messageId, string! handlerType) -> System.Diagnostics.Activity?
 static Excalibur.Inbox.Observability.InboxActivitySource.StartMarkFailedActivity(string! messageId, string! handlerType) -> System.Diagnostics.Activity?
 static Excalibur.Inbox.Observability.InboxActivitySource.StartMarkProcessedActivity(string! messageId, string! handlerType) -> System.Diagnostics.Activity?
+static Microsoft.Extensions.DependencyInjection.InboxServiceCollectionExtensions.AddExcaliburInbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.DependencyInjection.IInboxBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

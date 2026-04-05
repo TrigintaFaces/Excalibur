@@ -42,7 +42,7 @@ public sealed class GooglePubSubRetryPolicy
 	public double DelayMultiplier { get; set; } = 2.0;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to add jitter to retry delays.
+	/// Gets or sets a value indicating whether to add jitter to retry delays.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to add jitter to retry delays.

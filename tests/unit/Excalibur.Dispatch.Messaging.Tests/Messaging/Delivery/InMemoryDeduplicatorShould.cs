@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// <summary>
 ///     Tests for the <see cref="InMemoryDeduplicator" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class InMemoryDeduplicatorShould : IDisposable
 {

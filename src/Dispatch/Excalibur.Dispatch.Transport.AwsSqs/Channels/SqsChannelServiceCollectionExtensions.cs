@@ -187,14 +187,14 @@ public static class SqsChannelServiceCollectionExtensions
 	/// </summary>
 	public static IServiceCollection AddSqsLongPollingReceiver(
 		this IServiceCollection services,
-		Action<LongPollingOptions> configureOptions)
+		Action<ChannelLongPollingOptions> configureOptions)
 	{
 		_ = services.Configure(configureOptions);
 
 		_ = services.AddSingleton(static provider =>
 		{
 			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
-			var options = provider.GetRequiredService<IOptions<LongPollingOptions>>().Value;
+			var options = provider.GetRequiredService<IOptions<ChannelLongPollingOptions>>().Value;
 			var logger = provider.GetRequiredService<ILogger<ChannelLongPollingReceiver>>();
 
 			return new ChannelLongPollingReceiver(sqsClient, options, logger);
@@ -207,7 +207,7 @@ public static class SqsChannelServiceCollectionExtensions
 	/// Adds SQS long polling receiver to the service collection using an <see cref="IConfiguration"/> section.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="LongPollingOptions"/>.</param>
+	/// <param name="configuration">The configuration section to bind to <see cref="ChannelLongPollingOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
 	public static IServiceCollection AddSqsLongPollingReceiver(
 		this IServiceCollection services,
@@ -216,12 +216,12 @@ public static class SqsChannelServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<LongPollingOptions>().Bind(configuration);
+		_ = services.AddOptions<ChannelLongPollingOptions>().Bind(configuration);
 
 		_ = services.AddSingleton(static provider =>
 		{
 			var sqsClient = provider.GetRequiredService<IAmazonSQS>();
-			var options = provider.GetRequiredService<IOptions<LongPollingOptions>>().Value;
+			var options = provider.GetRequiredService<IOptions<ChannelLongPollingOptions>>().Value;
 			var logger = provider.GetRequiredService<ILogger<ChannelLongPollingReceiver>>();
 
 			return new ChannelLongPollingReceiver(sqsClient, options, logger);

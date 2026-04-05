@@ -32,8 +32,8 @@ file static class TestHelper
 /// Sprint 461 - S461.1: Coverage tests for 0% coverage classes.
 /// Target: Increase MiddlewareAdapter coverage from 0% to 80%+.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class MiddlewareAdapterShould : IDisposable
 {

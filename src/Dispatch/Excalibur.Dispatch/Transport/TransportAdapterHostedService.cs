@@ -179,7 +179,11 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 			{
 				LogStartingTransportAdapter(name, adapter.TransportType);
 
-				await adapter.StartAsync(cancellationToken).ConfigureAwait(false);
+				if (adapter is ITransportAdapterLifecycle lifecycle)
+				{
+					await lifecycle.StartAsync(cancellationToken).ConfigureAwait(false);
+				}
+
 				_startedAdapters.Add(name);
 
 				LogTransportAdapterStarted(name);
@@ -245,7 +249,10 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 			{
 				LogStoppingTransportAdapter(name);
 
-				await adapter.StopAsync(cancellationToken).ConfigureAwait(false);
+				if (adapter is ITransportAdapterLifecycle lifecycle)
+				{
+					await lifecycle.StopAsync(cancellationToken).ConfigureAwait(false);
+				}
 
 				LogTransportAdapterStopped(name);
 			}
@@ -318,7 +325,10 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 
 		LogStartingTransportAdapterViaLifecycleManager(name, adapter.TransportType);
 
-		await adapter.StartAsync(cancellationToken).ConfigureAwait(false);
+		if (adapter is ITransportAdapterLifecycle lifecycle)
+		{
+			await lifecycle.StartAsync(cancellationToken).ConfigureAwait(false);
+		}
 
 		lock (_lock)
 		{
@@ -358,7 +368,10 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 
 		try
 		{
-			await adapter.StopAsync(combinedCts.Token).ConfigureAwait(false);
+			if (adapter is ITransportAdapterLifecycle lifecycle)
+			{
+				await lifecycle.StopAsync(combinedCts.Token).ConfigureAwait(false);
+			}
 		}
 		catch (OperationCanceledException) when (drainCts.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
 		{

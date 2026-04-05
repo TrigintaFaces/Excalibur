@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 /// <remarks>
 /// Tests the validation issue record type.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Configuration")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Configuration)]
 [Trait("Priority", "0")]
 public sealed class ValidationIssueShould
 {

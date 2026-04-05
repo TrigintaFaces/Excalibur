@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Tests.Options.Channels;
 /// Tests the spin wait options class.
 /// </remarks>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class SpinWaitOptionsShould
 {

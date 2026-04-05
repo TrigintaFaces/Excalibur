@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
@@ -20,6 +20,8 @@ using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Routing;
 
 using Microsoft.Extensions.Logging;
+
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Delivery.Handlers;
 
@@ -53,7 +55,7 @@ public sealed partial class FinalDispatchHandler(
 
 	// PERF-T4: Pre-resolved single transport bus for the common single-transport case.
 	// When exactly one non-local bus is registered, HandleSingleTargetAsync can skip the
-	// ConcurrentDictionary<string, ...> lookup entirely (~2-4μs saved per dispatch).
+	// ConcurrentDictionary<string, ...> lookup entirely (~2-4us saved per dispatch).
 	// Bus instances are process-lifetime singletons (via Lazy<IMessageBus>), so caching is safe.
 	private readonly (IMessageBus Bus, bool UseNoOpPolicy, string Name)? _singleTransportBus =
 		ResolveSingleTransportBus(busProvider, busOptionsMap, retryPolicy);
@@ -153,13 +155,10 @@ public sealed partial class FinalDispatchHandler(
 					Detail = $"No message bus registered for '{name}'",
 					Instance = Guid.NewGuid().ToString(),
 				};
-				var failed = new Messaging.MessageResult(
-					succeeded: false,
-					problemDetails: problemDetails,
-					routingDecision: routingDecision,
-					validationResult: context.ValidationResult() as IValidationResult,
-					authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
-				return failed;
+				return MR.Failed(
+					problemDetails,
+					context.ValidationResult() as IValidationResult,
+					context.AuthorizationResult() as IAuthorizationResult);
 			}
 
 			targets.Add((route, resolvedBus));
@@ -205,19 +204,16 @@ public sealed partial class FinalDispatchHandler(
 					Detail = $"Failed to publish to {failures.Count} bus(es): {string.Join("; ", failures)}",
 					Instance = Guid.NewGuid().ToString(),
 				};
-				return new Messaging.MessageResult(
-					succeeded: false,
-					problemDetails: problemDetails,
-					routingDecision: routingDecision,
-					validationResult: context.ValidationResult() as IValidationResult,
-					authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+				return MR.Failed(
+					problemDetails,
+					context.ValidationResult() as IValidationResult,
+					context.AuthorizationResult() as IAuthorizationResult);
 			}
 
-			return new Messaging.MessageResult(
-				succeeded: true,
-				routingDecision: routingDecision,
-				validationResult: context.ValidationResult() as IValidationResult,
-				authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+			return MR.Success(
+				routingDecision,
+				context.ValidationResult(),
+				context.AuthorizationResult());
 		}
 
 		// Handle all events (IDispatchEvent and IIntegrationEvent which inherits from it)
@@ -279,12 +275,10 @@ public sealed partial class FinalDispatchHandler(
 					Detail = ex.Message,
 					Instance = Guid.NewGuid().ToString(),
 				};
-				return new Messaging.MessageResult(
-					succeeded: false,
-					problemDetails: problemDetails,
-					routingDecision: routingDecision,
-					validationResult: context.ValidationResult() as IValidationResult,
-					authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+				return MR.Failed(
+					problemDetails,
+					context.ValidationResult() as IValidationResult,
+					context.AuthorizationResult() as IAuthorizationResult);
 			}
 		}
 
@@ -296,12 +290,10 @@ public sealed partial class FinalDispatchHandler(
 			Detail = $"Message type '{message.GetType().Name}' is not supported.",
 			Instance = Guid.NewGuid().ToString(),
 		};
-		return new Messaging.MessageResult(
-			succeeded: false,
-			problemDetails: unsupported,
-			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			validationResult: context.ValidationResult() as IValidationResult,
-			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(
+			unsupported,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	// PERF-7: Non-async wrapper avoids state machine allocation when handler completes synchronously.
@@ -575,7 +567,7 @@ public sealed partial class FinalDispatchHandler(
 		CancellationToken cancellationToken)
 	{
 		// PERF-T4: Fast path for single-transport case. When exactly one non-local bus is
-		// registered, skip the ConcurrentDictionary<string, ...> lookup entirely (~2-4μs saved).
+		// registered, skip the ConcurrentDictionary<string, ...> lookup entirely (~2-4us saved).
 		(IMessageBus Bus, bool UseNoOpPolicy) cached;
 		if (_singleTransportBus is { } single &&
 		    string.Equals(busName, single.Name, StringComparison.OrdinalIgnoreCase))
@@ -614,12 +606,10 @@ public sealed partial class FinalDispatchHandler(
 					Instance = Guid.NewGuid().ToString(),
 				};
 
-				return new ValueTask<IMessageResult>(new Messaging.MessageResult(
-					succeeded: false,
-					problemDetails: problemDetails,
-					routingDecision: routingDecision,
-					validationResult: context.ValidationResult() as IValidationResult,
-					authorizationResult: context.AuthorizationResult() as IAuthorizationResult));
+				return new ValueTask<IMessageResult>(MR.Failed(
+					problemDetails,
+					context.ValidationResult() as IValidationResult,
+					context.AuthorizationResult() as IAuthorizationResult));
 			}
 		}
 
@@ -703,12 +693,10 @@ public sealed partial class FinalDispatchHandler(
 				Instance = Guid.NewGuid().ToString(),
 			};
 
-			return new ValueTask<IMessageResult>(new Messaging.MessageResult(
-				succeeded: false,
-				problemDetails: problemDetails,
-				routingDecision: routingDecision,
-				validationResult: context.ValidationResult() as IValidationResult,
-				authorizationResult: context.AuthorizationResult() as IAuthorizationResult));
+			return new ValueTask<IMessageResult>(MR.Failed(
+				problemDetails,
+				context.ValidationResult() as IValidationResult,
+				context.AuthorizationResult() as IAuthorizationResult));
 		}
 
 		var unsupported = new MessageProblemDetails
@@ -720,12 +708,10 @@ public sealed partial class FinalDispatchHandler(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return new ValueTask<IMessageResult>(new Messaging.MessageResult(
-			succeeded: false,
-			problemDetails: unsupported,
-			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			validationResult: context.ValidationResult() as IValidationResult,
-			authorizationResult: context.AuthorizationResult() as IAuthorizationResult));
+		return new ValueTask<IMessageResult>(MR.Failed(
+			unsupported,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult));
 	}
 
 	// PERF: Async slow-path helpers for HandleSingleTargetAsync, split to avoid state machine on sync completion.
@@ -859,6 +845,7 @@ public sealed partial class FinalDispatchHandler(
 		IMessageContext context,
 		RoutingDecision? routingDecision)
 	{
+		_ = routingDecision; // No longer carried on IMessageResult
 		LogUnhandledExceptionDuringDispatch(_logger, ex.GetType().Name, ex);
 
 		var problemDetails = new MessageProblemDetails
@@ -870,17 +857,15 @@ public sealed partial class FinalDispatchHandler(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return new Messaging.MessageResult(
-			succeeded: false,
-			problemDetails: problemDetails,
-			routingDecision: routingDecision,
-			validationResult: context.ValidationResult() as IValidationResult,
-			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(
+			problemDetails,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	private static IMessageResult CreateSuccessResult(IMessageContext context, RoutingDecision? routingDecision)
 	{
-		// PERF: Fast path for MessageContext — skip dictionary lookups entirely when no
+		// PERF: Fast path for MessageContext -- skip dictionary lookups entirely when no
 		// validation, authorization, or cache hit was set (the common case for remote dispatch).
 		if (context is MessageContext messageContext)
 		{
@@ -923,6 +908,7 @@ public sealed partial class FinalDispatchHandler(
 
 	private static IMessageResult CreateNoLocalBusResult(RoutingDecision? routingDecision, IMessageContext context)
 	{
+		_ = routingDecision; // No longer carried on IMessageResult
 		var problemDetails = new MessageProblemDetails
 		{
 			Type = ProblemDetailsTypes.Routing,
@@ -932,12 +918,10 @@ public sealed partial class FinalDispatchHandler(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return new Messaging.MessageResult(
-			succeeded: false,
-			problemDetails: problemDetails,
-			routingDecision: routingDecision,
-			validationResult: context.ValidationResult() as IValidationResult,
-			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(
+			problemDetails,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	private IMessageResult CreateHandlerErrorResult(
@@ -946,6 +930,7 @@ public sealed partial class FinalDispatchHandler(
 		RoutingDecision? routingDecision,
 		IMessageContext context)
 	{
+		_ = routingDecision; // No longer carried on IMessageResult
 		if (action is not null)
 		{
 			LogUnhandledExceptionDuringDispatch(_logger, action.GetType().Name, ex);
@@ -960,12 +945,10 @@ public sealed partial class FinalDispatchHandler(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return new Messaging.MessageResult(
-			succeeded: false,
-			problemDetails: problemDetails,
-			routingDecision: routingDecision,
-			validationResult: context.ValidationResult() as IValidationResult,
-			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(
+			problemDetails,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	private IMessageResult CreateEventHandlerErrorResult(
@@ -974,6 +957,7 @@ public sealed partial class FinalDispatchHandler(
 		RoutingDecision? routingDecision,
 		IMessageContext context)
 	{
+		_ = routingDecision; // No longer carried on IMessageResult
 		if (dispatchEvent is not null)
 		{
 			LogUnhandledExceptionDuringDispatch(_logger, dispatchEvent.GetType().Name, ex);
@@ -988,12 +972,10 @@ public sealed partial class FinalDispatchHandler(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return new Messaging.MessageResult(
-			succeeded: false,
-			problemDetails: problemDetails,
-			routingDecision: routingDecision,
-			validationResult: context.ValidationResult() as IValidationResult,
-			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(
+			problemDetails,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	private IMessageResult CreateDocumentHandlerErrorResult(
@@ -1002,6 +984,7 @@ public sealed partial class FinalDispatchHandler(
 		RoutingDecision? routingDecision,
 		IMessageContext context)
 	{
+		_ = routingDecision; // No longer carried on IMessageResult
 		if (document is not null)
 		{
 			LogUnhandledExceptionDuringDispatch(_logger, document.GetType().Name, ex);
@@ -1016,12 +999,10 @@ public sealed partial class FinalDispatchHandler(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return new Messaging.MessageResult(
-			succeeded: false,
-			problemDetails: problemDetails,
-			routingDecision: routingDecision,
-			validationResult: context.ValidationResult() as IValidationResult,
-			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(
+			problemDetails,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	#endregion
@@ -1085,7 +1066,7 @@ public sealed partial class FinalDispatchHandler(
 
 			if (singleName is not null)
 			{
-				// More than one non-local bus — can't pre-resolve
+				// More than one non-local bus -- can't pre-resolve
 				return null;
 			}
 

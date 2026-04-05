@@ -17,7 +17,7 @@ namespace Excalibur.Data.Tests.Configuration;
 /// Sprint 564 S564.46: MongoDB provider DI ValidateOnStart verification.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MongoDbValidateOnStartRegistrationShould
 {
 	#region EventStore

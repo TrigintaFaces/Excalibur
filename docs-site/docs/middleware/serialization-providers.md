@@ -6,7 +6,7 @@ description: Dedicated setup guides for MemoryPack, MessagePack, Protobuf, and A
 
 # Serialization Providers
 
-Dispatch supports pluggable serialization via dedicated provider packages. Each provider implements `IEventSerializer` and can be registered for internal serialization, transport serialization, or both.
+Dispatch supports pluggable serialization via dedicated provider packages. Each provider registers itself with a single DI call that handles everything: DI registration, serializer registry entry, and setting the serializer as current.
 
 For an overview of all serialization options, see [Serialization](./serialization.md).
 
@@ -19,6 +19,10 @@ For an overview of all serialization options, see [Serialization](./serializatio
   dotnet add package Excalibur.Dispatch.Serialization.MemoryPack  # or MessagePack / Protobuf / Avro
   ```
 - Familiarity with [serialization overview](./serialization.md) and [middleware concepts](./index.md)
+
+:::tip Two-layer architecture
+Dispatch has two independent serialization layers: **event storage** (`IEventSerializer` -- JSON by default) and **envelope transport** (`ISerializer`). The providers below configure the envelope layer. Your domain events stay as plain POCOs -- no serializer-specific attributes needed. See [Serialization Architecture](./serialization.md#two-layer-serialization-architecture) for details.
+:::
 
 ## When to Choose Each Provider
 
@@ -54,43 +58,18 @@ dotnet add package Excalibur.Dispatch.Serialization.MemoryPack
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Register MemoryPack (opt-in, replaces JSON default)
-services.AddDispatch(dispatch =>
-{
-    dispatch.WithSerialization(config =>
-    {
-        config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
-        config.UseMemoryPack();
-    });
-});
+// One call does everything: registers ISerializer, IBinaryEnvelopeDeserializer,
+// adds MemoryPack to the serializer registry, and sets it as current.
+services.AddMemoryPackSerializer();
 ```
 
-### Message Annotation
-
-MemoryPack requires the `[MemoryPackable]` attribute on message types:
-
-```csharp
-using MemoryPack;
-
-[MemoryPackable]
-public partial class OrderCreatedEvent : IDomainEvent
-{
-    public Guid EventId { get; init; }
-    public Guid AggregateId { get; init; }
-    public int Version { get; init; }
-    public DateTimeOffset OccurredAt { get; init; }
-    public string EventType => nameof(OrderCreatedEvent);
-    public IDictionary<string, string>? Metadata { get; init; }
-
-    public string ProductName { get; init; } = default!;
-    public decimal Price { get; init; }
-}
-```
+:::info No attributes needed on your events
+Consumer event types do **not** need `[MemoryPackable]` or any serializer-specific attributes. Only the internal envelope wrapper uses MemoryPack attributes. Your domain events remain plain POCOs.
+:::
 
 ### Considerations
 
 - .NET-only -- cannot be deserialized by non-.NET consumers
-- Requires `partial` class declarations for source generation
 - Ideal for internal event store serialization where all consumers are .NET
 
 ---
@@ -107,93 +86,17 @@ dotnet add package Excalibur.Dispatch.Serialization.MessagePack
 
 ### Registration
 
-#### Via Serialization Builder (Recommended)
-
-Use the `WithSerialization` builder to register and configure MessagePack in one step:
-
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    dispatch.WithSerialization(config =>
-    {
-        // Register with default settings
-        config.RegisterMessagePack();
-        config.UseMessagePack();
-    });
-});
+// One call does everything: DI registration, serializer registry, set as current
+services.AddMessagePackSerializer();
 ```
 
-Configure MessagePack options via the `Action<MessagePackSerializationOptions>` overload:
+With custom MessagePack options:
 
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    dispatch.WithSerialization(config =>
-    {
-        config.RegisterMessagePack(opts =>
-        {
-            opts.UseLz4Compression = true;
-        });
-        config.UseMessagePack();
-    });
-});
-```
-
-You can also pass native `MessagePackSerializerOptions` directly:
-
-```csharp
-dispatch.WithSerialization(config =>
-{
-    config.RegisterMessagePack(
-        MessagePackSerializerOptions.Standard
-            .WithCompression(MessagePackCompression.Lz4BlockArray));
-    config.UseMessagePack();
-});
-```
-
-#### Via Service Collection
-
-```csharp
-// Basic registration
-services.AddMessagePackSerialization();
-
-// With custom resolver
-services.AddMessagePackSerialization<MyCustomResolver>();
-
-// Pluggable (replaces default IEventSerializer)
-services.AddMessagePackPluggableSerialization();
-
-// Pluggable with options
-services.AddMessagePackPluggableSerialization(options =>
-{
-    options.EnableLZ4Compression = true;
-});
-```
-
-### Message Annotation
-
-MessagePack uses key-based attributes:
-
-```csharp
-using MessagePack;
-
-[MessagePackObject]
-public class OrderCreatedEvent : IDomainEvent
-{
-    [Key(0)] public Guid EventId { get; init; }
-    [Key(1)] public Guid AggregateId { get; init; }
-    [Key(2)] public int Version { get; init; }
-    [Key(3)] public DateTimeOffset OccurredAt { get; init; }
-    [Key(4)] public string EventType => nameof(OrderCreatedEvent);
-    [Key(5)] public IDictionary<string, string>? Metadata { get; init; }
-
-    [Key(6)] public string ProductName { get; init; } = default!;
-    [Key(7)] public decimal Price { get; init; }
-}
+services.AddMessagePackSerializer(
+    MessagePackSerializerOptions.Standard
+        .WithCompression(MessagePackCompression.Lz4BlockArray));
 ```
 
 ### Considerations
@@ -216,43 +119,18 @@ dotnet add package Excalibur.Dispatch.Serialization.Protobuf
 
 ### Registration
 
-#### Via Serialization Builder (Recommended)
-
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    dispatch.WithSerialization(config =>
-    {
-        config.RegisterProtobuf();
-        config.UseProtobuf();
-    });
-});
+// One call does everything: DI registration, serializer registry, set as current
+services.AddProtobufSerializer();
 ```
 
-Configure Protobuf options via the `Action<ProtobufSerializationOptions>` overload:
+With custom options:
 
 ```csharp
-services.AddDispatch(dispatch =>
+services.AddProtobufSerializer(opts =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    dispatch.WithSerialization(config =>
-    {
-        config.RegisterProtobuf(opts =>
-        {
-            opts.WireFormat = ProtobufWireFormat.Json;
-        });
-        config.UseProtobuf();
-    });
+    opts.WireFormat = ProtobufWireFormat.Json; // default: Binary
 });
-```
-
-#### Via Service Collection
-
-```csharp
-services.AddProtobufSerialization();
 ```
 
 ### Schema Definition
@@ -298,36 +176,17 @@ dotnet add package Excalibur.Dispatch.Serialization.Avro
 
 ### Registration
 
-#### Via Serialization Builder (Recommended)
-
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    dispatch.WithSerialization(config =>
-    {
-        config.RegisterAvro();
-        config.UseAvro();
-    });
-});
+// One call does everything: DI registration, serializer registry, set as current
+services.AddAvroSerializer();
 ```
 
-Configure Avro options via the `Action<AvroSerializationOptions>` overload:
+With custom options:
 
 ```csharp
-services.AddDispatch(dispatch =>
+services.AddAvroSerializer(opts =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-    dispatch.WithSerialization(config =>
-    {
-        config.RegisterAvro(opts =>
-        {
-            opts.BufferSize = 8192; // default: 4096
-        });
-        config.UseAvro();
-    });
+    opts.BufferSize = 8192; // default: 4096
 });
 ```
 
@@ -341,23 +200,14 @@ services.AddDispatch(dispatch =>
 
 ## Mixing Serializers
 
-You can use different serializers for different purposes:
+You can register multiple serializers -- the last one registered wins as the "current" serializer for new writes. Old data remains readable via its magic byte regardless of which serializer is current.
 
 ```csharp
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// MemoryPack for internal event store (fastest)
+services.AddMemoryPackSerializer();
 
-// MemoryPack for internal event store (fastest, opt-in)
-services.AddDispatch(dispatch => dispatch.WithSerialization(config =>
-{
-    config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
-    config.UseMemoryPack();
-}));
-
-// MessagePack for transport serialization (cross-language)
-services.AddMessagePackPluggableSerialization();
+// If you later switch, old MemoryPack data is still readable
+// because the magic byte tells the system which deserializer to use.
 ```
 
 ## See Also

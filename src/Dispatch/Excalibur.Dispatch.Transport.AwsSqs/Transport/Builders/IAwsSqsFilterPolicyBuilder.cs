@@ -187,7 +187,7 @@ public interface IAwsSqsFilterAttributeBuilder
 	/// filter.Attribute("deletedAt").Exists(false); // Matches when not deleted
 	/// </code>
 	/// </example>
-	IAwsSqsFilterAttributeBuilder Exists(bool exists = true);
+	IAwsSqsFilterAttributeBuilder Exists(bool exists);
 
 	/// <summary>
 	/// Adds a numeric greater-than condition.
@@ -290,6 +290,26 @@ public interface IAwsSqsFilterAttributeBuilder
 	/// </code>
 	/// </example>
 	IAwsSqsFilterPolicyBuilder And();
+}
+
+/// <summary>
+/// Convenience extension methods for <see cref="IAwsSqsFilterAttributeBuilder"/>.
+/// </summary>
+public static class AwsSqsFilterAttributeBuilderExtensions
+{
+	/// <summary>
+	/// Adds a condition that checks if the attribute exists.
+	/// This is a convenience overload equivalent to calling <c>Exists(true)</c>.
+	/// </summary>
+	/// <param name="builder">The attribute builder.</param>
+	/// <returns>The attribute builder for adding more conditions.</returns>
+	/// <example>
+	/// <code>
+	/// filter.Attribute("metadata").Exists();
+	/// </code>
+	/// </example>
+	public static IAwsSqsFilterAttributeBuilder Exists(this IAwsSqsFilterAttributeBuilder builder)
+		=> builder.Exists(true);
 }
 
 /// <summary>
@@ -428,7 +448,7 @@ internal sealed class AwsSqsFilterAttributeBuilder : IAwsSqsFilterAttributeBuild
 	}
 
 	/// <inheritdoc/>
-	public IAwsSqsFilterAttributeBuilder Exists(bool exists = true)
+	public IAwsSqsFilterAttributeBuilder Exists(bool exists)
 	{
 		AddCondition(new AwsSqsFilterCondition
 		{

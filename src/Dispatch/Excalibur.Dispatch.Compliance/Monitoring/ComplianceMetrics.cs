@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// Grafana dashboard templates are available for visualizing these metrics.
 /// </para>
 /// </remarks>
-public sealed class ComplianceMetrics : IComplianceMetrics, IDisposable
+public sealed class ComplianceMetrics : IComplianceMetrics, IComplianceMetricsAdmin, IDisposable
 {
 	/// <summary>
 	/// The meter name for compliance metrics.
@@ -184,7 +184,7 @@ public sealed class ComplianceMetrics : IComplianceMetrics, IDisposable
 	}
 
 	/// <inheritdoc />
-	public void RecordAuditEventLogged(string eventType, string outcome, string? tenantId = null)
+	public void RecordAuditEventLogged(string eventType, string outcome, string? tenantId)
 	{
 		var tags = new List<KeyValuePair<string, object?>>
 		{

@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.SqlServer.Encryption;
 /// Unit tests for <see cref="SqlServerKeyEscrowOptions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SqlServerKeyEscrowOptionsShould
 {
 	#region Default Values Tests

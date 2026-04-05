@@ -53,7 +53,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider,
 			logger,
 
-			internalSerializer: null,
+			envelopeDeserializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
 			backoffCalculator: backoffCalculator);
@@ -453,7 +453,7 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			logger ?? NullLogger<OutboxProcessor>.Instance,
 
-			internalSerializer: null,
+			envelopeDeserializer: null,
 			deadLetterQueue: deadLetterQueue,
 			circuitBreakerRegistry: circuitBreakerRegistry,
 			backoffCalculator: backoffCalculator);

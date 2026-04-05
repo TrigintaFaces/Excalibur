@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Threading;
 /// <summary>
 /// Regression tests for KeyedLock -- Sprint 690 T.16 (unbounded SemaphoreSlim memory leak fix).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KeyedLockShould
 {
 	[Fact]

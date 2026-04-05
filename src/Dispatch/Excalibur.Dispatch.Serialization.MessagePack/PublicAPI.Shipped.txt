@@ -1,9 +1,4 @@
 #nullable enable
-Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions
-Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions.MessagePackSerializationOptions() -> void
-Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions.MessagePackSerializerOptions.get -> MessagePack.MessagePackSerializerOptions!
-Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions.UseLz4Compression.get -> bool
-Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions.UseLz4Compression.set -> void
 Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer
 Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer.ContentType.get -> string!
 Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer.Deserialize<T>(System.ReadOnlySpan<byte> data) -> T
@@ -15,11 +10,5 @@ Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer.Serialize<T>(
 Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer.SerializeObject(object! value, System.Type! type) -> byte[]!
 Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer.Version.get -> string!
 Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions
-static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.AddMessagePackPluggableSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, MessagePack.MessagePackSerializerOptions! options, bool setAsCurrent = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.AddMessagePackPluggableSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool setAsCurrent = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.AddMessagePackSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.GetPluggableSerializer() -> Excalibur.Dispatch.Abstractions.Serialization.ISerializer!
-static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.GetPluggableSerializer(MessagePack.MessagePackSerializerOptions! options) -> Excalibur.Dispatch.Abstractions.Serialization.ISerializer!
-static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.RegisterMessagePack(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
-static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.RegisterMessagePack(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder, MessagePack.MessagePackSerializerOptions! options) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
-static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.RegisterMessagePack(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder, System.Action<Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions!>! configure) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
+static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.AddMessagePackSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MessagePackSerializationExtensions.AddMessagePackSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, MessagePack.MessagePackSerializerOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

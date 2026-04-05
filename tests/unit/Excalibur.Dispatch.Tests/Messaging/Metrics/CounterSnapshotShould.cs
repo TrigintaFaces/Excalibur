@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Metrics;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Metrics;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CounterSnapshotShould
 {
 	[Fact]

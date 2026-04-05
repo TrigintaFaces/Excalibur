@@ -15,8 +15,8 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// Unit tests for Sprint 661 T.8 + T.9: DataProcessing keyed service registration,
 /// IConfiguration binding overloads, and ValidateOnStart on all paths.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DataProcessingKeyedServiceShould : UnitTestBase
 {
 	[DataTaskRecordType("KeyedTestRecord")]

@@ -1,0 +1,380 @@
+name: Security Scanning
+
+on:
+  workflow_call:
+    inputs:
+      checkout-ref:
+        description: 'Git ref to checkout'
+        required: true
+        type: string
+      checkout-token:
+        description: 'Token for checkout'
+        required: true
+        type: string
+      event-name:
+        description: 'The triggering event name (push, pull_request, etc.)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  security-sast:
+    name: Security SAST (PR report-only, push blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ inputs.event-name == 'pull_request' }}
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: 'eng/ci/shards/ShippingOnly.slnf'
+          restore-only: 'true'
+          free-disk-space: 'true'
+
+      - name: Build with warnings as errors (SAST-lite)
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_exit=0
+          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet -warnaserror -clp:ErrorsOnly\;Summary > sast-build.log 2>&1 || build_exit=$?
+          if [ "$build_exit" -ne 0 ]; then
+            echo "Build failed. Last 200 lines from sast-build.log:"
+            tail -n 200 sast-build.log || true
+            exit "$build_exit"
+          fi
+
+      - name: Upload SAST log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-build
+          path: sast-build.log
+
+  secrets-scan:
+    name: Secrets Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
+      - name: Install Gitleaks
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION="8.24.3"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv gitleaks "${RUNNER_TEMP}/bin/gitleaks"
+          chmod +x "${RUNNER_TEMP}/bin/gitleaks"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/bin/gitleaks" version
+
+      - name: Run Gitleaks
+        run: |
+          set -euo pipefail
+          gitleaks detect \
+            --source . \
+            --no-git \
+            -v \
+            --redact \
+            --exit-code 1 \
+            --report-format sarif \
+            --report-path gitleaks.sarif
+
+      - name: Upload Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks.sarif
+
+  sbom-generation:
+    name: SBOM Generation (CycloneDX)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Generate CycloneDX SBOM for all packages
+        uses: CycloneDX/gh-dotnet-generate-sbom@v1.0.1
+        with:
+          path: './src'
+          github-bearer-token: ${{ github.token }}
+
+      - name: Validate SBOM completeness
+        run: |
+          echo "Validating SBOM completeness..."
+          sbom_count=$(find . -name "bom.json" -o -name "bom.xml" | wc -l)
+          echo "Found $sbom_count SBOM file(s)"
+          if [ "$sbom_count" -eq 0 ]; then
+            echo "No SBOM files generated"
+            exit 1
+          fi
+          find . -name "bom.json" -o -name "bom.xml"
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyclonedx-sbom
+          path: |
+            **/bom.json
+            **/bom.xml
+          retention-days: 90
+
+      - name: SBOM summary
+        run: |
+          echo "## Software Bill of Materials (SBOM)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Format:** CycloneDX" >> $GITHUB_STEP_SUMMARY
+          echo "**Standard:** NIST 800-53 CM-8" >> $GITHUB_STEP_SUMMARY
+          echo "**Scope:** All NuGet packages in src/" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Generated SBOMs" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          find . -name "bom.json" -o -name "bom.xml" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "SBOM artifacts uploaded with 90-day retention" >> $GITHUB_STEP_SUMMARY
+          echo "Satisfies FedRAMP CM-8 control requirement" >> $GITHUB_STEP_SUMMARY
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: ${{ inputs.event-name == 'pull_request' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+
+      - name: Check dependency review support
+        id: dependency_review_support
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_url="https://api.github.com/repos/${{ github.repository }}/dependency-graph/sbom"
+          status_code="$(curl -sS -o /tmp/dependency-graph.json -w '%{http_code}' \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            "${api_url}" || true)"
+          if [[ "${status_code}" == "200" ]]; then
+            echo "supported=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "supported=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::Dependency review unsupported or unavailable (HTTP ${status_code}); skipping blocking enforcement."
+          fi
+
+      - name: Check dependency review quota
+        id: dependency_review_quota
+        if: steps.dependency_review_support.outputs.supported == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          min_remaining=150
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "quota_ok=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::jq unavailable; skipping blocking dependency review enforcement."
+            exit 0
+          fi
+          rate_json="$(curl -sS \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            "https://api.github.com/rate_limit" || true)"
+          remaining="$(echo "${rate_json}" | jq -r '.resources.core.remaining // 0')"
+          reset_epoch="$(echo "${rate_json}" | jq -r '.resources.core.reset // 0')"
+          now_epoch="$(date +%s)"
+          reset_in=$(( reset_epoch - now_epoch ))
+          echo "remaining=${remaining}" >> "${GITHUB_OUTPUT}"
+          if [[ "${remaining}" -lt "${min_remaining}" ]]; then
+            echo "quota_ok=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::Low API quota (${remaining} remaining, reset in ${reset_in}s); skipping blocking dependency review enforcement."
+          else
+            echo "quota_ok=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Check dependency review API health
+        id: dependency_review_api_health
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          license_url="https://api.github.com/repos/${{ github.repository }}/license"
+          status_code="$(curl -sS --max-time 10 -o /tmp/dependency-license.json -w '%{http_code}' \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            "${license_url}" || true)"
+          if [[ "${status_code}" == "200" || "${status_code}" == "404" ]]; then
+            echo "api_ok=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "api_ok=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::Dependency review API health check failed (license endpoint HTTP ${status_code}); skipping this non-blocking gate."
+          fi
+
+      - name: Dependency review (attempt 1)
+        id: dependency_review_attempt_1
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true'
+        timeout-minutes: 3
+        continue-on-error: true
+        uses: actions/dependency-review-action@v4
+        with:
+          repo-token: ${{ github.token }}
+          fail-on-severity: high
+          vulnerability-check: true
+          license-check: false
+          show-openssf-scorecard: false
+
+      - name: Backoff before dependency review retry 2
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
+        shell: bash
+        run: sleep 10
+
+      - name: Dependency review (attempt 2)
+        id: dependency_review_attempt_2
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
+        timeout-minutes: 3
+        continue-on-error: true
+        uses: actions/dependency-review-action@v4
+        with:
+          repo-token: ${{ github.token }}
+          fail-on-severity: high
+          vulnerability-check: true
+          license-check: false
+          show-openssf-scorecard: false
+
+      - name: Enforce dependency review result
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure' && steps.dependency_review_attempt_2.outcome == 'failure'
+        run: |
+          echo "::warning::Dependency review failed after 2 attempts (likely transient GitHub API/rate-limit issue)."
+          echo "::warning::Blocking vulnerability enforcement remains covered by the Dependency Vulnerability Audit gate."
+
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Run dependency audit
+        shell: pwsh
+        run: |
+          ./eng/ci/dependency-audit.ps1 `
+            -OutDir management/reports/DependencyAuditReport `
+            -ProjectRoot src `
+            -PerProjectTimeoutSeconds 60 `
+            -TotalBudgetMinutes 20 `
+            -MaxProjects 200 `
+            -FailOnGuardrailBreach
+
+      - name: Enforce vulnerability policy (allowlist optional)
+        shell: pwsh
+        run: |
+          $json = @(Get-Content 'management/reports/DependencyAuditReport/vulnerabilities.json' | ConvertFrom-Json)
+          $vulnRecords = @(
+            $json | Where-Object {
+              if ($_.PSObject.Properties.Name -contains 'HasVulnerabilities') {
+                return [bool]$_.HasVulnerabilities
+              }
+              $output = [string]$_.Output
+              return $output -match '(?i)has the following vulnerable packages' -or
+                     $output -match '(?i)\bGHSA-[0-9A-Za-z-]+\b' -or
+                     $output -match '(?i)\bCVE-\d{4}-\d+\b' -or
+                     $output -match '(?i)https://github\.com/advisories/'
+            }
+          )
+          if ($vulnRecords.Count -gt 0) {
+            Write-Host "Detected vulnerable packages in $($vulnRecords.Count) project(s)."
+            if (Test-Path 'management/security/cve-allowlist.yaml') {
+              Write-Host "Vulnerabilities found, but allowlist present. Non-blocking."
+            } else {
+              Write-Error "Vulnerabilities found and no allowlist present. Failing per policy."
+            }
+          } else {
+            Write-Host "No vulnerabilities detected."
+          }
+
+      - name: Upload dependency audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit
+          path: management/reports/DependencyAuditReport
+
+  notices-lint:
+    name: Notices & License Headers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Verify license headers
+        shell: pwsh
+        run: |
+          ./eng/ci/license-headers-verify.ps1 -Root src
+
+      - name: Generate THIRD-PARTY-NOTICES (temp)
+        shell: pwsh
+        run: |
+          ./eng/ci/notices-generate.ps1 -Output THIRD-PARTY-NOTICES.gen.md
+
+      - name: Diff notices
+        shell: bash
+        run: |
+          if ! diff -u THIRD-PARTY-NOTICES.md THIRD-PARTY-NOTICES.gen.md; then
+            echo "::error::THIRD-PARTY-NOTICES.md is out of date. Run eng/ci/notices-generate.ps1"
+            exit 1
+          fi
+
+  oss-metadata:
+    name: OSS Metadata Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET build environment
+        uses: ./.github/actions/setup-dotnet-build
+        with:
+          checkout-ref: ${{ inputs.checkout-ref }}
+          checkout-token: ${{ inputs.checkout-token }}
+          solution-filter: ''
+
+      - name: Run OSS metadata audit
+        shell: pwsh
+        run: |
+          ./eng/ci/oss-metadata-audit.ps1 -OutDir management/reports/OssMetadataReport -Catalog management/package-ids.yaml
+
+      - name: Upload OSS metadata report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oss-metadata-report
+          path: management/reports/OssMetadataReport/oss-metadata.json

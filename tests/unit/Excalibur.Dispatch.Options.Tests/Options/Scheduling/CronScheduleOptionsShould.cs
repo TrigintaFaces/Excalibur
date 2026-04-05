@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Scheduling;
 /// Unit tests for <see cref="CronScheduleOptions"/>.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class CronScheduleOptionsShould
 {

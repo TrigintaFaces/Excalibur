@@ -12,8 +12,8 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc.Builders;
 /// Unit tests for <see cref="ISqlServerCdcBuilder.ConnectionStringName(string)"/>
 /// which resolves a connection string from <see cref="IConfiguration"/> at registration time.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerCdcConnectionStringNameShould : UnitTestBase
 {

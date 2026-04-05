@@ -7,7 +7,7 @@ namespace Excalibur.Saga.Correlation;
 
 /// <summary>
 /// Default implementation of <see cref="ISagaCorrelationBuilder{TSaga}"/>.
-/// Collects correlation rules and compiles them into a configuration.
+/// Collects correlation rules and compiles them into a correlation map.
 /// </summary>
 /// <typeparam name="TSaga">The type of saga being correlated.</typeparam>
 public sealed class SagaCorrelationBuilder<TSaga> : ISagaCorrelationBuilder<TSaga>
@@ -56,9 +56,9 @@ public sealed class SagaCorrelationBuilder<TSaga> : ISagaCorrelationBuilder<TSag
 	}
 
 	/// <inheritdoc />
-	public SagaCorrelationConfiguration<TSaga> Build()
+	public SagaCorrelationMap<TSaga> Build()
 	{
-		return new SagaCorrelationConfiguration<TSaga>(
+		return new SagaCorrelationMap<TSaga>(
 			new Dictionary<Type, Func<object, string>>(_correlators));
 	}
 }

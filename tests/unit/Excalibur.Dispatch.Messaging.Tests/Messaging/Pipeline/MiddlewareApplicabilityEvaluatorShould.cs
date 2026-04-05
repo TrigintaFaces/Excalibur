@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Pipeline;
 /// Target: Increase MiddlewareApplicabilityEvaluator coverage from 0% to 80%+.
 /// </remarks>
 [Collection("HandlerInvokerRegistry")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "0")]
 public sealed class MiddlewareApplicabilityEvaluatorShould : IDisposable
 {

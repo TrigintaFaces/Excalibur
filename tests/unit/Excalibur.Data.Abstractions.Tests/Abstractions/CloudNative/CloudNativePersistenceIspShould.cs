@@ -13,7 +13,7 @@ namespace Excalibur.Data.Tests.Abstractions.CloudNative;
 /// interface splits (A.2).
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Component, TestComponents.Data)]
 [Trait("Feature", "CloudNative")]
 public sealed class CloudNativePersistenceIspShould : UnitTestBase
 {

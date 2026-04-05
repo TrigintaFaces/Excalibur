@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Tests.DependencyInjection;
 /// Covers all three presets (HighThroughput, Balanced, HighReliability),
 /// null guards, custom configure callback, and method chaining.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class OutboxPresetServiceCollectionExtensionsShould
 {
 	private static OutboxDeliveryOptions ResolveOptions(IServiceCollection services)

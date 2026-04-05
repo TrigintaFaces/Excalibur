@@ -3,8 +3,8 @@ using Excalibur.Dispatch.Options.Core;
 
 namespace Excalibur.Dispatch.Tests.Options.Core;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MultiTransportOptionsShould
 {
     [Fact]
@@ -22,8 +22,8 @@ public sealed class MultiTransportOptionsShould
     public void AllowAddingTransports()
     {
         var options = new MultiTransportOptions();
-        options.Transports["rabbitmq"] = new TransportConfiguration { Name = "rabbitmq", Priority = 1 };
-        options.Transports["kafka"] = new TransportConfiguration { Name = "kafka", Priority = 2 };
+        options.Transports["rabbitmq"] = new TransportOptions { Name = "rabbitmq", Priority = 1 };
+        options.Transports["kafka"] = new TransportOptions { Name = "kafka", Priority = 2 };
 
         options.Transports.Count.ShouldBe(2);
         options.Transports["rabbitmq"].Name.ShouldBe("rabbitmq");

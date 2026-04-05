@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Security;
 /// <summary>
 /// Unit tests for RabbitMqTransportConnection TLS verification.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RabbitMqTransportConnectionShould
 {
 	#region Constructor Tests

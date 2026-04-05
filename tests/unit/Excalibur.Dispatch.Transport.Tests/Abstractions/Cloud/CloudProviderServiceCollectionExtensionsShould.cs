@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Abstractions.Configuration;
 
 namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Cloud;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class CloudProviderServiceCollectionExtensionsShould
 {
     private readonly IDispatchBuilder _builder = A.Fake<IDispatchBuilder>();

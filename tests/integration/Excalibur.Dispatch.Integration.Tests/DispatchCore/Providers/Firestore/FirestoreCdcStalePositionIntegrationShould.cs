@@ -36,11 +36,11 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Firestore;
 /// </para>
 /// </remarks>
 [IntegrationTest]
-[Trait("Component", "CDC")]
+[Trait(TraitNames.Component, TestComponents.CDC)]
 [Trait("Database", "Firestore")]
 [Trait("SubComponent", "StalePositionRecovery")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FirestoreCdcStalePositionIntegrationShould : IntegrationTestBase
 {
 	/// <summary>

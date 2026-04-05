@@ -4,6 +4,7 @@
 using EnterpriseOrderProcessing.Commands;
 
 using Excalibur.Cdc.SqlServer;
+using Excalibur.Data.IdentityMap;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Messaging;
 
@@ -16,16 +17,26 @@ namespace EnterpriseOrderProcessing.LegacyIntegration;
 /// Implements the Anti-Corruption Layer pattern by translating legacy row changes
 /// into domain commands dispatched through the Excalibur pipeline.
 /// </summary>
+/// <remarks>
+/// Uses <see cref="IIdentityMapStore"/> for:
+/// <list type="bullet">
+/// <item>Idempotent order creation (prevents duplicate aggregates from replayed CDC events)</item>
+/// <item>Cross-aggregate reference resolution (resolving customer_id to Customer aggregate ID)</item>
+/// </list>
+/// </remarks>
 public sealed class LegacyOrderChangeHandler : IDataChangeHandler
 {
 	private readonly IDispatcher _dispatcher;
+	private readonly IIdentityMapStore _identityMap;
 	private readonly ILogger<LegacyOrderChangeHandler> _logger;
 
 	public LegacyOrderChangeHandler(
 		IDispatcher dispatcher,
+		IIdentityMapStore identityMap,
 		ILogger<LegacyOrderChangeHandler> logger)
 	{
 		_dispatcher = dispatcher;
+		_identityMap = identityMap;
 		_logger = logger;
 	}
 
@@ -60,11 +71,34 @@ public sealed class LegacyOrderChangeHandler : IDataChangeHandler
 	private async Task HandleInsertAsync(DataChangeEvent changeEvent, CancellationToken cancellationToken)
 	{
 		// Anti-corruption: translate legacy column names to domain concepts
-		var customerId = ExtractGuid(changeEvent, "customer_id") ?? Guid.Empty;
+		var legacyOrderId = ExtractString(changeEvent, "order_id") ?? Guid.NewGuid().ToString();
+		var legacyCustomerId = ExtractString(changeEvent, "customer_id");
 		var customerName = ExtractString(changeEvent, "customer_name") ?? "Unknown";
 		var productId = ExtractString(changeEvent, "product_id") ?? "UNKNOWN";
 		var quantity = ExtractInt(changeEvent, "quantity") ?? 1;
 		var unitPrice = ExtractDecimal(changeEvent, "unit_price") ?? 0m;
+
+		// 1. Idempotent order binding -- prevents duplicate aggregates from replayed CDC events
+		var bindResult = await _identityMap.TryBindAsync(
+			"LegacyERP", legacyOrderId, "Order",
+			Guid.NewGuid().ToString(), cancellationToken).ConfigureAwait(false);
+
+		if (!bindResult.WasCreated)
+		{
+			_logger.LogDebug(
+				"Order already imported for legacy order {LegacyOrderId} -- skipping",
+				legacyOrderId);
+			return;
+		}
+
+		// 2. Resolve customer aggregate ID from legacy customer ID
+		var customerId = Guid.Empty;
+		if (!string.IsNullOrEmpty(legacyCustomerId))
+		{
+			customerId = await _identityMap.ResolveAsync<Guid>(
+				"LegacyERP", legacyCustomerId, "Customer", cancellationToken)
+				.ConfigureAwait(false) ?? Guid.Empty;
+		}
 
 		var command = new CreateOrderCommand(
 			customerId,
@@ -72,10 +106,10 @@ public sealed class LegacyOrderChangeHandler : IDataChangeHandler
 			[new OrderLineItem(productId, quantity, unitPrice)]);
 
 		_logger.LogInformation(
-			"Translating legacy order insert to CreateOrderCommand for customer {CustomerName}",
-			customerName);
+			"Translating legacy order {LegacyOrderId} to CreateOrderCommand for customer {CustomerName}",
+			legacyOrderId, customerName);
 
-		// Dispatch through the full pipeline (validation + resilience + handler)
+		// 3. Dispatch through the full pipeline (validation + resilience + handler)
 		var context = DispatchContextInitializer.CreateDefaultContext(_dispatcher.ServiceProvider!);
 		await _dispatcher.DispatchAsync<CreateOrderCommand, Guid>(command, context, cancellationToken).ConfigureAwait(false);
 	}

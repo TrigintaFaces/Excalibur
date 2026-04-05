@@ -8,9 +8,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// <summary>
 /// Tests verifying SqlServerCdcStateStoreOptions validates identifiers against SQL injection (S543.9).
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class SqlServerCdcStateStoreOptionsValidationShould : UnitTestBase
 {
 	#region SQL Injection Prevention Tests

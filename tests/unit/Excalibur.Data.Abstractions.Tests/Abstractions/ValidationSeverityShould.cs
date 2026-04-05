@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.Abstractions.Persistence;
 /// Unit tests for <see cref="ValidationSeverity"/> enum.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Data")]
-[Trait("Feature", "Abstractions")]
+[Trait(TraitNames.Component, TestComponents.Data)]
+[Trait(TraitNames.Feature, TestFeatures.Abstractions)]
 public sealed class ValidationSeverityShould : UnitTestBase
 {
 	[Fact]

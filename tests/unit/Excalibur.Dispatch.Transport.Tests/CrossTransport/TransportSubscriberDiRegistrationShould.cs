@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 /// </para>
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class TransportSubscriberDiRegistrationShould : UnitTestBase
 {

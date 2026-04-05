@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Tests.Extensions;
 /// Covers TimeoutAfterAsync (void and typed), WithCancellationAsync,
 /// SafeAwaitAsync (void and typed), null guards, and edge cases.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class TaskExtensionsShould
 {
 	// --- TimeoutAfterAsync (void) ---

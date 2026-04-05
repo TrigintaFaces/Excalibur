@@ -52,7 +52,6 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
 	// Register JSON serializer via the builder serialization API
-	_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 
 	// Add Polly resilience infrastructure via the builder
 	_ = dispatch.UseResilience();

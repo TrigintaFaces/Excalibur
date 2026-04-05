@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling.PoisonMessage;
 /// Sprint 461 - Task S461.1: Remaining 0% Coverage Tests.
 /// Tests the poison message handler including error handling and dead letter queue operations.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "ErrorHandling")]
 [Trait("Priority", "0")]
 public sealed class PoisonMessageHandlerShould : IDisposable
@@ -34,7 +34,7 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 
 	public PoisonMessageHandlerShould()
 	{
-		_deadLetterStore = A.Fake<IDeadLetterStore>();
+		_deadLetterStore = A.Fake<IDeadLetterStore>(o => o.Implements<IDeadLetterStoreAdmin>());
 		_serializer = new DispatchJsonSerializer();
 		_serviceProvider = A.Fake<IServiceProvider>();
 		_options = Microsoft.Extensions.Options.Options.Create(new PoisonMessageOptions());
@@ -443,8 +443,8 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 	[Fact]
 	public async Task GetStatisticsAsync_ReturnsStatistics()
 	{
-		// Arrange
-		_ = A.CallTo(() => _deadLetterStore.GetCountAsync(A<CancellationToken>._))
+		// Arrange - GetCountAsync is now on IDeadLetterStoreAdmin (ISP split in Sprint 745)
+		_ = A.CallTo(() => ((IDeadLetterStoreAdmin)_deadLetterStore).GetCountAsync(A<CancellationToken>._))
 			.Returns(100L);
 
 		_ = A.CallTo(() => _deadLetterStore.GetMessagesAsync(A<DeadLetterFilter>._, A<CancellationToken>._))
@@ -461,8 +461,8 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 	[Fact]
 	public async Task GetStatisticsAsync_GroupsByMessageType()
 	{
-		// Arrange
-		_ = A.CallTo(() => _deadLetterStore.GetCountAsync(A<CancellationToken>._))
+		// Arrange - GetCountAsync is now on IDeadLetterStoreAdmin (ISP split in Sprint 745)
+		_ = A.CallTo(() => ((IDeadLetterStoreAdmin)_deadLetterStore).GetCountAsync(A<CancellationToken>._))
 			.Returns(5L);
 
 		var messages = new[]
@@ -488,8 +488,8 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 	[Fact]
 	public async Task GetStatisticsAsync_GroupsByReason()
 	{
-		// Arrange
-		_ = A.CallTo(() => _deadLetterStore.GetCountAsync(A<CancellationToken>._))
+		// Arrange - GetCountAsync is now on IDeadLetterStoreAdmin (ISP split in Sprint 745)
+		_ = A.CallTo(() => ((IDeadLetterStoreAdmin)_deadLetterStore).GetCountAsync(A<CancellationToken>._))
 			.Returns(3L);
 
 		var messages = new[]
@@ -519,7 +519,8 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 		var oldest = DateTimeOffset.UtcNow.AddHours(-5);
 		var newest = DateTimeOffset.UtcNow;
 
-		_ = A.CallTo(() => _deadLetterStore.GetCountAsync(A<CancellationToken>._))
+		// GetCountAsync is now on IDeadLetterStoreAdmin (ISP split in Sprint 745)
+		_ = A.CallTo(() => ((IDeadLetterStoreAdmin)_deadLetterStore).GetCountAsync(A<CancellationToken>._))
 			.Returns(2L);
 
 		var messages = new[]

@@ -15,8 +15,8 @@ namespace Excalibur.Data.Tests.MongoDB;
 /// resolved from a basic ServiceCollection, so we verify registrations via ServiceDescriptor
 /// instead of resolving instances.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MongoDbServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

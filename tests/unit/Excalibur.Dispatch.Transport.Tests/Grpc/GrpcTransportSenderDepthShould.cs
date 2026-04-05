@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// MapToRequest mapping, IsTransient logic, interface compliance,
 /// batch with empty list edge case, and Destination routing.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportSenderDepthShould : IAsyncDisposable
 {
 	private readonly GrpcChannel _channel;

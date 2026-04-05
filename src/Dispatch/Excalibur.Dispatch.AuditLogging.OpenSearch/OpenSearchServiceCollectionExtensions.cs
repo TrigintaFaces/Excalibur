@@ -111,6 +111,9 @@ public static class OpenSearchServiceCollectionExtensions
 
     private static IServiceCollection AddOpenSearchAuditExporterCore(this IServiceCollection services)
     {
+        _ = services.AddSingleton<IValidateOptions<OpenSearchExporterOptions>,
+            OpenSearchExporterOptionsValidator>();
+
         _ = services.AddHttpClient<OpenSearchAuditExporter>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<OpenSearchExporterOptions>>().Value;

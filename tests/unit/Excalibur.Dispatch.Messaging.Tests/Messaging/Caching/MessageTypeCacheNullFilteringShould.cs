@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// warning log, and valid types are preserved.
 /// </summary>
 [Collection("MessageTypeCacheTests")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Priority", "2")]
 public sealed class MessageTypeCacheNullFilteringShould : IDisposable
 {

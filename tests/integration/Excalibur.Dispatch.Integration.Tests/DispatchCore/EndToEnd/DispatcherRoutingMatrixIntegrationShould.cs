@@ -21,9 +21,9 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.EndToEnd;
 /// Integration matrix that validates dispatcher routing to local handlers and remote transport buses
 /// with and without user-defined middleware.
 /// </summary>
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Category", "EndToEnd")]
-[Trait("Component", "Messaging")]
+[Trait(TraitNames.Component, TestComponents.Messaging)]
 public sealed class DispatcherRoutingMatrixIntegrationShould : IntegrationTestBase
 {
 	[Theory]

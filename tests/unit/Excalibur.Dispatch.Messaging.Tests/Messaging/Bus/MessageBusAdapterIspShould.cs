@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Messaging.Tests.Messaging.Bus;
 /// ISP gate compliance tests for the Sprint 612 IMessageBusAdapter interface
 /// split (A.4): IMessageBusAdapter, IMessageBusAdapterLifecycle, IMessageBusAdapterCapabilities.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Messaging")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Messaging)]
 [Trait("Feature", "Transport")]
 public sealed class MessageBusAdapterIspShould : UnitTestBase
 {
@@ -64,9 +64,10 @@ public sealed class MessageBusAdapterIspShould : UnitTestBase
 			.Where(m => !m.IsSpecialName)
 			.ToArray();
 
-		methods.Length.ShouldBe(3);
+		methods.Length.ShouldBe(4);
 
 		var methodNames = methods.Select(m => m.Name).OrderBy(n => n).ToArray();
+		methodNames.ShouldContain("InitializeAsync");
 		methodNames.ShouldContain("CheckHealthAsync");
 		methodNames.ShouldContain("StartAsync");
 		methodNames.ShouldContain("StopAsync");

@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <summary>
 /// Default implementation of a pipeline profile that defines middleware composition for specific processing scenarios.
 /// </summary>
-public sealed class PipelineProfile : IPipelineProfile
+public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 {
 	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindsCache = new();

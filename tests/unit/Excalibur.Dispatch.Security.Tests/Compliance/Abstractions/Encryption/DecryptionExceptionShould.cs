@@ -7,8 +7,8 @@ using Xunit;
 
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Encryption;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class DecryptionExceptionShould
 {
     [Fact]

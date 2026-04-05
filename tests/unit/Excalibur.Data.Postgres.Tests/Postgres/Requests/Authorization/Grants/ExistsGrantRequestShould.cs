@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Postgres.Requests.Authorization.Grants;
 /// Unit tests for <see cref="ExistsGrantRequest"/>.
 /// Covers SQL structure, parameter setup, and expiration check.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Postgres")]
 public sealed class ExistsGrantRequestShould
 {

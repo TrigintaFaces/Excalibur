@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// <summary>
 /// Unit tests for <see cref="MessagePackSerializer" />.
 /// </summary>
-[Trait("Component", "Serialization")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class MessagePackMessageSerializerShould : UnitTestBase
 {
 	private readonly Serialization.MessagePack.MessagePackSerializer _sut;

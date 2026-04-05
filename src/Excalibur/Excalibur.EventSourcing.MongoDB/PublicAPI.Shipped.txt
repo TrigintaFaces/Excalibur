@@ -3,18 +3,20 @@ Excalibur.EventSourcing.MongoDB.EventSourcingBuilderMongoDbExtensions
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.EventSourcing.MongoDB.MongoDbEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.MongoDB.MongoDbEventStore.EraseEventsAsync(string! aggregateId, string! aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.EventSourcing.MongoDB.MongoDbEventStore.IsErasedAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.MongoDB.MongoDbEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore.MongoDbEventStore(Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.MongoDB.MongoDbEventStore!>! logger) -> void
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore.MongoDbEventStore(Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.MongoDB.MongoDbEventStore!>! logger, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer? payloadSerializer) -> void
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore.MongoDbEventStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.MongoDB.MongoDbEventStore!>! logger, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer = null, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer? payloadSerializer = null) -> void
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.CollectionName.get -> string!
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.CollectionName.set -> void
-Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.ConnectionString.get -> string!
-Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.ConnectionString.set -> void
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.ConnectTimeoutSeconds.get -> int
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.ConnectTimeoutSeconds.set -> void
+Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.ConnectionString.get -> string!
+Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.ConnectionString.set -> void
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.CounterCollectionName.get -> string!
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.CounterCollectionName.set -> void
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.DatabaseName.get -> string!
@@ -28,11 +30,9 @@ Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.UseSsl.get -> bool
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.UseSsl.set -> void
 Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.Validate() -> void
 Microsoft.Extensions.DependencyInjection.MongoDbEventStoreExtensions
+Microsoft.Extensions.DependencyInjection.MongoDbTenantShardingExtensions
 static Excalibur.EventSourcing.MongoDB.EventSourcingBuilderMongoDbExtensions.UseMongoDB(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.MongoDB.EventSourcingBuilderMongoDbExtensions.UseMongoDB(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory, System.Action<Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.MongoDbEventStoreExtensions.AddMongoDbEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbEventStoreExtensions.AddMongoDbEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory, System.Action<Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.EventSourcing.MongoDB.MongoDbEventStore.EraseEventsAsync(string! aggregateId, string! aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.EventSourcing.MongoDB.MongoDbEventStore.IsErasedAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Microsoft.Extensions.DependencyInjection.MongoDbTenantShardingExtensions
 static Microsoft.Extensions.DependencyInjection.MongoDbTenantShardingExtensions.UseMongoDbTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

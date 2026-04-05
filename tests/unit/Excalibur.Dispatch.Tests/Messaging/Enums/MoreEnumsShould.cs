@@ -9,8 +9,8 @@ using Excalibur.Dispatch.Configuration;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Enums;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MoreEnumsShould
 {
 	// --- CloudNative enums ---

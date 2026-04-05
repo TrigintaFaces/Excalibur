@@ -15,7 +15,7 @@ namespace Excalibur.Data.Tests.InMemory;
 /// <summary>
 /// Extended unit tests for InMemoryPersistenceProvider collection and metadata operations.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.InMemory")]
 public sealed class InMemoryPersistenceProviderExtendedShould : UnitTestBase
 {

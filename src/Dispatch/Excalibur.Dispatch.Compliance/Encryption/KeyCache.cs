@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// reported for cache hits and misses to enable monitoring.
 /// </para>
 /// </remarks>
-public sealed class KeyCache : IKeyCache, IDisposable
+public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 {
 	/// <summary>
 	/// Maximum number of per-key locks to retain. When exceeded, new keys skip lock-based

@@ -13,6 +13,7 @@ public static class MessageResult
 {
 	private static readonly IMessageResult CachedSuccess = new BasicMessageResult(succeeded: true);
 	private static readonly IMessageResult CachedSuccessFromCache = new BasicMessageResult(succeeded: true, cacheHit: true);
+	private static readonly IMessageResult CachedCancelled = new BasicMessageResult(succeeded: false);
 
 	/// <summary>
 	/// Creates a successful message result.
@@ -119,4 +120,58 @@ public static class MessageResult
 	/// <returns> A failed message result. </returns>
 	public static IMessageResult<T> Failed<T>(string? errorMessage, IMessageProblemDetails? problemDetails = null) =>
 		new BasicMessageResult<T>(succeeded: false, value: default, errorMessage: errorMessage, problemDetails: problemDetails);
+
+	/// <summary>
+	/// Creates a failed message result from an exception, preserving the full exception detail.
+	/// </summary>
+	/// <param name="exception"> The exception that caused the failure. </param>
+	/// <returns> A failed message result. </returns>
+	public static IMessageResult Failed(Exception exception)
+	{
+		ArgumentNullException.ThrowIfNull(exception);
+		return new BasicMessageResult(succeeded: false, errorMessage: exception.ToString());
+	}
+
+	/// <summary>
+	/// Creates a failed message result with a generic type parameter from an exception, preserving the full exception detail.
+	/// </summary>
+	/// <typeparam name="T"> The type of the expected return value. </typeparam>
+	/// <param name="exception"> The exception that caused the failure. </param>
+	/// <returns> A failed message result. </returns>
+	public static IMessageResult<T> Failed<T>(Exception exception)
+	{
+		ArgumentNullException.ThrowIfNull(exception);
+		return new BasicMessageResult<T>(succeeded: false, value: default, errorMessage: exception.ToString());
+	}
+
+	/// <summary>
+	/// Creates a failed message result with problem details and additional context.
+	/// </summary>
+	/// <param name="problemDetails"> The problem details. </param>
+	/// <param name="validationResult"> The validation result. </param>
+	/// <param name="authorizationResult"> The authorization result. </param>
+	/// <returns> A failed message result. </returns>
+	public static IMessageResult Failed(
+		IMessageProblemDetails? problemDetails,
+		object? validationResult,
+		object? authorizationResult) =>
+		new BasicMessageResult(
+			succeeded: false,
+			errorMessage: problemDetails?.Detail,
+			problemDetails: problemDetails,
+			validationResult: validationResult,
+			authorizationResult: authorizationResult);
+
+	/// <summary>
+	/// Creates a cancelled message result.
+	/// </summary>
+	/// <returns> A cancelled message result indicating the operation was cancelled. </returns>
+	public static IMessageResult Cancelled() => CachedCancelled;
+
+	/// <summary>
+	/// Creates a cancelled message result with a generic type parameter.
+	/// </summary>
+	/// <typeparam name="T"> The type of the expected return value. </typeparam>
+	/// <returns> A cancelled message result. </returns>
+	public static IMessageResult<T> Cancelled<T>() => new BasicMessageResult<T>(succeeded: false, value: default);
 }

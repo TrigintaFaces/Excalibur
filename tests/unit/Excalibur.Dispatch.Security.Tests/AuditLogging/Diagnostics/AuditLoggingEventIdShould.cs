@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 [Trait("Priority", "0")]
 public sealed class AuditLoggingEventIdShould : UnitTestBase
 {

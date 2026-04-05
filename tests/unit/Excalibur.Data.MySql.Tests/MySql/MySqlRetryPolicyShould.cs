@@ -14,8 +14,8 @@ public sealed class FakeDisposableConnection : IDisposable
 	public void Dispose() => IsDisposed = true;
 }
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MySqlRetryPolicyShould
 {
 	private static MySqlRetryPolicy CreatePolicy(int maxRetry = 3)

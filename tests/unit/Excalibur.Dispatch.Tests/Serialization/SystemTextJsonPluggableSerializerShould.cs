@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Unit tests for <see cref="SystemTextJsonSerializer"/> validating serialization,
 /// deserialization, and error handling behavior.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class SystemTextJsonPluggableSerializerShould
 {

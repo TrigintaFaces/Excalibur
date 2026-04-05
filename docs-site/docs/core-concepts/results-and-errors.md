@@ -38,6 +38,7 @@ return MessageResult.SuccessFromCache();
 // Success with additional context
 return MessageResult.Success(
     value: order,
+    routingDecision: null,
     validationResult: validationContext,
     authorizationResult: authResult,
     cacheHit: false);
@@ -60,6 +61,27 @@ return MessageResult.Failed(new MessageProblemDetails
 
 // Typed failure
 return MessageResult.Failed<Order>("Validation failed", problemDetails);
+
+// Failure from an exception
+return MessageResult.Failed(exception);
+
+// Typed failure from an exception
+return MessageResult.Failed<Order>(exception);
+
+// Failure with validation and authorization context
+return MessageResult.Failed(problemDetails, validationResult, authorizationResult);
+```
+
+### Creating Cancelled Results
+
+Use `Cancelled()` when an operation is cancelled via a `CancellationToken` or business logic. The non-generic overload returns a cached singleton for hot-path performance.
+
+```csharp
+// Cancellation (returns cached singleton)
+return MessageResult.Cancelled();
+
+// Typed cancellation
+return MessageResult.Cancelled<Order>();
 ```
 
 ## IMessageResult Interface

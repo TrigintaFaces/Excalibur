@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Datadog;
 /// Unit tests for <see cref="DatadogServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class DatadogServiceCollectionExtensionsShould
 {
 	[Fact]

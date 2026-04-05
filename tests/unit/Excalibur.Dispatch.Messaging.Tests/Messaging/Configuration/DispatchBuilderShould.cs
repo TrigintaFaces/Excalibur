@@ -15,9 +15,9 @@ namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
 /// <summary>
 /// Unit tests for <see cref="DispatchBuilder"/> public class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
-[Trait("Feature", "Configuration")]
+[Trait(TraitNames.Feature, TestFeatures.Configuration)]
 public sealed class DispatchBuilderShould : IDisposable
 {
 	private readonly IServiceCollection _services;

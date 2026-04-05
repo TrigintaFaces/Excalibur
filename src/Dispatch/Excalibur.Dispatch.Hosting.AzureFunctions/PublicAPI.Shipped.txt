@@ -1,4 +1,6 @@
 #nullable enable
+Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId
+Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions
 const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ActivityCompleted = 50304 -> int
 const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ActivityFailed = 50305 -> int
 const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ActivityStarted = 50303 -> int
@@ -34,10 +36,8 @@ const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.SingletonW
 const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.SingletonWarmupFailed = 50260 -> int
 const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.SingletonWarmupStarting = 50258 -> int
 const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.SupportNotAvailable = 50202 -> int
-const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.WarmingUpServices = 50256 -> int
 const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.WarmInstanceDetected = 50252 -> int
-Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId
-Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.WarmingUpServices = 50256 -> int
 static Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions.AddAzureFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions.AddAzureFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions.AddAzureFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions.AddAzureFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -1,4 +1,8 @@
 #nullable enable
+Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions
+Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions.AvroSerializationOptions() -> void
+Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions.BufferSize.get -> int
+Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions.BufferSize.set -> void
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.AvroSerializer() -> void
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.ContentType.get -> string!
@@ -9,12 +13,5 @@ Excalibur.Dispatch.Serialization.Avro.AvroSerializer.Serialize<T>(T value, Syste
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.SerializeObject(object! value, System.Type! type) -> byte[]!
 Excalibur.Dispatch.Serialization.Avro.AvroSerializer.Version.get -> string!
 Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions
-static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.AddAvroPluggableSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool setAsCurrent = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.AddAvroSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.GetPluggableSerializer() -> Excalibur.Dispatch.Abstractions.Serialization.ISerializer!
-static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.RegisterAvro(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
-Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions
-Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions.AvroSerializationOptions() -> void
-Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions.BufferSize.get -> int
-Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions.BufferSize.set -> void
-static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.RegisterAvro(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder, System.Action<Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions!>! configure) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
+static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.AddAvroSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AvroSerializationExtensions.AddAvroSerializer(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Serialization.Avro.AvroSerializationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

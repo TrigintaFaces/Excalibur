@@ -9,15 +9,15 @@ using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Messaging;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatcherShould
 {
 	private readonly IDispatchMiddlewareInvoker _invoker = A.Fake<IDispatchMiddlewareInvoker>();

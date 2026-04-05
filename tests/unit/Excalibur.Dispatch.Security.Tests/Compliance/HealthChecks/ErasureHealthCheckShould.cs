@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.HealthChecks;
 /// <summary>
 /// Unit tests for <see cref="ErasureHealthCheck"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "HealthCheck")]
 public sealed class ErasureHealthCheckShould
 {

@@ -23,7 +23,7 @@ namespace Excalibur.Data.SqlServer.ErrorHandling;
 /// SQL Server implementation of the dead letter store.
 /// Uses IOptions pattern for configuration consistency with other SqlServer stores.
 /// </summary>
-public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore
+public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLetterStoreAdmin
 {
 	private readonly string _connectionString;
 	private readonly ILogger<SqlServerDeadLetterStore> _logger;

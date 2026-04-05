@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub.StreamingPull;
 /// Regression tests for S541.10 (bd-z52x2): TOCTOU race in StreamingPullStream.HasMessage().
 /// Validates that _outstandingMessages uses ConcurrentDictionary for thread-safe access.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StreamingPullStreamConcurrencyShould : UnitTestBase
 {
 	#region ConcurrentDictionary Verification (S541.10)

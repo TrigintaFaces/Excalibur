@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Unit tests for message serialization covering JSON round-trip, edge cases, type safety, and performance.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class SerializationShould : UnitTestBase
 {
 	private readonly JsonSerializerOptions _jsonOptions;

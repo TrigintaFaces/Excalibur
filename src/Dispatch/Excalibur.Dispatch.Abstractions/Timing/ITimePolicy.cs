@@ -28,37 +28,11 @@ public interface ITimePolicy
 	TimeSpan HandlerTimeout { get; }
 
 	/// <summary>
-	/// Gets the timeout for serialization operations.
-	/// </summary>
-	/// <value> The serialization timeout. </value>
-	TimeSpan SerializationTimeout { get; }
-
-	/// <summary>
-	/// Gets the timeout for transport operations.
-	/// </summary>
-	/// <value> The transport timeout. </value>
-	TimeSpan TransportTimeout { get; }
-
-	/// <summary>
-	/// Gets the timeout for validation operations.
-	/// </summary>
-	/// <value> The validation timeout. </value>
-	TimeSpan ValidationTimeout { get; }
-
-	/// <summary>
 	/// Determines the appropriate timeout for a specific operation type.
 	/// </summary>
 	/// <param name="operationType"> The type of operation being performed. </param>
 	/// <returns> The timeout duration for the operation. </returns>
 	TimeSpan GetTimeoutFor(TimeoutOperationType operationType);
-
-	/// <summary>
-	/// Determines if a timeout should be applied based on the operation context.
-	/// </summary>
-	/// <param name="operationType"> The type of operation being performed. </param>
-	/// <param name="context"> Additional context for the decision. </param>
-	/// <returns> <see langword="true" /> if a timeout should be applied; otherwise, <see langword="false" />. </returns>
-	bool ShouldApplyTimeout(TimeoutOperationType operationType, TimeoutContext? context = null);
 
 	/// <summary>
 	/// Creates a cancellation token with the appropriate timeout for an operation.

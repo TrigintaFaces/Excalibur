@@ -6,7 +6,7 @@ using System.Transactions;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Transaction;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -23,8 +23,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Sprint 554 - Task S554.40: TransactionMiddleware tests.
 /// Tests transaction scope creation, commit on success, rollback on exception, and nested transaction handling.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Middleware")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Middleware)]
 public sealed class TransactionMiddlewareShould
 {
 	private readonly ILogger<TransactionMiddleware> _logger;

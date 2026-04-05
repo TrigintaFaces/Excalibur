@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Unit tests for <see cref="ComplianceMonitoringService"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class ComplianceMonitoringServiceShould
 {
 	private readonly IServiceScopeFactory _fakeScopeFactory;

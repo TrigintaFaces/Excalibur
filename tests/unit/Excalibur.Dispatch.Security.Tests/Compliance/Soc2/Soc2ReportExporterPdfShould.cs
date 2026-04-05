@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Tests T396.9 per Sprint 396 - SOC2 PDF Export.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class Soc2ReportExporterPdfShould
 {
 	private readonly ILogger<Soc2ReportExporter> _fakeLogger;

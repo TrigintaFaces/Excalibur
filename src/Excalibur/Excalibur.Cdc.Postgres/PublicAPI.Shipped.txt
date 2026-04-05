@@ -2,33 +2,36 @@
 Excalibur.Cdc.Postgres.CdcBuilderPostgresExtensions
 Excalibur.Cdc.Postgres.Diagnostics.CdcPostgresEventId
 Excalibur.Cdc.Postgres.IPostgresCdcBuilder
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.AutoCreateSlot(bool autoCreate = true) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.BatchSize(int size) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! connectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.PollingInterval(System.TimeSpan interval) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.ProcessorId(string! processorId) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.PublicationName(string! publicationName) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.ReplicationSlotName(string! slotName) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.SchemaName(string! schema) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.StateConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.StateTableName(string! tableName) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.Timeout(System.TimeSpan timeout) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.UseBinaryProtocol(bool useBinary = true) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
-Excalibur.Cdc.Postgres.IPostgresCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder
+Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! connectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder
+Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.BatchSize(int size) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.PollingInterval(System.TimeSpan interval) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.SchemaName(string! schema) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.StateTableName(string! tableName) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcProcessingBuilder.Timeout(System.TimeSpan timeout) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcProcessor
 Excalibur.Cdc.Postgres.IPostgresCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.Postgres.PostgresCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.IPostgresCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Postgres.PostgresCdcPosition>!
 Excalibur.Cdc.Postgres.IPostgresCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.Postgres.PostgresDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Cdc.Postgres.IPostgresCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.Postgres.PostgresDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder
+Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder.AutoCreateSlot(bool autoCreate = true) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder.ProcessorId(string! processorId) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder.PublicationName(string! publicationName) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder.ReplicationSlotName(string! slotName) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
+Excalibur.Cdc.Postgres.IPostgresCdcReplicationBuilder.UseBinaryProtocol(bool useBinary = true) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.ClearStateAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.GetAllStatesAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.Postgres.PostgresCdcStateEntry!>!>!
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.GetLastPositionAsync(string! processorId, string! slotName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Postgres.PostgresCdcPosition>!
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.SavePositionAsync(string! processorId, string! slotName, Excalibur.Cdc.Postgres.PostgresCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.SaveStateAsync(Excalibur.Cdc.Postgres.PostgresCdcStateEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Postgres.PostgresCdcConnectionBuilderExtensions
 Excalibur.Cdc.Postgres.PostgresCdcOptions
 Excalibur.Cdc.Postgres.PostgresCdcOptions.BatchSize.get -> int
 Excalibur.Cdc.Postgres.PostgresCdcOptions.BatchSize.set -> void
@@ -206,6 +209,7 @@ override Excalibur.Cdc.Postgres.PostgresCdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.Postgres.PostgresCdcPosition.GetHashCode() -> int
 override Excalibur.Cdc.Postgres.PostgresCdcPosition.ToString() -> string!
 static Excalibur.Cdc.Postgres.CdcBuilderPostgresExtensions.UsePostgres(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.Postgres.IPostgresCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.Postgres.PostgresCdcConnectionBuilderExtensions.StateConnectionFactory(this Excalibur.Cdc.Postgres.IPostgresCdcConnectionBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Npgsql.NpgsqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.Postgres.IPostgresCdcBuilder!
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.FromChangePosition(Excalibur.Dispatch.Abstractions.ChangePosition? position) -> Excalibur.Cdc.Postgres.PostgresCdcPosition
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.Parse(string! lsnString) -> Excalibur.Cdc.Postgres.PostgresCdcPosition
 static Excalibur.Cdc.Postgres.PostgresCdcPosition.TryParse(string? lsnString, out Excalibur.Cdc.Postgres.PostgresCdcPosition position) -> bool

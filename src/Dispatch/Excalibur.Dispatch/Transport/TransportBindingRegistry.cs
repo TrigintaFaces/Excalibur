@@ -81,7 +81,7 @@ internal sealed class TransportBindingRegistry : IDisposable
 		for (var i = 0; i < snapshot.Length; i++)
 		{
 			var binding = snapshot[i];
-			if (binding.Matches(endpoint))
+			if (binding is ITransportBindingRouting routing && routing.Matches(endpoint))
 			{
 				return binding;
 			}

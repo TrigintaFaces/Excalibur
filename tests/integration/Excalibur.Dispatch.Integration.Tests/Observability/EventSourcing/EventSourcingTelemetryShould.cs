@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// Validates that ActivitySource spans are correctly created with proper tags.
 /// </summary>
 [Collection("EventStore Telemetry Tests")]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class EventSourcingTelemetryShould : IDisposable
 {

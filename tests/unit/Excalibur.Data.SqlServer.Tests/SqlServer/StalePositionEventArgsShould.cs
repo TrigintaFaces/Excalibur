@@ -17,7 +17,7 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// bd-1710x: CDC Recovery Infrastructure Tests.
 /// Updated: Uses consolidated core CdcPositionResetEventArgs.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CdcPositionResetEventArgs")]
 public sealed class StalePositionEventArgsShould : UnitTestBase
 {

@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// Regression tests for DistributedCircuitBreaker SemaphoreSlim gate (Sprint 687, T.5 ok4jo).
 /// Validates that concurrent RecordSuccessAsync/RecordFailureAsync calls don't lose updates.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Resilience")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class DistributedCircuitBreakerConcurrencyShould : IAsyncDisposable
 {
 	private DistributedCircuitBreaker? _circuitBreaker;

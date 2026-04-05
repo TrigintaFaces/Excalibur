@@ -14,14 +14,14 @@ using IAwsLongPollingStrategy = Excalibur.Dispatch.Transport.ILongPollingStrateg
 
 namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.LongPolling;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class LongPollingOptimizerShould : IDisposable
 {
 	private readonly ILongPollingReceiver _receiver;
 	private readonly IAwsLongPollingStrategy _strategy;
 	private readonly IPollingMetricsCollector _metricsCollector;
-	private readonly LongPollingConfiguration _config;
+	private readonly LongPollingOptions _config;
 	private readonly LongPollingOptimizer _optimizer;
 
 	public LongPollingOptimizerShould()
@@ -29,11 +29,12 @@ public sealed class LongPollingOptimizerShould : IDisposable
 		_receiver = A.Fake<ILongPollingReceiver>();
 		_strategy = A.Fake<IAwsLongPollingStrategy>();
 		_metricsCollector = A.Fake<IPollingMetricsCollector>();
-		_config = new LongPollingConfiguration
+		_config = new LongPollingOptions
 		{
-			EnableRequestCoalescing = false,
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
 		};
+		_config.Processing.EnableRequestCoalescing = false;
+
 		_optimizer = new LongPollingOptimizer(
 			_receiver,
 			_strategy,
@@ -111,9 +112,11 @@ public sealed class LongPollingOptimizerShould : IDisposable
 				PollingStatus = AwsPollingStatus.Active,
 			}));
 
-		// EmptyReceiveRate and AverageMessagesPerReceive are computed properties
-		// EmptyReceiveRate = EmptyReceives / TotalReceives; AverageMessagesPerReceive = TotalMessages / TotalReceives
-		A.CallTo(() => _strategy.GetStatisticsAsync())
+		// The optimizer now checks for ILongPollingStrategyAdmin; configure the fake
+		// to implement the admin interface as well
+		var adminStrategy = A.Fake<IAwsLongPollingStrategy>(
+			o => o.Implements<ILongPollingStrategyAdmin>());
+		A.CallTo(() => ((ILongPollingStrategyAdmin)adminStrategy).GetStatisticsAsync())
 			.Returns(new ValueTask<Excalibur.Dispatch.Transport.LongPollingStatistics>(
 				new Excalibur.Dispatch.Transport.LongPollingStatistics
 				{
@@ -125,8 +128,12 @@ public sealed class LongPollingOptimizerShould : IDisposable
 					CurrentWaitTime = TimeSpan.FromSeconds(10),
 				}));
 
+		using var optimizer = new LongPollingOptimizer(
+			_receiver, adminStrategy, _metricsCollector, _config,
+			NullLogger<LongPollingOptimizer>.Instance);
+
 		// Act
-		var health = await _optimizer.GetHealthStatusAsync();
+		var health = await optimizer.GetHealthStatusAsync();
 
 		// Assert
 		health.IsHealthy.ShouldBeTrue();
@@ -149,7 +156,9 @@ public sealed class LongPollingOptimizerShould : IDisposable
 			}));
 
 		// EmptyReceiveRate = 95/100 = 0.95
-		A.CallTo(() => _strategy.GetStatisticsAsync())
+		var adminStrategy = A.Fake<IAwsLongPollingStrategy>(
+			o => o.Implements<ILongPollingStrategyAdmin>());
+		A.CallTo(() => ((ILongPollingStrategyAdmin)adminStrategy).GetStatisticsAsync())
 			.Returns(new ValueTask<Excalibur.Dispatch.Transport.LongPollingStatistics>(
 				new Excalibur.Dispatch.Transport.LongPollingStatistics
 				{
@@ -157,8 +166,12 @@ public sealed class LongPollingOptimizerShould : IDisposable
 					EmptyReceives = 95,
 				}));
 
+		using var optimizer = new LongPollingOptimizer(
+			_receiver, adminStrategy, _metricsCollector, _config,
+			NullLogger<LongPollingOptimizer>.Instance);
+
 		// Act
-		var health = await _optimizer.GetHealthStatusAsync();
+		var health = await optimizer.GetHealthStatusAsync();
 
 		// Assert
 		health.IsHealthy.ShouldBeFalse();
@@ -207,6 +220,73 @@ public sealed class LongPollingOptimizerShould : IDisposable
 		// Act & Assert
 		_optimizer.Dispose();
 		_optimizer.Dispose();
+	}
+
+	[Fact]
+	public async Task GetHealthStatus_UsesAdminInterface_WhenStrategyImplementsIt()
+	{
+		// Arrange -- strategy that implements ILongPollingStrategyAdmin
+		var adminStrategy = A.Fake<IAwsLongPollingStrategy>(
+			o => o.Implements<ILongPollingStrategyAdmin>());
+		A.CallTo(() => ((ILongPollingStrategyAdmin)adminStrategy).GetStatisticsAsync())
+			.Returns(new ValueTask<Excalibur.Dispatch.Transport.LongPollingStatistics>(
+				new Excalibur.Dispatch.Transport.LongPollingStatistics
+				{
+					TotalReceives = 100,
+					EmptyReceives = 20,
+					TotalMessages = 400,
+					CurrentLoadFactor = 0.6,
+					CurrentWaitTime = TimeSpan.FromSeconds(10),
+				}));
+		A.CallTo(() => _receiver.GetStatisticsAsync())
+			.Returns(new ValueTask<ReceiverStatistics>(new ReceiverStatistics
+			{
+				TotalReceiveOperations = 100,
+				TotalMessagesReceived = 400,
+				TotalMessagesDeleted = 400,
+				VisibilityTimeoutOptimizations = 0,
+				PollingStatus = AwsPollingStatus.Active,
+				LastReceiveTime = DateTimeOffset.UtcNow,
+			}));
+
+		using var optimizer = new LongPollingOptimizer(
+			_receiver, adminStrategy, _metricsCollector, _config,
+			NullLogger<LongPollingOptimizer>.Instance);
+
+		// Act
+		var health = await optimizer.GetHealthStatusAsync();
+
+		// Assert -- admin interface was used, so EfficiencyScore reflects actual EmptyReceiveRate
+		health.IsHealthy.ShouldBeTrue();
+		health.EfficiencyScore.ShouldBe(0.8, 0.01); // 1 - (20/100) = 0.8
+	}
+
+	[Fact]
+	public async Task GetHealthStatus_FallsBackToDefaultStats_WhenStrategyLacksAdminInterface()
+	{
+		// Arrange -- plain strategy without ILongPollingStrategyAdmin
+		var plainStrategy = A.Fake<IAwsLongPollingStrategy>();
+		A.CallTo(() => _receiver.GetStatisticsAsync())
+			.Returns(new ValueTask<ReceiverStatistics>(new ReceiverStatistics
+			{
+				TotalReceiveOperations = 50,
+				TotalMessagesReceived = 200,
+				TotalMessagesDeleted = 200,
+				VisibilityTimeoutOptimizations = 0,
+				PollingStatus = AwsPollingStatus.Active,
+				LastReceiveTime = DateTimeOffset.UtcNow,
+			}));
+
+		using var optimizer = new LongPollingOptimizer(
+			_receiver, plainStrategy, _metricsCollector, _config,
+			NullLogger<LongPollingOptimizer>.Instance);
+
+		// Act
+		var health = await optimizer.GetHealthStatusAsync();
+
+		// Assert -- fallback: default stats have EmptyReceiveRate=0, so EfficiencyScore=1.0
+		health.IsHealthy.ShouldBeTrue();
+		health.EfficiencyScore.ShouldBe(1.0); // 1 - 0.0 (default EmptyReceiveRate)
 	}
 
 	public void Dispose()

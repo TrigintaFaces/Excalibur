@@ -39,8 +39,11 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Configure options
-		_ = services.Configure(configure);
+		// Configure options with validation
+		_ = services.AddOptions<AzureKeyVaultOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
@@ -144,7 +147,10 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configurationSection);
 
-		_ = services.Configure<AzureKeyVaultOptions>(options => configurationSection.Bind(options));
+		_ = services.AddOptions<AzureKeyVaultOptions>()
+			.Configure(options => configurationSection.Bind(options))
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();

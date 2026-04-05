@@ -28,9 +28,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 /// rdkafka native lib crashes when containers die mid-run.
 /// </remarks>
 [Collection(ContainerCollections.Kafka)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "Kafka")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class KafkaDeadLetterIntegrationShould
 {
 	private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(30));

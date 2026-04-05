@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="AwsLambdaHostProvider" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-internal partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostProvider, IServerlessHostConfigurator
+internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logger) : IServerlessHostProvider, IServerlessHostConfigurator
 {
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 

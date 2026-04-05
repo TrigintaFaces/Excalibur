@@ -250,8 +250,8 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 	[Fact]
 	public async Task Delegate_try_mark_sent_and_received_to_inner()
 	{
-		// Arrange
-		var inner = A.Fake<IOutboxStore>();
+		// Arrange -- inner must implement IOutboxStoreBatch for the decorator to delegate
+		var inner = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreBatch>());
 		var sut = CreateSut(inner);
 		var inboxEntry = new InboxEntry
 		{
@@ -263,7 +263,7 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 			ReceivedAt = DateTimeOffset.UtcNow,
 		};
 
-		A.CallTo(() => inner.TryMarkSentAndReceivedAsync("m1", inboxEntry, A<CancellationToken>._))
+		A.CallTo(() => ((IOutboxStoreBatch)inner).TryMarkSentAndReceivedAsync("m1", inboxEntry, A<CancellationToken>._))
 			.Returns(new ValueTask<bool>(true));
 
 		// Act

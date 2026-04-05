@@ -23,7 +23,7 @@ namespace Excalibur.Data.Postgres.ErrorHandling;
 /// Postgres implementation of the dead letter store.
 /// Uses IOptions pattern for configuration consistency with other Postgres stores.
 /// </summary>
-public sealed partial class PostgresDeadLetterStore : IDeadLetterStore
+public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLetterStoreAdmin
 {
 	private readonly string _connectionString;
 	private readonly ILogger<PostgresDeadLetterStore> _logger;

@@ -28,7 +28,10 @@ internal sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOption
 		// Check ConnectionString is not null or empty
 		if (string.IsNullOrWhiteSpace(options.Connection.ConnectionString))
 		{
-			return ValidateOptionsResult.Fail("RabbitMQ connection string cannot be null or empty.");
+			return ValidateOptionsResult.Fail(
+				"RabbitMqOptions.Connection.ConnectionString is required. " +
+				"Set it to a valid AMQP URI (e.g., 'amqps://user:pass@host:5671/vhost') via " +
+				"services.Configure<RabbitMqOptions>(config.GetSection(\"RabbitMQ\")) or in your options configuration.");
 		}
 
 		// Validate connection string format - must start with amqp:// or amqps://

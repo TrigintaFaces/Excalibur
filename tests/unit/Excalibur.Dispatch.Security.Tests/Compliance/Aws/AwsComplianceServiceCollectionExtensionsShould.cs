@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Aws;
 /// Unit tests for <see cref="AwsComplianceServiceCollectionExtensions"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class AwsComplianceServiceCollectionExtensionsShould
 {
 	#region AddAwsKmsKeyManagement Tests

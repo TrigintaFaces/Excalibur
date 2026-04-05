@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// Unit tests for <see cref="EncryptionProviderRegistry"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class EncryptionProviderRegistryShould
 {
 	private readonly EncryptionProviderRegistry _sut;

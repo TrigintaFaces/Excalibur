@@ -51,10 +51,8 @@ internal sealed class MultiTransportHealthCheck : IHealthCheck
 		var stopwatch = ValueStopwatch.StartNew();
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
 
-		// Admin properties available from concrete registry.
-		var concreteRegistry = _registry as TransportRegistry;
-		var hasDefault = concreteRegistry?.HasDefaultTransport ?? false;
-		var defaultName = concreteRegistry?.DefaultTransportName;
+		var hasDefault = _registry.HasDefaultTransport;
+		var defaultName = _registry.DefaultTransportName;
 
 		var transportNames = _registry.GetTransportNames().ToList();
 		var transportCount = transportNames.Count;

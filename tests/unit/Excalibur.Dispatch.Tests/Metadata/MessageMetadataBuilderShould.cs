@@ -8,8 +8,8 @@ using Excalibur.Dispatch.Metadata;
 
 namespace Excalibur.Dispatch.Tests.Metadata;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class MessageMetadataBuilderShould
 {
 	[Fact]

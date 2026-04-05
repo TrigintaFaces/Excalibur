@@ -149,7 +149,11 @@ internal sealed class PostgresCdcBuilder : IPostgresCdcBuilder
 		return this;
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Sets a factory function that creates Postgres connections for the CDC state store.
+	/// </summary>
+	/// <param name="stateConnectionFactory">A factory function that creates state store Postgres connections.</param>
+	/// <returns>The builder for fluent chaining.</returns>
 	public IPostgresCdcBuilder StateConnectionFactory(Func<IServiceProvider, Func<NpgsqlConnection>> stateConnectionFactory)
 	{
 		ArgumentNullException.ThrowIfNull(stateConnectionFactory);

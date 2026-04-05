@@ -81,24 +81,80 @@ public static class OpenTelemetryExtensions
 	/// </summary>
 	private static readonly string[] AllActivitySourceNames =
 	[
-		// Dispatch Core (from DispatchTelemetryConstants)
-		DispatchTelemetryConstants.ActivitySources.Core,       // "Excalibur.Dispatch.Core"
-		DispatchTelemetryConstants.ActivitySources.Pipeline,    // "Excalibur.Dispatch.Pipeline"
-		DispatchTelemetryConstants.ActivitySources.TimePolicy,  // "Excalibur.Dispatch.TimePolicy"
+		// Main dispatch activity source (TracingMiddleware spans)
+		DispatchActivitySource.Name,                                              // "Excalibur.Dispatch"
+
+		// Dispatch Core (from DispatchTelemetryConstants.ActivitySources)
+		DispatchTelemetryConstants.ActivitySources.Core,                           // "Excalibur.Dispatch.Core"
+		DispatchTelemetryConstants.ActivitySources.Pipeline,                        // "Excalibur.Dispatch.Pipeline"
+		DispatchTelemetryConstants.ActivitySources.TimePolicy,                      // "Excalibur.Dispatch.TimePolicy"
+		DispatchTelemetryConstants.ActivitySources.BatchProcessor,                  // "Excalibur.Dispatch.BatchProcessor"
+		DispatchTelemetryConstants.ActivitySources.PoisonMessage,                   // "Excalibur.Dispatch.PoisonMessage"
+		DispatchTelemetryConstants.ActivitySources.PoisonMessageMiddleware,         // "Excalibur.Dispatch.PoisonMessage.Middleware"
+		DispatchTelemetryConstants.ActivitySources.PoisonMessageCleanup,            // "Excalibur.Dispatch.PoisonMessage.Cleanup"
+		DispatchTelemetryConstants.ActivitySources.AuditLoggingMiddleware,          // "Excalibur.Dispatch.AuditLoggingMiddleware"
+		DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware,        // "Excalibur.Dispatch.CircuitBreakerMiddleware"
+		DispatchTelemetryConstants.ActivitySources.RetryMiddleware,                 // "Excalibur.Dispatch.RetryMiddleware"
+		DispatchTelemetryConstants.ActivitySources.UnifiedBatchingMiddleware,       // "Excalibur.Dispatch.UnifiedBatchingMiddleware"
+		DispatchTelemetryConstants.ActivitySources.ChannelTransport,                // "Excalibur.Dispatch.Transport.Common"
+		DispatchTelemetryConstants.ActivitySources.OutboxBackgroundService,         // "Excalibur.Dispatch.Outbox.Publisher"
+		DispatchTelemetryConstants.ActivitySources.Inbox,                           // "Excalibur.Dispatch.Inbox"
 
 		// Dispatch Streaming (from StreamingHandlerTelemetryConstants)
-		StreamingHandlerTelemetryConstants.ActivitySourceName,  // "Excalibur.Dispatch.Streaming"
+		StreamingHandlerTelemetryConstants.ActivitySourceName,                      // "Excalibur.Dispatch.Streaming"
+
+		// Dispatch Observability (context flow + W3C trace context)
+		Diagnostics.ContextObservabilityTelemetryConstants.ActivitySourceName,      // "Excalibur.Dispatch.Observability.Context"
+		Diagnostics.ContextObservabilityTelemetryConstants.MiddlewareActivitySourceName, // "Excalibur.Dispatch.Observability.ContextMiddleware"
+		Http.W3CTraceContextTelemetryConstants.ActivitySourceName,                  // "Excalibur.Dispatch.Observability.W3CTraceContext"
 
 		// Dispatch Compliance (external package)
-		"Excalibur.Dispatch.Compliance.Erasure",               // ErasureTelemetryConstants.ActivitySourceName
+		"Excalibur.Dispatch.Compliance.Erasure",                                   // ErasureTelemetryConstants.ActivitySourceName
+
+		// Excalibur Outbox background services
+		"Excalibur.Dispatch.BackgroundServices",                                    // BackgroundServiceActivitySource.SourceName
 
 		// Excalibur Data (external packages)
-		"Excalibur.Data.Cdc",                                  // CdcTelemetryConstants.ActivitySourceName
-		"Excalibur.Data.Audit",                                // AuditTelemetryConstants.ActivitySourceName
+		"Excalibur.Data.Cdc",                                                      // CdcTelemetryConstants.ActivitySourceName
+		"Excalibur.Data.Audit",                                                    // AuditTelemetryConstants.ActivitySourceName
+		"Excalibur.Data.Persistence",                                              // PersistenceTelemetryConstants.SourceName
+
+		// Excalibur EventSourcing
+		"Excalibur.EventSourcing.EventStore",                                      // EventSourcingActivitySources.EventStore
+		"Excalibur.EventSourcing.SnapshotStore",                                   // EventSourcingActivitySources.SnapshotStore
 
 		// Excalibur LeaderElection (external package)
-		"Excalibur.LeaderElection",                            // LeaderElectionTelemetryConstants.ActivitySourceName
+		"Excalibur.LeaderElection",                                                // LeaderElectionTelemetryConstants.ActivitySourceName
 	];
+
+	/// <summary>
+	/// Adds all Excalibur.Dispatch instrumentation (metrics + tracing) in a single call.
+	/// This is the recommended entry point — equivalent to ASP.NET Core's
+	/// <c>AddAspNetCoreInstrumentation()</c>.
+	/// </summary>
+	/// <param name="builder">The OpenTelemetry builder.</param>
+	/// <returns>The OpenTelemetry builder for method chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when builder is null.</exception>
+	/// <remarks>
+	/// <para>
+	/// Registers all known meters AND all known ActivitySources across the entire
+	/// Excalibur framework in one call. Consumers only need:
+	/// </para>
+	/// <code>
+	/// builder.Services.AddOpenTelemetry()
+	///     .AddDispatchInstrumentation()   // ← this is all you need
+	///     .WithTracing(t => t.AddOtlpExporter())
+	///     .WithMetrics(m => m.AddPrometheusExporter());
+	/// </code>
+	/// </remarks>
+	public static IOpenTelemetryBuilder AddDispatchInstrumentation(this IOpenTelemetryBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		return builder
+			.WithMetrics(static metricsBuilder => _ = metricsBuilder.AddMeter(AllMeterNames))
+			.WithTracing(static tracerBuilder => _ = tracerBuilder.AddSource(AllActivitySourceNames));
+	}
 
 	/// <summary>
 	/// Adds Dispatch core metrics to OpenTelemetry configuration.

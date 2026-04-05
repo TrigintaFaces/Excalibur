@@ -49,6 +49,13 @@ Excalibur is in active pre-release development. The framework is functionally co
 - **Event upcasting** -- Schema evolution with type-safe event transformers
 - **GDPR erasure** -- Crypto-shredding support via `IEventStoreErasure`
 
+### API Quality
+
+- **Interface Segregation** -- All public interfaces comply with the 5-method gate (94 interfaces decomposed across Sprints 743-745)
+- **Options compliance** -- All Options types comply with the 10-property gate (69 types split with sub-options)
+- **ValidateOnStart everywhere** -- All `Add*` DI registration methods validate options at startup, catching misconfigurations before the first request
+- **Zero quality debt** -- Sprint 746 cleared every open issue (P0 through P3) for the first time in project history
+
 ### Developer Experience
 
 - **Roslyn analyzers** -- Compile-time checks for common Dispatch mistakes (DISP001-DISP004)

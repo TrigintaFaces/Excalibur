@@ -11,7 +11,6 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
@@ -22,6 +21,8 @@ using Excalibur.Dispatch.Routing.Builder;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Delivery;
 
@@ -68,7 +69,7 @@ internal sealed class Dispatcher(
 	internal const string LocalBusName = "local";
 
 	private static readonly Task<IMessageResult> CancelledResultTask =
-		Task.FromResult<IMessageResult>(Messaging.MessageResult.Cancelled());
+		Task.FromResult<IMessageResult>(MR.Cancelled());
 
 	private static readonly Task<IMessageResult> DirectLocalSuccessResultTask =
 		Task.FromResult(SimpleMessageResult.SuccessResult);
@@ -1041,7 +1042,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
+			return MR.Cancelled();
 		}
 	}
 
@@ -1126,7 +1127,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return MessageResultOfT<TResponse>.Cancelled();
+			return MR.Cancelled<TResponse>();
 		}
 	}
 
@@ -1298,11 +1299,7 @@ internal sealed class Dispatcher(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return Messaging.MessageResult.Failure(
-			problem,
-			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(problem);
 	}
 
 	private static IMessageResult<TResponse> CreateRoutingFailureResult<TResponse>(
@@ -1318,11 +1315,7 @@ internal sealed class Dispatcher(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return MessageResultOfT<TResponse>.Failure(
-			problem,
-			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed<TResponse>(problem?.Detail, problem);
 	}
 
 	[RequiresUnreferencedCode("Direct local action dispatch uses reflection-based dispatch plan resolution.")]
@@ -1675,7 +1668,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
+			return MR.Cancelled();
 		}
 		catch (Exception ex)
 		{
@@ -1692,7 +1685,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
+			return MR.Cancelled();
 		}
 		catch (Exception ex)
 		{
@@ -1711,7 +1704,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return MessageResultOfT<TResponse>.Cancelled();
+			return MR.Cancelled<TResponse>();
 		}
 		catch (Exception ex)
 		{
@@ -1730,7 +1723,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return MessageResultOfT<TResponse>.Cancelled();
+			return MR.Cancelled<TResponse>();
 		}
 		catch (Exception ex)
 		{
@@ -1749,7 +1742,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return MessageResultOfT<TResponse>.Cancelled();
+			return MR.Cancelled<TResponse>();
 		}
 		catch (Exception ex)
 		{
@@ -1769,7 +1762,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
+			return MR.Cancelled();
 		}
 		catch (Exception ex)
 		{
@@ -1788,7 +1781,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
+			return MR.Cancelled();
 		}
 		catch (Exception ex)
 		{
@@ -1805,7 +1798,7 @@ internal sealed class Dispatcher(
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			return Messaging.MessageResult.Cancelled();
+			return MR.Cancelled();
 		}
 		catch (Exception ex)
 		{
@@ -1937,11 +1930,7 @@ internal sealed class Dispatcher(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return Messaging.MessageResult.Failure(
-			problem,
-			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed(problem);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1959,11 +1948,7 @@ internal sealed class Dispatcher(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return MessageResultOfT<TResponse>.Failure(
-			problem,
-			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
+		return MR.Failed<TResponse>(problem?.Detail, problem);
 	}
 
 	private static IMessageResult<TResponse> ConvertResult<TResponse>(IMessageResult result, IMessageContext context)
@@ -2030,7 +2015,7 @@ internal sealed class Dispatcher(
 	private static class CancelledResultTaskCache<TResponse>
 	{
 		internal static readonly Task<IMessageResult<TResponse>> Task =
-			System.Threading.Tasks.Task.FromResult<IMessageResult<TResponse>>(MessageResultOfT<TResponse>.Cancelled());
+			System.Threading.Tasks.Task.FromResult<IMessageResult<TResponse>>(MR.Cancelled<TResponse>());
 	}
 
 	private static class ResponseTypeTraits<TResponse>

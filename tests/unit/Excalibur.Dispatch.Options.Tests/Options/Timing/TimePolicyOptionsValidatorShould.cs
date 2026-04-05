@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Tests.Options.Timing;
 /// Sprint 564 S564.55: TimePolicy IValidateOptions tests.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class TimePolicyOptionsValidatorShould
 {
 	private readonly TimePolicyOptionsValidator _sut = new();

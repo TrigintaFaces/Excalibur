@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DependencyInjection;
 /// Integration tests verifying the Build() removal from <see cref="IDispatchBuilder"/>
 /// (Sprint 502, bd-7kh3o) and confirming pipeline materialization still works.
 /// </summary>
-[Trait("Category", "Integration")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 public sealed class BuildRemovalIntegrationShould : IDisposable
 {
 	private ServiceProvider? _serviceProvider;

@@ -10,7 +10,7 @@ using Excalibur.Dispatch.Validation.DataAnnotations;
 
 namespace Excalibur.Dispatch.Tests.Validation;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DataAnnotationsValidatorResolverShould
 {

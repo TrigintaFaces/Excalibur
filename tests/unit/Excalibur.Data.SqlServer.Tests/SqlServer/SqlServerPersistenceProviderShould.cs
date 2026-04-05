@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.SqlServer.Persistence;
 /// <summary>
 /// Unit tests for SqlServerPersistenceProvider test stub.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "SqlServerPersistenceProvider")]
 public sealed class SqlServerPersistenceProviderShould : UnitTestBase
 {

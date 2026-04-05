@@ -6,8 +6,8 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Abstractions.Audit;
 /// <summary>
 /// Unit tests for <see cref="AuditQuery"/> record.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [Trait("Feature", "Audit")]
 public sealed class AuditQueryShould : UnitTestBase
 {

@@ -1,0 +1,86 @@
+# Sprint 750: API Reference Documentation Generation
+# Purpose: Generate and publish DocFX API reference documentation
+# Owner: PlatformDeveloper
+
+name: API Reference Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'docs/api/**'
+      - 'Directory.Build.props'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: api-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  generate-api-docs:
+    name: Generate API Reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4.0.1
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-api-docs-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-api-docs-
+            ${{ runner.os }}-nuget-
+
+      - name: Install DocFX
+        run: dotnet tool install -g docfx
+
+      - name: Generate API metadata and build site
+        working-directory: docs/api
+        run: |
+          echo "Generating API metadata..."
+          docfx metadata docfx.json
+          echo "Building API reference site..."
+          docfx build docfx.json
+
+      - name: Upload API docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-reference-docs
+          path: docs/api/_site/
+          retention-days: 30
+
+      - name: API docs summary
+        if: always()
+        run: |
+          echo "# API Reference Documentation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -d "docs/api/_site" ]; then
+            page_count=$(find docs/api/_site -name "*.html" | wc -l)
+            echo "Generated **${page_count}** API reference pages." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "API docs generation failed." >> $GITHUB_STEP_SUMMARY
+          fi

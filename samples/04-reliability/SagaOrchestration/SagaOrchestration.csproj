@@ -18,6 +18,6 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
   </ItemGroup>
 </Project>

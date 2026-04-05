@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.BatchProcessing;
 ///     MessageOutbox and OutboxProcessor for efficient signaling between
 ///     producers and consumers without polling.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class EventDrivenWaitPatternShould
 {

@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Sentinel;
 /// Unit tests for <see cref="SentinelAuditLoggingEventId"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 public sealed class SentinelAuditLoggingEventIdShould
 {
 	#region Event ID Value Tests

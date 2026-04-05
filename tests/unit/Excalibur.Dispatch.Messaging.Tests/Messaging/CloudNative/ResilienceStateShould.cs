@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.CloudNative;
 /// <summary>
 /// Unit tests for <see cref="ResilienceState"/> enum.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch")]
 public sealed class ResilienceStateShould
 {

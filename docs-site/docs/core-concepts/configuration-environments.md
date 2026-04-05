@@ -196,7 +196,7 @@ app.MapHealthChecks("/health");
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
-        tracing.AddSource("Excalibur.Dispatch.Observability");
+        tracing.AddSource("Excalibur.Dispatch");
         tracing.AddOtlpExporter();
     })
     .WithMetrics(metrics =>

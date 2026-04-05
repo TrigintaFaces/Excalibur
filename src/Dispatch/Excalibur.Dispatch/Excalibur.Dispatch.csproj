@@ -93,7 +93,7 @@
     <ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
     <!-- ADR-295: MemoryPack ProjectReference removed; opt-in via Excalibur.Dispatch.Serialization.MemoryPack package -->
     <!-- PERF-7/PERF-8 (Sprint 452): Source generators always enabled for AOT-compatible handler resolution -->
-    <ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <!-- NOTE: Excalibur.Requirements.Generator reference removed to maintain architectural boundaries.
 		     Requirements generation should be handled at solution level, not within individual components. -->
   </ItemGroup>
@@ -202,13 +202,22 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Testing.Conformance.Tests</_Parameter1>
     </AssemblyAttribute>
+    <!-- InternalsVisibleTo for serializer provider packages (access PluggableSerializationOptions.AddRegistration) -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Serialization.Avro</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Serialization.MemoryPack</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Serialization.MessagePack</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Serialization.Protobuf</_Parameter1>
+    </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>DynamicProxyGenAssembly2</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
   <!-- PublicAPI baseline files for breaking change detection -->
-  <ItemGroup>
-    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
-  </ItemGroup>
 </Project>

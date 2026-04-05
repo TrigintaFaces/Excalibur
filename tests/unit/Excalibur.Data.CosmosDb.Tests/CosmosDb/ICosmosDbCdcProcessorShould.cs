@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
-[Trait("Feature", "CDC")]
+[Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class ICosmosDbCdcProcessorShould
 {
 	private readonly Type _interfaceType = typeof(ICosmosDbCdcProcessor);

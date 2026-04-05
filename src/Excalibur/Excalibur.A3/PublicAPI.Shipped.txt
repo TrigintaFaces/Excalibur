@@ -11,7 +11,7 @@ Excalibur.A3.AccessToken.HasGrant<TActivity>() -> bool
 Excalibur.A3.AccessToken.HasGrant<TResourceType>(string! resourceId) -> bool
 Excalibur.A3.AccessToken.IsAnonymous() -> bool
 Excalibur.A3.AccessToken.IsAuthenticated() -> bool
-Excalibur.A3.AccessToken.IsAuthorized(string! activityName, string? resourceId = null) -> bool
+Excalibur.A3.AccessToken.IsAuthorized(string! activityName, string? resourceId) -> bool
 Excalibur.A3.AccessToken.Jwt.get -> string?
 Excalibur.A3.AccessToken.Jwt.set -> void
 Excalibur.A3.AccessToken.LastName.get -> string?
@@ -103,32 +103,37 @@ Excalibur.A3.Audit.Events.ActivityAudited.UserId.init -> void
 Excalibur.A3.Audit.Events.ActivityAudited.UserName.get -> string!
 Excalibur.A3.Audit.Events.ActivityAudited.UserName.init -> void
 Excalibur.A3.Audit.Events.IActivityAudited
-Excalibur.A3.Audit.Events.IActivityAudited.ActivityName.get -> string!
-Excalibur.A3.Audit.Events.IActivityAudited.ActivityName.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.ApplicationName.get -> string!
-Excalibur.A3.Audit.Events.IActivityAudited.ApplicationName.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.ClientAddress.get -> string?
-Excalibur.A3.Audit.Events.IActivityAudited.ClientAddress.init -> void
 Excalibur.A3.Audit.Events.IActivityAudited.CorrelationId.get -> System.Guid
 Excalibur.A3.Audit.Events.IActivityAudited.CorrelationId.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.Exception.get -> string?
-Excalibur.A3.Audit.Events.IActivityAudited.Exception.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.Login.get -> string?
-Excalibur.A3.Audit.Events.IActivityAudited.Login.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.Request.get -> string!
-Excalibur.A3.Audit.Events.IActivityAudited.Request.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.Response.get -> string?
-Excalibur.A3.Audit.Events.IActivityAudited.Response.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.StatusCode.get -> int
-Excalibur.A3.Audit.Events.IActivityAudited.StatusCode.set -> void
-Excalibur.A3.Audit.Events.IActivityAudited.TenantId.get -> string?
-Excalibur.A3.Audit.Events.IActivityAudited.TenantId.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.Timestamp.get -> System.DateTimeOffset
-Excalibur.A3.Audit.Events.IActivityAudited.Timestamp.set -> void
-Excalibur.A3.Audit.Events.IActivityAudited.UserId.get -> string!
-Excalibur.A3.Audit.Events.IActivityAudited.UserId.init -> void
-Excalibur.A3.Audit.Events.IActivityAudited.UserName.get -> string!
-Excalibur.A3.Audit.Events.IActivityAudited.UserName.init -> void
+Excalibur.A3.Audit.Events.IAuditContext
+Excalibur.A3.Audit.Events.IAuditContext.ClientAddress.get -> string?
+Excalibur.A3.Audit.Events.IAuditContext.ClientAddress.init -> void
+Excalibur.A3.Audit.Events.IAuditContext.CorrelationId.get -> System.Guid
+Excalibur.A3.Audit.Events.IAuditContext.CorrelationId.init -> void
+Excalibur.A3.Audit.Events.IAuditContext.Login.get -> string?
+Excalibur.A3.Audit.Events.IAuditContext.Login.init -> void
+Excalibur.A3.Audit.Events.IAuditContext.TenantId.get -> string?
+Excalibur.A3.Audit.Events.IAuditContext.TenantId.init -> void
+Excalibur.A3.Audit.Events.IAuditContext.Timestamp.get -> System.DateTimeOffset
+Excalibur.A3.Audit.Events.IAuditContext.Timestamp.set -> void
+Excalibur.A3.Audit.Events.IAuditIdentity
+Excalibur.A3.Audit.Events.IAuditIdentity.ActivityName.get -> string!
+Excalibur.A3.Audit.Events.IAuditIdentity.ActivityName.init -> void
+Excalibur.A3.Audit.Events.IAuditIdentity.ApplicationName.get -> string!
+Excalibur.A3.Audit.Events.IAuditIdentity.ApplicationName.init -> void
+Excalibur.A3.Audit.Events.IAuditIdentity.UserId.get -> string!
+Excalibur.A3.Audit.Events.IAuditIdentity.UserId.init -> void
+Excalibur.A3.Audit.Events.IAuditIdentity.UserName.get -> string!
+Excalibur.A3.Audit.Events.IAuditIdentity.UserName.init -> void
+Excalibur.A3.Audit.Events.IAuditResult
+Excalibur.A3.Audit.Events.IAuditResult.Exception.get -> string?
+Excalibur.A3.Audit.Events.IAuditResult.Exception.init -> void
+Excalibur.A3.Audit.Events.IAuditResult.Request.get -> string!
+Excalibur.A3.Audit.Events.IAuditResult.Request.init -> void
+Excalibur.A3.Audit.Events.IAuditResult.Response.get -> string?
+Excalibur.A3.Audit.Events.IAuditResult.Response.init -> void
+Excalibur.A3.Audit.Events.IAuditResult.StatusCode.get -> int
+Excalibur.A3.Audit.Events.IAuditResult.StatusCode.set -> void
 Excalibur.A3.Audit.IAuditMessagePublisher
 Excalibur.A3.Audit.IAuditMessagePublisher.PublishAsync<TMessage>(TMessage message, Excalibur.Domain.IActivityContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.A3.Audit.RaisedBy
@@ -196,9 +201,10 @@ Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant(string! activityName) ->
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant(string! resourceType, string! resourceId) -> bool
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant<TActivity>() -> bool
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant<TResourceType>(string! resourceId) -> bool
-Excalibur.A3.Authorization.AuthorizationPolicy.IsAuthorized(string! activityName, string? resourceId = null) -> bool
+Excalibur.A3.Authorization.AuthorizationPolicy.IsAuthorized(string! activityName, string? resourceId) -> bool
 Excalibur.A3.Authorization.AuthorizationPolicy.TenantId.get -> string!
 Excalibur.A3.Authorization.AuthorizationPolicy.UserId.get -> string!
+Excalibur.A3.Authorization.AuthorizationPolicyExtensions
 Excalibur.A3.Authorization.DispatchBuilderExtensions
 Excalibur.A3.Authorization.Grants.AddGrantCommand
 Excalibur.A3.Authorization.Grants.AddGrantCommand.AddGrantCommand(string! userId, string! fullName, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, System.Guid correlationId, string? tenantId = null) -> void
@@ -263,7 +269,7 @@ Excalibur.A3.Authorization.IAuthorizationPolicy.HasGrant(string! activityName) -
 Excalibur.A3.Authorization.IAuthorizationPolicy.HasGrant(string! resourceType, string! resourceId) -> bool
 Excalibur.A3.Authorization.IAuthorizationPolicy.HasGrant<TActivity>() -> bool
 Excalibur.A3.Authorization.IAuthorizationPolicy.HasGrant<TResourceType>(string! resourceId) -> bool
-Excalibur.A3.Authorization.IAuthorizationPolicy.IsAuthorized(string! activityName, string? resourceId = null) -> bool
+Excalibur.A3.Authorization.IAuthorizationPolicy.IsAuthorized(string! activityName, string? resourceId) -> bool
 Excalibur.A3.Authorization.IAuthorizationPolicy.TenantId.get -> string!
 Excalibur.A3.Authorization.IAuthorizationPolicy.UserId.get -> string?
 Excalibur.A3.Authorization.IAuthorizationPolicyProvider
@@ -354,8 +360,8 @@ Excalibur.A3.Exceptions.NotAuthorizedException.UserId.get -> string?
 Excalibur.A3.Exceptions.NotAuthorizedException.UserName.get -> string?
 Excalibur.A3.IAccessToken
 Excalibur.A3.IAccessToken.UserId.get -> string!
-Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsError = 181501 -> int
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsRetrieved = 181503 -> int
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGroupsError = 181500 -> int
@@ -384,15 +390,16 @@ static Excalibur.A3.ActivityContextExtensions.TenantId(this Excalibur.Domain.IAc
 static Excalibur.A3.ActivityContextExtensions.UserId(this Excalibur.Domain.IActivityContext! context) -> string?
 static Excalibur.A3.Authorization.AuthorizationCacheKey.ForActivityGroups() -> string!
 static Excalibur.A3.Authorization.AuthorizationCacheKey.ForGrants(string! userId) -> string!
+static Excalibur.A3.Authorization.AuthorizationPolicyExtensions.IsAuthorized(this Excalibur.A3.Authorization.IAuthorizationPolicy! policy, string! activityName) -> bool
 static Excalibur.A3.Authorization.DispatchBuilderExtensions.AddDispatchAuthorization(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.A3.Exceptions.NotAuthenticatedException.BecauseMissingClaim(string! claim) -> Excalibur.A3.Exceptions.NotAuthenticatedException!
 static Excalibur.A3.Exceptions.NotAuthenticatedException.ThrowIf(bool condition, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 static Excalibur.A3.Exceptions.NotAuthorizedException.Because(Excalibur.A3.Authentication.IAuthenticationToken! user, string! message, System.Exception? exception = null) -> Excalibur.A3.Exceptions.NotAuthorizedException!
 static Excalibur.A3.Exceptions.NotAuthorizedException.BecauseForbidden(Excalibur.A3.Authentication.IAuthenticationToken! user, string! activityName, string? resourceId, System.Exception? exception = null) -> Excalibur.A3.Exceptions.NotAuthorizedException!
 static Excalibur.A3.Exceptions.NotAuthorizedException.BecauseNotAuthenticated(System.Exception? exception = null) -> Excalibur.A3.Exceptions.NotAuthorizedException!
-static Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions.AddDispatchAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddA3DispatchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddExcaliburA3(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
+static Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions.AddDispatchAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.A3.Authentication.AuthClaims.Email -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.FamilyName -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.GivenName -> string!

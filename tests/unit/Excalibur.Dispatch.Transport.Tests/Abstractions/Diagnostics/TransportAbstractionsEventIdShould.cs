@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport.Abstractions")]
+[Trait(TraitNames.Component, TestComponents.TransportAbstractions)]
 [Trait("Priority", "0")]
 public sealed class TransportAbstractionsEventIdShould : UnitTestBase
 {

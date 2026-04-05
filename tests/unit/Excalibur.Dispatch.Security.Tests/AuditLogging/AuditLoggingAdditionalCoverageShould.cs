@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// - RbacAuditStore.CanAccessEvent fallback return false (when role is below SecurityAnalyst)
 /// - InMemoryAuditStore edge cases
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [UnitTest]
 public sealed class AuditLoggingAdditionalCoverageShould
 {

@@ -20,7 +20,6 @@ using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
-using Excalibur.Dispatch.Serialization.MemoryPack;
 using Excalibur.Outbox.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -69,7 +68,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	private readonly IInboxStore _inboxStore;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly DispatchJsonSerializer _serializer;
-	private readonly ISerializer? _internalSerializer;
+	private readonly IBinaryEnvelopeDeserializer? _envelopeDeserializer;
 	private readonly ILogger<InboxProcessor> _logger;
 	private readonly BatchProcessingMetrics _batchMetrics;
 	private readonly DynamicBatchSizeCalculator? _batchSizeCalculator;
@@ -105,7 +104,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	/// <param name="serviceProvider"> Service provider for dependency injection and handler activation. </param>
 	/// <param name="serializer"> JSON serializer for message serialization and deserialization operations. </param>
 	/// <param name="logger"> Logger for diagnostic and operational messaging. </param>
-	/// <param name="internalSerializer"> Optional internal serializer for high-performance binary envelope serialization. </param>
+	/// <param name="envelopeDeserializer"> Optional binary envelope deserializer for high-performance binary envelope support. </param>
 	/// <param name="deadLetterQueue"> Optional dead letter queue for failed messages. Uses NullDeadLetterQueue if not provided. </param>
 	/// <param name="circuitBreakerRegistry">
 	/// Optional circuit breaker registry for message type resilience. Uses NullTransportCircuitBreakerRegistry if not provided.
@@ -126,7 +125,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		IServiceProvider serviceProvider,
 		DispatchJsonSerializer serializer,
 		ILogger<InboxProcessor> logger,
-		ISerializer? internalSerializer = null,
+		IBinaryEnvelopeDeserializer? envelopeDeserializer = null,
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
@@ -140,7 +139,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 		_options = options.Value;
 
-		if (_options.QueueCapacity < _options.ProducerBatchSize)
+		if (_options.Capacity.QueueCapacity < _options.Capacity.ProducerBatchSize)
 		{
 			throw new InvalidOperationException(
 				Excalibur.Outbox.Resources.InboxProcessor_QueueCapacityCannotBeLessThanProducerBatchSize);
@@ -149,10 +148,10 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		_inboxStore = inboxStore;
 		_serviceProvider = serviceProvider;
 		_serializer = serializer;
-		_internalSerializer = internalSerializer;
+		_envelopeDeserializer = envelopeDeserializer;
 		_logger = logger;
-		_queueCapacity = _options.QueueCapacity;
-		_inboxMessages = Channel.CreateBounded<IInboxMessage>(new BoundedChannelOptions(_options.QueueCapacity)
+		_queueCapacity = _options.Capacity.QueueCapacity;
+		_inboxMessages = Channel.CreateBounded<IInboxMessage>(new BoundedChannelOptions(_options.Capacity.QueueCapacity)
 		{
 			FullMode = BoundedChannelFullMode.Wait, SingleReader = false, SingleWriter = false, AllowSynchronousContinuations = false,
 		});
@@ -161,18 +160,28 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		// Initialize deduplication (opt-in)
 		_deduplicationStore = deduplicationStore;
 
-		// Initialize resilience components with null object pattern defaults
+		// Initialize resilience components -- warn when using silent no-op fallbacks
 		_deadLetterQueue = deadLetterQueue ?? NullDeadLetterQueue.Instance;
 		_circuitBreakerRegistry = circuitBreakerRegistry ?? NullTransportCircuitBreakerRegistry.Instance;
+
+		if (deadLetterQueue is null)
+		{
+			LogDeadLetterQueueNotConfigured();
+		}
+
+		if (circuitBreakerRegistry is null)
+		{
+			LogCircuitBreakerNotConfigured();
+		}
 		_backoffCalculator = backoffCalculator ?? ExponentialBackoffCalculator.CreateForMessageQueue();
 		_deliveryGuaranteeOptions = deliveryGuaranteeOptions?.Value ?? new DeliveryGuaranteeOptions();
 
-		if (_options.BatchProcessing.EnableDynamicBatchSizing)
+		if (_options.BatchTuning.EnableDynamicBatchSizing)
 		{
 			_batchSizeCalculator = new DynamicBatchSizeCalculator(
-				_options.BatchProcessing.MinBatchSize,
-				_options.BatchProcessing.MaxBatchSize,
-				_options.ConsumerBatchSize);
+				_options.BatchTuning.MinBatchSize,
+				_options.BatchTuning.MaxBatchSize,
+				_options.Capacity.ConsumerBatchSize);
 		}
 	}
 
@@ -191,7 +200,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
 
 		_dispatcherId = dispatcherId;
-		var orderedQueue = new SimpleOrderedSet<string>(_queueCapacity + _options.ProducerBatchSize);
+		var orderedQueue = new SimpleOrderedSet<string>(_queueCapacity + _options.Capacity.ProducerBatchSize);
 		_idQueue = new InstanceAwareQueue(dispatcherId, orderedQueue);
 	}
 
@@ -320,7 +329,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		ArgumentNullException.ThrowIfNull(entry);
 
 		// Check if payload is in binary envelope format and we have a deserializer
-		if (_internalSerializer is not null && IsEnvelopeFormat(entry.Payload))
+		if (_envelopeDeserializer is not null && IsEnvelopeFormat(entry.Payload))
 		{
 			// Skip the format marker byte and deserialize the envelope
 			var envelopeData = entry.Payload.AsSpan(1);
@@ -344,7 +353,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					MessageType = envelope.MessageType ?? entry.MessageType,
 					MessageMetadata = metadataJson,
 					MessageBody = bodyString,
-					ReceivedAt = envelope.ReceivedAt,
+					ReceivedAt = envelope.Timestamp,
 					Attempts = entry.RetryCount,
 				};
 			}
@@ -355,18 +364,13 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	}
 
 	/// <summary>
-	/// Deserializes an InboxEnvelope from binary format if ISerializer is available.
+	/// Deserializes an inbox envelope from binary format using the registered envelope deserializer.
 	/// </summary>
 	/// <param name="data"> The serialized envelope data. </param>
-	/// <returns> The deserialized envelope, or null if internal serializer is not configured. </returns>
-	private InboxEnvelope? DeserializeEnvelope(ReadOnlySpan<byte> data)
+	/// <returns> The deserialized envelope data, or null if no envelope deserializer is configured. </returns>
+	private EnvelopeData? DeserializeEnvelope(ReadOnlySpan<byte> data)
 	{
-		if (_internalSerializer is null)
-		{
-			return null;
-		}
-
-		return _internalSerializer.Deserialize<InboxEnvelope>(data);
+		return _envelopeDeserializer?.DeserializeInboxEnvelope(data);
 	}
 
 	private async ValueTask DisposeCoreAsync()
@@ -428,8 +432,8 @@ public sealed partial class InboxProcessor : IInboxProcessor
 			while (!cancellationToken.IsCancellationRequested && !reachedLimit)
 			{
 				var availableSlots = Math.Max(0, _queueCapacity - _inboxMessages.Reader.Count);
-				var remainingMessages = _options.PerRunTotal > 0 ? _options.PerRunTotal - totalQueued : _options.ProducerBatchSize;
-				var batchSize = Math.Min(_options.ProducerBatchSize, remainingMessages);
+				var remainingMessages = _options.Capacity.PerRunTotal > 0 ? _options.Capacity.PerRunTotal - totalQueued : _options.Capacity.ProducerBatchSize;
+				var batchSize = Math.Min(_options.Capacity.ProducerBatchSize, remainingMessages);
 
 				if (availableSlots < batchSize)
 				{
@@ -464,7 +468,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					}
 				}
 
-				reachedLimit = _options.PerRunTotal > 0 && totalQueued >= _options.PerRunTotal;
+				reachedLimit = _options.Capacity.PerRunTotal > 0 && totalQueued >= _options.Capacity.PerRunTotal;
 
 				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Inbox, BackgroundServiceOperations.Pending, batch.Count);
 			}
@@ -514,7 +518,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					break;
 				}
 
-				var batchSize = _batchSizeCalculator?.CurrentBatchSize ?? _options.ConsumerBatchSize;
+				var batchSize = _batchSizeCalculator?.CurrentBatchSize ?? _options.Capacity.ConsumerBatchSize;
 				var batch = await ChannelBatchUtilities.DequeueBatchAsync(_inboxMessages.Reader, batchSize, cancellationToken)
 					.ConfigureAwait(false);
 
@@ -525,7 +529,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 				var stopwatch = ValueStopwatch.StartNew();
 
-				if (_options.BatchProcessing.ParallelProcessingDegree > 1)
+				if (_options.Capacity.ParallelProcessingDegree > 1)
 				{
 					// Parallel batch processing
 					var processedCount = await ProcessBatchParallelAsync(batch, cancellationToken).ConfigureAwait(false);
@@ -705,8 +709,8 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					throw; // Re-throw for Batching to track
 				}
 			},
-			_options.BatchProcessing.ParallelProcessingDegree,
-			_options.BatchProcessing.BatchProcessingTimeout,
+			_options.Capacity.ParallelProcessingDegree,
+			_options.BatchTuning.BatchProcessingTimeout,
 			cancellationToken).ConfigureAwait(false);
 
 		// Route messages to DLQ
@@ -716,7 +720,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		}
 
 		// Perform batch database operations if enabled
-		if (_options.EnableBatchDatabaseOperations)
+		if (_options.BatchTuning.EnableBatchDatabaseOperations)
 		{
 			await PerformBatchDatabaseOperationsAsync(successfulMessages.ToList(), failedToRetryMessages.ToList(), [], cancellationToken)
 				.ConfigureAwait(false);
@@ -753,8 +757,8 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				(StringComparer.Ordinal)
 				{
 					["ProcessorType"] = "Inbox",
-					["ParallelDegree"] = _options.BatchProcessing.ParallelProcessingDegree,
-					["BatchOperationsEnabled"] = _options.EnableBatchDatabaseOperations,
+					["ParallelDegree"] = _options.Capacity.ParallelProcessingDegree,
+					["BatchOperationsEnabled"] = _options.BatchTuning.EnableBatchDatabaseOperations,
 				});
 
 		return successful.Count;
@@ -886,28 +890,35 @@ public sealed partial class InboxProcessor : IInboxProcessor
 			_ => reason.ToString()
 		};
 
-		LogMessageRoutedToDlq(message.ExternalMessageId, reasonText);
-
-		var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+		if (_deadLetterQueue is NullDeadLetterQueue)
 		{
-			["MessageType"] = message.MessageType,
-			["DispatcherId"] = _dispatcherId ?? string.Empty,
-			["Attempts"] = message.Attempts.ToString(CultureInfo.InvariantCulture),
-			["ReceivedAt"] = message.ReceivedAt.ToString("O", CultureInfo.InvariantCulture),
-		};
+			LogMessageDiscardedNoDlq(message.ExternalMessageId, reasonText);
+		}
+		else
+		{
+			LogMessageRoutedToDlq(message.ExternalMessageId, reasonText);
 
-		_ = await _deadLetterQueue.EnqueueAsync(
-			message,
-			reason,
-			cancellationToken,
-			exception,
-			metadata).ConfigureAwait(false);
+			var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+			{
+				["MessageType"] = message.MessageType,
+				["DispatcherId"] = _dispatcherId ?? string.Empty,
+				["Attempts"] = message.Attempts.ToString(CultureInfo.InvariantCulture),
+				["ReceivedAt"] = message.ReceivedAt.ToString("O", CultureInfo.InvariantCulture),
+			};
 
-		// Mark the message as moved to DLQ in the inbox store
+			_ = await _deadLetterQueue.EnqueueAsync(
+				message,
+				reason,
+				cancellationToken,
+				exception,
+				metadata).ConfigureAwait(false);
+		}
+
+		// Mark the message as failed (moved to DLQ or discarded)
 		await _inboxStore.MarkFailedAsync(
 			message.ExternalMessageId,
 			message.MessageType,
-			$"Moved to DLQ: {reasonText}",
+			_deadLetterQueue is NullDeadLetterQueue ? $"DISCARDED (no DLQ): {reasonText}" : $"Moved to DLQ: {reasonText}",
 			cancellationToken).ConfigureAwait(false);
 	}
 
@@ -985,4 +996,16 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	[LoggerMessage(OutboxEventId.InboxDuplicateDetected, LogLevel.Information,
 		"Duplicate inbox message {MessageId} detected by deduplication store, skipping")]
 	private partial void LogDuplicateDetected(string messageId);
+
+	[LoggerMessage(OutboxEventId.InboxDeadLetterQueueNotConfigured, LogLevel.Warning,
+		"No IDeadLetterQueue registered. Failed inbox messages will be discarded silently. Register a dead letter queue implementation to preserve failed messages for investigation.")]
+	private partial void LogDeadLetterQueueNotConfigured();
+
+	[LoggerMessage(OutboxEventId.InboxCircuitBreakerNotConfigured, LogLevel.Warning,
+		"No ITransportCircuitBreakerRegistry registered. Transport failures will not trigger circuit breakers. Register AddDispatchResilience() to enable transport protection.")]
+	private partial void LogCircuitBreakerNotConfigured();
+
+	[LoggerMessage(OutboxEventId.InboxMessageDiscardedNoDlq, LogLevel.Error,
+		"INBOX MESSAGE LOST: Message {MessageId} failed ({Reason}) but no dead letter queue is configured. Message has been discarded permanently. Register an IDeadLetterQueue to prevent message loss.")]
+	private partial void LogMessageDiscardedNoDlq(string messageId, string reason);
 }

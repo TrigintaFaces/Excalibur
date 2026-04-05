@@ -19,7 +19,7 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// Sprint 175 - Provider Testing Epic Phase 1.
 /// bd-1710x: CDC Recovery Infrastructure Tests.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "CdcStalePositionDetector")]
 public sealed class CdcStalePositionDetectorShould : UnitTestBase
 {

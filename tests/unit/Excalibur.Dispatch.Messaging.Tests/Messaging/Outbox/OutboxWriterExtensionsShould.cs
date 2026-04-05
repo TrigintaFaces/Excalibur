@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Messaging.Tests.Messaging.Outbox;
 /// Unit tests for <see cref="OutboxWriterExtensions.WriteScheduledAsync"/>.
 /// Validates scheduled delivery scoping and argument validation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class OutboxWriterExtensionsShould : UnitTestBase
 {
 	[Fact]

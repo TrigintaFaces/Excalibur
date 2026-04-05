@@ -12,8 +12,8 @@ namespace Excalibur.Dispatch.Security.Tests.Aws;
 /// Unit tests for AWS security DI extension methods.
 /// Verifies Sprint 390 implementation: DI extensions for AWS security services.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class DispatchSecurityAwsServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]

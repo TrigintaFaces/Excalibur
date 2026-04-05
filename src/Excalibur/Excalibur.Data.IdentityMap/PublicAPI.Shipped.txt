@@ -1,0 +1,40 @@
+#nullable enable
+Excalibur.Data.IdentityMap.Builders.IIdentityMapBuilder
+Excalibur.Data.IdentityMap.Builders.IIdentityMapBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Data.IdentityMap.CompositeKey
+Excalibur.Data.IdentityMap.Diagnostics.IdentityMapCacheOptions
+Excalibur.Data.IdentityMap.Diagnostics.IdentityMapCacheOptions.AbsoluteExpiration.get -> System.TimeSpan
+Excalibur.Data.IdentityMap.Diagnostics.IdentityMapCacheOptions.AbsoluteExpiration.set -> void
+Excalibur.Data.IdentityMap.Diagnostics.IdentityMapCacheOptions.IdentityMapCacheOptions() -> void
+Excalibur.Data.IdentityMap.Diagnostics.IdentityMapCacheOptions.SlidingExpiration.get -> System.TimeSpan?
+Excalibur.Data.IdentityMap.Diagnostics.IdentityMapCacheOptions.SlidingExpiration.set -> void
+Excalibur.Data.IdentityMap.IIdentityMapStore
+Excalibur.Data.IdentityMap.IIdentityMapStore.BindAsync(string! externalSystem, string! externalId, string! aggregateType, string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.IdentityMap.IIdentityMapStore.ResolveAsync(string! externalSystem, string! externalId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+Excalibur.Data.IdentityMap.IIdentityMapStore.ResolveBatchAsync(string! externalSystem, System.Collections.Generic.IReadOnlyList<string!>! externalIds, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string!, string!>!>
+Excalibur.Data.IdentityMap.IIdentityMapStore.TryBindAsync(string! externalSystem, string! externalId, string! aggregateType, string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Data.IdentityMap.IdentityBindResult!>
+Excalibur.Data.IdentityMap.IIdentityMapStore.UnbindAsync(string! externalSystem, string! externalId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Data.IdentityMap.IdentityBindResult
+Excalibur.Data.IdentityMap.IdentityBindResult.AggregateId.get -> string!
+Excalibur.Data.IdentityMap.IdentityBindResult.AggregateId.init -> void
+Excalibur.Data.IdentityMap.IdentityBindResult.IdentityBindResult(string! AggregateId, bool WasCreated) -> void
+Excalibur.Data.IdentityMap.IdentityBindResult.WasCreated.get -> bool
+Excalibur.Data.IdentityMap.IdentityBindResult.WasCreated.init -> void
+Excalibur.Data.IdentityMap.IdentityMapOptions
+Excalibur.Data.IdentityMap.IdentityMapOptions.DefaultExternalSystem.get -> string?
+Excalibur.Data.IdentityMap.IdentityMapOptions.DefaultExternalSystem.set -> void
+Excalibur.Data.IdentityMap.IdentityMapOptions.EnableTelemetry.get -> bool
+Excalibur.Data.IdentityMap.IdentityMapOptions.EnableTelemetry.set -> void
+Excalibur.Data.IdentityMap.IdentityMapOptions.IdentityMapOptions() -> void
+Excalibur.Data.IdentityMap.IdentityMapStoreExtensions
+Microsoft.Extensions.DependencyInjection.IdentityMapExcaliburBuilderExtensions
+Microsoft.Extensions.DependencyInjection.IdentityMapServiceCollectionExtensions
+static Excalibur.Data.IdentityMap.CompositeKey.Create(params System.ReadOnlySpan<(string! Name, string! Value)> parts) -> string!
+static Excalibur.Data.IdentityMap.CompositeKey.Create(string! name1, string! value1, string! name2, string! value2) -> string!
+static Excalibur.Data.IdentityMap.CompositeKey.Create(string! name1, string! value1, string! name2, string! value2, string! name3, string! value3) -> string!
+static Excalibur.Data.IdentityMap.IdentityMapStoreExtensions.BindAsync<TKey>(this Excalibur.Data.IdentityMap.IIdentityMapStore! store, string! externalSystem, string! externalId, string! aggregateType, TKey aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+static Excalibur.Data.IdentityMap.IdentityMapStoreExtensions.ResolveAsync<TKey>(this Excalibur.Data.IdentityMap.IIdentityMapStore! store, string! externalSystem, string! externalId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TKey?>
+static Excalibur.Data.IdentityMap.IdentityMapStoreExtensions.TryBindAsync<TKey>(this Excalibur.Data.IdentityMap.IIdentityMapStore! store, string! externalSystem, string! externalId, string! aggregateType, TKey aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Data.IdentityMap.IdentityBindResult!>
+static Microsoft.Extensions.DependencyInjection.IdentityMapExcaliburBuilderExtensions.AddIdentityMap(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Data.IdentityMap.Builders.IIdentityMapBuilder!>! configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.IdentityMapServiceCollectionExtensions.AddIdentityMap(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.IdentityMap.Builders.IIdentityMapBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.IdentityMapServiceCollectionExtensions.AddInMemoryIdentityMap(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -1,12 +1,6 @@
 #nullable enable
-const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.IteratorExpired = "DYNAMODB_ITERATOR_EXPIRED" -> string!
-const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.ShardClosed = "DYNAMODB_SHARD_CLOSED" -> string!
-const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.ShardNotFound = "DYNAMODB_SHARD_NOT_FOUND" -> string!
-const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.StreamDisabled = "DYNAMODB_STREAM_DISABLED" -> string!
-const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.StreamNotFound = "DYNAMODB_STREAM_NOT_FOUND" -> string!
-const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.TrimmedData = "DYNAMODB_TRIMMED_DATA" -> string!
-const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.Unknown = "DYNAMODB_UNKNOWN" -> string!
 Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions
+Excalibur.Cdc.DynamoDb.DynamoDbCdcBuilderExtensions
 Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions
 Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.AutoDiscoverShards.get -> bool
 Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.AutoDiscoverShards.set -> void
@@ -37,8 +31,8 @@ Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ShardPositions.get -> System.Collecti
 Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.StreamArn.get -> string!
 Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ToBase64() -> string!
 Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ToBytes() -> byte[]!
-Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.WithoutShard(string! shardId) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
 Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.WithShardPosition(string! shardId, string! sequenceNumber) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.WithoutShard(string! shardId) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
 Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor
 Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.Dispose() -> void
@@ -133,6 +127,12 @@ Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.KeysOnly = 0 -> Excalibur.Cdc.Dyna
 Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.NewAndOldImages = 3 -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
 Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.NewImage = 1 -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
 Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.OldImage = 2 -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.StreamArn(string! streamArn) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.TableName(string! tableName) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!>!
@@ -143,6 +143,13 @@ Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.DeletePositionAsync(string! proces
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition?>!
 Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.IteratorExpired = "DYNAMODB_ITERATOR_EXPIRED" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.ShardClosed = "DYNAMODB_SHARD_CLOSED" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.ShardNotFound = "DYNAMODB_SHARD_NOT_FOUND" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.StreamDisabled = "DYNAMODB_STREAM_DISABLED" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.StreamNotFound = "DYNAMODB_STREAM_NOT_FOUND" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.TrimmedData = "DYNAMODB_TRIMMED_DATA" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.Unknown = "DYNAMODB_UNKNOWN" -> string!
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(object? obj) -> bool
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.GetHashCode() -> int
@@ -152,6 +159,10 @@ override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ToString() -> string!
 override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ToToken() -> string!
 static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.DynamoDb.DynamoDbCdcBuilderExtensions.MaxBatchSize(this Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder! builder, int maxBatchSize) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+static Excalibur.Cdc.DynamoDb.DynamoDbCdcBuilderExtensions.PollInterval(this Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder! builder, System.TimeSpan interval) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+static Excalibur.Cdc.DynamoDb.DynamoDbCdcBuilderExtensions.WithStateStore(this Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder! builder, System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
 static Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Beginning(string! streamArn) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
 static Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.FromBase64(string! base64) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
 static Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.FromShardPositions(string! streamArn, System.Collections.Generic.IReadOnlyDictionary<string!, string!>! shardPositions) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
@@ -171,16 +182,6 @@ static Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.FromExceptionType
 static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tableName, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tableName, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddInMemoryDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.TableName(string! tableName) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.StreamArn(string! streamArn) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.MaxBatchSize(int maxBatchSize) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.PollInterval(System.TimeSpan interval) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
-Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
-static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!

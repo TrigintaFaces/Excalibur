@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Diagnostics;
 /// Verifies event ID values, uniqueness, and range compliance.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport.RabbitMQ")]
+[Trait(TraitNames.Component, TestComponents.RabbitMQ)]
 [Trait("Priority", "0")]
 public sealed class RabbitMqEventIdShould : UnitTestBase
 {

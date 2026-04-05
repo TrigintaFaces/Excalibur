@@ -19,9 +19,11 @@
 
   <!-- Test run parameters -->
   <TestRunParameters>
-    <!-- Coverage threshold targets (enforced by CI/CD) -->
-    <Parameter name="CoverageThreshold.Overall" value="95" />
-    <Parameter name="CoverageThreshold.Core" value="98" />
-    <Parameter name="CoverageThreshold.Transport" value="90" />
+    <!-- Aspirational coverage targets (for reference only).
+         Actual CI enforcement threshold: 65% combined (see COVERAGE_THRESHOLD in ci.yml/quality-gates.yml).
+         Enforcement script: eng/ci/coverage-threshold.ps1 with -FailBelowThreshold. -->
+    <Parameter name="CoverageTarget.Overall" value="95" />
+    <Parameter name="CoverageTarget.Core" value="98" />
+    <Parameter name="CoverageTarget.Transport" value="90" />
   </TestRunParameters>
 </RunSettings>

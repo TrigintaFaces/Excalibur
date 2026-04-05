@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Monitoring;
 /// Tests error type extraction, threshold behavior, and edge cases.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class KeyRotationAlertServiceExtendedShould
 {
 	private readonly IKeyRotationAlertHandler _handler;

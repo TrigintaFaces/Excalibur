@@ -1,14 +1,4 @@
 #nullable enable
-abstract Excalibur.Domain.CursorPageRequest<TCursor>.GetCursor() -> TCursor?
-abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur.Dispatch.Abstractions.IDomainEvent! event) -> void
-abstract Excalibur.Domain.Model.EntityBase<TKey>.Key.get -> TKey
-abstract Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.BusinessKey.get -> TBusinessKey
-abstract Excalibur.Domain.Model.ValueObjects.ValueObjectBase.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
-const Excalibur.Domain.Cultures.DefaultCultureName = "en-US" -> string!
-const Excalibur.Domain.ExcaliburHeaderNames.CorrelationId = "X-Correlation-Id" -> string!
-const Excalibur.Domain.ExcaliburHeaderNames.ETag = "X-Etag" -> string!
-const Excalibur.Domain.ExcaliburHeaderNames.RaisedBy = "X-Raised-By" -> string!
-const Excalibur.Domain.ExcaliburHeaderNames.TenantId = "X-Tenant-Id" -> string!
 Excalibur.Domain.ApplicationContext
 Excalibur.Domain.ApplicationContextOptions
 Excalibur.Domain.ApplicationContextOptions.ApplicationContextOptions() -> void
@@ -209,9 +199,9 @@ Excalibur.Domain.Model.ValueObjects.Money.CompareTo(Excalibur.Domain.Model.Value
 Excalibur.Domain.Model.ValueObjects.Money.CultureName.get -> string!
 Excalibur.Domain.Model.ValueObjects.Money.CurrencySymbol.get -> string!
 Excalibur.Domain.Model.ValueObjects.Money.Denomination.get -> decimal?
+Excalibur.Domain.Model.ValueObjects.Money.ISOCurrencyCode.get -> string!
 Excalibur.Domain.Model.ValueObjects.Money.IsBillsOnly.get -> bool
 Excalibur.Domain.Model.ValueObjects.Money.IsCoinsOnly.get -> bool
-Excalibur.Domain.Model.ValueObjects.Money.ISOCurrencyCode.get -> string!
 Excalibur.Domain.Model.ValueObjects.Money.Money(decimal amount, string? cultureName = "en-US") -> void
 Excalibur.Domain.Model.ValueObjects.Money.Money(decimal amount, string? cultureName, decimal denomination) -> void
 Excalibur.Domain.Model.ValueObjects.Money.ToString(string! format) -> string!
@@ -224,6 +214,11 @@ Excalibur.Domain.OrderedEventProcessor.Dispose() -> void
 Excalibur.Domain.OrderedEventProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Domain.OrderedEventProcessor.OrderedEventProcessor() -> void
 Excalibur.Domain.OrderedEventProcessor.ProcessAsync(System.Func<System.Threading.Tasks.Task!>! processEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageNavigation.First = 0 -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageNavigation.Last = 3 -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageNavigation.Next = 2 -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageNavigation.Previous = 1 -> Excalibur.Domain.PageNavigation
 Excalibur.Domain.PageableResult<T>
 Excalibur.Domain.PageableResult<T>.GetEnumerator() -> System.Collections.Generic.IEnumerator<T!>!
 Excalibur.Domain.PageableResult<T>.HasNextPage.get -> bool
@@ -231,20 +226,25 @@ Excalibur.Domain.PageableResult<T>.HasPreviousPage.get -> bool
 Excalibur.Domain.PageableResult<T>.IsFirstPage.get -> bool
 Excalibur.Domain.PageableResult<T>.IsLastPage.get -> bool
 Excalibur.Domain.PageableResult<T>.Items.get -> System.Collections.Generic.IList<T!>!
-Excalibur.Domain.PageableResult<T>.PageableResult(System.Collections.Generic.IEnumerable<T!>! items, int? pageNumber = null, int? pageSize = null, long? totalItems = null) -> void
 Excalibur.Domain.PageableResult<T>.PageNumber.get -> int
 Excalibur.Domain.PageableResult<T>.PageSize.get -> int
-Excalibur.Domain.PageableResult<T>.this[int index].get -> T!
+Excalibur.Domain.PageableResult<T>.PageableResult(System.Collections.Generic.IEnumerable<T!>! items, int? pageNumber = null, int? pageSize = null, long? totalItems = null) -> void
 Excalibur.Domain.PageableResult<T>.TotalItems.get -> long
 Excalibur.Domain.PageableResult<T>.TotalPages.get -> int
-Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageNavigation.First = 0 -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageNavigation.Last = 3 -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageNavigation.Next = 2 -> Excalibur.Domain.PageNavigation
-Excalibur.Domain.PageNavigation.Previous = 1 -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageableResult<T>.this[int index].get -> T!
 Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions
-Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions
 Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions
+abstract Excalibur.Domain.CursorPageRequest<TCursor>.GetCursor() -> TCursor?
+abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur.Dispatch.Abstractions.IDomainEvent! event) -> void
+abstract Excalibur.Domain.Model.EntityBase<TKey>.Key.get -> TKey
+abstract Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.BusinessKey.get -> TBusinessKey
+abstract Excalibur.Domain.Model.ValueObjects.ValueObjectBase.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
+const Excalibur.Domain.Cultures.DefaultCultureName = "en-US" -> string!
+const Excalibur.Domain.ExcaliburHeaderNames.CorrelationId = "X-Correlation-Id" -> string!
+const Excalibur.Domain.ExcaliburHeaderNames.ETag = "X-Etag" -> string!
+const Excalibur.Domain.ExcaliburHeaderNames.RaisedBy = "X-Raised-By" -> string!
+const Excalibur.Domain.ExcaliburHeaderNames.TenantId = "X-Tenant-Id" -> string!
 override Excalibur.Domain.Model.EntityBase<TKey>.Equals(object? obj) -> bool
 override Excalibur.Domain.Model.EntityBase<TKey>.GetHashCode() -> int
 override Excalibur.Domain.Model.ValueObjects.Address.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
@@ -284,8 +284,8 @@ static Excalibur.Domain.Extensions.StringExtensions.ToSnakeCaseUpper(this string
 static Excalibur.Domain.Extensions.TaskExtensions.TimeoutAfterAsync(this System.Threading.Tasks.Task! task, System.TimeSpan timeout) -> System.Threading.Tasks.Task!
 static Excalibur.Domain.Extensions.TaskExtensions.TimeoutAfterAsync<T>(this System.Threading.Tasks.Task<T>! task, System.TimeSpan timeout) -> System.Threading.Tasks.Task<T>!
 static Excalibur.Domain.Model.Snapshot.Create(string! aggregateId, long version, byte[]! data, string! aggregateType, System.Collections.Generic.IDictionary<string!, object!>? metadata = null) -> Excalibur.Domain.Model.Snapshot!
-static Excalibur.Domain.Model.ValueObjects.Money.Add(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.AUD(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.Add(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.CAD(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.CHF(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.Divide(Excalibur.Domain.Model.ValueObjects.Money! money, decimal divisor) -> Excalibur.Domain.Model.ValueObjects.Money!
@@ -299,8 +299,10 @@ static Excalibur.Domain.Model.ValueObjects.Money.From(string! amount, string! cu
 static Excalibur.Domain.Model.ValueObjects.Money.GBP(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.JPY(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.Multiply(Excalibur.Domain.Model.ValueObjects.Money! money, decimal multiplier) -> Excalibur.Domain.Model.ValueObjects.Money!
-static Excalibur.Domain.Model.ValueObjects.Money.operator *(decimal multiplier, Excalibur.Domain.Model.ValueObjects.Money! money) -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.Subtract(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.USD(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.operator *(Excalibur.Domain.Model.ValueObjects.Money! money, decimal multiplier) -> Excalibur.Domain.Model.ValueObjects.Money!
+static Excalibur.Domain.Model.ValueObjects.Money.operator *(decimal multiplier, Excalibur.Domain.Model.ValueObjects.Money! money) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.operator +(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.operator -(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.Money.operator /(Excalibur.Domain.Model.ValueObjects.Money! money, decimal divisor) -> Excalibur.Domain.Model.ValueObjects.Money!
@@ -308,24 +310,22 @@ static Excalibur.Domain.Model.ValueObjects.Money.operator <(Excalibur.Domain.Mod
 static Excalibur.Domain.Model.ValueObjects.Money.operator <=(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> bool
 static Excalibur.Domain.Model.ValueObjects.Money.operator >(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> bool
 static Excalibur.Domain.Model.ValueObjects.Money.operator >=(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> bool
-static Excalibur.Domain.Model.ValueObjects.Money.Subtract(Excalibur.Domain.Model.ValueObjects.Money! left, Excalibur.Domain.Model.ValueObjects.Money! right) -> Excalibur.Domain.Model.ValueObjects.Money!
-static Excalibur.Domain.Model.ValueObjects.Money.USD(decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money!
 static Excalibur.Domain.Model.ValueObjects.ValueObjectBase.operator !=(Excalibur.Domain.Model.ValueObjects.ValueObjectBase? left, Excalibur.Domain.Model.ValueObjects.ValueObjectBase? right) -> bool
 static Excalibur.Domain.Model.ValueObjects.ValueObjectBase.operator ==(Excalibur.Domain.Model.ValueObjects.ValueObjectBase? left, Excalibur.Domain.Model.ValueObjects.ValueObjectBase? right) -> bool
 static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions.AddBoundedContextEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions.AddBoundedContextEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions.AddBoundedContextEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Domain.BoundedContext.BoundedContextOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions.AddImplementations(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, System.Type! interfaceType, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, bool registerImplementingType = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions.AddImplementations<TInterface>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, bool registerImplementingType = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.AddExcaliburContextServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tenant = "Default", bool localAddress = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddClientAddress(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddCorrelationId(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddETag(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddLocalClientAddress(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddTenantId(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tenant = "Default") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddTenantId(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, string!>! tenantResolver) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions.AddImplementations(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, System.Type! interfaceType, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, bool registerImplementingType = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions.AddImplementations<TInterface>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, bool registerImplementingType = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddTenantId(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tenant = "Default") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.AggregateType.get -> string!
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.ApplySnapshot(Excalibur.Domain.Model.ISnapshot! snapshot) -> void
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.CreateSnapshot() -> Excalibur.Domain.Model.ISnapshot!
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.LoadFromSnapshot(Excalibur.Domain.Model.ISnapshot! snapshot) -> void
 virtual Excalibur.Domain.Model.EntityBase<TKey>.Equals(Excalibur.Domain.Model.IEntity<TKey>? other) -> bool
-static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions.AddBoundedContextEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

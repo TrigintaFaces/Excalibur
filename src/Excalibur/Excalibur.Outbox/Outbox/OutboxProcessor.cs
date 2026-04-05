@@ -20,7 +20,6 @@ using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
-using Excalibur.Dispatch.Serialization.MemoryPack;
 using Excalibur.Outbox.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -64,7 +63,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private readonly IOutboxStore _outboxStore;
 
 	private readonly DispatchJsonSerializer _serializer;
-	private readonly ISerializer? _internalSerializer;
+	private readonly IBinaryEnvelopeDeserializer? _envelopeDeserializer;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<OutboxProcessor> _logger;
 	private readonly BatchProcessingMetrics _batchMetrics;
@@ -99,7 +98,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <param name="serializer"> JSON serializer for message and metadata serialization/deserialization. </param>
 	/// <param name="serviceProvider"> Service provider for dependency injection and message bus resolution. </param>
 	/// <param name="logger"> Logger for outbox processing activities, errors, and performance monitoring. </param>
-	/// <param name="internalSerializer"> Optional internal serializer for high-performance binary envelope serialization. </param>
+	/// <param name="envelopeDeserializer"> Optional binary envelope deserializer for high-performance binary envelope support. </param>
 	/// <param name="deadLetterQueue"> Optional dead letter queue for failed messages. Uses NullDeadLetterQueue if not provided. </param>
 	/// <param name="circuitBreakerRegistry">
 	/// Optional circuit breaker registry for transport resilience. Uses NullTransportCircuitBreakerRegistry if not provided.
@@ -116,7 +115,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		DispatchJsonSerializer serializer,
 		IServiceProvider serviceProvider,
 		ILogger<OutboxProcessor> logger,
-		ISerializer? internalSerializer = null,
+		IBinaryEnvelopeDeserializer? envelopeDeserializer = null,
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
@@ -137,7 +136,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 		_outboxStore = outboxStore;
 		_serializer = serializer;
-		_internalSerializer = internalSerializer;
+		_envelopeDeserializer = envelopeDeserializer;
 		_serviceProvider = serviceProvider;
 		_logger = logger;
 		_queueCapacity = options.Value.QueueCapacity;
@@ -147,9 +146,19 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		});
 		_batchMetrics = new BatchProcessingMetrics($"OutboxProcessor.{nameof(BatchProcessingMetrics)}");
 
-		// Initialize resilience components with null object pattern defaults
+		// Initialize resilience components -- warn when using silent no-op fallbacks
 		_deadLetterQueue = deadLetterQueue ?? NullDeadLetterQueue.Instance;
 		_circuitBreakerRegistry = circuitBreakerRegistry ?? NullTransportCircuitBreakerRegistry.Instance;
+
+		if (deadLetterQueue is null)
+		{
+			LogDeadLetterQueueNotConfigured();
+		}
+
+		if (circuitBreakerRegistry is null)
+		{
+			LogCircuitBreakerNotConfigured();
+		}
 		_backoffCalculator = backoffCalculator ?? ExponentialBackoffCalculator.CreateForMessageQueue();
 		_deliveryGuaranteeOptions = deliveryGuaranteeOptions?.Value ?? new DeliveryGuaranteeOptions();
 
@@ -257,7 +266,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private IOutboxMessage ConvertToOutboxMessageWithEnvelopeSupport(OutboundMessage outboundMessage)
 	{
 		// Check if payload is in binary envelope format and we have a deserializer
-		if (_internalSerializer is not null && IsEnvelopeFormat(outboundMessage.Payload))
+		if (_envelopeDeserializer is not null && IsEnvelopeFormat(outboundMessage.Payload))
 		{
 			// Skip the format marker byte and deserialize the envelope
 			var envelopeData = outboundMessage.Payload.AsSpan(1);
@@ -266,8 +275,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			if (envelope is not null)
 			{
 				// Convert envelope back to IOutboxMessage with the original payload
-				var headersJson = envelope.Headers is not null
-					? JsonSerializer.Serialize(envelope.Headers, CoreMessageJsonContext.Default.DictionaryStringString)
+				var headersJson = envelope.Metadata is not null
+					? JsonSerializer.Serialize(envelope.Metadata, CoreMessageJsonContext.Default.DictionaryStringString)
 					: "{}";
 
 				return new OutboxMessage(
@@ -275,7 +284,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					messageType: envelope.MessageType ?? outboundMessage.MessageType,
 					messageMetadata: headersJson,
 					messageBody: envelope.Payload is not null ? Encoding.UTF8.GetString(envelope.Payload) : string.Empty,
-					createdAt: envelope.CreatedAt,
+					createdAt: envelope.Timestamp,
 					expiresAt: outboundMessage.ScheduledAt)
 				{
 					Attempts = outboundMessage.RetryCount, DispatcherId = null, DispatcherTimeout = null,
@@ -307,18 +316,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		};
 
 	/// <summary>
-	/// Deserializes an OutboxEnvelope from binary format if ISerializer is available.
+	/// Deserializes an outbox envelope from binary format using the registered envelope deserializer.
 	/// </summary>
 	/// <param name="data"> The serialized envelope data. </param>
-	/// <returns> The deserialized envelope, or null if internal serializer is not configured. </returns>
-	private OutboxEnvelope? DeserializeEnvelope(ReadOnlySpan<byte> data)
+	/// <returns> The deserialized envelope data, or null if no envelope deserializer is configured. </returns>
+	private EnvelopeData? DeserializeEnvelope(ReadOnlySpan<byte> data)
 	{
-		if (_internalSerializer is null)
-		{
-			return null;
-		}
-
-		return _internalSerializer.Deserialize<OutboxEnvelope>(data);
+		return _envelopeDeserializer?.DeserializeOutboxEnvelope(data);
 	}
 
 	/// <summary>
@@ -650,27 +654,34 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			_ => reason.ToString()
 		};
 
-		LogMessageRoutedToDlq(message.MessageId, reasonText);
-
-		var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+		if (_deadLetterQueue is NullDeadLetterQueue)
 		{
-			["MessageType"] = message.MessageType,
-			["DispatcherId"] = _dispatcherId ?? string.Empty,
-			["Attempts"] = message.Attempts.ToString(CultureInfo.InvariantCulture),
-			["CreatedAt"] = message.CreatedAt.ToString("O", CultureInfo.InvariantCulture),
-		};
+			LogMessageDiscardedNoDlq(message.MessageId, reasonText);
+		}
+		else
+		{
+			LogMessageRoutedToDlq(message.MessageId, reasonText);
 
-		_ = await _deadLetterQueue.EnqueueAsync(
-			message,
-			reason,
-			cancellationToken,
-			exception,
-			metadata).ConfigureAwait(false);
+			var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+			{
+				["MessageType"] = message.MessageType,
+				["DispatcherId"] = _dispatcherId ?? string.Empty,
+				["Attempts"] = message.Attempts.ToString(CultureInfo.InvariantCulture),
+				["CreatedAt"] = message.CreatedAt.ToString("O", CultureInfo.InvariantCulture),
+			};
 
-		// Mark the message as moved to DLQ in the outbox store
+			_ = await _deadLetterQueue.EnqueueAsync(
+				message,
+				reason,
+				cancellationToken,
+				exception,
+				metadata).ConfigureAwait(false);
+		}
+
+		// Mark the message as failed (moved to DLQ or discarded)
 		await _outboxStore.MarkFailedAsync(
 			message.MessageId,
-			$"Moved to DLQ: {reasonText}",
+			_deadLetterQueue is NullDeadLetterQueue ? $"DISCARDED (no DLQ): {reasonText}" : $"Moved to DLQ: {reasonText}",
 			_options.MaxAttempts, // Mark as max attempts to prevent reprocessing
 			cancellationToken).ConfigureAwait(false);
 	}
@@ -1132,4 +1143,16 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	[LoggerMessage(OutboxEventId.OutboxErrorMarkingMessage, LogLevel.Error,
 		"Error marking outbox message {MessageId} as {TargetStatus} during batch completion")]
 	private partial void LogErrorMarkingOutboxMessage(string messageId, string targetStatus, Exception ex);
+
+	[LoggerMessage(OutboxEventId.OutboxDeadLetterQueueNotConfigured, LogLevel.Warning,
+		"No IDeadLetterQueue registered. Failed outbox messages will be discarded silently. Register a dead letter queue implementation to preserve failed messages for investigation.")]
+	private partial void LogDeadLetterQueueNotConfigured();
+
+	[LoggerMessage(OutboxEventId.OutboxCircuitBreakerNotConfigured, LogLevel.Warning,
+		"No ITransportCircuitBreakerRegistry registered. Transport failures will not trigger circuit breakers. Register AddDispatchResilience() to enable transport protection.")]
+	private partial void LogCircuitBreakerNotConfigured();
+
+	[LoggerMessage(OutboxEventId.OutboxMessageDiscardedNoDlq, LogLevel.Error,
+		"OUTBOX MESSAGE LOST: Message {MessageId} failed ({Reason}) but no dead letter queue is configured. Message has been discarded permanently. Register an IDeadLetterQueue to prevent message loss.")]
+	private partial void LogMessageDiscardedNoDlq(string messageId, string reason);
 }

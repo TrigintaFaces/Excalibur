@@ -14,7 +14,7 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Tests.Disposal;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DoubleDisposeShould
 {

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Soc2;
 /// Unit tests for <see cref="Soc2ReportGenerator"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class Soc2ReportGeneratorShould
 {
 	private readonly IControlValidationService _fakeControlValidation;

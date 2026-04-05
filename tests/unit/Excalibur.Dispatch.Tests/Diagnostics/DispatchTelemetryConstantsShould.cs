@@ -5,8 +5,8 @@ using Excalibur.Dispatch.Diagnostics;
 
 namespace Excalibur.Dispatch.Tests.Diagnostics;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DispatchTelemetryConstantsShould
 {
 	[Fact]

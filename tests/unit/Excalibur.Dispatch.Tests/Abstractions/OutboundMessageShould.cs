@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Abstractions;
 /// Sprint 410 - Foundation Coverage Tests (T410.8).
 /// Target: Increase OutboundMessage coverage from 43.4% to 80%.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class OutboundMessageShould
 {

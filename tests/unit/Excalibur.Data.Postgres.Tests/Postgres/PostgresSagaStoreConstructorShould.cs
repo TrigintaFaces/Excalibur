@@ -15,8 +15,8 @@ namespace Excalibur.Data.Tests.Postgres.Saga;
 /// Unit tests for the <see cref="PostgresSagaStore"/> dual-constructor pattern.
 /// Verifies both simple (options-based) and advanced (connection factory) constructors.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<PostgresSagaStore> _logger;

@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels.Diagnostics;
 /// <summary>
 /// Unit tests for <see cref="ChannelLatencyTracker"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ChannelLatencyTrackerShould
 {
 	[Fact]

@@ -11,8 +11,8 @@ using ConsumerGroupState = Excalibur.Dispatch.Transport.Kafka.ConsumerGroupState
 
 namespace Excalibur.Dispatch.Transport.Tests.Kafka.Serialization;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class KafkaSerializationRecordsShould
 {
 	[Fact]

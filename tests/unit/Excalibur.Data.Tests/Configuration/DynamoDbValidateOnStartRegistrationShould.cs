@@ -14,7 +14,7 @@ namespace Excalibur.Data.Tests.Configuration;
 /// Sprint 564 S564.47: DynamoDb ValidateOnStart verification.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DynamoDbValidateOnStartRegistrationShould
 {
 	#region DynamoDb Core

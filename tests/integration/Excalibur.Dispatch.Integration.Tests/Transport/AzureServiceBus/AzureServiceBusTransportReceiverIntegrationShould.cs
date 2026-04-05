@@ -22,9 +22,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AzureServiceBus;
 /// each times out (~20s) when the emulator is unavailable on Ubuntu CI.
 /// </remarks>
 [Collection(ContainerCollections.AzureServiceBus)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "AzureServiceBus")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLifetime, IDisposable
 {
 	private const string TestQueueName = "receiver-test-queue";

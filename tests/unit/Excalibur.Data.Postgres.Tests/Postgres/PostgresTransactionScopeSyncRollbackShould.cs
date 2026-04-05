@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.Postgres;
 /// <summary>
 /// Verifies that <see cref="PostgresTransactionScope"/> implements sync Rollback in Dispose (AD-540.2).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresTransactionScopeSyncRollbackShould : UnitTestBase
 {
 	[Fact]

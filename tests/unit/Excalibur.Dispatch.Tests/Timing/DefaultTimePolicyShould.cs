@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Tests.Timing;
 /// <summary>
 ///     Tests for the <see cref="DefaultTimePolicy" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DefaultTimePolicyShould
 {

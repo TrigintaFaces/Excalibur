@@ -8,8 +8,8 @@ using Excalibur.Dispatch.Options.CloudEvents;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CloudEventsOptionsShould
 {
 	// --- CloudEventOptions ---

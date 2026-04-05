@@ -9,8 +9,8 @@ Excalibur.Inbox.InMemory.InMemoryInboxOptions.MaxEntries.get -> int
 Excalibur.Inbox.InMemory.InMemoryInboxOptions.MaxEntries.set -> void
 Excalibur.Inbox.InMemory.InMemoryInboxOptions.RetentionPeriod.get -> System.TimeSpan
 Excalibur.Inbox.InMemory.InMemoryInboxOptions.RetentionPeriod.set -> void
-Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions
 Microsoft.Extensions.DependencyInjection.InMemoryInboxExtensions
-static Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions.UseInMemory(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>? configure = null) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
+Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions
 static Microsoft.Extensions.DependencyInjection.InMemoryInboxExtensions.AddInMemoryInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemoryInboxExtensions.UseInMemoryInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions.UseInMemory(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>? configure = null) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!

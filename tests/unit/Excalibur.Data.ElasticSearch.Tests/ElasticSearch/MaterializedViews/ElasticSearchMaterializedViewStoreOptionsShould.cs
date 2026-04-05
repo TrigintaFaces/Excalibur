@@ -5,8 +5,8 @@ using Excalibur.Data.ElasticSearch.MaterializedViews;
 
 namespace Excalibur.Data.Tests.ElasticSearch.MaterializedViews;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class ElasticSearchMaterializedViewStoreOptionsShould
 {
 	[Fact]

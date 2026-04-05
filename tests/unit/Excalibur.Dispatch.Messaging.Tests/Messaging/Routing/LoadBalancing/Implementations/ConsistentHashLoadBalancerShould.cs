@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.LoadBalancing;
 /// <summary>
 /// Unit tests for <see cref="ConsistentHashLoadBalancer"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class ConsistentHashLoadBalancerShould
 {

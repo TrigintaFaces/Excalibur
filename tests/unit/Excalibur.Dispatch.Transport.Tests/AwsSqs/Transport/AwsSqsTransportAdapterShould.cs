@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport;
 /// without the message bus dependency.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsTransportAdapterShould : UnitTestBase
 {

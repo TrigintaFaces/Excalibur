@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 /// with <see cref="TransportReceivedMessage"/> and <see cref="MessageAction"/> (ADR-116).
 /// </para>
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class TransportSubscriberInterfaceShould
 {
 	[Fact]

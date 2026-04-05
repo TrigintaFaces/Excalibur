@@ -90,8 +90,13 @@ public static class SecurityServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	public static IServiceCollection AddFieldEncryption(this IServiceCollection services)
 	{
-		// Register field encryption service Default encryption options are already configured in the EncryptionOptions class
-		services.TryAddSingleton<IElasticsearchFieldEncryptor, FieldEncryptor>();
+		// Register field encryption service (concrete + parent + sub-interfaces forwarded to same singleton)
+		services.TryAddSingleton<FieldEncryptor>();
+		services.TryAddSingleton<IElasticsearchFieldEncryptor>(static sp => sp.GetRequiredService<FieldEncryptor>());
+		services.TryAddSingleton<IElasticsearchFieldEncryption>(static sp => sp.GetRequiredService<FieldEncryptor>());
+		services.TryAddSingleton<IElasticsearchFieldEncryptionPolicy>(static sp => sp.GetRequiredService<FieldEncryptor>());
+		services.TryAddSingleton<IElasticsearchFieldEncryptionMaintenance>(static sp => sp.GetRequiredService<FieldEncryptor>());
+		services.TryAddSingleton<IElasticsearchFieldEncryptorEvents>(static sp => sp.GetRequiredService<FieldEncryptor>());
 
 		return services;
 	}
@@ -146,6 +151,7 @@ public static class SecurityServiceCollectionExtensions
 			.ValidateOnStart();
 
 		services.TryAddSingleton<IElasticsearchKeyProvider, AzureKeyVaultProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 
 		return services;
 	}
@@ -162,6 +168,7 @@ public static class SecurityServiceCollectionExtensions
 	{
 		// AWS KMS implementation would be added here
 		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -177,6 +184,7 @@ public static class SecurityServiceCollectionExtensions
 	{
 		// Google Cloud KMS implementation would be added here
 		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -192,6 +200,7 @@ public static class SecurityServiceCollectionExtensions
 	{
 		// HashiCorp Vault implementation would be added here
 		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -203,6 +212,7 @@ public static class SecurityServiceCollectionExtensions
 	public static IServiceCollection AddLocalKeyProvider(this IServiceCollection services)
 	{
 		services.TryAddSingleton<IElasticsearchKeyProvider, LocalKeyProvider>();
+		_ = services.AddKeyProviderSubInterfaceForwarding();
 		return services;
 	}
 
@@ -216,9 +226,12 @@ public static class SecurityServiceCollectionExtensions
 		// Configure audit settings Audit settings have default values already configured in the class definition Remove Configure call
 		// since init-only properties cannot be set this way
 
-		// Register auditing service (core + sub-interfaces forwarded to the same singleton)
+		// Register auditing service (core + parent + sub-interfaces forwarded to the same singleton)
 		services.TryAddSingleton<SecurityAuditor>();
 		services.TryAddSingleton<IElasticsearchSecurityAuditor>(static sp => sp.GetRequiredService<SecurityAuditor>());
+		services.TryAddSingleton<IElasticsearchSecurityAuditorCore>(static sp => sp.GetRequiredService<SecurityAuditor>());
+		services.TryAddSingleton<IElasticsearchSecurityAuditorRecording>(static sp => sp.GetRequiredService<SecurityAuditor>());
+		services.TryAddSingleton<IElasticsearchSecurityAuditorEvents>(static sp => sp.GetRequiredService<SecurityAuditor>());
 		services.TryAddSingleton<IElasticsearchSecurityAuditorReporting>(static sp => sp.GetRequiredService<SecurityAuditor>());
 		services.TryAddSingleton<IElasticsearchSecurityAuditorMaintenance>(static sp => sp.GetRequiredService<SecurityAuditor>());
 
@@ -235,8 +248,13 @@ public static class SecurityServiceCollectionExtensions
 		// Configure monitoring settings Security monitoring settings have default values already configured in the class definition Remove
 		// Configure call since init-only properties cannot be set this way
 
-		// Register monitoring service
-		services.TryAddSingleton<IElasticsearchSecurityMonitor, SecurityMonitor>();
+		// Register monitoring service (concrete + parent + sub-interfaces forwarded to same singleton)
+		services.TryAddSingleton<SecurityMonitor>();
+		services.TryAddSingleton<IElasticsearchSecurityMonitor>(static sp => sp.GetRequiredService<SecurityMonitor>());
+		services.TryAddSingleton<IElasticsearchSecurityMonitoring>(static sp => sp.GetRequiredService<SecurityMonitor>());
+		services.TryAddSingleton<IElasticsearchSecurityAnalysis>(static sp => sp.GetRequiredService<SecurityMonitor>());
+		services.TryAddSingleton<IElasticsearchSecurityAlerting>(static sp => sp.GetRequiredService<SecurityMonitor>());
+		services.TryAddSingleton<IElasticsearchSecurityMonitorEvents>(static sp => sp.GetRequiredService<SecurityMonitor>());
 
 		// Register background service for monitoring
 		_ = services.AddHostedService<SecurityMonitoringBackgroundService>();
@@ -256,6 +274,19 @@ public static class SecurityServiceCollectionExtensions
 
 		// Register security policy engine
 		services.TryAddSingleton<SecurityPolicyEngine>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers sub-interface forwarding for <see cref="IElasticsearchKeyProvider"/> so that
+	/// consumers can depend on individual sub-interfaces.
+	/// </summary>
+	private static IServiceCollection AddKeyProviderSubInterfaceForwarding(this IServiceCollection services)
+	{
+		services.TryAddSingleton<IElasticsearchKeyStorage>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
+		services.TryAddSingleton<IElasticsearchKeyManagement>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
+		services.TryAddSingleton<IElasticsearchKeyProviderEvents>(static sp => sp.GetRequiredService<IElasticsearchKeyProvider>());
 
 		return services;
 	}

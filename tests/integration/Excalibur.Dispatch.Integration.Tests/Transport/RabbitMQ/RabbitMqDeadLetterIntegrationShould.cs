@@ -18,9 +18,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 /// and purge operations against a real RabbitMQ container.
 /// </summary>
 [Collection(ContainerCollections.RabbitMQ)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "RabbitMQ")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
 {
     private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(20));

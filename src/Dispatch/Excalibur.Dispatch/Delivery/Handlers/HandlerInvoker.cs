@@ -403,9 +403,9 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		// return Task.FromResult(value).
 		if (task.IsCompletedSuccessfully)
 		{
-#pragma warning disable CA1849 // Safe: IsCompletedSuccessfully guarantees no blocking
+#pragma warning disable CA1849, RS0030 // Safe: IsCompletedSuccessfully guarantees no blocking
 			var result = task.Result;
-#pragma warning restore CA1849
+#pragma warning restore CA1849, RS0030
 			if (typeof(T) == typeof(bool))
 			{
 				return new ValueTask<object?>(result is true ? CachedTrue : CachedFalse);

@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// Tests that require serialization use the Standard resolver via custom options
 /// to work with test types.
 /// </remarks>
-[Trait("Component", "Serialization")]
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class AotMessagePackSerializerShould : UnitTestBase
 {
 	/// <summary>

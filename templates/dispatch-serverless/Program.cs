@@ -42,6 +42,10 @@ var host = new HostBuilder()
         });
 
         services.AddAzureFunctionsServerless();
+
+        // OpenTelemetry: one call registers all Dispatch meters + activity sources
+        services.AddOpenTelemetry()
+            .AddDispatchInstrumentation();
     })
     .Build();
 

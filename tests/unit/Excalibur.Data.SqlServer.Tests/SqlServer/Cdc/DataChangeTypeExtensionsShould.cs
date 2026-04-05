@@ -6,7 +6,7 @@ using Excalibur.Cdc.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
 public sealed class DataChangeTypeExtensionsShould
 {

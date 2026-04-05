@@ -1,7 +1,7 @@
 ﻿---
 sidebar_position: 9
 title: Streaming
-description: Process data streams efficiently with Chunk<T>, StreamingDocument, and IStreamingDocumentHandler
+description: Process data streams efficiently with Chunk, StreamingDocument, and IStreamingDocumentHandler
 ---
 
 # Streaming Patterns

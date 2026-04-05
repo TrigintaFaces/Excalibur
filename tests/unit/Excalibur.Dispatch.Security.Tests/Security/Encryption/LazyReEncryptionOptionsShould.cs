@@ -9,9 +9,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Encryption;
 /// <summary>
 /// Unit tests for <see cref="LazyReEncryptionOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Encryption")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Encryption)]
 public sealed class LazyReEncryptionOptionsShould
 {
     [Fact]

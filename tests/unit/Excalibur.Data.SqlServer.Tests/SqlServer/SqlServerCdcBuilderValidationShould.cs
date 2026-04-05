@@ -10,8 +10,8 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc.Builders;
 /// <summary>
 /// Unit tests for <see cref="ISqlServerCdcBuilder"/> argument validation.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerCdcBuilderValidationShould : UnitTestBase
 {

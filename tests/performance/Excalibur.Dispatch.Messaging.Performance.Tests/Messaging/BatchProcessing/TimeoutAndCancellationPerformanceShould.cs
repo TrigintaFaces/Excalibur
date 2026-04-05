@@ -10,7 +10,7 @@ using Excalibur.Dispatch.Middleware.Timeout;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Tests.Shared.Infrastructure;
 
@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 ///     Performance tests for timeout and cancellation scenarios.
 /// </summary>
 [Collection("Performance Tests")]
-[Trait("Category", "Performance")]
+[Trait(TraitNames.Category, TestCategories.Performance)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 {

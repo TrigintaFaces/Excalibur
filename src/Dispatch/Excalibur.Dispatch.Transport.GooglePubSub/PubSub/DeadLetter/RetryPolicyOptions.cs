@@ -86,7 +86,7 @@ public sealed class PubSubRetryPolicyOptions
 	public Dictionary<string, RetryStrategy> CustomStrategies { get; } = [];
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enable adaptive retry policies.
+	/// Gets or sets a value indicating whether to enable adaptive retry policies.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether to enable adaptive retry policies.

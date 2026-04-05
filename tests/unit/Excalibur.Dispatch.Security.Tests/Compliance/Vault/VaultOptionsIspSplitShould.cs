@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Vault;
 /// and confirms shim removal is complete.
 /// Sprint 564 S564.52: VaultOptions ISP split verification.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class VaultOptionsIspSplitShould
 {
 	#region Root Property Count (ISP Gate)

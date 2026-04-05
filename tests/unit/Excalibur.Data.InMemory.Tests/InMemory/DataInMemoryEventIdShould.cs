@@ -8,8 +8,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// <summary>
 /// Unit tests for <see cref="DataInMemoryEventId"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class DataInMemoryEventIdShould : UnitTestBase
 {
 	#region Connection/Initialization Event IDs (105000-105099)

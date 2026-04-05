@@ -1,44 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditBatchWritten = 93102 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventCaptured = 93001 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventEnriched = 93002 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventFiltered = 93003 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventStored = 93204 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventValidated = 93004 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventWritten = 93101 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditExportCompleted = 93303 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationAccessDenied = 93309 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationCompleted = 93306 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationError = 93311 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationFailed = 93307 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationStarted = 93305 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditLogAccessDenied = 93308 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditLoggerCreated = 93000 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditMiddlewareExecuting = 93005 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditQueryExecuted = 93301 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditQueryServiceCreated = 93300 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditReportGenerated = 93302 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditSearchCompleted = 93304 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditStorageCompacted = 93205 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditStoreHealthCheckDegraded = 93501 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditStoreHealthCheckFailed = 93502 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditStoreHealthCheckPassed = 93500 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWriteFailed = 93103 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWriterCreated = 93100 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWriteRetried = 93104 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.DatadogAuditAdapterCreated = 93202 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.MetaAuditLoggingFailed = 93310 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SentinelAuditAdapterCreated = 93203 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemBatchForwarded = 93402 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemConnectionEstablished = 93403 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemConnectionLost = 93404 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemConnectorCreated = 93400 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemEventForwarded = 93401 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemForwardFailed = 93405 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemForwardRetried = 93406 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemHealthCheckFailed = 93407 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SplunkAuditAdapterCreated = 93201 -> int
-const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SqlServerAuditStoreCreated = 93200 -> int
 Excalibur.Dispatch.AuditLogging.Alerting.AuditAlertOptions
 Excalibur.Dispatch.AuditLogging.Alerting.AuditAlertOptions.AuditAlertOptions() -> void
 Excalibur.Dispatch.AuditLogging.Alerting.AuditAlertOptions.EvaluationMode.get -> Excalibur.Dispatch.AuditLogging.Alerting.EvaluationMode
@@ -85,14 +45,14 @@ Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.AuditEncryptionOptions() -> void
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptActorId.get -> bool
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptActorId.set -> void
-Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptionPurpose.get -> string!
-Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptionPurpose.set -> void
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptIpAddress.get -> bool
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptIpAddress.set -> void
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptReason.get -> bool
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptReason.set -> void
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptUserAgent.get -> bool
 Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptUserAgent.set -> void
+Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptionPurpose.get -> string!
+Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions.EncryptionPurpose.set -> void
 Excalibur.Dispatch.AuditLogging.Encryption.EncryptingAuditEventStore
 Excalibur.Dispatch.AuditLogging.Encryption.EncryptingAuditEventStore.CountAsync(Excalibur.Dispatch.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Dispatch.AuditLogging.Encryption.EncryptingAuditEventStore.EncryptingAuditEventStore(Excalibur.Dispatch.Compliance.IAuditStore! inner, Excalibur.Dispatch.Compliance.IEncryptionProvider! encryption, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions!>! options) -> void
@@ -140,6 +100,46 @@ Excalibur.Dispatch.AuditLogging.Retention.IAuditRetentionService
 Excalibur.Dispatch.AuditLogging.Retention.IAuditRetentionService.EnforceRetentionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.AuditLogging.Retention.IAuditRetentionService.GetRetentionPolicyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.AuditLogging.Retention.AuditRetentionPolicy!>!
 Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditBatchWritten = 93102 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventCaptured = 93001 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventEnriched = 93002 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventFiltered = 93003 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventStored = 93204 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventValidated = 93004 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventWritten = 93101 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditExportCompleted = 93303 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationAccessDenied = 93309 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationCompleted = 93306 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationError = 93311 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationFailed = 93307 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditIntegrityVerificationStarted = 93305 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditLogAccessDenied = 93308 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditLoggerCreated = 93000 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditMiddlewareExecuting = 93005 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditQueryExecuted = 93301 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditQueryServiceCreated = 93300 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditReportGenerated = 93302 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditSearchCompleted = 93304 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditStorageCompacted = 93205 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditStoreHealthCheckDegraded = 93501 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditStoreHealthCheckFailed = 93502 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditStoreHealthCheckPassed = 93500 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWriteFailed = 93103 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWriteRetried = 93104 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWriterCreated = 93100 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.DatadogAuditAdapterCreated = 93202 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.MetaAuditLoggingFailed = 93310 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SentinelAuditAdapterCreated = 93203 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemBatchForwarded = 93402 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemConnectionEstablished = 93403 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemConnectionLost = 93404 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemConnectorCreated = 93400 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemEventForwarded = 93401 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemForwardFailed = 93405 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemForwardRetried = 93406 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemHealthCheckFailed = 93407 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SplunkAuditAdapterCreated = 93201 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SqlServerAuditStoreCreated = 93200 -> int
 static Excalibur.Dispatch.AuditLogging.AuditHasher.ComputeGenesisHash(string? tenantId, System.DateTimeOffset chainInitTime) -> string!
 static Excalibur.Dispatch.AuditLogging.AuditHasher.ComputeHash(Excalibur.Dispatch.Compliance.AuditEvent! auditEvent, string? previousHash) -> string!
 static Excalibur.Dispatch.AuditLogging.AuditHasher.VerifyHash(Excalibur.Dispatch.Compliance.AuditEvent! auditEvent, string? previousHash) -> bool

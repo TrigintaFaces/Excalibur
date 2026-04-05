@@ -11,8 +11,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// <remarks>
 /// Tests the global string encoding cache singleton.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 [Trait("Priority", "0")]
 public sealed class GlobalStringCacheShould
 {

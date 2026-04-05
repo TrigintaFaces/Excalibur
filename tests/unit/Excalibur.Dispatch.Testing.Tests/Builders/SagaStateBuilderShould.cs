@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Testing.Builders;
 namespace Excalibur.Dispatch.Testing.Tests.Builders;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Testing")]
+[Trait(TraitNames.Component, TestComponents.Testing)]
 public sealed class SagaStateBuilderShould
 {
 	[Fact]

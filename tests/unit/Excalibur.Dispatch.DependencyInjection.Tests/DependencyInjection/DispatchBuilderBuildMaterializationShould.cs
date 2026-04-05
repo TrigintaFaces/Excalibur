@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Tests.DependencyInjection;
 /// and middleware configuration was silently lost on disposal.
 /// </remarks>
 [Trait("Category", "Unit")]
-[Trait("Component", "DependencyInjection")]
+[Trait(TraitNames.Component, TestComponents.DependencyInjection)]
 public sealed class DispatchBuilderBuildMaterializationShould : IDisposable
 {
 	private ServiceProvider? _serviceProvider;

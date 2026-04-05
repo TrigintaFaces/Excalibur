@@ -9,7 +9,7 @@ using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Resilience;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// that create typed MessageResult.Success instances, eliminating per-dispatch
 /// reflection overhead.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 public sealed class ResultFactoryCacheShould
 {

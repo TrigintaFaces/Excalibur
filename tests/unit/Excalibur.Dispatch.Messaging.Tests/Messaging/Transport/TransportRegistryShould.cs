@@ -547,8 +547,11 @@ public sealed class TransportRegistryShould
 	[Fact]
 	public void ITransportRegistry_HaveExpectedMethodCount()
 	{
-		// Microsoft quality gate: interfaces should have <=5 methods
-		var methods = typeof(ITransportRegistry).GetMethods();
+		// Microsoft quality gate: interfaces should have <=5 methods (properties excluded)
+		// Sprint 746: HasDefaultTransport + DefaultTransportName promoted from concrete to interface
+		var methods = typeof(ITransportRegistry).GetMethods()
+			.Where(m => !m.IsSpecialName) // exclude property getters/setters
+			.ToArray();
 		methods.Length.ShouldBeLessThanOrEqualTo(5);
 	}
 

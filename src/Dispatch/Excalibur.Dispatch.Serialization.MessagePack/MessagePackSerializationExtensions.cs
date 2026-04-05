@@ -16,202 +16,69 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class MessagePackSerializationExtensions
 {
 	/// <summary>
-	/// Adds MessagePack serialization support to the Dispatch pipeline.
-	/// This is an opt-in package for high-performance binary serialization.
-	/// Uses the zero-copy serializer by default for maximum performance.
+	/// Adds MessagePack as the binary serializer for internal persistence (Outbox, Inbox, Event Store).
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Optional configuration delegate.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMessagePackSerialization(
-		this IServiceCollection services,
-		Action<MessagePackSerializationOptions>? configure = null)
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The service collection for method chaining. </returns>
+	/// <remarks>
+	/// <para>
+	/// This is the single entry point for opting into MessagePack. It registers:
+	/// </para>
+	/// <list type="bullet">
+	/// <item><description><see cref="ISerializer"/> — MessagePack serializer singleton.</description></item>
+	/// <item><description>Serializer registry — MessagePack registered with ID <see cref="SerializerIds.MessagePack"/> and set as current.</description></item>
+	/// </list>
+	/// <para>
+	/// <b>Usage:</b>
+	/// </para>
+	/// <code>
+	/// services.AddMessagePackSerializer();
+	/// </code>
+	/// <para>
+	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer (ADR-295).
+	/// Call this method to opt into MessagePack for high-performance binary serialization.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddMessagePackSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		if (configure != null)
-		{
-			_ = services.Configure(configure);
-		}
+		var serializer = new MessagePackSerializer();
 
-		// Register the consolidated MessagePack serializer
-		services.TryAddSingleton<MessagePackSerializer>();
-		services.TryAddSingleton<ISerializer>(sp => sp.GetRequiredService<MessagePackSerializer>());
+		services.TryAddSingleton<ISerializer>(serializer);
+
+		services.PostConfigure<PluggableSerializationOptions>(options =>
+		{
+			options.AddRegistration(registry => registry.Register(SerializerIds.MessagePack, serializer));
+			options.CurrentSerializerName = "MessagePack";
+		});
 
 		return services;
 	}
 
 	/// <summary>
-	/// Gets the MessagePack pluggable serializer singleton instance for use with <see cref="ISerializerRegistry"/>.
+	/// Adds MessagePack as the binary serializer with custom options.
 	/// </summary>
-	/// <returns>The MessagePack pluggable serializer instance with default options.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method provides access to the <see cref="MessagePackPluggableSerializer"/> for manual registration
-	/// with the serializer registry. Use this when you need to register the serializer directly.
-	/// </para>
-	/// <para>
-	/// <b>Serializer ID:</b> <see cref="SerializerIds.MessagePack"/> (3)
-	/// </para>
-	/// <para>
-	/// <b>Usage:</b>
-	/// </para>
-	/// <code>
-	/// // Register MessagePack via the builder pattern (opt-in, replaces JSON default)
-	/// services.AddDispatch(dispatch =>
-	///     dispatch.WithSerialization(config =>
-	///     {
-	///         config.RegisterMessagePack();
-	///         config.UseMessagePack();
-	///     }));
-	/// </code>
-	/// <para>
-	/// See the pluggable serialization architecture documentation.
-	/// </para>
-	/// </remarks>
-	public static ISerializer GetPluggableSerializer() => new MessagePackSerializer();
-
-	/// <summary>
-	/// Gets the MessagePack pluggable serializer with custom options for use with <see cref="ISerializerRegistry"/>.
-	/// </summary>
-	/// <param name="options">Custom MessagePack serializer options.</param>
-	/// <returns>The MessagePack pluggable serializer instance with custom options.</returns>
-	public static ISerializer GetPluggableSerializer(global::MessagePack.MessagePackSerializerOptions options)
-	{
-		ArgumentNullException.ThrowIfNull(options);
-		return new MessagePackSerializer(options);
-	}
-
-	/// <summary>
-	/// Registers the MessagePack serializer with the serialization builder (framework-assigned ID: 3).
-	/// </summary>
-	/// <param name="builder">The serialization builder.</param>
-	/// <returns>The builder for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This extension enables the builder pattern:
-	/// </para>
-	/// <code>
-	/// services.AddDispatch()
-	///     .WithSerialization(config =>
-	///     {
-	///         config.RegisterMessagePack();
-	///         config.UseMessagePack();
-	///     });
-	/// </code>
-	/// </remarks>
-	public static ISerializationBuilder RegisterMessagePack(this ISerializationBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		return builder.Register(new MessagePackSerializer(), SerializerIds.MessagePack);
-	}
-
-	/// <summary>
-	/// Registers the MessagePack serializer with configuration (framework-assigned ID: 3).
-	/// </summary>
-	/// <param name="builder">The serialization builder.</param>
-	/// <param name="configure">Configuration delegate for MessagePack serialization options.</param>
-	/// <returns>The builder for method chaining.</returns>
-	public static ISerializationBuilder RegisterMessagePack(
-		this ISerializationBuilder builder,
-		Action<MessagePackSerializationOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		var options = new MessagePackSerializationOptions();
-		configure(options);
-
-		return builder.Register(
-			new MessagePackSerializer(options.MessagePackSerializerOptions),
-			SerializerIds.MessagePack);
-	}
-
-	/// <summary>
-	/// Registers the MessagePack serializer with custom native options (framework-assigned ID: 3).
-	/// </summary>
-	/// <param name="builder">The serialization builder.</param>
-	/// <param name="options">Custom MessagePack serializer options.</param>
-	/// <returns>The builder for method chaining.</returns>
-	public static ISerializationBuilder RegisterMessagePack(
-		this ISerializationBuilder builder,
+	/// <param name="services"> The service collection. </param>
+	/// <param name="options"> Custom MessagePack serializer options. </param>
+	/// <returns> The service collection for method chaining. </returns>
+	public static IServiceCollection AddMessagePackSerializer(
+		this IServiceCollection services,
 		global::MessagePack.MessagePackSerializerOptions options)
 	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(options);
-		return builder.Register(new MessagePackSerializer(options), SerializerIds.MessagePack);
-	}
-
-	/// <summary>
-	/// Adds the MessagePack serializer to the pluggable serialization system.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="setAsCurrent">
-	/// Whether to set MessagePack as the current serializer for new payloads.
-	/// Default is <c>false</c> (JSON remains default per ADR-295).
-	/// </param>
-	/// <returns>The service collection for method chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This method registers <see cref="MessagePackPluggableSerializer"/> with
-	/// <see cref="SerializerIds.MessagePack"/> (3) in the pluggable serialization registry.
-	/// </para>
-	/// <para>
-	/// <b>Usage:</b>
-	/// </para>
-	/// <code>
-	/// // Register MessagePack alongside default MemoryPack
-	/// services.AddMessagePackPluggableSerialization();
-	///
-	/// // Register MessagePack and set as current serializer
-	/// services.AddMessagePackPluggableSerialization(setAsCurrent: true);
-	/// </code>
-	/// <para>
-	/// This method requires the <c>Excalibur.Dispatch.Serialization</c> namespace to be available.
-	/// Ensure <c>AddPluggableSerialization()</c> or <c>AddDispatch()</c> has been called.
-	/// </para>
-	/// <para>
-	/// See the pluggable serialization architecture documentation.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddMessagePackPluggableSerialization(
-		this IServiceCollection services,
-		bool setAsCurrent = false)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		// Register using the extension from Microsoft.Extensions.DependencyInjection
-		return PluggableSerializationServiceCollectionExtensions
-			.AddPluggableSerializer(
-				services,
-				SerializerIds.MessagePack,
-				new MessagePackSerializer(),
-				setAsCurrent);
-	}
-
-	/// <summary>
-	/// Adds the MessagePack serializer with custom options to the pluggable serialization system.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="options">Custom MessagePack serializer options.</param>
-	/// <param name="setAsCurrent">
-	/// Whether to set MessagePack as the current serializer for new payloads.
-	/// Default is <c>false</c> (JSON remains default per ADR-295).
-	/// </param>
-	/// <returns>The service collection for method chaining.</returns>
-	public static IServiceCollection AddMessagePackPluggableSerialization(
-		this IServiceCollection services,
-		global::MessagePack.MessagePackSerializerOptions options,
-		bool setAsCurrent = false)
-	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(options);
 
-		return PluggableSerializationServiceCollectionExtensions
-			.AddPluggableSerializer(
-				services,
-				SerializerIds.MessagePack,
-				new MessagePackSerializer(options),
-				setAsCurrent);
+		var serializer = new MessagePackSerializer(options);
+
+		services.TryAddSingleton<ISerializer>(serializer);
+
+		services.PostConfigure<PluggableSerializationOptions>(opts =>
+		{
+			opts.AddRegistration(registry => registry.Register(SerializerIds.MessagePack, serializer));
+			opts.CurrentSerializerName = "MessagePack";
+		});
+
+		return services;
 	}
 }

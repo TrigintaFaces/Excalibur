@@ -14,9 +14,9 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// delegate-capture factory cache populated by the <c>AddRecordHandler</c> overloads.
 /// </summary>
 [UnitTest]
-[Trait("Component", "Core")]
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RecordHandlerFactoryCacheShould : UnitTestBase
 {
 	// Each test uses a unique record type to avoid cross-test contamination

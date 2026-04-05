@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 /// https://csrc.nist.gov/publications/detail/sp/800-38d/final
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class AesGcmNistVectorShould
 {
 	/// <summary>

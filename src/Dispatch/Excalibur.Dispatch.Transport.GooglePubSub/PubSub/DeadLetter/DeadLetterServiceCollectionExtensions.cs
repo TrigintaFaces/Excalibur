@@ -10,6 +10,7 @@ using Google.Cloud.PubSub.V1;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -35,6 +36,9 @@ public static class DeadLetterServiceCollectionExtensions
 			.Configure(options => configure?.Invoke(options))
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeadLetterOptions>, DeadLetterOptionsValidator>());
 
 		// Register core services — shared Transport.Abstractions interface (keyed by transport name)
 		services.TryAddSingleton<PubSubDeadLetterQueueManager>();

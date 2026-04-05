@@ -9,7 +9,7 @@ using Excalibur.Dispatch.Delivery.Pipeline;
 
 namespace Excalibur.Dispatch.Tests.Contracts;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed partial class PublicApiContractShould
 {

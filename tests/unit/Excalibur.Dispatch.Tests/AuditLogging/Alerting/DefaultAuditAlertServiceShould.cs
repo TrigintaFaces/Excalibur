@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Tests.AuditLogging.Alerting;
 /// <summary>
 /// Unit tests for <see cref="DefaultAuditAlertService"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 public sealed class DefaultAuditAlertServiceShould
 {
 	private static AuditEvent CreateTestEvent(string eventId = "evt-1", string action = "Login") =>

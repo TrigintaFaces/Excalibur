@@ -44,14 +44,16 @@ public interface ILongPollingStrategy
 	/// <returns> The current load factor where 1.0 represents maximum load. </returns>
 	ValueTask<double> GetCurrentLoadFactorAsync();
 
-	/// <summary>
-	/// Resets the strategy's internal state and statistics.
-	/// </summary>
+}
+
+/// <summary>
+/// Provides administrative operations for a long polling strategy.
+/// </summary>
+public interface ILongPollingStrategyAdmin
+{
+	/// <summary>Resets the strategy's internal state and statistics.</summary>
 	ValueTask ResetAsync();
 
-	/// <summary>
-	/// Gets statistics about the strategy's performance.
-	/// </summary>
-	/// <returns> The current strategy statistics. </returns>
+	/// <summary>Gets statistics about the strategy's performance.</summary>
 	ValueTask<LongPollingStatistics> GetStatisticsAsync();
 }

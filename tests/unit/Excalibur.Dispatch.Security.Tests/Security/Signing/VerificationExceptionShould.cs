@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 /// <summary>
 /// Unit tests for <see cref="VerificationException"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class VerificationExceptionShould
 {
 	[Fact]

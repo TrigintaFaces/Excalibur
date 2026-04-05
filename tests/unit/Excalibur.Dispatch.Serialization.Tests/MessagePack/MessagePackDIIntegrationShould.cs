@@ -16,8 +16,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// Updated for consolidated serializer: AddMessagePackSerialization now registers
 /// ISerializer (not the old IMessageSerializer which has been deleted).
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class MessagePackDIIntegrationShould : UnitTestBase
 {
 	#region Full DI Pipeline Tests
@@ -27,7 +27,7 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddMessagePackSerialization();
+		services.AddMessagePackSerializer();
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -48,17 +48,17 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddMessagePackSerialization(opts =>
-		{
-			opts.UseLz4Compression = true;
-		});
+		var customOptions = MessagePackSerializerOptions.Standard
+			.WithCompression(MessagePackCompression.Lz4Block);
+		services.AddMessagePackSerializer(customOptions);
 		var provider = services.BuildServiceProvider();
 
 		// Act
-		var options = provider.GetRequiredService<IOptions<MessagePackSerializationOptions>>().Value;
+		var serializer = provider.GetRequiredService<ISerializer>();
 
-		// Assert
-		options.UseLz4Compression.ShouldBeTrue();
+		// Assert - serializer should resolve successfully with custom options
+		serializer.ShouldNotBeNull();
+		serializer.ShouldBeOfType<MpkSerializer>();
 	}
 
 	[Fact]
@@ -66,7 +66,7 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddMessagePackSerialization();
+		services.AddMessagePackSerializer();
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -89,7 +89,7 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddMessagePackSerialization();
+		services.AddMessagePackSerializer();
 		var provider = services.BuildServiceProvider();
 
 		// Act
@@ -105,12 +105,14 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	#region Pluggable Serialization DI Tests
 
 	[Fact]
-	public void AddMessagePackPluggableSerialization_RegistersWithCorrectSerializerId()
+	public void AddMessagePackSerializer_RegistersSerializerWithPluggableSerialization()
 	{
-		// Arrange
+		// Arrange - AddPluggableSerialization registers ISerializerRegistry,
+		// AddMessagePackSerializer registers ISerializer + PostConfigure
 		var services = new ServiceCollection();
-		services.AddMessagePackPluggableSerialization();
-		var provider = services.BuildServiceProvider();
+		_ = services.AddPluggableSerialization();
+		services.AddMessagePackSerializer();
+		using var provider = services.BuildServiceProvider();
 
 		// Act
 		var registry = provider.GetService<ISerializerRegistry>();
@@ -120,91 +122,37 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddMessagePackPluggableSerialization_WithOptions_RegistersSerializer()
+	public void AddMessagePackSerializer_WithOptions_RegistersSerializer()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var customOptions = MessagePackSerializerOptions.Standard
 			.WithCompression(MessagePackCompression.Lz4Block);
-		services.AddMessagePackPluggableSerialization(customOptions);
-		var provider = services.BuildServiceProvider();
+		services.AddMessagePackSerializer(customOptions);
+		using var provider = services.BuildServiceProvider();
 
 		// Act
-		var registry = provider.GetService<ISerializerRegistry>();
+		var serializer = provider.GetService<ISerializer>();
 
 		// Assert
-		registry.ShouldNotBeNull();
+		serializer.ShouldNotBeNull();
+		serializer.ShouldBeOfType<MpkSerializer>();
 	}
 
 	[Fact]
-	public void AddMessagePackPluggableSerialization_SetAsCurrent_Works()
+	public void AddMessagePackSerializer_RegistersISerializer()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddMessagePackPluggableSerialization(setAsCurrent: true);
+		services.AddMessagePackSerializer();
 		var provider = services.BuildServiceProvider();
 
 		// Act
-		var registry = provider.GetService<ISerializerRegistry>();
+		var serializer = provider.GetService<ISerializer>();
 
 		// Assert
-		registry.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AddMessagePackPluggableSerialization_WithOptionsAndSetAsCurrent_Works()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
-		services.AddMessagePackPluggableSerialization(opts, setAsCurrent: true);
-		var provider = services.BuildServiceProvider();
-
-		// Act
-		var registry = provider.GetService<ISerializerRegistry>();
-
-		// Assert
-		registry.ShouldNotBeNull();
-	}
-
-	#endregion
-
-	#region Options Resolution Tests
-
-	[Fact]
-	public void Options_DefaultValues_AreCorrect()
-	{
-		// Arrange
-		// Note: AddMessagePackSerialization only registers IOptions when a configure delegate is provided
-		// So we use an empty configure delegate to trigger options registration
-		var services = new ServiceCollection();
-		services.AddMessagePackSerialization(_ => { });
-		var provider = services.BuildServiceProvider();
-
-		// Act
-		var options = provider.GetRequiredService<IOptions<MessagePackSerializationOptions>>().Value;
-
-		// Assert - defaults should be applied
-		options.UseLz4Compression.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void Options_MultipleConfigurations_CombineCorrectly()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		services.Configure<MessagePackSerializationOptions>(opts =>
-		{
-			opts.UseLz4Compression = true;
-		});
-		services.AddMessagePackSerialization();
-		var provider = services.BuildServiceProvider();
-
-		// Act
-		var options = provider.GetRequiredService<IOptions<MessagePackSerializationOptions>>().Value;
-
-		// Assert - configuration should apply
-		options.UseLz4Compression.ShouldBeTrue();
+		serializer.ShouldNotBeNull();
+		serializer.ShouldBeOfType<MpkSerializer>();
 	}
 
 	#endregion
@@ -216,7 +164,7 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddMessagePackSerialization();
+		services.AddMessagePackSerializer();
 		var provider = services.BuildServiceProvider();
 
 		// Act - create scope and resolve
@@ -236,7 +184,7 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddMessagePackSerialization();
+		services.AddMessagePackSerializer();
 		var provider = services.BuildServiceProvider();
 
 		// Act

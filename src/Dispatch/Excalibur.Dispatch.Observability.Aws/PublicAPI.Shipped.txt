@@ -1,8 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.CloudWatchMetricsConfigurationFailed = 93556 -> int
-const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.CloudWatchMetricsConfigured = 93551 -> int
-const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.XRayConfigurationFailed = 93555 -> int
-const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.XRayConfigured = 93550 -> int
 Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId
 Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions
 Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.AwsObservabilityOptions() -> void
@@ -29,5 +25,9 @@ Excalibur.Dispatch.Observability.Aws.IAwsTracingIntegration
 Excalibur.Dispatch.Observability.Aws.IAwsTracingIntegration.ConfigureCloudWatchMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Observability.Aws.IAwsTracingIntegration.ConfigureXRayAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Microsoft.Extensions.DependencyInjection.AwsObservabilityServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.AwsObservabilityServiceCollectionExtensions.AddAwsObservability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.CloudWatchMetricsConfigurationFailed = 93556 -> int
+const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.CloudWatchMetricsConfigured = 93551 -> int
+const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.XRayConfigurationFailed = 93555 -> int
+const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.XRayConfigured = 93550 -> int
 static Microsoft.Extensions.DependencyInjection.AwsObservabilityServiceCollectionExtensions.AddAwsObservability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AwsObservabilityServiceCollectionExtensions.AddAwsObservability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

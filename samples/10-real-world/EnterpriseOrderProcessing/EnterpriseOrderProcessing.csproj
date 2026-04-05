@@ -62,6 +62,11 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
   </ItemGroup>
 
+  <!-- Identity Map (Anti-Corruption Layer ID resolution) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.IdentityMap\Excalibur.Data.IdentityMap.csproj" />
+  </ItemGroup>
+
   <!-- CDC (Change Data Capture) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />

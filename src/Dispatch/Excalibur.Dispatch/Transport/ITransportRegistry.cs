@@ -21,6 +21,18 @@ namespace Excalibur.Dispatch.Transport;
 public interface ITransportRegistry
 {
 	/// <summary>
+	/// Gets a value indicating whether a default transport has been configured.
+	/// </summary>
+	/// <value><see langword="true"/> if a default transport is set; otherwise, <see langword="false"/>.</value>
+	bool HasDefaultTransport { get; }
+
+	/// <summary>
+	/// Gets the name of the default transport.
+	/// </summary>
+	/// <value>The default transport name, or <see langword="null"/> if not set.</value>
+	string? DefaultTransportName { get; }
+
+	/// <summary>
 	/// Registers a transport adapter.
 	/// </summary>
 	/// <param name="name">The transport name.</param>

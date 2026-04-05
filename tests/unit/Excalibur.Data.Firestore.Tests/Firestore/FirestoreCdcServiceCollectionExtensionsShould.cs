@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.Firestore.Cdc;
 /// <summary>
 /// Unit tests for Firestore CDC service collection extensions.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "FirestoreCdcServiceCollectionExtensions")]
 public sealed class FirestoreCdcServiceCollectionExtensionsShould : UnitTestBase
 {

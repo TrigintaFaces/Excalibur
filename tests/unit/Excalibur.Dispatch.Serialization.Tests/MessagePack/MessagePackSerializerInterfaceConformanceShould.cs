@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 /// Interface conformance tests for the consolidated <see cref="MpkSerializer"/>.
 /// Ensures it correctly implements ISerializer.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBase
 {
 	#region ISerializer Conformance

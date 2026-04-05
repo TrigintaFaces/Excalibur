@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 public sealed class PoisonDetectionResult
 {
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether the message is detected as poison.
+	/// Gets or sets a value indicating whether the message is detected as poison.
 	/// </summary>
 	/// <value>
 	/// A value indicating whether gets or sets whether the message is detected as poison.

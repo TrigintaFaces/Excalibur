@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 [Collection(ContainerCollections.SqlServer)]
 [Trait("Component", TestComponents.AuditLogging)]
 [Trait("Infrastructure", TestInfrastructure.SqlServer)]
-[Trait("Category", "Integration")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly SqlServerFixture _fixture;
@@ -230,6 +230,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 			        [ResourceType] NVARCHAR(100) NULL,
 			        [ResourceClassification] INT NULL,
 			        [TenantId] NVARCHAR(64) NULL,
+			        [ApplicationName] NVARCHAR(256) NULL,
 			        [CorrelationId] NVARCHAR(64) NULL,
 			        [SessionId] NVARCHAR(64) NULL,
 			        [IpAddress] NVARCHAR(45) NULL,

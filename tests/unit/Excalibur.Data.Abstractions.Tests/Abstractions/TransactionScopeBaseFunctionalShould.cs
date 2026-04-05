@@ -80,7 +80,7 @@ public sealed class TestTransactionScope : TransactionScopeBase
 }
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class TransactionScopeBaseFunctionalShould
 {
     [Fact]

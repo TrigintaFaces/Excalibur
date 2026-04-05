@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Authentication;
 /// (<see cref="JwtTokenValidationOptions"/> and <see cref="JwtTokenCredentialOptions"/>)
 /// are properly initialized and configurable.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Authentication")]
 public sealed class JwtAuthenticationOptionsSubOptionsShould
 {

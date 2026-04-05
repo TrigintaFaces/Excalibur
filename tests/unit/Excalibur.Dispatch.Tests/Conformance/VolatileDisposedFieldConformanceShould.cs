@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Tests.Conformance;
 /// In .NET reflection, volatile fields are identified by checking if
 /// <see cref="IsVolatile"/> is in the required custom modifiers.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Conformance")]
 public sealed class VolatileDisposedFieldConformanceShould
 {

@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Splunk;
 /// Unit tests for <see cref="SplunkAuditLoggingEventId"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "AuditLogging")]
+[Trait(TraitNames.Component, TestComponents.AuditLogging)]
 public sealed class SplunkAuditLoggingEventIdShould
 {
 	#region Event ID Value Tests

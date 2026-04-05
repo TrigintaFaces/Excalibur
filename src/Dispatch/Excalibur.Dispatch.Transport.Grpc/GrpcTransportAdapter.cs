@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// adding lifecycle management and health reporting.
 /// </para>
 /// </remarks>
-internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITransportAdapterLifecycle, ITransportHealthChecker, ITransportHealthMetrics, IAsyncDisposable
 {
 	private const string AdapterName = "grpc";
 	private const string TransportTypeName = "grpc";

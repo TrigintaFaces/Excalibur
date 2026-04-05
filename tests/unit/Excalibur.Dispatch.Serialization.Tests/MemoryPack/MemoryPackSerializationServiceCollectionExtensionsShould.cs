@@ -13,73 +13,77 @@ namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 /// <summary>
 /// Unit tests for <see cref="MemoryPackSerializationServiceCollectionExtensions" />.
 /// </summary>
-[Trait("Component", "Serialization")]
-[Trait("Category", "DependencyInjection")]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 public sealed class MemoryPackSerializationServiceCollectionExtensionsShould
 {
-	#region GetPluggableSerializer Tests
+	#region AddMemoryPackSerializer Tests
 
 	[Fact]
-	public void GetPluggableSerializer_ReturnsMemoryPackPluggableSerializer()
+	public void AddMemoryPackSerializer_RegistersISerializer()
 	{
+		// Arrange
+		var services = new ServiceCollection();
+
 		// Act
-		var serializer = MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer();
+		_ = services.AddMemoryPackSerializer();
 
 		// Assert
+		using var provider = services.BuildServiceProvider();
+		var serializer = provider.GetService<ISerializer>();
 		_ = serializer.ShouldNotBeNull();
 		_ = serializer.ShouldBeOfType<MpSerializer>();
 	}
 
 	[Fact]
-	public void GetPluggableSerializer_ReturnsNewInstanceEachTime()
+	public void AddMemoryPackSerializer_RegistersIBinaryEnvelopeDeserializer()
 	{
-		// Act
-		var serializer1 = MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer();
-		var serializer2 = MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer();
+		// Arrange
+		var services = new ServiceCollection();
 
-		// Assert - Should be different instances
-		ReferenceEquals(serializer1, serializer2).ShouldBeFalse();
+		// Act
+		_ = services.AddMemoryPackSerializer();
+
+		// Assert
+		using var provider = services.BuildServiceProvider();
+		var deserializer = provider.GetService<IBinaryEnvelopeDeserializer>();
+		_ = deserializer.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public void GetPluggableSerializer_ReturnsWorkingSerializer()
+	public void AddMemoryPackSerializer_ThrowsOnNullServices()
 	{
-		// Arrange - Cast to ISerializer to use SerializeToBytes extension (avoids trimming warnings)
-		var pluggable = MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer();
-		var serializer = (ISerializer)pluggable;
-		var value = new TestPayload { Id = 42, Name = "Test" };
+		// Arrange
+		IServiceCollection services = null!;
 
-		// Act
-		var bytes = serializer.SerializeToBytes(value);
-		var result = serializer.Deserialize<TestPayload>(bytes);
-
-		// Assert
-		_ = result.ShouldNotBeNull();
-		result.Id.ShouldBe(42);
-		result.Name.ShouldBe("Test");
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() => services.AddMemoryPackSerializer());
 	}
 
 	[Fact]
-	public void GetPluggableSerializer_ImplementsISerializer()
+	public void AddMemoryPackSerializer_ReturnsServiceCollectionForChaining()
 	{
+		// Arrange
+		var services = new ServiceCollection();
+
 		// Act
-		var serializer = MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer();
+		var result = services.AddMemoryPackSerializer();
 
 		// Assert
-		_ = serializer.ShouldBeAssignableTo<ISerializer>();
+		result.ShouldBeSameAs(services);
 	}
 
-	#endregion GetPluggableSerializer Tests
+	#endregion AddMemoryPackSerializer Tests
 
-	#region DI Registration Tests
+	#region Serializer Functionality Tests
 
 	[Fact]
 	public void RegisteredSerializer_CanSerializeAndDeserialize_ViaServiceProvider()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		_ = services.AddSingleton<ISerializer>(MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
-		var provider = services.BuildServiceProvider();
+		_ = services.AddMemoryPackSerializer();
+		using var provider = services.BuildServiceProvider();
 		var serializer = provider.GetRequiredService<ISerializer>();
 		var original = new TestPayload { Id = 999, Name = "Integration Test" };
 
@@ -94,18 +98,21 @@ public sealed class MemoryPackSerializationServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void RegisteredSerializer_ResolvesAsMemoryPackSerializer()
+	public void AddMemoryPackSerializer_UseTryAdd_DoesNotOverrideExisting()
 	{
-		// Arrange
+		// Arrange - register a fake serializer first
 		var services = new ServiceCollection();
-		_ = services.AddSingleton<ISerializer>(MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
+		var fakeSerializer = A.Fake<ISerializer>();
+		services.AddSingleton(fakeSerializer);
+
+		// Act - MemoryPack should NOT override the existing registration (TryAdd)
+		_ = services.AddMemoryPackSerializer();
 
 		// Assert
-		var provider = services.BuildServiceProvider();
-		var serializer = provider.GetService<ISerializer>();
-		_ = serializer.ShouldNotBeNull();
-		_ = serializer.ShouldBeOfType<MpSerializer>();
+		using var provider = services.BuildServiceProvider();
+		var resolved = provider.GetRequiredService<ISerializer>();
+		resolved.ShouldBeSameAs(fakeSerializer);
 	}
 
-	#endregion DI Registration Tests
+	#endregion Serializer Functionality Tests
 }

@@ -4,6 +4,7 @@
 using CdcJobQuartz.Domain;
 
 using Excalibur.Cdc.SqlServer;
+using Excalibur.Data.IdentityMap;
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ namespace CdcJobQuartz.AntiCorruption;
 /// <list type="bullet">
 /// <item>Receives raw CDC events from SQL Server #1 (legacy database)</item>
 /// <item>Uses <see cref="LegacyCustomerAdapter"/> to normalize schema differences</item>
+/// <item>Uses <see cref="IIdentityMapStore"/> for idempotent external-to-internal ID resolution</item>
 /// <item>Translates to domain operations on <see cref="CustomerAggregate"/></item>
 /// <item>Persists events to SQL Server #2 (Event Store)</item>
 /// </list>
@@ -29,7 +31,7 @@ public sealed class CdcChangeHandler : IDataChangeHandler
 {
 	private readonly IEventSourcedRepository<CustomerAggregate, Guid> _customerRepository;
 	private readonly LegacyCustomerAdapter _adapter;
-	private readonly ICustomerLookupService _lookupService;
+	private readonly IIdentityMapStore _identityMap;
 	private readonly ILogger<CdcChangeHandler> _logger;
 
 	/// <inheritdoc/>
@@ -41,12 +43,12 @@ public sealed class CdcChangeHandler : IDataChangeHandler
 	public CdcChangeHandler(
 		IEventSourcedRepository<CustomerAggregate, Guid> customerRepository,
 		LegacyCustomerAdapter adapter,
-		ICustomerLookupService lookupService,
+		IIdentityMapStore identityMap,
 		ILogger<CdcChangeHandler> logger)
 	{
 		_customerRepository = customerRepository;
 		_adapter = adapter;
-		_lookupService = lookupService;
+		_identityMap = identityMap;
 		_logger = logger;
 	}
 
@@ -89,8 +91,20 @@ public sealed class CdcChangeHandler : IDataChangeHandler
 
 	private async Task HandleInsertAsync(AdaptedCustomerData data, CancellationToken cancellationToken)
 	{
-		// Create new customer aggregate
-		var customerId = Guid.NewGuid();
+		// Idempotent bind: if the external ID was already imported, reuse the existing aggregate ID.
+		var bindResult = await _identityMap.TryBindAsync(
+			"LegacyDB", data.ExternalId, "Customer",
+			Guid.NewGuid().ToString(), cancellationToken).ConfigureAwait(false);
+
+		var customerId = Guid.Parse(bindResult.AggregateId);
+
+		if (!bindResult.WasCreated)
+		{
+			_logger.LogDebug(
+				"Customer {CustomerId} already exists for external ID {ExternalId} -- skipping insert",
+				customerId, data.ExternalId);
+			return;
+		}
 
 		var customer = CustomerAggregate.Create(
 			customerId,
@@ -101,9 +115,6 @@ public sealed class CdcChangeHandler : IDataChangeHandler
 
 		await _customerRepository.SaveAsync(customer, cancellationToken).ConfigureAwait(false);
 
-		// Register the mapping for future lookups
-		_lookupService.RegisterMapping(data.ExternalId, customerId);
-
 		_logger.LogInformation(
 			"Created customer {CustomerId} from legacy customer {ExternalId}",
 			customerId,
@@ -112,8 +123,10 @@ public sealed class CdcChangeHandler : IDataChangeHandler
 
 	private async Task HandleUpdateAsync(AdaptedCustomerData data, CancellationToken cancellationToken)
 	{
-		// Lookup existing customer by external ID
-		var customerId = _lookupService.GetCustomerId(data.ExternalId);
+		// Resolve existing customer by external ID using the identity map
+		var customerId = await _identityMap.ResolveAsync<Guid>(
+			"LegacyDB", data.ExternalId, "Customer", cancellationToken).ConfigureAwait(false);
+
 		if (customerId is null)
 		{
 			_logger.LogWarning(
@@ -149,8 +162,10 @@ public sealed class CdcChangeHandler : IDataChangeHandler
 
 	private async Task HandleDeleteAsync(AdaptedCustomerData data, CancellationToken cancellationToken)
 	{
-		// Lookup existing customer by external ID
-		var customerId = _lookupService.GetCustomerId(data.ExternalId);
+		// Resolve existing customer by external ID using the identity map
+		var customerId = await _identityMap.ResolveAsync<Guid>(
+			"LegacyDB", data.ExternalId, "Customer", cancellationToken).ConfigureAwait(false);
+
 		if (customerId is null)
 		{
 			_logger.LogWarning(
@@ -182,42 +197,5 @@ public sealed class CdcChangeHandler : IDataChangeHandler
 			"Deactivated customer {CustomerId} from legacy delete of {ExternalId}",
 			customerId,
 			data.ExternalId);
-	}
-}
-
-/// <summary>
-/// Service for looking up customer IDs by external legacy IDs.
-/// </summary>
-public interface ICustomerLookupService
-{
-	/// <summary>
-	/// Registers a mapping between external ID and customer ID.
-	/// </summary>
-	void RegisterMapping(string externalId, Guid customerId);
-
-	/// <summary>
-	/// Gets the customer ID for an external ID.
-	/// </summary>
-	Guid? GetCustomerId(string externalId);
-}
-
-/// <summary>
-/// In-memory implementation of <see cref="ICustomerLookupService"/>.
-/// In production, this would be backed by a database table.
-/// </summary>
-public sealed class InMemoryCustomerLookupService : ICustomerLookupService
-{
-	private readonly Dictionary<string, Guid> _mappings = new(StringComparer.OrdinalIgnoreCase);
-
-	/// <inheritdoc/>
-	public void RegisterMapping(string externalId, Guid customerId)
-	{
-		_mappings[externalId] = customerId;
-	}
-
-	/// <inheritdoc/>
-	public Guid? GetCustomerId(string externalId)
-	{
-		return _mappings.TryGetValue(externalId, out var id) ? id : null;
 	}
 }

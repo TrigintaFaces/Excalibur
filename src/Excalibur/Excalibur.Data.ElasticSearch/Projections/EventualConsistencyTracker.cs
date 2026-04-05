@@ -16,7 +16,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// <summary>
 /// Tracks eventual consistency between write and read models using Elasticsearch indices.
 /// </summary>
-public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IDisposable
+public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IEventualConsistencyTrackerAdmin, IDisposable
 {
 	private readonly ElasticsearchClient _client;
 	private readonly ProjectionOptions _settings;
@@ -26,7 +26,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, ID
 	private readonly string _checkpointIndexName;
 	private readonly SemaphoreSlim _initializationLock = new(1, 1);
 	private bool _initialized;
-	private ConsistencyAlertConfiguration? _alertConfiguration;
+	private ConsistencyAlertOptions? _alertConfiguration;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventualConsistencyTracker" /> class.
@@ -427,7 +427,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, ID
 
 	/// <inheritdoc />
 	public Task ConfigureConsistencyAlertsAsync(
-		ConsistencyAlertConfiguration config,
+		ConsistencyAlertOptions config,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(config);

@@ -49,14 +49,10 @@ builder.Services.AddLogging(logging =>
 builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-
-	// Register Protobuf as the pluggable serializer and set it as active.
-	_ = dispatch.WithSerialization(config =>
-	{
-		config.RegisterProtobuf();
-		config.UseProtobuf();
-	});
 });
+
+// Register Protobuf as the pluggable serializer and set it as active.
+builder.Services.AddProtobufSerializer();
 
 // ============================================================
 // Configure outbox/inbox for reliable messaging

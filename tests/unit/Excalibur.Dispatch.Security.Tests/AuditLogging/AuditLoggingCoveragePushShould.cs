@@ -20,8 +20,8 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 /// - AuditLoggingServiceCollectionExtensions uncovered branches
 /// - RbacAuditStore.ApplyRoleFilters fallback path
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 [UnitTest]
 public sealed class AuditLoggingCoveragePushShould
 {

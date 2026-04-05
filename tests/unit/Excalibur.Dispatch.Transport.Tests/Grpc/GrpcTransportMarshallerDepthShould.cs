@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// camelCase JSON naming, empty/minimal objects, null optional fields,
 /// empty collections, and large payloads.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportMarshallerDepthShould
 {
 	[Fact]

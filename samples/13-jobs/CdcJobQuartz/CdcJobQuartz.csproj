@@ -20,6 +20,10 @@
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Domain\Excalibur.Domain.csproj" />
   </ItemGroup>
+  <!-- Identity Map (Anti-Corruption Layer ID resolution) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.IdentityMap\Excalibur.Data.IdentityMap.csproj" />
+  </ItemGroup>
   <!-- CDC from SQL Server (Anti-Corruption Layer) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />

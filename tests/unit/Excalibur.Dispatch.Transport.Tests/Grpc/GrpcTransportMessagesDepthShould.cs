@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Grpc;
 /// internal/sealed type checks, error response fields, batch scenarios,
 /// and acknowledge action patterns.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class GrpcTransportMessagesDepthShould
 {
 	[Fact]

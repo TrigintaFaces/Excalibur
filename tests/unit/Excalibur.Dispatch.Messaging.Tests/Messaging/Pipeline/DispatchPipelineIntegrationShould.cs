@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Pipeline;
 /// <summary>
 /// Integration tests verifying that the canonical dispatch pipeline composes middleware and reaches handler invokers.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class DispatchPipelineIntegrationShould
 {
@@ -112,9 +112,11 @@ public sealed class DispatchPipelineIntegrationShould
 		var actionMessage = new TestAction();
 		var eventMessage = new TestEvent();
 
-		// Act & Assert
-		profile.IsCompatible(actionMessage).ShouldBeTrue("Profile for Actions should be compatible with Action message");
-		profile.IsCompatible(eventMessage).ShouldBeFalse("Profile for Actions should NOT be compatible with Event message");
+		// Act & Assert -- IsCompatible moved to IPipelineProfileMatcher (ISP split)
+		var matcher = profile as IPipelineProfileMatcher;
+		matcher.ShouldNotBeNull("Built profile should implement IPipelineProfileMatcher");
+		matcher.IsCompatible(actionMessage).ShouldBeTrue("Profile for Actions should be compatible with Action message");
+		matcher.IsCompatible(eventMessage).ShouldBeFalse("Profile for Actions should NOT be compatible with Event message");
 	}
 
 	[Fact]
@@ -128,9 +130,11 @@ public sealed class DispatchPipelineIntegrationShould
 		var actionMessage = new TestAction();
 		var eventMessage = new TestEvent();
 
-		// Act & Assert
-		profile.IsCompatible(actionMessage).ShouldBeTrue();
-		profile.IsCompatible(eventMessage).ShouldBeTrue();
+		// Act & Assert -- IsCompatible moved to IPipelineProfileMatcher (ISP split)
+		var matcher = profile as IPipelineProfileMatcher;
+		matcher.ShouldNotBeNull("Built profile should implement IPipelineProfileMatcher");
+		matcher.IsCompatible(actionMessage).ShouldBeTrue();
+		matcher.IsCompatible(eventMessage).ShouldBeTrue();
 	}
 
 	[Fact]

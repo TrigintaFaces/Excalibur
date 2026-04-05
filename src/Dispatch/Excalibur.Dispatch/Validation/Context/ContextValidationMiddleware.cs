@@ -12,6 +12,8 @@ using Excalibur.Dispatch.Options.Validation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+
 namespace Excalibur.Dispatch.Validation.Context;
 
 /// <summary>
@@ -256,7 +258,7 @@ public sealed partial class ContextValidationMiddleware(
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter",
 		Justification =
 			"Validation result parameter reserved for future enrichment of error details with specific validation failure information")]
-	private static Excalibur.Dispatch.Messaging.MessageResult CreateValidationFailureResult(
+	private static IMessageResult CreateValidationFailureResult(
 		ContextValidationResult validationResult,
 		IMessageContext context)
 	{
@@ -268,7 +270,7 @@ public sealed partial class ContextValidationMiddleware(
 			Detail = "An error occurred",
 			Instance = context.CorrelationId ?? Uuid7Extensions.GenerateGuid().ToString(),
 		};
-		return new Excalibur.Dispatch.Messaging.MessageResult(succeeded: false, problemDetails: problemDetails);
+		return MR.Failed(problemDetails);
 	}
 
 	/// <summary>

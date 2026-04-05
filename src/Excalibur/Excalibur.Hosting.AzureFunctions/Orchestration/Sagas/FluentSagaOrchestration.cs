@@ -347,10 +347,8 @@ public sealed partial class FluentSagaOrchestration<TSagaInput, TSagaOutput>
 	/// <param name="state"> The saga state. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	// IDE0060: cancellationToken intentionally unused — compensation runs to completion for data consistency
-#pragma warning disable IDE0060
 
 	private async Task CompensateAsync(SagaState state, CancellationToken cancellationToken)
-#pragma warning restore IDE0060
 	{
 		LogSagaCompensationStarting(SagaName);
 

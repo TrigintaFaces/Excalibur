@@ -2,9 +2,9 @@
 #
 # Validates Dispatch/Excalibur serialization policy compliance (R0.14, R0.5, R21.4)
 #
-# Policy:
-# - Excalibur.Dispatch MUST use MemoryPack for internal wire format
-# - Excalibur.Dispatch MUST NOT use System.Text.Json (reserved for public boundaries)
+# Policy (ADR-295: JSON-First Serialization):
+# - Excalibur.Dispatch uses System.Text.Json as the default serializer (JSON-first)
+# - MemoryPack is opt-in via Excalibur.Dispatch.Serialization.MemoryPack package
 # - Public boundary projects (Hosting.Web, Transport.Http) SHOULD use System.Text.Json with source-gen
 # - No obsolete serializers should remain in the codebase
 
@@ -19,12 +19,12 @@ Write-Host "=== Dispatch Serializer Policy Validation ===" -ForegroundColor Cyan
 Write-Host "Solution Root: $SolutionRoot" -ForegroundColor Gray
 Write-Host ""
 
-# Rule 1: Core runtime MUST use MemoryPack; abstractions remain contract-only
-Write-Host "[Rule 1] Validating core projects use MemoryPack only..." -ForegroundColor Yellow
+# Rule 1: Core uses JSON-first (ADR-295); MemoryPack is opt-in via separate package
+Write-Host "[Rule 1] Validating core projects follow JSON-first policy (ADR-295)..." -ForegroundColor Yellow
 
 $coreProjects = @(
     @{ Name = "Excalibur.Dispatch.Abstractions"; RequiresMemoryPack = $false; Kind = "contract-only abstractions" },
-    @{ Name = "Excalibur.Dispatch"; RequiresMemoryPack = $true; Kind = "core runtime" }
+    @{ Name = "Excalibur.Dispatch"; RequiresMemoryPack = $false; Kind = "core runtime (JSON-first per ADR-295)" }
 )
 
 foreach ($projectRule in $coreProjects) {
@@ -164,8 +164,8 @@ if ($violations.Count -eq 0) {
     Write-Host "✅ Serializer policy validation PASSED" -ForegroundColor Green
     Write-Host ""
     Write-Host "Summary:" -ForegroundColor White
-    Write-Host "  - Core projects use MemoryPack for internal wire format" -ForegroundColor Gray
-    Write-Host "  - Public projects use System.Text.Json for external boundaries" -ForegroundColor Gray
+    Write-Host "  - Core projects use System.Text.Json as default (ADR-295, JSON-first)" -ForegroundColor Gray
+    Write-Host "  - MemoryPack available as opt-in via Excalibur.Dispatch.Serialization.MemoryPack" -ForegroundColor Gray
     Write-Host "  - No obsolete serializers detected" -ForegroundColor Gray
     Write-Host "  - Protobuf isolated to transport packages and opt-in Excalibur.Dispatch.Serialization.Protobuf package" -ForegroundColor Gray
     Write-Host "  - MessagePack isolated to opt-in Excalibur.Dispatch.Serialization.MessagePack package" -ForegroundColor Gray
@@ -179,12 +179,12 @@ if ($violations.Count -eq 0) {
     }
     Write-Host ""
     Write-Host "Remediation guidance:" -ForegroundColor White
-    Write-Host "  - Remove System.Text.Json from Excalibur.Dispatch (use MemoryPack)" -ForegroundColor Gray
-    Write-Host "  - Move JSON serializers to Excalibur.Dispatch.Patterns.Hosting.Json" -ForegroundColor Gray
+    Write-Host "  - Excalibur.Dispatch uses System.Text.Json as default (ADR-295)" -ForegroundColor Gray
+    Write-Host "  - MemoryPack is opt-in via Excalibur.Dispatch.Serialization.MemoryPack" -ForegroundColor Gray
     Write-Host "  - Delete obsolete [Obsolete] serializer implementations" -ForegroundColor Gray
     Write-Host "  - Isolate Protobuf to Excalibur.Dispatch.Transport.* packages only" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "See: management/reports/2025-10-12_stj-to-memorypack-migration-guide_v1.0.0.md" -ForegroundColor Cyan
+    Write-Host "See: management/architecture/adr-295-json-first-serialization.md" -ForegroundColor Cyan
     Write-Host ""
     exit 1
 }

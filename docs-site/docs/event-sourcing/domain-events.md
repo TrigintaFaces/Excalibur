@@ -277,25 +277,25 @@ var @event = new OrderCreated
 
 ### Default Serialization
 
-Events are serialized using the configured serializer. Register serialization via DI:
+Events are serialized using the configured serializer. JSON (System.Text.Json) is the default and works with any POCO event type -- no attributes needed.
 
 ```csharp
 // Register event sourcing
 services.AddExcaliburEventSourcing();
 
 // Default: JSON (System.Text.Json) -- works with any POCO event type.
-// For binary serialization, install the provider package:
+// For binary serialization, install the provider package and call a single method:
 
-// MemoryPack for maximum .NET performance (requires [MemoryPackable])
-services.AddDispatch(dispatch => dispatch.WithSerialization(config =>
-{
-    config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
-    config.UseMemoryPack();
-}));
+// MemoryPack for maximum .NET performance
+services.AddMemoryPackSerializer();
 
 // Or MessagePack for cross-language support
-services.AddMessagePackSerialization();
+services.AddMessagePackSerializer();
 ```
+
+:::info No serializer-specific attributes needed
+Consumer event types do **not** need `[MemoryPackable]`, `[MessagePackObject]`, or any other serializer-specific attributes. Only the internal envelope wrapper uses these attributes. Your domain events remain plain POCOs regardless of which serializer you choose.
+:::
 
 ### Custom Type Names
 

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Channels;
 /// Sprint 414 - Task T414.7: DispatchChannel tests (0% → 60%+).
 /// Tests high-performance channel implementation with custom wait strategies.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Channels")]
 public sealed class DispatchChannelShould : IDisposable
 {

@@ -5,8 +5,8 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs;
 /// <summary>
 /// Unit tests for AwsSqsOptions configuration.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class AwsSqsOptionsShould : UnitTestBase
 {
 	[Fact]

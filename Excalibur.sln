@@ -53,6 +53,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.ElasticSearc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.InMemory", "src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj", "{E1234567-1234-1234-1234-123456789AB8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.IdentityMap", "src\Excalibur\Excalibur.Data.IdentityMap\Excalibur.Data.IdentityMap.csproj", "{8E7F5ABF-75DB-4605-9CD5-65A6CD782298}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.IdentityMap.SqlServer", "src\Excalibur\Excalibur.Data.IdentityMap.SqlServer\Excalibur.Data.IdentityMap.SqlServer.csproj", "{5228E2D0-8199-480F-9CB6-D1132C8D6C51}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.MongoDB", "src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj", "{E1234567-1234-1234-1234-123456789AB9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.Redis", "src\Excalibur\Excalibur.Data.Redis\Excalibur.Data.Redis.csproj", "{E1234567-1234-1234-1234-123456789ABA}"
@@ -76,8 +80,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Tests", "tests\unit\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj", "{92DAE2BD-E888-34A6-C2F3-DD41323E353B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.A3.Abstractions", "src\Excalibur\Excalibur.A3.Abstractions\Excalibur.A3.Abstractions.csproj", "{5C59F107-2215-42E1-AF57-EF66B49F6C45}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArchitectureTests", "tests\ArchitectureTests\ArchitectureTests.csproj", "{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Patterns.Hosting.Json", "src\Dispatch\Excalibur.Dispatch.Patterns.Hosting.Json\Excalibur.Dispatch.Patterns.Hosting.Json.csproj", "{56D79D36-A85A-D00F-7FAE-BE14EE2353DD}"
 EndProject
@@ -476,6 +478,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.Firestore.Tests", "tests\unit\Excalibur.Data.Firestore.Tests\Excalibur.Data.Firestore.Tests.csproj", "{9FEC7B90-510F-4F62-B483-B45D62BB6F52}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.InMemory.Tests", "tests\unit\Excalibur.Data.InMemory.Tests\Excalibur.Data.InMemory.Tests.csproj", "{7704362B-4AC9-4E45-8180-7B41284DF134}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.IdentityMap.Tests", "tests\unit\Excalibur.Data.IdentityMap.Tests\Excalibur.Data.IdentityMap.Tests.csproj", "{F7B55B48-B4AD-447D-81CB-9F48B2868803}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Data.DataProcessing.Tests", "tests\unit\Excalibur.Data.DataProcessing.Tests\Excalibur.Data.DataProcessing.Tests.csproj", "{C26822DE-94CF-432C-AF9B-E0C81D3200C8}"
 EndProject
@@ -1107,18 +1111,6 @@ Global
 		{5C59F107-2215-42E1-AF57-EF66B49F6C45}.Release|x64.Build.0 = Release|Any CPU
 		{5C59F107-2215-42E1-AF57-EF66B49F6C45}.Release|x86.ActiveCfg = Release|Any CPU
 		{5C59F107-2215-42E1-AF57-EF66B49F6C45}.Release|x86.Build.0 = Release|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Debug|x64.Build.0 = Debug|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Debug|x86.Build.0 = Debug|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Release|Any CPU.Build.0 = Release|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Release|x64.ActiveCfg = Release|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Release|x64.Build.0 = Release|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Release|x86.ActiveCfg = Release|Any CPU
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED}.Release|x86.Build.0 = Release|Any CPU
 		{56D79D36-A85A-D00F-7FAE-BE14EE2353DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{56D79D36-A85A-D00F-7FAE-BE14EE2353DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{56D79D36-A85A-D00F-7FAE-BE14EE2353DD}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -4531,7 +4523,6 @@ Global
 		{E1234567-1234-1234-1234-123456789AC3} = {F1234567-1234-1234-1234-123456789ABE}
 		{92DAE2BD-E888-34A6-C2F3-DD41323E353B} = {4BC11F25-9BFB-0BEC-F169-3EA8FA1261AB}
 		{5C59F107-2215-42E1-AF57-EF66B49F6C45} = {F1234567-1234-1234-1234-123456789ABE}
-		{CDB2D809-C3A7-41DB-8D40-0C1074BF6AED} = {4BC11F25-9BFB-0BEC-F169-3EA8FA1261AB}
 		{56D79D36-A85A-D00F-7FAE-BE14EE2353DD} = {F1234567-1234-1234-1234-123456789ABD}
 		{F64814C4-7A20-1893-2599-03F92D02AFC2} = {F1234567-1234-1234-1234-123456789ABD}
 		{978664DC-F076-F325-4629-60177F3F26C2} = {F1234567-1234-1234-1234-123456789ABD}

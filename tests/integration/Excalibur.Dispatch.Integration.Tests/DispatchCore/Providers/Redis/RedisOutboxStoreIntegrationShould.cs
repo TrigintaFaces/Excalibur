@@ -33,10 +33,10 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Redis;
 /// </remarks>
 [IntegrationTest]
 [Collection(ContainerCollections.Redis)]
-[Trait("Component", "Outbox")]
+[Trait(TraitNames.Component, TestComponents.Outbox)]
 [Trait("Database", "Redis")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 {
 	private readonly RedisContainerFixture _redisFixture;

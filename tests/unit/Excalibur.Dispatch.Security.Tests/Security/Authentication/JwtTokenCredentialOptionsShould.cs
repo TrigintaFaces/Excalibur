@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Authentication;
 /// <summary>
 /// Unit tests for <see cref="JwtTokenCredentialOptions"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 [Trait("Feature", "Authentication")]
 public sealed class JwtTokenCredentialOptionsShould
 {

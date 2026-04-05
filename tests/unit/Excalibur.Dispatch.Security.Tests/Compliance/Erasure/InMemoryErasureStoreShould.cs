@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 /// Unit tests for <see cref="InMemoryErasureStore"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class InMemoryErasureStoreShould
 {
 	private readonly InMemoryErasureStore _sut = new();

@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Routing;
 /// <summary>
 /// Unit tests for <see cref="RouteMetadataAttribute"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Routing")]
 [Trait("Priority", "0")]
 public sealed class RouteMetadataAttributeShould

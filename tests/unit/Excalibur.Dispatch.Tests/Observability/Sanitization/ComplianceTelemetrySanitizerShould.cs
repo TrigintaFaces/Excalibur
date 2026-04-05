@@ -18,9 +18,9 @@ namespace Excalibur.Dispatch.Tests.Observability.Sanitization;
 /// <summary>
 /// Unit tests for <see cref="ComplianceTelemetrySanitizer"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Observability")]
-[Trait("Feature", "Sanitization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Observability)]
+[Trait(TraitNames.Feature, TestFeatures.Sanitization)]
 public sealed class ComplianceTelemetrySanitizerShould
 {
 	private static ComplianceTelemetrySanitizer CreateSanitizer(

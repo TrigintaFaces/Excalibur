@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStoreAdmin
+internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch
 {
 	private readonly IOutboxStore _inner;
 	private readonly IOutboxStoreAdmin? _innerAdmin;
@@ -153,9 +153,44 @@ internal sealed class EncryptingOutboxStoreDecorator : IOutboxStore, IOutboxStor
 	}
 
 	/// <inheritdoc />
+	public async ValueTask MarkBatchSentAsync(IReadOnlyList<string> messageIds, CancellationToken cancellationToken)
+	{
+		if (_inner is IOutboxStoreBatch batch)
+		{
+			await batch.MarkBatchSentAsync(messageIds, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
+		foreach (var id in messageIds)
+		{
+			await _inner.MarkSentAsync(id, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <inheritdoc />
+	public async ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, int retryCount, CancellationToken cancellationToken)
+	{
+		if (_inner is IOutboxStoreBatch batch)
+		{
+			await batch.MarkBatchFailedAsync(messageIds, reason, retryCount, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
+		foreach (var id in messageIds)
+		{
+			await _inner.MarkFailedAsync(id, reason, retryCount, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <inheritdoc />
 	public ValueTask<bool> TryMarkSentAndReceivedAsync(string messageId, InboxEntry inboxEntry, CancellationToken cancellationToken)
 	{
-		return _inner.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken);
+		if (_inner is IOutboxStoreBatch batch)
+		{
+			return batch.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken);
+		}
+
+		return ValueTask.FromResult(false);
 	}
 
 	private static byte[] SerializeEncryptedData(EncryptedData encryptedData)

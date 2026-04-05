@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.Encryption;
 /// when services are wired up through dependency injection with realistic scenarios.
 /// </remarks>
 [Trait("Category", TestCategories.Integration)]
-[Trait("Component", "Compliance")]
+[Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class EncryptionEstimationIntegrationShould : IDisposable
 {
 	private readonly ServiceProvider _serviceProvider;

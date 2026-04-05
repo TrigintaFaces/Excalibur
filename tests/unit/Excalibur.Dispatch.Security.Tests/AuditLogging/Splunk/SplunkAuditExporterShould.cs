@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Splunk;
 /// Unit tests for <see cref="SplunkAuditExporter"/>.
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SplunkAuditExporterShould : IDisposable
 {
 	private readonly MockHttpMessageHandler _mockHandler;

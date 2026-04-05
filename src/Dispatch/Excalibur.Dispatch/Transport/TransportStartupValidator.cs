@@ -3,8 +3,6 @@
 
 using System.Globalization;
 
-using Excalibur.Dispatch.Abstractions.Configuration;
-
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -20,19 +18,17 @@ namespace Excalibur.Dispatch.Transport;
 /// <list type="bullet">
 /// <item><description>At least one transport is registered (if validation is enabled)</description></item>
 /// <item><description>A default transport is configured when multiple transports are registered</description></item>
-/// <item><description>Custom validators pass for each transport (if registered)</description></item>
 /// </list>
 /// <para>
 /// Validation can be configured via <see cref="TransportValidationOptions"/>.
-/// Custom validators implementing <see cref="ITransportOptionsValidator"/> can be registered
-/// to provide transport-specific validation logic.
+/// Transport-specific options validation should use <c>IValidateOptions&lt;T&gt;</c>
+/// with <c>ValidateOnStart</c> instead of custom validator interfaces.
 /// </para>
 /// </remarks>
 internal sealed partial class TransportStartupValidator : IHostedService
 {
 	private readonly ITransportRegistry _transportRegistry;
 	private readonly TransportValidationOptions _options;
-	private readonly ITransportOptionsValidator[] _validators;
 	private readonly ILogger<TransportStartupValidator> _logger;
 
 	/// <summary>
@@ -40,27 +36,24 @@ internal sealed partial class TransportStartupValidator : IHostedService
 	/// </summary>
 	/// <param name="transportRegistry">The transport registry to validate.</param>
 	/// <param name="options">The validation options.</param>
-	/// <param name="validators">Optional custom validators for transport options.</param>
 	/// <param name="logger">The logger.</param>
 	internal TransportStartupValidator(
 		ITransportRegistry transportRegistry,
 		TransportValidationOptions options,
-		IEnumerable<ITransportOptionsValidator> validators,
 		ILogger<TransportStartupValidator> logger)
 	{
 		_transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
-		_validators = MaterializeValidators(validators ?? []);
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
 	/// <inheritdoc/>
-	public async Task StartAsync(CancellationToken cancellationToken)
+	public Task StartAsync(CancellationToken cancellationToken)
 	{
 		if (!_options.ValidateOnStartup)
 		{
 			LogStartupValidationDisabled();
-			return;
+			return Task.CompletedTask;
 		}
 
 		var transportNames = MaterializeTransportNames(_transportRegistry.GetTransportNames());
@@ -75,9 +68,8 @@ internal sealed partial class TransportStartupValidator : IHostedService
 		}
 
 		// Validate default transport when multiple transports are registered.
-		// HasDefaultTransport/DefaultTransportName are admin properties on the concrete registry.
-		var hasDefault = _transportRegistry is TransportRegistry concreteForDefault && concreteForDefault.HasDefaultTransport;
-		var defaultName = (_transportRegistry as TransportRegistry)?.DefaultTransportName;
+		var hasDefault = _transportRegistry.HasDefaultTransport;
+		var defaultName = _transportRegistry.DefaultTransportName;
 
 		if (_options.RequireDefaultTransportWhenMultiple &&
 			transportCount > 1 &&
@@ -96,76 +88,12 @@ internal sealed partial class TransportStartupValidator : IHostedService
 			LogDefaultTransportConfigured(defaultName);
 		}
 
-		// Run custom validators for each transport.
-		await RunCustomValidatorsAsync(cancellationToken).ConfigureAwait(false);
-
 		LogValidationPassed();
+		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc/>
 	public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-	private async Task RunCustomValidatorsAsync(CancellationToken cancellationToken)
-	{
-		var allErrors = new List<string>();
-		var validatorCount = _validators.Length;
-		if (validatorCount == 0)
-		{
-			return;
-		}
-
-		// Use concrete registry for full registration details (Options, TransportType) when available.
-		var concreteRegistry = _transportRegistry as TransportRegistry;
-		var transportNames = _transportRegistry.GetTransportNames();
-
-		foreach (var transportName in transportNames)
-		{
-			var adapter = _transportRegistry.GetTransportAdapter(transportName);
-			if (adapter is null)
-			{
-				continue;
-			}
-
-			// Get transport options from concrete registry if available, empty dict otherwise.
-			var options = concreteRegistry?.GetTransportRegistration(transportName)?.Options
-						  ?? new Dictionary<string, object>();
-			var transportType = adapter.TransportType;
-
-			for (var i = 0; i < validatorCount; i++)
-			{
-				var validator = _validators[i];
-				if (!string.Equals(validator.TransportName, transportName, StringComparison.OrdinalIgnoreCase) &&
-				    !string.Equals(validator.TransportName, transportType, StringComparison.OrdinalIgnoreCase))
-				{
-					continue;
-				}
-
-				LogRunningValidator(transportName);
-
-				var result = await validator.ValidateAsync(options, cancellationToken)
-					.ConfigureAwait(false);
-
-				if (!result.IsValid)
-				{
-					LogValidatorFailed(transportName, string.Join("; ", result.Errors));
-					for (var errorIndex = 0; errorIndex < result.Errors.Count; errorIndex++)
-					{
-						allErrors.Add($"[{transportName}] {result.Errors[errorIndex]}");
-					}
-				}
-			}
-		}
-
-		if (allErrors.Count > 0)
-		{
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.CurrentCulture,
-					Resources.TransportStartupValidator_ValidationErrorsFormat,
-					allErrors.Count,
-					$"{Environment.NewLine}{string.Join(Environment.NewLine, allErrors)}"));
-		}
-	}
 
 	private static string[] MaterializeTransportNames(IEnumerable<string> transportNames)
 	{
@@ -195,35 +123,6 @@ internal sealed partial class TransportStartupValidator : IHostedService
 		return bufferedNames.ToArray();
 	}
 
-	private static ITransportOptionsValidator[] MaterializeValidators(
-		IEnumerable<ITransportOptionsValidator> validators)
-	{
-		if (validators is ITransportOptionsValidator[] validatorArray)
-		{
-			return validatorArray;
-		}
-
-		if (validators is ICollection<ITransportOptionsValidator> validatorCollection)
-		{
-			if (validatorCollection.Count == 0)
-			{
-				return [];
-			}
-
-			var validatorsCopy = new ITransportOptionsValidator[validatorCollection.Count];
-			validatorCollection.CopyTo(validatorsCopy, 0);
-			return validatorsCopy;
-		}
-
-		var bufferedValidators = new List<ITransportOptionsValidator>();
-		foreach (var validator in validators)
-		{
-			bufferedValidators.Add(validator);
-		}
-
-		return bufferedValidators.ToArray();
-	}
-
 	#region LoggerMessage Definitions
 
 	[LoggerMessage(LogLevel.Debug, "Transport startup validation is disabled")]
@@ -239,12 +138,6 @@ internal sealed partial class TransportStartupValidator : IHostedService
 
 	[LoggerMessage(LogLevel.Information, "Transport configuration validation passed")]
 	private partial void LogValidationPassed();
-
-	[LoggerMessage(LogLevel.Debug, "Running validator for transport '{TransportName}'")]
-	private partial void LogRunningValidator(string transportName);
-
-	[LoggerMessage(LogLevel.Warning, "Validation failed for transport '{TransportName}': {Errors}")]
-	private partial void LogValidatorFailed(string transportName, string errors);
 
 	#endregion LoggerMessage Definitions
 }

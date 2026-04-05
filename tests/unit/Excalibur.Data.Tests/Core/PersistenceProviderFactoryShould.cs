@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Data.Tests.Core;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PersistenceProviderFactoryShould : IAsyncDisposable
 {
 	private readonly PersistenceConfiguration _config;
@@ -89,7 +89,7 @@ public sealed class PersistenceProviderFactoryShould : IAsyncDisposable
 	[Fact]
 	public void GetProviderNames_ReturnsConfiguredProviders()
 	{
-		_config.Providers["test"] = new ProviderConfiguration
+		_config.Providers["test"] = new PersistenceProviderOptions
 		{
 			Name = "test",
 			Type = PersistenceProviderType.InMemory,

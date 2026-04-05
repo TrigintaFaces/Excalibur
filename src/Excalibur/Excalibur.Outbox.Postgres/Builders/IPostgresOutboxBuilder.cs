@@ -105,49 +105,4 @@ public interface IPostgresOutboxBuilder
 	/// </remarks>
 	IPostgresOutboxBuilder DeadLetterTableName(string tableName);
 
-	/// <summary>
-	/// Sets the command timeout for Postgres operations.
-	/// </summary>
-	/// <param name="timeout">The command timeout. Must be positive.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="timeout"/> is not positive.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 30 seconds. Increase for high-volume scenarios or slow networks.
-	/// </para>
-	/// </remarks>
-	IPostgresOutboxBuilder CommandTimeout(TimeSpan timeout);
-
-	/// <summary>
-	/// Sets the reservation timeout for message processing.
-	/// </summary>
-	/// <param name="timeout">The reservation timeout. Must be positive.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="timeout"/> is not positive.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 5 minutes. Messages reserved for processing will be released
-	/// after this timeout if not completed.
-	/// </para>
-	/// </remarks>
-	IPostgresOutboxBuilder ReservationTimeout(TimeSpan timeout);
-
-	/// <summary>
-	/// Sets the maximum number of delivery attempts before moving to dead letter.
-	/// </summary>
-	/// <param name="maxAttempts">The maximum attempts. Must be greater than 0.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="maxAttempts"/> is less than or equal to 0.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Default is 5 attempts.
-	/// </para>
-	/// </remarks>
-	IPostgresOutboxBuilder MaxAttempts(int maxAttempts);
 }

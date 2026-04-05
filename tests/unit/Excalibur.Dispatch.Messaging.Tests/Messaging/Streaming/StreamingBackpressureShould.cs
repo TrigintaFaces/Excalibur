@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Streaming;
 /// Tests for backpressure behavior in streaming handlers.
 /// Verifies that slow consumers naturally throttle fast producers.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class StreamingBackpressureShould
 {
 	[Fact]

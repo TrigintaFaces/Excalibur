@@ -1,12 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.BatchForwarded = 93441 -> int
-const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.EventForwarded = 93440 -> int
-const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedBatchChunk = 93450 -> int
-const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedHttpError = 93448 -> int
-const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedStatus = 93445 -> int
-const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedTimeout = 93449 -> int
-const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardRetried = 93446 -> int
-const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.HealthCheckFailed = 93447 -> int
 Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditExporter
 Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExporterHealthResult!>!
 Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditExporter.ExportAsync(Excalibur.Dispatch.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExportResult!>!
@@ -35,5 +27,13 @@ Excalibur.Dispatch.AuditLogging.Sentinel.SentinelExporterOptions.Timeout.set -> 
 Excalibur.Dispatch.AuditLogging.Sentinel.SentinelExporterOptions.WorkspaceId.get -> string!
 Excalibur.Dispatch.AuditLogging.Sentinel.SentinelExporterOptions.WorkspaceId.set -> void
 Microsoft.Extensions.DependencyInjection.SentinelServiceCollectionExtensions
+const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.BatchForwarded = 93441 -> int
+const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.EventForwarded = 93440 -> int
+const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedBatchChunk = 93450 -> int
+const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedHttpError = 93448 -> int
+const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedStatus = 93445 -> int
+const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedTimeout = 93449 -> int
+const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardRetried = 93446 -> int
+const Excalibur.Dispatch.AuditLogging.Sentinel.SentinelAuditLoggingEventId.HealthCheckFailed = 93447 -> int
 static Microsoft.Extensions.DependencyInjection.SentinelServiceCollectionExtensions.AddSentinelAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SentinelServiceCollectionExtensions.AddSentinelAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Sentinel.SentinelExporterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

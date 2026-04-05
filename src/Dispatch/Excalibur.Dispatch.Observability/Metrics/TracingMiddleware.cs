@@ -50,12 +50,6 @@ internal sealed class TracingMiddleware(IOptions<ObservabilityOptions> observabi
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(nextDelegate);
 
-		// When EnableDetailedTiming is false, skip creating per-middleware Activity spans
-		if (!_observabilityOptions.EnableDetailedTiming)
-		{
-			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
-		}
-
 		var messageType = message.GetType();
 		using var activity = DispatchActivitySource.Instance.StartActivity(
 			$"dispatch.{messageType.Name}",

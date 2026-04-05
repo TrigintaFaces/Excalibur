@@ -33,8 +33,8 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [Collection(ContainerCollections.Postgres)]
 [Trait("Component", "TransactionalCompletion")]
 [Trait("Database", "Postgres")]
-[Trait("Category", "Integration")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresTransactionalCompletionIntegrationShould : IntegrationTestBase
 {
 	private readonly PostgresFixture _pgFixture;

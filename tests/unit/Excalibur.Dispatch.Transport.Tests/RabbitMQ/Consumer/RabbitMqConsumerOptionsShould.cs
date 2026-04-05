@@ -7,8 +7,8 @@ using RabbitMqRetryPolicy = Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRetryO
 
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Consumer;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class RabbitMqConsumerOptionsShould
 {
 	[Fact]

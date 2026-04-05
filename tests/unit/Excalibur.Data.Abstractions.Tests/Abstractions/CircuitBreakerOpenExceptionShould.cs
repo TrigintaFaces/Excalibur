@@ -3,7 +3,7 @@ using Excalibur.Dispatch.Resilience;
 namespace Excalibur.Data.Tests.Abstractions;
 
 [Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CircuitBreakerOpenExceptionShould
 {
     [Fact]

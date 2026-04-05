@@ -1,25 +1,4 @@
 #nullable enable
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverAcknowledgeFailed = 25023 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverDisposed = 25026 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessageAcknowledged = 25022 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessageRejected = 25024 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessagesReceived = 25020 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverReceiveFailed = 25021 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverRejectFailed = 25025 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderBatchSendFailed = 25003 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderBatchSent = 25002 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderDisposed = 25004 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderMessageSent = 25000 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderSendFailed = 25001 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberDisposed = 25047 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberError = 25045 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageAcknowledged = 25042 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageReceived = 25041 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageRejected = 25043 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageRequeued = 25044 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStarted = 25040 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStopped = 25046 -> int
-const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStreamEnded = 25048 -> int
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.DeadlineSeconds.get -> int
@@ -42,7 +21,28 @@ Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.ServerAddress.set -> void
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.SubscribeMethodPath.get -> string!
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.SubscribeMethodPath.set -> void
 Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions.AddGrpcTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions.AddGrpcTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverAcknowledgeFailed = 25023 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverDisposed = 25026 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessageAcknowledged = 25022 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessageRejected = 25024 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessagesReceived = 25020 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverReceiveFailed = 25021 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverRejectFailed = 25025 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderBatchSendFailed = 25003 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderBatchSent = 25002 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderDisposed = 25004 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderMessageSent = 25000 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderSendFailed = 25001 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberDisposed = 25047 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberError = 25045 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageAcknowledged = 25042 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageReceived = 25041 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageRejected = 25043 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageRequeued = 25044 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStarted = 25040 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStopped = 25046 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStreamEnded = 25048 -> int
 static Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions.AddGrpcTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions.AddGrpcTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions.AddGrpcTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GrpcTransportServiceCollectionExtensions.AddGrpcTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

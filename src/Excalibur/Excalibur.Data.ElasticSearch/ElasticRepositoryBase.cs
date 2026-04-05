@@ -18,7 +18,7 @@ namespace Excalibur.Data.ElasticSearch;
 /// This class includes operations for adding, updating, retrieving, deleting, and searching documents, as well as initializing indices
 /// in Elasticsearch.
 /// </remarks>
-public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex, IElasticRepositoryBase<TDocument>
+public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex, IElasticRepositoryBase<TDocument>, IElasticRepositoryBaseQuery<TDocument>
 	where TDocument : class
 {
 	private readonly ElasticsearchClient _client;

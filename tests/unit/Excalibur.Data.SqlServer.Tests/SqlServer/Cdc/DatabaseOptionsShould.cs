@@ -5,8 +5,8 @@ using Excalibur.Cdc.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DatabaseConfigShould
 {
 	private static readonly string[] ExpectedCaptureInstances = ["dbo_Orders", "dbo_Products"];
@@ -36,7 +36,7 @@ public sealed class DatabaseConfigShould
 			StateConnectionIdentifier = "state-conn"
 		};
 
-		config.StopOnMissingTableHandler.ShouldBe(DatabaseConfigDefaults.CdcDefaultStopOnMissingTableHandler);
+		config.StopOnMissingTableHandler.ShouldBe(DatabaseOptionsDefaults.CdcDefaultStopOnMissingTableHandler);
 	}
 
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class DatabaseConfigShould
 			StateConnectionIdentifier = "state-conn"
 		};
 
-		config.BatchTimeInterval.ShouldBe(DatabaseConfigDefaults.CdcDefaultBatchTimeInterval);
+		config.BatchTimeInterval.ShouldBe(DatabaseOptionsDefaults.CdcDefaultBatchTimeInterval);
 	}
 
 	[Fact]
@@ -75,7 +75,7 @@ public sealed class DatabaseConfigShould
 			StateConnectionIdentifier = "state-conn"
 		};
 
-		config.QueueSize.ShouldBe(DatabaseConfigDefaults.CdcDefaultQueueSize);
+		config.QueueSize.ShouldBe(DatabaseOptionsDefaults.CdcDefaultQueueSize);
 	}
 
 	[Fact]
@@ -88,7 +88,7 @@ public sealed class DatabaseConfigShould
 			StateConnectionIdentifier = "state-conn"
 		};
 
-		config.ProducerBatchSize.ShouldBe(DatabaseConfigDefaults.CdcDefaultProducerBatchSize);
+		config.ProducerBatchSize.ShouldBe(DatabaseOptionsDefaults.CdcDefaultProducerBatchSize);
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class DatabaseConfigShould
 			StateConnectionIdentifier = "state-conn"
 		};
 
-		config.ConsumerBatchSize.ShouldBe(DatabaseConfigDefaults.CdcDefaultConsumerBatchSize);
+		config.ConsumerBatchSize.ShouldBe(DatabaseOptionsDefaults.CdcDefaultConsumerBatchSize);
 	}
 
 	[Fact]

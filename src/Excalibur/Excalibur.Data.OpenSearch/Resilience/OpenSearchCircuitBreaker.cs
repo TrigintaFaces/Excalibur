@@ -10,7 +10,7 @@ namespace Excalibur.Data.OpenSearch.Resilience;
 /// <summary>
 /// Implements a circuit breaker pattern for OpenSearch operations to prevent cascading failures.
 /// </summary>
-public sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
+internal sealed class OpenSearchCircuitBreaker : IOpenSearchCircuitBreaker
 {
 	private readonly CircuitBreakerOptions _settings;
 	private readonly ILogger<OpenSearchCircuitBreaker> _logger;

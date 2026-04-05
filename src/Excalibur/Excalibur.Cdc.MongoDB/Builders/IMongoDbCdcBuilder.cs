@@ -44,35 +44,6 @@ public interface IMongoDbCdcBuilder
 	IMongoDbCdcBuilder ProcessorId(string processorId);
 
 	/// <summary>
-	/// Sets the number of changes to process in a single batch.
-	/// </summary>
-	/// <param name="batchSize">The batch size.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IMongoDbCdcBuilder BatchSize(int batchSize);
-
-	/// <summary>
-	/// Sets the interval between reconnection attempts after a failure.
-	/// </summary>
-	/// <param name="interval">The reconnect interval.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	IMongoDbCdcBuilder ReconnectInterval(TimeSpan interval);
-
-	/// <summary>
-	/// Configures a separate connection for CDC state persistence.
-	/// </summary>
-	/// <param name="configure">An action to configure state store settings including connection, database, and collection.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// When omitted, the source connection is used for state persistence (backward compatible).
-	/// </para>
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="configure"/> is null.
-	/// </exception>
-	IMongoDbCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure);
-
-	/// <summary>
 	/// Binds MongoDB CDC source options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.
 	/// </summary>
 	/// <param name="sectionPath">The configuration section path (e.g., "Cdc:MongoDB").</param>

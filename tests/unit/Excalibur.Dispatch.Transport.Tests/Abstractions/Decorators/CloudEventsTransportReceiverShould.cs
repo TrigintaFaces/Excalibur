@@ -13,8 +13,8 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Decorators;
 /// Tests for <see cref="CloudEventsTransportReceiver"/>.
 /// Verifies CloudEvent detection, unwrapping, and pass-through behavior.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class CloudEventsTransportReceiverShould
 {
 	private readonly ITransportReceiver _innerReceiver = A.Fake<ITransportReceiver>();

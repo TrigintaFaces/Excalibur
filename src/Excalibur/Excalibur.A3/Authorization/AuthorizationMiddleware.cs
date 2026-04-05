@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 
+using MR = Excalibur.Dispatch.Abstractions.MessageResult;
+
 namespace Excalibur.A3.Authorization;
 
 /// <summary>
@@ -132,8 +134,8 @@ internal sealed class AuthorizationMiddleware(
 
 		if (!result.IsAuthorized)
 		{
-			return Dispatch.Messaging.MessageResult.Failed(
-				problemDetails: new MessageProblemDetails
+			return MR.Failed(
+				new MessageProblemDetails
 				{
 					Type = "about:blank",
 					Title = "Authorization Failed",
@@ -142,9 +144,8 @@ internal sealed class AuthorizationMiddleware(
 					Detail = result.FailureMessage ?? "Authorization failed",
 					Instance = string.Empty,
 				},
-				routingDecision: Dispatch.Abstractions.Routing.RoutingDecision.Local,
-				validationResult: Dispatch.Abstractions.Serialization.SerializableValidationResult.Success(),
-				authorizationResult: Dispatch.Abstractions.AuthorizationResult.Failed(
+				Dispatch.Abstractions.Serialization.SerializableValidationResult.Success(),
+				Dispatch.Abstractions.AuthorizationResult.Failed(
 					result.FailureMessage ?? "Authorization failed"));
 		}
 
@@ -245,8 +246,8 @@ internal sealed class AuthorizationMiddleware(
 
 	private static IMessageResult CreateDeniedResult(string reason)
 	{
-		return Dispatch.Messaging.MessageResult.Failed(
-			problemDetails: new MessageProblemDetails
+		return MR.Failed(
+			new MessageProblemDetails
 			{
 				Type = "about:blank",
 				Title = "Condition Not Met",
@@ -255,9 +256,8 @@ internal sealed class AuthorizationMiddleware(
 				Detail = reason,
 				Instance = string.Empty,
 			},
-			routingDecision: Dispatch.Abstractions.Routing.RoutingDecision.Local,
-			validationResult: Dispatch.Abstractions.Serialization.SerializableValidationResult.Success(),
-			authorizationResult: Dispatch.Abstractions.AuthorizationResult.Failed(reason));
+			Dispatch.Abstractions.Serialization.SerializableValidationResult.Success(),
+			Dispatch.Abstractions.AuthorizationResult.Failed(reason));
 	}
 
 	private static ClaimsPrincipal BuildPrincipal(IAccessToken accessToken)

@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// <summary>
 /// Tests for the <see cref="UnifiedBatchingMiddleware" /> class.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 {

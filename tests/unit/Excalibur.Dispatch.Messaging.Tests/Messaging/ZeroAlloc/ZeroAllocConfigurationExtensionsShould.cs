@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ZeroAlloc;
 /// Unit tests for <see cref="ZeroAllocConfigurationExtensions"/>.
 /// Sprint 449 - S449.5: Unit tests for performance optimizations (S449.3 pool integration).
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 public sealed class ZeroAllocConfigurationExtensionsShould : IDisposable
 {

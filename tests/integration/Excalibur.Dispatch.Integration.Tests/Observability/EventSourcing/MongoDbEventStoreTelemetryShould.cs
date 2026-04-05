@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// when executing actual database operations against a MongoDB container.
 /// </summary>
 [Collection("EventStore Telemetry Tests")]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
 public sealed class MongoDbEventStoreTelemetryShould : IClassFixture<MongoDbEventStoreTelemetryTestFixture>, IAsyncLifetime
 {

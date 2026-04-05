@@ -1,12 +1,10 @@
 #nullable enable
 Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder
-Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.CommandTimeout(System.TimeSpan timeout) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
+Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
 Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.DeadLetterTableName(string! tableName) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
-Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.DefaultBatchSize(int size) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
 Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.SchemaName(string! schema) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
 Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.TableName(string! tableName) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
 Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.TransportsTableName(string! tableName) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
-Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.UseRowLocking(bool enable = true) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
 Excalibur.Outbox.SqlServer.OutboxBuilderSqlServerExtensions
 Excalibur.Outbox.SqlServer.Requests.CleanupSentMessagesRequest
 Excalibur.Outbox.SqlServer.Requests.CleanupSentMessagesRequest.CleanupSentMessagesRequest(string! tableName, System.DateTimeOffset olderThan, int batchSize, System.Data.IDbTransaction? transaction, int commandTimeout, System.Threading.CancellationToken cancellationToken) -> void
@@ -21,6 +19,7 @@ Excalibur.Outbox.SqlServer.Requests.GetScheduledMessagesRequest.GetScheduledMess
 Excalibur.Outbox.SqlServer.Requests.GetTransportDeliveriesRequest
 Excalibur.Outbox.SqlServer.Requests.GetTransportDeliveriesRequest.GetTransportDeliveriesRequest(string! tableName, string! messageId, int commandTimeout, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.GetUnsentMessagesRequest
+Excalibur.Outbox.SqlServer.Requests.GetUnsentMessagesRequest.GetUnsentMessagesRequest(string! tableName, int batchSize, int commandTimeout, int leaseTimeoutSeconds, string! processorId, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.InsertOutboxMessageRequest
 Excalibur.Outbox.SqlServer.Requests.InsertOutboxMessageRequest.InsertOutboxMessageRequest(string! tableName, Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Data.IDbTransaction? transaction, int commandTimeout, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.SqlServer.Requests.InsertTransportDeliveryRequest
@@ -101,6 +100,7 @@ Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions.SchemaName.set -> voi
 Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions.SqlServerDeadLetterQueueOptions() -> void
 Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions.TableName.get -> string!
 Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions.TableName.set -> void
+Excalibur.Outbox.SqlServer.SqlServerOutboxBuilderExtensions
 Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.ApplicationName.get -> string!
@@ -113,10 +113,14 @@ Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.DeadLetterTableName.get -> str
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.DeadLetterTableName.set -> void
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.DefaultBatchSize.get -> int
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.DefaultBatchSize.set -> void
+Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.LeaseTimeoutSeconds.get -> int
+Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.LeaseTimeoutSeconds.set -> void
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.MaxRetryCount.get -> int
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.MaxRetryCount.set -> void
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.OutboxTableName.get -> string!
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.OutboxTableName.set -> void
+Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.ProcessorId.get -> string!
+Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.ProcessorId.set -> void
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.QualifiedDeadLetterTableName.get -> string!
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.QualifiedOutboxTableName.get -> string!
 Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.QualifiedTransportsTableName.get -> string!
@@ -157,19 +161,16 @@ Excalibur.Outbox.SqlServer.SqlServerOutboxStore.StageMessageAsync(Excalibur.Disp
 Excalibur.Outbox.SqlServer.SqlServerOutboxStore.StageMessageWithTransportsAsync(Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessageTransport!>! transports, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.SqlServer.SqlServerOutboxStore.TryMarkSentAndReceivedAsync(string! messageId, Excalibur.Dispatch.Abstractions.InboxEntry! inboxEntry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Outbox.SqlServer.SqlServerOutboxStore.UpdateAggregateStatusAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
 static Excalibur.Outbox.SqlServer.OutboxBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
 static Excalibur.Outbox.SqlServer.OutboxBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Outbox.IOutboxBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory, System.Action<Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!>? configure = null) -> Excalibur.Outbox.IOutboxBuilder!
 static Excalibur.Outbox.SqlServer.OutboxBuilderSqlServerExtensions.WithSqlServerDeadLetterQueue(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
+static Excalibur.Outbox.SqlServer.SqlServerOutboxBuilderExtensions.CommandTimeout(this Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder! builder, System.TimeSpan timeout) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
+static Excalibur.Outbox.SqlServer.SqlServerOutboxBuilderExtensions.DefaultBatchSize(this Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder! builder, int size) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
+static Excalibur.Outbox.SqlServer.SqlServerOutboxBuilderExtensions.UseRowLocking(this Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder! builder, bool enable = true) -> Excalibur.Outbox.SqlServer.ISqlServerOutboxBuilder!
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.AddSqlServerDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.AddSqlServerOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.AddSqlServerOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.AddSqlServerOutboxStore<TDb>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.UseSqlServerDeadLetterQueue(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.UseSqlServerOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.UseSqlServerOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Excalibur.Outbox.SqlServer.SqlServerOutboxExtensions.AddSqlServerOutboxStore<TDb>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.SqlServer.SqlServerOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.LeaseTimeoutSeconds.get -> int
-Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.LeaseTimeoutSeconds.set -> void
-Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.ProcessorId.get -> string!
-Excalibur.Outbox.SqlServer.SqlServerOutboxOptions.ProcessorId.set -> void
-Excalibur.Outbox.SqlServer.Requests.GetUnsentMessagesRequest.GetUnsentMessagesRequest(string! tableName, int batchSize, int commandTimeout, int leaseTimeoutSeconds, string! processorId, System.Threading.CancellationToken cancellationToken) -> void

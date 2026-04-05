@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Options.Delivery;
 /// Unit tests for <see cref="DeduplicationOptions"/> in the Delivery namespace.
 /// </summary>
 [Trait("Category", "Unit")]
-[Trait("Component", "Options")]
+[Trait(TraitNames.Component, TestComponents.Options)]
 [Trait("Priority", "0")]
 public sealed class DeliveryDeduplicationOptionsShould
 {

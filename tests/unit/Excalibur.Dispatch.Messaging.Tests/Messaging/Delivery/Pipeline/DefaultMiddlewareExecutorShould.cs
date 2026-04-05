@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Delivery.Pipeline;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Pipeline;
 /// instead of the previous ContinueWith approach, which eliminates
 /// closure allocations in the typed middleware execution path.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Performance")]
 public sealed class DefaultMiddlewareExecutorShould
 {

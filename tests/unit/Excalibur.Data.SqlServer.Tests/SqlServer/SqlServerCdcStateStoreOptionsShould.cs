@@ -11,7 +11,7 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 /// <remarks>
 /// Sprint 633: Updated for Cdc.SqlServer extraction -- removed old AddCdcProcessor(Assembly[]) tests.
 /// </remarks>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "SqlServerCdcStateStoreOptions")]
 public sealed class SqlServerCdcStateStoreOptionsShould : UnitTestBase
 {

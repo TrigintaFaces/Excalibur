@@ -7,8 +7,8 @@ using Excalibur.Dispatch.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Functional;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
 {
     private readonly IDispatchMessage _message;

@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Buffers;
 /// <summary>
 /// Thread-safe service for managing pooled buffers using ArrayPool.
 /// </summary>
-internal sealed class PooledBufferService : IPooledBufferService
+internal sealed class PooledBufferService : IPooledBufferService, IPooledBufferServiceDiagnostics
 {
 	private readonly ArrayPool<byte> _pool;
 	private readonly bool _clearBuffersByDefault;

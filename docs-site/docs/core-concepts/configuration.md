@@ -72,9 +72,9 @@ builder.Services.AddDispatch(dispatch =>
 });
 
 // Serialization: JSON (System.Text.Json) is the default with AddDispatch().
-// For binary serialization, install the provider package and configure:
-// dispatch.WithSerialization(s => s.UseMemoryPack());
-// dispatch.WithSerialization(s => s.UseMessagePack());
+// For binary serialization, install the provider package and register:
+// services.AddMemoryPackSerializer();
+// services.AddMessagePackSerializer();
 ```
 
 ### Handler Registration

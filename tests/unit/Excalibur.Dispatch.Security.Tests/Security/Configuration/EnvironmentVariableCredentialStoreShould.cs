@@ -12,9 +12,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Configuration;
 /// <summary>
 /// Unit tests for <see cref="EnvironmentVariableCredentialStore"/> public class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
-[Trait("Feature", "Configuration")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
+[Trait(TraitNames.Feature, TestFeatures.Configuration)]
 public sealed class EnvironmentVariableCredentialStoreShould : IDisposable
 {
 	private const string TestEnvVarPrefix = "TEST_DISPATCH_";

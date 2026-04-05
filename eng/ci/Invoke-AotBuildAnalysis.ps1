@@ -105,12 +105,13 @@ if (-not $SkipBuild) {
             }
         }
 
-        # Read .csproj for AOT declaration
+        # Read .csproj for AOT declaration (use SelectSingleNode for strict-mode safety)
         [xml]$projXml = Get-Content $project.FullName
         $isAotCompatible = $null
         foreach ($pg in $projXml.Project.PropertyGroup) {
-            if ($null -ne $pg.IsAotCompatible) {
-                $isAotCompatible = ($pg.IsAotCompatible -eq 'true')
+            $aotNode = $pg.SelectSingleNode('IsAotCompatible')
+            if ($null -ne $aotNode) {
+                $isAotCompatible = ($aotNode.InnerText -eq 'true')
             }
         }
 

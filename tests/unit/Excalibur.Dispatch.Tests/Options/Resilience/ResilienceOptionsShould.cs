@@ -5,8 +5,8 @@ using ResilienceRetryOptions = Excalibur.Dispatch.Options.Resilience.RetryOption
 
 namespace Excalibur.Dispatch.Tests.Options.Resilience;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ResilienceOptionsShould
 {
 	[Fact]

@@ -260,14 +260,10 @@ All transports use the same serialization layer. The default is JSON (System.Tex
 
 ```csharp
 // Switch to MemoryPack for .NET-only maximum performance
-services.AddDispatch(dispatch => dispatch.WithSerialization(config =>
-{
-    config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
-    config.UseMemoryPack();
-}));
+services.AddMemoryPackSerializer();
 
 // Or MessagePack for compact binary
-services.AddMessagePackSerialization();
+services.AddMessagePackSerializer();
 ```
 
 ## Resilience Across Transports

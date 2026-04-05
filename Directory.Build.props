@@ -35,10 +35,11 @@
 		<!-- Use documented #pragma suppressions for unavoidable warnings -->
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<WarningsAsErrors>true</WarningsAsErrors>
-		<!-- Suppress switch completeness (IDE0010) and XML docs (CS1591) — Sprint 506 policy: defer -->
+		<!-- Suppress switch completeness (IDE0010) — Sprint 506 policy -->
 		<!-- IDE0055 (formatting) REMOVED Sprint 506 — all violations fixed via dotnet format -->
 		<!-- CA1873 (logging arg evaluation) — Sprint 564: new rule in SDK 10.0.103, defer fix to next sprint -->
-		<NoWarn>$(NoWarn);IDE0010;CS1591;CA1873</NoWarn>
+		<!-- CS1591 REMOVED Sprint 750: XML docs now enforced on all shipping code (previously suppressed, all public APIs documented) -->
+		<NoWarn>$(NoWarn);IDE0010;CA1873</NoWarn>
 		<!-- Gate to allow AWS SDK v4 transitives via Lambda event packages (off by default to avoid downgrades). -->
 		<AllowAwsSdkV4>false</AllowAwsSdkV4>
 		<RepositoryRoot Condition="'$(RepositoryRoot)' == ''">$(MSBuildThisFileDirectory)</RepositoryRoot>

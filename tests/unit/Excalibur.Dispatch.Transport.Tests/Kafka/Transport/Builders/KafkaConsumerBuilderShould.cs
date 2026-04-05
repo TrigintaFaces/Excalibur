@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Kafka.Transport.Builders;
 /// Part of S472.2 - AddKafkaTransport single entry point (Sprint 472).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class KafkaConsumerBuilderShould : UnitTestBase
 {

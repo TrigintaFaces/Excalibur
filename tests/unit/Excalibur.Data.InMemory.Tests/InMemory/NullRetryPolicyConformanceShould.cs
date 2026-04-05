@@ -34,8 +34,8 @@ namespace Excalibur.Data.Tests.InMemory;
 /// </list>
 /// </para>
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Data")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class NullRetryPolicyConformanceShould : RetryPolicyConformanceTestBase
 {
 	/// <inheritdoc/>

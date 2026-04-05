@@ -279,7 +279,7 @@ All transports emit OpenTelemetry traces and metrics via the `TelemetryTransport
 services.AddOpenTelemetry()
     .WithTracing(builder =>
     {
-        builder.AddSource("Excalibur.Dispatch.Observability");
+        builder.AddSource("Excalibur.Dispatch");
         // Transport-specific traces: Excalibur.Dispatch.Transport.{Name}
         builder.AddSource("Excalibur.Dispatch.Transport.Kafka");
         builder.AddSource("Excalibur.Dispatch.Transport.RabbitMQ");
@@ -309,14 +309,10 @@ By default, messages are serialized using JSON (System.Text.Json). You can confi
 
 ```csharp
 // Use MemoryPack for .NET-only maximum performance
-services.AddDispatch(dispatch => dispatch.WithSerialization(config =>
-{
-    config.Register(new MemoryPackSerializer(), SerializerIds.MemoryPack);
-    config.UseMemoryPack();
-}));
+services.AddMemoryPackSerializer();
 
 // Or MessagePack for compact binary format
-services.AddMessagePackSerialization();
+services.AddMessagePackSerializer();
 ```
 
 | Serializer | Package | Best For |

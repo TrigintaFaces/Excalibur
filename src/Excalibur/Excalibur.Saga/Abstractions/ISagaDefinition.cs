@@ -7,48 +7,37 @@ namespace Excalibur.Saga.Abstractions;
 /// <summary>
 /// Defines a saga's structure and behavior.
 /// </summary>
-/// <typeparam name="TSagaData"> The type of data flowing through the saga. </typeparam>
+/// <typeparam name="TSagaData">The type of data flowing through the saga.</typeparam>
+/// <remarks>
+/// <para>
+/// For optional lifecycle callbacks (completion and failure hooks), implement
+/// <see cref="ISagaDefinitionLifecycle{TSagaData}"/> alongside this interface.
+/// </para>
+/// </remarks>
 public interface ISagaDefinition<TSagaData>
 	where TSagaData : class
 {
 	/// <summary>
 	/// Gets the saga name.
 	/// </summary>
-	/// <value> The human-readable saga name. </value>
+	/// <value>The human-readable saga name.</value>
 	string Name { get; }
 
 	/// <summary>
 	/// Gets the saga timeout.
 	/// </summary>
-	/// <value> The maximum time allowed for saga execution. </value>
+	/// <value>The maximum time allowed for saga execution.</value>
 	TimeSpan Timeout { get; }
 
 	/// <summary>
 	/// Gets the steps in this saga.
 	/// </summary>
-	/// <value> The ordered saga steps. </value>
+	/// <value>The ordered saga steps.</value>
 	IReadOnlyList<ISagaStep<TSagaData>> Steps { get; }
 
 	/// <summary>
 	/// Gets the retry policy for the saga.
 	/// </summary>
-	/// <value> The retry policy to apply when steps fail. </value>
+	/// <value>The retry policy to apply when steps fail.</value>
 	ISagaRetryPolicy? RetryPolicy { get; }
-
-	/// <summary>
-	/// Called when the saga completes successfully.
-	/// </summary>
-	/// <param name="context"> The saga context. </param>
-	/// <param name="cancellationToken"> Cancellation token. </param>
-	/// <returns> A task that represents the asynchronous completion callback operation. </returns>
-	Task OnCompletedAsync(ISagaContext<TSagaData> context, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Called when the saga fails.
-	/// </summary>
-	/// <param name="context"> The saga context. </param>
-	/// <param name="exception"> The exception that caused the failure. </param>
-	/// <param name="cancellationToken"> Cancellation token. </param>
-	/// <returns> A task that represents the asynchronous failure callback operation. </returns>
-	Task OnFailedAsync(ISagaContext<TSagaData> context, Exception exception, CancellationToken cancellationToken);
 }

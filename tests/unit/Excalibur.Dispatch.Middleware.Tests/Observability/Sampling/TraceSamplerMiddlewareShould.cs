@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Observability.Sampling;
 /// <summary>
 /// Unit tests for <see cref="TraceSamplerMiddleware"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 public sealed class TraceSamplerMiddlewareShould : UnitTestBase
 {

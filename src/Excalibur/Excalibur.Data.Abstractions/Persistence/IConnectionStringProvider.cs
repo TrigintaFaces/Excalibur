@@ -44,32 +44,4 @@ public interface IConnectionStringProvider
 	/// <returns> Collection of connection string names. </returns>
 	IEnumerable<string> GetConnectionStringNames();
 
-	/// <summary>
-	/// Builds a connection string from components.
-	/// </summary>
-	/// <param name="components"> The connection string components. </param>
-	/// <returns> The built connection string. </returns>
-	string BuildConnectionString(IDictionary<string, string> components);
-
-	/// <summary>
-	/// Parses a connection string into its components.
-	/// </summary>
-	/// <param name="connectionString"> The connection string to parse. </param>
-	/// <returns> Dictionary of connection string components. </returns>
-	IDictionary<string, string> ParseConnectionString(string connectionString);
-
-	/// <summary>
-	/// Validates a connection string.
-	/// </summary>
-	/// <param name="connectionString"> The connection string to validate. </param>
-	/// <param name="providerType"> The type of provider the connection string is for. </param>
-	/// <returns> True if the connection string is valid; otherwise, false. </returns>
-	bool ValidateConnectionString(string connectionString, string providerType);
-
-	/// <summary>
-	/// Refreshes cached connection strings from the configuration source.
-	/// </summary>
-	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> A task representing the asynchronous operation. </returns>
-	Task RefreshAsync(CancellationToken cancellationToken);
 }

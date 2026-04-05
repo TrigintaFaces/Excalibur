@@ -140,7 +140,7 @@ public class MetricsMiddleware : IDispatchMiddleware
         .CreateHistogram(
             "dispatch_message_duration_seconds",
             "Message processing duration in seconds",
-            new HistogramConfiguration
+            new HistogramOptions
             {
                 LabelNames = new[] { "message_type" },
                 Buckets = Histogram.ExponentialBuckets(0.001, 2, 10)
@@ -217,7 +217,7 @@ public class MetricsEventStore : IEventStore
         .CreateHistogram(
             "eventstore_append_duration_seconds",
             "Duration of event store append operations",
-            new HistogramConfiguration
+            new HistogramOptions
             {
                 LabelNames = new[] { "aggregate_type" },
                 Buckets = Histogram.ExponentialBuckets(0.001, 2, 10)
@@ -855,7 +855,7 @@ public class OrderMetrics
         .CreateHistogram(
             "order_value_dollars",
             "Order value in dollars",
-            new HistogramConfiguration
+            new HistogramOptions
             {
                 Buckets = new[] { 10, 50, 100, 250, 500, 1000, 5000 }
             });

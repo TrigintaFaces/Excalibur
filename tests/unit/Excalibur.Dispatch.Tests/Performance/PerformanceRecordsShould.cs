@@ -2,8 +2,8 @@ using Excalibur.Dispatch.Performance;
 
 namespace Excalibur.Dispatch.Tests.Performance;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PerformanceRecordsShould
 {
 	// --- ComponentMetrics ---

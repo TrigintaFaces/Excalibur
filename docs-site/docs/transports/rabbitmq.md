@@ -263,7 +263,7 @@ services.AddHealthChecks()
 services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
-        tracing.AddSource("Excalibur.Dispatch.Observability");
+        tracing.AddSource("Excalibur.Dispatch");
         // Traces: publish, consume, ack, reject
     })
     .WithMetrics(metrics =>

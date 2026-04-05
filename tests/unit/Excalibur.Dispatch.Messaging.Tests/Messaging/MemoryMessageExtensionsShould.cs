@@ -9,7 +9,7 @@ using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Messaging.Tests.Messaging;
 
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
 [SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code")]
 [SuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Test code")]

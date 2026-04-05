@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 /// <summary>
 /// Unit tests for <see cref="PreWarmStrategy"/>.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Serialization")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Serialization)]
 [Trait("Priority", "0")]
 public sealed class PreWarmStrategyShould
 {

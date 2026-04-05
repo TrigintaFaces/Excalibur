@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware.Timeout;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,8 +18,8 @@ using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class HandlerTimeoutMiddlewareShould
 {
 	private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)

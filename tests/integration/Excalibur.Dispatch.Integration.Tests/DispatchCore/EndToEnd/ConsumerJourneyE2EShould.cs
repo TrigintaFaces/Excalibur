@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 #pragma warning disable CA1034 // Nested types should not be visible - acceptable in test classes
+#pragma warning disable CA2213 // Disposable fields should be disposed - owned by ServiceProvider
 
 using System.Collections.Concurrent;
 using System.Text;
@@ -23,7 +24,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.EndToEnd;
 /// End-to-end consumer journey tests proving the core product assembles and works:
 /// AddDispatch -> handler registration -> command dispatch -> outbox staging -> transport delivery.
 /// </summary>
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Category", "EndToEnd")]
 [Trait("Component", "ConsumerJourney")]
 public sealed class ConsumerJourneyE2EShould : IAsyncDisposable

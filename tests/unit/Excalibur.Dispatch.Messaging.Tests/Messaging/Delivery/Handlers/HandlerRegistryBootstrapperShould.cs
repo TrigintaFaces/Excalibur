@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// Tests the bootstrapping strategy: precompiled registry is always used first.
 /// Assembly scanning is only a fallback when precompiled registry doesn't exist.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class HandlerRegistryBootstrapperShould
 {
 	#region Precompiled Registry Tests (Sprint 452 - Source Generators Enabled by Default)

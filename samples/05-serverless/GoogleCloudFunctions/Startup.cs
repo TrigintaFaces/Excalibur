@@ -36,7 +36,6 @@ public class Startup : FunctionsStartup
 			_ = dispatch.AddHandlersFromAssembly(typeof(Startup).Assembly);
 
 			// Configure JSON serialization
-			_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 		});
 
 		// Configure Google Cloud Functions Serverless hosting

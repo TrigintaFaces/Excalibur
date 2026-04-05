@@ -52,7 +52,6 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
 	// Configure JSON serialization
-	_ = dispatch.WithSerialization(config => config.UseSystemTextJson());
 
 	// Route each event type to its dedicated transport
 	_ = dispatch.UseRouting(routing =>

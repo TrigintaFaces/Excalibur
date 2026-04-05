@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Transport.Builders;
 /// Part of S471.3 - Filter Policy builder (Sprint 471).
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 [Trait("Pattern", "TRANSPORT")]
 public sealed class AwsSqsFilterPolicyBuilderShould : UnitTestBase
 {
@@ -319,11 +319,72 @@ public sealed class AwsSqsFilterPolicyBuilderShould : UnitTestBase
 		var builder = new AwsSqsFilterPolicyBuilder(options);
 
 		// Act
-		_ = builder.Attribute("metadata").Exists();
+		_ = builder.Attribute("metadata").Exists(true);
 
 		// Assert
 		var conditions = options.Conditions["metadata"];
 		conditions[0].Values.ShouldContain(true);
+	}
+
+	#endregion
+
+	#region Exists() Extension Method Tests (Sprint 748 - B.2)
+
+	[Fact]
+	public void ExistsExtension_DelegatesToExistsTrue()
+	{
+		// Arrange
+		var options = new AwsSqsFilterPolicyOptions();
+		var builder = new AwsSqsFilterPolicyBuilder(options);
+
+		// Act
+		_ = builder.Attribute("metadata").Exists();
+
+		// Assert
+		var conditions = options.Conditions["metadata"];
+		conditions.Count.ShouldBe(1);
+		conditions[0].Operator.ShouldBe(AwsSqsFilterOperator.Exists);
+		conditions[0].Values.ShouldContain(true);
+	}
+
+	[Fact]
+	public void ExistsExtension_ProducesSameResultAsExistsTrue()
+	{
+		// Arrange
+		var optionsExplicit = new AwsSqsFilterPolicyOptions();
+		var builderExplicit = new AwsSqsFilterPolicyBuilder(optionsExplicit);
+		var optionsExtension = new AwsSqsFilterPolicyOptions();
+		var builderExtension = new AwsSqsFilterPolicyBuilder(optionsExtension);
+
+		// Act
+		_ = builderExplicit.Attribute("metadata").Exists(true);
+		_ = builderExtension.Attribute("metadata").Exists();
+
+		// Assert
+		var explicitConditions = optionsExplicit.Conditions["metadata"];
+		var extensionConditions = optionsExtension.Conditions["metadata"];
+		extensionConditions.Count.ShouldBe(explicitConditions.Count);
+		extensionConditions[0].Operator.ShouldBe(explicitConditions[0].Operator);
+		extensionConditions[0].Values[0].ShouldBe(explicitConditions[0].Values[0]);
+	}
+
+	[Fact]
+	public void ExistsExtension_ChainsWithOtherConditions()
+	{
+		// Arrange
+		var options = new AwsSqsFilterPolicyOptions();
+		var builder = new AwsSqsFilterPolicyBuilder(options);
+
+		// Act
+		_ = builder.Attribute("metadata").Exists()
+			.And()
+			.Attribute("priority").Equals("high");
+
+		// Assert
+		options.Conditions.Count.ShouldBe(2);
+		options.Conditions.ShouldContainKey("metadata");
+		options.Conditions.ShouldContainKey("priority");
+		options.Conditions["metadata"][0].Operator.ShouldBe(AwsSqsFilterOperator.Exists);
 	}
 
 	#endregion

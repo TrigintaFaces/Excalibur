@@ -15,8 +15,8 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 /// <summary>
 /// Unit tests for <see cref="ClaimCheckMessageSerializer"/> class.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Patterns")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Patterns)]
 [Trait("Feature", "ClaimCheck")]
 public sealed class ClaimCheckMessageSerializerShould
 {

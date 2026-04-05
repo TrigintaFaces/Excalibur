@@ -5,7 +5,9 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Inbox;
-using Excalibur.Dispatch.Tests.TestFakes;
+using Tests.Shared.TestFakes;
+
+using FakeMessageResult = Tests.Shared.TestFakes.MessageResult;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,8 +20,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Unit tests for the <see cref="InboxMiddleware"/> class.
 /// Validates inbox deduplication, full inbox mode, light mode, and error handling.
 /// </summary>
-[Trait("Category", "Unit")]
-[Trait("Component", "Core")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InboxMiddlewareShould
 {
 	private readonly IInboxStore _inboxStore;
@@ -51,7 +53,7 @@ public sealed class InboxMiddlewareShould
 	private static DispatchRequestDelegate SuccessDelegate()
 	{
 		return (msg, ctx, ct) =>
-			new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			new ValueTask<IMessageResult>(FakeMessageResult.Success());
 	}
 
 	private static DispatchRequestDelegate TrackingSuccessDelegate(bool[] wasCalled)
@@ -59,14 +61,14 @@ public sealed class InboxMiddlewareShould
 		return (msg, ctx, ct) =>
 		{
 			wasCalled[0] = true;
-			return new ValueTask<IMessageResult>(TestFakes.MessageResult.Success());
+			return new ValueTask<IMessageResult>(FakeMessageResult.Success());
 		};
 	}
 
 	private static DispatchRequestDelegate FailureDelegate(string errorMessage)
 	{
 		return (msg, ctx, ct) =>
-			new ValueTask<IMessageResult>(TestFakes.MessageResult.Failure(errorMessage));
+			new ValueTask<IMessageResult>(FakeMessageResult.Failure(errorMessage));
 	}
 
 	#region Constructor Tests

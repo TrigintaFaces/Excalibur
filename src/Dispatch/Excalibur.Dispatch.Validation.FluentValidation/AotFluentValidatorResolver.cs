@@ -2,14 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Collections.Concurrent;
-
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
-
-using FluentValidation;
-using FluentValidation.Results;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -34,9 +28,9 @@ namespace Excalibur.Dispatch.Validation.FluentValidation;
 public sealed class AotFluentValidatorResolver(IServiceProvider provider) : IValidatorResolver
 {
 	private readonly IServiceProvider _provider = provider ?? throw new ArgumentNullException(nameof(provider));
-	private readonly ConcurrentDictionary<Type, object> _validatorCache = new();
-	private IAotValidationDispatcher? _dispatcher;
-	private volatile bool _dispatcherResolved;
+	private readonly Lazy<IAotValidationDispatcher?> _dispatcher = new(
+		() => provider.GetService<IAotValidationDispatcher>(),
+		LazyThreadSafetyMode.PublicationOnly);
 
 	/// <summary>
 	/// Validates a message using AOT-compatible, source-generated dispatch logic.
@@ -53,76 +47,11 @@ public sealed class AotFluentValidatorResolver(IServiceProvider provider) : IVal
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		if (!_dispatcherResolved)
-		{
-			_dispatcher = _provider.GetService<IAotValidationDispatcher>();
-			_dispatcherResolved = true;
-		}
-
-		if (_dispatcher is null)
-		{
-			throw new InvalidOperationException(
+		var dispatcher = _dispatcher.Value
+			?? throw new InvalidOperationException(
 				"AOT validation requires the Excalibur.Dispatch.SourceGenerators package. " +
 				"Add it as an Analyzer reference.");
-		}
 
-		return _dispatcher.TryValidate(message, _provider);
-	}
-
-	/// <summary>
-	/// Generic validation method for strongly-typed messages.
-	/// </summary>
-	/// <typeparam name="TMessage">The type of message to validate.</typeparam>
-	/// <param name="message">The message to validate.</param>
-	/// <returns>Validation result if validators exist, null otherwise.</returns>
-	internal IValidationResult? ValidateTyped<TMessage>(TMessage message)
-		where TMessage : IDispatchMessage
-	{
-		ArgumentNullException.ThrowIfNull(message);
-
-		var validators = GetOrCacheValidators<TMessage>();
-		if (validators.Length == 0)
-		{
-			return null;
-		}
-
-		var failures = new List<ValidationFailure>();
-
-		foreach (var validator in validators)
-		{
-			var result = validator.Validate(message);
-			if (!result.IsValid)
-			{
-				failures.AddRange(result.Errors);
-			}
-		}
-
-		if (failures.Count == 0)
-		{
-			return SerializableValidationResult.Success();
-		}
-
-		var errors = failures
-			.Select(failure => (object)new ValidationError(failure.PropertyName, failure.ErrorMessage) { ErrorCode = failure.ErrorCode })
-			.ToArray();
-
-		return SerializableValidationResult.Failed(errors);
-	}
-
-	/// <summary>
-	/// Gets or creates a cached array of validators for the specified message type.
-	/// First call per type resolves from DI; subsequent calls return the cached array.
-	/// </summary>
-	private IValidator<TMessage>[] GetOrCacheValidators<TMessage>()
-		where TMessage : IDispatchMessage
-	{
-		if (_validatorCache.TryGetValue(typeof(TMessage), out var cached))
-		{
-			return (IValidator<TMessage>[])cached;
-		}
-
-		var validators = _provider.GetServices<IValidator<TMessage>>().ToArray();
-		_validatorCache.TryAdd(typeof(TMessage), validators);
-		return validators;
+		return dispatcher.TryValidate(message, _provider);
 	}
 }

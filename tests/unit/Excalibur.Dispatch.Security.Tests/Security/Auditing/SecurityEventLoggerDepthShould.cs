@@ -21,8 +21,8 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
 /// so That.Matches() assertions see an empty list. Instead, we capture events via
 /// Invokes() into a ConcurrentBag and assert against the captured snapshot.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Security")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class SecurityEventLoggerDepthShould
 {
 	private readonly ILogger<SecurityEventLogger> _logger = NullLogger<SecurityEventLogger>.Instance;

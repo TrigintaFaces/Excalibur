@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// The cache MISS path (first call for a given key) may still return the same reference as cached.
 /// These tests verify the hit-path defensiveness.
 /// </remarks>
-[Trait("Category", "Unit")]
-[Trait("Component", "Caching")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Caching)]
 public sealed class Utf8StringCacheImmutabilityShould : IDisposable
 {
 	private readonly Utf8StringCache _cache;

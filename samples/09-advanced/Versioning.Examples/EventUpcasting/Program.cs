@@ -21,6 +21,7 @@ using EventUpcasting.Upgraders;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Upcasting;
 
 using Microsoft.Extensions.DependencyInjection;

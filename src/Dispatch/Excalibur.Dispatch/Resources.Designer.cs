@@ -107,1046 +107,123 @@ namespace Excalibur.Dispatch {
             }
         }
 
-        /// <summary>
-        ///   Looks up a localized string similar to At least one transport must be specified..
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_AtLeastOneTransportRequired {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_AtLeastOneTransportRequired", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Failed to publish message {MessageId} to {Destination}.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_FailedToPublishToDestination {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_FailedToPublishToDestination", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Failed to publish message {MessageId} to transport {TransportName}.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_FailedToPublishToTransport {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_FailedToPublishToTransport", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to maxRetries must be non-negative..
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_MaxRetriesNonNegative {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_MaxRetriesNonNegative", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Message {MessageId} partially delivered: {SuccessCount} succeeded, {FailureCount} failed.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_MessagePartiallyDelivered {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_MessagePartiallyDelivered", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Multi-transport publishing requires IMultiTransportOutboxStore and TransportRegistry..
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_MultiTransportRequiresRegistry {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_MultiTransportRequiresRegistry", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Multi-transport publishing requires an IMultiTransportOutboxStore implementation..
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_MultiTransportRequiresStore {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_MultiTransportRequiresStore", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to No transport adapter found with name &apos;{0}&apos;..
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_NoTransportAdapter {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_NoTransportAdapter", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to No transport deliveries found for multi-transport message {MessageId}.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_NoTransportDeliveries {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_NoTransportDeliveries", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Published message {MessageId} to {Destination}.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_PublishedMessageToDestination {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_PublishedMessageToDestination", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Published message {MessageId} to transport {TransportName} at {Destination}.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_PublishedMessageToTransport {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_PublishedMessageToTransport", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Single-transport publishing requires an IMessageBusAdapter to be configured..
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_SingleTransportRequiresAdapter {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_SingleTransportRequiresAdapter", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Staged message {MessageId} of type {MessageType} to destination {Destination}.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_StagedMessage {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_StagedMessage", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Staged multi-transport message {MessageId} of type {MessageType} to {TransportCount} transports: {Transports}.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_StagedMultiTransportMessage {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_StagedMultiTransportMessage", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Transport adapter not found.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_TransportAdapterNotFound {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_TransportAdapterNotFound", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Published {SuccessCount} messages to transport {TransportName}, {FailureCount} failed in {Duration}ms.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_TransportPublishSummary {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_TransportPublishSummary", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Unknown error.
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_UnknownError {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_UnknownError", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Failed to serialize message of type {0}.
-        /// </summary>
-        internal static string OutboxStagingMiddleware_FailedToSerializeMessage {
-            get {
-                return ResourceManager.GetString("OutboxStagingMiddleware_FailedToSerializeMessage", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Outbox staging middleware is enabled but neither IOutboxStore nor IOutboxService is registered. Register one of these services or disable outbox staging..
-        /// </summary>
-        internal static string OutboxStagingMiddleware_NoOutboxServices {
-            get {
-                return ResourceManager.GetString("OutboxStagingMiddleware_NoOutboxServices", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Data cannot be empty.
-        /// </summary>
-        internal static string Serialization_DataCannotBeEmpty {
-            get {
-                return ResourceManager.GetString("Serialization_DataCannotBeEmpty", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Deserialization resulted in null.
-        /// </summary>
-        internal static string Serialization_DeserializationResultedInNull {
-            get {
-                return ResourceManager.GetString("Serialization_DeserializationResultedInNull", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Failed to deserialize data to type {0}.
-        /// </summary>
-        internal static string Serialization_FailedToDeserializeToType {
-            get {
-                return ResourceManager.GetString("Serialization_FailedToDeserializeToType", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Health check failed: {0}.
-        /// </summary>
-        internal static string TransportAdapterRouter_HealthCheckFailed {
-            get {
-                return ResourceManager.GetString("TransportAdapterRouter_HealthCheckFailed", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Transport routing failed for adapter {0}: {1}.
-        /// </summary>
-        internal static string TransportAdapterRouter_RoutingFailureDetail {
-            get {
-                return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureDetail", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Transport Routing Failure.
-        /// </summary>
-        internal static string TransportAdapterRouter_RoutingFailureTitle {
-            get {
-                return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureTitle", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to urn:dispatch:error:transport.
-        /// </summary>
-        internal static string TransportAdapterRouter_RoutingFailureType {
-            get {
-                return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureType", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot dispatch child message without an active context. Use DispatchAsync with explicit context instead.
-        /// </summary>
-        internal static string DispatcherContextExtensions_ChildMessageRequiresContext {
-            get {
-                return ResourceManager.GetString("DispatcherContextExtensions_ChildMessageRequiresContext", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot dispatch child action without an active context. Use DispatchAsync with explicit context instead.
-        /// </summary>
-        internal static string DispatcherContextExtensions_ChildActionRequiresContext {
-            get {
-                return ResourceManager.GetString("DispatcherContextExtensions_ChildActionRequiresContext", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Minimum length must be non-negative.
-        /// </summary>
-        internal static string MessageBufferPool_MinimumLengthNonNegative {
-            get {
-                return ResourceManager.GetString("MessageBufferPool_MinimumLengthNonNegative", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Requested size {0} exceeds maximum allowed size {1}.
-        /// </summary>
-        internal static string MessageBufferPool_RequestExceedsMaxArrayLength {
-            get {
-                return ResourceManager.GetString("MessageBufferPool_RequestExceedsMaxArrayLength", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot advance past the end of the buffer.
-        /// </summary>
-        internal static string PooledBufferWriter_CannotAdvancePastEnd {
-            get {
-                return ResourceManager.GetString("PooledBufferWriter_CannotAdvancePastEnd", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to The in-memory transport adapter is not running.
-        /// </summary>
-        internal static string InMemoryTransportAdapter_NotRunning {
-            get {
-                return ResourceManager.GetString("InMemoryTransportAdapter_NotRunning", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to No tenant identifier found in message context.
-        /// </summary>
-        internal static string TenantIdentityMiddleware_NoTenantIdentifierFound {
-            get {
-                return ResourceManager.GetString("TenantIdentityMiddleware_NoTenantIdentifierFound", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Invalid tenant identifier format: {0}.
-        /// </summary>
-        internal static string TenantIdentityMiddleware_InvalidTenantIdentifierFormat {
-            get {
-                return ResourceManager.GetString("TenantIdentityMiddleware_InvalidTenantIdentifierFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Outbox middleware is enabled but IOutboxStore is not registered. Register an IOutboxStore implementation or disable outbox middleware.
-        /// </summary>
-        internal static string OutboxMiddleware_StoreNotRegistered {
-            get {
-                return ResourceManager.GetString("OutboxMiddleware_StoreNotRegistered", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to No routes available for selection.
-        /// </summary>
-        internal static string LoadBalancing_NoRoutesAvailable {
-            get {
-                return ResourceManager.GetString("LoadBalancing_NoRoutesAvailable", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Serializer ID must be 1-254. ID {0} is reserved ({1}).
-        /// </summary>
-        internal static string SerializerRegistry_InvalidIdRange {
-            get {
-                return ResourceManager.GetString("SerializerRegistry_InvalidIdRange", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Serializer name cannot be null or whitespace..
-        /// </summary>
-        internal static string SerializerRegistry_NameRequired {
-            get {
-                return ResourceManager.GetString("SerializerRegistry_NameRequired", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Serializer ID 0x{0:X2} is already registered..
-        /// </summary>
-        internal static string SerializerRegistry_IdAlreadyRegistered {
-            get {
-                return ResourceManager.GetString("SerializerRegistry_IdAlreadyRegistered", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Serializer name '{0}' is already registered..
-        /// </summary>
-        internal static string SerializerRegistry_NameAlreadyRegistered {
-            get {
-                return ResourceManager.GetString("SerializerRegistry_NameAlreadyRegistered", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Serializer '{0}' is not registered. Available: {1}.
-        /// </summary>
-        internal static string SerializerRegistry_SerializerNotRegistered {
-            get {
-                return ResourceManager.GetString("SerializerRegistry_SerializerNotRegistered", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to No current serializer configured. Call SetCurrent() first or ensure AddDispatch() was called..
-        /// </summary>
-        internal static string SerializerRegistry_NoCurrentSerializer {
-            get {
-                return ResourceManager.GetString("SerializerRegistry_NoCurrentSerializer", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to No reason provided.
-        /// </summary>
-        internal static string AuthorizationMiddleware_NoReasonProvided {
-            get {
-                return ResourceManager.GetString("AuthorizationMiddleware_NoReasonProvided", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Per-transport publishing requires an IMultiTransportOutboxStore implementation..
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_PerTransportRequiresStore {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_PerTransportRequiresStore", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Per-transport publishing requires a TransportRegistry to be configured..
-        /// </summary>
-        internal static string MessageBusOutboxPublisher_PerTransportRequiresRegistry {
-            get {
-                return ResourceManager.GetString("MessageBusOutboxPublisher_PerTransportRequiresRegistry", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Adapter '{0}' is not registered..
-        /// </summary>
-        internal static string MultiTransportMessageBusAdapter_AdapterNotRegistered {
-            get {
-                return ResourceManager.GetString("MultiTransportMessageBusAdapter_AdapterNotRegistered", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Default timeout must be positive..
-        /// </summary>
-        internal static string TimeoutOptions_DefaultTimeoutMustBePositive {
-            get {
-                return ResourceManager.GetString("TimeoutOptions_DefaultTimeoutMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Action timeout must be positive..
-        /// </summary>
-        internal static string TimeoutOptions_ActionTimeoutMustBePositive {
-            get {
-                return ResourceManager.GetString("TimeoutOptions_ActionTimeoutMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Event timeout must be positive..
-        /// </summary>
-        internal static string TimeoutOptions_EventTimeoutMustBePositive {
-            get {
-                return ResourceManager.GetString("TimeoutOptions_EventTimeoutMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Document timeout must be positive..
-        /// </summary>
-        internal static string TimeoutOptions_DocumentTimeoutMustBePositive {
-            get {
-                return ResourceManager.GetString("TimeoutOptions_DocumentTimeoutMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Message type timeout for '{0}' must be positive..
-        /// </summary>
-        internal static string TimeoutOptions_MessageTypeTimeoutMustBePositive {
-            get {
-                return ResourceManager.GetString("TimeoutOptions_MessageTypeTimeoutMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Destination buffer too small. Required: {0}, Available: {1}..
-        /// </summary>
-        internal static string ZeroCopySerializer_DestinationBufferTooSmallFormat {
-            get {
-                return ResourceManager.GetString("ZeroCopySerializer_DestinationBufferTooSmallFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Source buffer too small for header..
-        /// </summary>
-        internal static string ZeroCopySerializer_SourceBufferTooSmallForHeader {
-            get {
-                return ResourceManager.GetString("ZeroCopySerializer_SourceBufferTooSmallForHeader", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Invalid message magic value..
-        /// </summary>
-        internal static string ZeroCopySerializer_InvalidMessageMagicValue {
-            get {
-                return ResourceManager.GetString("ZeroCopySerializer_InvalidMessageMagicValue", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Type mismatch. Expected: {0}, Actual: {1}..
-        /// </summary>
-        internal static string ZeroCopySerializer_TypeMismatchFormat {
-            get {
-                return ResourceManager.GetString("ZeroCopySerializer_TypeMismatchFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Source buffer too small for payload..
-        /// </summary>
-        internal static string ZeroCopySerializer_SourceBufferTooSmallForPayload {
-            get {
-                return ResourceManager.GetString("ZeroCopySerializer_SourceBufferTooSmallForPayload", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Checksum validation failed..
-        /// </summary>
-        internal static string ZeroCopySerializer_ChecksumValidationFailed {
-            get {
-                return ResourceManager.GetString("ZeroCopySerializer_ChecksumValidationFailed", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to CronExpression must be configured..
-        /// </summary>
-        internal static string CronTimerTransportConfigurationExtensions_CronExpressionMustBeConfigured {
-            get {
-                return ResourceManager.GetString("CronTimerTransportConfigurationExtensions_CronExpressionMustBeConfigured", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to CronExpression is required..
-        /// </summary>
-        internal static string CronTimerTransportAdapter_CronExpressionIsRequired {
-            get {
-                return ResourceManager.GetString("CronTimerTransportAdapter_CronExpressionIsRequired", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Thread local cache size must be between 0 and 32..
-        /// </summary>
-        internal static string Utf8JsonWriterPool_ThreadLocalCacheSizeMustBeBetweenZeroAnd32 {
-            get {
-                return ResourceManager.GetString("Utf8JsonWriterPool_ThreadLocalCacheSizeMustBeBetweenZeroAnd32", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Count must be greater than zero..
-        /// </summary>
-        internal static string Utf8JsonWriterPool_CountMustBeGreaterThanZero {
-            get {
-                return ResourceManager.GetString("Utf8JsonWriterPool_CountMustBeGreaterThanZero", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Attempt must be at least 1..
-        /// </summary>
-        internal static string ExponentialBackoffCalculator_AttemptMustBeAtLeastOne {
-            get {
-                return ResourceManager.GetString("ExponentialBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Base delay must be positive..
-        /// </summary>
-        internal static string ExponentialBackoffCalculator_BaseDelayMustBePositive {
-            get {
-                return ResourceManager.GetString("ExponentialBackoffCalculator_BaseDelayMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Max delay must be positive..
-        /// </summary>
-        internal static string ExponentialBackoffCalculator_MaxDelayMustBePositive {
-            get {
-                return ResourceManager.GetString("ExponentialBackoffCalculator_MaxDelayMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Multiplier must be at least 1.0..
-        /// </summary>
-        internal static string ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne {
-            get {
-                return ResourceManager.GetString("ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Jitter factor must be between 0.0 and 1.0..
-        /// </summary>
-        internal static string ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne {
-            get {
-                return ResourceManager.GetString("ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Max delay must be positive..
-        /// </summary>
-        internal static string LinearBackoffCalculator_MaxDelayMustBePositive {
-            get {
-                return ResourceManager.GetString("LinearBackoffCalculator_MaxDelayMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Attempt must be at least 1..
-        /// </summary>
-        internal static string LinearBackoffCalculator_AttemptMustBeAtLeastOne {
-            get {
-                return ResourceManager.GetString("LinearBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Base delay must be positive..
-        /// </summary>
-        internal static string LinearBackoffCalculator_BaseDelayMustBePositive {
-            get {
-                return ResourceManager.GetString("LinearBackoffCalculator_BaseDelayMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Delay cannot be negative..
-        /// </summary>
-        internal static string FixedBackoffCalculator_DelayCannotBeNegative {
-            get {
-                return ResourceManager.GetString("FixedBackoffCalculator_DelayCannotBeNegative", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Attempt must be at least 1..
-        /// </summary>
-        internal static string FixedBackoffCalculator_AttemptMustBeAtLeastOne {
-            get {
-                return ResourceManager.GetString("FixedBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Base delay must be positive..
-        /// </summary>
-        internal static string FibonacciBackoffCalculator_BaseDelayMustBePositive {
-            get {
-                return ResourceManager.GetString("FibonacciBackoffCalculator_BaseDelayMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Max delay must be positive..
-        /// </summary>
-        internal static string FibonacciBackoffCalculator_MaxDelayMustBePositive {
-            get {
-                return ResourceManager.GetString("FibonacciBackoffCalculator_MaxDelayMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Attempt must be at least 1..
-        /// </summary>
-        internal static string FibonacciBackoffCalculator_AttemptMustBeAtLeastOne {
-            get {
-                return ResourceManager.GetString("FibonacciBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Inner backoff calculator is required..
-        /// </summary>
-        internal static string JitteredBackoffCalculator_InnerCalculatorRequired {
-            get {
-                return ResourceManager.GetString("JitteredBackoffCalculator_InnerCalculatorRequired", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Jitter factor must be between 0.0 and 1.0..
-        /// </summary>
-        internal static string JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne {
-            get {
-                return ResourceManager.GetString("JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Unknown backoff strategy..
-        /// </summary>
-        internal static string BackoffCalculatorFactory_UnknownBackoffStrategy {
-            get {
-                return ResourceManager.GetString("BackoffCalculatorFactory_UnknownBackoffStrategy", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Unknown retry strategy..
-        /// </summary>
-        internal static string BackoffCalculatorFactory_UnknownRetryStrategy {
-            get {
-                return ResourceManager.GetString("BackoffCalculatorFactory_UnknownRetryStrategy", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Circuit breaker is open. Operation rejected..
-        /// </summary>
-        internal static string CircuitBreakerOpenException_CircuitBreakerIsOpen {
-            get {
-                return ResourceManager.GetString("CircuitBreakerOpenException_CircuitBreakerIsOpen", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Circuit breaker &apos;{0}&apos; is open. Operation rejected..
-        /// </summary>
-        internal static string CircuitBreakerOpenException_CircuitBreakerIsOpenWithName {
-            get {
-                return ResourceManager.GetString("CircuitBreakerOpenException_CircuitBreakerIsOpenWithName", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Circuit breaker &apos;{0}&apos; is open. Operation rejected. Retry after {1:F1} seconds..
-        /// </summary>
-        internal static string CircuitBreakerOpenException_CircuitBreakerIsOpenWithNameAndRetryAfter {
-            get {
-                return ResourceManager.GetString("CircuitBreakerOpenException_CircuitBreakerIsOpenWithNameAndRetryAfter", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to At least one context must be provided..
-        /// </summary>
-        internal static string CompositeAotJsonSerializer_AtLeastOneContextMustBeProvided {
-            get {
-                return ResourceManager.GetString("CompositeAotJsonSerializer_AtLeastOneContextMustBeProvided", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Retention must be positive.
-        /// </summary>
-        internal static string InboxHandlerConfiguration_RetentionMustBePositive {
-            get {
-                return ResourceManager.GetString("InboxHandlerConfiguration_RetentionMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Message bus registration does not have an implementation..
-        /// </summary>
-        internal static string DispatchConfigurationServiceCollectionExtensions_MessageBusRegistrationMissingImplementation {
-            get {
-                return ResourceManager.GetString("DispatchConfigurationServiceCollectionExtensions_MessageBusRegistrationMissingImplementation", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Index was outside the bounds of the batch..
-        /// </summary>
-        internal static string BatchResult_IndexOutOfRange {
-            get {
-                return ResourceManager.GetString("BatchResult_IndexOutOfRange", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Transport &apos;{0}&apos; not found..
-        /// </summary>
-        internal static string BindingConfigurationBuilder_TransportNotFoundFormat {
-            get {
-                return ResourceManager.GetString("BindingConfigurationBuilder_TransportNotFoundFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Pipeline profile &apos;{0}&apos; not found..
-        /// </summary>
-        internal static string BindingConfigurationBuilder_PipelineNotFoundFormat {
-            get {
-                return ResourceManager.GetString("BindingConfigurationBuilder_PipelineNotFoundFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Source serializer with ID 0x{0:X2} is not registered..
-        /// </summary>
-        internal static string SerializerMigrationService_SourceSerializerNotRegisteredFormat {
-            get {
-                return ResourceManager.GetString("SerializerMigrationService_SourceSerializerNotRegisteredFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Target serializer with ID 0x{0:X2} is not registered..
-        /// </summary>
-        internal static string SerializerMigrationService_TargetSerializerNotRegisteredFormat {
-            get {
-                return ResourceManager.GetString("SerializerMigrationService_TargetSerializerNotRegisteredFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Migration aborted after {0} consecutive failures..
-        /// </summary>
-        internal static string SerializerMigrationService_MigrationAbortedAfterFailuresFormat {
-            get {
-                return ResourceManager.GetString("SerializerMigrationService_MigrationAbortedAfterFailuresFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Return type {0} must have a public parameterless constructor..
-        /// </summary>
-        internal static string FinalDispatchHandler_ReturnTypeMustHaveParameterlessCtorFormat {
-            get {
-                return ResourceManager.GetString("FinalDispatchHandler_ReturnTypeMustHaveParameterlessCtorFormat", resourceCulture);
-            }
-        }
-        /// <summary>
-        ///   Looks up a localized string similar to Transport validation failed: No transports are registered. Call AddEventTransports() to register at least one transport, or set TransportValidationOptions.RequireAtLeastOneTransport = false to disable this check..
-        /// </summary>
-        internal static string TransportStartupValidator_NoTransportsRegistered {
-            get {
-                return ResourceManager.GetString("TransportStartupValidator_NoTransportsRegistered", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Transport validation failed: {0} transports are registered ({1}) but no default transport is set. Call TransportRegistry.SetDefaultTransport() to designate a default, or set TransportValidationOptions.RequireDefaultTransportWhenMultiple = false to disable this check..
-        /// </summary>
-        internal static string TransportStartupValidator_DefaultTransportMissingFormat {
-            get {
-                return ResourceManager.GetString("TransportStartupValidator_DefaultTransportMissingFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Transport validation failed with {0} error(s):{1}.
-        /// </summary>
-        internal static string TransportStartupValidator_ValidationErrorsFormat {
-            get {
-                return ResourceManager.GetString("TransportStartupValidator_ValidationErrorsFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Dispatcher has not been initialized. Build the service provider and resolve IDispatcher from DI..
-        /// </summary>
-        internal static string DispatchBuilder_DispatcherNotInitialized {
-            get {
-                return ResourceManager.GetString("DispatchBuilder_DispatcherNotInitialized", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Pipeline profile registry not registered..
-        /// </summary>
-        internal static string PipelineBuilder_ProfileRegistryNotRegistered {
-            get {
-                return ResourceManager.GetString("PipelineBuilder_ProfileRegistryNotRegistered", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Pipeline profile '{0}' not found..
-        /// </summary>
-        internal static string PipelineBuilder_ProfileNotFoundFormat {
-            get {
-                return ResourceManager.GetString("PipelineBuilder_ProfileNotFoundFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Dispatcher is not properly configured. Ensure IDispatchMiddlewareInvoker and FinalDispatchHandler are registered..
-        /// </summary>
-        internal static string Dispatcher_NotConfigured {
-            get {
-                return ResourceManager.GetString("Dispatcher_NotConfigured", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Expected IMessageResult&lt;{0}&gt;, but got {1}..
-        /// </summary>
-        internal static string Dispatcher_ResultTypeMismatchFormat {
-            get {
-                return ResourceManager.GetString("Dispatcher_ResultTypeMismatchFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to No handler of type '{0}' is registered. Ensure the handler is registered with the service provider..
-        /// </summary>
-        internal static string Dispatcher_HandlerNotFoundFormat {
-            get {
-                return ResourceManager.GetString("Dispatcher_HandlerNotFoundFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Conversion from string to TAggregateKey not implemented..
-        /// </summary>
-        internal static string EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented {
-            get {
-                return ResourceManager.GetString("EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot deserialize content without serializer..
-        /// </summary>
-        internal static string MemoryMessageOfT_CannotDeserializeWithoutSerializer {
-            get {
-                return ResourceManager.GetString("MemoryMessageOfT_CannotDeserializeWithoutSerializer", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Source and destination must have same length..
-        /// </summary>
-        internal static string MemoryOptimizations_SourceAndDestinationMustHaveSameLength {
-            get {
-                return ResourceManager.GetString("MemoryOptimizations_SourceAndDestinationMustHaveSameLength", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to At least one bucket boundary is required..
-        /// </summary>
-        internal static string HistogramConfiguration_AtLeastOneBucketBoundaryIsRequired {
-            get {
-                return ResourceManager.GetString("HistogramConfiguration_AtLeastOneBucketBoundaryIsRequired", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Start must be positive..
-        /// </summary>
-        internal static string HistogramConfiguration_StartMustBePositive {
-            get {
-                return ResourceManager.GetString("HistogramConfiguration_StartMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Factor must be greater than one..
-        /// </summary>
-        internal static string HistogramConfiguration_FactorMustBeGreaterThanOne {
-            get {
-                return ResourceManager.GetString("HistogramConfiguration_FactorMustBeGreaterThanOne", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Count must be positive..
-        /// </summary>
-        internal static string HistogramConfiguration_CountMustBePositive {
-            get {
-                return ResourceManager.GetString("HistogramConfiguration_CountMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Width must be positive..
-        /// </summary>
-        internal static string HistogramConfiguration_WidthMustBePositive {
-            get {
-                return ResourceManager.GetString("HistogramConfiguration_WidthMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Metadata must be for counter type..
-        /// </summary>
-        internal static string LabeledCounter_MetadataMustBeForCounterType {
-            get {
-                return ResourceManager.GetString("LabeledCounter_MetadataMustBeForCounterType", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Counter can only increase..
-        /// </summary>
-        internal static string LabeledCounter_CounterCanOnlyIncrease {
-            get {
-                return ResourceManager.GetString("LabeledCounter_CounterCanOnlyIncrease", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Logger is not initialized..
-        /// </summary>
-        internal static string ValidationMiddleware_LoggerNotInitialized {
-            get {
-                return ResourceManager.GetString("ValidationMiddleware_LoggerNotInitialized", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Duplicate transport name '{0}'. Transport names must be unique..
-        /// </summary>
-        internal static string TransportConfigurationValidator_DuplicateTransportNameFormat {
-            get {
-                return ResourceManager.GetString("TransportConfigurationValidator_DuplicateTransportNameFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Transport name cannot be null or empty..
-        /// </summary>
-        internal static string TransportConfigurationValidator_TransportNameCannotBeNullOrEmpty {
-            get {
-                return ResourceManager.GetString("TransportConfigurationValidator_TransportNameCannotBeNullOrEmpty", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Transport type cannot be null or empty..
-        /// </summary>
-        internal static string TransportConfigurationValidator_TransportTypeCannotBeNullOrEmpty {
-            get {
-                return ResourceManager.GetString("TransportConfigurationValidator_TransportTypeCannotBeNullOrEmpty", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Kafka BootstrapServers cannot be empty when specified..
-        /// </summary>
-        internal static string TransportConfigurationValidator_KafkaBootstrapServersCannotBeEmpty {
-            get {
-                return ResourceManager.GetString("TransportConfigurationValidator_KafkaBootstrapServersCannotBeEmpty", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to {0} ConnectionString cannot be empty when specified..
-        /// </summary>
-        internal static string TransportConfigurationValidator_ConnectionStringCannotBeEmptyFormat {
-            get {
-                return ResourceManager.GetString("TransportConfigurationValidator_ConnectionStringCannotBeEmptyFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to CronTimer CronExpression cannot be empty when specified..
-        /// </summary>
-        internal static string TransportConfigurationValidator_CronExpressionCannotBeEmpty {
-            get {
-                return ResourceManager.GetString("TransportConfigurationValidator_CronExpressionCannotBeEmpty", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Invalid cron expression format: '{0}'. Expected 5 or 6 space-separated fields..
-        /// </summary>
-        internal static string TransportConfigurationValidator_InvalidCronExpressionFormat {
-            get {
-                return ResourceManager.GetString("TransportConfigurationValidator_InvalidCronExpressionFormat", resourceCulture);
-            }
-        }
+        internal static string MessageBusOutboxPublisher_AtLeastOneTransportRequired { get { return ResourceManager.GetString("MessageBusOutboxPublisher_AtLeastOneTransportRequired", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_FailedToPublishToDestination { get { return ResourceManager.GetString("MessageBusOutboxPublisher_FailedToPublishToDestination", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_FailedToPublishToTransport { get { return ResourceManager.GetString("MessageBusOutboxPublisher_FailedToPublishToTransport", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_MaxRetriesNonNegative { get { return ResourceManager.GetString("MessageBusOutboxPublisher_MaxRetriesNonNegative", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_MessagePartiallyDelivered { get { return ResourceManager.GetString("MessageBusOutboxPublisher_MessagePartiallyDelivered", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_MultiTransportRequiresRegistry { get { return ResourceManager.GetString("MessageBusOutboxPublisher_MultiTransportRequiresRegistry", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_MultiTransportRequiresStore { get { return ResourceManager.GetString("MessageBusOutboxPublisher_MultiTransportRequiresStore", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_NoTransportAdapter { get { return ResourceManager.GetString("MessageBusOutboxPublisher_NoTransportAdapter", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_NoTransportDeliveries { get { return ResourceManager.GetString("MessageBusOutboxPublisher_NoTransportDeliveries", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_PublishedMessageToDestination { get { return ResourceManager.GetString("MessageBusOutboxPublisher_PublishedMessageToDestination", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_PublishedMessageToTransport { get { return ResourceManager.GetString("MessageBusOutboxPublisher_PublishedMessageToTransport", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_SingleTransportRequiresAdapter { get { return ResourceManager.GetString("MessageBusOutboxPublisher_SingleTransportRequiresAdapter", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_StagedMessage { get { return ResourceManager.GetString("MessageBusOutboxPublisher_StagedMessage", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_StagedMultiTransportMessage { get { return ResourceManager.GetString("MessageBusOutboxPublisher_StagedMultiTransportMessage", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_TransportAdapterNotFound { get { return ResourceManager.GetString("MessageBusOutboxPublisher_TransportAdapterNotFound", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_TransportPublishSummary { get { return ResourceManager.GetString("MessageBusOutboxPublisher_TransportPublishSummary", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_UnknownError { get { return ResourceManager.GetString("MessageBusOutboxPublisher_UnknownError", resourceCulture); } }
+        internal static string OutboxStagingMiddleware_FailedToSerializeMessage { get { return ResourceManager.GetString("OutboxStagingMiddleware_FailedToSerializeMessage", resourceCulture); } }
+        internal static string OutboxStagingMiddleware_NoOutboxServices { get { return ResourceManager.GetString("OutboxStagingMiddleware_NoOutboxServices", resourceCulture); } }
+        internal static string Serialization_DataCannotBeEmpty { get { return ResourceManager.GetString("Serialization_DataCannotBeEmpty", resourceCulture); } }
+        internal static string Serialization_DeserializationResultedInNull { get { return ResourceManager.GetString("Serialization_DeserializationResultedInNull", resourceCulture); } }
+        internal static string Serialization_FailedToDeserializeToType { get { return ResourceManager.GetString("Serialization_FailedToDeserializeToType", resourceCulture); } }
+        internal static string TransportAdapterRouter_HealthCheckFailed { get { return ResourceManager.GetString("TransportAdapterRouter_HealthCheckFailed", resourceCulture); } }
+        internal static string TransportAdapterRouter_RoutingFailureDetail { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureDetail", resourceCulture); } }
+        internal static string TransportAdapterRouter_RoutingFailureTitle { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureTitle", resourceCulture); } }
+        internal static string TransportAdapterRouter_RoutingFailureType { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureType", resourceCulture); } }
+        internal static string DispatcherContextExtensions_ChildMessageRequiresContext { get { return ResourceManager.GetString("DispatcherContextExtensions_ChildMessageRequiresContext", resourceCulture); } }
+        internal static string DispatcherContextExtensions_ChildActionRequiresContext { get { return ResourceManager.GetString("DispatcherContextExtensions_ChildActionRequiresContext", resourceCulture); } }
+        internal static string MessageBufferPool_MinimumLengthNonNegative { get { return ResourceManager.GetString("MessageBufferPool_MinimumLengthNonNegative", resourceCulture); } }
+        internal static string MessageBufferPool_RequestExceedsMaxArrayLength { get { return ResourceManager.GetString("MessageBufferPool_RequestExceedsMaxArrayLength", resourceCulture); } }
+        internal static string PooledBufferWriter_CannotAdvancePastEnd { get { return ResourceManager.GetString("PooledBufferWriter_CannotAdvancePastEnd", resourceCulture); } }
+        internal static string InMemoryTransportAdapter_NotRunning { get { return ResourceManager.GetString("InMemoryTransportAdapter_NotRunning", resourceCulture); } }
+        internal static string TenantIdentityMiddleware_NoTenantIdentifierFound { get { return ResourceManager.GetString("TenantIdentityMiddleware_NoTenantIdentifierFound", resourceCulture); } }
+        internal static string TenantIdentityMiddleware_InvalidTenantIdentifierFormat { get { return ResourceManager.GetString("TenantIdentityMiddleware_InvalidTenantIdentifierFormat", resourceCulture); } }
+        internal static string OutboxMiddleware_StoreNotRegistered { get { return ResourceManager.GetString("OutboxMiddleware_StoreNotRegistered", resourceCulture); } }
+        internal static string LoadBalancing_NoRoutesAvailable { get { return ResourceManager.GetString("LoadBalancing_NoRoutesAvailable", resourceCulture); } }
+        internal static string SerializerRegistry_InvalidIdRange { get { return ResourceManager.GetString("SerializerRegistry_InvalidIdRange", resourceCulture); } }
+        internal static string SerializerRegistry_NameRequired { get { return ResourceManager.GetString("SerializerRegistry_NameRequired", resourceCulture); } }
+        internal static string SerializerRegistry_IdAlreadyRegistered { get { return ResourceManager.GetString("SerializerRegistry_IdAlreadyRegistered", resourceCulture); } }
+        internal static string SerializerRegistry_NameAlreadyRegistered { get { return ResourceManager.GetString("SerializerRegistry_NameAlreadyRegistered", resourceCulture); } }
+        internal static string SerializerRegistry_SerializerNotRegistered { get { return ResourceManager.GetString("SerializerRegistry_SerializerNotRegistered", resourceCulture); } }
+        internal static string SerializerRegistry_NoCurrentSerializer { get { return ResourceManager.GetString("SerializerRegistry_NoCurrentSerializer", resourceCulture); } }
+        internal static string AuthorizationMiddleware_NoReasonProvided { get { return ResourceManager.GetString("AuthorizationMiddleware_NoReasonProvided", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_PerTransportRequiresStore { get { return ResourceManager.GetString("MessageBusOutboxPublisher_PerTransportRequiresStore", resourceCulture); } }
+        internal static string MessageBusOutboxPublisher_PerTransportRequiresRegistry { get { return ResourceManager.GetString("MessageBusOutboxPublisher_PerTransportRequiresRegistry", resourceCulture); } }
+        internal static string MultiTransportMessageBusAdapter_AdapterNotRegistered { get { return ResourceManager.GetString("MultiTransportMessageBusAdapter_AdapterNotRegistered", resourceCulture); } }
+        internal static string TimeoutOptions_DefaultTimeoutMustBePositive { get { return ResourceManager.GetString("TimeoutOptions_DefaultTimeoutMustBePositive", resourceCulture); } }
+        internal static string TimeoutOptions_ActionTimeoutMustBePositive { get { return ResourceManager.GetString("TimeoutOptions_ActionTimeoutMustBePositive", resourceCulture); } }
+        internal static string TimeoutOptions_EventTimeoutMustBePositive { get { return ResourceManager.GetString("TimeoutOptions_EventTimeoutMustBePositive", resourceCulture); } }
+        internal static string TimeoutOptions_DocumentTimeoutMustBePositive { get { return ResourceManager.GetString("TimeoutOptions_DocumentTimeoutMustBePositive", resourceCulture); } }
+        internal static string TimeoutOptions_MessageTypeTimeoutMustBePositive { get { return ResourceManager.GetString("TimeoutOptions_MessageTypeTimeoutMustBePositive", resourceCulture); } }
+        internal static string ZeroCopySerializer_DestinationBufferTooSmallFormat { get { return ResourceManager.GetString("ZeroCopySerializer_DestinationBufferTooSmallFormat", resourceCulture); } }
+        internal static string ZeroCopySerializer_SourceBufferTooSmallForHeader { get { return ResourceManager.GetString("ZeroCopySerializer_SourceBufferTooSmallForHeader", resourceCulture); } }
+        internal static string ZeroCopySerializer_InvalidMessageMagicValue { get { return ResourceManager.GetString("ZeroCopySerializer_InvalidMessageMagicValue", resourceCulture); } }
+        internal static string ZeroCopySerializer_TypeMismatchFormat { get { return ResourceManager.GetString("ZeroCopySerializer_TypeMismatchFormat", resourceCulture); } }
+        internal static string ZeroCopySerializer_SourceBufferTooSmallForPayload { get { return ResourceManager.GetString("ZeroCopySerializer_SourceBufferTooSmallForPayload", resourceCulture); } }
+        internal static string ZeroCopySerializer_ChecksumValidationFailed { get { return ResourceManager.GetString("ZeroCopySerializer_ChecksumValidationFailed", resourceCulture); } }
+        internal static string CronTimerTransportConfigurationExtensions_CronExpressionMustBeConfigured { get { return ResourceManager.GetString("CronTimerTransportConfigurationExtensions_CronExpressionMustBeConfigured", resourceCulture); } }
+        internal static string CronTimerTransportAdapter_CronExpressionIsRequired { get { return ResourceManager.GetString("CronTimerTransportAdapter_CronExpressionIsRequired", resourceCulture); } }
+        internal static string Utf8JsonWriterPool_ThreadLocalCacheSizeMustBeBetweenZeroAnd32 { get { return ResourceManager.GetString("Utf8JsonWriterPool_ThreadLocalCacheSizeMustBeBetweenZeroAnd32", resourceCulture); } }
+        internal static string Utf8JsonWriterPool_CountMustBeGreaterThanZero { get { return ResourceManager.GetString("Utf8JsonWriterPool_CountMustBeGreaterThanZero", resourceCulture); } }
+        internal static string ExponentialBackoffCalculator_AttemptMustBeAtLeastOne { get { return ResourceManager.GetString("ExponentialBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture); } }
+        internal static string ExponentialBackoffCalculator_BaseDelayMustBePositive { get { return ResourceManager.GetString("ExponentialBackoffCalculator_BaseDelayMustBePositive", resourceCulture); } }
+        internal static string ExponentialBackoffCalculator_MaxDelayMustBePositive { get { return ResourceManager.GetString("ExponentialBackoffCalculator_MaxDelayMustBePositive", resourceCulture); } }
+        internal static string ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne { get { return ResourceManager.GetString("ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne", resourceCulture); } }
+        internal static string ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne { get { return ResourceManager.GetString("ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne", resourceCulture); } }
+        internal static string LinearBackoffCalculator_MaxDelayMustBePositive { get { return ResourceManager.GetString("LinearBackoffCalculator_MaxDelayMustBePositive", resourceCulture); } }
+        internal static string LinearBackoffCalculator_AttemptMustBeAtLeastOne { get { return ResourceManager.GetString("LinearBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture); } }
+        internal static string LinearBackoffCalculator_BaseDelayMustBePositive { get { return ResourceManager.GetString("LinearBackoffCalculator_BaseDelayMustBePositive", resourceCulture); } }
+        internal static string FixedBackoffCalculator_DelayCannotBeNegative { get { return ResourceManager.GetString("FixedBackoffCalculator_DelayCannotBeNegative", resourceCulture); } }
+        internal static string FixedBackoffCalculator_AttemptMustBeAtLeastOne { get { return ResourceManager.GetString("FixedBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture); } }
+        internal static string FibonacciBackoffCalculator_BaseDelayMustBePositive { get { return ResourceManager.GetString("FibonacciBackoffCalculator_BaseDelayMustBePositive", resourceCulture); } }
+        internal static string FibonacciBackoffCalculator_MaxDelayMustBePositive { get { return ResourceManager.GetString("FibonacciBackoffCalculator_MaxDelayMustBePositive", resourceCulture); } }
+        internal static string FibonacciBackoffCalculator_AttemptMustBeAtLeastOne { get { return ResourceManager.GetString("FibonacciBackoffCalculator_AttemptMustBeAtLeastOne", resourceCulture); } }
+        internal static string JitteredBackoffCalculator_InnerCalculatorRequired { get { return ResourceManager.GetString("JitteredBackoffCalculator_InnerCalculatorRequired", resourceCulture); } }
+        internal static string JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne { get { return ResourceManager.GetString("JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne", resourceCulture); } }
+        internal static string BackoffCalculatorFactory_UnknownBackoffStrategy { get { return ResourceManager.GetString("BackoffCalculatorFactory_UnknownBackoffStrategy", resourceCulture); } }
+        internal static string BackoffCalculatorFactory_UnknownRetryStrategy { get { return ResourceManager.GetString("BackoffCalculatorFactory_UnknownRetryStrategy", resourceCulture); } }
+        internal static string CircuitBreakerOpenException_CircuitBreakerIsOpen { get { return ResourceManager.GetString("CircuitBreakerOpenException_CircuitBreakerIsOpen", resourceCulture); } }
+        internal static string CircuitBreakerOpenException_CircuitBreakerIsOpenWithName { get { return ResourceManager.GetString("CircuitBreakerOpenException_CircuitBreakerIsOpenWithName", resourceCulture); } }
+        internal static string CircuitBreakerOpenException_CircuitBreakerIsOpenWithNameAndRetryAfter { get { return ResourceManager.GetString("CircuitBreakerOpenException_CircuitBreakerIsOpenWithNameAndRetryAfter", resourceCulture); } }
+        internal static string CompositeAotJsonSerializer_AtLeastOneContextMustBeProvided { get { return ResourceManager.GetString("CompositeAotJsonSerializer_AtLeastOneContextMustBeProvided", resourceCulture); } }
+        internal static string InboxHandlerConfiguration_RetentionMustBePositive { get { return ResourceManager.GetString("InboxHandlerConfiguration_RetentionMustBePositive", resourceCulture); } }
+        internal static string DispatchConfigurationServiceCollectionExtensions_MessageBusRegistrationMissingImplementation { get { return ResourceManager.GetString("DispatchConfigurationServiceCollectionExtensions_MessageBusRegistrationMissingImplementation", resourceCulture); } }
+        internal static string BatchResult_IndexOutOfRange { get { return ResourceManager.GetString("BatchResult_IndexOutOfRange", resourceCulture); } }
+        internal static string BindingConfigurationBuilder_TransportNotFoundFormat { get { return ResourceManager.GetString("BindingConfigurationBuilder_TransportNotFoundFormat", resourceCulture); } }
+        internal static string BindingConfigurationBuilder_PipelineNotFoundFormat { get { return ResourceManager.GetString("BindingConfigurationBuilder_PipelineNotFoundFormat", resourceCulture); } }
+        internal static string SerializerMigrationService_SourceSerializerNotRegisteredFormat { get { return ResourceManager.GetString("SerializerMigrationService_SourceSerializerNotRegisteredFormat", resourceCulture); } }
+        internal static string SerializerMigrationService_TargetSerializerNotRegisteredFormat { get { return ResourceManager.GetString("SerializerMigrationService_TargetSerializerNotRegisteredFormat", resourceCulture); } }
+        internal static string SerializerMigrationService_MigrationAbortedAfterFailuresFormat { get { return ResourceManager.GetString("SerializerMigrationService_MigrationAbortedAfterFailuresFormat", resourceCulture); } }
+        internal static string FinalDispatchHandler_ReturnTypeMustHaveParameterlessCtorFormat { get { return ResourceManager.GetString("FinalDispatchHandler_ReturnTypeMustHaveParameterlessCtorFormat", resourceCulture); } }
+        internal static string TransportStartupValidator_NoTransportsRegistered { get { return ResourceManager.GetString("TransportStartupValidator_NoTransportsRegistered", resourceCulture); } }
+        internal static string TransportStartupValidator_DefaultTransportMissingFormat { get { return ResourceManager.GetString("TransportStartupValidator_DefaultTransportMissingFormat", resourceCulture); } }
+        internal static string TransportStartupValidator_ValidationErrorsFormat { get { return ResourceManager.GetString("TransportStartupValidator_ValidationErrorsFormat", resourceCulture); } }
+        internal static string DispatchBuilder_DispatcherNotInitialized { get { return ResourceManager.GetString("DispatchBuilder_DispatcherNotInitialized", resourceCulture); } }
+        internal static string PipelineBuilder_ProfileRegistryNotRegistered { get { return ResourceManager.GetString("PipelineBuilder_ProfileRegistryNotRegistered", resourceCulture); } }
+        internal static string PipelineBuilder_ProfileNotFoundFormat { get { return ResourceManager.GetString("PipelineBuilder_ProfileNotFoundFormat", resourceCulture); } }
+        internal static string Dispatcher_NotConfigured { get { return ResourceManager.GetString("Dispatcher_NotConfigured", resourceCulture); } }
+        internal static string Dispatcher_ResultTypeMismatchFormat { get { return ResourceManager.GetString("Dispatcher_ResultTypeMismatchFormat", resourceCulture); } }
+        internal static string Dispatcher_HandlerNotFoundFormat { get { return ResourceManager.GetString("Dispatcher_HandlerNotFoundFormat", resourceCulture); } }
+        internal static string EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented { get { return ResourceManager.GetString("EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented", resourceCulture); } }
+        internal static string MemoryMessageOfT_CannotDeserializeWithoutSerializer { get { return ResourceManager.GetString("MemoryMessageOfT_CannotDeserializeWithoutSerializer", resourceCulture); } }
+        internal static string MemoryOptimizations_SourceAndDestinationMustHaveSameLength { get { return ResourceManager.GetString("MemoryOptimizations_SourceAndDestinationMustHaveSameLength", resourceCulture); } }
+        internal static string HistogramOptions_AtLeastOneBucketBoundaryIsRequired { get { return ResourceManager.GetString("HistogramOptions_AtLeastOneBucketBoundaryIsRequired", resourceCulture); } }
+        internal static string HistogramOptions_StartMustBePositive { get { return ResourceManager.GetString("HistogramOptions_StartMustBePositive", resourceCulture); } }
+        internal static string HistogramOptions_FactorMustBeGreaterThanOne { get { return ResourceManager.GetString("HistogramOptions_FactorMustBeGreaterThanOne", resourceCulture); } }
+        internal static string HistogramOptions_CountMustBePositive { get { return ResourceManager.GetString("HistogramOptions_CountMustBePositive", resourceCulture); } }
+        internal static string HistogramOptions_WidthMustBePositive { get { return ResourceManager.GetString("HistogramOptions_WidthMustBePositive", resourceCulture); } }
+        internal static string LabeledCounter_MetadataMustBeForCounterType { get { return ResourceManager.GetString("LabeledCounter_MetadataMustBeForCounterType", resourceCulture); } }
+        internal static string LabeledCounter_CounterCanOnlyIncrease { get { return ResourceManager.GetString("LabeledCounter_CounterCanOnlyIncrease", resourceCulture); } }
+        internal static string ValidationMiddleware_LoggerNotInitialized { get { return ResourceManager.GetString("ValidationMiddleware_LoggerNotInitialized", resourceCulture); } }
+        internal static string TransportConfigurationValidator_DuplicateTransportNameFormat { get { return ResourceManager.GetString("TransportConfigurationValidator_DuplicateTransportNameFormat", resourceCulture); } }
+        internal static string TransportConfigurationValidator_TransportNameCannotBeNullOrEmpty { get { return ResourceManager.GetString("TransportConfigurationValidator_TransportNameCannotBeNullOrEmpty", resourceCulture); } }
+        internal static string TransportConfigurationValidator_TransportTypeCannotBeNullOrEmpty { get { return ResourceManager.GetString("TransportConfigurationValidator_TransportTypeCannotBeNullOrEmpty", resourceCulture); } }
+        internal static string TransportConfigurationValidator_KafkaBootstrapServersCannotBeEmpty { get { return ResourceManager.GetString("TransportConfigurationValidator_KafkaBootstrapServersCannotBeEmpty", resourceCulture); } }
+        internal static string TransportConfigurationValidator_ConnectionStringCannotBeEmptyFormat { get { return ResourceManager.GetString("TransportConfigurationValidator_ConnectionStringCannotBeEmptyFormat", resourceCulture); } }
+        internal static string TransportConfigurationValidator_CronExpressionCannotBeEmpty { get { return ResourceManager.GetString("TransportConfigurationValidator_CronExpressionCannotBeEmpty", resourceCulture); } }
+        internal static string TransportConfigurationValidator_InvalidCronExpressionFormat { get { return ResourceManager.GetString("TransportConfigurationValidator_InvalidCronExpressionFormat", resourceCulture); } }
     }
 }
-
-

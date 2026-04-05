@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.MongoDB.Cdc;
 /// <summary>
 /// Unit tests for <see cref="MongoDbCdcStateStoreOptionsValidator"/>.
 /// </summary>
-[Trait("Category", "Unit")]
+[Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "MongoDbCdcStateStoreOptionsValidator")]
 public sealed class MongoDbCdcStateStoreOptionsValidatorShould : UnitTestBase
 {

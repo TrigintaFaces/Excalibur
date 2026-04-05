@@ -22,9 +22,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AwsSqs;
 /// resource exhaustion and disposal hangs on Ubuntu CI.
 /// </remarks>
 [Collection(ContainerCollections.AwsSqs)]
-[Trait("Category", "Integration")]
+[Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "AwsSqs")]
-[Trait("Component", "Transport")]
+[Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class AwsSqsTransportSenderIntegrationShould : IAsyncLifetime, IDisposable
 {
 	// Static container shared across all test instances in this class.
