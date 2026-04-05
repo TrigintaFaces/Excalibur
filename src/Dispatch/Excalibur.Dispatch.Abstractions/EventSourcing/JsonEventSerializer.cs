@@ -105,6 +105,7 @@ public sealed class JsonEventSerializer : IEventSerializer
 	/// </summary>
 	/// <param name="typeName">The type name to search for (can be full name or assembly-qualified).</param>
 	/// <returns>The resolved type, or <see langword="null"/> if not found.</returns>
+	[RequiresUnreferencedCode("Assembly scanning for type resolution requires type metadata that may be removed during trimming")]
 	private static Type? SearchLoadedAssemblies(string typeName)
 	{
 		var simpleTypeName = typeName;

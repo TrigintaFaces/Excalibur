@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.SourceGenerators.Interception;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Generation is disabled. <see cref="StaticPipelineGenerator"/> (co-deployed in this analyzer
+/// Generation is disabled. <c>StaticPipelineGenerator</c> (co-deployed in this analyzer
 /// assembly) intercepts the same DispatchAsync call sites with a superset of functionality
 /// (static pipeline execution + hot-reload fallback). Emitting interceptors here would cause
 /// CS9153 duplicate interception errors.
