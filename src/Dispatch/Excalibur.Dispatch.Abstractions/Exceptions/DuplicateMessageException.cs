@@ -5,7 +5,7 @@ namespace Excalibur.Dispatch.Abstractions.Exceptions;
 
 /// <summary>
 /// Exception thrown when a duplicate message is detected and
-/// <see cref="Messaging.SkipBehavior.ThrowOnDuplicate"/> is configured as the duplicate behavior.
+/// <c>ThrowOnDuplicate</c> is configured as the duplicate behavior.
 /// </summary>
 public sealed class DuplicateMessageException : ApiException
 {

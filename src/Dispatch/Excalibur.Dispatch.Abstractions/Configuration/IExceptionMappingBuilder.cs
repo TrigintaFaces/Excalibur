@@ -85,14 +85,14 @@ public interface IExceptionMappingBuilder
 	IExceptionMappingBuilder MapDefault(Func<Exception, IMessageProblemDetails> mapper);
 
 	/// <summary>
-	/// Enables automatic mapping of <see cref="Exceptions.ApiException"/> and derived types
-	/// using their <see cref="Exceptions.ApiException.ToProblemDetails"/> method.
+	/// Enables automatic mapping of <see cref="ApiException"/> and derived types
+	/// using their <see cref="ApiException.ToProblemDetails"/> method.
 	/// </summary>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks>
 	/// <para>
-	/// When enabled, any exception that inherits from <see cref="Exceptions.ApiException"/>
-	/// will automatically use its <see cref="Exceptions.ApiException.ToProblemDetails"/>
+	/// When enabled, any exception that inherits from <see cref="ApiException"/>
+	/// will automatically use its <see cref="ApiException.ToProblemDetails"/>
 	/// method to generate problem details.
 	/// </para>
 	/// <para>

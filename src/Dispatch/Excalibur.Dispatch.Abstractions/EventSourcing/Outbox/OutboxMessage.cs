@@ -22,11 +22,11 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <strong>Lifecycle:</strong>
 /// <list type="number">
 /// <item>Created with PublishedAt = null (pending)</item>
-/// <item>Retrieved by background service via <see cref="IOutboxStore.GetPendingAsync"/></item>
+/// <item>Retrieved by background service via <see cref="IOutboxStore.GetUnsentMessagesAsync"/></item>
 /// <item>Published to message bus</item>
-/// <item>Marked as published via <see cref="IOutboxStore.MarkAsPublishedAsync"/> (PublishedAt = UTC timestamp)</item>
+/// <item>Marked as published via <see cref="IOutboxStore.MarkSentAsync"/> (PublishedAt = UTC timestamp)</item>
 /// <item>Retained for audit (default: 7 days)</item>
-/// <item>Deleted via <see cref="IOutboxStore.DeletePublishedOlderThanAsync"/></item>
+/// <item>Deleted via <see cref="IOutboxStoreAdmin.CleanupSentMessagesAsync"/></item>
 /// </list>
 /// </para>
 ///
@@ -94,7 +94,7 @@ public sealed record OutboxMessage
 	/// Gets the UTC timestamp when the message was created (added to outbox).
 	///
 	/// <para>
-	/// Used for FIFO ordering in <see cref="IOutboxStore.GetPendingAsync"/> (ORDER BY CreatedAt ASC).
+	/// Used for FIFO ordering in <see cref="IOutboxStore.GetUnsentMessagesAsync"/> (ORDER BY CreatedAt ASC).
 	/// </para>
 	/// </summary>
 	public required DateTimeOffset CreatedAt { get; init; }
@@ -120,7 +120,7 @@ public sealed record OutboxMessage
 	/// Gets the number of times the message publishing has been attempted.
 	///
 	/// <para>
-	/// Incremented by <see cref="IOutboxStore.IncrementRetryCountAsync"/> when publishing fails.
+	/// Incremented by <see cref="IOutboxStore.MarkFailedAsync"/> when publishing fails.
 	/// </para>
 	///
 	/// <para>

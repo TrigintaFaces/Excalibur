@@ -10,12 +10,12 @@ namespace Excalibur.Dispatch.Abstractions.Configuration;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This service is used by the <see cref="Dispatch.Messaging.Middleware.IdempotentHandlerMiddleware"/>
+/// This service is used by the <c>IdempotentHandlerMiddleware</c>
 /// to retrieve configuration for handlers. Configuration is built at startup and cached
 /// for runtime performance.
 /// </para>
 /// <para>
-/// Configuration from this provider takes precedence over <see cref="IdempotentAttribute"/>
+/// Configuration from this provider takes precedence over <see cref="Excalibur.Dispatch.Abstractions.IdempotentAttribute"/>
 /// settings on handler classes.
 /// </para>
 /// </remarks>

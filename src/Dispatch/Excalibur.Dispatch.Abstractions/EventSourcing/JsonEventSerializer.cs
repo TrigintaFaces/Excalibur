@@ -72,7 +72,7 @@ public sealed class JsonEventSerializer : IEventSerializer
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2057:Unrecognized value passed to the parameter of method. It's not possible to guarantee the availability of the target type.", Justification = "Type resolution from strings is required for event sourcing polymorphic event deserialization. Event types are preserved through event store infrastructure.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Assembly scanning for type resolution is required for polymorphic event deserialization.")]
+	[RequiresUnreferencedCode("Resolving types by name requires type metadata that may be removed during trimming")]
 	public Type ResolveType(string typeName)
 	{
 		if (string.IsNullOrEmpty(typeName))

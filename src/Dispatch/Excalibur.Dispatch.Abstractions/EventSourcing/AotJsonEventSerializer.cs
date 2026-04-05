@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -43,6 +44,8 @@ internal sealed class AotJsonEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
+	[RequiresDynamicCode("JSON serialization of events requires dynamic code generation for type inspection and property access")]
+	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	public byte[] SerializeEvent(IDomainEvent domainEvent)
 	{
 		ArgumentNullException.ThrowIfNull(domainEvent);
@@ -58,6 +61,8 @@ internal sealed class AotJsonEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
+	[RequiresDynamicCode("JSON deserialization of events requires dynamic code generation for type inspection and property access")]
+	[RequiresUnreferencedCode("JSON deserialization may reference types not preserved during trimming")]
 	public IDomainEvent DeserializeEvent(byte[] data, Type eventType)
 	{
 		ArgumentNullException.ThrowIfNull(data);
@@ -85,6 +90,7 @@ internal sealed class AotJsonEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Resolving types by name requires type metadata that may be removed during trimming")]
 	public Type ResolveType(string typeName)
 	{
 		if (string.IsNullOrEmpty(typeName))

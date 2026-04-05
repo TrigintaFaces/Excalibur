@@ -351,7 +351,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 			_ = sb.AppendLine($" HasResponse = {(hasResponse ? "true" : "false")},");
 			if (hasResponse)
 			{
-				var responseType = handler.ResponseType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				var responseType = handler.ResponseType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 				_ = sb.AppendLine($" ResponseType = typeof({responseType})");
 			}
 			else

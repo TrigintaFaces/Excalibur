@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Abstractions.Messaging;
 /// <item>Eventual consistency acceptable</item>
 /// </list>
 /// <para><strong>Alternatives:</strong> For step-based orchestration with explicit compensation logic,
-/// use <see cref="Excalibur.Saga.Abstractions.ISaga{TSagaData}"/> instead.</para>
+/// use <c>ISaga{TSagaData}</c> from the Excalibur.Saga.Abstractions package instead.</para>
 /// <para><strong>Examples:</strong> Order fulfillment workflows, user onboarding journeys, multi-tenant provisioning processes.</para>
 /// <para>The saga pattern implements process management in distributed systems, handling both success and failure scenarios through compensating
 /// actions. Sagas maintain their own state and can span multiple bounded contexts or microservices.</para>

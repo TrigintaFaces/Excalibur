@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Abstractions.Transport;
 /// </para>
 /// <para>
 /// <strong>Important:</strong> This resolution must happen in the Dispatcher, before
-/// <see cref="Pipeline.IPipelineProfileResolver.ResolveProfileAsync"/> is called, to ensure
+/// <see cref="IPipelineProfileResolver.ResolveProfileAsync"/> is called, to ensure
 /// the correct pipeline profile is selected before the middleware chain is constructed.
 /// </para>
 /// </remarks>

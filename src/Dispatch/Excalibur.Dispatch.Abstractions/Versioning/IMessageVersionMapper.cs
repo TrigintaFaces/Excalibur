@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Abstractions.Versioning;
 /// This enables consumers to upgrade message schemas without requiring all producers to update simultaneously.
 /// </para>
 /// <para>
-/// Register mappers in DI and the <see cref="MessageVersionMiddleware"/> will automatically
+/// Register mappers in DI and the <c>MessageVersionMiddleware</c> will automatically
 /// invoke them when a version mismatch is detected via the <c>x-message-version</c> transport header.
 /// </para>
 /// </remarks>

@@ -26,7 +26,7 @@ public interface IPipelineProfileResolver
 	/// as a candidate profile.
 	/// </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
-	/// <returns> The selected pipeline profile, or null to use the default pipeline. </returns>
+	/// <returns> The selected <see cref="IPipelineProfile"/>, or null to use the default pipeline. </returns>
 	/// <remarks>
 	/// <para>
 	/// The resolver should evaluate all registered profiles and select the most appropriate one based on factors such as:

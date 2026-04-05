@@ -8,7 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Excalibur.Dispatch.Abstractions.Serialization;
 
 /// <summary>
-/// Adapts an <see cref="IDictionary{TKey,TValue}" /> of <see cref="object" /> values to expose nullable values as required by <see cref="IMessageContext.Properties" />.
+/// Adapts an <see cref="IDictionary{TKey,TValue}" /> of <see cref="object" /> values to expose nullable values as required by <see cref="IMessageContext" />.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="PropertyDictionary" /> class. </remarks>
 /// <param name="items"> The underlying dictionary to adapt. </param>

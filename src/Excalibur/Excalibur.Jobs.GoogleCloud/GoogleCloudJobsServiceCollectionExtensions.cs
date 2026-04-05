@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Jobs.GoogleCloud;
 
 using Google.Cloud.Scheduler.V1;
@@ -20,6 +22,7 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configure"> The configuration action for Google Cloud Scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Uses DataAnnotation-based validation which requires unreferenced code")]
 	public static IServiceCollection AddGoogleCloudScheduler(
 		this IServiceCollection services,
 		Action<GoogleCloudSchedulerOptions> configure)
@@ -44,6 +47,8 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind options from. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Uses configuration binding and DataAnnotation-based validation which requires unreferenced code")]
+	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
 	public static IServiceCollection AddGoogleCloudScheduler(
 		this IServiceCollection services,
 		IConfiguration configuration)

@@ -30,7 +30,7 @@ public interface IDispatcher
 	/// <remarks>
 	/// <para>
 	/// This property enables convenience extension methods to access DI services like
-	/// <see cref="Delivery.IMessageContextFactory"/> without requiring explicit parameters.
+	/// <c>IMessageContextFactory</c> without requiring explicit parameters.
 	/// </para>
 	/// <para>
 	/// The service provider may be <see langword="null"/> in unit testing scenarios or when

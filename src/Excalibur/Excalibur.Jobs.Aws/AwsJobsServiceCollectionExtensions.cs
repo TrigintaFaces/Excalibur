@@ -57,6 +57,7 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <param name="configuration"> The configuration section to bind options from. </param>
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
+	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -124,6 +125,7 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <param name="configuration"> The configuration section to bind scheduler options from. </param>
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
+	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		AWSOptions awsOptions,

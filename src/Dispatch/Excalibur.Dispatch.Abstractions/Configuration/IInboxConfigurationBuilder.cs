@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Abstractions.Configuration;
 /// <remarks>
 /// <para>
 /// This builder provides a fluent API for configuring idempotency behavior for handlers
-/// without requiring the <see cref="Inbox.IdempotentAttribute"/>. Configuration is evaluated
+/// without requiring the <see cref="IdempotentAttribute"/>. Configuration is evaluated
 /// at application startup and cached for runtime performance.
 /// </para>
 /// <para>
@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Abstractions.Configuration;
 /// </list>
 /// </para>
 /// <para>
-/// Settings configured via this builder OVERRIDE any <see cref="Inbox.IdempotentAttribute"/>
+/// Settings configured via this builder OVERRIDE any <see cref="IdempotentAttribute"/>
 /// settings on the handler class.
 /// </para>
 /// <para>

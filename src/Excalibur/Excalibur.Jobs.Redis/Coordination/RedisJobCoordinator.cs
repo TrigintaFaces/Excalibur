@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Excalibur.Jobs.Abstractions.Coordination;
@@ -118,6 +119,8 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Serializing job data of unknown type requires type metadata that may be removed during trimming")]
+	[RequiresDynamicCode("Serializing job data of unknown type may require runtime code generation")]
 	public async Task<string?> DistributeJobAsync(string jobKey, object jobData, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(jobKey);
@@ -133,7 +136,7 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 		if (availableInstance != null)
 		{
 			var jobQueueKey = $"{_keyPrefix}jobs:{availableInstance.InstanceId}";
-			var dataElement = JsonSerializer.SerializeToElement(jobData);
+			var dataElement = JsonSerializer.SerializeToElement(jobData, jobData.GetType());
 			var jobMessage = JsonSerializer.Serialize(
 				new RedisJobMessage(jobKey, dataElement),
 				RedisJobCoordinatorSerializerContext.Default.RedisJobMessage);
@@ -149,6 +152,8 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Serializing result data of unknown type requires type metadata that may be removed during trimming")]
+	[RequiresDynamicCode("Serializing result data of unknown type may require runtime code generation")]
 	public async Task ReportJobCompletionAsync(string jobKey, string instanceId, bool success, object? result,
 		CancellationToken cancellationToken)
 	{
@@ -156,7 +161,7 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 		ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
 
 		var completionKey = $"{_keyPrefix}completions:{jobKey}";
-		JsonElement? resultElement = result is not null ? JsonSerializer.SerializeToElement(result) : null;
+		JsonElement? resultElement = result is not null ? JsonSerializer.SerializeToElement(result, result.GetType()) : null;
 		var completionData = JsonSerializer.Serialize(
 			new RedisCompletionData(jobKey, instanceId, success, resultElement, DateTimeOffset.UtcNow),
 			RedisJobCoordinatorSerializerContext.Default.RedisCompletionData);

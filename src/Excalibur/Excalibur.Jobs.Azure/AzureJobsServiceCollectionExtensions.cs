@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Azure.Identity;
 using Azure.ResourceManager;
 
@@ -22,6 +24,7 @@ public static class AzureJobsServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configure"> The configuration action for Azure Logic Apps options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Uses DataAnnotation-based validation which requires unreferenced code")]
 	public static IServiceCollection AddAzureLogicApps(
 		this IServiceCollection services,
 		Action<AzureLogicAppsOptions> configure)
@@ -47,6 +50,8 @@ public static class AzureJobsServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind options from. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[RequiresUnreferencedCode("Uses configuration binding and DataAnnotation-based validation which requires unreferenced code")]
+	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
 	public static IServiceCollection AddAzureLogicApps(
 		this IServiceCollection services,
 		IConfiguration configuration)

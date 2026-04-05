@@ -19,8 +19,8 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <b>Supports all message types:</b>
 /// <list type="bullet">
 /// <item><description><see cref="IDomainEvent"/> - event sourcing</description></item>
-/// <item><description><see cref="ICommand"/> - API versioning</description></item>
-/// <item><description><see cref="IQuery{TResult}"/> - read model evolution</description></item>
+/// <item><description><c>ICommand</c> - API versioning</description></item>
+/// <item><description><c>IQuery{TResult}</c> - read model evolution</description></item>
 /// <item><description><see cref="IIntegrationEvent"/> - external system compatibility</description></item>
 /// </list>
 /// </para>

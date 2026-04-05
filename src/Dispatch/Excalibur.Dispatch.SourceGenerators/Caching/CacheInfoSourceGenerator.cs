@@ -96,7 +96,7 @@ public sealed class CacheInfoSourceGenerator : IIncrementalGenerator
 			FullName = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 			SimpleName = typeSymbol.Name,
 			Namespace = typeSymbol.ContainingNamespace.ToDisplayString(),
-			ResultTypeName = resultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+			ResultTypeName = resultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 			InterfaceTypeName = cacheableInterface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 			AssemblyName = typeSymbol.ContainingAssembly.Name
 		};

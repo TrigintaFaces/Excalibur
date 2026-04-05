@@ -205,7 +205,7 @@ public sealed class CachePolicySourceGenerator : IIncrementalGenerator
 		foreach (var info in cacheableTypes.Where(static t => t.CacheableInterface != null))
 		{
 			var typeName = info.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var returnType = info.CacheableInterface.TypeArguments[0];
+			var returnType = info.CacheableInterface!.TypeArguments[0];
 
 			_ = sb.AppendLine($" {typeName} msg => new CacheableInfo");
 			_ = sb.AppendLine(" {");
@@ -395,7 +395,7 @@ public sealed class CachePolicySourceGenerator : IIncrementalGenerator
 		foreach (var info in policyTypes.Where(static p => p.MessageType != null))
 		{
 			var policyType = info.TypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var messageType = info.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var messageType = info.MessageType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
 			_ = sb.AppendLine($" ({policyType} p, {messageType} m) => p.ShouldCache(m, result),");
 		}
@@ -416,7 +416,7 @@ public sealed class CachePolicySourceGenerator : IIncrementalGenerator
 		// Get unique return types from cacheable interfaces
 		var returnTypes = cacheableTypes
 			.Where(static t => t.CacheableInterface != null)
-			.Select(static t => t.CacheableInterface.TypeArguments[0])
+			.Select(static t => t.CacheableInterface!.TypeArguments[0])
 			.Distinct(SymbolEqualityComparer.Default)
 			.Cast<ITypeSymbol>()
 			.ToList();

@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// delivery guarantees. If your store only needs at-least-once delivery, use <see cref="IOutboxStore"/> alone.
 /// </para>
 /// <para>
-/// This interface enables the <see cref="Options.Delivery.OutboxDeliveryGuarantee.TransactionalWhenApplicable"/>
+/// This interface enables the <c>TransactionalWhenApplicable</c>
 /// delivery guarantee level by providing a mechanism to atomically dispatch a message and mark it as sent
 /// within a single database transaction.
 /// </para>
@@ -46,7 +46,7 @@ public interface ITransactionalOutboxStore : IOutboxStore
 	/// <remarks>
 	/// <para>
 	/// When this property returns <see langword="false"/>, the outbox processor will fall back
-	/// to <see cref="Options.Delivery.OutboxDeliveryGuarantee.MinimizedWindow"/> behavior.
+	/// to <c>MinimizedWindow</c> behavior.
 	/// </para>
 	/// </remarks>
 	bool SupportsTransactions { get; }
