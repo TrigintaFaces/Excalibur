@@ -54,7 +54,7 @@ jobs:
 
       - name: Upload SAST log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sast-build
           path: sast-build.log
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload Gitleaks report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gitleaks-report
           path: gitleaks.sarif
@@ -132,7 +132,7 @@ jobs:
           find . -name "bom.json" -o -name "bom.xml"
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cyclonedx-sbom
           path: |
@@ -322,7 +322,7 @@ jobs:
           }
 
       - name: Upload dependency audit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-audit
           path: management/reports/DependencyAuditReport
@@ -374,7 +374,7 @@ jobs:
 
       - name: Upload OSS metadata report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: oss-metadata-report
           path: management/reports/OssMetadataReport/oss-metadata.json
