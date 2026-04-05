@@ -79,7 +79,7 @@ jobs:
 
       - name: Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-mediatr-parity
           path: BenchmarkDotNet.Artifacts.MediatRParity
@@ -143,7 +143,7 @@ jobs:
 
       - name: Upload transport benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-transport-comparison
           path: BenchmarkDotNet.Artifacts.TransportComparison
@@ -207,7 +207,7 @@ jobs:
 
       - name: Upload dispatch hot-path benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-dispatch-hotpath
           path: BenchmarkDotNet.Artifacts.DispatchHotPath
@@ -268,7 +268,7 @@ jobs:
 
       - name: Upload observability overhead benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-observability-overhead
           path: BenchmarkDotNet.Artifacts.ObservabilityOverhead
@@ -330,7 +330,7 @@ jobs:
 
       - name: Upload persistence/background benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-persistence-background-smoke
           path: BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke

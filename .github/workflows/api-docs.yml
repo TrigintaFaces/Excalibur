@@ -67,7 +67,7 @@ jobs:
           docfx build docfx.json
 
       - name: Upload API docs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: api-reference-docs
           path: docs/api/_site/
