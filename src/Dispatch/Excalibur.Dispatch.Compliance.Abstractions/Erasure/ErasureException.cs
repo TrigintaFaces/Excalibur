@@ -31,7 +31,7 @@ public sealed class ErasureOperationException : ApiException
 	/// </summary>
 	/// <param name="message">The error message.</param>
 	/// <param name="innerException">The inner exception.</param>
-	public ErasureOperationException(string message, Exception innerException)
+	public ErasureOperationException(string message, Exception? innerException)
 		: base(message, innerException)
 	{
 	}

@@ -54,7 +54,7 @@ public abstract class EntityBase<TKey> : IEntity<TKey>, IEquatable<IEntity<TKey>
 			return false;
 		}
 
-		return other.GetType() == GetType() && other.Key.Equals(Key);
+		return other.GetType() == GetType() && other.Key is not null && other.Key.Equals(Key);
 	}
 
 	/// <inheritdoc />

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.A3.Governance.AccessReviews;
 
@@ -14,6 +15,8 @@ public sealed class AccessReviewOptions
 	/// Gets or sets the default duration for new campaigns.
 	/// </summary>
 	/// <value>Defaults to 30 days.</value>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Range(typeof(TimeSpan)) is the only DataAnnotations approach for TimeSpan validation. No AOT-safe alternative exists.")]
 	[Range(typeof(TimeSpan), "00:01:00", "365.00:00:00",
 		ErrorMessage = "DefaultCampaignDuration must be between 1 minute and 365 days.")]
 	public TimeSpan DefaultCampaignDuration { get; set; } = TimeSpan.FromDays(30);
@@ -28,6 +31,8 @@ public sealed class AccessReviewOptions
 	/// Gets or sets the interval at which the background service checks for expired campaigns.
 	/// </summary>
 	/// <value>Defaults to 1 hour.</value>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Range(typeof(TimeSpan)) is the only DataAnnotations approach for TimeSpan validation. No AOT-safe alternative exists.")]
 	[Range(typeof(TimeSpan), "00:00:10", "24.00:00:00",
 		ErrorMessage = "ExpiryCheckInterval must be between 10 seconds and 24 hours.")]
 	public TimeSpan ExpiryCheckInterval { get; set; } = TimeSpan.FromHours(1);
@@ -43,6 +48,8 @@ public sealed class AccessReviewOptions
 	/// Gets or sets the base delay for exponential backoff on retry.
 	/// </summary>
 	/// <value>Defaults to 5 seconds.</value>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Range(typeof(TimeSpan)) is the only DataAnnotations approach for TimeSpan validation. No AOT-safe alternative exists.")]
 	[Range(typeof(TimeSpan), "00:00:01", "00:05:00",
 		ErrorMessage = "RetryBaseDelay must be between 1 second and 5 minutes.")]
 	public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(5);

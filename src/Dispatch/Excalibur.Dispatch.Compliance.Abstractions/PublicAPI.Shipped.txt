@@ -951,7 +951,7 @@ Excalibur.Dispatch.Compliance.ErasureMethod.SecureOverwrite = 2 -> Excalibur.Dis
 Excalibur.Dispatch.Compliance.ErasureOperationException
 Excalibur.Dispatch.Compliance.ErasureOperationException.ErasureOperationException() -> void
 Excalibur.Dispatch.Compliance.ErasureOperationException.ErasureOperationException(string! message) -> void
-Excalibur.Dispatch.Compliance.ErasureOperationException.ErasureOperationException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Compliance.ErasureOperationException.ErasureOperationException(string! message, System.Exception? innerException) -> void
 Excalibur.Dispatch.Compliance.ErasureOperationException.Reason.get -> Excalibur.Dispatch.Compliance.ErasureFailureReason
 Excalibur.Dispatch.Compliance.ErasureOperationException.Reason.init -> void
 Excalibur.Dispatch.Compliance.ErasureOperationException.RequestId.get -> System.Guid?

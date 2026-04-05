@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.A3.Governance.SeparationOfDuties;
 
@@ -28,6 +29,8 @@ public sealed class SoDOptions
 	/// Gets or sets the interval at which the detective scanning service checks for violations.
 	/// </summary>
 	/// <value>Defaults to 24 hours.</value>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Range(typeof(TimeSpan)) is the only DataAnnotations approach for TimeSpan validation. No AOT-safe alternative exists.")]
 	[Range(typeof(TimeSpan), "00:01:00", "168.00:00:00",
 		ErrorMessage = "DetectiveScanInterval must be between 1 minute and 7 days.")]
 	public TimeSpan DetectiveScanInterval { get; set; } = TimeSpan.FromHours(24);

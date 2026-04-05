@@ -62,6 +62,7 @@ public sealed class DefaultBoundedContextValidator : IBoundedContextValidator
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Uses Assembly.GetTypes() to discover bounded context types at runtime.")]
 	public Task<IReadOnlyList<BoundedContextViolation>> ValidateAsync(CancellationToken cancellationToken)
 	{
 		var violations = new List<BoundedContextViolation>();
@@ -100,6 +101,7 @@ public sealed class DefaultBoundedContextValidator : IBoundedContextValidator
 		return Task.FromResult(result);
 	}
 
+	[RequiresUnreferencedCode("Uses Assembly.GetTypes() to discover bounded context types at runtime.")]
 	private List<(Type Type, string Context)> DiscoverBoundedContextTypes()
 	{
 		var result = new List<(Type, string)>();
