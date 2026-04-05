@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Inbox.Postgres;
@@ -24,6 +26,7 @@ public static class PostgresInboxExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[RequiresUnreferencedCode("Uses ValidateDataAnnotations which requires unreferenced code for validation attribute discovery.")]
 	public static IServiceCollection AddPostgresInboxStore(
 		this IServiceCollection services,
 		Action<PostgresInboxOptions> configure)
@@ -65,6 +68,7 @@ public static class PostgresInboxExtensions
 	/// </code>
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode("Uses ValidateDataAnnotations which requires unreferenced code for validation attribute discovery.")]
 	public static IServiceCollection AddPostgresInboxStore(
 		this IServiceCollection services,
 		Func<IServiceProvider, Func<NpgsqlConnection>> connectionFactoryProvider,
@@ -100,6 +104,7 @@ public static class PostgresInboxExtensions
 	/// <param name="builder">The dispatch builder.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
+	[RequiresUnreferencedCode("Uses ValidateDataAnnotations which requires unreferenced code for validation attribute discovery.")]
 	public static IDispatchBuilder UsePostgresInboxStore(
 		this IDispatchBuilder builder,
 		Action<PostgresInboxOptions> configure)
@@ -121,6 +126,7 @@ public static class PostgresInboxExtensions
 	/// </param>
 	/// <param name="configure">Action to configure the options (used for table names, timeouts, etc.).</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
+	[RequiresUnreferencedCode("Uses ValidateDataAnnotations which requires unreferenced code for validation attribute discovery.")]
 	public static IDispatchBuilder UsePostgresInboxStore(
 		this IDispatchBuilder builder,
 		Func<IServiceProvider, Func<NpgsqlConnection>> connectionFactoryProvider,

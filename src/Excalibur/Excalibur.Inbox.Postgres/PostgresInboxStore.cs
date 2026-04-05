@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Dapper;
@@ -45,7 +46,7 @@ public sealed class PostgresInboxStore : IInboxStore, IInboxStoreAdmin
 	public PostgresInboxStore(
 		IOptions<PostgresInboxOptions> options,
 		ILogger<PostgresInboxStore> logger)
-		: this(CreateConnectionFactory(options?.Value), options?.Value, logger)
+		: this(CreateConnectionFactory(options?.Value!), options!.Value, logger)
 	{
 	}
 
@@ -414,7 +415,7 @@ public sealed class PostgresInboxStore : IInboxStore, IInboxStoreAdmin
 		return deleted;
 	}
 
-	private static Func<NpgsqlConnection> CreateConnectionFactory(PostgresInboxOptions? options)
+	private static Func<NpgsqlConnection> CreateConnectionFactory(PostgresInboxOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		return () => new NpgsqlConnection(options.ConnectionString);
@@ -422,6 +423,10 @@ public sealed class PostgresInboxStore : IInboxStore, IInboxStoreAdmin
 
 	#region Private Methods
 
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Serializing IDictionary<string, object> with simple JSON types is trim-safe.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Serializing IDictionary<string, object> with simple JSON types does not require dynamic code.")]
 	private string SerializeMetadata(IDictionary<string, object> metadata)
 	{
 		return JsonSerializer.Serialize(metadata, _jsonOptions);

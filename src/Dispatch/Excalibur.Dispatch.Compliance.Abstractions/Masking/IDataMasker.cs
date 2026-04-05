@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// </list>
 /// <para>
 /// For object masking, the service uses reflection to discover properties marked with
-/// <see cref="Classification.PersonalDataAttribute"/> or <see cref="Classification.SensitiveAttribute"/>
+/// <see cref="PersonalDataAttribute"/> or <see cref="SensitiveAttribute"/>
 /// with <c>MaskInLogs = true</c>.
 /// </para>
 /// </remarks>

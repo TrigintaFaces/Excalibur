@@ -184,7 +184,7 @@ public sealed class BulkDecryptionExportOptions
 /// </summary>
 /// <remarks>
 /// Used by <see cref="IEncryptionDecryptionService"/> for bulk decryption exports.
-/// Not to be confused with <see cref="Soc2.ExportFormat"/> for SOC 2 reports.
+/// Not to be confused with <see cref="ExportFormat"/> for SOC 2 reports.
 /// </remarks>
 public enum DecryptionExportFormat
 {

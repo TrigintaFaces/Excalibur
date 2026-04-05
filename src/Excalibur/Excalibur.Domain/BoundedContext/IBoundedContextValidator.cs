@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Domain.BoundedContext;
 
@@ -26,5 +27,6 @@ public interface IBoundedContextValidator
 	/// </summary>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>A collection of bounded context violations. Empty if no violations are found.</returns>
+	[RequiresUnreferencedCode("Uses Assembly.GetTypes() to discover bounded context types at runtime.")]
 	Task<IReadOnlyList<BoundedContextViolation>> ValidateAsync(CancellationToken cancellationToken);
 }
