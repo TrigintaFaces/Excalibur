@@ -29,7 +29,7 @@ internal sealed partial class CdcCheckpointManager
 	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
 
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _minHeapLock = new();
+	private readonly Lock _minHeapLock = new();
 #else
 	private readonly object _minHeapLock = new();
 #endif

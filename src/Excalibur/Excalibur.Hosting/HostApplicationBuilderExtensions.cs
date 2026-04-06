@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Domain;
 using Excalibur.Domain.Extensions;
 
@@ -48,6 +50,10 @@ public static class HostApplicationBuilderExtensions
 	/// <param name="services">The service collection to configure.</param>
 	/// <param name="configuration">The application configuration.</param>
 	/// <returns>The updated <see cref="IServiceCollection"/> for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "ApplicationContextOptions is a simple POCO bound from configuration. All properties are preserved.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "ApplicationContextOptions is a simple POCO bound from configuration. All properties are preserved.")]
 	public static IServiceCollection AddApplicationContext(
 		this IServiceCollection services,
 		IConfiguration configuration)

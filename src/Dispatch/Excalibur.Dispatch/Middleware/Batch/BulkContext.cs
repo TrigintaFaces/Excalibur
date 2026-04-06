@@ -138,7 +138,7 @@ internal sealed class BulkContext : IMessageContext
 	/// Gets or sets the routing decision.
 	/// </summary>
 	public RoutingDecision? RoutingDecision { get; set; } =
-		Abstractions.Routing.RoutingDecision.Local;
+		RoutingDecision.Local;
 
 	/// <summary>
 	/// Gets a value indicating whether all validation, authorization, and routing checks passed.

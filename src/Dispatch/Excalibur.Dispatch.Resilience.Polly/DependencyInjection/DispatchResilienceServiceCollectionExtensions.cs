@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Resilience.Polly;
 
 using Microsoft.Extensions.Configuration;
@@ -86,7 +87,7 @@ public static class DispatchResilienceServiceCollectionExtensions
 
 		services.TryAddSingleton(sp =>
 		{
-			var options = sp.GetRequiredService<Options.IOptions<HedgingOptions>>().Value;
+			var options = sp.GetRequiredService<IOptions<HedgingOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<HedgingPolicy>>();
 			return new HedgingPolicy(options, logger);
 		});
@@ -121,7 +122,7 @@ public static class DispatchResilienceServiceCollectionExtensions
 
 		services.TryAddSingleton(sp =>
 		{
-			var options = sp.GetRequiredService<Options.IOptions<HedgingOptions>>().Value;
+			var options = sp.GetRequiredService<IOptions<HedgingOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<HedgingPolicy>>();
 			return new HedgingPolicy(options, logger);
 		});

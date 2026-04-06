@@ -126,7 +126,7 @@ internal sealed class AzureLogicAppsScheduler(
 		return ParseScheduleInfo(scheduleId, payload);
 	}
 
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToElement and Serialize")]
+	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToElement and Serialize")]
 	private static string BuildPayload(
 		object message,
 		Type messageType,
@@ -318,7 +318,8 @@ internal sealed class AzureLogicAppsScheduler(
 		return false;
 	}
 
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	private async Task<string> ScheduleObjectAsync(
 		object message,
 		Type messageType,

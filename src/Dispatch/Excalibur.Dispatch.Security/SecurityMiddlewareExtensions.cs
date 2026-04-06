@@ -1,13 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Diagnostics.CodeAnalysis;
-
-using Excalibur.Dispatch.Abstractions;
-
-
-
 
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
@@ -404,7 +398,8 @@ public static class SecurityMiddlewareExtensions
 		_ = jwtOptionsBuilder.ValidateOnStart();
 
 		// Register cross-property validator
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<JwtAuthenticationOptions>, JwtAuthenticationOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<JwtAuthenticationOptions>, JwtAuthenticationOptionsValidator>());
 
 		// Register middleware
 		services.TryAddTransient<JwtAuthenticationMiddleware>();

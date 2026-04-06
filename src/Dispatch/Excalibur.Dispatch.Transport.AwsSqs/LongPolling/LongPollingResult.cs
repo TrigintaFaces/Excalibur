@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Result of a long polling operation.
 /// </summary>
-public sealed class LongPollingResult
+internal sealed class LongPollingResult
 {
 	public int MessageCount { get; set; }
 

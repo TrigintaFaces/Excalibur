@@ -39,7 +39,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 	private readonly TagCardinalityGuard _instanceGuard;
 
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _stopwatchLock = new();
+	private readonly Lock _stopwatchLock = new();
 #else
 	private readonly object _stopwatchLock = new();
 #endif

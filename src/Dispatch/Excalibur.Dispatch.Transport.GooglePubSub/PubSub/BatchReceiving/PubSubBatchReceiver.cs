@@ -228,7 +228,7 @@ internal sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 	private sealed class AdaptiveBatchSizer(BatchOptions config)
 	{
 #if NET9_0_OR_GREATER
-		private readonly System.Threading.Lock _lock = new();
+		private readonly Lock _lock = new();
 #else
 		private readonly object _lock = new();
 #endif

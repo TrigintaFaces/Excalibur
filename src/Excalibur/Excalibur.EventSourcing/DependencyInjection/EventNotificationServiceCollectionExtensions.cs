@@ -3,9 +3,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Projections;
+
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -125,9 +127,9 @@ public static class EventNotificationServiceCollectionExtensions
 #pragma warning disable RS0030 // Assembly scanning requires dynamic instantiation
 				var config = Activator.CreateInstance(type)
 #pragma warning restore RS0030
-					?? throw new InvalidOperationException(
-						$"Failed to create instance of {type.Name}. " +
-						$"IProjectionConfiguration<T> implementations must have a parameterless constructor.");
+				             ?? throw new InvalidOperationException(
+					             $"Failed to create instance of {type.Name}. " +
+					             $"IProjectionConfiguration<T> implementations must have a parameterless constructor.");
 
 				// Call AddProjection<TProjection> via reflection to register
 				// the projection with the correct generic type
@@ -244,7 +246,7 @@ public static class EventNotificationServiceCollectionExtensions
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<Excalibur.Dispatch.Abstractions.IEventSerializer>(),
 				sp,
-				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ProjectionRecoveryService>>()));
+				sp.GetRequiredService<Logging.ILogger<ProjectionRecoveryService>>()));
 
 		return builder;
 	}
@@ -268,7 +270,7 @@ public static class EventNotificationServiceCollectionExtensions
 		builder.UseProjectionRecovery();
 
 		// Observability: metrics, health state, health check
-		builder.Services.TryAddSingleton<Excalibur.EventSourcing.Projections.ProjectionHealthState>();
+		builder.Services.TryAddSingleton<ProjectionHealthState>();
 		builder.Services.TryAddSingleton<Excalibur.EventSourcing.Diagnostics.ProjectionObservability>();
 		builder.Services.AddHealthChecks()
 			.AddCheck<Excalibur.EventSourcing.Health.ProjectionHealthCheck>("projections");
@@ -278,8 +280,8 @@ public static class EventNotificationServiceCollectionExtensions
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<Excalibur.Dispatch.Abstractions.IEventSerializer>(),
 				sp.GetRequiredService<IProjectionRegistry>(),
-				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<EphemeralProjectionEngine>>(),
-				sp.GetService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>()));
+				sp.GetRequiredService<Logging.ILogger<EphemeralProjectionEngine>>(),
+				sp.GetService<Caching.Distributed.IDistributedCache>()));
 
 		return builder;
 	}

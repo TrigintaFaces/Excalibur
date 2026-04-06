@@ -20,7 +20,7 @@ internal sealed partial class InMemoryApiKeyManager(
 {
 	private readonly ConcurrentDictionary<string, StoredApiKey> _keysById = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, StoredApiKey> _keysByHash = new(StringComparer.Ordinal);
-#pragma warning disable IDE0330 // Use 'System.Threading.Lock' -- net8.0 does not have Lock type
+#pragma warning disable IDE0330 // Use 'Lock' -- net8.0 does not have Lock type
 	private readonly object _rotationLock = new();
 #pragma warning restore IDE0330
 

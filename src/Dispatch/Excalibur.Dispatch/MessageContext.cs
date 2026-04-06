@@ -35,7 +35,7 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	private Dictionary<Type, object>? _features;
 
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lockObject = new();
+	private readonly Lock _lockObject = new();
 #else
 	private readonly object _lockObject = new();
 #endif

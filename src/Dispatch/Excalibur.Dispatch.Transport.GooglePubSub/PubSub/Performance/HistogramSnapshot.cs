@@ -4,7 +4,7 @@
 
 namespace Excalibur.Dispatch.Transport.Google;
 
-public sealed class HistogramSnapshot
+internal sealed class HistogramSnapshot
 {
 	public long Count { get; set; }
 

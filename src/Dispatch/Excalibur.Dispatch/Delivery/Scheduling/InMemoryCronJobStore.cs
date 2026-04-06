@@ -14,7 +14,7 @@ internal sealed class InMemoryCronJobStore : ICronJobStore
 	private readonly ConcurrentDictionary<string, RecurringCronJob> _jobs = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, List<JobExecutionHistory>> _history = new(StringComparer.Ordinal);
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _historyLock = new();
+	private readonly Lock _historyLock = new();
 #else
 	private readonly object _historyLock = new();
 #endif

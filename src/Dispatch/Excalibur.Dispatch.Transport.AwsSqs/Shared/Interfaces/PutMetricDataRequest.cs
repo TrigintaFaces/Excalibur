@@ -8,7 +8,7 @@ using Amazon.CloudWatch.Model;
 
 namespace Excalibur.Dispatch.Transport.Aws;
 
-public sealed class PutMetricDataRequest
+internal sealed class PutMetricDataRequest
 {
 	public string Namespace { get; set; } = string.Empty;
 

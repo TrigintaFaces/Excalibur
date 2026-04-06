@@ -34,7 +34,7 @@ internal sealed class EncryptionProviderRegistry : IEncryptionProviderRegistry
 
 	private readonly List<string> _legacyProviderIds = [];
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
+	private readonly Lock _lock = new();
 #else
 	private readonly object _lock = new();
 #endif

@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Metrics for long polling receiver.
 /// </summary>
-public sealed class LongPollingMetrics
+internal sealed class LongPollingMetrics
 {
 	private readonly ValueStopwatch _rateStopwatch = ValueStopwatch.StartNew();
 	private long _messagesReceived;

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// Snapshot of long polling metrics.
 /// </summary>
 [StructLayout(LayoutKind.Auto)]
-public readonly struct LongPollingSnapshot : IEquatable<LongPollingSnapshot>
+internal readonly struct LongPollingSnapshot : IEquatable<LongPollingSnapshot>
 {
 	public long MessagesReceived { get; init; }
 

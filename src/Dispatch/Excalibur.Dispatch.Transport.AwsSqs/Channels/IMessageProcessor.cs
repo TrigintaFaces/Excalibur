@@ -7,12 +7,13 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Message processor interface for SQS messages.
 /// </summary>
-public interface IMessageProcessor<T>
+internal interface IMessageProcessor<T>
 {
 	/// <summary>
+	/// Processes the specified message asynchronously.
 	/// </summary>
-	/// <param name="message"> </param>
-	/// <param name="cancellationToken"> </param>
+	/// <param name="message">The message to process.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns> A <see cref="Task{TResult}" /> representing the result of the asynchronous operation. </returns>
 	Task<ProcessingResult> ProcessAsync(T message, CancellationToken cancellationToken);
 }

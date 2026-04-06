@@ -285,7 +285,7 @@ public sealed partial class InMemoryOutboxStore(ILogger<InMemoryOutboxStore> log
 		ArgumentNullException.ThrowIfNull(context);
 
 		var outboundMessage = new OutboundMessage(
-				context.GetMessageType(),
+				context.GetMessageType() ?? message.GetType().FullName ?? message.GetType().Name,
 				System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(message)),
 				"default", // Sample implementation uses default destination
 				null) // Headers no longer available on IDispatchMessage; using null for sample implementation

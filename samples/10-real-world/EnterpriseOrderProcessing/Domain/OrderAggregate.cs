@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Domain.Model;
@@ -41,7 +41,9 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	public void Create(Guid orderId, Guid customerId, string customerName)
 	{
 		if (Status != OrderStatus.Draft || Version > 0)
+		{
 			throw new InvalidOperationException("Order already created.");
+		}
 
 		Id = orderId;
 		RaiseEvent(new OrderCreated(orderId, customerId, customerName));
@@ -50,7 +52,9 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	public void AddLine(string productId, int quantity, decimal unitPrice)
 	{
 		if (Status != OrderStatus.Draft)
+		{
 			throw new InvalidOperationException("Cannot add lines to a non-draft order.");
+		}
 
 		ArgumentException.ThrowIfNullOrWhiteSpace(productId);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
@@ -62,9 +66,14 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	public void Submit()
 	{
 		if (Status != OrderStatus.Draft)
+		{
 			throw new InvalidOperationException("Only draft orders can be submitted.");
+		}
+
 		if (_lines.Count == 0)
+		{
 			throw new InvalidOperationException("Cannot submit an empty order.");
+		}
 
 		RaiseEvent(new OrderSubmitted(Id));
 	}
@@ -72,7 +81,9 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	public void Ship(string trackingNumber)
 	{
 		if (Status != OrderStatus.Submitted)
+		{
 			throw new InvalidOperationException("Only submitted orders can be shipped.");
+		}
 
 		ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
 
@@ -82,7 +93,9 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	public void Cancel(string reason)
 	{
 		if (Status is OrderStatus.Shipped or OrderStatus.Cancelled)
+		{
 			throw new InvalidOperationException($"Cannot cancel an order in {Status} status.");
+		}
 
 		ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
@@ -93,11 +106,25 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	{
 		switch (@event)
 		{
-			case OrderCreated e: Apply(e); break;
-			case OrderLineAdded e: Apply(e); break;
-			case OrderSubmitted: ApplySubmitted(); break;
-			case OrderShipped e: Apply(e); break;
-			case OrderCancelled e: Apply(e); break;
+			case OrderCreated e:
+				Apply(e);
+				break;
+
+			case OrderLineAdded e:
+				Apply(e);
+				break;
+
+			case OrderSubmitted:
+				ApplySubmitted();
+				break;
+
+			case OrderShipped e:
+				Apply(e);
+				break;
+
+			case OrderCancelled e:
+				Apply(e);
+				break;
 		}
 	}
 
@@ -111,12 +138,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 
 	private void Apply(OrderLineAdded e)
 	{
-		_lines.Add(new OrderLine
-		{
-			ProductId = e.ProductId,
-			Quantity = e.Quantity,
-			UnitPrice = e.UnitPrice
-		});
+		_lines.Add(new OrderLine { ProductId = e.ProductId, Quantity = e.Quantity, UnitPrice = e.UnitPrice });
 	}
 
 	private void ApplySubmitted()

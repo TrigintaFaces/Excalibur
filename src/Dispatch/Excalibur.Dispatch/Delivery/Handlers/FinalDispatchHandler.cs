@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
@@ -39,19 +38,21 @@ public sealed partial class FinalDispatchHandler(
 	IRetryPolicy? retryPolicy,
 	IDictionary<string, MessageBusOptions> busOptionsMap)
 {
-	private readonly ILogger<FinalDispatchHandler> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private const string ResultContextKey = "Dispatch:Result";
 	private const string CacheHitContextKey = "Dispatch:CacheHit";
 	private const string ValidationResultPropertyKey = "__ValidationResult";
 	private const string AuthorizationResultPropertyKey = "__AuthorizationResult";
 	private const string LocalBusName = "local";
 	private const int MaxCacheEntries = 1024;
+	private static readonly ConcurrentDictionary<Type, Type?> ActionResultTypeCache = new();
+	private readonly ILogger<FinalDispatchHandler> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly IMessageBus? _cachedLocalBus = ResolveLocalBus(busProvider);
 	private readonly bool _localRetriesEnabled = ResolveLocalRetriesEnabled(busOptionsMap, retryPolicy);
 
 	// PERF: Pre-resolved bus + policy cache for single-target dispatch.
 	// Avoids ConcurrentDictionary lookup + policy computation on every dispatch.
-	private readonly ConcurrentDictionary<string, (IMessageBus Bus, bool UseNoOpPolicy)> _resolvedBusCache = new(StringComparer.OrdinalIgnoreCase);
+	private readonly ConcurrentDictionary<string, (IMessageBus Bus, bool UseNoOpPolicy)> _resolvedBusCache =
+		new(StringComparer.OrdinalIgnoreCase);
 
 	// PERF-T4: Pre-resolved single transport bus for the common single-transport case.
 	// When exactly one non-local bus is registered, HandleSingleTargetAsync can skip the
@@ -81,8 +82,6 @@ public sealed partial class FinalDispatchHandler(
 		"Design",
 		"CA1506:AvoidExcessiveClassCoupling",
 		Justification = "Final dispatch composes the end-to-end pipeline across messaging abstractions and transports.")]
-	// PERF: Non-async to avoid state machine allocation on the four common local/single-target paths.
-	// Only the multi-target routing path (rare) uses the async HandleMultiTargetAsync.
 	public ValueTask<IMessageResult> HandleAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -114,6 +113,326 @@ public sealed partial class FinalDispatchHandler(
 
 		return HandleMultiTargetAsync(message, context, routingDecision, cancellationToken);
 	}
+
+	private static IMessageResult CreateSuccessResult(IMessageContext context, RoutingDecision? routingDecision)
+	{
+		// PERF: Fast path for MessageContext -- skip dictionary lookups entirely when no
+		// validation, authorization, or cache hit was set (the common case for remote dispatch).
+		if (context is MessageContext messageContext)
+		{
+			var hasCacheHit = messageContext.TryGetItemFast(CacheHitContextKey, out var cacheVal) && cacheVal is true;
+			var hasValidation = messageContext.TryGetItemFast(ValidationResultPropertyKey, out _);
+			var hasAuthorization = messageContext.TryGetItemFast(AuthorizationResultPropertyKey, out _);
+
+			if (!hasValidation && !hasAuthorization)
+			{
+				return hasCacheHit ? SimpleMessageResult.SuccessCacheHitResult : SimpleMessageResult.SuccessResult;
+			}
+
+			return MR.Success(
+				routingDecision,
+				hasValidation ? context.ValidationResult() : null,
+				hasAuthorization ? context.AuthorizationResult() : null,
+				hasCacheHit);
+		}
+
+		var cacheHit = IsCacheHit(context);
+		var validationResult = context.ValidationResult();
+		var authorizationResult = context.AuthorizationResult();
+
+		if (validationResult is null && authorizationResult is null)
+		{
+			return cacheHit ? SimpleMessageResult.SuccessCacheHitResult : SimpleMessageResult.SuccessResult;
+		}
+
+		return MR.Success(
+			routingDecision,
+			validationResult,
+			authorizationResult,
+			cacheHit);
+	}
+
+	private static IReadOnlyList<IRouteResult> GetTargetRoutes(RoutingDecision? routingDecision)
+	{
+		if (routingDecision?.Endpoints is { Count: > 0 } endpoints)
+		{
+			var routes = new List<IRouteResult>(endpoints.Count);
+			for (var i = 0; i < endpoints.Count; i++)
+			{
+				routes.Add(new RouteResult(endpoints[i]));
+			}
+
+			return routes;
+		}
+
+		return [new RouteResult("local")];
+	}
+
+	private static IMessageBus? ResolveLocalBus(IMessageBusProvider provider)
+	{
+		_ = provider.TryGet(LocalBusName, out var localBus);
+		return localBus;
+	}
+
+	private static bool ResolveLocalRetriesEnabled(
+		IDictionary<string, MessageBusOptions> optionsMap,
+		IRetryPolicy? configuredRetryPolicy)
+	{
+		if (configuredRetryPolicy is null)
+		{
+			return false;
+		}
+
+		return optionsMap.TryGetValue(LocalBusName, out var localOptions) && localOptions?.EnableRetries == true;
+	}
+
+	/// <summary>
+	/// Pre-resolves a single transport bus when exactly one non-local bus is registered.
+	/// Returns null when zero or multiple non-local buses exist (fall back to string-keyed cache).
+	/// </summary>
+	private static (IMessageBus Bus, bool UseNoOpPolicy, string Name)? ResolveSingleTransportBus(
+		IMessageBusProvider provider,
+		IDictionary<string, MessageBusOptions> optionsMap,
+		IRetryPolicy? configuredRetryPolicy)
+	{
+		string? singleName = null;
+		foreach (var name in provider.GetAllMessageBusNames())
+		{
+			if (string.Equals(name, LocalBusName, StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			if (singleName is not null)
+			{
+				// More than one non-local bus -- can't pre-resolve
+				return null;
+			}
+
+			singleName = name;
+		}
+
+		if (singleName is null)
+		{
+			return null;
+		}
+
+		if (!provider.TryGet(singleName, out var bus) || bus is null)
+		{
+			return null;
+		}
+
+		_ = optionsMap.TryGetValue(singleName, out var opts);
+		var useNoOp = !(opts?.EnableRetries == true && configuredRetryPolicy is not null);
+		return (bus, useNoOp, singleName);
+	}
+
+	[RequiresUnreferencedCode("This method uses reflection to create typed MessageResult instances and set properties dynamically")]
+	[RequiresDynamicCode("This method uses reflection to construct generic methods at runtime.")]
+	private static IMessageResult CreateTypedResult(IDispatchAction action, IMessageContext context)
+	{
+		var actionResultType = GetActionResultType(action.GetType());
+		return CreateTypedResult(context, actionResultType);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Action dispatch result uses reflection for typed result construction.")]
+	[RequiresDynamicCode("Action dispatch result uses reflection for typed result construction.")]
+	private static IMessageResult CreateActionDispatchResult(
+		IMessageContext context,
+		RoutingDecision? routingDecision,
+		Type? actionResultType,
+		bool hadContextResultBeforeDispatch)
+	{
+		if (!hadContextResultBeforeDispatch && actionResultType is null && !HasContextResult(context))
+		{
+			return CreateSuccessResult(context, routingDecision);
+		}
+
+		return CreateTypedResult(context, actionResultType);
+	}
+
+	[RequiresUnreferencedCode("This method uses reflection to create typed MessageResult instances and set properties dynamically")]
+	[RequiresDynamicCode("This method uses reflection to construct generic methods at runtime.")]
+	private static IMessageResult CreateTypedResult(
+		IMessageContext context,
+		Type? actionResultType)
+	{
+		var result = TryGetContextResult(context);
+
+		var resultType = result?.GetType();
+
+		if (resultType is null)
+		{
+			resultType = actionResultType;
+
+			// Fast path for non-response actions: avoid reflective generic result factory.
+			if (resultType is null)
+			{
+				return CreateSuccessResult(context, RoutingDecisionAccessor.GetRoutingDecisionFast(context));
+			}
+		}
+
+		if (result is null && resultType.GetConstructor(Type.EmptyTypes) is null && resultType.IsClass)
+		{
+			throw new InvalidOperationException(
+				string.Format(
+					CultureInfo.CurrentCulture,
+					Resources.FinalDispatchHandler_ReturnTypeMustHaveParameterlessCtorFormat,
+					resultType.FullName));
+		}
+
+		// Read cache hit flag from context
+		var cacheHit = IsCacheHit(context);
+		var routing = RoutingDecisionAccessor.GetRoutingDecisionFast(context);
+		var validation = GetValidationResultFast(context);
+		var authorization = GetAuthorizationResultFast(context);
+
+		if (routing is null && validation is null && authorization is null)
+		{
+			var leanFactory = ResultFactoryCache.GetOrCreateLeanFactory(resultType);
+			return leanFactory(result, cacheHit);
+		}
+
+		// AOT path: Use source-generated factory registry (no reflection/MakeGenericMethod)
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			var aotFactory = ResultFactoryRegistry.GetFactory(resultType);
+			if (aotFactory != null)
+			{
+				return aotFactory(
+					result,
+					routing,
+					validation,
+					authorization as IAuthorizationResult,
+					cacheHit);
+			}
+		}
+
+		// Use cached factory delegate instead of per-dispatch reflection
+		var factory = ResultFactoryCache.GetOrCreateFactory(resultType);
+		return factory(
+			result,
+			routing,
+			validation,
+			authorization,
+			cacheHit);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static object? TryGetContextResult(IMessageContext context)
+	{
+		if (context.Result is not null)
+		{
+			return context.Result;
+		}
+
+		if (context is MessageContext messageContext)
+		{
+			return messageContext.TryGetItemFast(ResultContextKey, out var fastCachedValue)
+				? fastCachedValue
+				: null;
+		}
+
+		return context.GetItem<object?>(ResultContextKey);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool HasContextResult(IMessageContext context) => TryGetContextResult(context) is not null;
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool IsCacheHit(IMessageContext context)
+	{
+		if (context is MessageContext messageContext)
+		{
+			if (messageContext.TryGetItemFast(CacheHitContextKey, out var fastValue))
+			{
+				return fastValue is bool fastFlag
+					? fastFlag
+					: context.GetItem(CacheHitContextKey, false);
+			}
+
+			return false;
+		}
+
+		return context.GetItem(CacheHitContextKey, false);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static object? GetValidationResultFast(IMessageContext context)
+	{
+		if (context is MessageContext messageContext)
+		{
+			return messageContext.TryGetItemFast(ValidationResultPropertyKey, out var fastValue)
+				? fastValue
+				: null;
+		}
+
+		return context.ValidationResult();
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static object? GetAuthorizationResultFast(IMessageContext context)
+	{
+		if (context is MessageContext messageContext)
+		{
+			return messageContext.TryGetItemFast(AuthorizationResultPropertyKey, out var fastValue)
+				? fastValue
+				: null;
+		}
+
+		return context.AuthorizationResult();
+	}
+
+	[RequiresUnreferencedCode("This method uses reflection to inspect generic interface types")]
+	private static Type? GetActionResultType(Type actionType)
+	{
+		if (ActionResultTypeCache.TryGetValue(actionType, out var cached))
+		{
+			return cached;
+		}
+
+		var resultType = ResolveActionResultType(actionType);
+
+		// Bounded cache: skip caching when full to prevent unbounded memory growth
+		if (ActionResultTypeCache.Count < MaxCacheEntries)
+		{
+			ActionResultTypeCache.TryAdd(actionType, resultType);
+		}
+
+		return resultType;
+	}
+
+	[RequiresUnreferencedCode("Uses reflection to inspect generic interface types for action result type resolution.")]
+	private static Type? ResolveActionResultType(Type actionType)
+	{
+		var interfaces = actionType.GetInterfaces();
+		for (var i = 0; i < interfaces.Length; i++)
+		{
+			var contract = interfaces[i];
+			if (!contract.IsGenericType || contract.GetGenericTypeDefinition() != typeof(IDispatchAction<>))
+			{
+				continue;
+			}
+
+			var genericArguments = contract.GetGenericArguments();
+			return genericArguments.Length > 0 ? genericArguments[0] : null;
+		}
+
+		return null;
+	}
+
+	// Source-generated logging methods
+	[LoggerMessage(DeliveryEventId.FinalDispatchNoBusFound, LogLevel.Error,
+		"No message bus found for name '{BusName}'")]
+	private static partial void LogNoMessageBusFound(ILogger logger, string? busName);
+
+	[LoggerMessage(DeliveryEventId.FinalDispatchFailed, LogLevel.Error,
+		"Unhandled exception during final dispatch of {MessageType}")]
+	private static partial void LogUnhandledExceptionDuringDispatch(
+		ILogger logger,
+		string messageType,
+		Exception ex);
 
 	/// <summary>
 	/// Handles multi-target routing dispatch (cold path). Extracted from HandleAsync to keep
@@ -163,6 +482,85 @@ public sealed partial class FinalDispatchHandler(
 
 			targets.Add((route, resolvedBus));
 		}
+
+		// Handle all events (IDispatchEvent and IIntegrationEvent which inherits from it)
+		if (message is IDispatchEvent dispatchEvent)
+		{
+			return await PublishToBusesAsync(
+					dispatchEvent,
+					static (bus, evt, ctx, token) => bus.PublishAsync(evt, ctx, token))
+				.ConfigureAwait(false);
+		}
+
+		if (message is IDispatchDocument doc)
+		{
+			return await PublishToBusesAsync(
+					doc,
+					static (bus, document, ctx, token) => bus.PublishAsync(document, ctx, token))
+				.ConfigureAwait(false);
+		}
+
+		if (message is IDispatchAction action)
+		{
+			var primary = targets[0];
+			_ = busOptionsMap.TryGetValue(primary.Route.MessageBusName, out var primaryOptions);
+			var retriesEnabled = primaryOptions?.EnableRetries == true && retryPolicy != null;
+
+			try
+			{
+				if (!retriesEnabled)
+				{
+					return await ExecutePrimaryActionAsync(cancellationToken).ConfigureAwait(false);
+				}
+
+				return await retryPolicy!.ExecuteAsync(ExecutePrimaryActionAsync, cancellationToken).ConfigureAwait(false);
+
+				async Task<IMessageResult> ExecutePrimaryActionAsync(CancellationToken ct)
+				{
+					// Skip handler execution if result already exists in context (cache hit scenario)
+					if (!HasContextResult(context))
+					{
+						await primary.Bus.PublishAsync(action, context, ct).ConfigureAwait(false);
+					}
+
+					primary.Route.DeliveryStatus = RouteDeliveryStatus.Succeeded;
+					primary.Route.Failure = null;
+					return CreateTypedResult(action, context);
+				}
+			}
+			catch (Exception ex)
+			{
+				LogUnhandledExceptionDuringDispatch(_logger, message.GetType().Name, ex);
+				primary.Route.DeliveryStatus = RouteDeliveryStatus.Failed;
+				primary.Route.Failure = RouteFailure.FromException(ex);
+
+				var problemDetails = new MessageProblemDetails
+				{
+					Type = ProblemDetailsTypes.HandlerError,
+					Title = "Final dispatch failed",
+					Status = 500,
+					Detail = ex.Message,
+					Instance = Guid.NewGuid().ToString(),
+				};
+				return MR.Failed(
+					problemDetails,
+					context.ValidationResult() as IValidationResult,
+					context.AuthorizationResult() as IAuthorizationResult);
+			}
+		}
+
+		var unsupported = new MessageProblemDetails
+		{
+			Type = ProblemDetailsTypes.Routing,
+			Title = "Unsupported message type",
+			Status = 400,
+			Detail = $"Message type '{message.GetType().Name}' is not supported.",
+			Instance = Guid.NewGuid().ToString(),
+		};
+		return MR.Failed(
+			unsupported,
+			context.ValidationResult() as IValidationResult,
+			context.AuthorizationResult() as IAuthorizationResult);
 
 		async Task<IMessageResult> PublishToBusesAsync<TMessage>(
 			TMessage payload,
@@ -215,85 +613,6 @@ public sealed partial class FinalDispatchHandler(
 				context.ValidationResult(),
 				context.AuthorizationResult());
 		}
-
-		// Handle all events (IDispatchEvent and IIntegrationEvent which inherits from it)
-		if (message is IDispatchEvent dispatchEvent)
-		{
-			return await PublishToBusesAsync(
-					dispatchEvent,
-					static (bus, evt, ctx, token) => bus.PublishAsync(evt, ctx, token))
-				.ConfigureAwait(false);
-		}
-
-		if (message is IDispatchDocument doc)
-		{
-			return await PublishToBusesAsync(
-					doc,
-					static (bus, document, ctx, token) => bus.PublishAsync(document, ctx, token))
-				.ConfigureAwait(false);
-		}
-
-		if (message is IDispatchAction action)
-		{
-			var primary = targets[0];
-			_ = busOptionsMap.TryGetValue(primary.Route.MessageBusName, out var primaryOptions);
-			var retriesEnabled = primaryOptions?.EnableRetries == true && retryPolicy != null;
-
-			try
-			{
-				async Task<IMessageResult> ExecutePrimaryActionAsync(CancellationToken ct)
-				{
-					// Skip handler execution if result already exists in context (cache hit scenario)
-					if (!HasContextResult(context))
-					{
-						await primary.Bus.PublishAsync(action, context, ct).ConfigureAwait(false);
-					}
-
-					primary.Route.DeliveryStatus = RouteDeliveryStatus.Succeeded;
-					primary.Route.Failure = null;
-					return CreateTypedResult(action, context);
-				}
-
-				if (!retriesEnabled)
-				{
-					return await ExecutePrimaryActionAsync(cancellationToken).ConfigureAwait(false);
-				}
-
-				return await retryPolicy!.ExecuteAsync(ExecutePrimaryActionAsync, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				LogUnhandledExceptionDuringDispatch(_logger, message.GetType().Name, ex);
-				primary.Route.DeliveryStatus = RouteDeliveryStatus.Failed;
-				primary.Route.Failure = RouteFailure.FromException(ex);
-
-				var problemDetails = new MessageProblemDetails
-				{
-					Type = ProblemDetailsTypes.HandlerError,
-					Title = "Final dispatch failed",
-					Status = 500,
-					Detail = ex.Message,
-					Instance = Guid.NewGuid().ToString(),
-				};
-				return MR.Failed(
-					problemDetails,
-					context.ValidationResult() as IValidationResult,
-					context.AuthorizationResult() as IAuthorizationResult);
-			}
-		}
-
-		var unsupported = new MessageProblemDetails
-		{
-			Type = ProblemDetailsTypes.Routing,
-			Title = "Unsupported message type",
-			Status = 400,
-			Detail = $"Message type '{message.GetType().Name}' is not supported.",
-			Instance = Guid.NewGuid().ToString(),
-		};
-		return MR.Failed(
-			unsupported,
-			context.ValidationResult() as IValidationResult,
-			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	// PERF-7: Non-async wrapper avoids state machine allocation when handler completes synchronously.
@@ -388,6 +707,8 @@ public sealed partial class FinalDispatchHandler(
 	{
 		try
 		{
+			return await retryPolicy!.ExecuteAsync(ExecuteLocalAsync, cancellationToken).ConfigureAwait(false);
+
 			async Task<IMessageResult> ExecuteLocalAsync(CancellationToken ct)
 			{
 				var hasContextResult = HasContextResult(context);
@@ -402,8 +723,6 @@ public sealed partial class FinalDispatchHandler(
 					actionResultType,
 					hasContextResult);
 			}
-
-			return await retryPolicy!.ExecuteAsync(ExecuteLocalAsync, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -469,13 +788,13 @@ public sealed partial class FinalDispatchHandler(
 	{
 		try
 		{
+			return await retryPolicy!.ExecuteAsync(ExecuteLocalAsync, cancellationToken).ConfigureAwait(false);
+
 			async Task<IMessageResult> ExecuteLocalAsync(CancellationToken ct)
 			{
 				await localBus.PublishAsync(dispatchEvent, context, ct).ConfigureAwait(false);
 				return CreateSuccessResult(context, routingDecision);
 			}
-
-			return await retryPolicy!.ExecuteAsync(ExecuteLocalAsync, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -541,13 +860,13 @@ public sealed partial class FinalDispatchHandler(
 	{
 		try
 		{
+			return await retryPolicy!.ExecuteAsync(ExecuteLocalAsync, cancellationToken).ConfigureAwait(false);
+
 			async Task<IMessageResult> ExecuteLocalAsync(CancellationToken ct)
 			{
 				await localBus.PublishAsync(document, context, ct).ConfigureAwait(false);
 				return CreateSuccessResult(context, routingDecision);
 			}
-
-			return await retryPolicy!.ExecuteAsync(ExecuteLocalAsync, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -570,7 +889,7 @@ public sealed partial class FinalDispatchHandler(
 		// registered, skip the ConcurrentDictionary<string, ...> lookup entirely (~2-4us saved).
 		(IMessageBus Bus, bool UseNoOpPolicy) cached;
 		if (_singleTransportBus is { } single &&
-		    string.Equals(busName, single.Name, StringComparison.OrdinalIgnoreCase))
+			string.Equals(busName, single.Name, StringComparison.OrdinalIgnoreCase))
 		{
 			cached = (single.Bus, single.UseNoOpPolicy);
 		}
@@ -747,6 +1066,8 @@ public sealed partial class FinalDispatchHandler(
 	{
 		try
 		{
+			return await policy.ExecuteAsync(ExecuteActionAsync, cancellationToken).ConfigureAwait(false);
+
 			async Task<IMessageResult> ExecuteActionAsync(CancellationToken ct)
 			{
 				var hasContextResult = HasContextResult(context);
@@ -757,8 +1078,6 @@ public sealed partial class FinalDispatchHandler(
 
 				return CreateActionDispatchResult(context, routingDecision, actionResultType, hasContextResult);
 			}
-
-			return await policy.ExecuteAsync(ExecuteActionAsync, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -861,44 +1180,6 @@ public sealed partial class FinalDispatchHandler(
 			problemDetails,
 			context.ValidationResult() as IValidationResult,
 			context.AuthorizationResult() as IAuthorizationResult);
-	}
-
-	private static IMessageResult CreateSuccessResult(IMessageContext context, RoutingDecision? routingDecision)
-	{
-		// PERF: Fast path for MessageContext -- skip dictionary lookups entirely when no
-		// validation, authorization, or cache hit was set (the common case for remote dispatch).
-		if (context is MessageContext messageContext)
-		{
-			var hasCacheHit = messageContext.TryGetItemFast(CacheHitContextKey, out var cacheVal) && cacheVal is true;
-			var hasValidation = messageContext.TryGetItemFast(ValidationResultPropertyKey, out _);
-			var hasAuthorization = messageContext.TryGetItemFast(AuthorizationResultPropertyKey, out _);
-
-			if (!hasValidation && !hasAuthorization)
-			{
-				return hasCacheHit ? SimpleMessageResult.SuccessCacheHitResult : SimpleMessageResult.SuccessResult;
-			}
-
-			return Abstractions.MessageResult.Success(
-				routingDecision,
-				hasValidation ? context.ValidationResult() : null,
-				hasAuthorization ? context.AuthorizationResult() : null,
-				hasCacheHit);
-		}
-
-		var cacheHit = IsCacheHit(context);
-		var validationResult = context.ValidationResult();
-		var authorizationResult = context.AuthorizationResult();
-
-		if (validationResult is null && authorizationResult is null)
-		{
-			return cacheHit ? SimpleMessageResult.SuccessCacheHitResult : SimpleMessageResult.SuccessResult;
-		}
-
-		return Abstractions.MessageResult.Success(
-			routingDecision,
-			validationResult,
-			authorizationResult,
-			cacheHit);
 	}
 
 	#region PERF-7 Error Result Helpers
@@ -1005,7 +1286,7 @@ public sealed partial class FinalDispatchHandler(
 			context.AuthorizationResult() as IAuthorizationResult);
 	}
 
-	#endregion
+	#endregion PERF-7 Error Result Helpers
 
 	private bool TryGetLocalBus(out IMessageBus? bus)
 	{
@@ -1013,82 +1294,27 @@ public sealed partial class FinalDispatchHandler(
 		return bus is not null || busProvider.TryGet(LocalBusName, out bus);
 	}
 
-	private static IReadOnlyList<IRouteResult> GetTargetRoutes(RoutingDecision? routingDecision)
-	{
-		if (routingDecision?.Endpoints is { Count: > 0 } endpoints)
-		{
-			var routes = new List<IRouteResult>(endpoints.Count);
-			for (var i = 0; i < endpoints.Count; i++)
-			{
-				routes.Add(new RouteResult(endpoints[i]));
-			}
-
-			return routes;
-		}
-
-		return [new RouteResult("local")];
-	}
-
-	private static IMessageBus? ResolveLocalBus(IMessageBusProvider provider)
-	{
-		_ = provider.TryGet(LocalBusName, out var localBus);
-		return localBus;
-	}
-
-	private static bool ResolveLocalRetriesEnabled(
-		IDictionary<string, MessageBusOptions> optionsMap,
-		IRetryPolicy? configuredRetryPolicy)
-	{
-		if (configuredRetryPolicy is null)
-		{
-			return false;
-		}
-
-		return optionsMap.TryGetValue(LocalBusName, out var localOptions) && localOptions?.EnableRetries == true;
-	}
+	#region Result Factory Cache (PERF-6, PERF-13/PERF-14)
 
 	/// <summary>
-	/// Pre-resolves a single transport bus when exactly one non-local bus is registered.
-	/// Returns null when zero or multiple non-local buses exist (fall back to string-keyed cache).
+	/// Gets a value indicating whether the result factory cache has been frozen.
 	/// </summary>
-	private static (IMessageBus Bus, bool UseNoOpPolicy, string Name)? ResolveSingleTransportBus(
-		IMessageBusProvider provider,
-		IDictionary<string, MessageBusOptions> optionsMap,
-		IRetryPolicy? configuredRetryPolicy)
-	{
-		string? singleName = null;
-		foreach (var name in provider.GetAllMessageBusNames())
-		{
-			if (string.Equals(name, LocalBusName, StringComparison.OrdinalIgnoreCase))
-			{
-				continue;
-			}
+	public static bool IsResultFactoryCacheFrozen => ResultFactoryCache.IsCacheFrozen;
 
-			if (singleName is not null)
-			{
-				// More than one non-local bus -- can't pre-resolve
-				return null;
-			}
+	/// <summary>
+	/// Freezes the result factory cache for optimal read performance (PERF-13/PERF-14).
+	/// </summary>
+	/// <remarks>
+	/// Call this method after all result types have been encountered (e.g., after warmup).
+	/// Once frozen, the cache uses <see cref="FrozenDictionary{TKey, TValue}"/> for O(1) lookups
+	/// with zero synchronization overhead.
+	/// </remarks>
+	public static void FreezeResultFactoryCache() => ResultFactoryCache.Freeze();
 
-			singleName = name;
-		}
-
-		if (singleName is null)
-		{
-			return null;
-		}
-
-		if (!provider.TryGet(singleName, out var bus) || bus is null)
-		{
-			return null;
-		}
-
-		_ = optionsMap.TryGetValue(singleName, out var opts);
-		var useNoOp = !(opts?.EnableRetries == true && configuredRetryPolicy is not null);
-		return (bus, useNoOp, singleName);
-	}
-
-	#region Result Factory Cache (PERF-6, PERF-13/PERF-14)
+	/// <summary>
+	/// Clears the result factory cache. Primarily intended for testing scenarios.
+	/// </summary>
+	internal static void ClearResultFactoryCache() => ResultFactoryCache.Clear();
 
 	/// <summary>
 	/// Cached factory for creating typed MessageResult.Success instances.
@@ -1106,13 +1332,14 @@ public sealed partial class FinalDispatchHandler(
 	private static class ResultFactoryCache
 	{
 		/// <summary>
-		/// Factory delegate signature using object? to avoid interface type argument issues.
-		/// Parameters: result, routing, validation, authorization, cacheHit
+		/// The base generic method for MessageResult.Success&lt;T&gt; with 5 parameters, cached once.
 		/// </summary>
-		internal delegate IMessageResult SuccessFactory(object? result, object? routing, object? validation, object? authorization,
-			bool cacheHit);
+		private static readonly MethodInfo? GenericSuccessMethod5Params;
 
-		internal delegate IMessageResult LeanSuccessFactory(object? result, bool cacheHit);
+		/// <summary>
+		/// The base generic method for MessageResult.Success&lt;T&gt; with 1 parameter, cached once.
+		/// </summary>
+		private static readonly MethodInfo? GenericSuccessMethod1Param;
 
 		/// <summary>
 		/// Warmup cache for thread-safe population during startup (PERF-13/PERF-14).
@@ -1135,42 +1362,22 @@ public sealed partial class FinalDispatchHandler(
 		/// </summary>
 		private static volatile bool _isFrozen;
 
-		/// <summary>
-		/// The base generic method for MessageResult.Success&lt;T&gt; with 5 parameters, cached once.
-		/// </summary>
-		private static readonly MethodInfo? GenericSuccessMethod5Params;
-
-		/// <summary>
-		/// The base generic method for MessageResult.Success&lt;T&gt; with 1 parameter, cached once.
-		/// </summary>
-		private static readonly MethodInfo? GenericSuccessMethod1Param;
-
 		static ResultFactoryCache()
 		{
-			var methods = typeof(Abstractions.MessageResult).GetMethods(BindingFlags.Public | BindingFlags.Static);
+			var methods = typeof(MR).GetMethods(BindingFlags.Public | BindingFlags.Static);
 
 			GenericSuccessMethod5Params = FindGenericSuccessMethod(methods, parameterCount: 5);
 			GenericSuccessMethod1Param = FindGenericSuccessMethod(methods, parameterCount: 1);
 		}
 
-		private static MethodInfo? FindGenericSuccessMethod(MethodInfo[] methods, int parameterCount)
-		{
-			for (var i = 0; i < methods.Length; i++)
-			{
-				var method = methods[i];
-				if (!method.IsGenericMethodDefinition ||
-				    !string.Equals(method.Name, nameof(Abstractions.MessageResult.Success), StringComparison.Ordinal) ||
-				    method.GetGenericArguments().Length != 1 ||
-				    method.GetParameters().Length != parameterCount)
-				{
-					continue;
-				}
+		/// <summary>
+		/// Factory delegate signature using object? to avoid interface type argument issues.
+		/// Parameters: result, routing, validation, authorization, cacheHit
+		/// </summary>
+		internal delegate IMessageResult SuccessFactory(object? result, object? routing, object? validation, object? authorization,
+			bool cacheHit);
 
-				return method;
-			}
-
-			return null;
-		}
+		internal delegate IMessageResult LeanSuccessFactory(object? result, bool cacheHit);
 
 		/// <summary>
 		/// Gets a value indicating whether the cache has been frozen.
@@ -1254,24 +1461,29 @@ public sealed partial class FinalDispatchHandler(
 			_leanWarmupCache = new();
 		}
 
+		private static MethodInfo? FindGenericSuccessMethod(MethodInfo[] methods, int parameterCount)
+		{
+			for (var i = 0; i < methods.Length; i++)
+			{
+				var method = methods[i];
+				if (!method.IsGenericMethodDefinition ||
+					!string.Equals(method.Name, nameof(MR.Success), StringComparison.Ordinal) ||
+					method.GetGenericArguments().Length != 1 ||
+					method.GetParameters().Length != parameterCount)
+				{
+					continue;
+				}
+
+				return method;
+			}
+
+			return null;
+		}
+
 		[RequiresUnreferencedCode("Uses reflection to create typed method delegates")]
 		[RequiresDynamicCode("Creates generic methods at runtime")]
 		private static SuccessFactory CreateFactory(Type resultType)
 		{
-			Expression BuildResultValueExpression(ParameterExpression resultParam)
-			{
-				// Preserve legacy reflection behavior: null -> default(T) for non-nullable value types.
-				if (resultType.IsValueType && Nullable.GetUnderlyingType(resultType) is null)
-				{
-					return Expression.Condition(
-						Expression.Equal(resultParam, Expression.Constant(null, typeof(object))),
-						Expression.Default(resultType),
-						Expression.Convert(resultParam, resultType));
-				}
-
-				return Expression.Convert(resultParam, resultType);
-			}
-
 			if (GenericSuccessMethod5Params != null)
 			{
 				var typedMethod = GenericSuccessMethod5Params.MakeGenericMethod(resultType);
@@ -1323,7 +1535,21 @@ public sealed partial class FinalDispatchHandler(
 			}
 
 			// Ultimate fallback - shouldn't happen
-			return (result, _, _, _, _) => Abstractions.MessageResult.Success(result);
+			return (result, _, _, _, _) => MR.Success(result);
+
+			Expression BuildResultValueExpression(ParameterExpression resultParam)
+			{
+				// Preserve legacy reflection behavior: null -> default(T) for non-nullable value types.
+				if (resultType.IsValueType && Nullable.GetUnderlyingType(resultType) is null)
+				{
+					return Expression.Condition(
+						Expression.Equal(resultParam, Expression.Constant(null, typeof(object))),
+						Expression.Default(resultType),
+						Expression.Convert(resultParam, resultType));
+				}
+
+				return Expression.Convert(resultParam, resultType);
+			}
 		}
 
 		[RequiresUnreferencedCode("Uses reflection to create typed constructors")]
@@ -1334,8 +1560,14 @@ public sealed partial class FinalDispatchHandler(
 			var ctor = simpleResultType.GetConstructor([resultType, typeof(bool)]);
 			if (ctor is null)
 			{
-				return (result, _) => Abstractions.MessageResult.Success(result);
+				return (result, _) => MR.Success(result);
 			}
+
+			var resultParam = Expression.Parameter(typeof(object), "result");
+			var cacheHitParam = Expression.Parameter(typeof(bool), "cacheHit");
+			var newExpr = Expression.New(ctor, BuildResultValueExpression(resultParam), cacheHitParam);
+			var castExpr = Expression.Convert(newExpr, typeof(IMessageResult));
+			return Expression.Lambda<LeanSuccessFactory>(castExpr, resultParam, cacheHitParam).Compile();
 
 			Expression BuildResultValueExpression(ParameterExpression resultParam)
 			{
@@ -1349,244 +1581,8 @@ public sealed partial class FinalDispatchHandler(
 
 				return Expression.Convert(resultParam, resultType);
 			}
-
-			var resultParam = Expression.Parameter(typeof(object), "result");
-			var cacheHitParam = Expression.Parameter(typeof(bool), "cacheHit");
-			var newExpr = Expression.New(ctor, BuildResultValueExpression(resultParam), cacheHitParam);
-			var castExpr = Expression.Convert(newExpr, typeof(IMessageResult));
-			return Expression.Lambda<LeanSuccessFactory>(castExpr, resultParam, cacheHitParam).Compile();
 		}
 	}
 
-	/// <summary>
-	/// Gets a value indicating whether the result factory cache has been frozen.
-	/// </summary>
-	public static bool IsResultFactoryCacheFrozen => ResultFactoryCache.IsCacheFrozen;
-
-	/// <summary>
-	/// Freezes the result factory cache for optimal read performance (PERF-13/PERF-14).
-	/// </summary>
-	/// <remarks>
-	/// Call this method after all result types have been encountered (e.g., after warmup).
-	/// Once frozen, the cache uses <see cref="FrozenDictionary{TKey, TValue}"/> for O(1) lookups
-	/// with zero synchronization overhead.
-	/// </remarks>
-	public static void FreezeResultFactoryCache() => ResultFactoryCache.Freeze();
-
-	/// <summary>
-	/// Clears the result factory cache. Primarily intended for testing scenarios.
-	/// </summary>
-	internal static void ClearResultFactoryCache() => ResultFactoryCache.Clear();
-
-	#endregion
-
-	[RequiresUnreferencedCode("This method uses reflection to create typed MessageResult instances and set properties dynamically")]
-	[RequiresDynamicCode("This method uses reflection to construct generic methods at runtime.")]
-	private static IMessageResult CreateTypedResult(IDispatchAction action, IMessageContext context)
-	{
-		var actionResultType = GetActionResultType(action.GetType());
-		return CreateTypedResult(context, actionResultType);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode("Action dispatch result uses reflection for typed result construction.")]
-	[RequiresDynamicCode("Action dispatch result uses reflection for typed result construction.")]
-	private static IMessageResult CreateActionDispatchResult(
-		IMessageContext context,
-		RoutingDecision? routingDecision,
-		Type? actionResultType,
-		bool hadContextResultBeforeDispatch)
-	{
-		if (!hadContextResultBeforeDispatch && actionResultType is null && !HasContextResult(context))
-		{
-			return CreateSuccessResult(context, routingDecision);
-		}
-
-		return CreateTypedResult(context, actionResultType);
-	}
-
-	[RequiresUnreferencedCode("This method uses reflection to create typed MessageResult instances and set properties dynamically")]
-	[RequiresDynamicCode("This method uses reflection to construct generic methods at runtime.")]
-	private static IMessageResult CreateTypedResult(
-		IMessageContext context,
-		Type? actionResultType)
-	{
-		var result = TryGetContextResult(context);
-
-		var resultType = result?.GetType();
-
-		if (resultType is null)
-		{
-			resultType = actionResultType;
-
-			// Fast path for non-response actions: avoid reflective generic result factory.
-			if (resultType is null)
-			{
-				return CreateSuccessResult(context, RoutingDecisionAccessor.GetRoutingDecisionFast(context));
-			}
-		}
-
-		if (result is null && resultType.GetConstructor(Type.EmptyTypes) is null && resultType.IsClass)
-		{
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.CurrentCulture,
-					Resources.FinalDispatchHandler_ReturnTypeMustHaveParameterlessCtorFormat,
-					resultType.FullName));
-		}
-
-		// Read cache hit flag from context
-		var cacheHit = IsCacheHit(context);
-		var routing = RoutingDecisionAccessor.GetRoutingDecisionFast(context);
-		var validation = GetValidationResultFast(context);
-		var authorization = GetAuthorizationResultFast(context);
-
-		if (routing is null && validation is null && authorization is null)
-		{
-			var leanFactory = ResultFactoryCache.GetOrCreateLeanFactory(resultType);
-			return leanFactory(result, cacheHit);
-		}
-
-		// AOT path: Use source-generated factory registry (no reflection/MakeGenericMethod)
-		if (!RuntimeFeature.IsDynamicCodeSupported)
-		{
-			var aotFactory = ResultFactoryRegistry.GetFactory(resultType);
-			if (aotFactory != null)
-			{
-				return aotFactory(
-					result,
-					routing,
-					validation,
-					authorization as IAuthorizationResult,
-					cacheHit);
-			}
-		}
-
-		// Use cached factory delegate instead of per-dispatch reflection
-		var factory = ResultFactoryCache.GetOrCreateFactory(resultType);
-		return factory(
-			result,
-			routing,
-			validation,
-			authorization,
-			cacheHit);
-	}
-
-	private static readonly ConcurrentDictionary<Type, Type?> ActionResultTypeCache = new();
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static object? TryGetContextResult(IMessageContext context)
-	{
-		if (context.Result is not null)
-		{
-			return context.Result;
-		}
-
-		if (context is MessageContext messageContext)
-		{
-			return messageContext.TryGetItemFast(ResultContextKey, out var fastCachedValue)
-				? fastCachedValue
-				: null;
-		}
-
-		return context.GetItem<object?>(ResultContextKey);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool HasContextResult(IMessageContext context) => TryGetContextResult(context) is not null;
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool IsCacheHit(IMessageContext context)
-	{
-		if (context is MessageContext messageContext)
-		{
-			if (messageContext.TryGetItemFast(CacheHitContextKey, out var fastValue))
-			{
-				return fastValue is bool fastFlag
-					? fastFlag
-					: context.GetItem(CacheHitContextKey, false);
-			}
-
-			return false;
-		}
-
-		return context.GetItem(CacheHitContextKey, false);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static object? GetValidationResultFast(IMessageContext context)
-	{
-		if (context is MessageContext messageContext)
-		{
-			return messageContext.TryGetItemFast(ValidationResultPropertyKey, out var fastValue)
-				? fastValue
-				: null;
-		}
-
-		return context.ValidationResult();
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static object? GetAuthorizationResultFast(IMessageContext context)
-	{
-		if (context is MessageContext messageContext)
-		{
-			return messageContext.TryGetItemFast(AuthorizationResultPropertyKey, out var fastValue)
-				? fastValue
-				: null;
-		}
-
-		return context.AuthorizationResult();
-	}
-
-
-	[RequiresUnreferencedCode("This method uses reflection to inspect generic interface types")]
-	private static Type? GetActionResultType(Type actionType)
-	{
-		if (ActionResultTypeCache.TryGetValue(actionType, out var cached))
-		{
-			return cached;
-		}
-
-		var resultType = ResolveActionResultType(actionType);
-
-		// Bounded cache: skip caching when full to prevent unbounded memory growth
-		if (ActionResultTypeCache.Count < MaxCacheEntries)
-		{
-			ActionResultTypeCache.TryAdd(actionType, resultType);
-		}
-
-		return resultType;
-	}
-
-	[RequiresUnreferencedCode("Uses reflection to inspect generic interface types for action result type resolution.")]
-	private static Type? ResolveActionResultType(Type actionType)
-	{
-		var interfaces = actionType.GetInterfaces();
-		for (var i = 0; i < interfaces.Length; i++)
-		{
-			var contract = interfaces[i];
-			if (!contract.IsGenericType || contract.GetGenericTypeDefinition() != typeof(IDispatchAction<>))
-			{
-				continue;
-			}
-
-			var genericArguments = contract.GetGenericArguments();
-			return genericArguments.Length > 0 ? genericArguments[0] : null;
-		}
-
-		return null;
-	}
-
-	// Source-generated logging methods
-	[LoggerMessage(DeliveryEventId.FinalDispatchNoBusFound, LogLevel.Error,
-		"No message bus found for name '{BusName}'")]
-	private static partial void LogNoMessageBusFound(ILogger logger, string? busName);
-
-	[LoggerMessage(DeliveryEventId.FinalDispatchFailed, LogLevel.Error,
-		"Unhandled exception during final dispatch of {MessageType}")]
-	private static partial void LogUnhandledExceptionDuringDispatch(
-		ILogger logger,
-		string messageType,
-		Exception ex);
+	#endregion Result Factory Cache (PERF-6, PERF-13/PERF-14)
 }

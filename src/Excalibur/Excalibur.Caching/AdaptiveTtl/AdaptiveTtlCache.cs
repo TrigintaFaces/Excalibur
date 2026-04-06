@@ -487,7 +487,7 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 		private const int CleanupIntervalSeconds = 60;
 
 #if NET9_0_OR_GREATER
-		private readonly System.Threading.Lock _lockObj = new();
+		private readonly Lock _lockObj = new();
 #else
 		private readonly object _lockObj = new();
 #endif

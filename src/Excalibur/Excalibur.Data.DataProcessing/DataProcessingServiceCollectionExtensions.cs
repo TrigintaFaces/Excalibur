@@ -38,7 +38,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// This is the AOT-safe alternative to assembly scanning via
 	/// <see cref="AddDataProcessing(IServiceCollection, Func{IDbConnection}, IConfiguration, string, Assembly[])"/>.
 	/// </remarks>
-	public static IServiceCollection AddDataProcessor<TProcessor>(this IServiceCollection services)
+	public static IServiceCollection AddDataProcessor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(this IServiceCollection services)
 		where TProcessor : class, IDataProcessor
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -73,7 +73,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
-	public static IServiceCollection AddDataProcessor<TProcessor>(
+	public static IServiceCollection AddDataProcessor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
 		this IServiceCollection services,
 		DataProcessingOptions configuration)
 		where TProcessor : class, IDataProcessor
@@ -119,7 +119,7 @@ public static class DataProcessingServiceCollectionExtensions
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddDataProcessor<TProcessor>(
+	public static IServiceCollection AddDataProcessor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
 		this IServiceCollection services,
 		IConfiguration configuration,
 		string sectionPath)
@@ -152,7 +152,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// This is the AOT-safe alternative to assembly scanning via
 	/// <see cref="AddDataProcessing(IServiceCollection, Func{IDbConnection}, IConfiguration, string, Assembly[])"/>.
 	/// </remarks>
-	public static IServiceCollection AddRecordHandler<THandler, TRecord>(this IServiceCollection services)
+	public static IServiceCollection AddRecordHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TRecord>(this IServiceCollection services)
 		where THandler : class, IRecordHandler<TRecord>
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -188,7 +188,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
-	public static IServiceCollection AddRecordHandler<THandler, TRecord>(
+	public static IServiceCollection AddRecordHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TRecord>(
 		this IServiceCollection services,
 		DataProcessingOptions configuration)
 		where THandler : class, IRecordHandler<TRecord>
@@ -235,7 +235,7 @@ public static class DataProcessingServiceCollectionExtensions
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddRecordHandler<THandler, TRecord>(
+	public static IServiceCollection AddRecordHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TRecord>(
 		this IServiceCollection services,
 		IConfiguration configuration,
 		string sectionPath)

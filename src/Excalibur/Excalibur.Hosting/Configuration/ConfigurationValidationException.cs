@@ -14,16 +14,28 @@ namespace Excalibur.Hosting.Configuration;
 public sealed class ConfigurationValidationException(string message, IReadOnlyList<ConfigurationValidationError> errors, Exception? innerException = null)
 	: Exception(message, innerException)
 {
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ConfigurationValidationException" /> class with default values.
+	/// </summary>
 	public ConfigurationValidationException()
 		: this(string.Empty, [], null)
 	{
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ConfigurationValidationException" /> class with a specified error message.
+	/// </summary>
+	/// <param name="message">The error message.</param>
 	public ConfigurationValidationException(string? message)
 		: this(message ?? string.Empty, [], null)
 	{
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ConfigurationValidationException" /> class with a specified error message and validation errors.
+	/// </summary>
+	/// <param name="message">The error message.</param>
+	/// <param name="errors">The validation errors.</param>
 	public ConfigurationValidationException(string? message, IReadOnlyList<ConfigurationValidationError> errors)
 		: this(message ?? string.Empty, errors, null)
 	{

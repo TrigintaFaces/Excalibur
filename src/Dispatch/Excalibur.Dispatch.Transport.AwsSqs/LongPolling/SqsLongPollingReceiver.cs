@@ -27,7 +27,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 	private readonly SemaphoreSlim _receiveLock;
 	private readonly Dictionary<string, CancellationTokenSource> _activePolling;
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _pollingLock = new();
+	private readonly Lock _pollingLock = new();
 #else
 	private readonly object _pollingLock = new();
 #endif

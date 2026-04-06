@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
@@ -34,8 +33,7 @@ public static class Uuid7Extensions
 	/// <summary>
 	/// Thread-local buffer for batch generation to avoid allocations.
 	/// </summary>
-	[ThreadStatic]
-	private static Uuid7[]? _threadLocalBuffer;
+	[ThreadStatic] private static Uuid7[]? _threadLocalBuffer;
 
 	/// <summary>
 	/// Generates a new UUID v7 string in a compact 25-character format.
@@ -284,7 +282,7 @@ public static class Uuid7Extensions
 
 	private static void WaitForInterval(int intervalMs)
 	{
-		var wait = Excalibur.Dispatch.Abstractions.Diagnostics.ValueStopwatch.StartNew();
+		var wait = Diagnostics.ValueStopwatch.StartNew();
 		var spinner = new SpinWait();
 		while (wait.ElapsedMilliseconds < intervalMs)
 		{

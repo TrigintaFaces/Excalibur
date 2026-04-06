@@ -76,7 +76,7 @@ public static class SqsChannelServiceCollectionExtensions
 	/// <summary>
 	/// Adds SQS channel message processor to the service collection.
 	/// </summary>
-	public static IServiceCollection AddSqsChannelProcessor<
+	internal static IServiceCollection AddSqsChannelProcessor<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
 		this IServiceCollection services,
 		Action<SqsProcessorOptions> configureOptions)
@@ -105,15 +105,11 @@ public static class SqsChannelServiceCollectionExtensions
 	/// <summary>
 	/// Adds SQS channel message processor to the service collection using an <see cref="IConfiguration"/> section.
 	/// </summary>
-	/// <typeparam name="TProcessor">The message processor implementation type.</typeparam>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="SqsProcessorOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddSqsChannelProcessor<
+	internal static IServiceCollection AddSqsChannelProcessor<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -145,7 +141,7 @@ public static class SqsChannelServiceCollectionExtensions
 	/// <summary>
 	/// Adds SQS batch processor to the service collection.
 	/// </summary>
-	public static IServiceCollection AddSqsBatchProcessor(
+	internal static IServiceCollection AddSqsBatchProcessor(
 		this IServiceCollection services,
 		Action<SqsBatchOptions> configureOptions)
 	{
@@ -166,14 +162,11 @@ public static class SqsChannelServiceCollectionExtensions
 	/// <summary>
 	/// Adds SQS batch processor to the service collection using an <see cref="IConfiguration"/> section.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="SqsBatchOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddSqsBatchProcessor(
+	internal static IServiceCollection AddSqsBatchProcessor(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
@@ -197,7 +190,7 @@ public static class SqsChannelServiceCollectionExtensions
 	/// <summary>
 	/// Adds SQS long polling receiver to the service collection.
 	/// </summary>
-	public static IServiceCollection AddSqsLongPollingReceiver(
+	internal static IServiceCollection AddSqsLongPollingReceiver(
 		this IServiceCollection services,
 		Action<ChannelLongPollingOptions> configureOptions)
 	{
@@ -218,14 +211,11 @@ public static class SqsChannelServiceCollectionExtensions
 	/// <summary>
 	/// Adds SQS long polling receiver to the service collection using an <see cref="IConfiguration"/> section.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="ChannelLongPollingOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddSqsLongPollingReceiver(
+	internal static IServiceCollection AddSqsLongPollingReceiver(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
@@ -249,7 +239,7 @@ public static class SqsChannelServiceCollectionExtensions
 	/// <summary>
 	/// Adds complete SQS channel infrastructure with all optimizations.
 	/// </summary>
-	public static IServiceCollection AddSqsChannelInfrastructure<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
+	internal static IServiceCollection AddSqsChannelInfrastructure<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProcessor>(
 		this IServiceCollection services,
 		Action<SqsChannelInfrastructureOptions> configureOptions)
 		where TProcessor : class, IMessageProcessor<Message>

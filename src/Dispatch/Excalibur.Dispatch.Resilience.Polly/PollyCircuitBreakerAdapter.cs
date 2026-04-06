@@ -22,7 +22,7 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 	private readonly ILogger _logger;
 	private readonly List<IPatternObserver> _observers = [];
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _observerLock = new();
+	private readonly Lock _observerLock = new();
 #else
 	private readonly object _observerLock = new();
 #endif

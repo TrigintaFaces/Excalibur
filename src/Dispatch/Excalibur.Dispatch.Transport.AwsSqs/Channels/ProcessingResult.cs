@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Result of message processing.
 /// </summary>
-public readonly struct ProcessingResult : IEquatable<ProcessingResult>
+internal readonly struct ProcessingResult : IEquatable<ProcessingResult>
 {
 	public bool Success { get; init; }
 

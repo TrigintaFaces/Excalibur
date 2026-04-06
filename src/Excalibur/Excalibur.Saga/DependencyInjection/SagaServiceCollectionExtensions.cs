@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Saga;
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Storage;
@@ -17,6 +18,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class SagaServiceCollectionExtensions
 {
+	/// <summary>
+	/// Static accumulator for types discovered during DI composition.
+	/// Read by <see cref="SagaTypeRegistryPopulator"/> on first options resolution.
+	/// </summary>
+	internal static readonly System.Collections.Concurrent.ConcurrentBag<Type> SagaPendingTypeRegistrations = [];
+
 	/// <summary>
 	/// Adds the core Excalibur.Saga services with default options.
 	/// </summary>
@@ -184,15 +191,9 @@ public static class SagaServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Static accumulator for types discovered during DI composition.
-	/// Read by <see cref="SagaTypeRegistryPopulator"/> on first options resolution.
-	/// </summary>
-	internal static readonly System.Collections.Concurrent.ConcurrentBag<Type> SagaPendingTypeRegistrations = [];
-
-	/// <summary>
 	/// Default options setup for SagaOptions.
 	/// </summary>
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 		Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
 	private sealed class DefaultSagaOptionsSetup : IConfigureOptions<SagaOptions>
 	{
@@ -207,7 +208,7 @@ public static class SagaServiceCollectionExtensions
 	/// Populates <see cref="ISagaTypeRegistry"/> from types accumulated during DI composition.
 	/// Runs once on first <see cref="SagaOptions"/> resolution via <see cref="IPostConfigureOptions{TOptions}"/>.
 	/// </summary>
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
 		Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
 	private sealed class SagaTypeRegistryPopulator(ISagaTypeRegistry typeRegistry) : IPostConfigureOptions<SagaOptions>
 	{

@@ -40,20 +40,42 @@ public sealed class MultipleDataProcessorException : ApiException
 		RecordType = recordType;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MultipleDataProcessorException" /> class with default values.
+	/// </summary>
 	public MultipleDataProcessorException() : base()
 	{
+		RecordType = string.Empty;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MultipleDataProcessorException" /> class with a specified error message.
+	/// </summary>
+	/// <param name="message">The error message.</param>
 	public MultipleDataProcessorException(string message) : base(message)
 	{
+		RecordType = string.Empty;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MultipleDataProcessorException" /> class with a specified error message and inner exception.
+	/// </summary>
+	/// <param name="message">The error message.</param>
+	/// <param name="innerException">The inner exception.</param>
 	public MultipleDataProcessorException(string message, Exception? innerException) : base(message, innerException)
 	{
+		RecordType = string.Empty;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MultipleDataProcessorException" /> class with a status code, message, and inner exception.
+	/// </summary>
+	/// <param name="statusCode">The HTTP status code.</param>
+	/// <param name="message">The error message.</param>
+	/// <param name="innerException">The inner exception.</param>
 	public MultipleDataProcessorException(int statusCode, string? message, Exception? innerException) : base(statusCode, message, innerException)
 	{
+		RecordType = string.Empty;
 	}
 
 	/// <summary>

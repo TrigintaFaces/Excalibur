@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.TieredStorage;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -52,7 +54,7 @@ public static class TieredStorageServiceCollectionExtensions
 			return new TieredEventStoreDecorator(
 				hotStore,
 				sp.GetRequiredService<IColdEventStore>(),
-				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TieredEventStoreDecorator>>(),
+				sp.GetRequiredService<Logging.ILogger<TieredEventStoreDecorator>>(),
 				sp.GetService<ISnapshotStore>());
 		});
 
@@ -100,7 +102,7 @@ public static class TieredStorageServiceCollectionExtensions
 			return new TieredEventStoreDecorator(
 				hotStore,
 				sp.GetRequiredService<IColdEventStore>(),
-				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TieredEventStoreDecorator>>(),
+				sp.GetRequiredService<Logging.ILogger<TieredEventStoreDecorator>>(),
 				sp.GetService<ISnapshotStore>());
 		});
 

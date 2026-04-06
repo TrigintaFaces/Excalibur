@@ -5,8 +5,6 @@ using CdcEventStoreElasticsearch.Domain;
 
 using Excalibur.EventSourcing.Abstractions;
 
-using Microsoft.Extensions.Logging;
-
 namespace CdcEventStoreElasticsearch.Projections;
 
 // ============================================================================

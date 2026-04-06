@@ -24,7 +24,7 @@ public sealed partial class SnapshotVersionManager
 {
 	private readonly ConcurrentDictionary<string, List<ISnapshotUpgrader>> _upgraders = new(StringComparer.Ordinal);
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _registrationLock = new();
+	private readonly Lock _registrationLock = new();
 #else
 	private readonly object _registrationLock = new();
 #endif

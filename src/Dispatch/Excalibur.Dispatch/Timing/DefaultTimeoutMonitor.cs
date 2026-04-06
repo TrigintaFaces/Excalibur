@@ -15,7 +15,7 @@ internal sealed class DefaultTimeoutMonitor : ITimeoutMonitor
 {
 	private readonly ConcurrentDictionary<TimeoutOperationType, OperationStatistics> _statistics = new();
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lockObject = new();
+	private readonly Lock _lockObject = new();
 #else
 	private readonly object _lockObject = new();
 #endif
@@ -120,7 +120,7 @@ internal sealed class DefaultTimeoutMonitor : ITimeoutMonitor
 	{
 		private readonly List<TimeSpan> _durations = [];
 #if NET9_0_OR_GREATER
-		private readonly System.Threading.Lock _lock = new();
+		private readonly Lock _lock = new();
 #else
 		private readonly object _lock = new();
 #endif

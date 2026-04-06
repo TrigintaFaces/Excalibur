@@ -37,8 +37,10 @@ internal class EventBridgeMessageScheduler(
 		scheduler ?? throw new ArgumentNullException(nameof(scheduler));
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	public Task<string> ScheduleAsync(
 		IDispatchMessage message,
 		DateTimeOffset scheduleTime,
@@ -46,8 +48,10 @@ internal class EventBridgeMessageScheduler(
 		ScheduleObjectAsync(message, message.GetType(), scheduleTime, cancellationToken);
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	public Task<string> ScheduleMessageAsync<T>(
 		T message,
 		DateTimeOffset scheduledTime,
@@ -300,7 +304,7 @@ internal class EventBridgeMessageScheduler(
 			Arn = _options.TargetArn,
 			RoleArn = _options.RoleArn,
 			Input = input,
-			RetryPolicy = new Amazon.Scheduler.Model.RetryPolicy { MaximumRetryAttempts = _options.MaxRetryAttempts, },
+			RetryPolicy = new RetryPolicy { MaximumRetryAttempts = _options.MaxRetryAttempts, },
 		};
 
 		if (!string.IsNullOrWhiteSpace(_options.DeadLetterQueueArn))

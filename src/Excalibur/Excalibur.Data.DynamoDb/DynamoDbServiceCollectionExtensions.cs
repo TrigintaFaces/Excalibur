@@ -12,7 +12,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -133,7 +132,7 @@ public static class DynamoDbServiceCollectionExtensions
 		services.TryAddSingleton(sp =>
 		{
 			var client = sp.GetRequiredService<IAmazonDynamoDB>();
-			var options = sp.GetRequiredService<Options.IOptions<DynamoDbOptions>>();
+			var options = sp.GetRequiredService<IOptions<DynamoDbOptions>>();
 			var logger = sp.GetRequiredService<Logging.ILogger<DynamoDbPersistenceProvider>>();
 			return new DynamoDbPersistenceProvider(client, options, logger);
 		});

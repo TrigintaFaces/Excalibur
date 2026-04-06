@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
@@ -20,7 +19,6 @@ internal static class MessageTypeCache
 	private const int MaxCacheEntries = 1024;
 
 #if NET9_0_OR_GREATER
-
 	private static readonly Lock _initLock = new();
 
 #else
@@ -32,14 +30,16 @@ internal static class MessageTypeCache
 	/// <summary>
 	/// Pre-computed type metadata using frozen collections for O(1) lookup performance.
 	/// </summary>
-	private static System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata> _typeCache =
-		System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+	private static FrozenDictionary<Type, MessageTypeMetadata> _typeCache =
+		FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+
 	private static readonly ConcurrentDictionary<Type, MessageTypeMetadata> _fallbackTypeCache = new();
 
 	// Keep name lookups on an ordinal Dictionary to avoid runtime instability in FrozenDictionary<string, T>
 	// for some nested-type key layouts on current .NET 10 builds. The field remains interface-typed so
 	// tests can safely reset it via reflection to FrozenDictionary.Empty.
 	private static IReadOnlyDictionary<string, Type> _nameToTypeCache = FrozenDictionary<string, Type>.Empty;
+
 	private static volatile bool _initialized;
 
 	/// <summary>
@@ -196,7 +196,7 @@ internal static class MessageTypeCache
 	{
 		lock (_initLock)
 		{
-			_typeCache = System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+			_typeCache = FrozenDictionary<Type, MessageTypeMetadata>.Empty;
 			_nameToTypeCache = FrozenDictionary<string, Type>.Empty;
 			_fallbackTypeCache.Clear();
 			_initialized = false;

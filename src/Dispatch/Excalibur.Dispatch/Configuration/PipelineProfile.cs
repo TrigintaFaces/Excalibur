@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -130,7 +129,7 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 	/// <inheritdoc />
 	public IReadOnlyList<Type> GetMiddleware()
 	{
-		var snapshot = System.Threading.Volatile.Read(ref _orderedMiddlewareTypesSnapshot);
+		var snapshot = Volatile.Read(ref _orderedMiddlewareTypesSnapshot);
 		if (snapshot != null)
 		{
 			return snapshot;
@@ -351,7 +350,8 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 	}
 
 	private static bool ImplementsGenericActionInterface(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
+		Type messageType)
 	{
 		var interfaces = messageType.GetInterfaces();
 		for (var i = 0; i < interfaces.Length; i++)
@@ -413,7 +413,7 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 
 	private MiddlewareRegistration[] GetOrderedMiddlewareSnapshot()
 	{
-		var snapshot = System.Threading.Volatile.Read(ref _orderedMiddlewareSnapshot);
+		var snapshot = Volatile.Read(ref _orderedMiddlewareSnapshot);
 		if (snapshot != null)
 		{
 			return snapshot;
@@ -449,8 +449,10 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 
 	private MiddlewareRegistration CreateMiddlewareRegistration(Type middlewareType, int order)
 	{
-		var appliesToAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<AppliesToAttribute>(middlewareType, inherit: true);
-		var excludeKindsAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ExcludeKindsAttribute>(middlewareType, inherit: true);
+		var appliesToAttribute =
+			System.Reflection.CustomAttributeExtensions.GetCustomAttribute<AppliesToAttribute>(middlewareType, inherit: true);
+		var excludeKindsAttribute =
+			System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ExcludeKindsAttribute>(middlewareType, inherit: true);
 		var requiresFeaturesAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<RequiresFeaturesAttribute>(
 			middlewareType,
 			inherit: true);
@@ -474,7 +476,7 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 		{
 			MiddlewareType = middlewareType,
 			Order = order,
-			RegistrationSequence = System.Threading.Interlocked.Increment(ref _registrationSequence),
+			RegistrationSequence = Interlocked.Increment(ref _registrationSequence),
 			IncludedKinds = appliesToAttribute?.MessageKinds ?? MessageKinds.All,
 			ExcludedKinds = excludeKindsAttribute?.ExcludedKinds ?? MessageKinds.None,
 			RequiredFeatures = requiredFeatureArray,

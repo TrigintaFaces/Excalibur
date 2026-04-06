@@ -17,7 +17,6 @@
 using AwsSecretsManagerSample.Services;
 
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

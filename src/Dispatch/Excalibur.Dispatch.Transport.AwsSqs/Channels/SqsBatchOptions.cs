@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Options for SQS batch processor.
 /// </summary>
-public sealed class SqsBatchOptions
+internal sealed class SqsBatchOptions
 {
 	public Uri? QueueUrl { get; set; }
 

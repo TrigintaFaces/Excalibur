@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
@@ -26,14 +25,18 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	private readonly MicroBatchOptions _options;
 	private readonly Channel<ItemWithToken> _inputChannel;
 	private readonly Task _processingTask;
+
 	[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
 		Justification = "Disposed via Interlocked.Exchange in Dispose/DisposeAsync to prevent race conditions")]
 	private CancellationTokenSource _shutdownTokenSource;
+
 	private readonly ILogger<BatchProcessor<T>> _logger;
+
 	// AD-251-4: Lock retained for List<Task> operations - List<T> is not thread-safe
 	private readonly List<Task> _inFlightTasks = [];
+
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _inFlightTasksLock = new();
+	private readonly Lock _inFlightTasksLock = new();
 #else
 	private readonly object _inFlightTasksLock = new();
 #endif
@@ -120,10 +123,12 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		// Initialize OpenTelemetry instrumentation (instance-scoped for test listener compatibility)
 		_activitySource = new ActivitySource(DispatchTelemetryConstants.ActivitySources.BatchProcessor, "1.0.0");
 		_meter = meterFactory?.Create(DispatchTelemetryConstants.Meters.BatchProcessor)
-			?? new Meter(DispatchTelemetryConstants.Meters.BatchProcessor, "1.0.0");
-		_itemsProcessedCounter = _meter.CreateCounter<long>("dispatch.microbatch.items.processed", description: "Total number of items processed in batches");
+				 ?? new Meter(DispatchTelemetryConstants.Meters.BatchProcessor, "1.0.0");
+		_itemsProcessedCounter = _meter.CreateCounter<long>("dispatch.microbatch.items.processed",
+			description: "Total number of items processed in batches");
 		_batchSizeHistogram = _meter.CreateHistogram<int>("dispatch.microbatch.batch.size", description: "Size of batches processed");
-		_processingDurationHistogram = _meter.CreateHistogram<double>("dispatch.microbatch.processing.duration", unit: "ms", description: "Duration of batch processing in milliseconds");
+		_processingDurationHistogram = _meter.CreateHistogram<double>("dispatch.microbatch.processing.duration", unit: "ms",
+			description: "Duration of batch processing in milliseconds");
 
 		// Create bounded input channel for backpressure -- producers block when full (Wait mode)
 		// to prevent unbounded memory growth. Use DropOldest only for telemetry; batch data must not be lost.
@@ -478,7 +483,7 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
 			_processingStarted.TrySetResult(); // Ensure DisposeAsync doesn't hang
-			// Expected during shutdown
+											   // Expected during shutdown
 		}
 		catch (TimeoutException)
 		{
@@ -540,8 +545,7 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		var parentContext = Activity.Current?.Context ?? default;
 
 		// Fire off batch processing without awaiting
-		var processingTask = StartBatchWorkAsync(
-			async () =>
+		var processingTask = StartBatchWorkAsync(async () =>
 		{
 			// Create activity for batch processing with trace context linked to parent
 			using var activity = _activitySource.StartActivity("BatchProcessor.ProcessBatch", ActivityKind.Internal, parentContext);
@@ -603,7 +607,8 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	[LoggerMessage(LogLevel.Warning, "BatchProcessor processing task did not start within 30 seconds during disposal")]
 	private static partial void LogProcessingTaskStartTimeout(ILogger logger);
 
-	[LoggerMessage(CoreEventId.OrphanedItemProcessingError, LogLevel.Error, "Error processing orphaned item during BatchProcessor shutdown drain")]
+	[LoggerMessage(CoreEventId.OrphanedItemProcessingError, LogLevel.Error,
+		"Error processing orphaned item during BatchProcessor shutdown drain")]
 	private static partial void LogOrphanedItemProcessingError(ILogger logger, Exception exception);
 
 	[LoggerMessage(LogLevel.Warning, "BatchProcessor processing task did not complete within 30 seconds during disposal")]

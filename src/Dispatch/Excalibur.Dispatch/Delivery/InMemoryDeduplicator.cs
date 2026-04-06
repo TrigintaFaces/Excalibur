@@ -47,7 +47,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, IDis
 	private readonly ILogger<InMemoryDeduplicator> _logger;
 	private readonly Timer? _cleanupTimer;
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _statsLock = new();
+	private readonly Lock _statsLock = new();
 #else
 	private readonly object _statsLock = new();
 #endif

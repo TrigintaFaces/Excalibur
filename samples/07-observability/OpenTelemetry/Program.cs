@@ -23,7 +23,6 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Observability.Metrics;
-using Excalibur.Dispatch.Serialization;
 
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;

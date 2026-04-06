@@ -25,48 +25,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class DispatchConfigurationServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds Excalibur framework to the service collection with advanced configuration.
-	/// This method is intended for internal use. Prefer <see cref="DispatchServiceCollectionExtensions.AddDispatch(IServiceCollection, Action{IDispatchBuilder}?)"/>.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configure"> Configuration action for the Dispatch builder. </param>
-	/// <returns> The service collection for chaining. </returns>
-	/// <remarks>
-	/// This method includes additional infrastructure registration (pipeline synthesizer, transport router).
-	/// For most use cases, use the simpler <c>AddDispatch</c> extension method.
-	/// </remarks>
-	internal static IServiceCollection AddDispatchWithInfrastructure(
-		this IServiceCollection services,
-		Action<IDispatchBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		// Register core services
-		services.TryAddSingleton<IMiddlewareApplicabilityStrategy, DefaultMiddlewareApplicabilityStrategy>();
-		services.TryAddSingleton<IPipelineProfileRegistry, PipelineProfileRegistry>();
-		services.TryAddSingleton<TransportBindingRegistry>();
-
-		// Register pipeline synthesizer for default pipeline creation (R7.5-R7.12)
-		services.TryAddSingleton<IDefaultPipelineSynthesizer, DefaultPipelineSynthesizer>();
-
-		// Register transport router middleware (R3.1)
-		services.TryAddScoped<TransportRouterMiddleware>();
-
-		// Create and configure the builder
-		using var builder = new DispatchBuilder(services);
-		configure(builder);
-
-		// Build the runtime configuration
-		_ = builder.Build();
-
-		// Register pipeline validation at startup (T.15)
-		services.AddHostedService<PipelineValidationHostedService>();
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds a message handler to the service collection.
 	/// </summary>
 	/// <typeparam name="TMessage"> The message type. </typeparam>
@@ -75,7 +33,8 @@ public static class DispatchConfigurationServiceCollectionExtensions
 	/// <param name="lifetime"> The service lifetime. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddHandler<TMessage,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+	THandler>(
 		this IServiceCollection services,
 		ServiceLifetime lifetime = ServiceLifetime.Scoped)
 		where TMessage : IDispatchMessage
@@ -95,7 +54,8 @@ public static class DispatchConfigurationServiceCollectionExtensions
 	/// <param name="lifetime"> The service lifetime. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddMiddleware<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+	TMiddleware>(
 		this IServiceCollection services,
 		ServiceLifetime lifetime = ServiceLifetime.Scoped)
 		where TMiddleware : class, IDispatchMiddleware
@@ -197,7 +157,7 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Only decorate if IUpcastingPipeline is registered
-		if (!services.Any(s => s.ServiceType == typeof(IUpcastingPipeline)))
+		if (services.All(s => s.ServiceType != typeof(IUpcastingPipeline)))
 		{
 			return services;
 		}
@@ -228,6 +188,48 @@ public static class DispatchConfigurationServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds Excalibur framework to the service collection with advanced configuration.
+	/// This method is intended for internal use. Prefer <see cref="DispatchServiceCollectionExtensions.AddDispatch(IServiceCollection, Action{IDispatchBuilder}?)"/>.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configure"> Configuration action for the Dispatch builder. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// This method includes additional infrastructure registration (pipeline synthesizer, transport router).
+	/// For most use cases, use the simpler <c>AddDispatch</c> extension method.
+	/// </remarks>
+	internal static IServiceCollection AddDispatchWithInfrastructure(
+		this IServiceCollection services,
+		Action<IDispatchBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		// Register core services
+		services.TryAddSingleton<IMiddlewareApplicabilityStrategy, DefaultMiddlewareApplicabilityStrategy>();
+		services.TryAddSingleton<IPipelineProfileRegistry, PipelineProfileRegistry>();
+		services.TryAddSingleton<TransportBindingRegistry>();
+
+		// Register pipeline synthesizer for default pipeline creation (R7.5-R7.12)
+		services.TryAddSingleton<IDefaultPipelineSynthesizer, DefaultPipelineSynthesizer>();
+
+		// Register transport router middleware (R3.1)
+		services.TryAddScoped<TransportRouterMiddleware>();
+
+		// Create and configure the builder
+		using var builder = new DispatchBuilder(services);
+		configure(builder);
+
+		// Build the runtime configuration
+		_ = builder.Build();
+
+		// Register pipeline validation at startup (T.15)
+		services.AddHostedService<PipelineValidationHostedService>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Registers default middleware components required for message processing.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -251,7 +253,7 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		// TransactionalOutboxWriter is registered by Excalibur.Outbox provider extensions
 		// when ConsistencyMode == Transactional.
 		services.TryAddScoped<Excalibur.Dispatch.Abstractions.Outbox.IOutboxWriter,
-			Excalibur.Dispatch.Middleware.Outbox.DeferredOutboxWriter>();
+			DeferredOutboxWriter>();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<Excalibur.Dispatch.Options.Middleware.OutboxStagingOptions>,
 				Excalibur.Dispatch.Options.Middleware.OutboxStagingOptionsValidator>());

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Domain.Model;
@@ -22,7 +22,9 @@ public sealed class InventoryAggregate : AggregateRoot<string>
 	public void Create(string productId, string productName, int initialQuantity)
 	{
 		if (Version > 0)
+		{
 			throw new InvalidOperationException("Inventory item already created.");
+		}
 
 		ArgumentException.ThrowIfNullOrWhiteSpace(productId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(productName);
@@ -37,8 +39,10 @@ public sealed class InventoryAggregate : AggregateRoot<string>
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
 
 		if (quantity > AvailableQuantity)
+		{
 			throw new InvalidOperationException(
 				$"Insufficient inventory. Requested: {quantity}, Available: {AvailableQuantity}");
+		}
 
 		RaiseEvent(new InventoryReserved(Id, orderId, quantity));
 	}
@@ -46,7 +50,9 @@ public sealed class InventoryAggregate : AggregateRoot<string>
 	public void ReleaseReservation(Guid orderId)
 	{
 		if (!_reservations.TryGetValue(orderId, out var quantity))
+		{
 			throw new InvalidOperationException($"No reservation found for order {orderId}.");
+		}
 
 		RaiseEvent(new InventoryReservationReleased(Id, orderId, quantity));
 	}
@@ -62,10 +68,21 @@ public sealed class InventoryAggregate : AggregateRoot<string>
 	{
 		switch (@event)
 		{
-			case InventoryItemCreated e: Apply(e); break;
-			case InventoryReserved e: Apply(e); break;
-			case InventoryReservationReleased e: Apply(e); break;
-			case InventoryReplenished e: Apply(e); break;
+			case InventoryItemCreated e:
+				Apply(e);
+				break;
+
+			case InventoryReserved e:
+				Apply(e);
+				break;
+
+			case InventoryReservationReleased e:
+				Apply(e);
+				break;
+
+			case InventoryReplenished e:
+				Apply(e);
+				break;
 		}
 	}
 

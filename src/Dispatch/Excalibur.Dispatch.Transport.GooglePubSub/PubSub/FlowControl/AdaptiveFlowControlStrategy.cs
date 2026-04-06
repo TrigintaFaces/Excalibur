@@ -24,7 +24,7 @@ internal sealed class AdaptiveFlowControlStrategy(
 	private readonly FlowControlMetrics _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
 	private readonly ILogger<AdaptiveFlowControlStrategy> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _adjustmentLock = new();
+	private readonly Lock _adjustmentLock = new();
 #else
 	private readonly object _adjustmentLock = new();
 #endif

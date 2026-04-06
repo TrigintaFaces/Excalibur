@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
@@ -904,23 +903,23 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	/// <summary>
 	/// Asynchronously disposes the provider.
 	/// </summary>
-	protected virtual async ValueTask DisposeCoreAsync()
+	protected virtual ValueTask DisposeCoreAsync()
 	{
 		if (_disposed)
 		{
-			return;
+			return ValueTask.CompletedTask;
 		}
 
 		_metrics?.Dispose();
 
-			// Clear connection pools if pooling is enabled
-			if (_options.Pooling.EnableConnectionPooling)
+		// Clear connection pools if pooling is enabled
+		if (_options.Pooling.EnableConnectionPooling)
+		{
+			try
 			{
-				try
-				{
-					NpgsqlConnection.ClearAllPools();
-					_logger.LogDebug("Cleared all Postgres connection pools");
-				}
+				NpgsqlConnection.ClearAllPools();
+				_logger.LogDebug("Cleared all Postgres connection pools");
+			}
 			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, "Error clearing connection pools");
@@ -928,6 +927,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		}
 
 		_disposed = true;
+		return ValueTask.CompletedTask;
 	}
 
 	/// <summary>
@@ -1065,5 +1065,5 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	/// </summary>
 	private sealed record PoolConnectionStatsDto(long total_connections, long active_connections, long idle_connections);
 
-	#endregion
+	#endregion Dapper Query DTOs
 }

@@ -29,7 +29,6 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Routing;
-using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

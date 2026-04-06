@@ -187,7 +187,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 
 		_disposed = true;
 		_processingLock.Dispose();
-		(_stateStore as IDisposable)?.Dispose();
+		_stateStore?.Dispose();
 	}
 
 	private static DynamoDbDataChangeType MapChangeType(OperationType operationType)

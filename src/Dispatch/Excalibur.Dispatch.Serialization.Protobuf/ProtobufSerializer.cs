@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -31,7 +30,8 @@ namespace Excalibur.Dispatch.Serialization.Protobuf;
 /// enforce this since <see cref="ISerializer"/> uses unconstrained generics.
 /// </para>
 /// </remarks>
-[RequiresUnreferencedCode("ProtobufSerializer uses reflection (GetProperty) to access static Parser/Descriptor properties on Google.Protobuf generated types.")]
+[RequiresUnreferencedCode(
+	"ProtobufSerializer uses reflection (GetProperty) to access static Parser/Descriptor properties on Google.Protobuf generated types.")]
 [RequiresDynamicCode("ProtobufSerializer uses reflection-based property access that may not be available in AOT scenarios.")]
 public sealed class ProtobufSerializer : ISerializer
 {
@@ -180,31 +180,34 @@ public sealed class ProtobufSerializer : ISerializer
 		return (T)result;
 	}
 
-	private static T DeserializeJson<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(ReadOnlySpan<byte> data)
+	private static T DeserializeJson<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
+		ReadOnlySpan<byte> data)
 	{
 		var json = Encoding.UTF8.GetString(data);
 		var descriptor = GetDescriptor(typeof(T));
 		var result = JsonParser.Default.Parse(json, descriptor);
-		return (T)(object)result;
+		return (T)result;
 	}
 
 	private static MessageParser GetParser(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type messageType)
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		Type messageType)
 	{
 		var parserProperty = messageType.GetProperty("Parser", BindingFlags.Public | BindingFlags.Static);
 
 		return parserProperty?.GetValue(null) as MessageParser
-			?? throw new InvalidOperationException(
-				string.Format(CultureInfo.InvariantCulture, NoParserFoundFormat, messageType.Name));
+			   ?? throw new InvalidOperationException(
+				   string.Format(CultureInfo.InvariantCulture, NoParserFoundFormat, messageType.Name));
 	}
 
 	private static MessageDescriptor GetDescriptor(
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type messageType)
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		Type messageType)
 	{
 		var descriptorProperty = messageType.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static);
 
 		return descriptorProperty?.GetValue(null) as MessageDescriptor
-			?? throw new InvalidOperationException(
-				string.Format(CultureInfo.InvariantCulture, NoParserFoundFormat, messageType.Name));
+			   ?? throw new InvalidOperationException(
+				   string.Format(CultureInfo.InvariantCulture, NoParserFoundFormat, messageType.Name));
 	}
 }

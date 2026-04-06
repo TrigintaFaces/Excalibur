@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
@@ -46,6 +45,10 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 {
 	private const int MaxCacheEntries = 1024;
 
+	private const int MessageSizeEstimatorBufferInitialCapacity = 1024;
+
+	private const int MessageSizeEstimatorMaxRetainedCapacity = 64 * 1024;
+
 	/// <summary>
 	/// OpenTelemetry Metrics.
 	/// </summary>
@@ -67,14 +70,6 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 		description: "Total number of message processing errors");
 
 	private static readonly JsonSerializerOptions MessageSizeSerializerOptions = new();
-	private const int MessageSizeEstimatorBufferInitialCapacity = 1024;
-	private const int MessageSizeEstimatorMaxRetainedCapacity = 64 * 1024;
-
-	[ThreadStatic]
-	private static ArrayBufferWriter<byte>? MessageSizeEstimatorBuffer;
-
-	[ThreadStatic]
-	private static Utf8JsonWriter? MessageSizeEstimatorWriter;
 
 	/// <summary>
 	/// Caches message kind determination results per type name to avoid repeated string.Contains calls.
@@ -84,7 +79,11 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 	/// <summary>
 	/// Guards the tenant_id metric tag to prevent unbounded cardinality in multi-tenant scenarios.
 	/// </summary>
-	private static readonly Diagnostics.TagCardinalityGuard TenantIdGuard = new(maxCardinality: 100);
+	private static readonly TagCardinalityGuard TenantIdGuard = new(maxCardinality: 100);
+
+	[ThreadStatic] private static ArrayBufferWriter<byte>? MessageSizeEstimatorBuffer;
+
+	[ThreadStatic] private static Utf8JsonWriter? MessageSizeEstimatorWriter;
 
 	private readonly MetricsLoggingOptions _options;
 	private readonly IMessageMetrics _messageMetrics;
@@ -137,18 +136,18 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage(
-			"Trimming",
-			"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-			Justification = "Metrics collection uses reflection-based message inspection for known types registered at startup.")]
+		"Trimming",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Metrics collection uses reflection-based message inspection for known types registered at startup.")]
 	[UnconditionalSuppressMessage(
-			"AotAnalysis",
-			"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-			Justification = "Metrics payload sizing relies on JSON serialization and is not supported in AOT scenarios.")]
+		"AotAnalysis",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Metrics payload sizing relies on JSON serialization and is not supported in AOT scenarios.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
-			IDispatchMessage message,
-			IMessageContext context,
-			DispatchRequestDelegate nextDelegate,
-			CancellationToken cancellationToken)
+		IDispatchMessage message,
+		IMessageContext context,
+		DispatchRequestDelegate nextDelegate,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
@@ -168,7 +167,7 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 
 		var activity = Activity.Current;
 		var includeMessageSizes = _includeMessageSizes &&
-			(_requiresMessageSizeWithoutActivity || activity is not null);
+								  (_requiresMessageSizeWithoutActivity || activity is not null);
 
 		// Extract context information for metrics
 		var metricsContext = ExtractMetricsContext(message, context, messageType, includeMessageSizes);
@@ -215,7 +214,8 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 	}
 
 	// High-performance LoggerMessage implementations for metrics middleware hot paths (Sprint 360 - EventId Migration Phase 1)
-	[LoggerMessage(MiddlewareEventId.MetricsLoggingMiddlewareExecuting, LogLevel.Debug, "Starting metrics collection for message {MessageType}")]
+	[LoggerMessage(MiddlewareEventId.MetricsLoggingMiddlewareExecuting, LogLevel.Debug,
+		"Starting metrics collection for message {MessageType}")]
 	private static partial void LogMetricsCollectionStart(ILogger logger, string messageType);
 
 	[LoggerMessage(MiddlewareEventId.MetricsRecorded, LogLevel.Debug,

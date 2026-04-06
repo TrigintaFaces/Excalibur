@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 
@@ -75,7 +76,8 @@ public interface IImmutableProjectionBuilder<TProjection>
 	/// </typeparam>
 	/// <returns>This builder for fluent chaining.</returns>
 	IImmutableProjectionBuilder<TProjection> WhenHandledBy<TEvent,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>()
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+		THandler>()
 		where TEvent : IDomainEvent
 		where THandler : IImmutableProjectionHandler<TProjection, TEvent>;
 
@@ -86,7 +88,7 @@ public interface IImmutableProjectionBuilder<TProjection>
 	/// </summary>
 	/// <param name="assembly">The assembly to scan.</param>
 	/// <returns>This builder for fluent chaining.</returns>
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
+	[RequiresUnreferencedCode(
 		"Assembly scanning uses reflection to discover IImmutableProjectionHandler<T, TEvent> implementations.")]
 	IImmutableProjectionBuilder<TProjection> AddImmutableProjectionHandlersFromAssembly(
 		System.Reflection.Assembly assembly);
@@ -98,4 +100,5 @@ public interface IImmutableProjectionBuilder<TProjection>
 	/// <returns>This builder for fluent chaining.</returns>
 	IImmutableProjectionBuilder<TProjection> WithCacheTtl(TimeSpan ttl);
 }
+
 #pragma warning restore RS0016

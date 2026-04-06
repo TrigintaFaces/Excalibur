@@ -25,7 +25,7 @@ internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 {
 	private readonly ConcurrentDictionary<string, SagaTimeout> _timeouts = new();
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _dueLock = new();
+	private readonly Lock _dueLock = new();
 #else
 	private readonly object _dueLock = new();
 #endif

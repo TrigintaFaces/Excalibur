@@ -12,7 +12,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -133,7 +132,7 @@ public static class FirestoreServiceCollectionExtensions
 		services.TryAddSingleton(sp =>
 		{
 			var db = sp.GetRequiredService<FirestoreDb>();
-			var options = sp.GetRequiredService<Options.IOptions<FirestoreOptions>>();
+			var options = sp.GetRequiredService<IOptions<FirestoreOptions>>();
 			var logger = sp.GetRequiredService<Logging.ILogger<FirestorePersistenceProvider>>();
 			return new FirestorePersistenceProvider(db, options, logger);
 		});

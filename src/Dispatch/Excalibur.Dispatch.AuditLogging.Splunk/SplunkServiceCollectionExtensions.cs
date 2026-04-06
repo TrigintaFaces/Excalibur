@@ -95,12 +95,12 @@ public static class SplunkServiceCollectionExtensions
 
 		_ = services.AddHttpClient<SplunkAuditExporter>((sp, client) =>
 			{
-				var options = sp.GetRequiredService<Options.IOptions<SplunkExporterOptions>>().Value;
+				var options = sp.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
 				client.Timeout = options.Batch.RequestTimeout;
 			})
 			.ConfigurePrimaryHttpMessageHandler(sp =>
 			{
-				var options = sp.GetRequiredService<Options.IOptions<SplunkExporterOptions>>().Value;
+				var options = sp.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
 
 				var handler = new HttpClientHandler();
 

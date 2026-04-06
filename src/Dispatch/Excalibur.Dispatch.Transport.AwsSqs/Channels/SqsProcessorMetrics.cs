@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Metrics for SQS message processor.
 /// </summary>
-public sealed class SqsProcessorMetrics
+internal sealed class SqsProcessorMetrics
 {
 	private long _messagesProcessed;
 	private long _processingErrors;

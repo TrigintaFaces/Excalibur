@@ -192,7 +192,7 @@ internal sealed class VisibilityTimeoutManager(QueueClient queueClient, ILogger<
 	{
 		private readonly CancellationTokenSource _cancellationTokenSource = new();
 #if NET9_0_OR_GREATER
-		private readonly System.Threading.Lock _lock = new();
+		private readonly Lock _lock = new();
 #else
 		private readonly object _lock = new();
 #endif

@@ -18,7 +18,7 @@ internal sealed class InMemoryDataInventoryStore : IDataInventoryStore, IDataInv
 	private readonly ConcurrentDictionary<string, DataLocationRegistration> _registrations = new();
 	private readonly ConcurrentDictionary<string, List<DataLocation>> _discoveredLocations = new();
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _locationsLock = new();
+	private readonly Lock _locationsLock = new();
 #else
 	private readonly object _locationsLock = new();
 #endif

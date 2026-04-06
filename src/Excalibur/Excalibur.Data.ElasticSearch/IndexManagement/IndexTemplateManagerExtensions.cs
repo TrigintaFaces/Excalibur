@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Elastic.Clients.Elasticsearch.IndexManagement;
-
 namespace Excalibur.Data.ElasticSearch.IndexManagement;
 
 /// <summary>
@@ -12,7 +10,8 @@ public static class IndexTemplateManagerExtensions
 {
 	/// <summary>Creates or updates a component template in Elasticsearch.</summary>
 	public static Task<bool> CreateOrUpdateComponentTemplateAsync(
-		this IIndexTemplateManager manager, string templateName, ComponentTemplateConfiguration template, CancellationToken cancellationToken)
+		this IIndexTemplateManager manager, string templateName, ComponentTemplateConfiguration template,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(manager);
 		return ((IndexTemplateManager)manager).CreateOrUpdateComponentTemplateAsync(templateName, template, cancellationToken);

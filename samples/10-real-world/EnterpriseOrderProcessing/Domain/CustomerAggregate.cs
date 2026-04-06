@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Domain.Model;
@@ -29,7 +29,9 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 	public void Register(Guid customerId, string name, string email)
 	{
 		if (Version > 0)
+		{
 			throw new InvalidOperationException("Customer already registered.");
+		}
 
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentException.ThrowIfNullOrWhiteSpace(email);
@@ -41,7 +43,9 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 	public void UpdateAddress(string street, string city, string postalCode, string country)
 	{
 		if (!IsActive)
+		{
 			throw new InvalidOperationException("Cannot update address of a deactivated customer.");
+		}
 
 		ArgumentException.ThrowIfNullOrWhiteSpace(street);
 		ArgumentException.ThrowIfNullOrWhiteSpace(city);
@@ -52,7 +56,9 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 	public void Deactivate(string reason)
 	{
 		if (!IsActive)
+		{
 			throw new InvalidOperationException("Customer is already deactivated.");
+		}
 
 		ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
@@ -63,9 +69,17 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 	{
 		switch (@event)
 		{
-			case CustomerRegistered e: Apply(e); break;
-			case CustomerAddressUpdated e: Apply(e); break;
-			case CustomerDeactivated e: Apply(e); break;
+			case CustomerRegistered e:
+				Apply(e);
+				break;
+
+			case CustomerAddressUpdated e:
+				Apply(e);
+				break;
+
+			case CustomerDeactivated e:
+				Apply(e);
+				break;
 		}
 	}
 
@@ -79,13 +93,7 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 
 	private void Apply(CustomerAddressUpdated e)
 	{
-		ShippingAddress = new Address
-		{
-			Street = e.Street,
-			City = e.City,
-			PostalCode = e.PostalCode,
-			Country = e.Country
-		};
+		ShippingAddress = new Address { Street = e.Street, City = e.City, PostalCode = e.PostalCode, Country = e.Country };
 	}
 
 	private void Apply(CustomerDeactivated e)

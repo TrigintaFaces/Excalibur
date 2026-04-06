@@ -28,7 +28,7 @@ public partial class GracefulDegradationService : IGracefulDegradationService, I
 
 	// CPU delta tracking for real CPU usage calculation (lock protects compound read/write)
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _cpuSampleLock = new();
+	private readonly Lock _cpuSampleLock = new();
 #else
 	private readonly object _cpuSampleLock = new();
 #endif

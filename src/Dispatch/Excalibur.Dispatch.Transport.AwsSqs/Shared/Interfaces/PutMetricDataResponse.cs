@@ -4,7 +4,7 @@
 
 namespace Excalibur.Dispatch.Transport.Aws;
 
-public sealed class PutMetricDataResponse
+internal sealed class PutMetricDataResponse
 {
 	public string RequestId { get; set; } = string.Empty;
 }

@@ -74,7 +74,6 @@ using CdcJobQuartz.Domain;
 using CdcJobQuartz.Infrastructure;
 using CdcJobQuartz.Projections;
 
-using Excalibur.EventSourcing.Abstractions;
 using Excalibur.Jobs.Cdc;
 
 using Microsoft.Extensions.Configuration;

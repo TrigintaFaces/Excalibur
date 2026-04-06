@@ -15,7 +15,7 @@ public sealed class ElasticsearchCircuitBreaker : IElasticsearchCircuitBreaker
 	private readonly CircuitBreakerOptions _settings;
 	private readonly ILogger<ElasticsearchCircuitBreaker> _logger;
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
+	private readonly Lock _lock = new();
 #else
 	private readonly object _lock = new();
 #endif

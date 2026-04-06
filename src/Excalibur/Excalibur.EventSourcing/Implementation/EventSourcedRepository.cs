@@ -11,7 +11,6 @@ using System.Text.Json;
 using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Versioning;
-
 using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.Snapshots;
 
@@ -56,13 +55,15 @@ namespace Excalibur.EventSourcing.Implementation;
 /// </para>
 /// </remarks>
 public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourcedRepository<TAggregate, TKey>
-		where TAggregate : class, Domain.Model.IAggregateRoot<TKey>, Domain.Model.IAggregateSnapshotSupport
-		where TKey : notnull
+	where TAggregate : class, Domain.Model.IAggregateRoot<TKey>, Domain.Model.IAggregateSnapshotSupport
+	where TKey : notnull
 {
 	private static readonly CompositeFormat SaveFailedFormat =
-			CompositeFormat.Parse(Resources.EventSourcedRepository_SaveFailedFormat);
+		CompositeFormat.Parse(Resources.EventSourcedRepository_SaveFailedFormat);
+
 	private static readonly CompositeFormat DeleteRequiresTombstoneFormat =
-			CompositeFormat.Parse(Resources.EventSourcedRepository_DeleteRequiresTombstoneFormat);
+		CompositeFormat.Parse(Resources.EventSourcedRepository_DeleteRequiresTombstoneFormat);
+
 	private readonly IEventStore _eventStore;
 	private readonly IUpcastingPipeline? _upcastingPipeline;
 	private readonly ISnapshotManager? _snapshotManager;
@@ -81,6 +82,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 
 	// Tracked per aggregate load for auto-snapshot decision context
 	private long? _lastLoadedSnapshotVersion;
+
 	private DateTimeOffset? _lastLoadedSnapshotTimestamp;
 
 	/// <summary>
@@ -197,7 +199,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		var aggregate = _aggregateFactory(aggregateId);
 		var aggregateType = aggregate.AggregateType;
 		var stringId = aggregateId.ToString() ?? throw new InvalidOperationException(
-				Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
+			Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
 
 		// Try to load from snapshot first
 		var snapshotVersion = -1L;
@@ -276,7 +278,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		}
 
 		var stringId = aggregate.Id.ToString() ?? throw new InvalidOperationException(
-				Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
+			Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
 
 		// Verify all events have consistent AggregateId (set by RaiseEvent)
 		Debug.Assert(
@@ -297,7 +299,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		if (_outboxStore is not null && _eventStore is ITransactionalEventStore txStore)
 		{
 			await SaveWithTransactionalOutboxAsync(
-				txStore, stringId, aggregate, uncommittedEvents, expectedVersion, cancellationToken)
+					txStore, stringId, aggregate, uncommittedEvents, expectedVersion, cancellationToken)
 				.ConfigureAwait(false);
 		}
 		else
@@ -332,7 +334,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				_timeProvider.GetUtcNow());
 
 			await _eventNotificationBroker.NotifyAsync(
-				uncommittedEvents, context, cancellationToken)
+					uncommittedEvents, context, cancellationToken)
 				.ConfigureAwait(false);
 		}
 
@@ -380,9 +382,9 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 					_lastLoadedSnapshotTimestamp,
 					eventsSinceSnapshot);
 
-				Snapshots.AutoSnapshotMetrics.Evaluated.Add(1);
+				AutoSnapshotMetrics.Evaluated.Add(1);
 
-				if (Snapshots.AutoSnapshotPolicy.ShouldSnapshot(autoOptions, decisionContext, _timeProvider))
+				if (AutoSnapshotPolicy.ShouldSnapshot(autoOptions, decisionContext, _timeProvider))
 				{
 					try
 					{
@@ -395,11 +397,11 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 						_lastLoadedSnapshotVersion = aggregate.Version;
 						_lastLoadedSnapshotTimestamp = _timeProvider.GetUtcNow();
 
-						Snapshots.AutoSnapshotMetrics.Created.Add(1);
+						AutoSnapshotMetrics.Created.Add(1);
 					}
 					catch (Exception ex) when (ex is not OperationCanceledException)
 					{
-						Snapshots.AutoSnapshotMetrics.Failed.Add(1);
+						AutoSnapshotMetrics.Failed.Add(1);
 
 						_logger?.LogWarning(
 							ex,
@@ -440,10 +442,10 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 
 		// Soft delete requires a tombstone event to be raised by the aggregate itself.
 		throw new NotSupportedException(
-				string.Format(
-						CultureInfo.CurrentCulture,
-												DeleteRequiresTombstoneFormat,
-						typeof(TAggregate).Name));
+			string.Format(
+				CultureInfo.CurrentCulture,
+				DeleteRequiresTombstoneFormat,
+				typeof(TAggregate).Name));
 	}
 
 	/// <inheritdoc />
@@ -453,7 +455,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 
 		var aggregate = _aggregateFactory(aggregateId);
 		var stringId = aggregateId.ToString() ?? throw new InvalidOperationException(
-				Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
+			Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
 		var events = await _eventStore.LoadAsync(stringId, aggregate.AggregateType, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -461,38 +463,49 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	}
 
 	/// <summary>
-	/// Wraps an existing snapshot with upgraded data bytes.
+	/// Enriches uncommitted events with CorrelationId and TenantId from the current Activity context.
 	/// </summary>
-	private sealed class UpgradedSnapshot : Domain.Model.ISnapshot
+	/// <remarks>
+	/// Only sets metadata keys that are not already present, preserving explicitly set values.
+	/// Keys follow transport header conventions: <c>correlation-id</c>, <c>tenant-id</c>.
+	/// </remarks>
+	private static void EnrichEventsWithActivityContext(IReadOnlyList<IDomainEvent> events)
 	{
-		private readonly Domain.Model.ISnapshot _original;
-		private readonly byte[] _upgradedData;
-		private readonly int _schemaVersion;
-
-		public UpgradedSnapshot(Domain.Model.ISnapshot original, byte[] upgradedData, int schemaVersion)
+		var activity = Activity.Current;
+		if (activity is null)
 		{
-			_original = original;
-			_upgradedData = upgradedData;
-			_schemaVersion = schemaVersion;
+			return;
 		}
 
-		public string SnapshotId => _original.SnapshotId;
-		public string AggregateId => _original.AggregateId;
-		public long Version => _original.Version;
-		public DateTimeOffset CreatedAt => _original.CreatedAt;
-		public byte[] Data => _upgradedData;
-		public string AggregateType => _original.AggregateType;
+		var correlationId = activity.TraceId.ToString();
+		string? tenantId = null;
 
-		public IDictionary<string, object>? Metadata
+		// Check Activity tags for tenant-id (set by middleware or upstream services)
+		foreach (var tag in activity.Tags)
 		{
-			get
+			if (string.Equals(tag.Key, "tenant-id", StringComparison.Ordinal)
+				|| string.Equals(tag.Key, "tenant.id", StringComparison.Ordinal))
 			{
-				// Defensive copy to avoid mutating the original snapshot's metadata dictionary
-				var metadata = _original.Metadata is not null
-					? new Dictionary<string, object>(_original.Metadata)
-					: new Dictionary<string, object>();
-				metadata["SnapshotSchemaVersion"] = _schemaVersion;
-				return metadata;
+				tenantId = tag.Value;
+				break;
+			}
+		}
+
+		foreach (var @event in events)
+		{
+			if (@event.Metadata is null)
+			{
+				continue;
+			}
+
+			if (!@event.Metadata.ContainsKey("correlation-id"))
+			{
+				@event.Metadata["correlation-id"] = correlationId;
+			}
+
+			if (tenantId is not null && !@event.Metadata.ContainsKey("tenant-id"))
+			{
+				@event.Metadata["tenant-id"] = tenantId;
 			}
 		}
 	}
@@ -579,54 +592,6 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		// Perform upcasting - pipeline handles multi-hop internally
 		var upcasted = _upcastingPipeline.Upcast(domainEvent);
 		return upcasted as IDomainEvent ?? domainEvent;
-	}
-
-	/// <summary>
-	/// Enriches uncommitted events with CorrelationId and TenantId from the current Activity context.
-	/// </summary>
-	/// <remarks>
-	/// Only sets metadata keys that are not already present, preserving explicitly set values.
-	/// Keys follow transport header conventions: <c>correlation-id</c>, <c>tenant-id</c>.
-	/// </remarks>
-	private static void EnrichEventsWithActivityContext(IReadOnlyList<IDomainEvent> events)
-	{
-		var activity = Activity.Current;
-		if (activity is null)
-		{
-			return;
-		}
-
-		var correlationId = activity.TraceId.ToString();
-		string? tenantId = null;
-
-		// Check Activity tags for tenant-id (set by middleware or upstream services)
-		foreach (var tag in activity.Tags)
-		{
-			if (string.Equals(tag.Key, "tenant-id", StringComparison.Ordinal)
-				|| string.Equals(tag.Key, "tenant.id", StringComparison.Ordinal))
-			{
-				tenantId = tag.Value;
-				break;
-			}
-		}
-
-		foreach (var @event in events)
-		{
-			if (@event.Metadata is null)
-			{
-				continue;
-			}
-
-			if (!@event.Metadata.ContainsKey("correlation-id"))
-			{
-				@event.Metadata["correlation-id"] = correlationId;
-			}
-
-			if (tenantId is not null && !@event.Metadata.ContainsKey("tenant-id"))
-			{
-				@event.Metadata["tenant-id"] = tenantId;
-			}
-		}
 	}
 
 	/// <summary>
@@ -725,6 +690,43 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				SaveFailedFormat,
 				aggregate.Id,
 				result.ErrorMessage));
+	}
+
+	/// <summary>
+	/// Wraps an existing snapshot with upgraded data bytes.
+	/// </summary>
+	private sealed class UpgradedSnapshot : Domain.Model.ISnapshot
+	{
+		private readonly Domain.Model.ISnapshot _original;
+		private readonly byte[] _upgradedData;
+		private readonly int _schemaVersion;
+
+		public UpgradedSnapshot(Domain.Model.ISnapshot original, byte[] upgradedData, int schemaVersion)
+		{
+			_original = original;
+			_upgradedData = upgradedData;
+			_schemaVersion = schemaVersion;
+		}
+
+		public string SnapshotId => _original.SnapshotId;
+		public string AggregateId => _original.AggregateId;
+		public long Version => _original.Version;
+		public DateTimeOffset CreatedAt => _original.CreatedAt;
+		public byte[] Data => _upgradedData;
+		public string AggregateType => _original.AggregateType;
+
+		public IDictionary<string, object>? Metadata
+		{
+			get
+			{
+				// Defensive copy to avoid mutating the original snapshot's metadata dictionary
+				var metadata = _original.Metadata is not null
+					? new Dictionary<string, object>(_original.Metadata)
+					: new Dictionary<string, object>();
+				metadata["SnapshotSchemaVersion"] = _schemaVersion;
+				return metadata;
+			}
+		}
 	}
 }
 

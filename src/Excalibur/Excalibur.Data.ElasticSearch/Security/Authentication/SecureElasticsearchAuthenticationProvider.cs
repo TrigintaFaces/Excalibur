@@ -27,7 +27,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 	private readonly Timer _rotationTimer;
 	private readonly SemaphoreSlim _rotationSemaphore;
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _eventLock = new();
+	private readonly Lock _eventLock = new();
 #else
 	private readonly object _eventLock = new();
 #endif

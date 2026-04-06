@@ -14,7 +14,6 @@
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Aot.Sample.Handlers;
@@ -145,6 +144,7 @@ catch (InvalidOperationException ex)
 {
 	Console.WriteLine($"Order not found (as expected): {ex.Message}");
 }
+
 Console.WriteLine();
 
 // ============================================================================
@@ -152,11 +152,7 @@ Console.WriteLine();
 // ============================================================================
 Console.WriteLine("--- Demo 5: Serialization Round-Trip ---");
 
-var originalCommand = new CreateOrderCommand
-{
-	CustomerId = "CUST-RT",
-	Items = [new OrderItem("ROUND-TRIP", 1, 9.99m)]
-};
+var originalCommand = new CreateOrderCommand { CustomerId = "CUST-RT", Items = [new OrderItem("ROUND-TRIP", 1, 9.99m)] };
 
 var serialized = JsonSerializer.Serialize(originalCommand, AppJsonSerializerContext.Default.CreateOrderCommand);
 Console.WriteLine($"Serialized:   {serialized}");
@@ -165,9 +161,9 @@ var deserialized = JsonSerializer.Deserialize(serialized, AppJsonSerializerConte
 Console.WriteLine($"Deserialized: CustomerId={deserialized?.CustomerId}, Items={deserialized?.Items.Count}");
 
 var match = deserialized is not null
-	&& deserialized.CustomerId == originalCommand.CustomerId
-	&& deserialized.Items.Count == originalCommand.Items.Count
-	&& deserialized.Items[0].Sku == originalCommand.Items[0].Sku;
+			&& deserialized.CustomerId == originalCommand.CustomerId
+			&& deserialized.Items.Count == originalCommand.Items.Count
+			&& deserialized.Items[0].Sku == originalCommand.Items[0].Sku;
 Console.WriteLine($"Round-trip match: {match}");
 Console.WriteLine();
 

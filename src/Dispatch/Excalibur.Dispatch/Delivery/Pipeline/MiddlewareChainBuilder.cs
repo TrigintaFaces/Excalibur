@@ -76,7 +76,7 @@ internal sealed class MiddlewareChainBuilder
 	private FrozenDictionary<ChainCacheKey, ChainExecutor>? _frozenChainCache;
 
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _freezeLock = new();
+	private readonly Lock _freezeLock = new();
 #else
 	private readonly object _freezeLock = new();
 #endif

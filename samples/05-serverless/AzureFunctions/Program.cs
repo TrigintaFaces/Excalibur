@@ -18,7 +18,6 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;

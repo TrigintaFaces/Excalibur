@@ -39,7 +39,7 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 	// Track previous delay for decorrelated jitter
 	private TimeSpan _previousDelay;
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _lock = new();
+	private readonly Lock _lock = new();
 #else
 	private readonly object _lock = new();
 #endif

@@ -100,7 +100,7 @@ public static class ExcaliburHostingServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection to configure. </param>
 	/// <param name="assemblies"> Assemblies containing handlers and validators. </param>
-	/// <param name="useLocalClientAddress"> Whether to register the local machine address as <see cref="IClientAddress" />. </param>
+	/// <param name="useLocalClientAddress"> Whether to register the local machine address as <see cref="Excalibur.Domain.IClientAddress" />. </param>
 	/// <param name="tenantId"> The tenant identifier. Defaults to <see cref="TenantDefaults.DefaultTenantId"/>. </param>
 	/// <returns> The updated service collection. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="services" /> is null. </exception>

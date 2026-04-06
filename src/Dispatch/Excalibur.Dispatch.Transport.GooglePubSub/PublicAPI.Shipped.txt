@@ -481,20 +481,6 @@ Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ProjectId.get -> stri
 Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ProjectId.set -> void
 Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ResourceType.get -> string!
 Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ResourceType.set -> void
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Count.get -> long
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Count.set -> void
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.HistogramSnapshot() -> void
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Max.get -> long
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Max.set -> void
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Mean.get -> long
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Mean.set -> void
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Min.get -> long
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Min.set -> void
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.P95.get -> long
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.P95.set -> void
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Sum.get -> long
-Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Sum.set -> void
 Excalibur.Dispatch.Transport.Google.IBatchProcessor
 Excalibur.Dispatch.Transport.Google.IBatchProcessor.ProcessAsync(Excalibur.Dispatch.Transport.Google.MessageBatch! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.BatchProcessingResult!>!
 Excalibur.Dispatch.Transport.Google.IBatchProcessor.ProcessMultipleAsync(System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Transport.Google.MessageBatch!>! batches, int maxConcurrency, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Transport.Google.BatchProcessingResult!>!
@@ -604,35 +590,6 @@ Excalibur.Dispatch.Transport.Google.Metric.Timestamp.get -> System.DateTimeOffse
 Excalibur.Dispatch.Transport.Google.Metric.Timestamp.set -> void
 Excalibur.Dispatch.Transport.Google.Metric.Value.get -> double
 Excalibur.Dispatch.Transport.Google.Metric.Value.set -> void
-Excalibur.Dispatch.Transport.Google.MetricDescriptor
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.Description.get -> string!
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.Description.set -> void
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.DisplayName.get -> string!
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.DisplayName.set -> void
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.Labels.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.LabelDescriptor!>!
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptor() -> void
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind.Cumulative = 3 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind.Delta = 2 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind.Gauge = 1 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind.Unspecified = 0 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Bool = 1 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Distribution = 5 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Double = 3 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Int64 = 2 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Money = 6 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.String = 4 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Unspecified = 0 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricKind.get -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricKind.set -> void
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.Type.get -> string!
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.Type.set -> void
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.Unit.get -> string!
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.Unit.set -> void
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.ValueType.get -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
-Excalibur.Dispatch.Transport.Google.MetricDescriptor.ValueType.set -> void
 Excalibur.Dispatch.Transport.Google.OrderingKeyInfo
 Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.ExpectedSequence.get -> long
 Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.ExpectedSequence.init -> void

@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Options for channel-based long polling receiver.
 /// </summary>
-public sealed class ChannelLongPollingOptions
+internal sealed class ChannelLongPollingOptions
 {
 	public Uri? QueueUrl { get; set; }
 

@@ -46,7 +46,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private readonly Counter<long>? _returnGlobalCounter;
 	private readonly Timer _adaptiveSizeTimer;
 #if NET9_0_OR_GREATER
-	private readonly System.Threading.Lock _sizingLock = new();
+	private readonly Lock _sizingLock = new();
 #else
 	private readonly object _sizingLock = new();
 #endif

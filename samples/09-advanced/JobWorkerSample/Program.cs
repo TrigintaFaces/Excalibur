@@ -36,7 +36,6 @@
 
 #pragma warning disable CA1506 // Avoid excessive class coupling - acceptable for sample Program.cs
 
-using Excalibur.Dispatch.Serialization;
 using Excalibur.Jobs.Cdc;
 using Excalibur.Jobs.DataProcessing;
 using Excalibur.Jobs.Outbox;
@@ -87,9 +86,9 @@ public class Program
 						{
 							store.UseProperties = true; // Store all JobDataMap values as strings (recommended)
 							store.PerformSchemaValidation = true; // Validate database schema
-															      // TODO: Add SQL Server and SystemTextJson extensions when packages are available
-															      // store.UseSqlServer(sql => { sql.ConnectionString = connectionString; sql.TablePrefix = "QRTZ_"; });
-															      // store.UseSystemTextJsonSerializer();
+							// TODO: Add SQL Server and SystemTextJson extensions when packages are available
+							// store.UseSqlServer(sql => { sql.ConnectionString = connectionString; sql.TablePrefix = "QRTZ_"; });
+							// store.UseSystemTextJsonSerializer();
 
 							// Optional: Enable clustering for distributed job execution
 							// store.UseClustering(c => { c.CheckinInterval = TimeSpan.FromSeconds(10); c.CheckinMisfireThreshold = TimeSpan.FromSeconds(20); });

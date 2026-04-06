@@ -41,7 +41,7 @@ public sealed class MaterializedViewMetrics : IDisposable
 
 	#if NET9_0_OR_GREATER
 
-	private readonly System.Threading.Lock _stateLock = new();
+	private readonly Lock _stateLock = new();
 
 	#else
 
