@@ -71,6 +71,8 @@ public static class OutboxPresetServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		var builder = services.AddOptions<OutboxDeliveryOptions>()
 			.Configure(options =>
 			{
@@ -83,6 +85,8 @@ public static class OutboxPresetServiceCollectionExtensions
 				"OutboxDeliveryOptions failed validation.")
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}
@@ -101,6 +105,8 @@ public static class OutboxPresetServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		var builder = services.AddOptions<OutboxDeliveryOptions>()
 			.Configure(options =>
 			{
@@ -113,6 +119,8 @@ public static class OutboxPresetServiceCollectionExtensions
 				"OutboxDeliveryOptions failed validation.")
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}
@@ -146,6 +154,8 @@ public static class OutboxPresetServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		var builder = services.AddOptions<OutboxDeliveryOptions>()
 			.Configure(options =>
 			{
@@ -158,6 +168,8 @@ public static class OutboxPresetServiceCollectionExtensions
 				"OutboxDeliveryOptions failed validation.")
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}
@@ -176,6 +188,8 @@ public static class OutboxPresetServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		var builder = services.AddOptions<OutboxDeliveryOptions>()
 			.Configure(options =>
 			{
@@ -188,6 +202,8 @@ public static class OutboxPresetServiceCollectionExtensions
 				"OutboxDeliveryOptions failed validation.")
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}
@@ -221,6 +237,8 @@ public static class OutboxPresetServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		var builder = services.AddOptions<OutboxDeliveryOptions>()
 			.Configure(options =>
 			{
@@ -233,6 +251,8 @@ public static class OutboxPresetServiceCollectionExtensions
 				"OutboxDeliveryOptions failed validation.")
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}
@@ -251,6 +271,8 @@ public static class OutboxPresetServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		var builder = services.AddOptions<OutboxDeliveryOptions>()
 			.Configure(options =>
 			{
@@ -263,6 +285,8 @@ public static class OutboxPresetServiceCollectionExtensions
 				"OutboxDeliveryOptions failed validation.")
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}

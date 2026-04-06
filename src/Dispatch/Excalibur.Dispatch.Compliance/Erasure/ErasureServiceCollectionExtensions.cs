@@ -34,9 +34,11 @@ public static class ErasureServiceCollectionExtensions
 		}
 
 		// Validate options on startup
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = optionsBuilder
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		RegisterGdprErasureCore(services);
 
@@ -55,10 +57,12 @@ public static class ErasureServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<ErasureOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		RegisterGdprErasureCore(services);
 
@@ -216,7 +220,9 @@ public static class ErasureServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<ErasureSchedulerOptions>().Bind(configuration);
+#pragma warning restore IL2026
 
 		_ = services.AddSingleton<ErasureSchedulerBackgroundService>();
 		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ErasureSchedulerBackgroundService>());
@@ -265,7 +271,9 @@ public static class ErasureServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<LegalHoldExpirationOptions>().Bind(configuration);
+#pragma warning restore IL2026
 
 		_ = services.AddSingleton<LegalHoldExpirationService>();
 		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<LegalHoldExpirationService>());
@@ -292,10 +300,12 @@ public static class ErasureServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<ErasureOptions>()
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		RegisterGdprErasureCore(services);
 

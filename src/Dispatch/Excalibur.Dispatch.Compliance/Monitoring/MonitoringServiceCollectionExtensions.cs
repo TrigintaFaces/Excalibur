@@ -91,7 +91,9 @@ public static class MonitoringServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		var options = new KeyRotationAlertOptions();
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		configuration.Bind(options);
+#pragma warning restore IL2026
 
 		services.TryAddSingleton(options);
 		services.TryAddSingleton<KeyRotationAlertService>();

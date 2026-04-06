@@ -62,11 +62,15 @@ public static class DeliveryServiceCollectionExtensions
 			_ = builder.Configure(configure);
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = builder.Validate(
 				static options => DeliveryOutboxOptions.Validate(options) is null,
 				"DeliveryOutboxOptions failed validation.")
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}
@@ -105,11 +109,15 @@ public static class DeliveryServiceCollectionExtensions
 			_ = builder.Configure(configure);
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = builder.Validate(
 				static options => DeliveryInboxOptions.Validate(options) is null,
 				"DeliveryInboxOptions failed validation.")
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}
@@ -173,12 +181,16 @@ public static class DeliveryServiceCollectionExtensions
 		services.TryAddSingleton<ICronScheduler, CronScheduler>();
 		services.TryAddSingleton<IDispatchScheduler, RecurringDispatchScheduler>();
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = services.AddOptions<SchedulerOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddOptions<CronScheduleOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return services;
 	}

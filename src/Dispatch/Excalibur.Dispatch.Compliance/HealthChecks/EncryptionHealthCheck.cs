@@ -236,7 +236,8 @@ internal sealed partial class EncryptionHealthCheck : IHealthCheck
 		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
-			var activeKey = await _keyManagementProvider.GetActiveKeyAsync(
+			// _keyManagementProvider is guaranteed non-null by the caller (CheckHealthAsync null-checks before calling)
+			var activeKey = await _keyManagementProvider!.GetActiveKeyAsync(
 					purpose: null,
 					cancellationToken)
 				.ConfigureAwait(false);

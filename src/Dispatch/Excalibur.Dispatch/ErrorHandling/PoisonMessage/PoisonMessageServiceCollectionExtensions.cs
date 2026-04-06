@@ -59,7 +59,11 @@ public static class PoisonMessageServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		// Register core services
 		services.TryAddSingleton<IPoisonMessageHandler, PoisonMessageHandler>();

@@ -123,6 +123,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 		return policies;
 	}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 	private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
 	{
 		try
@@ -134,6 +135,7 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 			return ex.Types.Where(static t => t is not null)!;
 		}
 	}
+#pragma warning restore IL2026
 
 	private static PersonalDataAttribute? TryGetPersonalDataAttribute(PropertyInfo property)
 	{

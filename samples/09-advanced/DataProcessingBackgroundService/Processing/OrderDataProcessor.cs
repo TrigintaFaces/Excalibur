@@ -5,7 +5,6 @@ using DataProcessingBackgroundService.Data;
 
 using Excalibur.Data.DataProcessing;
 
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace DataProcessingBackgroundService.Processing;
@@ -17,8 +16,6 @@ namespace DataProcessingBackgroundService.Processing;
 [DataTaskRecordType("OrderRecord")]
 public sealed class OrderDataProcessor : DataProcessor<OrderRecord>
 {
-	private readonly ILogger<OrderDataProcessor> _logger;
-
 	// In a real application, this would fetch from a database.
 	// For this sample, we use an in-memory list to demonstrate the pipeline.
 	private static readonly List<OrderRecord> SampleOrders =
@@ -29,6 +26,8 @@ public sealed class OrderDataProcessor : DataProcessor<OrderRecord>
 		new() { OrderId = Guid.NewGuid(), CustomerName = "Diana", Amount = 75.25m },
 		new() { OrderId = Guid.NewGuid(), CustomerName = "Eve", Amount = 320.00m },
 	];
+
+	private readonly ILogger<OrderDataProcessor> _logger;
 
 	public OrderDataProcessor(
 		IHostApplicationLifetime appLifetime,

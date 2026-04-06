@@ -39,9 +39,13 @@ public static class LoggingPipelineExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 
 		builder.Services.TryAddSingleton<LoggingMiddleware>();
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = builder.Services.AddOptions<LoggingMiddlewareOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return builder.UseMiddleware<LoggingMiddleware>();
 	}
@@ -73,10 +77,14 @@ public static class LoggingPipelineExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		builder.Services.TryAddSingleton<LoggingMiddleware>();
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = builder.Services.AddOptions<LoggingMiddlewareOptions>()
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		return builder.UseMiddleware<LoggingMiddleware>();
 	}

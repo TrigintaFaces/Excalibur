@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Compliance;
 
 /// <summary>
@@ -35,7 +37,7 @@ public interface IReEncryptionService
 	/// Fields marked with <see cref="EncryptedFieldAttribute"/> are decrypted with the source
 	/// provider and re-encrypted with the target provider.
 	/// </remarks>
-	Task<ReEncryptionResult> ReEncryptAsync<T>(
+	Task<ReEncryptionResult> ReEncryptAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
 		T entity,
 		ReEncryptionContext context,
 		CancellationToken cancellationToken) where T : class;
@@ -57,7 +59,7 @@ public interface IReEncryptionService
 	/// failed items are yielded with <see cref="ReEncryptionResult.Success"/> = <c>false</c>.
 	/// </para>
 	/// </remarks>
-	IAsyncEnumerable<ReEncryptionResult<T>> ReEncryptBatchAsync<T>(
+	IAsyncEnumerable<ReEncryptionResult<T>> ReEncryptBatchAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
 		IAsyncEnumerable<T> entities,
 		ReEncryptionOptions options,
 		CancellationToken cancellationToken) where T : class;

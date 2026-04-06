@@ -278,10 +278,12 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<AuditAlertOptions>()
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAuditAlertService, DefaultAuditAlertService>();
 
@@ -301,10 +303,14 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling
 		_ = services.AddOptions<AuditAlertOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAuditAlertService, DefaultAuditAlertService>();
 
@@ -332,10 +338,12 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<AuditRetentionOptions>()
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAuditRetentionService, DefaultAuditRetentionService>();
 		_ = services.AddHostedService<AuditRetentionBackgroundService>();
@@ -356,10 +364,14 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling
 		_ = services.AddOptions<AuditRetentionOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAuditRetentionService, DefaultAuditRetentionService>();
 		_ = services.AddHostedService<AuditRetentionBackgroundService>();
@@ -425,7 +437,11 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling
 		_ = services.AddOptions<AuditEncryptionOptions>().Bind(configuration);
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		RegisterAuditLogEncryptionDecorator(services);
 

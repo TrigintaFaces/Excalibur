@@ -565,7 +565,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 				_options.Auth.AuthMethod))
 		};
 
-		var vaultClientSettings = new VaultClientSettings(_options.VaultUri.ToString(), authMethod)
+		var vaultClientSettings = new VaultClientSettings(_options.VaultUri!.ToString(), authMethod)
 		{
 			Namespace = _options.Namespace,
 			ContinueAsyncTasksOnCapturedContext = false

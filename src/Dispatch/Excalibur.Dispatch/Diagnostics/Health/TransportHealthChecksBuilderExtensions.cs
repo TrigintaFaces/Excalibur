@@ -202,7 +202,11 @@ public static class TransportHealthChecksBuilderExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		var options = new MultiTransportHealthCheckOptions();
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
+#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		configuration.Bind(options);
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		var defaultTags = new[] { "transport", "messaging", "ready" };
 

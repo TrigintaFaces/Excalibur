@@ -42,9 +42,11 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<DataPortabilityOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -67,10 +69,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<DataPortabilityOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddScoped<IDataPortabilityService, DataPortabilityService>();
 		return services;
@@ -88,9 +92,11 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<SubjectAccessOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -113,10 +119,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<SubjectAccessOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddScoped<ISubjectAccessService, SubjectAccessService>();
 		return services;
@@ -138,9 +146,11 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<AuditLogEncryptionOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -163,10 +173,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<AuditLogEncryptionOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddScoped<IAuditLogEncryptor, AuditLogEncryptionService>();
 		return services;
@@ -188,9 +200,11 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<KeyEscrowBackupOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -213,10 +227,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<KeyEscrowBackupOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IKeyEscrowService, KeyEscrowBackupService>();
 		return services;
@@ -234,9 +250,11 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<BreachNotificationOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -259,10 +277,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<BreachNotificationOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IBreachNotificationService, BreachNotificationService>();
 		return services;
@@ -280,9 +300,11 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<RetentionEnforcementOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -307,10 +329,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<RetentionEnforcementOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddScoped<IRetentionEnforcementService, RetentionEnforcementService>();
 		_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
@@ -330,9 +354,11 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<ConsentOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -355,10 +381,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<ConsentOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IConsentService, ConsentService>();
 		return services;
@@ -377,9 +405,11 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<PostgresComplianceOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		_ = optionsBuilder.Configure(configureOptions);
 
 		services.TryAddSingleton<IComplianceStore, PostgresComplianceStore>();
@@ -399,10 +429,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<PostgresComplianceOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IComplianceStore, PostgresComplianceStore>();
 		return services;
@@ -421,9 +453,11 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<MongoDbComplianceOptions>()
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 		_ = optionsBuilder.Configure(configureOptions);
 
 		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
@@ -443,10 +477,12 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<MongoDbComplianceOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
 		return services;

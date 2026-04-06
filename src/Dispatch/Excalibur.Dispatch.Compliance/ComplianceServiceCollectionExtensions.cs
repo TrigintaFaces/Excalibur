@@ -408,7 +408,9 @@ public static class ComplianceServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+#pragma warning restore IL2026
 
 		RegisterKeyRotationCore(services);
 
@@ -428,10 +430,12 @@ public static class ComplianceServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<KeyRotationOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		RegisterKeyRotationCore(services);
 
@@ -461,7 +465,9 @@ public static class ComplianceServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+#pragma warning restore IL2026
 
 		// Register the custom scheduler
 		services.TryAddSingleton<IKeyRotationScheduler, TScheduler>();
@@ -487,10 +493,12 @@ public static class ComplianceServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<KeyRotationOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		// Register the custom scheduler
 		services.TryAddSingleton<IKeyRotationScheduler, TScheduler>();

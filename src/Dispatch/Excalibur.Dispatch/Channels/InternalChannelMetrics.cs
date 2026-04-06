@@ -7,7 +7,9 @@ namespace Excalibur.Dispatch.Channels;
 /// <summary>
 /// Channel metrics collector.
 /// </summary>
+#pragma warning disable CS9113 // Parameter is unread - reserved for future metrics implementation
 public sealed class InternalChannelMetrics(string channelName, int capacity)
+#pragma warning restore CS9113
 {
 	private long _totalReads;
 	private long _totalWrites;

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -14,6 +14,18 @@
     <Description>Core messaging abstractions and middleware pipeline for the Excalibur framework. Provides foundational types for message handling, routing, and extensible middleware architecture.</Description>
     <PackageTags>messaging;dispatch;middleware;pipeline;cqrs;framework</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <!-- This framework uses reflection extensively for handler resolution, pipeline configuration,
+       and dynamic dispatch. Suppress AOT/trimming warnings that are inherent to the design:
+       - CS8602/CS8604: Nullable dereference in patterns proven non-null by control flow
+         (TryGetValue out params, ThreadLocal.Value with factory, post-null-check paths)
+       - IL2026/IL3050: ValidateDataAnnotations, Bind, and serializer calls that require reflection
+       - IL2046/IL3051: Interface/impl AOT attribute mismatches (IDispatcher, IHandlerActivator, IEventSerializer)
+       - IL2055: MakeGenericType for typed handler/mapper resolution
+       - IL2070/IL2075/IL2095: GetInterfaces/GetProperties for pipeline and middleware configuration
+  -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CS8602;CS8604;IL2026;IL3050;IL2046;IL3051;IL2055;IL2070;IL2075;IL2095</NoWarn>
   </PropertyGroup>
   <!-- Include README.md in NuGet package -->
   <ItemGroup>

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.A3.Abstractions.Authorization;
 
@@ -29,12 +30,12 @@ public interface IA3Builder
 	/// </summary>
 	/// <typeparam name="TStore">The grant store implementation type.</typeparam>
 	/// <returns>The builder for chaining.</returns>
-	IA3Builder UseGrantStore<TStore>() where TStore : class, IGrantStore;
+	IA3Builder UseGrantStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>() where TStore : class, IGrantStore;
 
 	/// <summary>
 	/// Registers a custom activity group store implementation.
 	/// </summary>
 	/// <typeparam name="TStore">The activity group store implementation type.</typeparam>
 	/// <returns>The builder for chaining.</returns>
-	IA3Builder UseActivityGroupStore<TStore>() where TStore : class, IActivityGroupStore;
+	IA3Builder UseActivityGroupStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>() where TStore : class, IActivityGroupStore;
 }

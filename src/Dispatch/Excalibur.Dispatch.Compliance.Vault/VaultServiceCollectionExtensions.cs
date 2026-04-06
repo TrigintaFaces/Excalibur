@@ -43,10 +43,12 @@ public static class VaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		// Configure options with validation
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<VaultOptions>()
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();

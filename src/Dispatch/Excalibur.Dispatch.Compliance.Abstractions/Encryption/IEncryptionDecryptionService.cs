@@ -44,7 +44,7 @@ public interface IEncryptionDecryptionService
 	/// other fields are passed through unchanged.
 	/// </para>
 	/// </remarks>
-	IAsyncEnumerable<T> DecryptAllAsync<T>(
+	IAsyncEnumerable<T> DecryptAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
 		IAsyncEnumerable<T> source,
 		DecryptionOptions options,
 		CancellationToken cancellationToken) where T : class;
@@ -60,7 +60,7 @@ public interface IEncryptionDecryptionService
 	/// <remarks>
 	/// Fields marked with <see cref="EncryptedFieldAttribute"/> are decrypted in place.
 	/// </remarks>
-	Task<T> DecryptEntityAsync<T>(
+	Task<T> DecryptEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
 		T entity,
 		DecryptionOptions options,
 		CancellationToken cancellationToken) where T : class;
@@ -86,7 +86,7 @@ public interface IEncryptionDecryptionService
 			"Exporting decrypted data uses JSON serialization for generic types which requires preserved members.")]
 	[RequiresDynamicCode(
 			"Exporting decrypted data uses JSON serialization for generic types which requires dynamic code generation.")]
-	Task ExportDecryptedAsync<T>(
+	Task ExportDecryptedAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(
 			IAsyncEnumerable<T> source,
 			BulkDecryptionExportOptions options,
 			CancellationToken cancellationToken) where T : class;

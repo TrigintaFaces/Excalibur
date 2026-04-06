@@ -101,10 +101,12 @@ public static class OpenSearchServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026, IL3050 // Bind and ValidateDataAnnotations require unreferenced/dynamic code
         _ = services.AddOptions<OpenSearchAuditSinkOptions>()
             .Bind(configuration)
             .ValidateDataAnnotations()
             .ValidateOnStart();
+#pragma warning restore IL2026, IL3050
 
         return services.AddOpenSearchAuditSinkCore();
     }

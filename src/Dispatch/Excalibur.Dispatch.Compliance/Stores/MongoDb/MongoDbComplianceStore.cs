@@ -142,7 +142,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 
 		var filter = Builders<ConsentDocument>.Filter.Eq(d => d.Id, document.Id);
 
-		_ = await _consentCollection.ReplaceOneAsync(
+		_ = await _consentCollection!.ReplaceOneAsync(
 			filter,
 			document,
 			new ReplaceOptions { IsUpsert = true },
@@ -165,7 +165,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 		var id = ConsentDocument.CreateId(subjectId, purpose);
 		var filter = Builders<ConsentDocument>.Filter.Eq(d => d.Id, id);
 
-		var document = await _consentCollection
+		var document = await _consentCollection!
 			.Find(filter)
 			.FirstOrDefaultAsync(cancellationToken)
 			.ConfigureAwait(false);
@@ -194,7 +194,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 			ErasedAt = erasedAt
 		};
 
-		await _erasureLogCollection.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
+		await _erasureLogCollection!.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		LogMongoDbOperation("StoreErasureLog", subjectId);
 	}
@@ -212,7 +212,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 
 		var filter = Builders<SubjectAccessDocument>.Filter.Eq(d => d.Id, document.Id);
 
-		_ = await _subjectAccessCollection.ReplaceOneAsync(
+		_ = await _subjectAccessCollection!.ReplaceOneAsync(
 			filter,
 			document,
 			new ReplaceOptions { IsUpsert = true },
@@ -254,7 +254,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore
 		var subjectIdIndex = new CreateIndexModel<ErasureLogDocument>(
 			erasureIndexBuilder.Ascending(d => d.SubjectId));
 
-		_ = await _erasureLogCollection.Indexes
+		_ = await _erasureLogCollection!.Indexes
 			.CreateOneAsync(subjectIdIndex, cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
 

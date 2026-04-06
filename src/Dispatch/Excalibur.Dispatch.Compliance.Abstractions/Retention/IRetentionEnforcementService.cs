@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.Dispatch.Compliance;
 
 /// <summary>
@@ -20,6 +22,7 @@ public interface IRetentionEnforcementService
 	/// </summary>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The result of the enforcement scan.</returns>
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
 	Task<RetentionEnforcementResult> EnforceRetentionAsync(
 		CancellationToken cancellationToken);
 
@@ -28,6 +31,7 @@ public interface IRetentionEnforcementService
 	/// </summary>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A collection of active retention policies.</returns>
+	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and reflection to discover PersonalDataAttribute annotations at runtime.")]
 	Task<IReadOnlyList<RetentionPolicy>> GetRetentionPoliciesAsync(
 		CancellationToken cancellationToken);
 }

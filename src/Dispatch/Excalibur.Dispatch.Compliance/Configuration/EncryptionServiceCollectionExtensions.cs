@@ -115,7 +115,9 @@ public static class EncryptionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<HkdfKeyDerivationOptions>().Bind(configuration);
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<HkdfKeyDeriver>();
 

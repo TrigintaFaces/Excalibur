@@ -55,7 +55,9 @@ public static class MigrationServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<MigrationOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+#pragma warning restore IL2026
 		RegisterMigrationCore(services);
 
 		return services;

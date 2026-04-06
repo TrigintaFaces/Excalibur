@@ -51,8 +51,10 @@ public static class RoleServiceCollectionExtensions
 			optionsBuilder.Configure(configure);
 		}
 
+#pragma warning disable IL2026 // ValidateDataAnnotations requires unreferenced code
 		optionsBuilder.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		return builder.AddRolesCore();
 	}
@@ -70,10 +72,12 @@ public static class RoleServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026, IL3050 // Bind and ValidateDataAnnotations require unreferenced/dynamic code
 		_ = builder.Services.AddOptions<RoleOptions>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026, IL3050
 
 		return builder.AddRolesCore();
 	}

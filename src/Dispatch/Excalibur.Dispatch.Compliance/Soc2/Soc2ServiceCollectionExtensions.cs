@@ -33,7 +33,9 @@ public static class Soc2ServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+#pragma warning restore IL2026
 
 		RegisterSoc2ComplianceCore(services);
 
@@ -52,10 +54,12 @@ public static class Soc2ServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<Soc2Options>()
 			.Bind(configuration)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		RegisterSoc2ComplianceCore(services);
 

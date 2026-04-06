@@ -49,7 +49,9 @@ public static class SplunkServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026, IL3050 // Bind requires unreferenced code and dynamic code
 		_ = services.AddOptions<SplunkExporterOptions>().Bind(configuration);
+#pragma warning restore IL2026, IL3050
 
 		RegisterSplunkAuditExporterCore(services);
 

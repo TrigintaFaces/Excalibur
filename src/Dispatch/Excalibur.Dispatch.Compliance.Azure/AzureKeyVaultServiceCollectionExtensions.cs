@@ -40,10 +40,12 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		// Configure options with validation
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<AzureKeyVaultOptions>()
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
@@ -121,10 +123,12 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<RsaKeyWrappingOptions>()
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAzureRsaKeyWrapper, AzureKeyVaultRsaKeyWrapper>();
 

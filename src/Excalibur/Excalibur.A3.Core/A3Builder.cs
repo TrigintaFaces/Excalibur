@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.A3.Abstractions.Authorization;
 
@@ -31,14 +32,14 @@ internal sealed class A3Builder : IA3Builder
 	public IServiceCollection Services { get; }
 
 	/// <inheritdoc />
-	public IA3Builder UseGrantStore<TStore>() where TStore : class, IGrantStore
+	public IA3Builder UseGrantStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>() where TStore : class, IGrantStore
 	{
 		Services.Replace(ServiceDescriptor.Scoped<IGrantStore, TStore>());
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IA3Builder UseActivityGroupStore<TStore>() where TStore : class, IActivityGroupStore
+	public IA3Builder UseActivityGroupStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>() where TStore : class, IActivityGroupStore
 	{
 		Services.Replace(ServiceDescriptor.Scoped<IActivityGroupStore, TStore>());
 		return this;

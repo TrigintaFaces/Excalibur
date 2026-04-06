@@ -52,6 +52,7 @@ public sealed class ValidationException : DispatchException
 	/// <param name="innerException">The exception that is the cause of the current exception.</param>
 	public ValidationException(string message, Exception? innerException) : base(message, innerException)
 	{
+		ValidationErrors = new Dictionary<string, string[]>(StringComparer.Ordinal);
 	}
 
 	/// <summary>
@@ -61,6 +62,7 @@ public sealed class ValidationException : DispatchException
 	/// <param name="message">The error message that explains the reason for the exception.</param>
 	public ValidationException(string errorCode, string message) : base(errorCode, message)
 	{
+		ValidationErrors = new Dictionary<string, string[]>(StringComparer.Ordinal);
 	}
 
 	/// <summary>
@@ -71,6 +73,7 @@ public sealed class ValidationException : DispatchException
 	/// <param name="innerException">The exception that is the cause of the current exception.</param>
 	public ValidationException(string errorCode, string message, Exception? innerException) : base(errorCode, message, innerException)
 	{
+		ValidationErrors = new Dictionary<string, string[]>(StringComparer.Ordinal);
 	}
 
 	/// <summary>

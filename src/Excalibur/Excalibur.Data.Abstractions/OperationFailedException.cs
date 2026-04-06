@@ -43,6 +43,7 @@ public sealed class OperationFailedException : ResourceException
 	/// <inheritdoc/>
 	public OperationFailedException(string resource, int? statusCode, string? message = null, Exception? innerException = null) : base(resource, statusCode, message, innerException)
 	{
+		Operation = string.Empty;
 	}
 
 	/// <summary>

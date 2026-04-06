@@ -201,8 +201,8 @@ internal sealed class InMemoryAuditStore : IAuditStore
 				events.Count,
 				startDate,
 				endDate,
-				firstViolationEventId,
-				violationDescription,
+				firstViolationEventId!,
+				violationDescription!,
 				violationCount));
 		}
 

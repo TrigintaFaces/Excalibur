@@ -60,7 +60,9 @@ public static class AwsComplianceServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+#pragma warning restore IL2026
 
 		RegisterAwsKmsCore(services);
 
@@ -80,7 +82,11 @@ public static class AwsComplianceServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling
 		_ = services.AddOptions<AwsKmsOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 
 		RegisterAwsKmsCore(services);
 
@@ -117,7 +123,9 @@ public static class AwsComplianceServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+#pragma warning restore IL2026
 
 		// Register custom client factory
 		services.TryAddSingleton(clientFactory);
@@ -148,6 +156,7 @@ public static class AwsComplianceServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<AwsKmsOptions>()
 			.Configure(options =>
 			{
@@ -157,6 +166,7 @@ public static class AwsComplianceServiceCollectionExtensions
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+#pragma warning restore IL2026
 
 		// Register LocalStack-configured client
 		services.TryAddSingleton<IAmazonKeyManagementService>(sp =>

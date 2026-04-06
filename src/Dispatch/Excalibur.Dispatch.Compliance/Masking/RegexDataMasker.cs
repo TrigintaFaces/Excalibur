@@ -145,6 +145,7 @@ public sealed class RegexDataMasker : IDataMasker
 		return JsonSerializer.Deserialize<T>(maskedJson, _jsonOptions)!;
 	}
 
+#pragma warning disable IL2070 // 'this' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The parameter of method does not have matching annotations.
 	private static IEnumerable<PropertyInfo> GetMaskableProperties(Type type)
 	{
 		return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -160,6 +161,7 @@ public sealed class RegexDataMasker : IDataMasker
 				return sensitive?.MaskInLogs == true;
 			});
 	}
+#pragma warning restore IL2070
 
 	private static string GetJsonPropertyName(PropertyInfo prop)
 	{
