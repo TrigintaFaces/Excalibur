@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.EventSourcing.MongoDB;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.EventSourcing.Abstractions;
@@ -25,6 +26,10 @@ public static class MongoDbEventStoreExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configureOptions">Action to configure event store options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddMongoDbEventStore(
 		this IServiceCollection services,
 		Action<MongoDbEventStoreOptions> configureOptions)
@@ -35,7 +40,6 @@ public static class MongoDbEventStoreExtensions
 		// Configure options
 		_ = services.AddOptions<MongoDbEventStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register event store
@@ -67,6 +71,10 @@ public static class MongoDbEventStoreExtensions
 	/// Use this overload for advanced scenarios like shared client instances,
 	/// custom connection pooling, or integration with existing MongoDB infrastructure.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddMongoDbEventStore(
 		this IServiceCollection services,
 		Func<IServiceProvider, IMongoClient> clientFactory,
@@ -79,7 +87,6 @@ public static class MongoDbEventStoreExtensions
 		// Configure options
 		_ = services.AddOptions<MongoDbEventStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register event store with client factory

@@ -51,8 +51,10 @@ public static class MongoDbSagaExtensions
 
 		_ = services.AddOptions<MongoDbSagaOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbSagaOptions>, MongoDbSagaOptionsValidator>());
 
 		services.TryAddSingleton<MongoDbSagaStore>();
 		services.AddKeyedSingleton<ISagaStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbSagaStore>());
@@ -131,8 +133,10 @@ public static class MongoDbSagaExtensions
 
 		_ = services.AddOptions<MongoDbSagaOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbSagaOptions>, MongoDbSagaOptionsValidator>());
 
 		services.TryAddSingleton(sp =>
 		{

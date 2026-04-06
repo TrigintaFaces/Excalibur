@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Idempotency;
 using Excalibur.Saga.Queries;
@@ -69,8 +70,10 @@ public static class SagaBuilderSqlServerExtensions
 
 		// Register correlation query options + implementation
 		_ = builder.Services.AddOptions<SagaCorrelationQueryOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SagaCorrelationQueryOptions>, SagaCorrelationQueryOptionsValidator>());
 
 		builder.Services.TryAddSingleton<ISagaCorrelationQuery>(sp =>
 		{
@@ -110,7 +113,6 @@ public static class SagaBuilderSqlServerExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = builder.Services.AddOptions<SqlServerSagaIdempotencyOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = builder.Services.Configure(configure);

@@ -34,8 +34,10 @@ public static class MongoDbSnapshotStoreExtensions
 		// Configure options
 		_ = services.AddOptions<MongoDbSnapshotStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbSnapshotStoreOptions>, MongoDbSnapshotStoreOptionsValidator>());
 
 		// Register snapshot store
 		services.TryAddScoped<ISnapshotStore>(sp =>
@@ -98,8 +100,10 @@ public static class MongoDbSnapshotStoreExtensions
 		// Configure options
 		_ = services.AddOptions<MongoDbSnapshotStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbSnapshotStoreOptions>, MongoDbSnapshotStoreOptionsValidator>());
 
 		// Register snapshot store with client factory
 		services.TryAddScoped<ISnapshotStore>(sp =>

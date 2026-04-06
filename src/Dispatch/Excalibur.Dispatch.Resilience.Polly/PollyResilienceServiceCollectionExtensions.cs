@@ -31,6 +31,10 @@ public static class PollyResilienceServiceCollectionExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPollyResilience(
 		this IServiceCollection services,
 		IConfiguration? configuration = null)
@@ -45,7 +49,6 @@ public static class PollyResilienceServiceCollectionExtensions
 		{
 			_ = services.AddOptions<TimeoutManagerOptions>()
 				.Bind(configuration.GetSection("Resilience:Timeouts"))
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 
@@ -58,7 +61,6 @@ public static class PollyResilienceServiceCollectionExtensions
 		{
 			_ = services.AddOptions<GracefulDegradationOptions>()
 				.Bind(configuration.GetSection("Resilience:GracefulDegradation"))
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 
@@ -68,7 +70,6 @@ public static class PollyResilienceServiceCollectionExtensions
 		{
 			_ = services.AddOptions<DistributedCircuitBreakerOptions>()
 				.Bind(configuration.GetSection("Resilience:DistributedCircuitBreaker"))
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 
@@ -82,10 +83,6 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="name"> The name of the circuit breaker. </param>
 	/// <param name="configureOptions"> Action to configure circuit breaker options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
 	public static IServiceCollection AddPollyCircuitBreaker(
 		this IServiceCollection services,
 		string name,
@@ -96,7 +93,7 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		_ = services.AddPollyResilience();
 
-		_ = services.AddOptions<CircuitBreakerOptions>(name).Configure(options => configureOptions?.Invoke(options)).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<CircuitBreakerOptions>(name).Configure(options => configureOptions?.Invoke(options)).ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<CircuitBreakerOptions>, CircuitBreakerOptionsValidator>());
 
@@ -110,10 +107,6 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="name"> The name of the retry policy. </param>
 	/// <param name="configureOptions"> Action to configure retry options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
 	public static IServiceCollection AddPollyRetryPolicy(
 		this IServiceCollection services,
 		string name,
@@ -126,7 +119,6 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		_ = services.AddOptions<PollyRetryOptions>(name)
 			.Configure(options => configureOptions?.Invoke(options))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -139,10 +131,6 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="name"> The name of the retry policy. </param>
 	/// <param name="configureOptions"> Action to configure retry options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
 	public static IServiceCollection AddRetryPolicyWithJitter(
 		this IServiceCollection services,
 		string name,
@@ -161,7 +149,6 @@ public static class PollyResilienceServiceCollectionExtensions
 				options.UseJitter = true;
 				configureOptions?.Invoke(options);
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register factory for creating retry policies
@@ -177,10 +164,6 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="resourceName"> The name of the resource to protect with bulkhead. </param>
 	/// <param name="configureOptions"> Action to configure bulkhead options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
 	public static IServiceCollection AddBulkhead(
 		this IServiceCollection services,
 		string resourceName,
@@ -191,7 +174,7 @@ public static class PollyResilienceServiceCollectionExtensions
 
 		_ = services.AddPollyResilience();
 
-		_ = services.AddOptions<BulkheadOptions>(resourceName).Configure(options => configureOptions?.Invoke(options)).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<BulkheadOptions>(resourceName).Configure(options => configureOptions?.Invoke(options)).ValidateOnStart();
 
 		return services;
 	}
@@ -203,10 +186,6 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="name"> The name of the circuit breaker. </param>
 	/// <param name="configureOptions"> Action to configure distributed circuit breaker options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
 	public static IServiceCollection AddDistributedCircuitBreaker(
 		this IServiceCollection services,
 		string name,
@@ -220,7 +199,7 @@ public static class PollyResilienceServiceCollectionExtensions
 		// Ensure distributed cache is configured
 		_ = services.AddDistributedMemoryCache(); // Default to in-memory, can be overridden
 
-		_ = services.AddOptions<DistributedCircuitBreakerOptions>(name).Configure(options => configureOptions?.Invoke(options)).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<DistributedCircuitBreakerOptions>(name).Configure(options => configureOptions?.Invoke(options)).ValidateOnStart();
 
 		return services;
 	}
@@ -231,10 +210,6 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure timeout manager options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
 	public static IServiceCollection ConfigureTimeoutManager(
 		this IServiceCollection services,
 		Action<TimeoutManagerOptions> configureOptions)
@@ -245,7 +220,6 @@ public static class PollyResilienceServiceCollectionExtensions
 		_ = services.AddPollyResilience();
 		_ = services.AddOptions<TimeoutManagerOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -257,10 +231,6 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure graceful degradation options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
-	[RequiresDynamicCode(
-		"Configuration binding for resilience settings requires dynamic code generation for property reflection and value conversion.")]
 	public static IServiceCollection ConfigureGracefulDegradation(
 		this IServiceCollection services,
 		Action<GracefulDegradationOptions> configureOptions)
@@ -271,7 +241,6 @@ public static class PollyResilienceServiceCollectionExtensions
 		_ = services.AddPollyResilience();
 		_ = services.AddOptions<GracefulDegradationOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

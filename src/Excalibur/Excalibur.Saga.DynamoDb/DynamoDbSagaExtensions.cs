@@ -50,7 +50,6 @@ public static class DynamoDbSagaExtensions
 
 		_ = services.AddOptions<DynamoDbSagaOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DynamoDbSagaOptions>, DynamoDbSagaOptionsValidator>());
 
@@ -127,7 +126,6 @@ public static class DynamoDbSagaExtensions
 
 		_ = services.AddOptions<DynamoDbSagaOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DynamoDbSagaOptions>, DynamoDbSagaOptionsValidator>());
 

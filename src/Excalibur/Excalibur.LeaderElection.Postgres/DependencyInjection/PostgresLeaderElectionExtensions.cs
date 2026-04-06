@@ -71,14 +71,14 @@ public static class PostgresLeaderElectionExtensions
 
 		_ = services.AddOptions<PostgresLeaderElectionOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Configure(configureElection)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
 

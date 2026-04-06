@@ -49,13 +49,24 @@ internal sealed partial class SqlServerDiagnosticsProvider
 		                          """;
 
 		using var connection = await _connectionManager.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-		var stats = await connection.QuerySingleAsync<dynamic>(StatsQuery).ConfigureAwait(false);
+		var stats = await connection.QuerySingleAsync<DatabaseStatisticsDto>(StatsQuery).ConfigureAwait(false);
 
-		var result = new Dictionary<string, object>(StringComparer.Ordinal);
-		foreach (var property in (IDictionary<string, object>)stats)
+		var result = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
-			result[property.Key] = property.Value ?? "N/A";
-		}
+			["Version"] = stats.Version ?? "N/A",
+			["ServerName"] = stats.ServerName ?? "N/A",
+			["DatabaseName"] = stats.DatabaseName ?? "N/A",
+			["ActiveConnections"] = stats.ActiveConnections,
+			["BlockedRequests"] = stats.BlockedRequests,
+			["ActiveTransactions"] = stats.ActiveTransactions,
+			["DataSizeMB"] = stats.DataSizeMB ?? (object)"N/A",
+			["LogSizeMB"] = stats.LogSizeMB ?? (object)"N/A",
+			["BufferCacheHitRatio"] = stats.BufferCacheHitRatio ?? (object)"N/A",
+			["SqlServerEdition"] = stats.SqlServerEdition ?? "N/A",
+			["ProductVersion"] = stats.ProductVersion ?? "N/A",
+			["ProductLevel"] = stats.ProductLevel ?? "N/A",
+			["MaxServerMemoryMB"] = stats.MaxServerMemoryMB ?? (object)"N/A",
+		};
 
 		return result;
 	}
@@ -76,13 +87,19 @@ internal sealed partial class SqlServerDiagnosticsProvider
 			                         """;
 
 			using var connection = await _connectionManager.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-			var poolStats = await connection.QuerySingleAsync<dynamic>(PoolQuery).ConfigureAwait(false);
+			var poolStats = await connection.QuerySingleAsync<ConnectionPoolStatsDto>(PoolQuery).ConfigureAwait(false);
 
-			var result = new Dictionary<string, object>(StringComparer.Ordinal);
-			foreach (var property in (IDictionary<string, object>)poolStats)
+			var result = new Dictionary<string, object>(StringComparer.Ordinal)
 			{
-				result[property.Key] = property.Value ?? "N/A";
-			}
+				["ProviderType"] = poolStats.ProviderType ?? "N/A",
+				["ServerName"] = poolStats.ServerName ?? "N/A",
+				["DatabaseName"] = poolStats.DatabaseName ?? "N/A",
+				["TotalConnections"] = poolStats.TotalConnections,
+				["UserConnections"] = poolStats.UserConnections,
+				["ActiveRequests"] = poolStats.ActiveRequests,
+				["BlockedRequests"] = poolStats.BlockedRequests,
+				["ActiveTransactions"] = poolStats.ActiveTransactions,
+			};
 
 			result["ConfiguredMaxPoolSize"] = _options.Pooling.MaxPoolSize;
 			result["ConfiguredMinPoolSize"] = _options.Pooling.MinPoolSize;
@@ -113,7 +130,7 @@ internal sealed partial class SqlServerDiagnosticsProvider
 		                           """;
 
 		using var connection = await _connectionManager.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-		var schemaInfo = await connection.QueryAsync(SchemaQuery, new { TableName = tableName, SchemaName = schemaName })
+		var schemaInfo = await connection.QueryAsync<SchemaColumnDto>(SchemaQuery, new { TableName = tableName, SchemaName = schemaName })
 			.ConfigureAwait(false);
 
 		var result = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -182,4 +199,36 @@ internal sealed partial class SqlServerDiagnosticsProvider
 
 		internal static SqlServerConnectionTestResult Unavailable => new(IsAvailable: false, DatabaseVersion: null);
 	}
+
+	private sealed record DatabaseStatisticsDto(
+		string? Version,
+		string? ServerName,
+		string? DatabaseName,
+		int ActiveConnections,
+		int BlockedRequests,
+		int ActiveTransactions,
+		int? DataSizeMB,
+		int? LogSizeMB,
+		long? BufferCacheHitRatio,
+		string? SqlServerEdition,
+		string? ProductVersion,
+		string? ProductLevel,
+		int? MaxServerMemoryMB);
+
+	private sealed record ConnectionPoolStatsDto(
+		string? ProviderType,
+		string? ServerName,
+		string? DatabaseName,
+		int TotalConnections,
+		int UserConnections,
+		int ActiveRequests,
+		int BlockedRequests,
+		int ActiveTransactions);
+
+	private sealed record SchemaColumnDto(
+		string? ColumnName,
+		string? DataType,
+		string? IsNullable,
+		int? MaxLength,
+		string? DefaultValue);
 }

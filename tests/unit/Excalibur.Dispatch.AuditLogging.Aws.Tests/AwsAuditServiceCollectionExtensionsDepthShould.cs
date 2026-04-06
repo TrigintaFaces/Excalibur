@@ -52,8 +52,11 @@ public sealed class AwsAuditServiceCollectionExtensionsDepthShould
 			o.Region = "us-east-1";
 		});
 
-		// Assert — ValidateDataAnnotations registers IValidateOptions
-		services.ShouldContain(sd => sd.ServiceType == typeof(IValidateOptions<AwsAuditOptions>));
+		// Assert — options resolve with configured values (ValidateDataAnnotations removed in Sprint 750 AOT migration)
+		var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<AwsAuditOptions>>().Value;
+		options.LogGroupName.ShouldBe("test-group");
+		options.Region.ShouldBe("us-east-1");
 	}
 
 	[Fact]

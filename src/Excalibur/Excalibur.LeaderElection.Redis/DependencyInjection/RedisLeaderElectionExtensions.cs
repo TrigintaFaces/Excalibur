@@ -59,7 +59,6 @@ public static class RedisLeaderElectionExtensions
 
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton(sp =>

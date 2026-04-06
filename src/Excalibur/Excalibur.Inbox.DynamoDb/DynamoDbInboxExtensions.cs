@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using Amazon.DynamoDBv2;
 
 using Excalibur.Inbox.DynamoDb;
@@ -34,8 +33,9 @@ public static class DynamoDbInboxExtensions
 
 		_ = services.AddOptions<DynamoDbInboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbInboxOptions>, DynamoDbInboxOptionsValidator>());
 		services.TryAddSingleton<DynamoDbInboxStore>();
 		services.AddKeyedSingleton<IInboxStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
@@ -85,8 +85,9 @@ public static class DynamoDbInboxExtensions
 
 		_ = services.AddOptions<DynamoDbInboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbInboxOptions>, DynamoDbInboxOptionsValidator>());
 		services.TryAddSingleton(sp =>
 		{
 			var client = clientProvider(sp);

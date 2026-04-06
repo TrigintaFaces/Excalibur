@@ -50,8 +50,10 @@ public static class CosmosDbSagaExtensions
 
 		_ = services.AddOptions<CosmosDbSagaOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbSagaOptions>, CosmosDbSagaOptionsValidator>());
 
 		services.TryAddSingleton<CosmosDbSagaStore>();
 		services.AddKeyedSingleton<ISagaStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbSagaStore>());
@@ -130,8 +132,10 @@ public static class CosmosDbSagaExtensions
 
 		_ = services.AddOptions<CosmosDbSagaOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbSagaOptions>, CosmosDbSagaOptionsValidator>());
 
 		services.TryAddSingleton(sp =>
 		{

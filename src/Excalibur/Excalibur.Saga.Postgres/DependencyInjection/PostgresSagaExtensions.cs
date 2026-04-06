@@ -51,8 +51,11 @@ public static class PostgresSagaExtensions
 
 		_ = services.AddOptions<PostgresSagaOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresSagaOptions>, PostgresSagaOptionsValidator>());
+
 		services.TryAddSingleton<PostgresSagaStore>();
 		services.AddKeyedSingleton<ISagaStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
@@ -81,8 +84,11 @@ public static class PostgresSagaExtensions
 
 		_ = services.AddOptions<PostgresSagaOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresSagaOptions>, PostgresSagaOptionsValidator>());
+
 		services.TryAddSingleton(sp =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);

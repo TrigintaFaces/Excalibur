@@ -21,8 +21,6 @@ public static class AwsObservabilityServiceCollectionExtensions
 	/// <param name="configure">The configuration action.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
 	public static IServiceCollection AddAwsObservability(
 		this IServiceCollection services,
 		Action<AwsObservabilityOptions> configure)
@@ -32,7 +30,6 @@ public static class AwsObservabilityServiceCollectionExtensions
 
 		_ = services.AddOptions<AwsObservabilityOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = services.AddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
@@ -48,8 +45,10 @@ public static class AwsObservabilityServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind AWS observability options from.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsObservability(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -59,7 +58,6 @@ public static class AwsObservabilityServiceCollectionExtensions
 
 		_ = services.AddOptions<AwsObservabilityOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = services.AddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();

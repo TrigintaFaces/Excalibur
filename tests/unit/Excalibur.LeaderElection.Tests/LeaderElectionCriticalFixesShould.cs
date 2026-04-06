@@ -123,16 +123,10 @@ public sealed class LeaderElectionCriticalFixesShould
 			options.InstanceId = "test";
 		});
 
-		// Assert -- ValidateOnStart should be registered
-		// This is verified by checking for IStartupValidator or IValidateOptions registration
-		var hasOptionsValidation = services.Any(sd =>
-			sd.ServiceType.IsGenericType &&
-			sd.ServiceType.GetGenericTypeDefinition() == typeof(IValidateOptions<>) &&
-			sd.ServiceType.GetGenericArguments()[0] == typeof(LeaderElectionOptions));
-
-		// ValidateDataAnnotations registers IValidateOptions<T>
-		hasOptionsValidation.ShouldBeTrue(
-			"AddRedisLeaderElection must register IValidateOptions<LeaderElectionOptions> via ValidateDataAnnotations()");
+		// Assert -- options resolve with configured values (ValidateDataAnnotations removed in Sprint 750 AOT migration)
+		using var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<LeaderElectionOptions>>().Value;
+		options.InstanceId.ShouldBe("test");
 	}
 
 	#endregion

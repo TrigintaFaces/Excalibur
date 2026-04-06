@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.Protobuf;
@@ -39,6 +40,10 @@ public static class ProtobufSerializationExtensions
 	/// Call this method to opt into Protobuf for Google Cloud Platform and AWS interoperability.
 	/// </para>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddProtobufSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -48,7 +53,6 @@ public static class ProtobufSerializationExtensions
 		services.TryAddSingleton<ISerializer>(serializer);
 
 		_ = services.AddOptions<PluggableSerializationOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.PostConfigure<PluggableSerializationOptions>(options =>
@@ -66,6 +70,10 @@ public static class ProtobufSerializationExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configure"> Configuration delegate for Protobuf serialization options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddProtobufSerializer(
 		this IServiceCollection services,
 		Action<ProtobufSerializationOptions> configure)
@@ -81,7 +89,6 @@ public static class ProtobufSerializationExtensions
 		services.TryAddSingleton<ISerializer>(serializer);
 
 		_ = services.AddOptions<PluggableSerializationOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.PostConfigure<PluggableSerializationOptions>(opts =>

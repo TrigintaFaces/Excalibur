@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Saga.Correlation;
 using Excalibur.Saga.Handlers;
 using Excalibur.Saga.Hosting;
@@ -106,7 +107,6 @@ public static class SagaEnhancementsServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaReminderOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -118,6 +118,10 @@ public static class SagaEnhancementsServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSagaReminders(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -127,7 +131,6 @@ public static class SagaEnhancementsServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaReminderOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -158,7 +161,6 @@ public static class SagaEnhancementsServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaSnapshotOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -170,6 +172,10 @@ public static class SagaEnhancementsServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSagaSnapshots(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -179,7 +185,6 @@ public static class SagaEnhancementsServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaSnapshotOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -226,7 +231,6 @@ public static class SagaEnhancementsServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaTimeoutCleanupOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = services.AddHostedService<SagaTimeoutCleanupService>();
@@ -240,6 +244,10 @@ public static class SagaEnhancementsServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSagaTimeoutCleanup(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -249,7 +257,6 @@ public static class SagaEnhancementsServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaTimeoutCleanupOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = services.AddHostedService<SagaTimeoutCleanupService>();

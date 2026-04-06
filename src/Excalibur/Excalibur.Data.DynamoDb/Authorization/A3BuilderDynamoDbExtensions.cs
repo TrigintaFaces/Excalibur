@@ -7,6 +7,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.Data.DynamoDb.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -28,8 +29,10 @@ public static class A3BuilderDynamoDbExtensions
 
 		_ = builder.Services.AddOptions<DynamoDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbAuthorizationOptions>, DynamoDbAuthorizationOptionsValidator>());
 
 		builder.Services.TryAddSingleton<IActivityGroupGrantStore, DynamoDbActivityGroupGrantStore>();
 

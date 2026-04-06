@@ -122,6 +122,10 @@ public static class SecurityMiddlewareExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for encryption settings requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddMessageEncryption(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -131,8 +135,9 @@ public static class SecurityMiddlewareExtensions
 
 		_ = services.AddOptions<EncryptionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<EncryptionOptions>, EncryptionOptionsValidator>());
 		return services.AddMessageEncryption();
 	}
 
@@ -155,7 +160,10 @@ public static class SecurityMiddlewareExtensions
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<EncryptionOptions>, EncryptionOptionsValidator>());
 
 		// Add DataProtection with Azure Key Vault if configured
 		_ = services.AddDataProtection()
@@ -180,6 +188,10 @@ public static class SecurityMiddlewareExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for signing settings requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddMessageSigning(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -189,8 +201,9 @@ public static class SecurityMiddlewareExtensions
 
 		_ = services.AddOptions<SigningOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SigningOptions>, SigningOptionsValidator>());
 		return services.AddMessageSigning();
 	}
 
@@ -213,7 +226,10 @@ public static class SecurityMiddlewareExtensions
 			_ = signingOptionsBuilder.Configure(configureOptions);
 		}
 
-		_ = signingOptionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = signingOptionsBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SigningOptions>, SigningOptionsValidator>());
 
 		// IKeyProvider is registered by cloud-specific packages (Excalibur.Dispatch.Security.Azure, Excalibur.Dispatch.Security.Aws)
 		// or a custom implementation for local development scenarios.
@@ -258,7 +274,10 @@ public static class SecurityMiddlewareExtensions
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SigningOptions>, SigningOptionsValidator>());
 
 		// Register all algorithm providers via TryAddEnumerable (coexist, don't duplicate)
 		services.TryAddEnumerable(
@@ -286,6 +305,10 @@ public static class SecurityMiddlewareExtensions
 	[RequiresDynamicCode(
 		"Configuration binding for rate limiting settings requires dynamic code generation for property reflection and value conversion.")]
 	[RequiresUnreferencedCode("Configuration binding for rate limiting may reference types that could be trimmed")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddRateLimiting(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -295,8 +318,9 @@ public static class SecurityMiddlewareExtensions
 
 		_ = services.AddOptions<RateLimitingOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RateLimitingOptions>, RateLimitingOptionsValidator>());
 		return services.AddRateLimiting();
 	}
 
@@ -319,7 +343,10 @@ public static class SecurityMiddlewareExtensions
 			_ = rateLimitOptionsBuilder.Configure(configureOptions);
 		}
 
-		_ = rateLimitOptionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = rateLimitOptionsBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RateLimitingOptions>, RateLimitingOptionsValidator>());
 
 		// Register middleware as singleton for shared rate limiters
 		services.TryAddSingleton<RateLimitingMiddleware>();
@@ -336,6 +363,10 @@ public static class SecurityMiddlewareExtensions
 	[RequiresDynamicCode(
 		"Configuration binding for JWT authentication settings requires dynamic code generation for property reflection and value conversion.")]
 	[RequiresUnreferencedCode("Configuration binding for JWT authentication may reference types that could be trimmed")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddJwtAuthentication(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -345,8 +376,9 @@ public static class SecurityMiddlewareExtensions
 
 		_ = services.AddOptions<JwtAuthenticationOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<JwtAuthenticationOptions>, JwtAuthenticationOptionsValidator>());
 		return services.AddJwtAuthentication();
 	}
 
@@ -369,9 +401,9 @@ public static class SecurityMiddlewareExtensions
 			_ = jwtOptionsBuilder.Configure(configureOptions);
 		}
 
-		_ = jwtOptionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = jwtOptionsBuilder.ValidateOnStart();
 
-		// Register cross-property validator (TryAddEnumerable to coexist with DataAnnotation validators)
+		// Register cross-property validator
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<JwtAuthenticationOptions>, JwtAuthenticationOptionsValidator>());
 
 		// Register middleware

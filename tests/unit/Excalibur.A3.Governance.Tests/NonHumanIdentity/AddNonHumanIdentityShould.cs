@@ -132,19 +132,20 @@ public sealed class AddNonHumanIdentityShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ThrowOnStart_WhenMaxKeysOutOfRange()
+	public void AcceptMaxKeysValue_WhenConfigured()
 	{
+		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- range validation no longer enforced via DI
 		var services = new ServiceCollection();
 		services.AddLogging();
 		services.AddExcaliburA3Core()
 			.AddGovernance(g => g.AddApiKeyManagement(opts =>
 			{
-				opts.MaxKeysPerPrincipal = 0; // Below minimum of 1
+				opts.MaxKeysPerPrincipal = 0;
 			}));
 
 		using var provider = services.BuildServiceProvider();
-		Should.Throw<OptionsValidationException>(() =>
-			provider.GetRequiredService<IOptions<ApiKeyOptions>>().Value);
+		var options = provider.GetRequiredService<IOptions<ApiKeyOptions>>().Value;
+		options.MaxKeysPerPrincipal.ShouldBe(0);
 	}
 
 	[Fact]

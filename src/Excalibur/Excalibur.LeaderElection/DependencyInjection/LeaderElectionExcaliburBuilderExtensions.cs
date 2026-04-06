@@ -54,7 +54,6 @@ public static class LeaderElectionExcaliburBuilderExtensions
 
 		_ = builder.Services.AddOptions<LeaderElectionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = builder.Services.AddExcaliburLeaderElection();

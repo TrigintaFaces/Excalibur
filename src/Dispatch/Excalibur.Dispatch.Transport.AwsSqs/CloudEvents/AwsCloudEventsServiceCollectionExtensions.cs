@@ -48,16 +48,12 @@ public static class AwsCloudEventsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddOptions<CloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddOptions<AwsSqsCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddOptions<AwsSnsCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddOptions<AwsEventBridgeCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		if (configureOptions is not null)
@@ -99,7 +95,6 @@ public static class AwsCloudEventsServiceCollectionExtensions
 		_ = services.UseCloudEvents(configureGeneral);
 
 		_ = services.AddOptions<AwsSqsCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureSqs is not null)
 		{
@@ -127,7 +122,6 @@ public static class AwsCloudEventsServiceCollectionExtensions
 		_ = services.UseCloudEvents(configureGeneral);
 
 		_ = services.AddOptions<AwsSnsCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureSns is not null)
 		{
@@ -155,7 +149,6 @@ public static class AwsCloudEventsServiceCollectionExtensions
 		_ = services.UseCloudEvents(configureGeneral);
 
 		_ = services.AddOptions<AwsEventBridgeCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureEventBridge is not null)
 		{

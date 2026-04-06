@@ -12,6 +12,7 @@ using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Caching.Diagnostics;
 
 using Microsoft.Extensions.Caching.Hybrid;
@@ -84,6 +85,10 @@ internal sealed class CachingMiddleware(
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Cache;
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2046:RequiresUnreferencedCode mismatch",
+		Justification = "Interface IDispatchMiddleware cannot carry AOT attributes. Caching middleware requires reflection for generic cache policies.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051:RequiresDynamicCode mismatch",
+		Justification = "Interface IDispatchMiddleware cannot carry AOT attributes. Caching middleware requires MakeGenericType for cache policies.")]
 	[RequiresUnreferencedCode("CachingMiddleware uses MakeGenericType and Type.GetInterfaces for dynamic cache policy resolution. Use attribute-based caching for AOT scenarios.")]
 	[RequiresDynamicCode("CachingMiddleware uses MakeGenericType for CachedMessageResult<T> and IResultCachePolicy<T> resolution.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
@@ -656,8 +661,6 @@ internal sealed class CachingMiddleware(
 	/// <param name="attr"> The cache result attribute. </param>
 	/// <param name="context"> The message context. </param>
 	/// <returns> True if the result should be cached; otherwise, false. </returns>
-	[UnconditionalSuppressMessage("AOT", "IL3050:Using RequiresDynamicCode member in AOT",
-		Justification = "ShouldCache is only called when caching is enabled and AOT limitations are acceptable")]
 	private bool ShouldCacheBasedOnPolicy(
 		IDispatchMessage message,
 		object? returnValue,
@@ -665,8 +668,8 @@ internal sealed class CachingMiddleware(
 		IMessageContext context) =>
 		ShouldCache(message, returnValue)
 		&& ((!attr?.OnlyIfSuccess ?? true)
-			|| (((context.ValidationResult() as dynamic)?.IsValid ?? true)
-				&& ((context.AuthorizationResult() as dynamic)?.IsAuthorized ?? true)))
+			|| (((context.ValidationResult() as IValidationResult)?.IsValid ?? true)
+				&& ((context.AuthorizationResult() as IAuthorizationResult)?.IsAuthorized ?? true)))
 		&& ((!attr?.IgnoreNullResult ?? true) || (returnValue is not null));
 
 	/// <summary>

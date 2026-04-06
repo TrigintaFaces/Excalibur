@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Domain;
 using Excalibur.Domain.Extensions;
 
@@ -50,10 +48,6 @@ public static class HostApplicationBuilderExtensions
 	/// <param name="services">The service collection to configure.</param>
 	/// <param name="configuration">The application configuration.</param>
 	/// <returns>The updated <see cref="IServiceCollection"/> for chaining.</returns>
-	[RequiresUnreferencedCode(
-		"Configuration binding may reference types not preserved during trimming.")]
-	[RequiresDynamicCode(
-		"Configuration binding for ApplicationContextOptions requires dynamic code generation.")]
 	public static IServiceCollection AddApplicationContext(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -63,7 +57,6 @@ public static class HostApplicationBuilderExtensions
 
 		_ = services.AddOptions<ApplicationContextOptions>()
 			.Bind(configuration.GetSection(nameof(ApplicationContext)))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

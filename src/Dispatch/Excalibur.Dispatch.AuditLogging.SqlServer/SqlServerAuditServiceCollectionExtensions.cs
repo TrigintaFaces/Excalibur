@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.AuditLogging.SqlServer;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -41,6 +43,10 @@ public static class SqlServerAuditServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerAuditOptions>, SqlServerAuditOptionsValidator>());
+
 		RegisterSqlServerAuditStoreCore(services);
 
 		return services;
@@ -53,6 +59,10 @@ public static class SqlServerAuditServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="SqlServerAuditOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSqlServerAuditStore(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -60,7 +70,11 @@ public static class SqlServerAuditServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<SqlServerAuditOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<SqlServerAuditOptions>().Bind(configuration).ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerAuditOptions>, SqlServerAuditOptionsValidator>());
+
 		RegisterSqlServerAuditStoreCore(services);
 
 		return services;

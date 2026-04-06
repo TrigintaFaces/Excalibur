@@ -71,12 +71,15 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	/// Call <c>services.Configure&lt;SnapshotCompressionOptions&gt;()</c> to customize.
 	/// </para>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSnapshotCompression(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddOptions<SnapshotCompressionOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		DecorateSnapshotStore(services, static (inner, sp) =>
@@ -111,6 +114,10 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for method chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSnapshotCompression(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -120,7 +127,6 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 
 		_ = services.AddOptions<SnapshotCompressionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		DecorateSnapshotStore(services, static (inner, sp) =>

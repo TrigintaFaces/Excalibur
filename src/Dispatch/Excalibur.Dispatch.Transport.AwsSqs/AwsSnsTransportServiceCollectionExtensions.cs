@@ -5,6 +5,7 @@ using Amazon.SimpleNotificationService;
 
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Transport.Aws;
+using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -196,8 +197,10 @@ public static class AwsSnsTransportServiceCollectionExtensions
 				options.Connection.MaxErrorRetry = transportOptions.MaxErrorRetry;
 				options.Connection.Timeout = transportOptions.Timeout;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSnsOptions>, AwsSnsOptionsValidator>());
 	}
 
 	/// <summary>

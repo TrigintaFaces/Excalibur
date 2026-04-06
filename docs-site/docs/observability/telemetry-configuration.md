@@ -21,21 +21,26 @@ Configure OpenTelemetry integration for metrics collection and distributed traci
 
 ## Quick Start
 
-### Register All Metrics and Tracing
+### Unified Instrumentation (Recommended)
 
-The simplest approach registers all framework meters and activity sources at once:
+The simplest approach registers all framework meters and activity sources in a single call:
 
 ```csharp
 builder.Services.AddOpenTelemetry()
-    .AddAllDispatchMetrics()
-    .AddAllDispatchTracing();
+    .AddDispatchInstrumentation()   // registers ALL meters + activity sources
+    .WithTracing(t => t.AddOtlpExporter())
+    .WithMetrics(m => m.AddPrometheusExporter());
 ```
 
-These extension methods are defined in `OpenTelemetryExtensions` from the `Excalibur.Dispatch.Observability` package.
+This follows the ASP.NET Core pattern (`AddAspNetCoreInstrumentation()`). The method is defined in `OpenTelemetryExtensions` from the `Excalibur.Dispatch.Observability` package.
 
-### With Exporters
+:::tip Auto-wire
+`AddDispatchPipeline()` automatically registers `AddDispatchTelemetry()`, so metrics and traces emit whenever OpenTelemetry is configured -- no explicit opt-in required.
+:::
 
-Combine with your preferred exporter:
+### Granular Registration
+
+For more control, register metrics and tracing separately:
 
 ```csharp
 builder.Services.AddOpenTelemetry()

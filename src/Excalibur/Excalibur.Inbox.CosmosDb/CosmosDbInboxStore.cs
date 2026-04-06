@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Net;
+using System.Text.Json.Serialization;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Inbox.Observability;
@@ -402,7 +403,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			.WithParameter("@received", (int)InboxStatus.Received)
 			.WithParameter("@processing", (int)InboxStatus.Processing);
 
-		using var iterator = _container.GetItemQueryIterator<dynamic>(queryDefinition);
+		using var iterator = _container.GetItemQueryIterator<InboxStatisticsDto>(queryDefinition);
 
 		if (iterator.HasMoreResults)
 		{
@@ -413,10 +414,10 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			{
 				return new InboxStatistics
 				{
-					TotalEntries = (int)(result.total ?? 0),
-					ProcessedEntries = (int)(result.processed ?? 0),
-					FailedEntries = (int)(result.failed ?? 0),
-					PendingEntries = (int)(result.pending ?? 0)
+					TotalEntries = (int)result.Total,
+					ProcessedEntries = (int)result.Processed,
+					FailedEntries = (int)result.Failed,
+					PendingEntries = (int)result.Pending
 				};
 			}
 		}
@@ -538,5 +539,23 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 		{
 			await InitializeAsync(cancellationToken).ConfigureAwait(false);
 		}
+	}
+
+	/// <summary>
+	/// Typed DTO for deserializing inbox statistics aggregate query results.
+	/// </summary>
+	private sealed class InboxStatisticsDto
+	{
+		[JsonPropertyName("total")]
+		public long Total { get; set; }
+
+		[JsonPropertyName("processed")]
+		public long Processed { get; set; }
+
+		[JsonPropertyName("failed")]
+		public long Failed { get; set; }
+
+		[JsonPropertyName("pending")]
+		public long Pending { get; set; }
 	}
 }

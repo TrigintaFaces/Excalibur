@@ -25,6 +25,10 @@ public static class AzureJobsServiceCollectionExtensions
 	/// <param name="configure"> The configuration action for Azure Logic Apps options. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Uses DataAnnotation-based validation which requires unreferenced code")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAzureLogicApps(
 		this IServiceCollection services,
 		Action<AzureLogicAppsOptions> configure)
@@ -34,7 +38,6 @@ public static class AzureJobsServiceCollectionExtensions
 
 		_ = services.AddOptions<AzureLogicAppsOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddSingleton(static provider =>
 			new ArmClient(new DefaultAzureCredential()));
@@ -52,6 +55,10 @@ public static class AzureJobsServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Uses configuration binding and DataAnnotation-based validation which requires unreferenced code")]
 	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAzureLogicApps(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -61,7 +68,6 @@ public static class AzureJobsServiceCollectionExtensions
 
 		_ = services.AddOptions<AzureLogicAppsOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddSingleton(static provider =>
 			new ArmClient(new DefaultAzureCredential()));

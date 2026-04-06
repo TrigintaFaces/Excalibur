@@ -50,8 +50,10 @@ public static class MongoDbLeaderElectionExtensions
 
 		_ = services.AddOptions<MongoDbLeaderElectionOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbLeaderElectionOptions>, MongoDbLeaderElectionOptionsValidator>());
 
 		services.TryAddSingleton(sp =>
 		{

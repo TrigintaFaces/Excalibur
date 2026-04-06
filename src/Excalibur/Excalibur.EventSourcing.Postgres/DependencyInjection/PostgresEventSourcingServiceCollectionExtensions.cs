@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
@@ -103,6 +104,10 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for method chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresEventStore(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -195,6 +200,10 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for method chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresSnapshotStore(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -323,6 +332,10 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for method chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresEventSourcing(
 		this IServiceCollection services,
 		IConfiguration configuration)

@@ -27,8 +27,6 @@ public static class ElasticsearchServiceCollectionExtensions
 	/// <param name="configure">The configuration action.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
 	public static IServiceCollection AddElasticsearchAuditExporter(
 		this IServiceCollection services,
 		Action<ElasticsearchExporterOptions> configure)
@@ -38,7 +36,6 @@ public static class ElasticsearchServiceCollectionExtensions
 
 		_ = services.AddOptions<ElasticsearchExporterOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services.AddElasticsearchAuditExporterCore();
@@ -51,8 +48,10 @@ public static class ElasticsearchServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="ElasticsearchExporterOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddElasticsearchAuditExporter(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -62,7 +61,6 @@ public static class ElasticsearchServiceCollectionExtensions
 
 		_ = services.AddOptions<ElasticsearchExporterOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services.AddElasticsearchAuditExporterCore();
@@ -94,6 +92,10 @@ public static class ElasticsearchServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="ElasticsearchAuditSinkOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddElasticsearchAuditSink(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -101,12 +103,9 @@ public static class ElasticsearchServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026, IL3050 // Bind and ValidateDataAnnotations require unreferenced/dynamic code
 		_ = services.AddOptions<ElasticsearchAuditSinkOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026, IL3050
 
 		return services.AddElasticsearchAuditSinkCore();
 	}

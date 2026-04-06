@@ -333,7 +333,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			                               WHERE datname = current_database()
 			                              """;
 
-			var connStats = await connection.QuerySingleAsync<dynamic>(connStatsQuery).ConfigureAwait(false);
+			var connStats = await connection.QuerySingleAsync<ConnectionStatsDto>(connStatsQuery).ConfigureAwait(false);
 			stats["total_connections"] = connStats.total;
 			stats["active_connections"] = connStats.active;
 			stats["idle_connections"] = connStats.idle;
@@ -405,7 +405,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			                               AND table_schema = @SchemaName
 			                              """;
 
-			var tableInfo = await connection.QuerySingleOrDefaultAsync<dynamic>(
+			var tableInfo = await connection.QuerySingleOrDefaultAsync<TableInfoDto>(
 				tableInfoQuery,
 				new { TableName = tableName, SchemaName = effectiveSchema }).ConfigureAwait(false);
 
@@ -437,7 +437,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			                             ORDER BY ordinal_position
 			                            """;
 
-			var columns = await connection.QueryAsync<dynamic>(
+			var columns = await connection.QueryAsync<ColumnInfoDto>(
 				columnsQuery,
 				new { TableName = tableName, SchemaName = effectiveSchema }).ConfigureAwait(false);
 
@@ -461,7 +461,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			                           GROUP BY i.relname, ix.indisunique, ix.indisprimary
 			                          """;
 
-			var indexes = await connection.QueryAsync<dynamic>(
+			var indexes = await connection.QueryAsync<IndexInfoDto>(
 				indexQuery,
 				new { TableName = tableName, SchemaName = effectiveSchema }).ConfigureAwait(false);
 
@@ -486,7 +486,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			                                 AND tc.table_schema = @SchemaName
 			                                """;
 
-			var constraints = await connection.QueryAsync<dynamic>(
+			var constraints = await connection.QueryAsync<ConstraintInfoDto>(
 				constraintsQuery,
 				new { TableName = tableName, SchemaName = effectiveSchema }).ConfigureAwait(false);
 
@@ -719,7 +719,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			                                       WHERE datname = current_database()
 			                                      """;
 
-			var connectionStats = await connection.QuerySingleAsync<dynamic>(activeConnectionsQuery).ConfigureAwait(false);
+			var connectionStats = await connection.QuerySingleAsync<PoolConnectionStatsDto>(activeConnectionsQuery).ConfigureAwait(false);
 
 			stats["active_connections"] = connectionStats.active_connections;
 			stats["idle_connections"] = connectionStats.idle_connections;
@@ -1019,4 +1019,51 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			throw new InvalidOperationException("Postgres persistence provider not initialized. Call InitializeAsync first.");
 		}
 	}
+
+	#region Dapper Query DTOs
+
+	/// <summary>
+	/// DTO for connection statistics from pg_stat_activity used in <see cref="GetDatabaseStatisticsAsync"/>.
+	/// </summary>
+	private sealed record ConnectionStatsDto(long total, long active, long idle);
+
+	/// <summary>
+	/// DTO for table information from information_schema.tables used in <see cref="GetSchemaInfoAsync"/>.
+	/// </summary>
+	private sealed record TableInfoDto(string table_type, string is_insertable_into, string is_typed);
+
+	/// <summary>
+	/// DTO for column information from information_schema.columns used in <see cref="GetSchemaInfoAsync"/>.
+	/// </summary>
+	private sealed record ColumnInfoDto(
+		string column_name,
+		string data_type,
+		string is_nullable,
+		string? column_default,
+		int? character_maximum_length,
+		int? numeric_precision,
+		int? numeric_scale,
+		int ordinal_position);
+
+	/// <summary>
+	/// DTO for index information from pg_index/pg_class used in <see cref="GetSchemaInfoAsync"/>.
+	/// </summary>
+	private sealed record IndexInfoDto(string index_name, bool is_unique, bool is_primary, string[] column_names);
+
+	/// <summary>
+	/// DTO for constraint information from information_schema.table_constraints used in <see cref="GetSchemaInfoAsync"/>.
+	/// </summary>
+	private sealed record ConstraintInfoDto(
+		string constraint_name,
+		string constraint_type,
+		string? column_name,
+		string? foreign_table_name,
+		string? foreign_column_name);
+
+	/// <summary>
+	/// DTO for connection pool statistics from pg_stat_activity used in <see cref="GetConnectionPoolStatsAsync"/>.
+	/// </summary>
+	private sealed record PoolConnectionStatsDto(long total_connections, long active_connections, long idle_connections);
+
+	#endregion
 }

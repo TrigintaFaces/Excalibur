@@ -270,6 +270,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(opts =>
 		{
 			opts.TableName = "test-outbox";
+			opts.Connection.ServiceUrl = "http://localhost:8000"; // Required by IValidateOptions
 		}));
 
 		// Assert -- resolve options to verify configure delegate was stored
@@ -360,6 +361,7 @@ public sealed class OutboxBuilderProviderExtensionsShould
 		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(opts =>
 		{
 			opts.CollectionName = "test-outbox";
+			opts.ProjectId = "test-project"; // Required by IValidateOptions
 		}));
 
 		// Assert -- resolve options to verify configure delegate was stored

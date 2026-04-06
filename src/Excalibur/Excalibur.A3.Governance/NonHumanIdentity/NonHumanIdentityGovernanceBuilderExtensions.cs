@@ -64,8 +64,6 @@ public static class NonHumanIdentityGovernanceBuilderExtensions
 	///         }));
 	/// </code>
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
 	public static IGovernanceBuilder AddApiKeyManagement(
 		this IGovernanceBuilder builder,
 		Action<ApiKeyOptions>? configure = null)
@@ -79,8 +77,7 @@ public static class NonHumanIdentityGovernanceBuilderExtensions
 			optionsBuilder.Configure(configure);
 		}
 
-		optionsBuilder.ValidateDataAnnotations()
-			.ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
 
 		return builder.AddApiKeyManagementCore();
 	}
@@ -92,7 +89,7 @@ public static class NonHumanIdentityGovernanceBuilderExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="ApiKeyOptions"/>.</param>
 	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	public static IGovernanceBuilder AddApiKeyManagement(
@@ -104,7 +101,6 @@ public static class NonHumanIdentityGovernanceBuilderExtensions
 
 		_ = builder.Services.AddOptions<ApiKeyOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder.AddApiKeyManagementCore();

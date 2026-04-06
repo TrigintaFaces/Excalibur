@@ -3,6 +3,7 @@
 
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 using Microsoft.Extensions.Configuration;
@@ -49,6 +50,10 @@ public static class AzurePatternsServiceCollectionExtensions
 	/// This registers <see cref="AzureBlobClaimCheckProvider"/> as the implementation of <see cref="IClaimCheckProvider"/>.
 	/// Requires Azure.Storage.Blobs package and valid Azure Blob Storage connection string in options.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAzureBlobClaimCheck(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -56,7 +61,7 @@ public static class AzurePatternsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<ClaimCheckOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<ClaimCheckOptions>().Bind(configuration).ValidateOnStart();
 		services.TryAddSingleton<IClaimCheckProvider, AzureBlobClaimCheckProvider>();
 
 		return services;

@@ -43,7 +43,6 @@ public static class PostgresPersistenceServiceCollectionExtensions
 				options.ConnectionString = connectionString;
 				configureOptions?.Invoke(options);
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return AddPostgresPersistenceCore(services);
@@ -58,6 +57,10 @@ public static class PostgresPersistenceServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding for Postgres persistence may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding for Postgres persistence settings requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresPersistence(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -75,8 +78,7 @@ public static class PostgresPersistenceServiceCollectionExtensions
 			_ = builder.Configure(configureOptions);
 		}
 
-		_ = builder.ValidateDataAnnotations()
-			.ValidateOnStart();
+		_ = builder.ValidateOnStart();
 
 		return AddPostgresPersistenceCore(services);
 	}
@@ -90,6 +92,10 @@ public static class PostgresPersistenceServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresPersistenceFromSection(
 		this IServiceCollection services,
 		string configurationSectionName = "Postgres",
@@ -107,9 +113,7 @@ public static class PostgresPersistenceServiceCollectionExtensions
 			_ = builder.Configure(configureOptions);
 		}
 
-		_ = builder
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
+		_ = builder.ValidateOnStart();
 
 		return AddPostgresPersistenceCore(services);
 	}

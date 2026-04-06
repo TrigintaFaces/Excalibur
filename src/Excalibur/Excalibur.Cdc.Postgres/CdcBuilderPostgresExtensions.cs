@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -144,25 +145,14 @@ public static class CdcBuilderPostgresExtensions
 		return builder;
 	}
 
-	/// <summary>
-	/// Resolves the source connection factory from the builder configuration.
-	/// </summary>
-	/// <remarks>
-	/// Priority order:
-	/// 1. Explicit <see cref="PostgresCdcBuilder.SourceConnectionFactory"/> (set via <c>ConnectionFactory()</c>)
-	/// 2. <see cref="PostgresCdcBuilder.SourceConnectionStringName"/> (resolved from IConfiguration at DI resolution)
-	/// 3. <see cref="PostgresCdcOptions.ConnectionString"/> (set via <c>ConnectionString()</c> or <c>BindConfiguration()</c>)
-	/// </remarks>
 	private static Func<IServiceProvider, Func<NpgsqlConnection>> ResolveSourceFactory(
 		PostgresCdcBuilder pgBuilder)
 	{
-		// 1. Explicit factory takes highest precedence
 		if (pgBuilder.SourceConnectionFactory is not null)
 		{
 			return pgBuilder.SourceConnectionFactory;
 		}
 
-		// 2. Named connection string resolved from IConfiguration
 		if (pgBuilder.SourceConnectionStringName is not null)
 		{
 			var connStrName = pgBuilder.SourceConnectionStringName;
@@ -177,7 +167,6 @@ public static class CdcBuilderPostgresExtensions
 			};
 		}
 
-		// 3. Connection string from options (direct or via BindConfiguration)
 		return sp =>
 		{
 			var opts = sp.GetRequiredService<IOptions<PostgresCdcOptions>>();
@@ -185,15 +174,10 @@ public static class CdcBuilderPostgresExtensions
 		};
 	}
 
-	/// <summary>
-	/// Resolves the state connection factory from the builder configuration.
-	/// Returns <see langword="null"/> when no separate state store is configured (falls back to source).
-	/// </summary>
 	private static Func<IServiceProvider, Func<NpgsqlConnection>>? ResolveStateFactory(
 		PostgresCdcBuilder pgBuilder,
 		PostgresCdcStateStoreBuilder? stateBuilder)
 	{
-		// 1. Explicit factory takes highest precedence
 		if (pgBuilder.StateConnectionFactoryFunc is not null)
 		{
 			return pgBuilder.StateConnectionFactoryFunc;
@@ -204,14 +188,12 @@ public static class CdcBuilderPostgresExtensions
 			return null;
 		}
 
-		// 2. Connection string set directly on state store builder
 		if (stateBuilder.StateConnectionString is not null)
 		{
 			var connStr = stateBuilder.StateConnectionString;
 			return _ => () => new NpgsqlConnection(connStr);
 		}
 
-		// 3. Named connection string resolved from IConfiguration
 		if (stateBuilder.StateConnectionStringName is not null)
 		{
 			var connStrName = stateBuilder.StateConnectionStringName;
@@ -226,13 +208,13 @@ public static class CdcBuilderPostgresExtensions
 			};
 		}
 
-		// 4. No separate state connection -- fall back to source
 		return null;
 	}
 
-	/// <summary>
-	/// Registers options, services, and the CDC processor/state store.
-	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	private static void RegisterOptionsAndServices(
 		ICdcBuilder builder,
 		PostgresCdcBuilder pgBuilder,
@@ -240,7 +222,6 @@ public static class CdcBuilderPostgresExtensions
 		PostgresCdcStateStoreOptions stateStoreOptions,
 		Func<IServiceProvider, Func<NpgsqlConnection>> sourceFactory)
 	{
-		// Apply state store configure callback if present
 		string? stateStoreBindConfigPath = null;
 		PostgresCdcStateStoreBuilder? stateBuilder = null;
 		if (pgBuilder.StateStoreConfigure is not null)
@@ -252,7 +233,6 @@ public static class CdcBuilderPostgresExtensions
 
 		stateStoreOptions.Validate();
 
-		// Register Postgres CDC options
 		_ = builder.Services.Configure<PostgresCdcOptions>(opt =>
 		{
 			opt.ConnectionString = pgOptions.ConnectionString;
@@ -268,16 +248,12 @@ public static class CdcBuilderPostgresExtensions
 			opt.RecoveryOptions = pgOptions.RecoveryOptions;
 		});
 
-		// Register source BindConfiguration if set
 		if (pgBuilder.SourceBindConfigurationPath is not null)
 		{
 			builder.Services.AddOptions<PostgresCdcOptions>()
 				.BindConfiguration(pgBuilder.SourceBindConfigurationPath)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 
-			// When ConnectionString() was explicitly called alongside BindConfiguration,
-			// re-apply via PostConfigure so the explicit value takes precedence over config.
 			if (!string.IsNullOrWhiteSpace(pgOptions.ConnectionString))
 			{
 				var explicitConnectionString = pgOptions.ConnectionString;
@@ -288,30 +264,23 @@ public static class CdcBuilderPostgresExtensions
 			}
 		}
 
-		// Register CDC state store options
 		_ = builder.Services.Configure<PostgresCdcStateStoreOptions>(opt =>
 		{
 			opt.SchemaName = stateStoreOptions.SchemaName;
 			opt.TableName = stateStoreOptions.TableName;
 		});
 
-		// Register state store BindConfiguration if set
 		if (stateStoreBindConfigPath is not null)
 		{
 			builder.Services.AddOptions<PostgresCdcStateStoreOptions>()
 				.BindConfiguration(stateStoreBindConfigPath)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 
-		// Register default recovery options if not already registered
 		builder.Services.TryAddSingleton(Options.Create(new PostgresCdcRecoveryOptions()));
 
-		// State factory: resolve from state store builder, explicit factory, or fall back to source
 		var stateFactory = ResolveStateFactory(pgBuilder, stateBuilder);
 
-		// Register Postgres CDC state store with factory
-		// Uses state factory when WithStateStore was called, source factory otherwise (backward compat)
 		builder.Services.TryAddSingleton<IPostgresCdcStateStore>(sp =>
 		{
 			var effectiveFactory = stateFactory ?? sourceFactory;
@@ -322,18 +291,15 @@ public static class CdcBuilderPostgresExtensions
 			return new PostgresCdcStateStore(connection.ConnectionString, stateOptions);
 		});
 
-		// Register Postgres CDC processor with factory
 		builder.Services.TryAddSingleton<IPostgresCdcProcessor>(sp =>
 		{
 			var sourceFactoryResult = sourceFactory(sp);
 			var stateStore = sp.GetRequiredService<IPostgresCdcStateStore>();
 			var logger = sp.GetRequiredService<ILogger<PostgresCdcProcessor>>();
 
-			// Get connection string from source factory connection for options
 			using var connection = sourceFactoryResult();
 			var options = sp.GetRequiredService<IOptions<PostgresCdcOptions>>();
 
-			// Update connection string in options
 			var optionsValue = options.Value;
 			optionsValue.ConnectionString = connection.ConnectionString;
 

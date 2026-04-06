@@ -49,8 +49,10 @@ public static class FirestoreSagaExtensions
 
 		_ = services.AddOptions<FirestoreSagaOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreSagaOptions>, FirestoreSagaOptionsValidator>());
 
 		services.TryAddSingleton<FirestoreSagaStore>();
 		services.AddKeyedSingleton<ISagaStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreSagaStore>());
@@ -97,8 +99,10 @@ public static class FirestoreSagaExtensions
 
 		_ = services.AddOptions<FirestoreSagaOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreSagaOptions>, FirestoreSagaOptionsValidator>());
 
 		services.TryAddSingleton(sp =>
 		{

@@ -51,8 +51,11 @@ public sealed class SentinelServiceCollectionExtensionsDepthShould
 		});
 #pragma warning restore IL2026, IL3050
 
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IValidateOptions<SentinelExporterOptions>));
+		// Assert — options resolve with configured values (ValidateDataAnnotations removed in Sprint 750 AOT migration)
+		var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<SentinelExporterOptions>>().Value;
+		options.WorkspaceId.ShouldBe("test-ws");
+		options.SharedKey.ShouldBe("dGVzdC1rZXk=");
 	}
 
 	[Fact]

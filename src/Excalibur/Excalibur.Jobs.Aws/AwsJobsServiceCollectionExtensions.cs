@@ -25,6 +25,10 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <param name="configure"> Action to configure AWS scheduler options. </param>
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		Action<AwsSchedulerOptions> configure)
@@ -35,7 +39,6 @@ public static class AwsJobsServiceCollectionExtensions
 		// Configure options
 		_ = services.AddOptions<AwsSchedulerOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Add AWS EventBridge Scheduler client
@@ -58,6 +61,10 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -68,7 +75,6 @@ public static class AwsJobsServiceCollectionExtensions
 		// Configure options
 		_ = services.AddOptions<AwsSchedulerOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Add AWS EventBridge Scheduler client
@@ -90,6 +96,10 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <param name="configure"> Action to configure AWS scheduler options. </param>
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		AWSOptions awsOptions,
@@ -102,7 +112,6 @@ public static class AwsJobsServiceCollectionExtensions
 		// Configure options
 		_ = services.AddOptions<AwsSchedulerOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Add AWS EventBridge Scheduler client with options
@@ -126,6 +135,10 @@ public static class AwsJobsServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsScheduler(
 		this IServiceCollection services,
 		AWSOptions awsOptions,
@@ -138,7 +151,6 @@ public static class AwsJobsServiceCollectionExtensions
 		// Configure options
 		_ = services.AddOptions<AwsSchedulerOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Add AWS EventBridge Scheduler client with options

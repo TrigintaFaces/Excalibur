@@ -24,9 +24,7 @@ public static class InboxBuilderPostgresExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-#pragma warning disable IL2026 // AddPostgresInboxStore uses ValidateDataAnnotations which requires unreferenced code
 		_ = builder.Services.AddPostgresInboxStore(configure);
-#pragma warning restore IL2026
 
 		return builder;
 	}

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Cdc.Processing;
 
 using Microsoft.Data.SqlClient;
@@ -240,6 +241,10 @@ public static class CdcBuilderSqlServerExtensions
 	/// <summary>
 	/// Registers options, services, and auto-mapping callbacks.
 	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	private static void RegisterOptionsAndServices(
 		ICdcBuilder builder,
 		SqlServerCdcBuilder sqlBuilder,
@@ -278,7 +283,6 @@ public static class CdcBuilderSqlServerExtensions
 		{
 			builder.Services.AddOptions<SqlServerCdcOptions>()
 				.BindConfiguration(sqlBuilder.SourceBindConfigurationPath)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 
 			// When ConnectionString() was explicitly called alongside BindConfiguration,
@@ -305,7 +309,6 @@ public static class CdcBuilderSqlServerExtensions
 		{
 			builder.Services.AddOptions<SqlServerCdcStateStoreOptions>()
 				.BindConfiguration(stateStoreBindConfigPath)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 

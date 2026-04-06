@@ -25,10 +25,6 @@ public sealed class CachedSagaStateStoreOptions
 	/// <value>
 	/// The default cache TTL.
 	/// </value>
-	// R0.8: RangeAttribute with TimeSpan is a well-known validation pattern
-#pragma warning disable IL2026
-	[Range(typeof(TimeSpan), "00:00:01", "24:00:00")]
-#pragma warning restore IL2026
 	public TimeSpan DefaultCacheTtl { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <summary>
@@ -37,10 +33,6 @@ public sealed class CachedSagaStateStoreOptions
 	/// <value>
 	/// The cache TTL for active sagas.
 	/// </value>
-	// R0.8: RangeAttribute with TimeSpan is a well-known validation pattern
-#pragma warning disable IL2026
-	[Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
-#pragma warning restore IL2026
 	public TimeSpan ActiveSagaCacheTtl { get; set; } = TimeSpan.FromMinutes(1);
 
 	/// <summary>
@@ -49,10 +41,6 @@ public sealed class CachedSagaStateStoreOptions
 	/// <value>
 	/// The cache TTL for completed sagas.
 	/// </value>
-	// R0.8: RangeAttribute with TimeSpan is a well-known validation pattern
-#pragma warning disable IL2026
-	[Range(typeof(TimeSpan), "00:01:00", "24:00:00")]
-#pragma warning restore IL2026
 	public TimeSpan CompletedSagaCacheTtl { get; set; } = TimeSpan.FromHours(1);
 
 	/// <summary>
@@ -80,4 +68,3 @@ public sealed class CachedSagaStateStoreOptions
 	[Range(10, 10000)]
 	public int LocalCacheSizeLimit { get; set; } = 1000;
 }
-

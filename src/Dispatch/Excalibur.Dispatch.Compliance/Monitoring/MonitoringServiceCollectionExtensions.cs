@@ -83,6 +83,10 @@ public static class MonitoringServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="KeyRotationAlertOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddKeyRotationAlerts(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -91,9 +95,7 @@ public static class MonitoringServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		var options = new KeyRotationAlertOptions();
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		configuration.Bind(options);
-#pragma warning restore IL2026
 
 		services.TryAddSingleton(options);
 		services.TryAddSingleton<KeyRotationAlertService>();

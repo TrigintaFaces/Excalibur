@@ -32,8 +32,10 @@ public static class CosmosDbSnapshotStoreExtensions
 		// Configure options
 		_ = services.AddOptions<CosmosDbSnapshotStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbSnapshotStoreOptions>, CosmosDbSnapshotStoreOptionsValidator>());
 
 		// Register snapshot store
 		services.TryAddScoped<ISnapshotStore>(sp =>

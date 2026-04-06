@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.InMemory;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -36,7 +38,10 @@ public static class InMemoryServiceCollectionExtensions
 			_ = builder.Configure(configure);
 		}
 
-		_ = builder.ValidateDataAnnotations().ValidateOnStart();
+		_ = builder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InMemoryProviderOptions>, InMemoryProviderOptionsValidator>());
 
 		services.TryAddSingleton<InMemoryPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("inmemory",
@@ -53,6 +58,10 @@ public static class InMemoryServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddExcaliburInMemory(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -62,8 +71,10 @@ public static class InMemoryServiceCollectionExtensions
 
 		_ = services.AddOptions<InMemoryProviderOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InMemoryProviderOptions>, InMemoryProviderOptionsValidator>());
 
 		services.TryAddSingleton<InMemoryPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("inmemory",

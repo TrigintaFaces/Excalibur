@@ -42,7 +42,6 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddOptions<CloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureOptions is not null)
 		{
@@ -75,7 +74,6 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 		_ = services.UseCloudEvents(configureGeneral);
 
 		_ = services.AddOptions<KafkaCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureKafka is not null)
 		{

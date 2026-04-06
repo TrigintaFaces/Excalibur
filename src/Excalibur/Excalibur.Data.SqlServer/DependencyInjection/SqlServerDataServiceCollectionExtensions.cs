@@ -4,11 +4,13 @@
 
 using System.Data;
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Data.SqlServer.ErrorHandling;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -62,8 +64,10 @@ public static class SqlServerDataServiceCollectionExtensions
 		// Register options via IOptions pattern with ValidateOnStart
 		_ = services.AddOptions<SqlServerDeadLetterOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerDeadLetterOptions>, SqlServerDeadLetterOptionsValidator>());
 
 		// Register dead letter store (uses IOptions pattern via DI)
 		services.TryAddSingleton<SqlServerDeadLetterStore>();
@@ -79,6 +83,10 @@ public static class SqlServerDataServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSqlServerDeadLetterStore(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -89,8 +97,10 @@ public static class SqlServerDataServiceCollectionExtensions
 		// Register options via IOptions pattern with ValidateOnStart
 		_ = services.AddOptions<SqlServerDeadLetterOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerDeadLetterOptions>, SqlServerDeadLetterOptionsValidator>());
 
 		// Register dead letter store (uses IOptions pattern via DI)
 		services.TryAddSingleton<SqlServerDeadLetterStore>();

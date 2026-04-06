@@ -62,15 +62,18 @@ This registers:
 - **MetricsMiddleware** - Records processing duration, success/failure counts
 - **IDispatchMetrics** - Meter definitions for `Excalibur.Dispatch.Core`
 
-### Meter Registration
+### Instrumentation Registration
 
-Register all framework meters at once using the convenience methods:
+Register all framework meters and activity sources in a single call (recommended):
 
 ```csharp
 builder.Services.AddOpenTelemetry()
-    .AddAllDispatchMetrics()
-    .AddAllDispatchTracing();
+    .AddDispatchInstrumentation()   // registers all meters + activity sources
+    .WithTracing(t => t.AddOtlpExporter())
+    .WithMetrics(m => m.AddPrometheusExporter());
 ```
+
+This follows the ASP.NET Core pattern (`AddAspNetCoreInstrumentation()`). For granular control, use `AddAllDispatchMetrics()` and `AddAllDispatchTracing()` separately.
 
 Or register selectively using meter name patterns:
 

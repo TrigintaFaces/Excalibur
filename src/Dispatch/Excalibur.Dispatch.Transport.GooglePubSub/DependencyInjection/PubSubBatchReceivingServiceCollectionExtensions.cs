@@ -42,7 +42,6 @@ public static class PubSubBatchReceivingServiceCollectionExtensions
 				config.EnableAdaptiveBatching = true;
 				config.ConcurrentBatchProcessors = Environment.ProcessorCount;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(

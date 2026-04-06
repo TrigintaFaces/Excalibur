@@ -6,6 +6,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.Data.MongoDB.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +30,11 @@ public static class MongoDbAuthorizationExtensions
 
 		_ = services.AddOptions<MongoDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbAuthorizationOptions>, MongoDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IGrantStore, MongoDbGrantStore>();
 		services.TryAddSingleton<IActivityGroupGrantStore, MongoDbActivityGroupGrantStore>();
 
@@ -74,8 +78,11 @@ public static class MongoDbAuthorizationExtensions
 
 		_ = services.AddOptions<MongoDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbAuthorizationOptions>, MongoDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IGrantStore, MongoDbGrantStore>();
 
 		return services;
@@ -96,8 +103,11 @@ public static class MongoDbAuthorizationExtensions
 
 		_ = services.AddOptions<MongoDbAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbAuthorizationOptions>, MongoDbAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IActivityGroupGrantStore, MongoDbActivityGroupGrantStore>();
 
 		return services;

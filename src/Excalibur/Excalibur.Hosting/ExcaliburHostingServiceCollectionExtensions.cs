@@ -9,6 +9,9 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Hosting.Builders;
 using Excalibur.Hosting.Configuration;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -79,10 +82,12 @@ public static class ExcaliburHostingServiceCollectionExtensions
 		// Ensure Dispatch primitives are registered (idempotent via TryAdd*)
 		_ = services.AddDispatch();
 
-		// Register ExcaliburOptions with ValidateOnStart so DataAnnotations are validated at startup
+		// Register ExcaliburOptions with ValidateOnStart
 		_ = services.AddOptions<ExcaliburOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ExcaliburOptions>, ExcaliburOptionsValidator>());
 
 		var builder = new ExcaliburBuilder(services);
 		configure(builder);

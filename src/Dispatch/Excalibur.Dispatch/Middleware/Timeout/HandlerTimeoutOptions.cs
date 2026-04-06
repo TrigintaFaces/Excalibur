@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.ComponentModel.DataAnnotations;
-
 namespace Excalibur.Dispatch.Middleware.Timeout;
 
 /// <summary>
@@ -24,7 +22,6 @@ public sealed class HandlerTimeoutOptions
 	/// Gets or sets the default timeout applied to all handlers unless overridden.
 	/// </summary>
 	/// <value>The default timeout. Defaults to 30 seconds.</value>
-	[Range(typeof(TimeSpan), "00:00:00.001", "01:00:00")]
 	public TimeSpan DefaultTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>

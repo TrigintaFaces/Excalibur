@@ -47,13 +47,10 @@ public static class AzureCloudEventsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddOptions<CloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddOptions<AzureServiceBusCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddOptions<AzureEventHubsCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureOptions is not null)
 		{
@@ -92,7 +89,6 @@ public static class AzureCloudEventsServiceCollectionExtensions
 		_ = services.UseCloudEvents(configureGeneral);
 
 		_ = services.AddOptions<AzureServiceBusCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureServiceBus is not null)
 		{
@@ -122,7 +118,6 @@ public static class AzureCloudEventsServiceCollectionExtensions
 		_ = services.UseCloudEvents(configureGeneral);
 
 		_ = services.AddOptions<AzureEventHubsCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configureEventHubs is not null)
 		{

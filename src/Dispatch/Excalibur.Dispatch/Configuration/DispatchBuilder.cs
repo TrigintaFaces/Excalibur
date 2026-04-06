@@ -223,10 +223,6 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		_disposed = true;
 	}
 
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "ValidateDataAnnotations() uses reflection but DispatchOptions properties are all primitive types preserved by the trimmer.")]
 	private void RegisterOptions()
 	{
 		Services.TryAddEnumerable(
@@ -266,7 +262,6 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 				opt.Consumer.VisibilityTimeout = _options.Consumer.VisibilityTimeout;
 				opt.Consumer.MaxRetries = _options.Consumer.MaxRetries;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 	}
 

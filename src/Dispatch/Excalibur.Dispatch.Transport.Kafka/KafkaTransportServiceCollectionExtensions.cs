@@ -196,7 +196,6 @@ public static class KafkaTransportServiceCollectionExtensions
 					}
 				}
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(
@@ -221,7 +220,6 @@ public static class KafkaTransportServiceCollectionExtensions
 					cloudEventOptions.OffsetReset = transportOptions.ConsumerOptions.AutoOffsetReset;
 				}
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton(static sp => sp.GetRequiredService<IOptions<KafkaCloudEventOptions>>().Value);

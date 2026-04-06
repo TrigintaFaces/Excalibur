@@ -41,7 +41,7 @@ public static class ConsulLeaderElectionBuilderExtensions
 			optionsBuilder.Configure(configureOptions);
 		}
 
-		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
 
 		return builder.UseConsulCore();
 	}
@@ -61,7 +61,6 @@ public static class ConsulLeaderElectionBuilderExtensions
 
 		_ = builder.Services.AddOptions<ConsulLeaderElectionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder.UseConsulCore();

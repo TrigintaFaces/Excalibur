@@ -37,6 +37,10 @@ public static class ObservabilityServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types")]
 	[RequiresDynamicCode("Configuration binding may require dynamic code generation")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchObservability(
 		this IServiceCollection services,
 		IConfiguration configuration) =>
@@ -60,8 +64,11 @@ public static class ObservabilityServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ContextObservabilityOptions>,
+				ContextObservabilityOptionsValidator>());
 
 		// Read the Enabled flag eagerly to decide whether to wire OTel,
 		// without calling BuildServiceProvider(). This creates a temporary
@@ -79,10 +86,10 @@ public static class ObservabilityServiceCollectionExtensions
 
 		// Register PII sanitizer with options + startup warning validator
 		_ = services.AddOptions<TelemetrySanitizerOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<ITelemetrySanitizer, HashingTelemetrySanitizer>();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TelemetrySanitizerOptions>, TelemetrySanitizerOptionsValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TelemetrySanitizerOptions>, TelemetrySanitizerOptionsDataAnnotationsValidator>());
 
 		// Flow IncludeRawPii into all IncludeSensitiveData flags
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Excalibur.Dispatch.Options.Core.TracingOptions>, SensitiveDataPostConfigureOptions>());
@@ -265,7 +272,6 @@ public static class ObservabilityServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register the startup validator for custom patterns
@@ -275,8 +281,10 @@ public static class ObservabilityServiceCollectionExtensions
 
 		// Ensure base TelemetrySanitizerOptions are registered (for the inner HashingTelemetrySanitizer)
 		_ = services.AddOptions<TelemetrySanitizerOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TelemetrySanitizerOptions>,
+				TelemetrySanitizerOptionsDataAnnotationsValidator>());
 
 		// Replace the default ITelemetrySanitizer with the compliance-aware one
 		services.RemoveAll<ITelemetrySanitizer>();

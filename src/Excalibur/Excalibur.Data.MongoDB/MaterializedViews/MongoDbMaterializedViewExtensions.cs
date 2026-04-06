@@ -5,6 +5,8 @@
 using Excalibur.EventSourcing.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.MongoDB.MaterializedViews;
 
@@ -40,8 +42,10 @@ public static class MongoDbMaterializedViewExtensions
 
 		_ = builder.Services.AddOptions<MongoDbMaterializedViewStoreOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbMaterializedViewStoreOptions>, MongoDbMaterializedViewStoreOptionsValidator>());
 
 		return builder.UseStore<MongoDbMaterializedViewStore>();
 	}

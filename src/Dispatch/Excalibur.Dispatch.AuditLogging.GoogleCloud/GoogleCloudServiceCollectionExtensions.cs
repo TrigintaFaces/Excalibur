@@ -6,6 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.AuditLogging.GoogleCloud;
 using Excalibur.Dispatch.Compliance;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -23,8 +25,6 @@ public static class GoogleCloudServiceCollectionExtensions
 	/// <param name="configure">The configuration action.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
 	public static IServiceCollection AddGoogleCloudAuditExporter(
 		this IServiceCollection services,
 		Action<GoogleCloudAuditOptions> configure)
@@ -34,7 +34,6 @@ public static class GoogleCloudServiceCollectionExtensions
 
 		_ = services.AddOptions<GoogleCloudAuditOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterGoogleCloudAuditExporterCore(services);
@@ -49,8 +48,10 @@ public static class GoogleCloudServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="GoogleCloudAuditOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGoogleCloudAuditExporter(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -60,7 +61,6 @@ public static class GoogleCloudServiceCollectionExtensions
 
 		_ = services.AddOptions<GoogleCloudAuditOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterGoogleCloudAuditExporterCore(services);
@@ -70,6 +70,9 @@ public static class GoogleCloudServiceCollectionExtensions
 
 	private static void RegisterGoogleCloudAuditExporterCore(IServiceCollection services)
 	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GoogleCloudAuditOptions>, GoogleCloudAuditOptionsValidator>());
+
 		_ = services.AddHttpClient<GoogleCloudLoggingAuditExporter>((sp, client) =>
 		{
 			var options = sp.GetRequiredService<IOptions<GoogleCloudAuditOptions>>().Value;

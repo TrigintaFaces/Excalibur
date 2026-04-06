@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 
@@ -83,7 +84,7 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 		// Always configure options (uses defaults if configureOptions is null)
 		var optionsBuilder = services.AddOptions<ClaimCheckOptions>()
 			.Configure(configureOptions ?? (_ => { }));
-		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
 
 		// Register the provider as both its concrete type and the interface
 		// Use TryAdd to allow overriding in tests
@@ -133,6 +134,10 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 	/// services.AddInMemoryClaimCheck(configuration.GetSection("ClaimCheck"));
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddInMemoryClaimCheck(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -144,7 +149,6 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 		// Bind configuration to options
 		services.AddOptions<ClaimCheckOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register provider and cleanup service

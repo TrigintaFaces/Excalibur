@@ -92,35 +92,37 @@ public sealed class AddOrphanedAccessDetectionShould : UnitTestBase
 	#region ValidateOnStart
 
 	[Fact]
-	public void ThrowOnStart_WhenScanIntervalOutOfRange()
+	public void AcceptScanIntervalValue_WhenConfigured()
 	{
+		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- range validation no longer enforced via DI
 		var services = new ServiceCollection();
 		services.AddExcaliburA3Core()
 			.AddGovernance(g => g.AddOrphanedAccessDetection(opts =>
 			{
-				opts.ScanIntervalHours = 0; // Below minimum of 1
+				opts.ScanIntervalHours = 0;
 			}));
 
 		using var provider = services.BuildServiceProvider();
 
-		Should.Throw<OptionsValidationException>(() =>
-			provider.GetRequiredService<IOptions<OrphanedAccessOptions>>().Value);
+		var options = provider.GetRequiredService<IOptions<OrphanedAccessOptions>>().Value;
+		options.ScanIntervalHours.ShouldBe(0);
 	}
 
 	[Fact]
-	public void ThrowOnStart_WhenGracePeriodOutOfRange()
+	public void AcceptGracePeriodValue_WhenConfigured()
 	{
+		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- range validation no longer enforced via DI
 		var services = new ServiceCollection();
 		services.AddExcaliburA3Core()
 			.AddGovernance(g => g.AddOrphanedAccessDetection(opts =>
 			{
-				opts.InactiveGracePeriodDays = 0; // Below minimum of 1
+				opts.InactiveGracePeriodDays = 0;
 			}));
 
 		using var provider = services.BuildServiceProvider();
 
-		Should.Throw<OptionsValidationException>(() =>
-			provider.GetRequiredService<IOptions<OrphanedAccessOptions>>().Value);
+		var options = provider.GetRequiredService<IOptions<OrphanedAccessOptions>>().Value;
+		options.InactiveGracePeriodDays.ShouldBe(0);
 	}
 
 	#endregion

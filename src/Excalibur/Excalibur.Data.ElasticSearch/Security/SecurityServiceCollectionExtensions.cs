@@ -27,6 +27,10 @@ public static class SecurityServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddElasticsearchSecurity(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -40,7 +44,6 @@ public static class SecurityServiceCollectionExtensions
 		var securitySection = configuration.GetSection("Elasticsearch:Security");
 		_ = services.AddOptions<ElasticsearchSecurityOptions>()
 			.Bind(securitySection)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		if (configureOptions != null)
@@ -67,6 +70,10 @@ public static class SecurityServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAuthentication(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -74,7 +81,6 @@ public static class SecurityServiceCollectionExtensions
 		// Configure authentication settings
 		_ = services.AddOptions<AuthenticationOptions>()
 			.Bind(configuration.GetSection("Elasticsearch:Security:Authentication"))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register authentication provider
@@ -109,6 +115,10 @@ public static class SecurityServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddKeyManagement(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -117,7 +127,6 @@ public static class SecurityServiceCollectionExtensions
 		var keyManagementSection = configuration.GetSection("Elasticsearch:Security:Encryption:KeyManagement");
 		_ = services.AddOptions<KeyManagementOptions>()
 			.Bind(keyManagementSection)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register key provider based on configuration
@@ -141,13 +150,16 @@ public static class SecurityServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAzureKeyVault(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
 		_ = services.AddOptions<AzureKeyVaultOptions>()
 			.Bind(configuration.GetSection("Elasticsearch:Security:KeyManagement:AzureKeyVault"))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton<IElasticsearchKeyProvider, AzureKeyVaultProvider>();

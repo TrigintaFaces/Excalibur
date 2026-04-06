@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
@@ -34,11 +35,8 @@ public static class ErasureServiceCollectionExtensions
 		}
 
 		// Validate options on startup
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		RegisterGdprErasureCore(services);
 
@@ -51,18 +49,19 @@ public static class ErasureServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="ErasureOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGdprErasure(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<ErasureOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		RegisterGdprErasureCore(services);
 
@@ -214,15 +213,17 @@ public static class ErasureServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="ErasureSchedulerOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddErasureScheduler(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<ErasureSchedulerOptions>().Bind(configuration);
-#pragma warning restore IL2026
 
 		_ = services.AddSingleton<ErasureSchedulerBackgroundService>();
 		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<ErasureSchedulerBackgroundService>());
@@ -265,15 +266,17 @@ public static class ErasureServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="LegalHoldExpirationOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddLegalHoldExpiration(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<LegalHoldExpirationOptions>().Bind(configuration);
-#pragma warning restore IL2026
 
 		_ = services.AddSingleton<LegalHoldExpirationService>();
 		_ = services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<LegalHoldExpirationService>());
@@ -300,12 +303,9 @@ public static class ErasureServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<ErasureOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		RegisterGdprErasureCore(services);
 

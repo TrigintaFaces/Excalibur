@@ -7,6 +7,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.Data.Firestore.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -28,8 +29,10 @@ public static class A3BuilderFirestoreExtensions
 
 		_ = builder.Services.AddOptions<FirestoreAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreAuthorizationOptions>, FirestoreAuthorizationOptionsValidator>());
 
 		builder.Services.TryAddSingleton<IActivityGroupGrantStore, FirestoreActivityGroupGrantStore>();
 

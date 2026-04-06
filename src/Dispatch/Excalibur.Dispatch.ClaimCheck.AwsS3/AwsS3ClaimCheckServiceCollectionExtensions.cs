@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.ClaimCheck.AwsS3;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
@@ -31,7 +32,6 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 
 		_ = services.AddOptions<AwsS3ClaimCheckOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		var claimCheckBuilder = services.AddOptions<ClaimCheckOptions>();
@@ -40,7 +40,7 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 			claimCheckBuilder.Configure(configureClaimCheck);
 		}
 
-		claimCheckBuilder.ValidateDataAnnotations().ValidateOnStart();
+		claimCheckBuilder.ValidateOnStart();
 
 		services.TryAddSingleton<IClaimCheckProvider, AwsS3ClaimCheckStore>();
 
@@ -54,6 +54,10 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="AwsS3ClaimCheckOptions"/>.</param>
 	/// <param name="claimCheckConfiguration">Optional configuration section for core <see cref="ClaimCheckOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsS3ClaimCheck(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -64,7 +68,6 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 
 		_ = services.AddOptions<AwsS3ClaimCheckOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		var claimCheckBuilder = services.AddOptions<ClaimCheckOptions>();
@@ -73,7 +76,7 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 			claimCheckBuilder.Bind(claimCheckConfiguration);
 		}
 
-		claimCheckBuilder.ValidateDataAnnotations().ValidateOnStart();
+		claimCheckBuilder.ValidateOnStart();
 
 		services.TryAddSingleton<IClaimCheckProvider, AwsS3ClaimCheckStore>();
 

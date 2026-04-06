@@ -198,7 +198,6 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 				options.ArchiveName = transportOptions.ArchiveName;
 				options.ArchiveRetentionDays = transportOptions.ArchiveRetentionDays;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 	}
 

@@ -180,7 +180,6 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 				options.Authentication.UseManagedIdentity = transportOptions.UseManagedIdentity;
 				options.Storage.StorageAccountUri = transportOptions.StorageAccountUri;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Map AzureStorageQueueTransportOptions to existing AzureStorageQueueOptions
@@ -198,7 +197,6 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 				options.DeadLetterQueueName = transportOptions.DeadLetterQueueName;
 				options.MaxDequeueCount = transportOptions.MaxDequeueCount;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(

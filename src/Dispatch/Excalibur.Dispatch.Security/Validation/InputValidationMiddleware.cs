@@ -176,6 +176,7 @@ public sealed partial class InputValidationMiddleware(
 		return deepest;
 	}
 
+	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2070", Justification = "Lambda parameter cannot carry DynamicallyAccessedMembers; the outer parameter is annotated")]
 	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2075", Justification = "Message types are known at runtime and properties are accessed for validation")]
 	private static PropertyInfo[] GetPropertiesForValidation([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
 	{

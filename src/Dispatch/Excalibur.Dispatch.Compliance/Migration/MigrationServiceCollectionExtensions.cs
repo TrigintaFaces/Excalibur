@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
@@ -48,6 +49,10 @@ public static class MigrationServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="MigrationOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddEncryptionMigration(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -55,9 +60,7 @@ public static class MigrationServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
-		_ = services.AddOptions<MigrationOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
-#pragma warning restore IL2026
+		_ = services.AddOptions<MigrationOptions>().Bind(configuration).ValidateOnStart();
 		RegisterMigrationCore(services);
 
 		return services;

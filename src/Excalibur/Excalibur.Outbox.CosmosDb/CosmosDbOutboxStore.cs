@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Excalibur.Data.Abstractions.CloudNative;
 using Excalibur.Data.Abstractions.Observability;
@@ -509,7 +510,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			var deletedCount = 0;
 			double totalRequestCharge = 0;
 
-			var iterator = _container.GetItemQueryIterator<dynamic>(query, requestOptions: queryOptions);
+			var iterator = _container.GetItemQueryIterator<CleanupDocumentDto>(query, requestOptions: queryOptions);
 
 			while (iterator.HasMoreResults)
 			{
@@ -518,11 +519,10 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 				foreach (var item in response.Resource)
 				{
-					string id = item.id;
 					try
 					{
 						var deleteResponse = await _container.DeleteItemAsync<object>(
-							id,
+							item.Id,
 							new CosmosPartitionKey(partitionKey.Value),
 							cancellationToken: cancellationToken).ConfigureAwait(false);
 						totalRequestCharge += deleteResponse.RequestCharge;
@@ -784,5 +784,14 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		public string? LastError { get; set; }
 		public string? ETag { get; set; }
 		public int? Ttl { get; set; }
+	}
+
+	/// <summary>
+	/// Typed DTO for deserializing cleanup query results that return only document IDs.
+	/// </summary>
+	private sealed class CleanupDocumentDto
+	{
+		[JsonPropertyName("id")]
+		public string Id { get; set; } = string.Empty;
 	}
 }

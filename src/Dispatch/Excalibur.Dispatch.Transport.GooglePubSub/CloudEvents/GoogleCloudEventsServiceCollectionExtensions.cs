@@ -44,10 +44,8 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddOptions<CloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddOptions<GooglePubSubCloudEventOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(

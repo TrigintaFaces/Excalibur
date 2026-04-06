@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using Excalibur.Data.Abstractions.CloudNative;
 using Excalibur.Outbox.Firestore;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +30,9 @@ public static class FirestoreOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<FirestoreOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreOutboxOptions>, FirestoreOutboxOptionsValidator>());
 		_ = services.AddSingleton<FirestoreOutboxStore>();
 		_ = services.AddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<FirestoreOutboxStore>());
 
@@ -52,8 +54,9 @@ public static class FirestoreOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<FirestoreOutboxOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreOutboxOptions>, FirestoreOutboxOptionsValidator>());
 		_ = services.AddSingleton<FirestoreOutboxStore>();
 		_ = services.AddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<FirestoreOutboxStore>());
 
@@ -86,8 +89,9 @@ public static class FirestoreOutboxServiceCollectionExtensions
 			o.CreateCollectionIfNotExists = options.CreateCollectionIfNotExists;
 			o.MaxRetryAttempts = options.MaxRetryAttempts;
 		})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreOutboxOptions>, FirestoreOutboxOptionsValidator>());
 		_ = services.AddSingleton<FirestoreOutboxStore>();
 		_ = services.AddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<FirestoreOutboxStore>());
 

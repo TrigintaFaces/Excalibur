@@ -10,6 +10,7 @@ using Excalibur.Data.DynamoDb;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -35,8 +36,11 @@ public static class DynamoDbServiceCollectionExtensions
 
 		_ = services.AddOptions<DynamoDbOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
+
 		RegisterCoreServices(services);
 
 		return services;
@@ -49,6 +53,10 @@ public static class DynamoDbServiceCollectionExtensions
 	/// <param name="configuration"> The configuration section. </param>
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDynamoDb(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -58,8 +66,11 @@ public static class DynamoDbServiceCollectionExtensions
 
 		_ = services.AddOptions<DynamoDbOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
+
 		RegisterCoreServices(services);
 
 		return services;
@@ -73,6 +84,10 @@ public static class DynamoDbServiceCollectionExtensions
 	/// <param name="sectionName"> The configuration section name. </param>
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDynamoDb(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -84,8 +99,11 @@ public static class DynamoDbServiceCollectionExtensions
 
 		_ = services.AddOptions<DynamoDbOptions>()
 			.Bind(configuration.GetSection(sectionName))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
+
 		RegisterCoreServices(services);
 
 		return services;
@@ -106,8 +124,10 @@ public static class DynamoDbServiceCollectionExtensions
 
 		_ = services.AddOptions<DynamoDbOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
 
 		// Register the provider using the IAmazonDynamoDB from DI
 		services.TryAddSingleton(sp =>

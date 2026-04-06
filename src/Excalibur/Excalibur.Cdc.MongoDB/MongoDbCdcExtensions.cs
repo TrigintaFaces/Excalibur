@@ -31,7 +31,6 @@ public static class MongoDbCdcExtensions
 
 		_ = services.AddOptions<MongoDbCdcOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<IMongoDbCdcProcessor, MongoDbCdcProcessor>();
 
@@ -80,7 +79,6 @@ public static class MongoDbCdcExtensions
 	{
 		_ = services.AddOptions<MongoDbCdcStateStoreOptions>()
 			.Configure(configureOptions ?? (_ => { }))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbCdcStateStoreOptions>, MongoDbCdcStateStoreOptionsValidator>());

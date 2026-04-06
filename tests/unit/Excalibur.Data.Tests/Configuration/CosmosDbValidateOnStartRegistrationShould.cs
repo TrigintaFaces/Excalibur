@@ -140,14 +140,15 @@ public sealed class CosmosDbValidateOnStartRegistrationShould
 	#region CosmosDb CDC
 
 	[Fact]
-	public void CosmosDbCdc_RegistersOptionsValidation()
+	public void CosmosDbCdc_OptionsResolve()
 	{
+		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- no IValidateOptions registered for CDC
 		var services = new ServiceCollection();
 		_ = services.AddCosmosDbCdc(opts => { });
 
 		using var provider = services.BuildServiceProvider();
-		var validators = provider.GetServices<IValidateOptions<CosmosDbCdcOptions>>();
-		validators.ShouldNotBeEmpty("AddCosmosDbCdc should register IValidateOptions<CosmosDbCdcOptions>");
+		var options = provider.GetRequiredService<IOptions<CosmosDbCdcOptions>>().Value;
+		options.ShouldNotBeNull();
 	}
 
 	#endregion

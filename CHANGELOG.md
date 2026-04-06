@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **AddDispatchInstrumentation()** unified OTel entry point with auto-wire telemetry
+- **AddDispatchInstrumentation()** unified OTel entry point -- registers all 18 meters + 26 ActivitySources in one call, with auto-wire via `AddDispatchPipeline()`
 - **Excalibur.Dispatch.Analyzers** package with 6 diagnostic rules (DISP101-DISP106): DI namespace enforcement, extension class naming, CancellationToken interface conventions, namespace segment validation, ConfigureAwait enforcement, blocking call detection
 - **Templates CI workflow** validating all 8 `dotnet new` templates produce buildable projects
 - **DocFX API reference workflow** for automated API documentation generation
@@ -22,8 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 154+ CI build errors: broken XML crefs, AOT annotation mismatches, null dereferences in source generators
 - TrimmerRoots.xml stale reference to deleted `Messaging.MessageResult`
 - Testing and CloudEvents samples registered in governance matrix
+- PublicAPI baselines promoted (all Unshipped -> Shipped), `*REMOVED*` entries cleared
+- Internal type crefs in public XML docs replaced with `<c>` tags (cross-assembly resolution)
+- AOT annotation inheritance on override methods (`IEventSerializer.ResolveType`, `AotJsonEventSerializer`, Jobs.* packages)
 
 ## [3.0.0-alpha] - Pre-release Development
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Hosting.GoogleCloud;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -58,6 +59,10 @@ public static class GoogleCloudFunctionsServiceCollectionExtensions
 	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGoogleCloudFunctionsServerless(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -66,7 +71,7 @@ public static class GoogleCloudFunctionsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		_ = services.AddGoogleCloudFunctionsServerless();
-		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateOnStart();
 
 		return services;
 	}

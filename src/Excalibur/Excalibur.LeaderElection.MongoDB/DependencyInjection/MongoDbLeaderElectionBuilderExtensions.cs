@@ -56,8 +56,10 @@ public static class MongoDbLeaderElectionBuilderExtensions
 
 		_ = builder.Services.AddOptions<MongoDbLeaderElectionOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbLeaderElectionOptions>, MongoDbLeaderElectionOptionsValidator>());
 
 		return builder.UseMongoDBCore(resourceName);
 	}
@@ -80,8 +82,10 @@ public static class MongoDbLeaderElectionBuilderExtensions
 
 		_ = builder.Services.AddOptions<MongoDbLeaderElectionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbLeaderElectionOptions>, MongoDbLeaderElectionOptionsValidator>());
 
 		return builder.UseMongoDBCore(resourceName);
 	}

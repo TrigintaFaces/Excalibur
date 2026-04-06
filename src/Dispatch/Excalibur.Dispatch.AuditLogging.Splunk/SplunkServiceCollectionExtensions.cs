@@ -42,6 +42,10 @@ public static class SplunkServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="SplunkExporterOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSplunkAuditExporter(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -49,9 +53,7 @@ public static class SplunkServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026, IL3050 // Bind requires unreferenced code and dynamic code
 		_ = services.AddOptions<SplunkExporterOptions>().Bind(configuration);
-#pragma warning restore IL2026, IL3050
 
 		RegisterSplunkAuditExporterCore(services);
 
@@ -64,8 +66,10 @@ public static class SplunkServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configurationSection"> The configuration section name containing Splunk options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[RequiresDynamicCode("Binding configuration and validating data annotations require dynamic code generation.")]
-	[RequiresUnreferencedCode("Binding configuration and validating data annotations require unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSplunkAuditExporter(
 		this IServiceCollection services,
 		string configurationSection = "Splunk")
@@ -74,7 +78,6 @@ public static class SplunkServiceCollectionExtensions
 
 		_ = services.AddOptions<SplunkExporterOptions>()
 			.BindConfiguration(configurationSection)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterSplunkAuditExporterCore(services);

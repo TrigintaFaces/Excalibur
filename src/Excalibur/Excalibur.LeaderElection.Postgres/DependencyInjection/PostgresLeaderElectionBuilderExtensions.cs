@@ -36,8 +36,10 @@ public static class PostgresLeaderElectionBuilderExtensions
 
 		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
 
 		return builder.UsePostgresCore();
 	}
@@ -58,8 +60,10 @@ public static class PostgresLeaderElectionBuilderExtensions
 
 		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
 
 		return builder.UsePostgresCore();
 	}
@@ -82,8 +86,10 @@ public static class PostgresLeaderElectionBuilderExtensions
 
 		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
 
 		return builder.UsePostgresFactoryCore();
 	}
@@ -107,8 +113,10 @@ public static class PostgresLeaderElectionBuilderExtensions
 
 		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
 
 		return builder.UsePostgresFactoryCore();
 	}

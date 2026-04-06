@@ -33,8 +33,9 @@ public static class MongoDbOutboxExtensions
 
 		_ = services.AddOptions<MongoDbOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbOutboxOptions>, MongoDbOutboxOptionsValidator>());
 		services.TryAddSingleton<MongoDbOutboxStore>();
 		services.AddKeyedSingleton<IOutboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbOutboxStore>());
 		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
@@ -84,8 +85,9 @@ public static class MongoDbOutboxExtensions
 
 		_ = services.AddOptions<MongoDbOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbOutboxOptions>, MongoDbOutboxOptionsValidator>());
 		services.TryAddSingleton(sp =>
 		{
 			var client = clientProvider(sp);

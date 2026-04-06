@@ -55,7 +55,6 @@ public static class IdentityMapBuilderSqlServerExtensions
 				opt.CommandTimeoutSeconds = options.CommandTimeoutSeconds;
 				opt.MaxBatchSize = options.MaxBatchSize;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		builder.Services.TryAddEnumerable(

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Redis;
 
@@ -22,6 +23,10 @@ public static class RedisEventSourcingExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the event store options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddRedisEventStore(
 		this IServiceCollection services,
 		Action<RedisEventStoreOptions> configure)
@@ -31,7 +36,6 @@ public static class RedisEventSourcingExtensions
 
 		_ = services.AddOptions<RedisEventStoreOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton(static sp =>
@@ -55,6 +59,10 @@ public static class RedisEventSourcingExtensions
 	/// <param name="connection">The Redis connection multiplexer.</param>
 	/// <param name="configure">Action to configure the event store options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddRedisEventStore(
 		this IServiceCollection services,
 		ConnectionMultiplexer connection,
@@ -67,13 +75,11 @@ public static class RedisEventSourcingExtensions
 		{
 			_ = services.AddOptions<RedisEventStoreOptions>()
 				.Configure(configure)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 		else
 		{
 			_ = services.AddOptions<RedisEventStoreOptions>()
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 
@@ -92,6 +98,10 @@ public static class RedisEventSourcingExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the snapshot store options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddRedisSnapshotStore(
 		this IServiceCollection services,
 		Action<RedisSnapshotStoreOptions> configure)
@@ -101,7 +111,6 @@ public static class RedisEventSourcingExtensions
 
 		_ = services.AddOptions<RedisSnapshotStoreOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton(static sp =>

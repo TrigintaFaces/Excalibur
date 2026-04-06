@@ -6,6 +6,7 @@ using Excalibur.Outbox.MultiTransport;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -31,8 +32,10 @@ public static class MultiTransportOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<MultiTransportOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MultiTransportOutboxOptions>, MultiTransportOutboxOptionsValidator>());
 
 		// Register MultiTransportOutboxStore as a decorator over the existing IOutboxStore
 		services.TryAddSingleton<Excalibur.Outbox.MultiTransport.IMultiTransportOutboxRouter>(sp =>
@@ -63,8 +66,10 @@ public static class MultiTransportOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<MultiTransportOutboxOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MultiTransportOutboxOptions>, MultiTransportOutboxOptionsValidator>());
 
 		// Register MultiTransportOutboxStore as a decorator over the existing IOutboxStore
 		services.TryAddSingleton<Excalibur.Outbox.MultiTransport.IMultiTransportOutboxRouter>(sp =>

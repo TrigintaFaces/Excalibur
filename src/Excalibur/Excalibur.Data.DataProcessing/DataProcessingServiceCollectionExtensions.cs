@@ -60,7 +60,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// <para>
 	/// This overload registers <see cref="DataProcessingOptions"/> via the standard
 	/// <c>IOptions&lt;T&gt;</c> pattern, eliminating the need to manually wrap in <c>Options.Create()</c>.
-	/// Configuration is validated at startup via <c>ValidateDataAnnotations</c> and <c>ValidateOnStart</c>.
+	/// Configuration is validated at startup via <c>IValidateOptions&lt;T&gt;</c> and <c>ValidateOnStart</c>.
 	/// </para>
 	/// </remarks>
 	/// <example>
@@ -83,7 +83,6 @@ public static class DataProcessingServiceCollectionExtensions
 
 		services.TryAddSingleton(Options.Options.Create(configuration));
 		services.AddOptions<DataProcessingOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
@@ -104,7 +103,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// This is the AOT-safe, appsettings-driven alternative. Uses
-	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>ValidateDataAnnotations</c>
+	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>IValidateOptions&lt;T&gt;</c>
 	/// and <c>ValidateOnStart</c> for fail-fast validation.
 	/// </para>
 	/// </remarks>
@@ -116,6 +115,10 @@ public static class DataProcessingServiceCollectionExtensions
 	/// services.AddDataProcessor&lt;MyProcessor&gt;(configuration, "DataProcessing");
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDataProcessor<TProcessor>(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -128,7 +131,6 @@ public static class DataProcessingServiceCollectionExtensions
 
 		services.AddOptions<DataProcessingOptions>()
 			.BindConfiguration(sectionPath)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
@@ -173,7 +175,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// <para>
 	/// This overload registers <see cref="DataProcessingOptions"/> via the standard
 	/// <c>IOptions&lt;T&gt;</c> pattern, eliminating the need to manually wrap in <c>Options.Create()</c>.
-	/// Configuration is validated at startup via <c>ValidateDataAnnotations</c> and <c>ValidateOnStart</c>.
+	/// Configuration is validated at startup via <c>IValidateOptions&lt;T&gt;</c> and <c>ValidateOnStart</c>.
 	/// </para>
 	/// </remarks>
 	/// <example>
@@ -196,7 +198,6 @@ public static class DataProcessingServiceCollectionExtensions
 
 		services.TryAddSingleton(Microsoft.Extensions.Options.Options.Create(configuration));
 		services.AddOptions<DataProcessingOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
@@ -218,7 +219,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// This is the AOT-safe, appsettings-driven alternative. Uses
-	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>ValidateDataAnnotations</c>
+	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>IValidateOptions&lt;T&gt;</c>
 	/// and <c>ValidateOnStart</c> for fail-fast validation.
 	/// </para>
 	/// </remarks>
@@ -230,6 +231,10 @@ public static class DataProcessingServiceCollectionExtensions
 	/// services.AddRecordHandler&lt;MyHandler, MyRecord&gt;(configuration, "DataProcessing");
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddRecordHandler<THandler, TRecord>(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -242,7 +247,6 @@ public static class DataProcessingServiceCollectionExtensions
 
 		services.AddOptions<DataProcessingOptions>()
 			.BindConfiguration(sectionPath)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
@@ -275,6 +279,10 @@ public static class DataProcessingServiceCollectionExtensions
 	/// </remarks>
 	[RequiresUnreferencedCode("Assembly scanning may require unreferenced types for reflection-based type discovery")]
 	[RequiresDynamicCode("Assembly scanning uses reflection to dynamically discover and register processor types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDataProcessing(
 		this IServiceCollection services,
 		Func<IDbConnection> connectionFactory,
@@ -305,7 +313,6 @@ public static class DataProcessingServiceCollectionExtensions
 
 		services.AddOptions<DataProcessingOptions>()
 			.BindConfiguration(configurationSection)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
@@ -360,7 +367,6 @@ public static class DataProcessingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		var optionsBuilder = services.AddOptions<DataProcessingHostedServiceOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		if (configure is not null)
@@ -388,7 +394,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// This is the AOT-safe, appsettings-driven alternative. Uses
-	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>ValidateDataAnnotations</c>
+	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>IValidateOptions&lt;T&gt;</c>
 	/// and <c>ValidateOnStart</c> for fail-fast validation.
 	/// </para>
 	/// </remarks>
@@ -400,6 +406,10 @@ public static class DataProcessingServiceCollectionExtensions
 	/// services.EnableDataProcessingBackgroundService(configuration, "DataProcessingService");
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection EnableDataProcessingBackgroundService(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -411,7 +421,6 @@ public static class DataProcessingServiceCollectionExtensions
 
 		services.AddOptions<DataProcessingHostedServiceOptions>()
 			.BindConfiguration(sectionPath)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(

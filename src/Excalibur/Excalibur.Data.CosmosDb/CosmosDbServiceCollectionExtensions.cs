@@ -9,6 +9,7 @@ using Excalibur.Data.CosmosDb;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -34,8 +35,11 @@ public static class CosmosDbServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbOptions>, CosmosDbOptionsValidator>());
+
 		RegisterCoreServices(services);
 
 		return services;
@@ -48,6 +52,10 @@ public static class CosmosDbServiceCollectionExtensions
 	/// <param name="configuration">The configuration section.</param>
 	/// <returns>The service collection for chaining.</returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddCosmosDb(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -57,8 +65,11 @@ public static class CosmosDbServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbOptions>, CosmosDbOptionsValidator>());
+
 		RegisterCoreServices(services);
 
 		return services;
@@ -72,6 +83,10 @@ public static class CosmosDbServiceCollectionExtensions
 	/// <param name="sectionName">The configuration section name.</param>
 	/// <returns>The service collection for chaining.</returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddCosmosDb(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -83,8 +98,11 @@ public static class CosmosDbServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbOptions>()
 			.Bind(configuration.GetSection(sectionName))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbOptions>, CosmosDbOptionsValidator>());
+
 		RegisterCoreServices(services);
 
 		return services;

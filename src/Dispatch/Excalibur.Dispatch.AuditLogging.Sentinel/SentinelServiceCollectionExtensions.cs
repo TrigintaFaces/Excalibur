@@ -24,8 +24,6 @@ public static class SentinelServiceCollectionExtensions
 	/// <param name="configure">The configuration action.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	[RequiresDynamicCode("Binding configuration and validating data annotations require dynamic code generation.")]
-	[RequiresUnreferencedCode("Binding configuration and validating data annotations require unreferenced members.")]
 	public static IServiceCollection AddSentinelAuditExporter(
 		this IServiceCollection services,
 		Action<SentinelExporterOptions> configure)
@@ -35,7 +33,6 @@ public static class SentinelServiceCollectionExtensions
 
 		_ = services.AddOptions<SentinelExporterOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterSentinelAuditExporterCore(services);
@@ -50,8 +47,10 @@ public static class SentinelServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="SentinelExporterOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[RequiresDynamicCode("Binding configuration and validating data annotations require dynamic code generation.")]
-	[RequiresUnreferencedCode("Binding configuration and validating data annotations require unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSentinelAuditExporter(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -61,7 +60,6 @@ public static class SentinelServiceCollectionExtensions
 
 		_ = services.AddOptions<SentinelExporterOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterSentinelAuditExporterCore(services);

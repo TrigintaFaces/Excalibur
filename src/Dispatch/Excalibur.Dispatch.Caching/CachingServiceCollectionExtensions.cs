@@ -40,7 +40,6 @@ public static class CachingServiceCollectionExtensions
 		});
 
 		_ = services.AddOptions<CacheOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register core caching services (includes HybridCache registration)
@@ -55,13 +54,16 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="CacheOptions"/>. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchCaching(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		_ = services.AddOptions<CacheOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register core caching services (includes HybridCache registration)
@@ -104,6 +106,10 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="memoryCacheConfiguration"> Optional configuration section for memory cache options. </param>
 	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchMemoryCaching(
 		this IServiceCollection services,
 		IConfiguration? memoryCacheConfiguration,
@@ -111,7 +117,7 @@ public static class CachingServiceCollectionExtensions
 	{
 		if (cachingConfiguration is not null)
 		{
-			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateDataAnnotations().ValidateOnStart();
+			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateOnStart();
 		}
 		else
 		{
@@ -174,6 +180,10 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="redisConfiguration"> The configuration section for Redis cache options. </param>
 	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchRedisCaching(
 		this IServiceCollection services,
 		IConfiguration redisConfiguration,
@@ -183,7 +193,7 @@ public static class CachingServiceCollectionExtensions
 
 		if (cachingConfiguration is not null)
 		{
-			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateDataAnnotations().ValidateOnStart();
+			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateOnStart();
 		}
 		else
 		{
@@ -246,6 +256,10 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="redisConfiguration"> Optional configuration section for Redis as the distributed cache backend. </param>
 	/// <param name="cachingConfiguration"> Optional configuration section for general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchHybridCaching(
 		this IServiceCollection services,
 		IConfiguration? hybridConfiguration,
@@ -254,7 +268,7 @@ public static class CachingServiceCollectionExtensions
 	{
 		if (cachingConfiguration is not null)
 		{
-			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateDataAnnotations().ValidateOnStart();
+			_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateOnStart();
 		}
 		else
 		{
@@ -322,6 +336,10 @@ public static class CachingServiceCollectionExtensions
 	/// <param name="services"> The <see cref="IServiceCollection" /> to configure. </param>
 	/// <param name="cachingConfiguration"> The configuration section for general cache options. </param>
 	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchDistributedCaching<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
@@ -330,7 +348,7 @@ public static class CachingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(cachingConfiguration);
 
-		_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<CacheOptions>().Bind(cachingConfiguration).ValidateOnStart();
 
 		// Register the custom distributed cache
 		services.TryAddSingleton<IDistributedCache, TImplementation>();

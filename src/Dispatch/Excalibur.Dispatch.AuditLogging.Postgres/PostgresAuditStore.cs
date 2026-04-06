@@ -297,8 +297,8 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 				events.Count,
 				startDate,
 				endDate,
-				firstViolationEventId,
-				violationDescription,
+				firstViolationEventId!,
+				violationDescription!,
 				violationCount);
 		}
 

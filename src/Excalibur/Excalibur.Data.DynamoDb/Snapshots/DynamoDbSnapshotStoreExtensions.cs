@@ -5,6 +5,9 @@
 using Excalibur.Data.DynamoDb.Snapshots;
 using Excalibur.EventSourcing.Abstractions;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -36,8 +39,11 @@ public static class DynamoDbSnapshotStoreExtensions
 
 		_ = services.AddOptions<DynamoDbSnapshotStoreOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbSnapshotStoreOptions>, DynamoDbSnapshotStoreOptionsValidator>());
+
 		_ = services.AddSingleton<ISnapshotStore, DynamoDbSnapshotStore>();
 
 		return services;
@@ -61,8 +67,11 @@ public static class DynamoDbSnapshotStoreExtensions
 
 		_ = services.AddOptions<DynamoDbSnapshotStoreOptions>(name)
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbSnapshotStoreOptions>, DynamoDbSnapshotStoreOptionsValidator>());
+
 		_ = services.AddSingleton<ISnapshotStore, DynamoDbSnapshotStore>();
 
 		return services;

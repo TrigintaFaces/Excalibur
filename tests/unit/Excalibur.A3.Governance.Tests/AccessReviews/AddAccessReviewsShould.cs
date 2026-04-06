@@ -109,19 +109,20 @@ public sealed class AddAccessReviewsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ThrowOnStart_WhenRetryAttemptsOutOfRange()
+	public void AcceptRetryAttemptsValue_WhenConfigured()
 	{
+		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- range validation no longer enforced via DI
 		var services = new ServiceCollection();
 		services.AddExcaliburA3Core()
 			.AddGovernance(g => g.AddAccessReviews(opts =>
 			{
-				opts.MaxRetryAttempts = 0; // Below minimum of 1
+				opts.MaxRetryAttempts = 0;
 			}));
 
 		using var provider = services.BuildServiceProvider();
 
-		Should.Throw<OptionsValidationException>(() =>
-			provider.GetRequiredService<IOptions<AccessReviewOptions>>().Value);
+		var options = provider.GetRequiredService<IOptions<AccessReviewOptions>>().Value;
+		options.MaxRetryAttempts.ShouldBe(0);
 	}
 
 	[Fact]

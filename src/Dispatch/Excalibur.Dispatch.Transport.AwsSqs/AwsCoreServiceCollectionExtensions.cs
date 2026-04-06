@@ -6,8 +6,10 @@ using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 
 using Excalibur.Dispatch.Transport.Aws;
+using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -61,8 +63,10 @@ public static class AwsCoreServiceCollectionExtensions
 				awsOptions.Region = options.Region;
 				awsOptions.Connection.UseLocalStack = options.UseLocalStack;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsProviderOptions>, AwsProviderOptionsValidator>());
 
 		// Register AWS services based on configuration
 		if (options.EnableSqs)

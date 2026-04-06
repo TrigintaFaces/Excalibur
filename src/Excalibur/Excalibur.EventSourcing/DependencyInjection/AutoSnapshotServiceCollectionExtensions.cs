@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Snapshots;
@@ -77,6 +78,10 @@ public static class AutoSnapshotServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IEventSourcingBuilder UseAutoSnapshots(
 		this IEventSourcingBuilder builder,
 		IConfiguration configuration)
@@ -86,7 +91,6 @@ public static class AutoSnapshotServiceCollectionExtensions
 
 		builder.Services.AddOptions<AutoSnapshotOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<AutoSnapshotOptions>, AutoSnapshotOptionsValidator>());
@@ -157,6 +161,10 @@ public static class AutoSnapshotServiceCollectionExtensions
 	/// </para>
 	/// </remarks>
 #pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IEventSourcingBuilder UseAutoSnapshots<TAggregate>(
 		this IEventSourcingBuilder builder,
 		IConfiguration configuration)
@@ -169,7 +177,6 @@ public static class AutoSnapshotServiceCollectionExtensions
 		var aggregateTypeName = typeof(TAggregate).Name;
 		builder.Services.AddOptions<AutoSnapshotOptions>(aggregateTypeName)
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder;

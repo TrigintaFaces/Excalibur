@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.ParallelCatchUp;
 using Microsoft.Extensions.Configuration;
@@ -48,6 +49,10 @@ public static class ParallelCatchUpServiceCollectionExtensions
 	/// an imperative <see cref="Action{T}"/> delegate. Data annotations are validated on start.
 	/// </para>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IEventSourcingBuilder UseParallelCatchUp(
 		this IEventSourcingBuilder builder,
 		IConfiguration configuration)
@@ -57,7 +62,6 @@ public static class ParallelCatchUpServiceCollectionExtensions
 
 		builder.Services.AddOptions<ParallelCatchUpOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ParallelCatchUpOptions>, ParallelCatchUpOptionsValidator>());

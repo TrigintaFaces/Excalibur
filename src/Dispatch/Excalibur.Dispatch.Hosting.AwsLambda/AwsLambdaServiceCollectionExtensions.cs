@@ -41,8 +41,7 @@ public static class AwsLambdaServiceCollectionExtensions
 	/// <param name="configureOptions"> An action to configure the serverless host options. </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configureOptions is null. </exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	public static IServiceCollection AddAwsLambdaServerless(
 		this IServiceCollection services,
 		Action<ServerlessHostOptions> configureOptions)
@@ -53,7 +52,6 @@ public static class AwsLambdaServiceCollectionExtensions
 		_ = services.AddAwsLambdaServerless();
 		_ = services.AddOptions<ServerlessHostOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -67,8 +65,11 @@ public static class AwsLambdaServiceCollectionExtensions
 	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsLambdaServerless(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -79,7 +80,6 @@ public static class AwsLambdaServiceCollectionExtensions
 		_ = services.AddAwsLambdaServerless();
 		_ = services.AddOptions<ServerlessHostOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

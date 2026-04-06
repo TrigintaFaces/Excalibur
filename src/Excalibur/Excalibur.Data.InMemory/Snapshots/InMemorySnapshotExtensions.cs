@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +30,10 @@ public static class InMemorySnapshotExtensions
 
 		_ = services.AddOptions<InMemorySnapshotOptions>()
 			.Configure(configure ?? (_ => { }))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InMemorySnapshotOptions>, InMemorySnapshotOptionsValidator>());
 
 		services.TryAddSingleton<InMemorySnapshotStore>();
 		services.AddKeyedSingleton<ISnapshotStore>("inmemory", (sp, _) => sp.GetRequiredService<InMemorySnapshotStore>());

@@ -278,12 +278,9 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<AuditAlertOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAuditAlertService, DefaultAuditAlertService>();
 
@@ -296,6 +293,10 @@ public static class AuditLoggingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="AuditAlertOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAuditAlerting(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -303,14 +304,9 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
-#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling
 		_ = services.AddOptions<AuditAlertOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAuditAlertService, DefaultAuditAlertService>();
 
@@ -338,12 +334,9 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<AuditRetentionOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAuditRetentionService, DefaultAuditRetentionService>();
 		_ = services.AddHostedService<AuditRetentionBackgroundService>();
@@ -357,6 +350,10 @@ public static class AuditLoggingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="AuditRetentionOptions"/>. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAuditRetention(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -364,14 +361,9 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
-#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling
 		_ = services.AddOptions<AuditRetentionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAuditRetentionService, DefaultAuditRetentionService>();
 		_ = services.AddHostedService<AuditRetentionBackgroundService>();
@@ -430,6 +422,10 @@ public static class AuditLoggingServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="AuditEncryptionOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection UseAuditLogEncryption(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -437,11 +433,7 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
-#pragma warning disable IL3050 // Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling
 		_ = services.AddOptions<AuditEncryptionOptions>().Bind(configuration);
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 
 		RegisterAuditLogEncryptionDecorator(services);
 

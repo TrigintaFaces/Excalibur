@@ -22,9 +22,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds CosmosDb CDC processor services to the service collection.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">The configuration action for CDC options.</param>
-	/// <returns>The service collection for chaining.</returns>
 	public static IServiceCollection AddCosmosDbCdc(
 		this IServiceCollection services,
 		Action<CosmosDbCdcOptions> configure)
@@ -34,7 +31,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbCdcOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
@@ -44,10 +40,11 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds CosmosDb CDC processor services to the service collection using configuration.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section.</param>
-	/// <returns>The service collection for chaining.</returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddCosmosDbCdc(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -57,7 +54,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbCdcOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
@@ -67,11 +63,11 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds CosmosDb CDC processor services to the service collection using a named configuration section.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration.</param>
-	/// <param name="sectionName">The configuration section name.</param>
-	/// <returns>The service collection for chaining.</returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddCosmosDbCdc(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -83,7 +79,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbCdcOptions>()
 			.Bind(configuration.GetSection(sectionName))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddSingleton<ICosmosDbCdcProcessor, CosmosDbCdcProcessor>();
 
@@ -93,9 +88,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds the CosmosDb-based CDC state store.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">The configuration action for state store options.</param>
-	/// <returns>The service collection for chaining.</returns>
 	public static IServiceCollection AddCosmosDbCdcStateStore(
 		this IServiceCollection services,
 		Action<CosmosDbCdcStateStoreOptions> configure)
@@ -112,10 +104,11 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds the CosmosDb-based CDC state store using configuration.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section.</param>
-	/// <returns>The service collection for chaining.</returns>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddCosmosDbCdcStateStore(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -125,7 +118,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbCdcStateStoreOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcStateStoreOptions>, CosmosDbCdcStateStoreOptionsValidator>());
 		services.TryAddSingleton<ICosmosDbCdcStateStore, CosmosDbCdcStateStore>();
@@ -136,11 +128,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds the in-memory CDC state store for testing scenarios.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// This state store is not persistent and should only be used for testing and development.
-	/// </remarks>
 	public static IServiceCollection AddInMemoryCosmosDbCdcStateStore(
 		this IServiceCollection services)
 	{
@@ -154,20 +141,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 	/// <summary>
 	/// Adds CosmosDb AllVersionsAndDeletes change feed processor to the service collection.
 	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">The configuration action for AllVersionsAndDeletes change feed options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This processor captures all changes including deletes, with before/after state
-	/// for update operations. The container must be configured with a full fidelity
-	/// retention window.
-	/// </para>
-	/// <para>
-	/// This also requires the base CDC options to be configured via <see cref="AddCosmosDbCdc(IServiceCollection, Action{CosmosDbCdcOptions})"/>
-	/// for database and container identification.
-	/// </para>
-	/// </remarks>
 	public static IServiceCollection AddCosmosDbAllVersionsChangeFeed(
 		this IServiceCollection services,
 		Action<CosmosDbAllVersionsChangeFeedOptions> configure)
@@ -177,7 +150,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbAllVersionsChangeFeedOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton<CosmosDbAllVersionsChangeFeedProcessor>();
@@ -196,7 +168,6 @@ public static class CosmosDbCdcServiceCollectionExtensions
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbCdcStateStoreOptions>, CosmosDbCdcStateStoreOptionsValidator>());

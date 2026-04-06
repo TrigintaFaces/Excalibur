@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Observability.Sampling;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -223,8 +224,10 @@ public static class DispatchBuilderObservabilityExtensions
 		}
 
 		_ = optionsBuilder
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TraceSamplerOptions>, TraceSamplerOptionsValidator>());
 
 		builder.Services.TryAddSingleton<ITraceSampler, TraceSampler>();
 		builder.Services.TryAddSingleton<TraceSamplerMiddleware>();

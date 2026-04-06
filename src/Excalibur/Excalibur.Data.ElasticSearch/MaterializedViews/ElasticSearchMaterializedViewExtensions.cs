@@ -5,6 +5,8 @@
 using Excalibur.EventSourcing.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.ElasticSearch.MaterializedViews;
 
@@ -39,8 +41,10 @@ public static class ElasticSearchMaterializedViewExtensions
 
 		_ = builder.Services.AddOptions<ElasticSearchMaterializedViewStoreOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticSearchMaterializedViewStoreOptions>, ElasticSearchMaterializedViewStoreOptionsValidator>());
 
 		return builder.UseStore<ElasticSearchMaterializedViewStore>();
 	}

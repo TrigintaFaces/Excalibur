@@ -9,6 +9,7 @@ using Excalibur.A3.Governance.Stores.InMemory;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -38,8 +39,6 @@ public static class AccessReviewGovernanceBuilderExtensions
 	///         }));
 	/// </code>
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
 	public static IGovernanceBuilder AddAccessReviews(
 		this IGovernanceBuilder builder,
 		Action<AccessReviewOptions>? configure = null)
@@ -53,8 +52,11 @@ public static class AccessReviewGovernanceBuilderExtensions
 			optionsBuilder.Configure(configure);
 		}
 
-		optionsBuilder.ValidateDataAnnotations()
-			.ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
+
+		// Register AOT-safe validator
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AccessReviewOptions>, AccessReviewOptionsValidator>());
 
 		return builder.AddAccessReviewsCore();
 	}
@@ -66,7 +68,7 @@ public static class AccessReviewGovernanceBuilderExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="AccessReviewOptions"/>.</param>
 	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	public static IGovernanceBuilder AddAccessReviews(
@@ -78,8 +80,11 @@ public static class AccessReviewGovernanceBuilderExtensions
 
 		_ = builder.Services.AddOptions<AccessReviewOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		// Register AOT-safe validator
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AccessReviewOptions>, AccessReviewOptionsValidator>());
 
 		return builder.AddAccessReviewsCore();
 	}

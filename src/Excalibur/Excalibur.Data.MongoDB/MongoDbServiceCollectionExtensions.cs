@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.MongoDB;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +31,10 @@ public static class MongoDbServiceCollectionExtensions
 
 		_ = services.AddOptions<MongoDbProviderOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbProviderOptions>, MongoDbProviderOptionsValidator>());
 
 		services.TryAddSingleton<MongoDbPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("mongodb",
@@ -47,6 +51,10 @@ public static class MongoDbServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddExcaliburMongoDb(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -56,8 +64,10 @@ public static class MongoDbServiceCollectionExtensions
 
 		_ = services.AddOptions<MongoDbProviderOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbProviderOptions>, MongoDbProviderOptionsValidator>());
 
 		services.TryAddSingleton<MongoDbPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("mongodb",

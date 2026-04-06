@@ -311,8 +311,8 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 				events.Count,
 				startDate,
 				endDate,
-				firstViolationEventId,
-				violationDescription,
+				firstViolationEventId!,
+				violationDescription!,
 				violationCount);
 		}
 

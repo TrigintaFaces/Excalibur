@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Hosting.Serverless;
 
 using Microsoft.Extensions.Configuration;
@@ -59,6 +60,10 @@ public static class ServerlessHostBuilderExtensions
 	/// <param name="hostBuilder"> The host builder. </param>
 	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
 	/// <returns> The host builder for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IHostBuilder UseServerlessHosting(
 		this IHostBuilder hostBuilder,
 		IConfiguration configuration)

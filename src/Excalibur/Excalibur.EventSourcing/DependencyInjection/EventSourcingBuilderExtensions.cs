@@ -176,6 +176,10 @@ public static class EventSourcingBuilderExtensions
 	/// <param name="builder"> The builder. </param>
 	/// <param name="configure"> Action to configure the snapshot upgrading builder. </param>
 	/// <returns> The builder for fluent configuration. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IEventSourcingBuilder AddSnapshotUpgrading(this IEventSourcingBuilder builder, Action<SnapshotUpgradingBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
@@ -191,7 +195,6 @@ public static class EventSourcingBuilderExtensions
 				opt.EnableAutoUpgradeOnLoad = options.EnableAutoUpgradeOnLoad;
 				opt.CurrentSnapshotVersion = options.CurrentSnapshotVersion;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		foreach (var upgrader in upgradingBuilder.Upgraders)

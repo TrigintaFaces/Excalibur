@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Transport.Kafka;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -45,8 +48,10 @@ public static class KafkaAdminServiceCollectionExtensions
 
 		_ = services.AddOptions<KafkaAdminOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KafkaAdminOptions>, KafkaAdminOptionsValidator>());
 
 		return services;
 	}
@@ -60,6 +65,10 @@ public static class KafkaAdminServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
 	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddKafkaAdmin(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -69,8 +78,10 @@ public static class KafkaAdminServiceCollectionExtensions
 
 		_ = services.AddOptions<KafkaAdminOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KafkaAdminOptions>, KafkaAdminOptionsValidator>());
 
 		return services;
 	}
@@ -97,8 +108,10 @@ public static class KafkaAdminServiceCollectionExtensions
 
 		_ = services.AddOptions<KafkaAdminOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KafkaAdminOptions>, KafkaAdminOptionsValidator>());
 
 		services.AddSingleton<IKafkaAdminClient, TImplementation>();
 
@@ -117,6 +130,10 @@ public static class KafkaAdminServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
 	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddKafkaAdmin<TImplementation>(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -127,8 +144,10 @@ public static class KafkaAdminServiceCollectionExtensions
 
 		_ = services.AddOptions<KafkaAdminOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KafkaAdminOptions>, KafkaAdminOptionsValidator>());
 
 		services.AddSingleton<IKafkaAdminClient, TImplementation>();
 

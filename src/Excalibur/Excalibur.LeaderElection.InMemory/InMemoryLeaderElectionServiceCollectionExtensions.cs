@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.LeaderElection.InMemory;
 
@@ -67,6 +68,10 @@ public static class InMemoryLeaderElectionServiceCollectionExtensions
 	/// This is suitable for single-process scenarios, testing, and development.
 	/// For distributed scenarios, use a provider like SqlServer, Redis, Consul, or Kubernetes.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddInMemoryLeaderElection(
 		this IServiceCollection services,
 		IConfiguration configuration)

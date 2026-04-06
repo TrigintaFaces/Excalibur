@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Handlers;
 using Excalibur.Saga.Hosting;
@@ -109,6 +110,10 @@ public static class SagaEnhancementsBuilderExtensions
 	/// <param name="builder">The saga builder.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="SagaReminderOptions"/>.</param>
 	/// <returns>The saga builder for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static ISagaBuilder WithReminders(
 		this ISagaBuilder builder,
 		IConfiguration configuration)
@@ -118,7 +123,6 @@ public static class SagaEnhancementsBuilderExtensions
 
 		_ = builder.Services.AddOptions<SagaReminderOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = builder.Services.AddSagaReminders();
@@ -156,6 +160,10 @@ public static class SagaEnhancementsBuilderExtensions
 	/// <param name="builder">The saga builder.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="SagaSnapshotOptions"/>.</param>
 	/// <returns>The saga builder for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static ISagaBuilder WithSnapshots(
 		this ISagaBuilder builder,
 		IConfiguration configuration)
@@ -165,7 +173,6 @@ public static class SagaEnhancementsBuilderExtensions
 
 		_ = builder.Services.AddOptions<SagaSnapshotOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = builder.Services.AddSagaSnapshots();
@@ -219,6 +226,10 @@ public static class SagaEnhancementsBuilderExtensions
 	/// <param name="builder">The saga builder.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="SagaTimeoutCleanupOptions"/>.</param>
 	/// <returns>The saga builder for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static ISagaBuilder WithTimeoutCleanup(
 		this ISagaBuilder builder,
 		IConfiguration configuration)
@@ -228,7 +239,6 @@ public static class SagaEnhancementsBuilderExtensions
 
 		_ = builder.Services.AddOptions<SagaTimeoutCleanupOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = builder.Services.AddSagaTimeoutCleanup();

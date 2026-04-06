@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using Excalibur.Data.Abstractions.CloudNative;
 using Excalibur.Outbox.DynamoDb;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +30,9 @@ public static class DynamoDbOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<DynamoDbOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOutboxOptions>, DynamoDbOutboxOptionsValidator>());
 		_ = services.AddSingleton<DynamoDbOutboxStore>();
 		_ = services.AddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<DynamoDbOutboxStore>());
 
@@ -52,8 +54,9 @@ public static class DynamoDbOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<DynamoDbOutboxOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOutboxOptions>, DynamoDbOutboxOptionsValidator>());
 		_ = services.AddSingleton<DynamoDbOutboxStore>();
 		_ = services.AddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<DynamoDbOutboxStore>());
 
@@ -89,8 +92,9 @@ public static class DynamoDbOutboxServiceCollectionExtensions
 			o.CreateTableIfNotExists = options.CreateTableIfNotExists;
 			o.EnableStreams = options.EnableStreams;
 		})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOutboxOptions>, DynamoDbOutboxOptionsValidator>());
 		_ = services.AddSingleton<DynamoDbOutboxStore>();
 		_ = services.AddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<DynamoDbOutboxStore>());
 

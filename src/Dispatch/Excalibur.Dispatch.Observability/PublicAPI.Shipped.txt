@@ -76,11 +76,11 @@ Excalibur.Dispatch.Observability.Context.ContextExportOptions.ServiceVersion.get
 Excalibur.Dispatch.Observability.Context.ContextExportOptions.ServiceVersion.set -> void
 Excalibur.Dispatch.Observability.Context.ContextFieldOptions
 Excalibur.Dispatch.Observability.Context.ContextFieldOptions.ContextFieldOptions() -> void
-Excalibur.Dispatch.Observability.Context.ContextFieldOptions.CriticalFields.get -> string![]?
+Excalibur.Dispatch.Observability.Context.ContextFieldOptions.CriticalFields.get -> System.Collections.Generic.List<string!>?
 Excalibur.Dispatch.Observability.Context.ContextFieldOptions.CriticalFields.set -> void
-Excalibur.Dispatch.Observability.Context.ContextFieldOptions.RequiredContextFields.get -> string![]?
+Excalibur.Dispatch.Observability.Context.ContextFieldOptions.RequiredContextFields.get -> System.Collections.Generic.List<string!>?
 Excalibur.Dispatch.Observability.Context.ContextFieldOptions.RequiredContextFields.set -> void
-Excalibur.Dispatch.Observability.Context.ContextFieldOptions.TrackedFields.get -> string![]?
+Excalibur.Dispatch.Observability.Context.ContextFieldOptions.TrackedFields.get -> System.Collections.Generic.List<string!>?
 Excalibur.Dispatch.Observability.Context.ContextFieldOptions.TrackedFields.set -> void
 Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics
 Excalibur.Dispatch.Observability.Context.ContextFlowDiagnostics.AnalyzeContextHealth(Excalibur.Dispatch.Abstractions.IMessageContext! context) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextDiagnosticIssue!>!
@@ -259,7 +259,7 @@ Excalibur.Dispatch.Observability.Context.ContextTracingOptions.MaxCustomItemsInT
 Excalibur.Dispatch.Observability.Context.ContextTracingOptions.MaxCustomItemsInTraces.set -> void
 Excalibur.Dispatch.Observability.Context.ContextTracingOptions.PreserveUnknownBaggageItems.get -> bool
 Excalibur.Dispatch.Observability.Context.ContextTracingOptions.PreserveUnknownBaggageItems.set -> void
-Excalibur.Dispatch.Observability.Context.ContextTracingOptions.SensitiveFieldPatterns.get -> string![]?
+Excalibur.Dispatch.Observability.Context.ContextTracingOptions.SensitiveFieldPatterns.get -> System.Collections.Generic.List<string!>?
 Excalibur.Dispatch.Observability.Context.ContextTracingOptions.SensitiveFieldPatterns.set -> void
 Excalibur.Dispatch.Observability.Context.ContextTracingOptions.StoreMutationsInContext.get -> bool
 Excalibur.Dispatch.Observability.Context.ContextTracingOptions.StoreMutationsInContext.set -> void

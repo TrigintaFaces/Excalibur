@@ -5,6 +5,8 @@
 using Excalibur.EventSourcing.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.OpenSearch.MaterializedViews;
 
@@ -39,8 +41,10 @@ public static class OpenSearchMaterializedViewExtensions
 
 		_ = builder.Services.AddOptions<OpenSearchMaterializedViewStoreOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<OpenSearchMaterializedViewStoreOptions>, OpenSearchMaterializedViewStoreOptionsValidator>());
 
 		return builder.UseStore<OpenSearchMaterializedViewStore>();
 	}

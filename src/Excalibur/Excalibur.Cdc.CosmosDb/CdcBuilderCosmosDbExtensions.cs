@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Cdc.CosmosDb;
@@ -16,34 +17,7 @@ namespace Excalibur.Cdc.CosmosDb;
 /// </remarks>
 public static class CdcBuilderCosmosDbExtensions
 {
-	/// <summary>
-	/// Configures the CDC processor to use Azure Cosmos DB with the change feed.
-	/// </summary>
-	/// <param name="builder">The CDC builder.</param>
-	/// <param name="configure">Action to configure CosmosDB CDC options.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Requires <c>CosmosClient</c> to be registered in the service collection.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddCdcProcessor(cdc =&gt;
-	/// {
-	///     cdc.UseCosmosDb(options =&gt;
-	///     {
-	///         options.DatabaseName = "mydb";
-	///         options.ContainerName = "orders";
-	///         options.LeaseContainerName = "leases";
-	///     })
-	///     .EnableBackgroundProcessing();
-	/// });
-	/// </code>
-	/// </example>
+	/// <inheritdoc cref="UseCosmosDb(ICdcBuilder, Action{CosmosDbCdcOptions})"/>
 	public static ICdcBuilder UseCosmosDb(
 		this ICdcBuilder builder,
 		Action<CosmosDbCdcOptions> configure)
@@ -56,40 +30,7 @@ public static class CdcBuilderCosmosDbExtensions
 		return builder;
 	}
 
-	/// <summary>
-	/// Configures the CDC processor to use Azure Cosmos DB with a state store.
-	/// </summary>
-	/// <param name="builder">The CDC builder.</param>
-	/// <param name="configureCdc">Action to configure CosmosDB CDC options.</param>
-	/// <param name="configureStateStore">Action to configure CosmosDB CDC state store options.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="builder"/> or <paramref name="configureCdc"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// This overload registers both the CDC processor and a CosmosDB-backed state store
-	/// for tracking change feed positions.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddCdcProcessor(cdc =&gt;
-	/// {
-	///     cdc.UseCosmosDb(
-	///         cdc =&gt;
-	///         {
-	///             cdc.DatabaseName = "mydb";
-	///             cdc.ContainerName = "orders";
-	///         },
-	///         state =&gt;
-	///         {
-	///             state.DatabaseName = "mydb";
-	///             state.ContainerName = "cdc-state";
-	///         });
-	/// });
-	/// </code>
-	/// </example>
+	/// <inheritdoc cref="UseCosmosDb(ICdcBuilder, Action{CosmosDbCdcOptions}, Action{CosmosDbCdcStateStoreOptions})"/>
 	public static ICdcBuilder UseCosmosDb(
 		this ICdcBuilder builder,
 		Action<CosmosDbCdcOptions> configureCdc,
@@ -114,35 +55,10 @@ public static class CdcBuilderCosmosDbExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// This overload provides the fluent builder pattern with
-	/// <see cref="ICosmosDbCdcBuilder.WithStateStore(Action{ICdcStateStoreBuilder})"/>
-	/// support for configuring a separate CosmosDB connection for state persistence.
-	/// Follows the Microsoft Change Feed Processor pattern where lease storage can be
-	/// in a separate CosmosDB account from the monitored container.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddCdcProcessor(cdc =&gt;
-	/// {
-	///     cdc.UseCosmosDb(cosmos =&gt;
-	///     {
-	///         cosmos.ConnectionString("AccountEndpoint=https://source/;AccountKey=...")
-	///               .DatabaseId("orders-db")
-	///               .ContainerId("orders")
-	///               .ProcessorName("order-cdc")
-	///               .WithStateStore(state =&gt;
-	///               {
-	///                   state.ConnectionString("AccountEndpoint=https://state/;AccountKey=...")
-	///                        .SchemaName("cdc-state-db")   // maps to DatabaseId
-	///                        .TableName("checkpoints");     // maps to ContainerId
-	///               });
-	///     });
-	/// });
-	/// </code>
-	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static ICdcBuilder UseCosmosDb(
 		this ICdcBuilder builder,
 		Action<ICosmosDbCdcBuilder> configure)
@@ -172,7 +88,6 @@ public static class CdcBuilderCosmosDbExtensions
 		{
 			builder.Services.AddOptions<CosmosDbCdcOptions>()
 				.BindConfiguration(cosmosBuilder.SourceBindConfigurationPath)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 
 			// When ConnectionString() was explicitly called alongside BindConfiguration,
@@ -210,7 +125,6 @@ public static class CdcBuilderCosmosDbExtensions
 			{
 				builder.Services.AddOptions<CosmosDbCdcStateStoreOptions>()
 					.BindConfiguration(stateBuilder.BindConfigurationPath)
-					.ValidateDataAnnotations()
 					.ValidateOnStart();
 			}
 		}

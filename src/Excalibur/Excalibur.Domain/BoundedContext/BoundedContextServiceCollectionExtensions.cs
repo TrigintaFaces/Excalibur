@@ -58,6 +58,10 @@ public static class BoundedContextServiceCollectionExtensions
 	/// <returns>The service collection for chaining.</returns>
 	[RequiresUnreferencedCode("DefaultBoundedContextValidator uses AppDomain.GetAssemblies() to discover bounded context types at runtime. Configuration binding requires unreferenced code.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation at runtime.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddBoundedContextEnforcement(
 		this IServiceCollection services,
 		IConfiguration configuration)

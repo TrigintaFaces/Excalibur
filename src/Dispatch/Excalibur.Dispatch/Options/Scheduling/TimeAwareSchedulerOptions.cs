@@ -3,7 +3,6 @@
 
 
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 
@@ -228,45 +227,30 @@ public sealed class SchedulerTimeoutOptions
 	/// Gets or sets the timeout for scheduled message retrieval operations.
 	/// </summary>
 	/// <value>30 seconds by default.</value>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimeSpan range validation is preserved through explicit validation in Validate() method")]
-	[Range(typeof(TimeSpan), "00:00:05", "00:05:00")]
 	public TimeSpan ScheduleRetrievalTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
 	/// Gets or sets the timeout for message deserialization during scheduling.
 	/// </summary>
 	/// <value>10 seconds by default.</value>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimeSpan range validation is preserved through explicit validation in Validate() method")]
-	[Range(typeof(TimeSpan), "00:00:01", "00:01:00")]
 	public TimeSpan DeserializationTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
 	/// <summary>
 	/// Gets or sets the timeout for scheduled message dispatch operations.
 	/// </summary>
 	/// <value>2 minutes by default.</value>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimeSpan range validation is preserved through explicit validation in Validate() method")]
-	[Range(typeof(TimeSpan), "00:00:30", "00:10:00")]
 	public TimeSpan DispatchTimeout { get; set; } = TimeSpan.FromMinutes(2);
 
 	/// <summary>
 	/// Gets or sets the timeout for schedule update operations.
 	/// </summary>
 	/// <value>15 seconds by default.</value>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimeSpan range validation is preserved through explicit validation in Validate() method")]
-	[Range(typeof(TimeSpan), "00:00:05", "00:02:00")]
 	public TimeSpan ScheduleUpdateTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
 	/// <summary>
 	/// Gets or sets the maximum allowed timeout for any scheduling operation.
 	/// </summary>
 	/// <value>5 minutes by default.</value>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
-		Justification = "TimeSpan range validation is preserved through explicit validation in Validate() method")]
-	[Range(typeof(TimeSpan), "00:01:00", "00:15:00")]
 	public TimeSpan MaxSchedulingTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <summary>

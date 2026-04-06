@@ -3,7 +3,6 @@
 
 
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Consul;
@@ -41,7 +40,7 @@ public static class ConsulLeaderElectionExtensions
 			optionsBuilder.Configure(configureOptions);
 		}
 
-		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
 
 		// Register cross-property validators
 		services.TryAddEnumerable(
@@ -89,16 +88,17 @@ public static class ConsulLeaderElectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section containing Consul options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	[RequiresUnreferencedCode("Configuration binding may require types that cannot be statically analyzed. Consider using source generation.")]
-	[RequiresDynamicCode("Configuration binding may require dynamic code generation which is not compatible with AOT compilation.")]
 	public static IServiceCollection AddConsulLeaderElection(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
 		_ = services.AddOptions<ConsulLeaderElectionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ConsulLeaderElectionOptions>, ConsulLeaderElectionOptionsValidator>());
+
 		return services.AddConsulLeaderElection();
 	}
 

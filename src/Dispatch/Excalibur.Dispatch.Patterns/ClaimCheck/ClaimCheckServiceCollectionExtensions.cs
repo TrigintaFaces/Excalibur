@@ -47,7 +47,7 @@ public static class ClaimCheckServiceCollectionExtensions
 			optionsBuilder.Configure(configureOptions);
 		}
 
-		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ClaimCheckOptions>, ClaimCheckOptionsValidator>());
@@ -77,6 +77,10 @@ public static class ClaimCheckServiceCollectionExtensions
 	/// Use this method to register a custom IClaimCheckProvider implementation with configuration-based options.
 	/// For built-in providers (Azure, AWS, GCP), use the provider-specific packages.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddClaimCheck<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -87,7 +91,6 @@ public static class ClaimCheckServiceCollectionExtensions
 
 		_ = services.AddOptions<ClaimCheckOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(

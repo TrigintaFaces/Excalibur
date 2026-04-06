@@ -43,12 +43,9 @@ public static class VaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		// Configure options with validation
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<VaultOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
@@ -97,8 +94,10 @@ public static class VaultServiceCollectionExtensions
 	/// <param name="configurationSection">The configuration section containing Vault settings.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configurationSection is null.</exception>
-	[RequiresDynamicCode("Binding configuration and validating data annotations require dynamic code generation.")]
-	[RequiresUnreferencedCode("Binding configuration and validating data annotations require unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddVaultKeyManagement(
 		this IServiceCollection services,
 		IConfigurationSection configurationSection)
@@ -108,7 +107,6 @@ public static class VaultServiceCollectionExtensions
 
 		_ = services.AddOptions<VaultOptions>()
 			.Configure(options => configurationSection.Bind(options))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Add memory cache if not already registered

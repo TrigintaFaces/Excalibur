@@ -43,7 +43,7 @@ public sealed partial class ComplianceTelemetrySanitizer : ITelemetrySanitizer
 	/// </summary>
 	private const int MaxCacheSize = 1024;
 
-	private readonly ITelemetrySanitizer _inner;
+	private readonly HashingTelemetrySanitizer _inner;
 	private readonly bool _enabled;
 	private readonly bool _hashDetectedPii;
 	private readonly string _redactedPlaceholder;

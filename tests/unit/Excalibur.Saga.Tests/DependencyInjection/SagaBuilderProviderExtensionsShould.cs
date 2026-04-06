@@ -352,6 +352,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		builder.UseFirestore(opts =>
 		{
 			opts.CollectionName = "test-sagas";
+			opts.ProjectId = "test-project"; // Required by IValidateOptions
 		});
 
 		// Assert -- resolve options to trigger the deferred configure delegate

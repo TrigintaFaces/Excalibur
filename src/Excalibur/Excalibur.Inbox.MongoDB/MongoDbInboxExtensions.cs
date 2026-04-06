@@ -33,8 +33,9 @@ public static class MongoDbInboxExtensions
 
 		_ = services.AddOptions<MongoDbInboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbInboxOptions>, MongoDbInboxOptionsValidator>());
 		services.TryAddSingleton<MongoDbInboxStore>();
 		services.AddKeyedSingleton<IInboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
@@ -61,8 +62,9 @@ public static class MongoDbInboxExtensions
 
 		_ = services.AddOptions<MongoDbInboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbInboxOptions>, MongoDbInboxOptionsValidator>());
 		services.TryAddSingleton(sp =>
 		{
 			var client = clientProvider(sp);

@@ -33,8 +33,9 @@ public static class RedisInboxExtensions
 
 		_ = services.AddOptions<RedisInboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RedisInboxOptions>, RedisInboxOptionsValidator>());
 		services.TryAddSingleton<RedisInboxStore>();
 		services.AddKeyedSingleton<IInboxStore>("redis", (sp, _) => sp.GetRequiredService<RedisInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
@@ -61,8 +62,9 @@ public static class RedisInboxExtensions
 
 		_ = services.AddOptions<RedisInboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RedisInboxOptions>, RedisInboxOptionsValidator>());
 		services.TryAddSingleton(sp =>
 		{
 			var connection = connectionProvider(sp);

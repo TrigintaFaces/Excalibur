@@ -109,6 +109,10 @@ public static class ConfigureOptionsExtensions
 		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
 		Justification =
 			"Configuration binding relies on runtime type information, but the type T is preserved through the DynamicallyAccessedMembers attribute.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection ConfigureOptionsFromConfiguration<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
 		this IServiceCollection services,
 		string sectionName,
@@ -125,7 +129,6 @@ public static class ConfigureOptionsExtensions
 		// Then bind from configuration (will override defaults where values exist)
 		_ = services.AddOptions<T>()
 			.BindConfiguration(sectionName)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

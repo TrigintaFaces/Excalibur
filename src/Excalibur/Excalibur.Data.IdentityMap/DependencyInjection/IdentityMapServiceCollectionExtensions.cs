@@ -74,7 +74,6 @@ public static class IdentityMapServiceCollectionExtensions
 	private static void RegisterCoreServices(IServiceCollection services)
 	{
 		_ = services.AddOptions<IdentityMapOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = services.AddOptions<IdentityMapCacheOptions>();

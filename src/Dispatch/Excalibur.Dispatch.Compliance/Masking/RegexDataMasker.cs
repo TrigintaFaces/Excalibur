@@ -145,8 +145,8 @@ public sealed class RegexDataMasker : IDataMasker
 		return JsonSerializer.Deserialize<T>(maskedJson, _jsonOptions)!;
 	}
 
-#pragma warning disable IL2070 // 'this' argument does not satisfy 'DynamicallyAccessedMembersAttribute' in call to target method. The parameter of method does not have matching annotations.
-	private static IEnumerable<PropertyInfo> GetMaskableProperties(Type type)
+	private static IEnumerable<PropertyInfo> GetMaskableProperties(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
 	{
 		return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
 			.Where(p =>
@@ -161,7 +161,6 @@ public sealed class RegexDataMasker : IDataMasker
 				return sensitive?.MaskInLogs == true;
 			});
 	}
-#pragma warning restore IL2070
 
 	private static string GetJsonPropertyName(PropertyInfo prop)
 	{
@@ -308,6 +307,10 @@ public sealed class RegexDataMasker : IDataMasker
 		});
 	}
 
+	[UnconditionalSuppressMessage("Trimming", "IL2067:Parameter does not satisfy DAM on GetMaskableProperties parameter",
+		Justification = "MaskObject<T> is already annotated with [RequiresUnreferencedCode]. Callers accept the trimming risk.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2072:GetType() return does not satisfy DAM on GetMaskableProperties parameter",
+		Justification = "MaskObject<T> is already annotated with [RequiresUnreferencedCode]. Callers accept the trimming risk.")]
 	private string MaskJsonValues(string json, Type rootType)
 	{
 		// Get properties that need masking

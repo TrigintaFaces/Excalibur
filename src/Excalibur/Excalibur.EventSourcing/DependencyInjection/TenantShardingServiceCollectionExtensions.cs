@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Data.Abstractions.Sharding;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.DependencyInjection;
@@ -95,6 +96,10 @@ public static class TenantShardingServiceCollectionExtensions
 	/// });
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IEventSourcingBuilder EnableTenantSharding(
 		this IEventSourcingBuilder builder,
 		IConfiguration configuration)
@@ -104,7 +109,6 @@ public static class TenantShardingServiceCollectionExtensions
 
 		builder.Services.AddOptions<ShardMapOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ShardMapOptions>, ShardMapOptionsValidator>());

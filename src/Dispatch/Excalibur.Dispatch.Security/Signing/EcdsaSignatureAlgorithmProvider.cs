@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Security;
 /// <para>
 /// Key formats:
 /// <list type="bullet">
-/// <item>Signing (private key): PKCS#8 DER via <see cref="ECDsa.ImportPkcs8PrivateKey"/>.</item>
-/// <item>Verification (public key): SubjectPublicKeyInfo DER via <see cref="ECDsa.ImportSubjectPublicKeyInfo"/>.</item>
+/// <item>Signing (private key): PKCS#8 DER via <c>ECDsa.ImportPkcs8PrivateKey</c>.</item>
+/// <item>Verification (public key): SubjectPublicKeyInfo DER via <c>ECDsa.ImportSubjectPublicKeyInfo</c>.</item>
 /// </list>
 /// </para>
 /// <para>

@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Options.ErrorHandling;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -26,6 +27,10 @@ public static class PoisonMessageServiceCollectionExtensions
 	[RequiresUnreferencedCode(
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPoisonMessageHandling(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -33,9 +38,11 @@ public static class PoisonMessageServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PoisonMessageOptions>, PoisonMessageOptionsValidator>());
+
 		_ = services.AddOptions<PoisonMessageOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services.AddPoisonMessageHandling();
@@ -53,17 +60,16 @@ public static class PoisonMessageServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PoisonMessageOptions>, PoisonMessageOptionsValidator>());
+
 		var optionsBuilder = services.AddOptions<PoisonMessageOptions>();
 		if (configureOptions != null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
 		}
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
-#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
-#pragma warning restore IL3050
-#pragma warning restore IL2026
+		_ = optionsBuilder.ValidateOnStart();
 
 		// Register core services
 		services.TryAddSingleton<IPoisonMessageHandler, PoisonMessageHandler>();

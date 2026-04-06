@@ -53,11 +53,9 @@ public static class MetricsWarningLogger
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-#if DEBUG
 		Trace.WriteLine(string.Format(
 						CultureInfo.CurrentCulture,
 						DebugFormat,
 						message));
-#endif
 	}
 }

@@ -23,8 +23,6 @@ public static class AwsAuditServiceCollectionExtensions
 	/// <param name="configure">The configuration action.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
 	public static IServiceCollection AddAwsAuditExporter(
 		this IServiceCollection services,
 		Action<AwsAuditOptions> configure)
@@ -34,7 +32,6 @@ public static class AwsAuditServiceCollectionExtensions
 
 		_ = services.AddOptions<AwsAuditOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterAwsAuditExporterCore(services);
@@ -49,8 +46,10 @@ public static class AwsAuditServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="AwsAuditOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAwsAuditExporter(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -60,7 +59,6 @@ public static class AwsAuditServiceCollectionExtensions
 
 		_ = services.AddOptions<AwsAuditOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterAwsAuditExporterCore(services);

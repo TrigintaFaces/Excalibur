@@ -95,8 +95,10 @@ public static class OutboxBuilderPostgresExtensions
 				opt.MaxAttempts = postgresOptions.MaxAttempts;
 				opt.BatchProcessing.BatchProcessingTimeout = postgresOptions.BatchProcessing.BatchProcessingTimeout;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresOutboxStoreOptions>, PostgresOutboxStoreOptionsValidator>());
 
 		// Register services based on connection mode
 		if (postgresBuilder.ConfiguredDbFactory is not null)

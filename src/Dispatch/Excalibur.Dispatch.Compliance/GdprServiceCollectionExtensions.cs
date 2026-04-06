@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
@@ -42,11 +43,8 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<DataPortabilityOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -62,6 +60,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="DataPortabilityOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDataPortability(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -69,12 +71,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<DataPortabilityOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddScoped<IDataPortabilityService, DataPortabilityService>();
 		return services;
@@ -92,11 +91,8 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<SubjectAccessOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -112,6 +108,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="SubjectAccessOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSubjectAccessRequests(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -119,12 +119,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<SubjectAccessOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddScoped<ISubjectAccessService, SubjectAccessService>();
 		return services;
@@ -146,11 +143,8 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<AuditLogEncryptionOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -166,6 +160,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="AuditLogEncryptionOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAuditLogEncryption(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -173,12 +171,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<AuditLogEncryptionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddScoped<IAuditLogEncryptor, AuditLogEncryptionService>();
 		return services;
@@ -200,11 +195,8 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<KeyEscrowBackupOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -220,6 +212,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="KeyEscrowBackupOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddKeyEscrow(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -227,12 +223,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<KeyEscrowBackupOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IKeyEscrowService, KeyEscrowBackupService>();
 		return services;
@@ -250,11 +243,8 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<BreachNotificationOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -270,6 +260,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="BreachNotificationOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddBreachNotification(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -277,12 +271,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<BreachNotificationOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IBreachNotificationService, BreachNotificationService>();
 		return services;
@@ -300,11 +291,8 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<RetentionEnforcementOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -322,6 +310,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="RetentionEnforcementOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddRetentionEnforcement(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -329,12 +321,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<RetentionEnforcementOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddScoped<IRetentionEnforcementService, RetentionEnforcementService>();
 		_ = services.AddSingleton<RetentionEnforcementBackgroundService>();
@@ -354,11 +343,8 @@ public static class GdprServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<ConsentOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -374,6 +360,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="ConsentOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddConsentManagement(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -381,12 +371,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<ConsentOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IConsentService, ConsentService>();
 		return services;
@@ -405,11 +392,8 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<PostgresComplianceOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		_ = optionsBuilder.Configure(configureOptions);
 
 		services.TryAddSingleton<IComplianceStore, PostgresComplianceStore>();
@@ -422,6 +406,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="PostgresComplianceOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresComplianceStore(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -429,12 +417,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<PostgresComplianceOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IComplianceStore, PostgresComplianceStore>();
 		return services;
@@ -453,11 +438,8 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		var optionsBuilder = services.AddOptions<MongoDbComplianceOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 		_ = optionsBuilder.Configure(configureOptions);
 
 		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
@@ -470,6 +452,10 @@ public static class GdprServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="MongoDbComplianceOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddMongoDbComplianceStore(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -477,12 +463,9 @@ public static class GdprServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access
 		_ = services.AddOptions<MongoDbComplianceOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
 		return services;

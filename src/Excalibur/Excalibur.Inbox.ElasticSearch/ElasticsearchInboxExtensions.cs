@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +30,9 @@ public static class ElasticsearchInboxExtensions
 
 		_ = services.AddOptions<ElasticsearchInboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchInboxOptions>, ElasticsearchInboxOptionsValidator>());
 		services.TryAddSingleton<ElasticsearchInboxStore>();
 		services.AddKeyedSingleton<IInboxStore>("elasticsearch", (sp, _) => sp.GetRequiredService<ElasticsearchInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>

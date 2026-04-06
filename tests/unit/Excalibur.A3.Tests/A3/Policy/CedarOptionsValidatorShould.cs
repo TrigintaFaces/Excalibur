@@ -102,21 +102,21 @@ public sealed class CedarOptionsValidatorShould
     }
 
     [Fact]
-    public void FailWhenEndpointIsMissing()
+    public void AcceptDefaultEndpoint_WhenConfigured()
     {
+        // ValidateDataAnnotations removed in Sprint 750 AOT migration -- [Required] no longer enforced via DI
         var services = new ServiceCollection();
         services.AddLogging();
 
         var builder = services.AddExcaliburA3()
             .UseCedarPolicy(opts =>
             {
-                // Endpoint left as default empty string -- [Required] should fail
                 opts.Mode = CedarMode.Local;
             });
 
         using var provider = services.BuildServiceProvider();
 
-        Should.Throw<OptionsValidationException>(
-            () => provider.GetRequiredService<IOptions<CedarOptions>>().Value);
+        var options = provider.GetRequiredService<IOptions<CedarOptions>>().Value;
+        options.Mode.ShouldBe(CedarMode.Local);
     }
 }

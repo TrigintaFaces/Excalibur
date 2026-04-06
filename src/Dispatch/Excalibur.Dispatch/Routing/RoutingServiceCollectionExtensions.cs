@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Options.Routing;
 using Excalibur.Dispatch.Routing.Builder;
@@ -36,11 +37,7 @@ public static class RoutingServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
-#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
-#pragma warning restore IL3050
-#pragma warning restore IL2026
+		_ = optionsBuilder.ValidateOnStart();
 
 		RegisterRoutingServices(services);
 
@@ -53,18 +50,17 @@ public static class RoutingServiceCollectionExtensions
 	/// <param name="services">The service collection to add routing services to.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="RoutingOptions"/>.</param>
 	/// <returns>The same service collection instance for method chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchRouting(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
-#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = services.AddOptions<RoutingOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 
 		RegisterRoutingServices(services);
 

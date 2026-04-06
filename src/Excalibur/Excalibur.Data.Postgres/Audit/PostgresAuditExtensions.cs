@@ -5,6 +5,7 @@ using Excalibur.Data.Postgres.Audit;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -44,8 +45,10 @@ public static class PostgresAuditExtensions
 
 		_ = services.AddOptions<PostgresAuditOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresAuditOptions>, PostgresAuditOptionsValidator>());
 
 		services.TryAddSingleton<PostgresAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<PostgresAuditStore>());

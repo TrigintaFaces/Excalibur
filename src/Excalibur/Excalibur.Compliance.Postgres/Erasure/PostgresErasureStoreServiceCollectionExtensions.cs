@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Compliance.Postgres.Erasure;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +31,11 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 
 		_ = services.AddOptions<PostgresErasureStoreOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresErasureStoreOptions>,
+				PostgresErasureStoreOptionsValidator>());
 
 		services.TryAddSingleton<PostgresErasureStore>();
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
@@ -66,6 +71,10 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 	/// <param name="connectionStringName">The connection string name from configuration.</param>
 	/// <param name="configure">Optional additional configuration.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPostgresErasureStoreFromConfiguration(
 		this IServiceCollection services,
 		string connectionStringName,
@@ -88,8 +97,11 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 				configure?.Invoke(options);
 				options.Validate();
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresErasureStoreOptions>,
+				PostgresErasureStoreOptionsValidator>());
 
 		services.TryAddSingleton<PostgresErasureStore>();
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<PostgresErasureStore>());

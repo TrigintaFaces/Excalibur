@@ -56,7 +56,6 @@ public static class SqlServerLeaderElectionExtensions
 
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(

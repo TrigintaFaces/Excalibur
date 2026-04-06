@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Hosting.Serverless;
 
 using Microsoft.Extensions.Configuration;
@@ -44,6 +45,10 @@ public static class ServerlessServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section to bind serverless host options from. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddServerlessHosting(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -55,7 +60,7 @@ public static class ServerlessServiceCollectionExtensions
 		_ = services.AddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
 
 		// Bind options from configuration
-		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateOnStart();
 
 		return services;
 	}

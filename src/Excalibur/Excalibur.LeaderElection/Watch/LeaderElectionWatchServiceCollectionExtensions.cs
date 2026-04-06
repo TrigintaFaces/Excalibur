@@ -5,6 +5,7 @@ using Excalibur.LeaderElection.Watch;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -28,8 +29,11 @@ public static class LeaderElectionWatchServiceCollectionExtensions
 
 		_ = services.AddOptions<LeaderWatchOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		// Register AOT-safe validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderWatchOptions>, LeaderWatchOptionsValidator>());
 
 		services.TryAddSingleton<ILeaderElectionWatcher, DefaultLeaderElectionWatcher>();
 
@@ -61,8 +65,11 @@ public static class LeaderElectionWatchServiceCollectionExtensions
 
 		_ = services.AddOptions<LeaderWatchOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		// Register AOT-safe validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderWatchOptions>, LeaderWatchOptionsValidator>());
 
 		services.TryAddSingleton<ILeaderElectionWatcher, DefaultLeaderElectionWatcher>();
 

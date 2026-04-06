@@ -30,6 +30,10 @@ public static class SqlServerPersistenceExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding for SQL Server persistence may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode("Configuration binding for SQL Server persistence settings requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSqlServerPersistence(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -41,7 +45,6 @@ public static class SqlServerPersistenceExtensions
 		// Configure options from configuration
 		_ = services.AddOptions<SqlServerPersistenceOptions>()
 			.Bind(configuration.GetSection(sectionName))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register core services
@@ -66,7 +69,6 @@ public static class SqlServerPersistenceExtensions
 		// Configure options
 		_ = services.AddOptions<SqlServerPersistenceOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register core services

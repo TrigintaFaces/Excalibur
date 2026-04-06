@@ -25,8 +25,6 @@ public static class CdcHealthChecksBuilderExtensions
 	/// <param name="failureStatus">The failure status. Default is null (uses context default).</param>
 	/// <param name="tags">Optional tags for filtering health checks.</param>
 	/// <returns>The health checks builder for chaining.</returns>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
 	public static IHealthChecksBuilder AddCdcHealthCheck(
 		this IHealthChecksBuilder builder,
 		Action<CdcHealthCheckOptions>? configure = null,
@@ -40,7 +38,6 @@ public static class CdcHealthChecksBuilderExtensions
 		{
 			_ = builder.Services.AddOptions<CdcHealthCheckOptions>()
 				.Configure(configure)
-				.ValidateDataAnnotations()
 				.ValidateOnStart();
 		}
 
@@ -56,6 +53,10 @@ public static class CdcHealthChecksBuilderExtensions
 	/// <param name="failureStatus">The failure status. Default is null (uses context default).</param>
 	/// <param name="tags">Optional tags for filtering health checks.</param>
 	/// <returns>The health checks builder for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IHealthChecksBuilder AddCdcHealthCheck(
 		this IHealthChecksBuilder builder,
 		IConfiguration configuration,
@@ -68,7 +69,6 @@ public static class CdcHealthChecksBuilderExtensions
 
 		_ = builder.Services.AddOptions<CdcHealthCheckOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder.AddCdcHealthCheckCore(name, failureStatus, tags);

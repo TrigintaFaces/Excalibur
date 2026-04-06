@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MessagePack;
@@ -39,6 +40,10 @@ public static class MessagePackSerializationExtensions
 	/// Call this method to opt into MessagePack for high-performance binary serialization.
 	/// </para>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "MessagePack serializer type is preserved through DI registration.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "MessagePack serializer requires dynamic code for type handling.")]
 	public static IServiceCollection AddMessagePackSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -62,6 +67,10 @@ public static class MessagePackSerializationExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="options"> Custom MessagePack serializer options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "MessagePack serializer type is preserved through DI registration.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "MessagePack serializer requires dynamic code for type handling.")]
 	public static IServiceCollection AddMessagePackSerializer(
 		this IServiceCollection services,
 		global::MessagePack.MessagePackSerializerOptions options)

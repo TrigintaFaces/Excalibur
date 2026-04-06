@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Abstractions.Configuration;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Observability.Metrics;
 
@@ -28,8 +30,11 @@ public static class MetricsDispatchBuilderExtensions
 		_ = builder.Services.AddSingleton<DispatchMetrics>();
 		_ = builder.Services.AddOptions<ObservabilityOptions>()
 			.Configure(static _ => { })
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ObservabilityOptions>, ObservabilityOptionsValidator>());
+
 		return builder;
 	}
 
@@ -46,8 +51,11 @@ public static class MetricsDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 		_ = builder.Services.AddOptions<ObservabilityOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ObservabilityOptions>, ObservabilityOptionsValidator>());
+
 		return builder;
 	}
 
@@ -62,14 +70,21 @@ public static class MetricsDispatchBuilderExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for metrics options requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IDispatchBuilder WithMetricsOptions(this IDispatchBuilder builder, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configuration);
 		_ = builder.Services.AddOptions<ObservabilityOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ObservabilityOptions>, ObservabilityOptionsValidator>());
+
 		return builder;
 	}
 }

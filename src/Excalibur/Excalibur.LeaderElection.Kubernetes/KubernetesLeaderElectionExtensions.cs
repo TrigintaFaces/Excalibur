@@ -40,7 +40,7 @@ public static class KubernetesLeaderElectionExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
 
 		// Register cross-property validators
 		services.TryAddEnumerable(

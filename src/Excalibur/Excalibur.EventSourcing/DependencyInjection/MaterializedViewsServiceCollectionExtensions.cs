@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Views;
 
@@ -24,13 +25,16 @@ public static class MaterializedViewsServiceCollectionExtensions
 	/// to register view builders and configure stores.
 	/// </para>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddMaterializedViews(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Register options
 		_ = services.AddOptions<MaterializedViewOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

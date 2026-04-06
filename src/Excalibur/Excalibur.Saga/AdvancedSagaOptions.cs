@@ -3,17 +3,12 @@
 
 
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Saga;
 
 /// <summary>
 /// Configuration options for advanced saga orchestration.
 /// </summary>
-[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:Using member 'System.ComponentModel.DataAnnotations.RangeAttribute.RangeAttribute(Type, String, String)' can break functionality when trimming application code.",
-		Justification = "Range attributes are used for configuration validation and do not affect runtime logic.")]
 public sealed class AdvancedSagaOptions
 {
 	/// <summary>
@@ -22,7 +17,6 @@ public sealed class AdvancedSagaOptions
 	/// <value>
 	/// The default timeout for saga execution. Defaults to 30 minutes.
 	/// </value>
-	[Range(typeof(TimeSpan), "00:00:01", "24:00:00")]
 	public TimeSpan DefaultTimeout { get; set; } = TimeSpan.FromMinutes(30);
 
 	/// <summary>
@@ -31,7 +25,6 @@ public sealed class AdvancedSagaOptions
 	/// <value>
 	/// The default timeout for individual saga steps. Defaults to 5 minutes.
 	/// </value>
-	[Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
 	public TimeSpan DefaultStepTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <summary>
@@ -49,7 +42,6 @@ public sealed class AdvancedSagaOptions
 	/// <value>
 	/// The base delay for retry backoff. Defaults to 1 second.
 	/// </value>
-	[Range(typeof(TimeSpan), "00:00:00.100", "00:10:00")]
 	public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(1);
 
 	/// <summary>
@@ -91,7 +83,6 @@ public sealed class AdvancedSagaOptions
 	/// <value>
 	/// The cleanup interval for expired saga states. Defaults to 1 hour.
 	/// </value>
-	[Range(typeof(TimeSpan), "00:01:00", "24:00:00")]
 	public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromHours(1);
 
 	/// <summary>
@@ -100,7 +91,5 @@ public sealed class AdvancedSagaOptions
 	/// <value>
 	/// The retention period for completed saga states. Defaults to 7 days.
 	/// </value>
-	[Range(typeof(TimeSpan), "00:01:00", "365.00:00:00")]
 	public TimeSpan CompletedSagaRetention { get; set; } = TimeSpan.FromDays(7);
 }
-

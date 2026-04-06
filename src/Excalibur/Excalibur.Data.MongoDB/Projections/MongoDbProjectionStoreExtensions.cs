@@ -36,7 +36,6 @@ public static class MongoDbProjectionStoreExtensions
 		// Configure options
 		_ = services.AddOptions<MongoDbProjectionStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register projection store
@@ -104,7 +103,6 @@ public static class MongoDbProjectionStoreExtensions
 		// Configure options
 		_ = services.AddOptions<MongoDbProjectionStoreOptions>()
 			.Configure(configureOptions)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register projection store with client factory

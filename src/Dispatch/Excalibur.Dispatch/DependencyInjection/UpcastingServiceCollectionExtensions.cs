@@ -37,13 +37,8 @@ public static class UpcastingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Register options infrastructure
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
-#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = services.AddOptions<UpcastingOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 
 		// Register the pipeline as singleton with deferred configuration
 		services.TryAddSingleton<IUpcastingPipeline>(sp =>

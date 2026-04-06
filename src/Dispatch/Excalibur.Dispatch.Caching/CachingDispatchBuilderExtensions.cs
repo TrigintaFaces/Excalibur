@@ -94,7 +94,6 @@ public static class CachingDispatchBuilderExtensions
 				opts.GlobalPolicy = options.GlobalPolicy;
 				opts.CacheKeyBuilder = options.CacheKeyBuilder;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder;
@@ -110,13 +109,16 @@ public static class CachingDispatchBuilderExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for CacheOptions requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IDispatchBuilder WithCachingOptions(this IDispatchBuilder builder, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
 		_ = builder.Services.AddOptions<CacheOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		return builder;
 	}

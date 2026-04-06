@@ -7,6 +7,8 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Observability.Metrics;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +31,10 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 		_ = services.AddSingleton<IDispatchMetrics>(static provider => provider.GetRequiredService<DispatchMetrics>());
 		_ = services.AddOptions<ObservabilityOptions>()
 			.Configure(static _ => { })
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ObservabilityOptions>, ObservabilityOptionsValidator>());
 
 		return services;
 	}
@@ -101,8 +105,10 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 		_ = services.AddDispatchMetricsInstrumentation();
 		_ = services.AddOptions<ObservabilityOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ObservabilityOptions>, ObservabilityOptionsValidator>());
 
 		return services;
 	}
@@ -118,6 +124,10 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for metrics instrumentation requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchMetricsInstrumentation(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -126,8 +136,10 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 		_ = services.AddDispatchMetricsInstrumentation();
 		_ = services.AddOptions<ObservabilityOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ObservabilityOptions>, ObservabilityOptionsValidator>());
 
 		return services;
 	}

@@ -212,7 +212,6 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 				options.MaxConcurrentCalls = transportOptions.Processor.MaxConcurrentCalls;
 				options.PrefetchCount = transportOptions.Processor.PrefetchCount;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Map to CloudEvent options
@@ -229,7 +228,6 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 				options.MaxMessageSizeBytes = transportOptions.CloudEvents.MaxMessageSizeBytes;
 				options.EnableScheduledDelivery = transportOptions.CloudEvents.EnableScheduledDelivery;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 	}
 

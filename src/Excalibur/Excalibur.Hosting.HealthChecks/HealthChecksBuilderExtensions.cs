@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Hosting;
 
 using Microsoft.Extensions.Configuration;
@@ -51,6 +52,10 @@ public static class MemoryHealthChecksBuilderExtensions
 	/// <param name="configuration"> The configuration section to bind to <see cref="MemoryHealthCheckOptions"/>. </param>
 	/// <returns> The configured <see cref="IHealthChecksBuilder" /> for chaining additional health checks. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="healthChecks" /> or <paramref name="configuration"/> is null. </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IHealthChecksBuilder AddMemoryHealthChecks(
 		this IHealthChecksBuilder healthChecks,
 		IConfiguration configuration)

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Saga;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.Services;
@@ -47,6 +48,10 @@ public static class SagaTimeoutServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">An action to configure timeout options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSagaTimeoutDelivery(
 		this IServiceCollection services,
 		Action<SagaTimeoutOptions> configure)
@@ -57,7 +62,6 @@ public static class SagaTimeoutServiceCollectionExtensions
 		// Register options
 		_ = services.AddOptions<SagaTimeoutOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register in-memory store as default (can be overridden)
@@ -77,6 +81,10 @@ public static class SagaTimeoutServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSagaTimeoutDelivery(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -87,7 +95,6 @@ public static class SagaTimeoutServiceCollectionExtensions
 		// Register options
 		_ = services.AddOptions<SagaTimeoutOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register in-memory store as default (can be overridden)
@@ -120,7 +127,7 @@ public static class SagaTimeoutServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
 
 		// Register hosted service only (store must be registered separately)
 		_ = services.AddHostedService<SagaTimeoutDeliveryService>();
@@ -136,6 +143,10 @@ public static class SagaTimeoutServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddSagaTimeoutDeliveryService(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -145,7 +156,6 @@ public static class SagaTimeoutServiceCollectionExtensions
 
 		_ = services.AddOptions<SagaTimeoutOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register hosted service only (store must be registered separately)

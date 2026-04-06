@@ -23,6 +23,10 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 	/// <param name="configure"> The configuration action for Google Cloud Scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Uses DataAnnotation-based validation which requires unreferenced code")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGoogleCloudScheduler(
 		this IServiceCollection services,
 		Action<GoogleCloudSchedulerOptions> configure)
@@ -32,7 +36,6 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 
 		_ = services.AddOptions<GoogleCloudSchedulerOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddSingleton(static _ => CloudSchedulerClient.Create());
 		_ = services.AddSingleton<GoogleCloudSchedulerJobProvider>();
@@ -49,6 +52,10 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	[RequiresUnreferencedCode("Uses configuration binding and DataAnnotation-based validation which requires unreferenced code")]
 	[RequiresDynamicCode("Binding configuration values requires dynamic code generation")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGoogleCloudScheduler(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -58,7 +65,6 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 
 		_ = services.AddOptions<GoogleCloudSchedulerOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddSingleton(static _ => CloudSchedulerClient.Create());
 		_ = services.AddSingleton<GoogleCloudSchedulerJobProvider>();

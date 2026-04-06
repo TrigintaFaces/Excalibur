@@ -43,8 +43,10 @@ public sealed class DatadogServiceCollectionExtensionsDepthShould
 		services.AddDatadogAuditExporter(o => o.ApiKey = "test");
 #pragma warning restore IL2026, IL3050
 
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IValidateOptions<DatadogExporterOptions>));
+		// Assert — options resolve with configured values (ValidateDataAnnotations removed in Sprint 750 AOT migration)
+		var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<DatadogExporterOptions>>().Value;
+		options.ApiKey.ShouldBe("test");
 	}
 
 	[Fact]

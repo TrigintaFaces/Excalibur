@@ -8,6 +8,7 @@ using Excalibur.Data.MySql;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -22,8 +23,6 @@ public static class MySqlServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">A delegate to configure the MySQL provider options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
 	public static IServiceCollection AddExcaliburMySql(
 		this IServiceCollection services,
 		Action<MySqlProviderOptions> configure)
@@ -32,7 +31,11 @@ public static class MySqlServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		services.Configure(configure);
-		services.AddOptions<MySqlProviderOptions>().ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<MySqlProviderOptions>().ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MySqlProviderOptions>, MySqlProviderOptionsValidator>());
+
 		services.TryAddSingleton<MySqlPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("mysql",
 			(sp, _) => sp.GetRequiredService<MySqlPersistenceProvider>());
@@ -49,7 +52,7 @@ public static class MySqlServiceCollectionExtensions
 	/// <param name="configurationSection">The configuration section name.</param>
 	/// <returns>The service collection for chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	public static IServiceCollection AddExcaliburMySql(
@@ -59,10 +62,12 @@ public static class MySqlServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentException.ThrowIfNullOrWhiteSpace(configurationSection);
 
-		services.AddOptions<MySqlProviderOptions>()
+		_ = services.AddOptions<MySqlProviderOptions>()
 			.BindConfiguration(configurationSection)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MySqlProviderOptions>, MySqlProviderOptionsValidator>());
 
 		services.TryAddSingleton<MySqlPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("mysql",
@@ -80,7 +85,7 @@ public static class MySqlServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	public static IServiceCollection AddExcaliburMySql(
@@ -92,8 +97,10 @@ public static class MySqlServiceCollectionExtensions
 
 		_ = services.AddOptions<MySqlProviderOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MySqlProviderOptions>, MySqlProviderOptionsValidator>());
 
 		services.TryAddSingleton<MySqlPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("mysql",

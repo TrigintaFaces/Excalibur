@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Inbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
@@ -23,7 +21,6 @@ public static class InMemoryInboxExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[RequiresUnreferencedCode("Uses ValidateDataAnnotations which requires unreferenced code for validation attribute discovery.")]
 	public static IServiceCollection AddInMemoryInboxStore(
 		this IServiceCollection services,
 		Action<InMemoryInboxOptions>? configure = null)
@@ -32,7 +29,6 @@ public static class InMemoryInboxExtensions
 
 		_ = services.AddOptions<InMemoryInboxOptions>()
 			.Configure(configure ?? (_ => { }))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(
@@ -52,7 +48,6 @@ public static class InMemoryInboxExtensions
 	/// <param name="builder">The dispatch builder.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The dispatch builder for fluent configuration.</returns>
-	[RequiresUnreferencedCode("Uses ValidateDataAnnotations which requires unreferenced code for validation attribute discovery.")]
 	public static IDispatchBuilder UseInMemoryInboxStore(
 		this IDispatchBuilder builder,
 		Action<InMemoryInboxOptions>? configure = null)

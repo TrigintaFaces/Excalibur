@@ -62,11 +62,11 @@ public sealed class AddDispatchSchedulerShould
 
 		services.AddDispatchScheduling();
 
-		// Options infrastructure should be present
+		// Sprint 750: explicit IValidateOptions validators registered
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IConfigureOptions<SchedulerOptions>)
-			|| sd.ServiceType == typeof(IOptionsChangeTokenSource<SchedulerOptions>)
-			|| sd.ServiceType == typeof(IValidateOptions<SchedulerOptions>));
+			sd.ServiceType == typeof(IConfigureOptions<SchedulerOptions>) ||
+			sd.ServiceType == typeof(IOptionsChangeTokenSource<SchedulerOptions>) ||
+			sd.ServiceType == typeof(IValidateOptions<SchedulerOptions>));
 	}
 
 	[Fact]
@@ -76,10 +76,11 @@ public sealed class AddDispatchSchedulerShould
 
 		services.AddDispatchScheduling();
 
+		// Sprint 750: explicit IValidateOptions validators registered
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IConfigureOptions<CronScheduleOptions>)
-			|| sd.ServiceType == typeof(IOptionsChangeTokenSource<CronScheduleOptions>)
-			|| sd.ServiceType == typeof(IValidateOptions<CronScheduleOptions>));
+			sd.ServiceType == typeof(IConfigureOptions<CronScheduleOptions>) ||
+			sd.ServiceType == typeof(IOptionsChangeTokenSource<CronScheduleOptions>) ||
+			sd.ServiceType == typeof(IValidateOptions<CronScheduleOptions>));
 	}
 
 	[Fact]

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Azure;
 using Azure.Identity;
 using Azure.Messaging.EventGrid;
@@ -70,7 +71,6 @@ public static class EventGridTransportServiceCollectionExtensions
 
 		_ = services.AddOptions<EventGridTransportOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterEventGridCore(services);
@@ -87,6 +87,10 @@ public static class EventGridTransportServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
 	/// </exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddEventGridTransport(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -96,7 +100,6 @@ public static class EventGridTransportServiceCollectionExtensions
 
 		_ = services.AddOptions<EventGridTransportOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterEventGridCore(services);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.Configuration;
@@ -190,6 +191,10 @@ public static class TransportHealthChecksBuilderExtensions
 	/// Optional timeout for the health check execution.
 	/// </param>
 	/// <returns>The <see cref="IHealthChecksBuilder"/> for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IHealthChecksBuilder AddTransportHealthChecks(
 		this IHealthChecksBuilder builder,
 		IConfiguration configuration,
@@ -202,11 +207,7 @@ public static class TransportHealthChecksBuilderExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		var options = new MultiTransportHealthCheckOptions();
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
-#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		configuration.Bind(options);
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 
 		var defaultTags = new[] { "transport", "messaging", "ready" };
 

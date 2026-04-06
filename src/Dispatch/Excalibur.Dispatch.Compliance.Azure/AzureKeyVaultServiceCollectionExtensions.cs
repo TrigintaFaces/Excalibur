@@ -40,12 +40,9 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		// Configure options with validation
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<AzureKeyVaultOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
@@ -123,12 +120,9 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		_ = services.AddOptions<RsaKeyWrappingOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<IAzureRsaKeyWrapper, AzureKeyVaultRsaKeyWrapper>();
 
@@ -142,8 +136,10 @@ public static class AzureKeyVaultServiceCollectionExtensions
 	/// <param name="configurationSection"> The configuration section containing Azure Key Vault settings. </param>
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configurationSection is null. </exception>
-	[RequiresDynamicCode("Binding configuration requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Binding configuration requires unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddAzureKeyVaultKeyManagement(
 		this IServiceCollection services,
 		IConfigurationSection configurationSection)
@@ -153,7 +149,6 @@ public static class AzureKeyVaultServiceCollectionExtensions
 
 		_ = services.AddOptions<AzureKeyVaultOptions>()
 			.Configure(options => configurationSection.Bind(options))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Add memory cache if not already registered

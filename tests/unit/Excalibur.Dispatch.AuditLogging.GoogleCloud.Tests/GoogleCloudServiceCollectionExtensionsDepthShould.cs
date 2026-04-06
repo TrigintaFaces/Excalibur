@@ -37,7 +37,7 @@ public sealed class GoogleCloudServiceCollectionExtensionsDepthShould
 	[Fact]
 	[RequiresDynamicCode("Test")]
 	[RequiresUnreferencedCode("Test")]
-	public void RegisterValidateOnStartOptions()
+	public void RegisterOptionsWithValidateOnStart()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -46,7 +46,7 @@ public sealed class GoogleCloudServiceCollectionExtensionsDepthShould
 		services.AddGoogleCloudAuditExporter(o =>
 			o.ProjectId = "test-project");
 
-		// Assert
+		// Assert -- Sprint 750: explicit GoogleCloudAuditOptionsValidator registered
 		services.ShouldContain(sd => sd.ServiceType == typeof(IValidateOptions<GoogleCloudAuditOptions>));
 	}
 

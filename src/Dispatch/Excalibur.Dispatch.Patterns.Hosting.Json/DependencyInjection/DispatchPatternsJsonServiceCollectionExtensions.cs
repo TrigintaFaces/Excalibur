@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Patterns;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
@@ -32,7 +33,6 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		var optionsBuilder = services.AddOptions<DispatchPatternsJsonOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		if (configure is not null)
 		{
@@ -50,6 +50,10 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 	/// <param name="services">The service collection to configure.</param>
 	/// <param name="configuration">The configuration section to bind JSON serialization options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddJsonSerialization(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -59,7 +63,6 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 
 		_ = services.AddOptions<DispatchPatternsJsonOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton<DispatchJsonSerializer>();

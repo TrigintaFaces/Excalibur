@@ -9,6 +9,8 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Options.Scheduling;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -23,8 +25,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "Options types are preserved through DI registration and configuration binding")]
 	public static IServiceCollection AddTimeAwareScheduling(this IServiceCollection services)
 	{
 		// Add TimePolicy services
@@ -33,13 +33,15 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		// Register the time-aware scheduled message service
 		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
+
 		// Configure options with default values
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
 			.Configure(static options =>
 			{
 				// Default values are already set in TimeAwareSchedulerOptions
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -51,10 +53,12 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration instance. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
+	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
 		Justification = "Options types are preserved through DI registration and configuration binding")]
 	[RequiresDynamicCode(
 		"Configuration binding for time-aware scheduling requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddTimeAwareScheduling(this IServiceCollection services, IConfiguration configuration)
 	{
 		// Add TimePolicy services with configuration
@@ -63,10 +67,12 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		// Register the time-aware scheduled message service
 		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
+
 		// Bind configuration from appsettings
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
 			.Bind(configuration.GetSection(TimeAwareSchedulerOptions.SectionName))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -79,8 +85,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="configureScheduler"> Action to configure the time-aware scheduler options. </param>
 	/// <param name="configureTimePolicy"> Optional action to configure the time policy options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "Options types are preserved through DI registration and configuration binding")]
 	public static IServiceCollection AddTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions> configureScheduler,
@@ -99,10 +103,12 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		// Register the time-aware scheduled message service
 		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
+
 		// Configure scheduler options using the provided action
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
 			.Configure(configureScheduler)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -114,8 +120,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure additional scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "Options types are preserved through DI registration and configuration binding")]
 	public static IServiceCollection AddAdaptiveTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -126,6 +130,9 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		// Register the time-aware scheduled message service
 		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
+
 		// Configure scheduler options with adaptive timeouts enabled
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
 			.Configure(options =>
@@ -135,7 +142,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 				options.Timeouts.LogSchedulingTimeouts = true;
 				configureScheduler?.Invoke(options);
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -147,8 +153,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure the scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "Options types are preserved through DI registration and configuration binding")]
 	public static IServiceCollection AddLightweightTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -158,6 +162,9 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 
 		// Register the time-aware scheduled message service
 		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
 
 		// Configure scheduler options for lightweight operation
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
@@ -169,7 +176,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 				options.Timeouts.LogSchedulingTimeouts = false;
 				configureScheduler?.Invoke(options);
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -181,8 +187,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure additional scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-		Justification = "Options types are preserved through DI registration and configuration binding")]
 	public static IServiceCollection AddThroughputTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -199,6 +203,9 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 
 		// Register the time-aware scheduled message service
 		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
 
 		// Configure scheduler options for throughput
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
@@ -219,7 +226,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 
 				configureScheduler?.Invoke(options);
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

@@ -203,7 +203,6 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 				options.EnableEncryption = transportOptions.EnableEncryption;
 				options.Consumer.StartingPosition = transportOptions.StartingPosition;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(

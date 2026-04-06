@@ -33,8 +33,9 @@ public static class RedisOutboxExtensions
 
 		_ = services.AddOptions<RedisOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RedisOutboxOptions>, RedisOutboxOptionsValidator>());
 		services.TryAddSingleton<RedisOutboxStore>();
 		services.AddKeyedSingleton<IOutboxStore>("redis", (sp, _) => sp.GetRequiredService<RedisOutboxStore>());
 		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
@@ -61,8 +62,9 @@ public static class RedisOutboxExtensions
 
 		_ = services.AddOptions<RedisOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RedisOutboxOptions>, RedisOutboxOptionsValidator>());
 		services.TryAddSingleton(sp =>
 		{
 			var connection = connectionProvider(sp);

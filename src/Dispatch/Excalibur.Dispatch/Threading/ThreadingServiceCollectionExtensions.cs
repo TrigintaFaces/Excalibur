@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Options.Threading;
 using Excalibur.Dispatch.Threading;
@@ -39,15 +40,15 @@ public static class ThreadingServiceCollectionExtensions
 	/// <param name="services"> The service collection to add services to. </param>
 	/// <param name="configuration"> The configuration section to bind to <see cref="ThreadingOptions"/>. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchThreading(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
-#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = services.AddOptions<ThreadingOptions>().Bind(configuration);
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 		_ = services.AddSingleton<IKeyedLock, KeyedLock>();
 		services.TryAddSingleton<BackgroundExecutionMiddleware>();
 

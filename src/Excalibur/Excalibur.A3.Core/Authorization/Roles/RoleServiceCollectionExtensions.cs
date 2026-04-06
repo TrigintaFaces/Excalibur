@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.A3;
 using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.A3.Authorization.Roles;
@@ -51,10 +52,7 @@ public static class RoleServiceCollectionExtensions
 			optionsBuilder.Configure(configure);
 		}
 
-#pragma warning disable IL2026 // ValidateDataAnnotations requires unreferenced code
-		optionsBuilder.ValidateDataAnnotations()
-			.ValidateOnStart();
-#pragma warning restore IL2026
+		optionsBuilder.ValidateOnStart();
 
 		return builder.AddRolesCore();
 	}
@@ -65,6 +63,10 @@ public static class RoleServiceCollectionExtensions
 	/// <param name="builder">The A3 builder.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="RoleOptions"/>.</param>
 	/// <returns>The <see cref="IA3Builder"/> for fluent chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IA3Builder AddRoles(
 		this IA3Builder builder,
 		IConfiguration configuration)
@@ -72,12 +74,9 @@ public static class RoleServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026, IL3050 // Bind and ValidateDataAnnotations require unreferenced/dynamic code
 		_ = builder.Services.AddOptions<RoleOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL2026, IL3050
 
 		return builder.AddRolesCore();
 	}

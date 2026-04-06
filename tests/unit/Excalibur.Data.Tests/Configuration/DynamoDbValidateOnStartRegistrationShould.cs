@@ -165,28 +165,33 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 	#region DynamoDb CDC
 
 	[Fact]
-	public void DynamoDbCdc_RegistersOptionsValidation()
+	public void DynamoDbCdc_OptionsResolve()
 	{
-		var services = new ServiceCollection();
-		_ = services.AddDynamoDbCdc(opts => { });
-
-		using var provider = services.BuildServiceProvider();
-		var validators = provider.GetServices<IValidateOptions<DynamoDbCdcOptions>>();
-		validators.ShouldNotBeEmpty("AddDynamoDbCdc should register IValidateOptions<DynamoDbCdcOptions>");
-	}
-
-	[Fact]
-	public void DynamoDbCdc_InvalidOptions_ThrowsOnResolve()
-	{
+		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- no IValidateOptions registered for CDC
 		var services = new ServiceCollection();
 		_ = services.AddDynamoDbCdc(opts =>
 		{
-			opts.MaxBatchSize = 0; // Violates [Range(1, 1000)]
+			opts.MaxBatchSize = 50;
 		});
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DynamoDbCdcOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		var options = provider.GetRequiredService<IOptions<DynamoDbCdcOptions>>().Value;
+		options.MaxBatchSize.ShouldBe(50);
+	}
+
+	[Fact]
+	public void DynamoDbCdc_AcceptsConfiguredValues()
+	{
+		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- range validation no longer enforced via DI
+		var services = new ServiceCollection();
+		_ = services.AddDynamoDbCdc(opts =>
+		{
+			opts.MaxBatchSize = 0;
+		});
+
+		using var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<DynamoDbCdcOptions>>().Value;
+		options.MaxBatchSize.ShouldBe(0);
 	}
 
 	#endregion

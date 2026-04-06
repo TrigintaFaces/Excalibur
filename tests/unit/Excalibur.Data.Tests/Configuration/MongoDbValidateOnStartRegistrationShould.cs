@@ -13,8 +13,12 @@ namespace Excalibur.Data.Tests.Configuration;
 
 /// <summary>
 /// Verifies that MongoDB provider DI registrations wire up
-/// <c>ValidateDataAnnotations().ValidateOnStart()</c> correctly.
+/// <c>ValidateOnStart()</c> correctly.
 /// Sprint 564 S564.46: MongoDB provider DI ValidateOnStart verification.
+/// Sprint 750: ValidateDataAnnotations removed (AOT-safe migration).
+/// Packages that register explicit IValidateOptions validators (Outbox, Inbox, Saga, Snapshot)
+/// still validate; others (EventStore, Cdc, ProjectionStore) only have ValidateOnStart
+/// without an explicit validator, so we verify IOptions resolvability instead.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait(TraitNames.Component, TestComponents.Core)]
@@ -23,28 +27,31 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 	#region EventStore
 
 	[Fact]
-	public void MongoDbEventStore_RegistersOptionsValidation()
+	public void MongoDbEventStore_RegistersOptions()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbEventStore(opts => { });
 
 		using var provider = services.BuildServiceProvider();
-		var validators = provider.GetServices<IValidateOptions<MongoDbEventStoreOptions>>();
-		validators.ShouldNotBeEmpty("AddMongoDbEventStore should register IValidateOptions<MongoDbEventStoreOptions>");
+		var options = provider.GetService<IOptions<MongoDbEventStoreOptions>>();
+		options.ShouldNotBeNull("AddMongoDbEventStore should register IOptions<MongoDbEventStoreOptions>");
+		options.Value.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public void MongoDbEventStore_InvalidOptions_ThrowsOnResolve()
+	public void MongoDbEventStore_ConfiguresOptionsCorrectly()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbEventStore(opts =>
 		{
-			opts.ServerSelectionTimeoutSeconds = 0; // Violates [Range(1, int.MaxValue)]
+			opts.ConnectionString = "mongodb://testhost:27017";
+			opts.DatabaseName = "test-db";
 		});
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<MongoDbEventStoreOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		options.Value.ConnectionString.ShouldBe("mongodb://testhost:27017");
+		options.Value.DatabaseName.ShouldBe("test-db");
 	}
 
 	#endregion
@@ -68,7 +75,7 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbSnapshotStore(opts =>
 		{
-			opts.ServerSelectionTimeoutSeconds = 0; // Violates [Range(1, int.MaxValue)]
+			opts.ConnectionString = ""; // Violates required string check in Validate()
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -97,7 +104,7 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbOutboxStore(opts =>
 		{
-			opts.ServerSelectionTimeoutSeconds = 0; // Violates [Range(1, int.MaxValue)]
+			opts.ConnectionString = ""; // Violates required string check in Validate()
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -126,7 +133,7 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbInboxStore(opts =>
 		{
-			opts.ServerSelectionTimeoutSeconds = 0; // Violates [Range(1, int.MaxValue)]
+			opts.ConnectionString = ""; // Violates required string check in Validate()
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -155,7 +162,7 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbSagaStore(opts =>
 		{
-			opts.ServerSelectionTimeoutSeconds = 0; // Violates [Range(1, int.MaxValue)]
+			opts.ConnectionString = ""; // Violates required string check in Validate()
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -168,28 +175,29 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 	#region Cdc
 
 	[Fact]
-	public void MongoDbCdc_RegistersOptionsValidation()
+	public void MongoDbCdc_RegistersOptions()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbCdc(opts => { });
 
 		using var provider = services.BuildServiceProvider();
-		var validators = provider.GetServices<IValidateOptions<MongoDbCdcOptions>>();
-		validators.ShouldNotBeEmpty("AddMongoDbCdc should register IValidateOptions<MongoDbCdcOptions>");
+		var options = provider.GetService<IOptions<MongoDbCdcOptions>>();
+		options.ShouldNotBeNull("AddMongoDbCdc should register IOptions<MongoDbCdcOptions>");
+		options.Value.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public void MongoDbCdc_InvalidOptions_ThrowsOnResolve()
+	public void MongoDbCdc_ConfiguresOptionsCorrectly()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbCdc(opts =>
 		{
-			opts.BatchSize = 0; // Violates [Range(1, int.MaxValue)]
+			opts.BatchSize = 50;
 		});
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<MongoDbCdcOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		options.Value.BatchSize.ShouldBe(50);
 	}
 
 	#endregion
@@ -197,28 +205,31 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 	#region ProjectionStore
 
 	[Fact]
-	public void MongoDbProjectionStore_RegistersOptionsValidation()
+	public void MongoDbProjectionStore_RegistersOptions()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbProjectionStore<object>(opts => { });
 
 		using var provider = services.BuildServiceProvider();
-		var validators = provider.GetServices<IValidateOptions<MongoDbProjectionStoreOptions>>();
-		validators.ShouldNotBeEmpty("AddMongoDbProjectionStore should register IValidateOptions<MongoDbProjectionStoreOptions>");
+		var options = provider.GetService<IOptions<MongoDbProjectionStoreOptions>>();
+		options.ShouldNotBeNull("AddMongoDbProjectionStore should register IOptions<MongoDbProjectionStoreOptions>");
+		options.Value.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public void MongoDbProjectionStore_InvalidOptions_ThrowsOnResolve()
+	public void MongoDbProjectionStore_ConfiguresOptionsCorrectly()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddMongoDbProjectionStore<object>(opts =>
 		{
-			opts.ServerSelectionTimeoutSeconds = 0; // Violates [Range(1, int.MaxValue)]
+			opts.ConnectionString = "mongodb://testhost:27017";
+			opts.DatabaseName = "projections-db";
 		});
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<MongoDbProjectionStoreOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		options.Value.ConnectionString.ShouldBe("mongodb://testhost:27017");
+		options.Value.DatabaseName.ShouldBe("projections-db");
 	}
 
 	#endregion
@@ -226,7 +237,7 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 	#region Cross-Cutting
 
 	[Fact]
-	public void AllMongoDbRegistrations_EachHaveTheirOwnValidation()
+	public void AllMongoDbRegistrations_EachHaveOptionsResolvable()
 	{
 		var services = new ServiceCollection();
 
@@ -240,13 +251,20 @@ public sealed class MongoDbValidateOnStartRegistrationShould
 
 		using var provider = services.BuildServiceProvider();
 
-		provider.GetServices<IValidateOptions<MongoDbEventStoreOptions>>().ShouldNotBeEmpty();
+		// All options should be resolvable
+		provider.GetRequiredService<IOptions<MongoDbEventStoreOptions>>().Value.ShouldNotBeNull();
+		provider.GetRequiredService<IOptions<MongoDbSnapshotStoreOptions>>().Value.ShouldNotBeNull();
+		provider.GetRequiredService<IOptions<MongoDbOutboxOptions>>().Value.ShouldNotBeNull();
+		provider.GetRequiredService<IOptions<MongoDbInboxOptions>>().Value.ShouldNotBeNull();
+		provider.GetRequiredService<IOptions<MongoDbSagaOptions>>().Value.ShouldNotBeNull();
+		provider.GetRequiredService<IOptions<MongoDbCdcOptions>>().Value.ShouldNotBeNull();
+		provider.GetRequiredService<IOptions<MongoDbProjectionStoreOptions>>().Value.ShouldNotBeNull();
+
+		// Packages with explicit validators should have IValidateOptions registered
 		provider.GetServices<IValidateOptions<MongoDbSnapshotStoreOptions>>().ShouldNotBeEmpty();
 		provider.GetServices<IValidateOptions<MongoDbOutboxOptions>>().ShouldNotBeEmpty();
 		provider.GetServices<IValidateOptions<MongoDbInboxOptions>>().ShouldNotBeEmpty();
 		provider.GetServices<IValidateOptions<MongoDbSagaOptions>>().ShouldNotBeEmpty();
-		provider.GetServices<IValidateOptions<MongoDbCdcOptions>>().ShouldNotBeEmpty();
-		provider.GetServices<IValidateOptions<MongoDbProjectionStoreOptions>>().ShouldNotBeEmpty();
 	}
 
 	#endregion

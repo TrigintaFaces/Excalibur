@@ -6,6 +6,7 @@ using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.Data.Firestore.Authorization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,8 +30,11 @@ public static class FirestoreAuthorizationExtensions
 
 		_ = services.AddOptions<FirestoreAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreAuthorizationOptions>, FirestoreAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IGrantStore, FirestoreGrantStore>();
 		services.TryAddSingleton<IActivityGroupGrantStore, FirestoreActivityGroupGrantStore>();
 
@@ -81,8 +85,11 @@ public static class FirestoreAuthorizationExtensions
 
 		_ = services.AddOptions<FirestoreAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreAuthorizationOptions>, FirestoreAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IGrantStore, FirestoreGrantStore>();
 
 		return services;
@@ -103,8 +110,11 @@ public static class FirestoreAuthorizationExtensions
 
 		_ = services.AddOptions<FirestoreAuthorizationOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<FirestoreAuthorizationOptions>, FirestoreAuthorizationOptionsValidator>());
+
 		services.TryAddSingleton<IActivityGroupGrantStore, FirestoreActivityGroupGrantStore>();
 
 		return services;

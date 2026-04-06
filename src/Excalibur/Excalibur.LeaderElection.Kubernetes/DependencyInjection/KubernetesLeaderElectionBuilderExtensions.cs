@@ -43,7 +43,7 @@ public static class KubernetesLeaderElectionBuilderExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
-		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+		_ = optionsBuilder.ValidateOnStart();
 
 		return builder.UseKubernetesCore();
 	}
@@ -63,7 +63,6 @@ public static class KubernetesLeaderElectionBuilderExtensions
 
 		_ = builder.Services.AddOptions<KubernetesLeaderElectionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder.UseKubernetesCore();

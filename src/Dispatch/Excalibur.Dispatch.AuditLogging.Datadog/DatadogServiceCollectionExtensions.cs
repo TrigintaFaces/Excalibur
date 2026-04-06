@@ -24,8 +24,6 @@ public static class DatadogServiceCollectionExtensions
 	/// <param name="configure">The configuration action.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
 	public static IServiceCollection AddDatadogAuditExporter(
 		this IServiceCollection services,
 		Action<DatadogExporterOptions> configure)
@@ -35,7 +33,6 @@ public static class DatadogServiceCollectionExtensions
 
 		_ = services.AddOptions<DatadogExporterOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterDatadogAuditExporterCore(services);
@@ -50,8 +47,10 @@ public static class DatadogServiceCollectionExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="DatadogExporterOptions"/>.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-	[RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDatadogAuditExporter(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -61,7 +60,6 @@ public static class DatadogServiceCollectionExtensions
 
 		_ = services.AddOptions<DatadogExporterOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		RegisterDatadogAuditExporterCore(services);

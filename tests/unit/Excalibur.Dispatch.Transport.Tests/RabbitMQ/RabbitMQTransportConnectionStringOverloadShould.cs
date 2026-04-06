@@ -11,6 +11,8 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ;
 /// <remarks>
 /// Sprint 698 T.6 (j6vml): Verifies the connection string overload delegates
 /// to the builder overload and configures options correctly.
+/// Sprint 750: Updated to use non-default credentials (RabbitMqOptionsValidator
+/// now rejects guest:guest as insecure).
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Transport)]
@@ -22,15 +24,16 @@ public sealed class RabbitMQTransportConnectionStringOverloadShould
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
+		const string connectionString = "amqp://user:password@localhost:5672";
 
 		// Act
-		services.AddRabbitMQTransport("amqp://guest:guest@localhost:5672");
+		services.AddRabbitMQTransport(connectionString);
 		using var provider = services.BuildServiceProvider();
 
 		// Assert -- the connection string overload delegates to the builder which configures options
 		var options = provider.GetService<Microsoft.Extensions.Options.IOptions<RabbitMqOptions>>();
 		options.ShouldNotBeNull();
-		options.Value.Connection.ConnectionString.ShouldBe("amqp://guest:guest@localhost:5672");
+		options.Value.Connection.ConnectionString.ShouldBe(connectionString);
 	}
 
 	[Fact]
@@ -69,7 +72,7 @@ public sealed class RabbitMQTransportConnectionStringOverloadShould
 		services.AddLogging();
 
 		// Act
-		var result = services.AddRabbitMQTransport("amqp://localhost");
+		var result = services.AddRabbitMQTransport("amqp://user:password@localhost");
 
 		// Assert
 		result.ShouldBeSameAs(services);

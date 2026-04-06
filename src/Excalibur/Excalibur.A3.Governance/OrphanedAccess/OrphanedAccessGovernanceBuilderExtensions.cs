@@ -37,8 +37,6 @@ public static class OrphanedAccessGovernanceBuilderExtensions
 	///         }));
 	/// </code>
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
 	public static IGovernanceBuilder AddOrphanedAccessDetection(
 		this IGovernanceBuilder builder,
 		Action<OrphanedAccessOptions>? configure = null)
@@ -52,8 +50,7 @@ public static class OrphanedAccessGovernanceBuilderExtensions
 			optionsBuilder.Configure(configure);
 		}
 
-		optionsBuilder.ValidateDataAnnotations()
-			.ValidateOnStart();
+		optionsBuilder.ValidateOnStart();
 
 		return builder.AddOrphanedAccessDetectionCore();
 	}
@@ -65,7 +62,7 @@ public static class OrphanedAccessGovernanceBuilderExtensions
 	/// <param name="configuration">The configuration section to bind to <see cref="OrphanedAccessOptions"/>.</param>
 	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	public static IGovernanceBuilder AddOrphanedAccessDetection(
@@ -77,7 +74,6 @@ public static class OrphanedAccessGovernanceBuilderExtensions
 
 		_ = builder.Services.AddOptions<OrphanedAccessOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder.AddOrphanedAccessDetectionCore();

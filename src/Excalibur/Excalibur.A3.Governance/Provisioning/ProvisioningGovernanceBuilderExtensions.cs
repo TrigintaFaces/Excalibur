@@ -33,8 +33,6 @@ public static class ProvisioningGovernanceBuilderExtensions
 	///             jit => jit.DefaultJitDuration = TimeSpan.FromHours(8)));
 	/// </code>
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
 	public static IGovernanceBuilder AddProvisioning(
 		this IGovernanceBuilder builder,
 		Action<ProvisioningOptions>? configureProvisioning = null,
@@ -49,8 +47,7 @@ public static class ProvisioningGovernanceBuilderExtensions
 			provisioningOptionsBuilder.Configure(configureProvisioning);
 		}
 
-		provisioningOptionsBuilder.ValidateDataAnnotations()
-			.ValidateOnStart();
+		provisioningOptionsBuilder.ValidateOnStart();
 
 		// JIT access options with validation
 		var jitOptionsBuilder = builder.Services.AddOptions<JitAccessOptions>();
@@ -59,8 +56,7 @@ public static class ProvisioningGovernanceBuilderExtensions
 			jitOptionsBuilder.Configure(configureJit);
 		}
 
-		jitOptionsBuilder.ValidateDataAnnotations()
-			.ValidateOnStart();
+		jitOptionsBuilder.ValidateOnStart();
 
 		return builder.AddProvisioningCore();
 	}
@@ -73,7 +69,7 @@ public static class ProvisioningGovernanceBuilderExtensions
 	/// <param name="jitConfiguration">The configuration section to bind to <see cref="JitAccessOptions"/>.</param>
 	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	public static IGovernanceBuilder AddProvisioning(
@@ -87,12 +83,10 @@ public static class ProvisioningGovernanceBuilderExtensions
 
 		_ = builder.Services.AddOptions<ProvisioningOptions>()
 			.Bind(provisioningConfiguration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		_ = builder.Services.AddOptions<JitAccessOptions>()
 			.Bind(jitConfiguration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return builder.AddProvisioningCore();

@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Resilience.Polly;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using Polly;
 
@@ -77,8 +79,10 @@ public static class DispatchResilienceServiceCollectionExtensions
 
 		_ = services.AddOptions<HedgingOptions>()
 			.Configure(options => configureOptions?.Invoke(options))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<HedgingOptions>, HedgingOptionsValidator>());
 
 		services.TryAddSingleton(sp =>
 		{
@@ -97,6 +101,10 @@ public static class DispatchResilienceServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section to bind hedging options from.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddHedgingPolicy(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -106,8 +114,10 @@ public static class DispatchResilienceServiceCollectionExtensions
 
 		_ = services.AddOptions<HedgingOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<HedgingOptions>, HedgingOptionsValidator>());
 
 		services.TryAddSingleton(sp =>
 		{

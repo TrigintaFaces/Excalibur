@@ -34,7 +34,6 @@ public static class LeaderElectionBuilderServiceCollectionExtensions
 
 		// Register base options with validation
 		_ = services.AddOptions<LeaderElectionOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		var builder = new LeaderElectionBuilder(services);

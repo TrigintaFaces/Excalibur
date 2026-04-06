@@ -67,6 +67,10 @@ public static class ExcaliburAwsLambdaServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services or configuration is null. </exception>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddExcaliburAwsLambdaServerless(
 		this IServiceCollection services,
 		IConfiguration configuration)

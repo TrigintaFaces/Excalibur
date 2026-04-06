@@ -27,8 +27,6 @@ public static class OpenSearchServiceCollectionExtensions
     /// <param name="configure">The configuration action.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-    [RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-    [RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
     public static IServiceCollection AddOpenSearchAuditExporter(
         this IServiceCollection services,
         Action<OpenSearchExporterOptions> configure)
@@ -38,7 +36,6 @@ public static class OpenSearchServiceCollectionExtensions
 
         _ = services.AddOptions<OpenSearchExporterOptions>()
             .Configure(configure)
-            .ValidateDataAnnotations()
             .ValidateOnStart();
 
         return services.AddOpenSearchAuditExporterCore();
@@ -51,8 +48,10 @@ public static class OpenSearchServiceCollectionExtensions
     /// <param name="configuration">The configuration section to bind to <see cref="OpenSearchExporterOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-    [RequiresDynamicCode("Validating data annotations requires dynamic code generation.")]
-    [RequiresUnreferencedCode("Validating data annotations requires unreferenced members.")]
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+    	Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+    	Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
     public static IServiceCollection AddOpenSearchAuditExporter(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -62,7 +61,6 @@ public static class OpenSearchServiceCollectionExtensions
 
         _ = services.AddOptions<OpenSearchExporterOptions>()
             .Bind(configuration)
-            .ValidateDataAnnotations()
             .ValidateOnStart();
 
         return services.AddOpenSearchAuditExporterCore();
@@ -94,6 +92,10 @@ public static class OpenSearchServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">The configuration section to bind to <see cref="OpenSearchAuditSinkOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+    	Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+    	Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
     public static IServiceCollection AddOpenSearchAuditSink(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -101,12 +103,9 @@ public static class OpenSearchServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-#pragma warning disable IL2026, IL3050 // Bind and ValidateDataAnnotations require unreferenced/dynamic code
         _ = services.AddOptions<OpenSearchAuditSinkOptions>()
             .Bind(configuration)
-            .ValidateDataAnnotations()
             .ValidateOnStart();
-#pragma warning restore IL2026, IL3050
 
         return services.AddOpenSearchAuditSinkCore();
     }

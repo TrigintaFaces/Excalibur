@@ -25,6 +25,10 @@ public static class PubSubStreamingPullServiceCollectionExtensions
 	/// <returns> The service collection for chaining. </returns>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddGooglePubSubStreamingPull(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -33,7 +37,7 @@ public static class PubSubStreamingPullServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		// Register options
-		_ = services.AddOptions<StreamingPullOptions>().Bind(configuration).ValidateDataAnnotations().ValidateOnStart();
+		_ = services.AddOptions<StreamingPullOptions>().Bind(configuration).ValidateOnStart();
 
 		// Register cross-property validator
 		services.TryAddEnumerable(

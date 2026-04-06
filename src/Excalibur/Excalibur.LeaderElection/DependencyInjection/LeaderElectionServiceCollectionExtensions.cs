@@ -39,7 +39,6 @@ public static class LeaderElectionServiceCollectionExtensions
 
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;
@@ -61,7 +60,6 @@ public static class LeaderElectionServiceCollectionExtensions
 
 		_ = services.AddOptions<LeaderElectionOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		return services;

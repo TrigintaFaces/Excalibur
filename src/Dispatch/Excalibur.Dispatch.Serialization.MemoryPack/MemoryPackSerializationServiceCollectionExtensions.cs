@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
@@ -42,6 +43,10 @@ public static class MemoryPackSerializationServiceCollectionExtensions
 	/// only the internal envelope wrapper uses MemoryPack attributes.
 	/// </para>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "MemoryPack serializer type is preserved through DI registration.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "MemoryPack serializer requires dynamic code for type handling.")]
 	public static IServiceCollection AddMemoryPackSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);

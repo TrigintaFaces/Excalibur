@@ -6,6 +6,7 @@ using Excalibur.Outbox;
 using Excalibur.Outbox.InMemory;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -85,8 +86,10 @@ public static class OutboxBuilderInMemoryExtensions
 				opt.MaxMessages = inmemoryOptions.MaxMessages;
 				opt.DefaultRetentionPeriod = inmemoryOptions.DefaultRetentionPeriod;
 			})
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InMemoryOutboxOptions>, InMemoryOutboxOptionsValidator>());
 
 		// Register in-memory outbox store
 		builder.Services.TryAddSingleton<InMemoryOutboxStore>();

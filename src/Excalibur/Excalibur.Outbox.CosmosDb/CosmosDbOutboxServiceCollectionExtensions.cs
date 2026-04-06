@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using Excalibur.Data.Abstractions.CloudNative;
 using Excalibur.Outbox.CosmosDb;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -30,7 +30,6 @@ public static class CosmosDbOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbOutboxOptions>()
 			.Configure(configure)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		RegisterServices(services);
 
@@ -52,7 +51,6 @@ public static class CosmosDbOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbOutboxOptions>()
 			.Bind(configuration)
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		RegisterServices(services);
 
@@ -77,7 +75,6 @@ public static class CosmosDbOutboxServiceCollectionExtensions
 
 		_ = services.AddOptions<CosmosDbOutboxOptions>()
 			.Bind(configuration.GetSection(sectionName))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		RegisterServices(services);
 
@@ -86,6 +83,8 @@ public static class CosmosDbOutboxServiceCollectionExtensions
 
 	private static void RegisterServices(IServiceCollection services)
 	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbOutboxOptions>, CosmosDbOutboxOptionsValidator>());
 		services.TryAddSingleton<CosmosDbOutboxStore>();
 		services.TryAddSingleton<ICloudNativeOutboxStore>(sp => sp.GetRequiredService<CosmosDbOutboxStore>());
 	}

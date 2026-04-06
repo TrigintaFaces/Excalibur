@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Options.Serialization;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -27,14 +28,12 @@ public static class SerializerServiceCollectionExtensions
 		services.TryAddSingleton<DispatchJsonSerializer>();
 		services.TryAddSingleton<DispatchJsonContext>();
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
-#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MessageSerializerOptions>, MessageSerializerOptionsValidator>());
+
 		_ = services.AddOptions<MessageSerializerOptions>()
 			.Configure(static options => options.SerializerMap[0] = typeof(DispatchJsonSerializer))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<MessageSerializerFactory>();
 
@@ -57,14 +56,9 @@ public static class SerializerServiceCollectionExtensions
 	{
 		services.TryAddSingleton<TSerializer>();
 
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' may break when trimming
-#pragma warning disable IL3050 // Members annotated with 'RequiresDynamicCodeAttribute' may break when AOT compiling
 		_ = services.AddOptions<MessageSerializerOptions>()
 			.Configure(options => options.SerializerMap[version] = typeof(TSerializer))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
-#pragma warning restore IL3050
-#pragma warning restore IL2026
 
 		services.TryAddSingleton<MessageSerializerFactory>();
 

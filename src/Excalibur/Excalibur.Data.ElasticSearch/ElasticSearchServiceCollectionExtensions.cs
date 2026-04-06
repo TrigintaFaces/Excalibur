@@ -62,6 +62,10 @@ public static class ElasticSearchServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="configuration" /> is <c> null </c>. </exception>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddElasticsearchServices(
 		this IServiceCollection services,
 		IConfiguration configuration,
@@ -72,7 +76,6 @@ public static class ElasticSearchServiceCollectionExtensions
 
 		_ = services.AddOptions<ElasticsearchConfigurationOptions>()
 			.Bind(configuration.GetSection("ElasticSearch"))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		services.TryAddSingleton<IElasticsearchHealthClient, ElasticsearchHealthClient>();
@@ -146,6 +149,10 @@ public static class ElasticSearchServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="configuration" /> is <c> null </c>. </exception>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddElasticsearchMonitoring(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -155,7 +162,6 @@ public static class ElasticSearchServiceCollectionExtensions
 		// Configure monitoring settings
 		_ = services.AddOptions<ElasticsearchMonitoringOptions>()
 			.Bind(configuration.GetSection("ElasticSearch:Monitoring"))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register monitoring services
@@ -292,6 +298,10 @@ public static class ElasticSearchServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="configuration" /> is <c> null </c>. </exception>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddElasticsearchIndexManagement(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -301,7 +311,6 @@ public static class ElasticSearchServiceCollectionExtensions
 		// Configure index management settings
 		_ = services.AddOptions<IndexManagementOptions>()
 			.Bind(configuration.GetSection("ElasticSearch:IndexManagement"))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register index management services
@@ -322,6 +331,10 @@ public static class ElasticSearchServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="configuration" /> is <c> null </c>. </exception>
 	[RequiresUnreferencedCode("Configuration binding may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Configuration binding uses reflection to dynamically access and populate configuration types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddElasticsearchProjections(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -331,7 +344,6 @@ public static class ElasticSearchServiceCollectionExtensions
 		// Configure projection settings
 		_ = services.AddOptions<ProjectionOptions>()
 			.Bind(configuration.GetSection("ElasticSearch:Projections"))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
 		// Register cross-property validator

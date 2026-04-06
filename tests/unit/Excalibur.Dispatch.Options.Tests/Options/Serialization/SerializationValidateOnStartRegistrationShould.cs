@@ -9,8 +9,9 @@ namespace Excalibur.Dispatch.Tests.Options.Serialization;
 
 /// <summary>
 /// Verifies that Serialization DI registrations wire up
-/// <c>ValidateDataAnnotations().ValidateOnStart()</c> correctly.
+/// <c>ValidateOnStart()</c> correctly.
 /// Sprint 564 S564.49: Serialization ValidateOnStart verification.
+/// Sprint 750: ValidateDataAnnotations removed; explicit IValidateOptions validators added.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait(TraitNames.Component, TestComponents.Core)]

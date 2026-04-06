@@ -4,6 +4,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.Dispatch.Observability</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Observability</AssemblyName>
+    <NeutralLanguage>en</NeutralLanguage>
     <IsAotCompatible>true</IsAotCompatible>
     <!-- NuGet Package Metadata -->
     <PackageId>Excalibur.Dispatch.Observability</PackageId>

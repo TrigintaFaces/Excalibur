@@ -99,7 +99,7 @@ internal sealed class MessagePump : IChannelMessagePump
 		}
 
 		Status = ChannelMessagePumpStatus.Stopping;
-		await (_cancellationTokenSource?.CancelAsync()).ConfigureAwait(false);
+		if (_cancellationTokenSource != null) { await _cancellationTokenSource.CancelAsync().ConfigureAwait(false); }
 
 		if (_processingTask != null)
 		{

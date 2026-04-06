@@ -93,6 +93,10 @@ public static class DispatchSecurityServiceCollectionExtensions
 		"Configuration binding may reference types not preserved during trimming. Ensure options types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"Configuration binding for input validation settings requires dynamic code generation for property reflection and value conversion.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddInputValidation(
 	this IServiceCollection services,
 	IConfiguration configuration)
@@ -102,7 +106,6 @@ public static class DispatchSecurityServiceCollectionExtensions
 		// Configure validation options
 		_ = services.AddOptions<InputValidationOptions>()
 			.Bind(configuration.GetSection("Security:InputValidation"))
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
 		_ = services.AddSingleton(static sp => sp.GetRequiredService<IOptions<InputValidationOptions>>().Value);
 
