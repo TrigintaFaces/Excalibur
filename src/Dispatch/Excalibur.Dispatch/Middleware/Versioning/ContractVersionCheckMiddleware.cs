@@ -171,7 +171,8 @@ public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 		return null;
 	}
 
-	private static ContractTypeMetadata GetContractTypeMetadata(Type messageType)
+	private static ContractTypeMetadata GetContractTypeMetadata(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type messageType)
 	{
 		if (ContractTypeMetadataCache.TryGetValue(messageType, out var cached))
 		{
@@ -297,8 +298,10 @@ public sealed partial class ContractVersionCheckMiddleware : IDispatchMiddleware
 		IDispatchMessage message,
 		IMessageContext context)
 	{
+#pragma warning disable IL2072 // message.GetType() return type is preserved through handler registration
 		var messageType = message.GetType();
 		var contractTypeMetadata = GetContractTypeMetadata(messageType);
+#pragma warning restore IL2072
 
 		// Extract version from message headers
 		var headerVersion = GetPropertyValue(context, _options.Headers.VersionHeaderName);

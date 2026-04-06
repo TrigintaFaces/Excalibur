@@ -289,7 +289,7 @@ public partial class TimeAwareScheduledMessageService(
 			if (type is null)
 			{
 				LogUnknownMessageType(logger, item.MessageName, item.Id.ToString());
-				timeoutMonitor?.CompleteOperation(operationToken, success: false, timedOut: false);
+				timeoutMonitor?.CompleteOperation(operationToken!, success: false, timedOut: false);
 				return;
 			}
 
@@ -300,7 +300,7 @@ public partial class TimeAwareScheduledMessageService(
 			if (message is null)
 			{
 				LogDeserializationFailed(logger, item.Id.ToString());
-				timeoutMonitor?.CompleteOperation(operationToken, success: false, timedOut: false);
+				timeoutMonitor?.CompleteOperation(operationToken!, success: false, timedOut: false);
 				return;
 			}
 
@@ -314,22 +314,22 @@ public partial class TimeAwareScheduledMessageService(
 			// Update schedule for next execution
 			await UpdateScheduleAsync(item, stoppingToken).ConfigureAwait(false);
 
-			timeoutMonitor?.CompleteOperation(operationToken, success: true, timedOut: false);
+			timeoutMonitor?.CompleteOperation(operationToken!, success: true, timedOut: false);
 			LogMessageProcessed(logger, item.Id.ToString(), item.MessageName);
 		}
 		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 		{
-			timeoutMonitor?.CompleteOperation(operationToken, success: false, timedOut: false);
+			timeoutMonitor?.CompleteOperation(operationToken!, success: false, timedOut: false);
 			throw;
 		}
 		catch (TimeoutException ex)
 		{
-			timeoutMonitor?.CompleteOperation(operationToken, success: false, timedOut: true);
+			timeoutMonitor?.CompleteOperation(operationToken!, success: false, timedOut: true);
 			LogTimeoutProcessingMessage(logger, ex, item.Id.ToString());
 		}
 		catch (Exception ex)
 		{
-			timeoutMonitor?.CompleteOperation(operationToken, success: false, timedOut: false);
+			timeoutMonitor?.CompleteOperation(operationToken!, success: false, timedOut: false);
 			LogErrorProcessingMessage(logger, ex, item.Id.ToString());
 		}
 	}

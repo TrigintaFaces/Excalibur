@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions.Delivery;
 
 namespace Excalibur.Dispatch.Abstractions;
@@ -50,6 +52,8 @@ public interface IDispatcher
 	// R0.8: Do not add multiple overloads with optional parameters - Necessary for interface usability
 #pragma warning disable RS0026
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	Task<IMessageResult> DispatchAsync<TMessage>(
 		TMessage message,
 		IMessageContext context,
@@ -70,6 +74,8 @@ public interface IDispatcher
 	// R0.8: Do not add multiple overloads with optional parameters - Necessary for interface usability
 #pragma warning disable RS0026
 
+	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
+	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
 	Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,

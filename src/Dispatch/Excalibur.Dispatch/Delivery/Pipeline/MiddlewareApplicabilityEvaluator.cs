@@ -191,7 +191,7 @@ public sealed partial class MiddlewareApplicabilityEvaluator(
 		if (_isFrozen)
 		{
 			// Phase 3 (frozen): Fast path with zero synchronization overhead
-			if (_frozenCache.TryGetValue(middlewareType, out var frozenMetadata))
+			if (_frozenCache!.TryGetValue(middlewareType, out var frozenMetadata))
 			{
 				return frozenMetadata;
 			}
@@ -201,7 +201,7 @@ public sealed partial class MiddlewareApplicabilityEvaluator(
 		}
 
 		// Phase 1 (warmup): Thread-safe population using ConcurrentDictionary
-		return _warmupCache.GetOrAdd(middlewareType, BuildMetadata);
+		return _warmupCache!.GetOrAdd(middlewareType, BuildMetadata);
 	}
 
 	/// <summary>

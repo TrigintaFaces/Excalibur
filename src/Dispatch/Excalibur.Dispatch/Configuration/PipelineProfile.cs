@@ -350,7 +350,8 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 		return true;
 	}
 
-	private static bool ImplementsGenericActionInterface(Type messageType)
+	private static bool ImplementsGenericActionInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
 	{
 		var interfaces = messageType.GetInterfaces();
 		for (var i = 0; i < interfaces.Length; i++)

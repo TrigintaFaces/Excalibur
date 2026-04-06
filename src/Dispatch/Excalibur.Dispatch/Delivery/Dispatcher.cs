@@ -378,7 +378,7 @@ internal sealed class Dispatcher(
 			return new ValueTask(DispatchLocalFallbackAsync(message, cancellationToken));
 		}
 
-		if (localMessageBus.TryInvokeUltraLocalNoResponse(
+		if (localMessageBus!.TryInvokeUltraLocalNoResponse(
 			    message,
 			    cancellationToken,
 			    out var ultraLocalInvocation,
@@ -434,7 +434,7 @@ internal sealed class Dispatcher(
 			return new ValueTask<TResponse?>(DispatchLocalFallbackWithResponseAsync<TMessage, TResponse>(message, cancellationToken));
 		}
 
-		if (localMessageBus.TryInvokeUltraLocal(
+		if (localMessageBus!.TryInvokeUltraLocal(
 			    message,
 			    cancellationToken,
 			    out var ultraLocalInvocation,
@@ -1433,7 +1433,7 @@ internal sealed class Dispatcher(
 		{
 			try
 			{
-				var hasTypedUltraLocal = localMessageBus.TryInvokeUltraLocalTyped<TMessage, TResponse>(
+				var hasTypedUltraLocal = localMessageBus!.TryInvokeUltraLocalTyped<TMessage, TResponse>(
 					message,
 					cancellationToken,
 					out var typedUltraLocalInvocation,
@@ -1543,7 +1543,7 @@ internal sealed class Dispatcher(
 		{
 			try
 			{
-				var hasUltraLocal = localMessageBus.TryInvokeUltraLocal(
+				var hasUltraLocal = localMessageBus!.TryInvokeUltraLocal(
 					action,
 					cancellationToken,
 					out var ultraLocalInvocation,

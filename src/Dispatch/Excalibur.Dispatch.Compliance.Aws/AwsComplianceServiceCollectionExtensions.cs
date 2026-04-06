@@ -124,6 +124,10 @@ public static class AwsComplianceServiceCollectionExtensions
 
 		_ = optionsBuilder.ValidateOnStart();
 
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsKmsOptions>, AwsKmsOptionsValidator>());
+
 		// Register custom client factory
 		services.TryAddSingleton(clientFactory);
 
@@ -161,6 +165,10 @@ public static class AwsComplianceServiceCollectionExtensions
 				configure?.Invoke(options);
 			})
 			.ValidateOnStart();
+
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsKmsOptions>, AwsKmsOptionsValidator>());
 
 		// Register LocalStack-configured client
 		services.TryAddSingleton<IAmazonKeyManagementService>(sp =>
@@ -221,6 +229,10 @@ public static class AwsComplianceServiceCollectionExtensions
 
 	private static void RegisterAwsKmsCore(IServiceCollection services)
 	{
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsKmsOptions>, AwsKmsOptionsValidator>());
+
 		// Register AWS KMS client
 		services.TryAddSingleton<IAmazonKeyManagementService>(sp =>
 		{

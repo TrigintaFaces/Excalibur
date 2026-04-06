@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery.Handlers;
@@ -58,6 +60,8 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 	public bool IsFrozen => GetStatus().AllFrozen;
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Cache status inspection may reference types used by reflection-based handler resolution.")]
+	[RequiresDynamicCode("Cache status inspection may reference types used by dynamic handler invocation.")]
 	public CacheFreezeStatus GetStatus()
 	{
 		return new CacheFreezeStatus(
@@ -71,6 +75,8 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Cache freezing may reference types used by reflection-based handler resolution.")]
+	[RequiresDynamicCode("Cache freezing may reference types used by dynamic handler invocation.")]
 	public void FreezeAll()
 	{
 		var status = GetStatus();

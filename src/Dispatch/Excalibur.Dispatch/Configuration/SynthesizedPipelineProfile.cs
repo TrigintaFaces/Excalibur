@@ -94,14 +94,16 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 			return cached;
 		}
 
+#pragma warning disable IL2067 // messageType from GetType() is preserved through DI handler registration
 		var isCompatible = IsCompatibleForType(messageType);
+#pragma warning restore IL2067
 		_compatibilityCache.TryAdd(messageType, isCompatible);
 		return isCompatible;
 	}
 
 	[UnconditionalSuppressMessage("Trimming", "IL2075:'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicInterfaces'",
 			Justification = "Message types are preserved through handler registration and DI container")]
-	private bool IsCompatibleForType(Type messageType)
+	private bool IsCompatibleForType([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
 	{
 		// Check if the message kind is supported
 
@@ -187,7 +189,8 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 		return rules;
 	}
 
-	private static bool ImplementsGenericActionInterface(Type messageType)
+	private static bool ImplementsGenericActionInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
 	{
 		var interfaces = messageType.GetInterfaces();
 		for (var i = 0; i < interfaces.Length; i++)

@@ -230,6 +230,7 @@ public sealed class SpanEventSerializer : IEventSerializer
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("Resolving types by name requires type metadata that may be removed during trimming")]
 	public Type ResolveType(string typeName)
 	{
 		ArgumentNullException.ThrowIfNull(typeName);

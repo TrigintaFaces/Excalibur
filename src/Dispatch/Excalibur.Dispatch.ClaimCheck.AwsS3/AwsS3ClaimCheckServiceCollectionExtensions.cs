@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -41,6 +42,9 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 		}
 
 		claimCheckBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsS3ClaimCheckOptions>, AwsS3ClaimCheckOptionsValidator>());
 
 		services.TryAddSingleton<IClaimCheckProvider, AwsS3ClaimCheckStore>();
 
@@ -77,6 +81,9 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 		}
 
 		claimCheckBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsS3ClaimCheckOptions>, AwsS3ClaimCheckOptionsValidator>());
 
 		services.TryAddSingleton<IClaimCheckProvider, AwsS3ClaimCheckStore>();
 

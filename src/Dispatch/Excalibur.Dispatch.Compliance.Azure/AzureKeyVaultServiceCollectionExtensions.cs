@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Compliance.Azure;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -43,6 +44,9 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		_ = services.AddOptions<AzureKeyVaultOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureKeyVaultOptions>, AzureKeyVaultOptionsValidator>());
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
@@ -124,6 +128,9 @@ public static class AzureKeyVaultServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateOnStart();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RsaKeyWrappingOptions>, RsaKeyWrappingOptionsValidator>());
+
 		services.TryAddSingleton<IAzureRsaKeyWrapper, AzureKeyVaultRsaKeyWrapper>();
 
 		return services;
@@ -150,6 +157,9 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		_ = services.AddOptions<AzureKeyVaultOptions>()
 			.Configure(options => configurationSection.Bind(options))
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureKeyVaultOptions>, AzureKeyVaultOptionsValidator>());
 
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();

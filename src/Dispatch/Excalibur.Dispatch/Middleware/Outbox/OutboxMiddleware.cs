@@ -232,7 +232,7 @@ public sealed partial class OutboxMiddleware : IDispatchMiddleware
 				}
 
 				// Stage the message
-				await _outboxStore.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
+				await _outboxStore!.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 
 				LogStagedMessage(outboundMessage.Id, outboundMessage.MessageType, outboundMessage.Destination);
 			}

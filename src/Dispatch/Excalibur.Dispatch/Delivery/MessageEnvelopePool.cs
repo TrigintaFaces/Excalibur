@@ -56,7 +56,7 @@ internal sealed class MessageEnvelopePool : IMessageEnvelopePool, IDisposable
 		}
 
 		// For reference types, try to get from thread-local cache first
-		var localPool = _threadLocalPool.Value;
+		var localPool = _threadLocalPool.Value!;
 		if (localPool.TryRent<TMessage>(out var cachedEnvelope))
 		{
 			if (_diagnosticsEnabled)

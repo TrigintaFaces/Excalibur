@@ -32,6 +32,7 @@ public sealed partial class RecurringDispatchScheduler(
 	private readonly CronScheduleOptions _cronOptions = cronOptions.Value;
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
 	[UnconditionalSuppressMessage(
 			"AOT",
 			"IL3050:RequiresDynamicCode",
@@ -93,6 +94,7 @@ public sealed partial class RecurringDispatchScheduler(
 	/// <param name="message"> The message to schedule. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
+	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
 	[UnconditionalSuppressMessage(
 			"AOT",
 			"IL3050:RequiresDynamicCode",
@@ -134,6 +136,7 @@ public sealed partial class RecurringDispatchScheduler(
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
 	[UnconditionalSuppressMessage(
 			"AOT",
 			"IL3050:RequiresDynamicCode",

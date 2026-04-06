@@ -7,6 +7,7 @@ using Excalibur.Dispatch.AuditLogging.Aws;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -68,6 +69,9 @@ public static class AwsAuditServiceCollectionExtensions
 
 	private static void RegisterAwsAuditExporterCore(IServiceCollection services)
 	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsAuditOptions>, AwsAuditOptionsValidator>());
+
 		_ = services.AddHttpClient<AwsCloudWatchAuditExporter>((sp, client) =>
 		{
 			var options = sp.GetRequiredService<IOptions<AwsAuditOptions>>().Value;

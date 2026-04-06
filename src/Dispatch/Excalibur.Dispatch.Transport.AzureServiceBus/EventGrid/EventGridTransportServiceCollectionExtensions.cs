@@ -112,6 +112,9 @@ public static class EventGridTransportServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterEventGridCore(IServiceCollection services)
 	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<EventGridTransportOptions>, EventGridTransportOptionsValidator>());
+
 		services.TryAddSingleton(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<EventGridTransportOptions>>().Value;

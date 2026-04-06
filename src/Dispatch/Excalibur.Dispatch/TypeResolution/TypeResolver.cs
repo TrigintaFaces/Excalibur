@@ -63,6 +63,8 @@ internal static class TypeResolver
 		return type;
 	}
 
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "Assembly.GetType is used as a JIT-only fallback; AOT path returns null before reaching this method")]
 	private static Type? ResolveFromLoadedAssemblies(string typeName)
 	{
 		var lookupName = typeName;

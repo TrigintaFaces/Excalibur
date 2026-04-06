@@ -6,6 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Observability.Aws;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -31,6 +33,9 @@ public static class AwsObservabilityServiceCollectionExtensions
 		_ = services.AddOptions<AwsObservabilityOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsObservabilityOptions>, AwsObservabilityOptionsValidator>());
 
 		_ = services.AddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
 
@@ -59,6 +64,9 @@ public static class AwsObservabilityServiceCollectionExtensions
 		_ = services.AddOptions<AwsObservabilityOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsObservabilityOptions>, AwsObservabilityOptionsValidator>());
 
 		_ = services.AddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
 

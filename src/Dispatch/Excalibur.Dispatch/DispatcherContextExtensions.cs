@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions.Features;
@@ -196,6 +197,8 @@ public static class DispatcherContextExtensions
 		return factory?.CreateContext() ?? new MessageContext();
 	}
 
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses runtime code generation for handler invocation.")]
 	private static async Task<IMessageResult> DispatchUltraLocalAsync(
 		IDirectLocalDispatcher directLocalDispatcher,
 		IDispatchAction action,
@@ -212,6 +215,8 @@ public static class DispatcherContextExtensions
 		}
 	}
 
+	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based handler resolution.")]
+	[RequiresDynamicCode("Direct local dispatch uses runtime code generation for handler invocation.")]
 	private static async Task<IMessageResult<TResponse>> DispatchUltraLocalWithResponseAsync<TMessage, TResponse>(
 		IDirectLocalDispatcher directLocalDispatcher,
 		TMessage message,

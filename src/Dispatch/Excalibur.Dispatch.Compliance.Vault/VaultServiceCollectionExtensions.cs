@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Compliance.Vault;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -47,13 +48,7 @@ public static class VaultServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateOnStart();
 
-		// Add memory cache if not already registered
-		_ = services.AddMemoryCache();
-
-		// Register the provider
-		services.TryAddSingleton<VaultKeyProvider>();
-		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<VaultKeyProvider>());
-		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<VaultKeyProvider>());
+		RegisterVaultCore(services);
 
 		return services;
 	}
@@ -109,6 +104,17 @@ public static class VaultServiceCollectionExtensions
 			.Configure(options => configurationSection.Bind(options))
 			.ValidateOnStart();
 
+		RegisterVaultCore(services);
+
+		return services;
+	}
+
+	private static void RegisterVaultCore(IServiceCollection services)
+	{
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<VaultOptions>, VaultOptionsValidator>());
+
 		// Add memory cache if not already registered
 		_ = services.AddMemoryCache();
 
@@ -116,7 +122,5 @@ public static class VaultServiceCollectionExtensions
 		services.TryAddSingleton<VaultKeyProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<VaultKeyProvider>());
 		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<VaultKeyProvider>());
-
-		return services;
 	}
 }

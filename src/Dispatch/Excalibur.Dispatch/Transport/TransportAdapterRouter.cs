@@ -183,7 +183,7 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 				return;
 			}
 
-			LogAdapterUnregistered(adapterId, adapter.GetType().Name);
+			LogAdapterUnregistered(adapterId, adapter!.GetType().Name);
 
 			// Dispose adapter if needed
 			if (adapter is IAsyncDisposable asyncDisposableAdapter)

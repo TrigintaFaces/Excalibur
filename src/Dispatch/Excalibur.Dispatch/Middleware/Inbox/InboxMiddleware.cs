@@ -391,7 +391,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		var handlerType = messageType.FullName ?? messageType.Name;
 
 		// Single-read status lookup avoids an extra storage round-trip on the hot path.
-		var existingEntry = await _inboxStore.GetEntryAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
+		var existingEntry = await _inboxStore!.GetEntryAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
 
 		if (existingEntry != null)
 		{
@@ -488,7 +488,7 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		var expiry = TimeSpan.FromHours(_options.DeduplicationExpiryHours);
 
 		// Check for duplicates
-		var isDuplicate = await _deduplicator.IsDuplicateAsync(messageId, expiry, cancellationToken)
+		var isDuplicate = await _deduplicator!.IsDuplicateAsync(messageId, expiry, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (isDuplicate)

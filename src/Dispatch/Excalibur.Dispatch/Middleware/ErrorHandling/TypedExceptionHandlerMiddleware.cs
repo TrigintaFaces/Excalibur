@@ -91,6 +91,8 @@ public sealed partial class TypedExceptionHandlerMiddleware(
 	/// <summary>
 	/// Attempts to find and invoke a typed exception handler for the given exception.
 	/// </summary>
+	[RequiresUnreferencedCode("Uses reflection to dynamically invoke HandleAsync on resolved exception handlers.")]
+	[RequiresDynamicCode("Uses MakeGenericType to construct ITypedExceptionHandler<TException> at runtime.")]
 	private async ValueTask<ExceptionHandlerResult> TryHandleExceptionAsync(
 		Exception exception,
 		IDispatchMessage message,

@@ -70,7 +70,11 @@ public sealed class DispatchJsonSerializer : IDisposable
 			// JsonStringEnumConverter uses reflection for enum serialization.
 			// DefaultJsonTypeInfoResolver provides runtime type resolution for consumer types
 			// not registered in the source-generated context.
+#pragma warning disable IL2026 // Guarded by RuntimeFeature.IsDynamicCodeSupported check; AOT path uses source-gen context only
+#pragma warning disable IL3050
 			AddReflectionBasedConfiguration(_options, _jsonContext);
+#pragma warning restore IL3050
+#pragma warning restore IL2026
 		}
 		else
 		{
@@ -155,7 +159,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 			return new PooledSerializationResult((PooledBuffer)nullBuffer, 4);
 		}
 
-		var bufferWriter = _threadLocalBufferWriter.Value;
+		var bufferWriter = _threadLocalBufferWriter.Value!;
 		bufferWriter.Clear();
 
 		using (var pooledWriter = _writerPool.RentWriter(bufferWriter))
@@ -199,7 +203,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 
 		ArgumentNullException.ThrowIfNull(type);
 
-		var bufferWriter = _threadLocalBufferWriter.Value;
+		var bufferWriter = _threadLocalBufferWriter.Value!;
 		bufferWriter.Clear();
 
 		using (var pooledWriter = _writerPool.RentWriter(bufferWriter))

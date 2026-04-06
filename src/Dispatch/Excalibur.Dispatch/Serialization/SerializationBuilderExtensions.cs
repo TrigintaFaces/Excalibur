@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions.Serialization;
 
 namespace Excalibur.Dispatch.Serialization;
@@ -22,6 +24,8 @@ public static class SerializationBuilderExtensions
 	/// </summary>
 	/// <param name="builder">The serialization builder.</param>
 	/// <returns>The builder for method chaining.</returns>
+	[RequiresUnreferencedCode("SystemTextJsonSerializer uses reflection for JSON serialization.")]
+	[RequiresDynamicCode("SystemTextJsonSerializer requires dynamic code generation for JSON serialization.")]
 	public static ISerializationBuilder RegisterSystemTextJson(this ISerializationBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);

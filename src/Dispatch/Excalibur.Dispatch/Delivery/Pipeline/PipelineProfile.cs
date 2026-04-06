@@ -247,7 +247,8 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 	/// Uses manual loop to avoid LINQ iterator allocation.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool ImplementsGenericActionInterface(Type type)
+	private static bool ImplementsGenericActionInterface(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type)
 	{
 		var interfaces = type.GetInterfaces();
 		foreach (var iface in interfaces)

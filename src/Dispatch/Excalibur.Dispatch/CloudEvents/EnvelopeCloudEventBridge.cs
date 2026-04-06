@@ -121,7 +121,9 @@ public sealed class EnvelopeCloudEventBridge(ICloudEventEnvelopeConverter conver
 	[RequiresDynamicCode("Calls System.Type.MakeGenericType(params Type[])")]
 	private object ResolveMapperInstance(Type transportMessageType)
 	{
+#pragma warning disable IL2055 // MakeGenericType with runtime type arguments
 		var mapperType = MapperOpenGenericType.MakeGenericType(transportMessageType);
+#pragma warning restore IL2055
 		var mapper = _serviceProvider.GetService(mapperType) ?? throw new InvalidOperationException(
 				$"No CloudEvent mapper registered for transport message type '{transportMessageType.FullName}'.");
 

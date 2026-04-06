@@ -8,6 +8,7 @@ using Excalibur.Dispatch.AuditLogging.Datadog;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -69,6 +70,9 @@ public static class DatadogServiceCollectionExtensions
 
 	private static void RegisterDatadogAuditExporterCore(IServiceCollection services)
 	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DatadogExporterOptions>, DatadogExporterOptionsValidator>());
+
 		_ = services.AddHttpClient<DatadogAuditExporter>((sp, client) =>
 		{
 			var options = sp.GetRequiredService<IOptions<DatadogExporterOptions>>().Value;

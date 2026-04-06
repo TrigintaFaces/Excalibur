@@ -201,7 +201,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		// Fast path: Try thread-local cache first
 		if (_threadLocalCacheSize > 0)
 		{
-			var cache = _threadLocalCache.Value;
+			var cache = _threadLocalCache.Value!;
 			var writer = cache.TryRent(requestedOptions);
 			if (writer != null)
 			{
@@ -244,7 +244,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			// Try thread-local cache first
 			if (_threadLocalCacheSize > 0)
 			{
-				var cache = _threadLocalCache.Value;
+				var cache = _threadLocalCache.Value!;
 				if (cache.TryReturn(writer))
 				{
 					RecordReturn(toThreadLocal: true);
@@ -521,7 +521,7 @@ internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			return;
 		}
 
-		var cache = _threadLocalCache.Value;
+		var cache = _threadLocalCache.Value!;
 		for (var i = 0; i < count && i < _threadLocalCacheSize; i++)
 		{
 			var dummyBuffer = new ArrayBufferWriter<byte>();

@@ -32,6 +32,7 @@ internal sealed class SourceGeneratedHandlerActivatorFallback : IHandlerActivato
 		"IL2067:'instanceType' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicConstructors' in call to 'ActivatorUtilities.CreateInstance'",
 		Justification =
 			"Handler types are registered at startup and preserved through DI registration. This fallback activation is only used when handlers are not resolved from the container. In AOT builds, handlers should be registered via source generation.")]
+	[RequiresUnreferencedCode("Handler activation may require reflection to instantiate handler types")]
 	public object ActivateHandler(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType,
 		IMessageContext context,

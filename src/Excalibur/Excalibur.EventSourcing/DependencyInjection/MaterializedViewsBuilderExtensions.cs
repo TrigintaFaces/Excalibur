@@ -10,6 +10,7 @@ using Excalibur.EventSourcing.Views;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.DependencyInjection;
 
@@ -134,6 +135,9 @@ public static class MaterializedViewsBuilderExtensions
 		_ = builder.Services.AddOptions<MaterializedViewHealthCheckOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MaterializedViewHealthCheckOptions>, MaterializedViewHealthCheckOptionsValidator>());
 
 		builder.Services.TryAddSingleton<MaterializedViewMetrics>();
 		builder.Services.TryAddSingleton(TimeProvider.System);

@@ -115,7 +115,9 @@ public static class CloudEventsServiceCollectionExtensions
 				transportType,
 				static (type, provider) =>
 				{
+#pragma warning disable IL2055 // MakeGenericType with runtime type arguments
 					var mapperType = CloudEventMapperOpenGenericType.MakeGenericType(type);
+#pragma warning restore IL2055
 					return provider.GetRequiredService(mapperType);
 				},
 				serviceProvider);

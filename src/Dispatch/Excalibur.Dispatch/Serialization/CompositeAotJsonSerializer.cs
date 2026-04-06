@@ -75,7 +75,7 @@ public sealed class CompositeAotJsonSerializer : IDisposable
 	[RequiresDynamicCode("Serialization may require dynamic code generation for type-specific handling.")]
 	public byte[] Serialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message)
 	{
-		var bufferWriter = _threadLocalBufferWriter.Value;
+		var bufferWriter = _threadLocalBufferWriter.Value!;
 		bufferWriter.Clear();
 		using var writer = new Utf8JsonWriter(bufferWriter);
 

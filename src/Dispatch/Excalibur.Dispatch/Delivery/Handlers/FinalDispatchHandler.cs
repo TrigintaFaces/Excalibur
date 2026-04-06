@@ -1188,7 +1188,7 @@ public sealed partial class FinalDispatchHandler(
 			if (_isFrozen)
 			{
 				// Phase 3 (frozen): Fast path with zero synchronization overhead
-				if (_frozenCache.TryGetValue(resultType, out var frozenFactory))
+				if (_frozenCache!.TryGetValue(resultType, out var frozenFactory))
 				{
 					return frozenFactory;
 				}
@@ -1198,7 +1198,7 @@ public sealed partial class FinalDispatchHandler(
 			}
 
 			// Phase 1 (warmup): Thread-safe population using ConcurrentDictionary
-			return _warmupCache.GetOrAdd(resultType, CreateFactory);
+			return _warmupCache!.GetOrAdd(resultType, CreateFactory);
 		}
 
 		[RequiresUnreferencedCode("Uses reflection to create typed method delegates")]

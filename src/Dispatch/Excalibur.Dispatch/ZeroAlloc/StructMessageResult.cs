@@ -316,7 +316,7 @@ public readonly struct StructMessageResult<T>(
 	/// Returns the hash code for this result.
 	/// </summary>
 	/// <returns> A hash code for the current result. </returns>
-	public override int GetHashCode() => HashCode.Combine(_baseResult, EqualityComparer<T>.Default.GetHashCode(ReturnValue));
+	public override int GetHashCode() => HashCode.Combine(_baseResult, EqualityComparer<T>.Default.GetHashCode(ReturnValue!));
 
 	/// <summary>
 	/// Determines whether two results are equal.

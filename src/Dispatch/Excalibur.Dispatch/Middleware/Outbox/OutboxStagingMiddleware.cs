@@ -274,7 +274,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 				};
 
 				// Stage message in outbox store
-				await _outboxStore.StageMessageAsync(storeMessage, cancellationToken).ConfigureAwait(false);
+				await _outboxStore!.StageMessageAsync(storeMessage, cancellationToken).ConfigureAwait(false);
 
 				LogStagedOutboundMessageWithStore(outboundMessage.Message.GetType().Name, storeMessage.Id);
 			}

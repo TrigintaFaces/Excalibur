@@ -64,11 +64,13 @@ internal sealed class MessageMappingBuilder : IMessageMappingBuilder, IMessageMa
 	}
 
 	/// <inheritdoc/>
+#pragma warning disable IL2095 // DynamicallyAccessedMembers on implementation generic parameter is stricter than interface; intentional for DI registration
 	void IMessageMappingConventions.RegisterMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMapper>()
 	{
 		_services.TryAddSingleton<TMapper>();
 		_ = _services.AddSingleton<IMessageMapper, TMapper>();
 	}
+#pragma warning restore IL2095
 
 	/// <inheritdoc/>
 	void IMessageMappingConventions.UseDefaultMappers()

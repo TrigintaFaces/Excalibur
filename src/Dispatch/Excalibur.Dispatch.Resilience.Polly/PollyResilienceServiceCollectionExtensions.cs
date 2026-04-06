@@ -34,7 +34,7 @@ public static class PollyResilienceServiceCollectionExtensions
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddPollyResilience(
 		this IServiceCollection services,
 		IConfiguration? configuration = null)
@@ -42,6 +42,14 @@ public static class PollyResilienceServiceCollectionExtensions
 		// Core resilience services
 		services.TryAddSingleton<ICircuitBreakerFactory, PollyCircuitBreakerFactory>();
 		services.TryAddTransient<PollyRetryPolicyAdapter>();
+
+		// Register validators
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<BulkheadOptions>, BulkheadOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DistributedCircuitBreakerOptions>, DistributedCircuitBreakerOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<TimeoutManagerOptions>, TimeoutManagerOptionsValidator>());
 
 		// Timeout management
 		services.TryAddSingleton<ITimeoutManager, TimeoutManager>();

@@ -506,6 +506,10 @@ public static class ComplianceServiceCollectionExtensions
 
 	private static void RegisterKeyRotationCore(IServiceCollection services)
 	{
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KeyRotationOptions>, KeyRotationOptionsValidator>());
+
 		// Register the rotation service as both background service and scheduler interface
 		_ = services.AddSingleton<KeyRotationService>();
 		_ = services.AddHostedService(sp => sp.GetRequiredService<KeyRotationService>());

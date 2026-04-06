@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Patterns.ClaimCheck;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -41,6 +42,9 @@ public static class GcsClaimCheckServiceCollectionExtensions
 		}
 
 		claimCheckBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GcsClaimCheckOptions>, GcsClaimCheckOptionsValidator>());
 
 		services.TryAddSingleton<IClaimCheckProvider, GcsClaimCheckStore>();
 
@@ -77,6 +81,9 @@ public static class GcsClaimCheckServiceCollectionExtensions
 		}
 
 		claimCheckBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GcsClaimCheckOptions>, GcsClaimCheckOptionsValidator>());
 
 		services.TryAddSingleton<IClaimCheckProvider, GcsClaimCheckStore>();
 

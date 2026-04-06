@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Excalibur.Saga;
 using Excalibur.Saga.DependencyInjection;
+using Excalibur.Saga.Storage;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -35,6 +36,10 @@ public static class SagaServiceCollectionExtensions
 			.ValidateOnStart();
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<SagaOptions>, DefaultSagaOptionsSetup>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SagaOptions>, SagaOptionsValidator>());
+
+		// Register CachedSagaStateStoreOptions validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CachedSagaStateStoreOptions>, CachedSagaStateStoreOptionsValidator>());
 
 		// Register AOT-safe saga registries as singletons.
 		// Populated during AddSaga<TSaga, TSagaState>() calls at DI composition time.

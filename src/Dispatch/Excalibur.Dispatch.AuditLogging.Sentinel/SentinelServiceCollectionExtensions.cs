@@ -8,6 +8,7 @@ using Excalibur.Dispatch.AuditLogging.Sentinel;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -69,6 +70,9 @@ public static class SentinelServiceCollectionExtensions
 
 	private static void RegisterSentinelAuditExporterCore(IServiceCollection services)
 	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SentinelExporterOptions>, SentinelExporterOptionsValidator>());
+
 		_ = services.AddHttpClient<SentinelAuditExporter>((sp, client) =>
 		{
 			var options = sp.GetRequiredService<IOptions<SentinelExporterOptions>>().Value;

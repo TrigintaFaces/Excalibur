@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -230,6 +231,10 @@ public static class Soc2ServiceCollectionExtensions
 
 	private static void RegisterSoc2ComplianceCore(IServiceCollection services)
 	{
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<Soc2Options>, Soc2OptionsValidator>());
+
 		// Register core services
 		_ = services.AddScoped<ISoc2ComplianceService, Soc2ComplianceService>();
 		_ = services.AddScoped<IControlValidationService, ControlValidationService>();

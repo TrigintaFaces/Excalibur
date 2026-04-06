@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -143,6 +144,8 @@ internal sealed partial class RoutingPolicyFileLoader(
 	/// <summary>
 	/// Loads routing rules from a JSON file.
 	/// </summary>
+	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types.")]
+	[RequiresDynamicCode("JSON deserialization may require runtime code generation.")]
 	private async Task<IReadOnlyList<RoutingRule>> LoadRulesFromFileAsync(
 		string filePath,
 		CancellationToken cancellationToken)

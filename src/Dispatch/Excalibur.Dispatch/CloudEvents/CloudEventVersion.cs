@@ -135,13 +135,13 @@ public static class CloudEventVersion
 		{
 			return registry.IsCompatible(
 				cloudEvent.Type,
-				currentVersion,
+				currentVersion!,
 				targetVersion,
 				compatibility);
 		}
 
 		// Basic version comparison without registry
-		return IsVersionCompatible(currentVersion, targetVersion, compatibility);
+		return IsVersionCompatible(currentVersion!, targetVersion, compatibility);
 	}
 
 	private static bool IsVersionCompatible(string currentVersion, string targetVersion, SchemaCompatibilityMode mode)

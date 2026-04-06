@@ -107,6 +107,10 @@ public static class DispatchSecurityServiceCollectionExtensions
 		_ = services.AddOptions<InputValidationOptions>()
 			.Bind(configuration.GetSection("Security:InputValidation"))
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InputValidationOptions>, InputValidationOptionsValidator>());
+
 		_ = services.AddSingleton(static sp => sp.GetRequiredService<IOptions<InputValidationOptions>>().Value);
 
 		// Register validation middleware concrete type for pipeline resolution

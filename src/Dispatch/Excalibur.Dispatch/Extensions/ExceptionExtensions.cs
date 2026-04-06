@@ -184,9 +184,11 @@ public static class ExceptionExtensions
 		else
 		{
 			// Cache full — compute without caching to prevent unbounded growth
+#pragma warning disable IL2075 // GetProperty on runtime Type - BCL return type cannot be annotated
 			var property = exceptionType.GetProperty(
 				propertyName,
 				BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+#pragma warning restore IL2075
 			propertyInfo = property?.PropertyType == typeof(T) || property?.PropertyType == typeof(int) ? property : null;
 		}
 

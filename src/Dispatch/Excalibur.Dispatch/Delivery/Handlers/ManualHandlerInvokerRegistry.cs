@@ -71,7 +71,7 @@ public static partial class HandlerInvokerRegistry
 				"Register all handlers before calling FreezeCache().");
 		}
 
-		_warmupCache[typeof(THandler)] = async (handler, message, ct) =>
+		_warmupCache![typeof(THandler)] = async (handler, message, ct) =>
 		{
 			await invoker((THandler)handler, (TMessage)message, ct).ConfigureAwait(false);
 			return null;
@@ -94,7 +94,7 @@ public static partial class HandlerInvokerRegistry
 				"Register all handlers before calling FreezeCache().");
 		}
 
-		_warmupCache[typeof(THandler)] = async (handler, message, ct) =>
+		_warmupCache![typeof(THandler)] = async (handler, message, ct) =>
 		{
 			var result = await invoker((THandler)handler, (TMessage)message, ct).ConfigureAwait(false);
 			return result;
@@ -114,7 +114,7 @@ public static partial class HandlerInvokerRegistry
 		// Phase 3 (frozen): Fast path with zero synchronization overhead
 		if (_isFrozen)
 		{
-			if (_frozenCache.TryGetValue(handlerType, out var frozenInvoker))
+			if (_frozenCache!.TryGetValue(handlerType, out var frozenInvoker))
 			{
 				return frozenInvoker;
 			}
@@ -124,7 +124,7 @@ public static partial class HandlerInvokerRegistry
 		}
 
 		// Phase 1 (warmup): Thread-safe population using ConcurrentDictionary
-		return _warmupCache.GetOrAdd(handlerType, CreateInvoker);
+		return _warmupCache!.GetOrAdd(handlerType, CreateInvoker);
 	}
 
 	[RequiresUnreferencedCode("Uses reflection to create handler invokers")]

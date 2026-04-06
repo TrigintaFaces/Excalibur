@@ -6,6 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Hosting.Serverless;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -28,6 +30,10 @@ public static class ServerlessServiceCollectionExtensions
 
 		// Register core services
 		_ = services.AddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
+
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ServerlessHostOptions>, ServerlessHostOptionsValidator>());
 
 		// Configure options if provided
 		if (configureOptions != null)
@@ -58,6 +64,10 @@ public static class ServerlessServiceCollectionExtensions
 
 		// Register core services
 		_ = services.AddSingleton<IServerlessHostProviderFactory, ServerlessHostProviderFactory>();
+
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ServerlessHostOptions>, ServerlessHostOptionsValidator>());
 
 		// Bind options from configuration
 		_ = services.AddOptions<ServerlessHostOptions>().Bind(configuration).ValidateOnStart();

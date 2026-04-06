@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -87,6 +88,11 @@ public static class SplunkServiceCollectionExtensions
 
 	private static void RegisterSplunkAuditExporterCore(IServiceCollection services)
 	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SplunkBatchOptions>, SplunkBatchOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SplunkConnectionOptions>, SplunkConnectionOptionsValidator>());
+
 		_ = services.AddHttpClient<SplunkAuditExporter>((sp, client) =>
 			{
 				var options = sp.GetRequiredService<Options.IOptions<SplunkExporterOptions>>().Value;
