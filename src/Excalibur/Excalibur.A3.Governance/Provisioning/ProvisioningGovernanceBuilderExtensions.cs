@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.Provisioning;
 using Excalibur.A3.Governance.Stores.InMemory;
@@ -31,6 +33,8 @@ public static class ProvisioningGovernanceBuilderExtensions
 	///             jit => jit.DefaultJitDuration = TimeSpan.FromHours(8)));
 	/// </code>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
 	public static IGovernanceBuilder AddProvisioning(
 		this IGovernanceBuilder builder,
 		Action<ProvisioningOptions>? configureProvisioning = null,
@@ -68,6 +72,10 @@ public static class ProvisioningGovernanceBuilderExtensions
 	/// <param name="provisioningConfiguration">The configuration section to bind to <see cref="ProvisioningOptions"/>.</param>
 	/// <param name="jitConfiguration">The configuration section to bind to <see cref="JitAccessOptions"/>.</param>
 	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	public static IGovernanceBuilder AddProvisioning(
 		this IGovernanceBuilder builder,
 		IConfiguration provisioningConfiguration,

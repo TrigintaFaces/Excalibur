@@ -393,7 +393,7 @@ public static class AuditLoggingServiceCollectionExtensions
 	/// </para>
 	/// <para>
 	/// Requires an <see cref="IEncryptionProvider"/> to be registered. Call this after
-	/// registering the base audit store (e.g., <see cref="AddAuditLogging()"/>).
+	/// registering the base audit store (e.g., <see cref="AddAuditLogging(IServiceCollection)"/>).
 	/// </para>
 	/// </remarks>
 	/// <example>

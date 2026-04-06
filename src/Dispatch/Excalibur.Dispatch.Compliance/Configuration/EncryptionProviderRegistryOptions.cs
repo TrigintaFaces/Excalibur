@@ -14,7 +14,7 @@ public sealed class EncryptionProviderRegistryOptions
 	/// </summary>
 	/// <remarks>
 	/// The primary provider is used for all new encryption operations.
-	/// This can be changed at runtime via <see cref="Encryption.IEncryptionProviderRegistry.SetPrimary"/>.
+	/// This can be changed at runtime via <see cref="IEncryptionProviderRegistry.SetPrimary"/>.
 	/// </remarks>
 	public string? PrimaryProviderId { get; set; }
 
@@ -31,7 +31,7 @@ public sealed class EncryptionProviderRegistryOptions
 	/// Gets or sets a value indicating whether to throw when no provider can decrypt data.
 	/// </summary>
 	/// <remarks>
-	/// When <c>true</c>, <see cref="Encryption.IEncryptionProviderRegistry.FindDecryptionProvider"/>
+	/// When <c>true</c>, <see cref="IEncryptionProviderRegistry.FindDecryptionProvider"/>
 	/// will throw if no provider can handle the encrypted data.
 	/// When <c>false</c> (default), it returns <c>null</c>.
 	/// </remarks>

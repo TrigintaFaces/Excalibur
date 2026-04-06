@@ -61,7 +61,7 @@ public static class CloudEventsPipelineExtensions
 	/// <remarks>
 	/// <para>
 	/// This method registers a custom CloudEvent validator via
-	/// <see cref="CloudEventsServiceCollectionExtensions.UseCloudEventValidation"/>.
+	/// <c>CloudEventOptions.Schema.CustomValidator</c>.
 	/// The validator is invoked for each incoming CloudEvent before handler execution.
 	/// </para>
 	/// </remarks>
@@ -87,7 +87,7 @@ public static class CloudEventsPipelineExtensions
 	/// <remarks>
 	/// <para>
 	/// This method registers CloudEvent batching services via
-	/// <see cref="CloudEventsServiceCollectionExtensions.UseCloudEventBatching"/>.
+	/// <c>CloudEventBatchOptions</c> configuration.
 	/// Batching groups multiple CloudEvents together for efficient processing.
 	/// </para>
 	/// </remarks>
@@ -118,7 +118,7 @@ public static class CloudEventsPipelineExtensions
 	/// <remarks>
 	/// <para>
 	/// This method registers a custom CloudEvent transformer via
-	/// <see cref="CloudEventsServiceCollectionExtensions.UseCloudEventTransformation"/>.
+	/// <c>CloudEventOptions.Schema.OutgoingTransformer</c> configuration.
 	/// Transformers are applied to outgoing CloudEvents in the order they were registered.
 	/// </para>
 	/// </remarks>

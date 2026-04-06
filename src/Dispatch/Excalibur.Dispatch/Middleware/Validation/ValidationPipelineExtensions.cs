@@ -19,7 +19,7 @@ public static class ValidationPipelineExtensions
 	/// <para>
 	/// The validation middleware runs registered <c>IValidator&lt;T&gt;</c> implementations
 	/// against the incoming message before passing it to downstream handlers.
-	/// If validation fails, a <see cref="Abstractions.Exceptions.ValidationException"/> is thrown.
+	/// If validation fails, a <see cref="Excalibur.Dispatch.Exceptions.ValidationException"/> is thrown.
 	/// </para>
 	/// <para>
 	/// Validators must be registered separately in the DI container. This method only

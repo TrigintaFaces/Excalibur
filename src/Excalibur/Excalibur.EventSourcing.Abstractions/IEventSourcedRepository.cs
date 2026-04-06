@@ -69,12 +69,12 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// <param name="aggregate">The aggregate to save.</param>
 	/// <param name="expectedETag">
 	/// The expected ETag value. If the current ETag doesn't match,
-	/// a <see cref="Data.Abstractions.ConcurrencyException"/> is thrown.
+	/// a <see cref="Excalibur.Data.Abstractions.ConcurrencyException"/> is thrown.
 	/// Pass <see langword="null"/> to skip ETag validation.
 	/// </param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>A task that represents the asynchronous save operation.</returns>
-	/// <exception cref="ConcurrencyException">
+	/// <exception cref="Excalibur.Data.Abstractions.ConcurrencyException">
 	/// Thrown when the expected ETag doesn't match the current aggregate ETag.
 	/// </exception>
 	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]

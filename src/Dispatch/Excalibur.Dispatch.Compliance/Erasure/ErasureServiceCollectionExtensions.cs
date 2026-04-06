@@ -155,7 +155,7 @@ public static class ErasureServiceCollectionExtensions
 	/// </item>
 	/// </list>
 	/// <para>
-	/// Requires <see cref="IErasureStore" />, <see cref="Encryption.IKeyManagementProvider" />, and <see cref="IDataInventoryService" /> to
+	/// Requires <see cref="IErasureStore" />, <see cref="IKeyManagementProvider" />, and <see cref="IDataInventoryService" /> to
 	/// be registered.
 	/// </para>
 	/// </remarks>

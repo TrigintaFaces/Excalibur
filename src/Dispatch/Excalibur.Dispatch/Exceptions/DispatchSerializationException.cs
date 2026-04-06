@@ -39,7 +39,7 @@ public sealed class DispatchSerializationException : DispatchException
 		StatusCode = 400;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="SerializationException" /> class with a specified error message.
+	/// Initializes a new instance of the <see cref="DispatchSerializationException" /> class with a specified error message.
 	/// </summary>
 	/// <param name="message">The error message that explains the reason for the exception.</param>
 	public DispatchSerializationException(string message)

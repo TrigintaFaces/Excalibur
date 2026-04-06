@@ -12,8 +12,8 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// Reference: <c>Microsoft.AspNetCore.Authentication.IAuthenticationService</c> pattern --
 /// minimal interface (3 methods) for core security operations. Advanced capabilities
 /// (encryption, key management, auditing) are accessed via the existing specialized interfaces:
-/// <see cref="IElasticsearchAuthenticationProvider"/>, <see cref="Encryption.IElasticsearchFieldEncryptor"/>,
-/// <see cref="KeyManagement.IElasticsearchKeyProvider"/>.
+/// <see cref="IElasticsearchAuthenticationProvider"/>, <see cref="IElasticsearchFieldEncryptor"/>,
+/// <see cref="IElasticsearchKeyProvider"/>.
 /// </para>
 /// </remarks>
 public interface IElasticsearchSecurityProvider

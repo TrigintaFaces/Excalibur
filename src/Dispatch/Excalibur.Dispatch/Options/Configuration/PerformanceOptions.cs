@@ -33,7 +33,7 @@ public sealed class PerformanceOptions
 	/// </summary>
 	/// <remarks>
 	/// When <c>true</c> (default), middleware registered in the
-	/// <see cref="Abstractions.Middleware.DispatchMiddlewareStage.Cache"/> stage will be
+	/// <see cref="Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.Cache"/> stage will be
 	/// included in automatically synthesized pipelines.
 	/// </remarks>
 	/// <value><see langword="true"/> to include cache middleware; otherwise, <see langword="false"/>.</value>

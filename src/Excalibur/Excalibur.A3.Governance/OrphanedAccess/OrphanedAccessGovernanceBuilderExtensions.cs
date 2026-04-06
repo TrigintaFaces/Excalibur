@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.OrphanedAccess;
 
@@ -35,6 +37,8 @@ public static class OrphanedAccessGovernanceBuilderExtensions
 	///         }));
 	/// </code>
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
 	public static IGovernanceBuilder AddOrphanedAccessDetection(
 		this IGovernanceBuilder builder,
 		Action<OrphanedAccessOptions>? configure = null)
@@ -60,6 +64,10 @@ public static class OrphanedAccessGovernanceBuilderExtensions
 	/// <param name="builder">The governance builder.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="OrphanedAccessOptions"/>.</param>
 	/// <returns>The <see cref="IGovernanceBuilder"/> for fluent chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation uses reflection by design. AOT consumers should use IValidateOptions<T>.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated binding.")]
 	public static IGovernanceBuilder AddOrphanedAccessDetection(
 		this IGovernanceBuilder builder,
 		IConfiguration configuration)

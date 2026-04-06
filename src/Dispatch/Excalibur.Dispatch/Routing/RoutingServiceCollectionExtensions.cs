@@ -25,7 +25,7 @@ public static class RoutingServiceCollectionExtensions
 	/// <para>
 	/// This method registers a default <see cref="IDispatchRouter"/> that routes all messages
 	/// to the "local" transport. For custom routing configuration, use <c>UseRouting()</c>
-	/// on the <see cref="IDispatchBuilder"/> instead.
+	/// on the <see cref="Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder"/> instead.
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddDispatchRouting(this IServiceCollection services, Action<RoutingOptions>? configure = null)
