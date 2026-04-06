@@ -38,6 +38,7 @@ internal class EventBridgeMessageScheduler(
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	public Task<string> ScheduleAsync(
 		IDispatchMessage message,
 		DateTimeOffset scheduleTime,
@@ -46,6 +47,7 @@ internal class EventBridgeMessageScheduler(
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	public Task<string> ScheduleMessageAsync<T>(
 		T message,
 		DateTimeOffset scheduledTime,
@@ -127,6 +129,7 @@ internal class EventBridgeMessageScheduler(
 		$"at({scheduleTime.ToUniversalTime():yyyy-MM-ddTHH:mm:ss})";
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToElement(Object, Type, JsonSerializerOptions)")]
+	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToElement and Serialize which require dynamic code")]
 	private static string BuildInputPayload(
 		object message,
 		Type messageType,
@@ -209,7 +212,8 @@ internal class EventBridgeMessageScheduler(
 		return new DateTimeOffset(dateTime);
 	}
 
-	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls BuildInputPayload which uses System.Text.Json.JsonSerializer")]
+	[RequiresUnreferencedCode("Calls BuildInputPayload which uses System.Text.Json.JsonSerializer")]
+	[RequiresDynamicCode("Calls BuildInputPayload which uses System.Text.Json.JsonSerializer requiring dynamic code")]
 	private async Task<string> ScheduleObjectAsync(
 		object message,
 		Type messageType,

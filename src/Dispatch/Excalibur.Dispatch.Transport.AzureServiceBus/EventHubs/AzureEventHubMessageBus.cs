@@ -42,6 +42,8 @@ internal sealed partial class AzureEventHubMessageBus(
 	AzureEventHubOptions options,
 	ILogger<AzureEventHubMessageBus> logger) : IMessageBus, IAsyncDisposable
 {
+	// Retain options for future use (e.g., batching, partitioning configuration).
+	private readonly AzureEventHubOptions _options = options;
 
 	/// <summary>
 	/// Publishes a dispatch action to the Event Hub.

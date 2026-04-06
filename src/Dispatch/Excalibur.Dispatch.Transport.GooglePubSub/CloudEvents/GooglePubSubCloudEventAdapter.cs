@@ -91,6 +91,7 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMe
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2046", Justification = "Implementation does not use reflection; interface attributes are for general contract safety")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "CloudEvent JSON serialization is handled by CloudNative.CloudEvents library")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "CloudEvent JSON serialization is handled by CloudNative.CloudEvents library")]
 	public Task<PubsubMessage> ToTransportMessageAsync(
@@ -226,9 +227,9 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMe
 	}
 
 	private static bool IsBinaryMode(PubsubMessage message) => message.Attributes.ContainsKey(CeSpecVersionAttribute)
-															   && message.Attributes.ContainsKey(CeTypeAttribute)
-															   && message.Attributes.ContainsKey(CeSourceAttribute)
-															   && message.Attributes.ContainsKey(CeIdAttribute);
+																   && message.Attributes.ContainsKey(CeTypeAttribute)
+																   && message.Attributes.ContainsKey(CeSourceAttribute)
+																   && message.Attributes.ContainsKey(CeIdAttribute);
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]

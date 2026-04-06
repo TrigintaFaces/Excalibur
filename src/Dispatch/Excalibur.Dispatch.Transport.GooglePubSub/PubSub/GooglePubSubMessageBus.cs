@@ -42,6 +42,9 @@ internal sealed partial class GooglePubSubMessageBus(
 	GooglePubSubOptions options,
 	ILogger<GooglePubSubMessageBus> logger) : IMessageBus
 {
+	// Retain options for future use (e.g., topic routing, message attribute configuration).
+	private readonly GooglePubSubOptions _options = options;
+
 	/// <inheritdoc/>
 	public async Task PublishAsync(IDispatchAction action, IMessageContext context, CancellationToken cancellationToken)
 	{

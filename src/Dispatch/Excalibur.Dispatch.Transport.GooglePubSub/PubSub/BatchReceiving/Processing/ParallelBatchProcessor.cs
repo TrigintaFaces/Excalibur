@@ -25,6 +25,9 @@ internal sealed class ParallelBatchProcessor(
 	ILogger<ParallelBatchProcessor> logger,
 	BatchMetricsCollector metricsCollector) : BatchProcessorBase(logger, metricsCollector)
 {
+	// Retain options for future use (e.g., max parallelism, timeout configuration).
+	private readonly IOptions<BatchOptions> _options = options;
+
 	private readonly Func<ReceivedMessage, CancellationToken, Task<object>> _messageProcessor =
 		messageProcessor ?? throw new ArgumentNullException(nameof(messageProcessor));
 
