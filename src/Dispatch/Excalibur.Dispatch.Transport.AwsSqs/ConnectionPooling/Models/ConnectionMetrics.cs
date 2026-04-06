@@ -8,8 +8,8 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// Metrics collector for connection pool operations.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ConnectionMetrics" /> class. </remarks>
-/// <param name="_metricsPrefix"> The prefix for metric names. </param>
-internal sealed class ConnectionMetrics(string _metricsPrefix) : IDisposable
+/// <param name="metricsPrefix"> The prefix for metric names. </param>
+internal sealed class ConnectionMetrics(string metricsPrefix) : IDisposable
 {
 #if NET9_0_OR_GREATER
 	private readonly System.Threading.Lock _lock = new();

@@ -17,12 +17,12 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <remarks>
 /// Initializes a new instance of the <see cref="OrderedBatchProcessor" /> class.
 /// </remarks>
-/// <param name="_options"> Batch configuration options. </param>
+/// <param name="options"> Batch configuration options. </param>
 /// <param name="messageProcessor"> The message processing function. </param>
 /// <param name="logger"> Logger instance. </param>
 /// <param name="metricsCollector"> Metrics collector. </param>
 internal sealed class OrderedBatchProcessor(
-	IOptions<BatchOptions> _options,
+	IOptions<BatchOptions> options,
 	Func<ReceivedMessage, CancellationToken, Task<object>> messageProcessor,
 	ILogger<OrderedBatchProcessor> logger,
 	BatchMetricsCollector metricsCollector) : BatchProcessorBase(logger, metricsCollector)

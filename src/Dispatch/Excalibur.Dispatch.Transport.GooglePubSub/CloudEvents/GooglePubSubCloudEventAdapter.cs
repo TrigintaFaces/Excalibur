@@ -91,6 +91,8 @@ internal sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMe
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "CloudEvent JSON serialization is handled by CloudNative.CloudEvents library")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "CloudEvent JSON serialization is handled by CloudNative.CloudEvents library")]
 	public Task<PubsubMessage> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,

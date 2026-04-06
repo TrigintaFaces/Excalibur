@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Access this builder through <see cref="IRabbitMQTransportBuilder.ConfigureDeadLetter"/>.
+/// Access this builder through <see cref="IRabbitMQTopologyBuilder.ConfigureDeadLetter"/>.
 /// </para>
 /// <para>
 /// Dead letter exchanges receive messages that cannot be delivered or processed:

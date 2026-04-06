@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </summary>
 /// <param name="client"> The Google Pub/Sub publisher client for sending messages. </param>
 /// <param name="serializer"> Payload serializer for message body serialization with pluggable format support. </param>
-/// <param name="_options"> The Pub/Sub specific configuration options. </param>
+/// <param name="options"> The Pub/Sub specific configuration options. </param>
 /// <param name="logger"> The logger instance for diagnostic information. </param>
 /// <remarks>
 /// <para>
@@ -39,7 +39,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 internal sealed partial class GooglePubSubMessageBus(
 	PublisherClient client,
 	IPayloadSerializer serializer,
-	GooglePubSubOptions _options,
+	GooglePubSubOptions options,
 	ILogger<GooglePubSubMessageBus> logger) : IMessageBus
 {
 	/// <inheritdoc/>

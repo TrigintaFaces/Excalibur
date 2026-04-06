@@ -37,6 +37,7 @@ internal class EventBridgeMessageScheduler(
 		scheduler ?? throw new ArgumentNullException(nameof(scheduler));
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	public Task<string> ScheduleAsync(
 		IDispatchMessage message,
 		DateTimeOffset scheduleTime,
@@ -44,6 +45,7 @@ internal class EventBridgeMessageScheduler(
 		ScheduleObjectAsync(message, message.GetType(), scheduleTime, cancellationToken);
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
 	public Task<string> ScheduleMessageAsync<T>(
 		T message,
 		DateTimeOffset scheduledTime,

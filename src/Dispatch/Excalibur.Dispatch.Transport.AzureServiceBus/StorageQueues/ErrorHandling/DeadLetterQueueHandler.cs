@@ -202,8 +202,8 @@ internal sealed class DeadLetterQueueHandler(
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Dead letter envelope deserialization may require unreferenced types for reflection-based operations")]
-	[RequiresDynamicCode("Dead letter envelope deserialization uses reflection to dynamically create and populate types")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Dead letter envelope deserialization uses JSON reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Dead letter envelope deserialization uses JSON reflection by design")]
 	public async Task<int> RecoverMessagesAsync(CancellationToken cancellationToken, int maxMessages = 10)
 	{
 		if (maxMessages <= 0)

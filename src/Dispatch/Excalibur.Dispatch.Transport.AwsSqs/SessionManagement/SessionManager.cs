@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 
 
 using Microsoft.Extensions.Logging;
@@ -36,6 +38,8 @@ internal sealed class SessionManager(ISessionStore sessionStore, ILogger<Session
 	/// <param name="timeout"> The session timeout. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> The created session. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Session store serialization uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Session store serialization uses reflection by design")]
 	public async Task<SessionData> CreateSessionAsync(string sessionId, TimeSpan timeout, CancellationToken cancellationToken) =>
 		await _sessionStore.CreateAsync(sessionId, timeout, cancellationToken).ConfigureAwait(false);
 
@@ -45,6 +49,8 @@ internal sealed class SessionManager(ISessionStore sessionStore, ILogger<Session
 	/// <param name="sessionId"> The session ID. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> The session if found; otherwise, null. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Session store deserialization uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Session store deserialization uses reflection by design")]
 	public async Task<SessionData?> GetSessionAsync(string sessionId, CancellationToken cancellationToken) =>
 		await _sessionStore.TryGetAsync(sessionId, cancellationToken).ConfigureAwait(false);
 
@@ -54,6 +60,8 @@ internal sealed class SessionManager(ISessionStore sessionStore, ILogger<Session
 	/// <param name="session"> The session to update. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> The updated session. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Session store serialization uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Session store serialization uses reflection by design")]
 	public async Task<SessionData> UpdateSessionAsync(SessionData session, CancellationToken cancellationToken) =>
 		await _sessionStore.UpdateAsync(session, cancellationToken).ConfigureAwait(false);
 

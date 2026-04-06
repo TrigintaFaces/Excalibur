@@ -44,7 +44,7 @@ public interface IMessageEnvelopeFactory
 	/// <returns> True if parsing succeeded; otherwise, false. </returns>
 	[RequiresUnreferencedCode("Message envelope deserialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("Message envelope deserialization uses reflection to dynamically create and populate types")]
-	bool TryParseMessage<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(QueueMessage queueMessage, out T? parsedMessage, out IMessageContext? context);
+	bool TryParseMessage<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(QueueMessage queueMessage, out T? parsedMessage, out IMessageContext? context);
 
 	/// <summary>
 	/// Creates a message context from queue message metadata.

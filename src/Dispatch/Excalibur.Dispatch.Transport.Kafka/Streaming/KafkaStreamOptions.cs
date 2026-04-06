@@ -60,6 +60,6 @@ public sealed class KafkaStreamOptions
 	/// <summary>
 	/// Gets or sets the processing guarantee level.
 	/// </summary>
-	/// <value>The processing guarantee. Default is <see cref="Streaming.ProcessingGuarantee.AtLeastOnce"/>.</value>
+	/// <value>The processing guarantee. Default is <see cref="ProcessingGuarantee.AtLeastOnce"/>.</value>
 	public ProcessingGuarantee ProcessingGuarantee { get; set; } = ProcessingGuarantee.AtLeastOnce;
 }

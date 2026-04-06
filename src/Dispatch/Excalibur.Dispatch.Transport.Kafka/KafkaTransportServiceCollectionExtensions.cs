@@ -155,6 +155,8 @@ public static class KafkaTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers the core Kafka services with the service collection.
 	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Schema Registry registration is opt-in and uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Schema Registry registration is opt-in and uses reflection by design")]
 	private static void RegisterKafkaServices(
 		IServiceCollection services,
 		KafkaTransportOptions transportOptions)
@@ -357,6 +359,8 @@ public static class KafkaTransportServiceCollectionExtensions
 	/// <summary>
 	/// Registers a keyed <see cref="ITransportSubscriber"/> composed with telemetry.
 	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "KafkaTransportSubscriber uses Activator.CreateInstance for subject name strategies")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "KafkaTransportSubscriber uses Activator.CreateInstance for subject name strategies")]
 	private static void RegisterSubscriber(
 		IServiceCollection services,
 		string name,

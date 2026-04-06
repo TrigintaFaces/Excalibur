@@ -201,7 +201,7 @@ internal sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 			else
 			{
 				Metrics.RecordFailure(stopwatch.Elapsed);
-				LogProcessingFailed(message.MessageId, result.Error);
+				LogProcessingFailed(message.MessageId, result.Error ?? string.Empty);
 			}
 		}
 		catch (Exception ex)

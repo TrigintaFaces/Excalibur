@@ -100,7 +100,7 @@ public static class CloudWatchMetricsServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
 	/// </exception>
-	public static IServiceCollection AddAwsCloudWatchMetricsExporter<TImplementation>(
+	public static IServiceCollection AddAwsCloudWatchMetricsExporter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		Action<CloudWatchMetricsOptions> configure)
 		where TImplementation : class, ICloudWatchMetricsExporter
@@ -136,7 +136,7 @@ public static class CloudWatchMetricsServiceCollectionExtensions
 		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddAwsCloudWatchMetricsExporter<TImplementation>(
+	public static IServiceCollection AddAwsCloudWatchMetricsExporter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		IConfiguration configuration)
 		where TImplementation : class, ICloudWatchMetricsExporter

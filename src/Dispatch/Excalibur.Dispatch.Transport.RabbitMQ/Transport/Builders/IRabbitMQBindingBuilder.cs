@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Access this builder through <see cref="IRabbitMQTransportBuilder.ConfigureBinding"/>.
+/// Access this builder through <see cref="IRabbitMQTopologyBuilder.ConfigureBinding"/>.
 /// </para>
 /// <para>
 /// Bindings determine how messages are routed from exchanges to queues based on routing keys

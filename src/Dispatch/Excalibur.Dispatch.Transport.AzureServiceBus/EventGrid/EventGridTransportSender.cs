@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Azure;
 using Azure.Messaging.EventGrid;
@@ -173,6 +174,7 @@ internal sealed partial class EventGridTransportSender : ITransportSender
 	private static bool IsTransient(RequestFailedException ex) =>
 		ex.Status is (>= 500 and < 600) or 429;
 
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Azure CloudEvent construction with BinaryData is AOT-safe in practice")]
 	private AzureCloudEvent MapToCloudEvent(TransportMessage message)
 	{
 		var eventType = message.MessageType ?? _options.DefaultEventType;

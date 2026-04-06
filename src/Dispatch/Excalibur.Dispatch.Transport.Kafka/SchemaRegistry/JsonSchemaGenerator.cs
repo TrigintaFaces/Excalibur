@@ -129,6 +129,8 @@ public static class JsonSchemaGenerator
 		return schemaNode.ToJsonString();
 	}
 
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON Schema annotation transform uses reflection for property metadata")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON Schema annotation transform uses reflection for property metadata")]
 	private static JsonSchemaExporterOptions CreateExporterOptions(JsonSchemaOptions options)
 	{
 		return new JsonSchemaExporterOptions

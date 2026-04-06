@@ -50,6 +50,7 @@ internal sealed class PubSubSchemaRegistry : ISchemaRegistry, IDisposable
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Schema registration metadata is simple POCO serialization")]
 	public async Task<SchemaMetadata> RegisterSchemaAsync(
 		Type messageType,
 		string schema,

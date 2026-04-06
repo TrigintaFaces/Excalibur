@@ -68,6 +68,8 @@ internal sealed class ConfluentJsonDeserializer : IConfluentFormatDeserializer
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON deserialization of message types uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON deserialization of message types uses reflection by design")]
 	public async Task<T> DeserializeAsync<T>(
 		string topic,
 		ReadOnlyMemory<byte> data,
@@ -82,6 +84,8 @@ internal sealed class ConfluentJsonDeserializer : IConfluentFormatDeserializer
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON deserialization of message types uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON deserialization of message types uses reflection by design")]
 	public async Task<DeserializationResult> DeserializeAsync(
 		string topic,
 		ReadOnlyMemory<byte> data,

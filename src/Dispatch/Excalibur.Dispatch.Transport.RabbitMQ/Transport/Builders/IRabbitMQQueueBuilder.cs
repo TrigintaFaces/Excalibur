@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Access this builder through <see cref="IRabbitMQTransportBuilder.ConfigureQueue"/>.
+/// Access this builder through <see cref="IRabbitMQTopologyBuilder.ConfigureQueue"/>.
 /// </para>
 /// </remarks>
 /// <example>
