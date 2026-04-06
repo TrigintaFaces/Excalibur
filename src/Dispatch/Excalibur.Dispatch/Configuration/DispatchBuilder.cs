@@ -387,6 +387,10 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		/// <inheritdoc />
 		public IServiceProvider? ServiceProvider => holder.GetOrThrow().ServiceProvider;
 
+		[UnconditionalSuppressMessage("Trimming", "IL2046",
+			Justification = "IDispatcher interface is kept clean for AOT consumers. DeferredDispatcher delegates to real Dispatcher which handles AOT branching.")]
+		[UnconditionalSuppressMessage("AOT", "IL3051",
+			Justification = "IDispatcher interface is kept clean for AOT consumers. DeferredDispatcher delegates to real Dispatcher which handles AOT branching.")]
 		public Task<IMessageResult> DispatchAsync<TMessage>(
 			TMessage message,
 			IMessageContext context,
@@ -394,6 +398,10 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			where TMessage : IDispatchMessage =>
 			holder.GetOrThrow().DispatchAsync(message, context, cancellationToken);
 
+		[UnconditionalSuppressMessage("Trimming", "IL2046",
+			Justification = "IDispatcher interface is kept clean for AOT consumers. DeferredDispatcher delegates to real Dispatcher which handles AOT branching.")]
+		[UnconditionalSuppressMessage("AOT", "IL3051",
+			Justification = "IDispatcher interface is kept clean for AOT consumers. DeferredDispatcher delegates to real Dispatcher which handles AOT branching.")]
 		public Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 			TMessage message,
 			IMessageContext context,

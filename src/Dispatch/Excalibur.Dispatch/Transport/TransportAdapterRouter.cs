@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
@@ -32,6 +33,14 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 	private readonly ConcurrentDictionary<string, IMessageBusAdapter> _registeredAdapters = new(StringComparer.Ordinal);
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Transport adapter routes messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Transport adapter routes messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
 	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
 	public async Task<IMessageResult> RouteAsync(
 		IDispatchMessage message,

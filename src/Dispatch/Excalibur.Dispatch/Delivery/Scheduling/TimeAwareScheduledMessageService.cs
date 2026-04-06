@@ -387,6 +387,14 @@ public partial class TimeAwareScheduledMessageService(
 	/// <param name="cancellationToken"> Cancellation token for timeout enforcement. </param>
 	/// <returns> Task representing the dispatch operation. </returns>
 	/// <exception cref="TimeoutException"> </exception>
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Scheduled message dispatch delegates to the dispatcher pipeline which requires reflection-based handler resolution.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Scheduled message dispatch delegates to the dispatcher pipeline which requires reflection-based handler resolution.")]
 	private async Task DispatchMessageAsync(object message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		try

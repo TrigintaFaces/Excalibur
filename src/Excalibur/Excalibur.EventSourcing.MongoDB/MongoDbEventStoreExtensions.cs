@@ -41,6 +41,7 @@ public static class MongoDbEventStoreExtensions
 		_ = services.AddOptions<MongoDbEventStoreOptions>()
 			.Configure(configureOptions)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbEventStoreOptions>, MongoDbEventStoreOptionsValidator>());
 
 		// Register event store
 		services.TryAddScoped<IEventStore>(sp =>
@@ -88,6 +89,7 @@ public static class MongoDbEventStoreExtensions
 		_ = services.AddOptions<MongoDbEventStoreOptions>()
 			.Configure(configureOptions)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbEventStoreOptions>, MongoDbEventStoreOptionsValidator>());
 
 		// Register event store with client factory
 		services.TryAddScoped<IEventStore>(sp =>

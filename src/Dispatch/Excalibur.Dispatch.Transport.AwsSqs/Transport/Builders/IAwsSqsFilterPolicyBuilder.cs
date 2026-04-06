@@ -309,7 +309,10 @@ public static class AwsSqsFilterAttributeBuilderExtensions
 	/// </code>
 	/// </example>
 	public static IAwsSqsFilterAttributeBuilder Exists(this IAwsSqsFilterAttributeBuilder builder)
-		=> builder.Exists(true);
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		return builder.Exists(true);
+	}
 }
 
 /// <summary>

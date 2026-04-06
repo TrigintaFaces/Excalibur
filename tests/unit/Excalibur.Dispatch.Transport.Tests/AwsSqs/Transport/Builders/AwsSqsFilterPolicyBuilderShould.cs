@@ -387,6 +387,16 @@ public sealed class AwsSqsFilterPolicyBuilderShould : UnitTestBase
 		options.Conditions["metadata"][0].Operator.ShouldBe(AwsSqsFilterOperator.Exists);
 	}
 
+	[Fact]
+	public void ExistsExtension_ThrowsOnNullBuilder()
+	{
+		// Arrange
+		IAwsSqsFilterAttributeBuilder builder = null!;
+
+		// Act & Assert
+		Should.Throw<ArgumentNullException>(() => builder.Exists());
+	}
+
 	#endregion
 
 	#region Numeric Comparison Tests

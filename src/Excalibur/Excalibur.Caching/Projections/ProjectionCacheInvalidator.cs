@@ -78,6 +78,8 @@ public sealed partial class ProjectionCacheInvalidator(
 
 	/// <inheritdoc />
 	[RequiresDynamicCode("Calls ExtractTags which uses MakeGenericType for resolver lookup")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IProjectionCacheInvalidator interface is kept clean for AOT consumers. Implementation uses RuntimeFeature.IsDynamicCodeSupported branching in ExtractTags.")]
 	public async ValueTask InvalidateCacheAsync(object message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);

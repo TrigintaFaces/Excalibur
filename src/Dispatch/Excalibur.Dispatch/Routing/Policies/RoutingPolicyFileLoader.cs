@@ -64,6 +64,8 @@ internal sealed partial class RoutingPolicyFileLoader(
 	/// </summary>
 	/// <param name="cancellationToken">The cancellation token to observe.</param>
 	/// <returns>The loaded routing rules.</returns>
+	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types.")]
+	[RequiresDynamicCode("JSON deserialization may require runtime code generation.")]
 	public async Task<IReadOnlyList<RoutingRule>> LoadAsync(CancellationToken cancellationToken)
 	{
 		if (string.IsNullOrEmpty(_options.PolicyFilePath))
@@ -214,6 +216,14 @@ internal sealed partial class RoutingPolicyFileLoader(
 	/// <summary>
 	/// Handles the policy file changed event.
 	/// </summary>
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "File watcher reload callback delegates to LoadRulesFromFileAsync which uses JSON deserialization with runtime types.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "File watcher reload callback delegates to LoadRulesFromFileAsync which uses JSON deserialization with runtime types.")]
 	private void OnPolicyFileChanged(object sender, FileSystemEventArgs e)
 	{
 		if (_disposed)

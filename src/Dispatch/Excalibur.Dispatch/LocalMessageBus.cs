@@ -1034,7 +1034,7 @@ internal sealed partial class LocalMessageBus(
 	{
 		if (plan.ExpectsResponse)
 		{
-			if (plan!.TryInvokeWithResponseSync(this, action, context, cancellationToken, out var result, out var pending))
+			if (plan.TryInvokeWithResponseSync(this, action, context, cancellationToken, out var result, out var pending))
 			{
 				return new ValueTask<object?>(result);
 			}
@@ -1042,7 +1042,7 @@ internal sealed partial class LocalMessageBus(
 			return pending;
 		}
 
-		if (plan!.TryInvokeNoResponseSync(this, action, context, cancellationToken, out var pendingNoResponse))
+		if (plan.TryInvokeNoResponseSync(this, action, context, cancellationToken, out var pendingNoResponse))
 		{
 			return new ValueTask<object?>(result: null);
 		}

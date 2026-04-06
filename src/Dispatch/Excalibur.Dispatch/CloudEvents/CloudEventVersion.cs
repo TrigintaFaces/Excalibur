@@ -134,7 +134,7 @@ public static class CloudEventVersion
 		if (registry != null)
 		{
 			return registry.IsCompatible(
-				cloudEvent.Type,
+				cloudEvent.Type!,
 				currentVersion!,
 				targetVersion,
 				compatibility);

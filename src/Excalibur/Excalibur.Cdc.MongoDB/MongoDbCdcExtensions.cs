@@ -32,6 +32,8 @@ public static class MongoDbCdcExtensions
 		_ = services.AddOptions<MongoDbCdcOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbCdcOptions>, MongoDbCdcOptionsValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbCdcRecoveryOptions>, MongoDbCdcRecoveryOptionsValidator>());
 		services.TryAddSingleton<IMongoDbCdcProcessor, MongoDbCdcProcessor>();
 
 		return services;

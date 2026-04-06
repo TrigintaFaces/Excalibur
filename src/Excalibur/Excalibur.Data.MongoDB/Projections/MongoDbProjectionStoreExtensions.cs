@@ -37,6 +37,7 @@ public static class MongoDbProjectionStoreExtensions
 		_ = services.AddOptions<MongoDbProjectionStoreOptions>()
 			.Configure(configureOptions)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbProjectionStoreOptions>, MongoDbProjectionStoreOptionsValidator>());
 
 		// Register projection store
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
@@ -104,6 +105,7 @@ public static class MongoDbProjectionStoreExtensions
 		_ = services.AddOptions<MongoDbProjectionStoreOptions>()
 			.Configure(configureOptions)
 			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbProjectionStoreOptions>, MongoDbProjectionStoreOptionsValidator>());
 
 		// Register projection store with client factory
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>

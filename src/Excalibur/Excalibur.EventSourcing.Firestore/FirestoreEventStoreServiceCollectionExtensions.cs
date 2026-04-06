@@ -9,6 +9,7 @@ using Excalibur.EventSourcing.Firestore;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -97,6 +98,7 @@ public static class FirestoreEventStoreServiceCollectionExtensions
 
 	private static void RegisterServices(IServiceCollection services)
 	{
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreEventStoreOptions>, FirestoreEventStoreOptionsValidator>());
 		services.TryAddSingleton<FirestoreEventStore>();
 		services.AddKeyedSingleton<IEventStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreEventStore>());
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>

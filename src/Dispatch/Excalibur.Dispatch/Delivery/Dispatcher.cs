@@ -134,6 +134,10 @@ internal sealed class Dispatcher(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
 	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
 	public Task<IMessageResult> DispatchAsync<TMessage>(
 		TMessage message,
 		IMessageContext context,
@@ -282,6 +286,10 @@ internal sealed class Dispatcher(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("Dispatch uses reflection-based handler resolution and typed invoker construction.")]
 	[RequiresDynamicCode("Dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDispatcher interface is kept clean for AOT consumers. Dispatcher selects HandlerInvokerAot via RuntimeFeature.IsDynamicCodeSupported.")]
 	public Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
@@ -363,6 +371,10 @@ internal sealed class Dispatcher(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
 	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
 	public ValueTask DispatchLocalAsync<TMessage>(TMessage message, CancellationToken cancellationToken)
 		where TMessage : IDispatchAction
 	{
@@ -417,6 +429,10 @@ internal sealed class Dispatcher(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("Direct local dispatch uses reflection-based dispatch plan resolution.")]
 	[RequiresDynamicCode("Direct local dispatch uses MakeGenericType/MakeGenericMethod for typed handler invocation.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IDirectLocalDispatcher interface is kept clean for AOT consumers.")]
 	public ValueTask<TResponse?> DispatchLocalAsync<TMessage, TResponse>(
 		TMessage message,
 		CancellationToken cancellationToken)

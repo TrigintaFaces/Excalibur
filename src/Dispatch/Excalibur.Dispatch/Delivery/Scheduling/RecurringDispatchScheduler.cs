@@ -33,10 +33,10 @@ public sealed partial class RecurringDispatchScheduler(
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[UnconditionalSuppressMessage(
-			"AOT",
-			"IL3050:RequiresDynamicCode",
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 			Justification = "Scheduling uses runtime serialization; AOT users should opt out of this scheduler or use compatible serializers.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+			Justification = "IDispatchScheduler interface is kept clean for future AOT-safe implementations. This implementation uses runtime JSON serialization.")]
 	public async Task ScheduleOnceAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			DateTimeOffset executeAtUtc, TMessage message,
 			CancellationToken cancellationToken)
@@ -76,6 +76,11 @@ public sealed partial class RecurringDispatchScheduler(
 	}
 
 	/// <inheritdoc />
+	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+			Justification = "Scheduling uses runtime serialization; AOT users should opt out of this scheduler or use compatible serializers.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+			Justification = "IDispatchScheduler interface is kept clean for future AOT-safe implementations. This implementation uses runtime JSON serialization.")]
 	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 		string cronExpression, TMessage message,
 		CancellationToken cancellationToken)
@@ -137,10 +142,10 @@ public sealed partial class RecurringDispatchScheduler(
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[UnconditionalSuppressMessage(
-			"AOT",
-			"IL3050:RequiresDynamicCode",
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 			Justification = "Scheduling uses runtime serialization; AOT users should opt out of this scheduler or use compatible serializers.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+			Justification = "IDispatchScheduler interface is kept clean for future AOT-safe implementations. This implementation uses runtime JSON serialization.")]
 	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			TimeSpan interval,
 			TMessage message,

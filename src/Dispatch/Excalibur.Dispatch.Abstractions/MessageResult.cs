@@ -170,8 +170,14 @@ public static class MessageResult
 
 	/// <summary>
 	/// Creates a cancelled message result with a generic type parameter.
+	/// Returns a cached instance per type parameter to avoid unnecessary allocations.
 	/// </summary>
 	/// <typeparam name="T"> The type of the expected return value. </typeparam>
 	/// <returns> A cancelled message result. </returns>
-	public static IMessageResult<T> Cancelled<T>() => new BasicMessageResult<T>(succeeded: false, value: default);
+	public static IMessageResult<T> Cancelled<T>() => CachedCancelledResult<T>.Instance;
+
+	private static class CachedCancelledResult<T>
+	{
+		public static readonly IMessageResult<T> Instance = new BasicMessageResult<T>(succeeded: false, value: default);
+	}
 }

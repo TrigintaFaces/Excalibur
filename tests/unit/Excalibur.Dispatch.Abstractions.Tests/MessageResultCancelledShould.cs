@@ -51,6 +51,17 @@ public sealed class MessageResultCancelledShould
 	}
 
 	[Fact]
+	public void Cancelled_ReturnsCachedSingleton()
+	{
+		// Act
+		var first = MessageResult.Cancelled();
+		var second = MessageResult.Cancelled();
+
+		// Assert
+		ReferenceEquals(first, second).ShouldBeTrue();
+	}
+
+	[Fact]
 	public void CancelledT_ReturnsFailedResult()
 	{
 		// Act
@@ -98,5 +109,28 @@ public sealed class MessageResultCancelledShould
 
 		// Assert
 		result.ProblemDetails.ShouldBeNull();
+	}
+
+	[Fact]
+	public void CancelledT_ReturnsCachedSingleton()
+	{
+		// Act
+		var first = MessageResult.Cancelled<int>();
+		var second = MessageResult.Cancelled<int>();
+
+		// Assert
+		ReferenceEquals(first, second).ShouldBeTrue();
+	}
+
+	[Fact]
+	public void CancelledT_ReturnsDifferentInstancePerType()
+	{
+		// Act
+		var intResult = MessageResult.Cancelled<int>();
+		var stringResult = MessageResult.Cancelled<string>();
+
+		// Assert - different types should have different instances
+		intResult.ShouldNotBeNull();
+		stringResult.ShouldNotBeNull();
 	}
 }

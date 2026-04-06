@@ -50,6 +50,10 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("This method uses reflection to invoke generic HandleEventAsyncInternal method with runtime types")]
 	[RequiresDynamicCode("This method uses MakeGenericMethod with runtime types")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046",
+		Justification = "ISagaCoordinator interface is kept clean for AOT consumers. SagaCoordinator uses RuntimeFeature.IsDynamicCodeSupported branching.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "ISagaCoordinator interface is kept clean for AOT consumers. SagaCoordinator uses RuntimeFeature.IsDynamicCodeSupported branching.")]
 	public async Task ProcessEventAsync(
 		IMessageContext messageContext,
 		ISagaEvent evt,

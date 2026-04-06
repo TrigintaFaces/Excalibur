@@ -34,6 +34,10 @@ public static class DispatcherContextExtensions
 	/// context. For top-level dispatches, a new context is created. Use <see cref="DispatchChildAsync{TMessage}" />
 	/// when dispatching from within a handler to properly propagate causation and correlation identifiers.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult> DispatchAsync<TMessage>(
 		this IDispatcher dispatcher,
@@ -71,6 +75,10 @@ public static class DispatcherContextExtensions
 	/// <see cref="DispatchChildAsync{TMessage,TResponse}" /> when dispatching from within a handler to properly
 	/// propagate causation and correlation identifiers.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult<TResponse>> DispatchAsync<TMessage, TResponse>(
 		this IDispatcher dispatcher,
@@ -120,6 +128,10 @@ public static class DispatcherContextExtensions
 	/// Use this method when dispatching messages from within a handler to maintain proper message lineage and
 	/// distributed tracing.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult> DispatchChildAsync<TMessage>(
 		this IDispatcher dispatcher,
@@ -165,6 +177,10 @@ public static class DispatcherContextExtensions
 	/// Use this method when dispatching actions from within a handler to maintain proper message lineage and
 	/// distributed tracing.
 	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dispatch selects AOT-safe handler invocation (HandlerInvokerAot) when dynamic code is not supported.")]
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Task<IMessageResult<TResponse>> DispatchChildAsync<TMessage, TResponse>(
 		this IDispatcher dispatcher,

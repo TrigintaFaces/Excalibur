@@ -152,55 +152,6 @@ public sealed class MessageResultFactoryExtendedShould
 		result.ProblemDetails.ErrorCode.ShouldBe(404);
 	}
 
-	// --- Sprint 748: nrusce - 5 new factory method tests ---
-
-	[Fact]
-	public void Cancelled_Should_ReturnFailedResult()
-	{
-		// Act
-		var result = MessageResult.Cancelled();
-
-		// Assert
-		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBeNull();
-		result.ProblemDetails.ShouldBeNull();
-	}
-
-	[Fact]
-	public void Cancelled_Should_ReturnCachedSingleton()
-	{
-		// Act
-		var first = MessageResult.Cancelled();
-		var second = MessageResult.Cancelled();
-
-		// Assert
-		ReferenceEquals(first, second).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void Cancelled_Generic_Should_ReturnFailedResultWithDefaultValue()
-	{
-		// Act
-		var result = MessageResult.Cancelled<int>();
-
-		// Assert
-		result.Succeeded.ShouldBeFalse();
-		result.ReturnValue.ShouldBe(default);
-		result.ErrorMessage.ShouldBeNull();
-		result.ProblemDetails.ShouldBeNull();
-	}
-
-	[Fact]
-	public void Cancelled_Generic_Should_ReturnNullForReferenceType()
-	{
-		// Act
-		var result = MessageResult.Cancelled<string>();
-
-		// Assert
-		result.Succeeded.ShouldBeFalse();
-		result.ReturnValue.ShouldBeNull();
-	}
-
 	[Fact]
 	public void Failed_WithException_Should_ReturnFailedResultWithExceptionDetail()
 	{

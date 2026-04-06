@@ -60,8 +60,10 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 	public bool IsFrozen => GetStatus().AllFrozen;
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Cache status inspection may reference types used by reflection-based handler resolution.")]
-	[RequiresDynamicCode("Cache status inspection may reference types used by dynamic handler invocation.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "GetStatus reads static boolean flags from handler caches; no reflection is performed at call time.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "GetStatus reads static boolean flags from handler caches; no dynamic code generation is performed.")]
 	public CacheFreezeStatus GetStatus()
 	{
 		return new CacheFreezeStatus(
@@ -75,8 +77,10 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Cache freezing may reference types used by reflection-based handler resolution.")]
-	[RequiresDynamicCode("Cache freezing may reference types used by dynamic handler invocation.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "FreezeAll converts concurrent dictionaries to frozen dictionaries; no reflection is performed at call time.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "FreezeAll converts concurrent dictionaries to frozen dictionaries; no dynamic code generation is performed.")]
 	public void FreezeAll()
 	{
 		var status = GetStatus();

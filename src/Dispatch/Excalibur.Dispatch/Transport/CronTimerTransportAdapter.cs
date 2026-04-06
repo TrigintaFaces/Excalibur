@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Transport;
@@ -490,6 +492,14 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		}
 	}
 
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+		Justification = "Cron timer transport adapter dispatches trigger messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
+		Justification = "Cron timer transport adapter dispatches trigger messages through the dispatcher pipeline which requires reflection-based handler resolution.")]
 	private async Task<IMessageResult> ProcessTriggerMessageAsync(
 		CronTimerTriggerMessage message,
 		IDispatcher dispatcher,

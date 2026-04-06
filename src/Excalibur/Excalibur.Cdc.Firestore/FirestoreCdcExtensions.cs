@@ -30,6 +30,7 @@ public static class FirestoreCdcServiceCollectionExtensions
 		_ = services.AddOptions<FirestoreCdcOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
 
 		return services;
@@ -53,6 +54,7 @@ public static class FirestoreCdcServiceCollectionExtensions
 		_ = services.AddOptions<FirestoreCdcOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
 
 		return services;
@@ -78,6 +80,7 @@ public static class FirestoreCdcServiceCollectionExtensions
 		_ = services.AddOptions<FirestoreCdcOptions>()
 			.Bind(configuration.GetSection(sectionName))
 			.ValidateOnStart();
+		RegisterCdcValidators(services);
 		services.TryAddSingleton<IFirestoreCdcProcessor, FirestoreCdcProcessor>();
 
 		return services;
@@ -131,6 +134,12 @@ public static class FirestoreCdcServiceCollectionExtensions
 
 		services.TryAddSingleton<IFirestoreCdcStateStore, InMemoryFirestoreCdcStateStore>();
 		return services;
+	}
+
+	private static void RegisterCdcValidators(IServiceCollection services)
+	{
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreCdcOptions>, FirestoreCdcOptionsValidator>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FirestoreCdcRecoveryOptions>, FirestoreCdcRecoveryOptionsValidator>());
 	}
 
 	private static void RegisterCdcStateStoreOptions(
