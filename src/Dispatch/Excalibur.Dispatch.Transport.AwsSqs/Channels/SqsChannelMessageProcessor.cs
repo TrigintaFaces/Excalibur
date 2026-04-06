@@ -269,7 +269,7 @@ internal sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 			return;
 		}
 
-		var request = new DeleteMessageBatchRequest { QueueUrl = _options.QueueUrl.ToString(), Entries = [.. entries], };
+		var request = new DeleteMessageBatchRequest { QueueUrl = _options.QueueUrl!.ToString(), Entries = [.. entries], };
 
 		try
 		{

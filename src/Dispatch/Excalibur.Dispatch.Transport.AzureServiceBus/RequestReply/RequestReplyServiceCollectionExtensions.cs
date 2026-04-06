@@ -49,7 +49,7 @@ public static class RequestReplyServiceCollectionExtensions
 	/// in the DI container. The reply queue must be session-enabled in Azure Service Bus.
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddAzureServiceBusRequestReply<TImplementation>(
+	public static IServiceCollection AddAzureServiceBusRequestReply<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		Action<RequestReplyOptions> configure)
 		where TImplementation : class, IRequestReplyClient
@@ -85,7 +85,7 @@ public static class RequestReplyServiceCollectionExtensions
 		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddAzureServiceBusRequestReply<TImplementation>(
+	public static IServiceCollection AddAzureServiceBusRequestReply<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		IConfiguration configuration)
 		where TImplementation : class, IRequestReplyClient

@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 /// <param name="producer"> The Azure Event Hub producer client for sending messages. </param>
 /// <param name="serializer"> Payload serializer for message body serialization with pluggable format support. </param>
-/// <param name="options"> The Event Hubs specific configuration options. </param>
+/// <param name="_options"> The Event Hubs specific configuration options. </param>
 /// <param name="logger"> The logger instance for diagnostic information. </param>
 /// <remarks>
 /// <para>
@@ -39,7 +39,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 internal sealed partial class AzureEventHubMessageBus(
 	EventHubProducerClient producer,
 	IPayloadSerializer serializer,
-	AzureEventHubOptions options,
+	AzureEventHubOptions _options,
 	ILogger<AzureEventHubMessageBus> logger) : IMessageBus, IAsyncDisposable
 {
 

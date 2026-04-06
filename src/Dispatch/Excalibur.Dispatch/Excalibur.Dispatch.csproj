@@ -24,9 +24,7 @@
        - IL2055: MakeGenericType for typed handler/mapper resolution
        - IL2070/IL2075/IL2095: GetInterfaces/GetProperties for pipeline and middleware configuration
   -->
-  <PropertyGroup>
-    <NoWarn>$(NoWarn);CS8602;CS8604;IL2026;IL3050;IL2046;IL3051;IL2055;IL2070;IL2075;IL2095</NoWarn>
-  </PropertyGroup>
+  <!-- NoWarn REMOVED Sprint 751: all nullable/AOT warnings now fixed at source with proper annotations and suppressions -->
   <!-- Include README.md in NuGet package -->
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />

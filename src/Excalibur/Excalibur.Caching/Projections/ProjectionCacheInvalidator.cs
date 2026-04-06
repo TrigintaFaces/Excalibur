@@ -175,8 +175,10 @@ public sealed partial class ProjectionCacheInvalidator(
 			}
 			else
 			{
-				property = ConventionPropertyCache.GetOrAdd(type,
+				#pragma warning disable IL2070 // DynamicallyAccessedMembers on GetProperty
+					property = ConventionPropertyCache.GetOrAdd(type,
 					static t => t.GetProperty(MessageIdPropertyName) ?? t.GetProperty(EntityIdPropertyName));
+#pragma warning restore IL2070
 			}
 
 			if (property != null)

@@ -107,7 +107,7 @@ public static class ManagementServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
 	/// </exception>
-	public static IServiceCollection AddRabbitMqManagement<TImplementation>(
+	public static IServiceCollection AddRabbitMqManagement<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		Action<RabbitMqManagementOptions> configure)
 		where TImplementation : class, IRabbitMqManagementClient
@@ -143,7 +143,7 @@ public static class ManagementServiceCollectionExtensions
 		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddRabbitMqManagement<TImplementation>(
+	public static IServiceCollection AddRabbitMqManagement<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		IConfiguration configuration)
 		where TImplementation : class, IRabbitMqManagementClient

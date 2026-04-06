@@ -208,10 +208,10 @@ internal sealed partial class RabbitMqMessageBus(
 		var envelope = CreateEnvelope(message, context);
 		try
 		{
-			var transportMessage = await cloudEventBridge
+			var transportMessage = await cloudEventBridge!
 				.ToTransportAsync<(IBasicProperties properties, ReadOnlyMemory<byte> body)>(
 					envelope,
-					cloudEventMapper.Options.DefaultMode,
+					cloudEventMapper!.Options.DefaultMode,
 					cancellationToken)
 				.ConfigureAwait(false);
 
@@ -386,7 +386,7 @@ internal sealed partial class RabbitMqMessageBus(
 				return null;
 			}
 
-			return new PublishConfirmationTracker(channel, options);
+			return new PublishConfirmationTracker(channel, options!);
 		}
 
 		public async Task PublishAsync(

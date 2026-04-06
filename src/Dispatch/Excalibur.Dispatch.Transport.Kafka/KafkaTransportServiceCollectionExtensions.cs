@@ -253,6 +253,7 @@ public static class KafkaTransportServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="transportName">The transport name for keyed services.</param>
 	/// <param name="options">The Schema Registry configuration options.</param>
+	[RequiresUnreferencedCode("Schema Registry uses reflection for subject name strategies and serialization")]
 	private static void RegisterSchemaRegistryServices(
 		IServiceCollection services,
 		string transportName,

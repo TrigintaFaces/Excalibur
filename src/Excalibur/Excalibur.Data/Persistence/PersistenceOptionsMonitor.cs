@@ -15,10 +15,10 @@ namespace Excalibur.Data.Persistence;
 /// Implementation of persistence options monitor.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="PersistenceOptionsMonitor{TOptions}" /> class. </remarks>
-/// <param name="configuration"> The persistence configuration. </param>
+/// <param name="_configuration"> The persistence configuration. </param>
 /// <param name="optionsMonitor"> The options monitor. </param>
 internal sealed class PersistenceOptionsMonitor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>(
-	IPersistenceConfiguration configuration,
+	IPersistenceConfiguration _configuration,
 	IOptionsMonitor<TOptions> optionsMonitor) : IPersistenceOptionsMonitor<TOptions>, IDisposable
 	where TOptions : class, IPersistenceOptions
 {

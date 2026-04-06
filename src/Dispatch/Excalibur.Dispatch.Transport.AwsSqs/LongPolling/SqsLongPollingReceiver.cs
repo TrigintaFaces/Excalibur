@@ -109,7 +109,7 @@ internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 
 			if (options.AttributeNames?.Count > 0)
 			{
-				request.AttributeNames = [.. options.AttributeNames];
+				request.MessageSystemAttributeNames = [.. options.AttributeNames];
 			}
 
 			LogReceivingMessages(queueUrl, waitTime.TotalSeconds);

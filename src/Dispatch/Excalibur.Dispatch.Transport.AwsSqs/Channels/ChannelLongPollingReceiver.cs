@@ -174,11 +174,11 @@ internal sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 
 		var request = new ReceiveMessageRequest
 		{
-			QueueUrl = _options.QueueUrl.ToString(),
+			QueueUrl = _options.QueueUrl!.ToString(),
 			MaxNumberOfMessages = 10, // SQS max
 			WaitTimeSeconds = 20, // Max long polling (20 seconds)
 			VisibilityTimeout = _options.VisibilityTimeout,
-			AttributeNames = ["All"],
+			MessageSystemAttributeNames = ["All"],
 			MessageAttributeNames = ["All"],
 		};
 

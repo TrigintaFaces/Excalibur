@@ -83,7 +83,7 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 					MaxNumberOfMessages = 10,
 					WaitTimeSeconds = 20,
 					MessageAttributeNames = ["All"],
-					AttributeNames = ["All"],
+					MessageSystemAttributeNames = ["All"],
 				};
 
 				var response = await _sqsClient.ReceiveMessageAsync(request, cancellationToken)

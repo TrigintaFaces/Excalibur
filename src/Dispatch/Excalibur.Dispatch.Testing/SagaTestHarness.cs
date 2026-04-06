@@ -33,7 +33,7 @@ namespace Excalibur.Dispatch.Testing;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class SagaTestHarness<TSaga> : IAsyncDisposable
+public sealed class SagaTestHarness<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)] TSaga> : IAsyncDisposable
 	where TSaga : class, ISaga
 {
 	private readonly List<Action<IServiceCollection>> _serviceConfigurations = [];

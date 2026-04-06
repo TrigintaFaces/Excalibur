@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 using CloudNative.CloudEvents;
 
@@ -30,6 +31,8 @@ public interface ICloudEventMapper<TTransportMessage>
 	/// <param name="mode"> The serialization mode to apply. </param>
 	/// <param name="cancellationToken"> Cancellation token for the async operation. </param>
 	/// <returns> The serialized transport message. </returns>
+	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	Task<TTransportMessage> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,

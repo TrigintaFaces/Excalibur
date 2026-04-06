@@ -71,7 +71,7 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 				WaitTimeSeconds = _waitTimeSeconds,
 				VisibilityTimeout = _visibilityTimeoutSeconds,
 				MessageAttributeNames = ["All"],
-				AttributeNames = ["All"],
+				MessageSystemAttributeNames = ["All"],
 			};
 
 			var response = await _sqsClient.ReceiveMessageAsync(request, cancellationToken)

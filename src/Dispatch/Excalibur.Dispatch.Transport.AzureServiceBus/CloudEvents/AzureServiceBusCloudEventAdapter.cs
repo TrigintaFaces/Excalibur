@@ -88,6 +88,8 @@ internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<Servi
 	}
 
 	/// <inheritdoc />
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public Task<ServiceBusMessage> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,

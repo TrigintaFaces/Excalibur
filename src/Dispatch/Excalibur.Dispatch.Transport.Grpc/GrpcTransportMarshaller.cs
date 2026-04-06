@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// to avoid build-time proto compilation complexity. The proto file is provided
 /// as a reference for server implementations.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("gRPC transport marshalling uses JSON serialization")]
 internal static class GrpcTransportMarshaller
 {
 	private static readonly JsonSerializerOptions SerializerOptions = new()

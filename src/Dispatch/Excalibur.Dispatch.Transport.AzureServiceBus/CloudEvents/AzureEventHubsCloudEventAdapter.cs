@@ -81,6 +81,8 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 	}
 
 	/// <inheritdoc />
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public Task<EventData> ToTransportMessageAsync(
 		CloudEvent cloudEvent,
 		CloudEventMode mode,
@@ -413,12 +415,14 @@ internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEven
 			cloudEvent[$"{DispatchPrefixWithoutSeparator}sequencenumber"] ??= sequenceNumber;
 		}
 
-		if (message.Offset != long.MinValue)
+		#pragma warning disable CS0618 // EventData.Offset is obsolete but OffsetString is not available in all SDK versions
+			if (message.Offset != long.MinValue)
 		{
 			var offset = message.Offset.ToString(CultureInfo.InvariantCulture);
 			cloudEvent[$"{DispatchPrefix}offset"] = offset;
 			cloudEvent[$"{DispatchPrefixWithoutSeparator}offset"] ??= offset;
 		}
+#pragma warning restore CS0618
 
 		if (message.EnqueuedTime != default)
 		{

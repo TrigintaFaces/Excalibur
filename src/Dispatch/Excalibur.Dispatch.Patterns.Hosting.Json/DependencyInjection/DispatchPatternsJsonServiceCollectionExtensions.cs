@@ -75,6 +75,10 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services">The service collection to configure.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "ClaimCheck serializer construction uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "ClaimCheck serializer construction uses reflection by design.")]
 	public static IServiceCollection AddDispatchPatternsClaimCheckJson(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);

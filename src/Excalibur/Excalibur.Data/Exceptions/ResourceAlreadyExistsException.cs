@@ -47,5 +47,5 @@ public sealed class ResourceAlreadyExistsException : ResourceException
 	/// Gets or sets the unique identifier for the resource that caused the conflict.
 	/// </summary>
 	/// <value> A string representing the resource key. </value>
-	public string ResourceKey { get; set; }
+	public string ResourceKey { get; set; } = string.Empty;
 }

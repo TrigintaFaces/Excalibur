@@ -98,7 +98,7 @@ public static class KafkaAdminServiceCollectionExtensions
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
 	/// </exception>
-	public static IServiceCollection AddKafkaAdmin<TImplementation>(
+	public static IServiceCollection AddKafkaAdmin<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		Action<KafkaAdminOptions> configure)
 		where TImplementation : class, IKafkaAdminClient
@@ -134,7 +134,7 @@ public static class KafkaAdminServiceCollectionExtensions
 		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddKafkaAdmin<TImplementation>(
+	public static IServiceCollection AddKafkaAdmin<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
 		this IServiceCollection services,
 		IConfiguration configuration)
 		where TImplementation : class, IKafkaAdminClient

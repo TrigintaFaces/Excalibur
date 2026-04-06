@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 using Azure.Storage.Queues.Models;
 
@@ -31,6 +32,8 @@ public interface IDeadLetterQueueHandler
 	/// <param name="exception"> The exception that caused the message to be dead lettered, if any. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the dead letter operation. </returns>
+	[RequiresUnreferencedCode("Dead letter envelope serialization may require unreferenced types for reflection-based operations")]
+	[RequiresDynamicCode("Dead letter envelope serialization uses reflection to dynamically access and serialize types")]
 	Task SendToDeadLetterAsync(QueueMessage message, IMessageContext context, string reason, CancellationToken cancellationToken, Exception? exception = null);
 
 	/// <summary>
@@ -41,6 +44,8 @@ public interface IDeadLetterQueueHandler
 	/// <param name="exception"> The exception that caused the message to be considered poison. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the poison message handling operation. </returns>
+	[RequiresUnreferencedCode("Poison message handling may require unreferenced types for reflection-based operations")]
+	[RequiresDynamicCode("Poison message handling uses reflection to dynamically access and serialize types")]
 	Task HandlePoisonMessageAsync(QueueMessage message, IMessageContext context, Exception exception,
 		CancellationToken cancellationToken);
 

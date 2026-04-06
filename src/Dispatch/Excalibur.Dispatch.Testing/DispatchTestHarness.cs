@@ -103,7 +103,7 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 		get
 		{
 			EnsureBuilt();
-			return _serviceProvider.GetRequiredService<IDispatcher>();
+			return _serviceProvider!.GetRequiredService<IDispatcher>();
 		}
 	}
 
@@ -154,7 +154,7 @@ public sealed class DispatchTestHarness : IAsyncDisposable
 	public IServiceScope CreateScope()
 	{
 		EnsureBuilt();
-		return _serviceProvider.CreateScope();
+		return _serviceProvider!.CreateScope();
 	}
 
 	/// <inheritdoc />

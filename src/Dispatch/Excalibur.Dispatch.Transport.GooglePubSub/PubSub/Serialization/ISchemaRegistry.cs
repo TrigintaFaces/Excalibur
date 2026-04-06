@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 namespace Excalibur.Dispatch.Transport.Google;
 
@@ -13,17 +14,20 @@ public interface ISchemaRegistry
 	/// Registers a schema for a message type.
 	/// </summary>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+	[RequiresUnreferencedCode("Schema registration may require unreferenced types for reflection-based operations")]
 	Task<SchemaMetadata> RegisterSchemaAsync(Type messageType, string schema, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Gets the schema for a message type.
 	/// </summary>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+	[RequiresUnreferencedCode("Schema retrieval may require unreferenced types for reflection-based operations")]
 	Task<SchemaMetadata?> GetSchemaAsync(Type messageType, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Validates a message against its registered schema.
 	/// </summary>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+	[RequiresUnreferencedCode("Schema validation may require unreferenced types for reflection-based operations")]
 	Task<bool> ValidateAsync(object message, CancellationToken cancellationToken);
 }

@@ -62,7 +62,7 @@ internal sealed class AzureLogicAppsScheduler(
 		T message,
 		DateTimeOffset scheduledTime,
 		CancellationToken cancellationToken) =>
-		ScheduleObjectAsync(message, typeof(T), scheduledTime, cancellationToken);
+		ScheduleObjectAsync(message!, typeof(T), scheduledTime, cancellationToken);
 
 	/// <inheritdoc />
 	public async Task<bool> CancelAsync(
@@ -125,6 +125,7 @@ internal sealed class AzureLogicAppsScheduler(
 		return ParseScheduleInfo(scheduleId, payload);
 	}
 
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToElement and Serialize")]
 	private static string BuildPayload(
 		object message,
 		Type messageType,

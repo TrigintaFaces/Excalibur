@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Testing;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class HandlerTestHarness<THandler> : IAsyncDisposable
+public sealed class HandlerTestHarness<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)] THandler> : IAsyncDisposable
 	where THandler : class
 {
 	private readonly List<Action<IServiceCollection>> _serviceConfigurations = [];

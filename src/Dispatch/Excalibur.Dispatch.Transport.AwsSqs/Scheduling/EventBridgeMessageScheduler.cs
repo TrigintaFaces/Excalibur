@@ -48,7 +48,7 @@ internal class EventBridgeMessageScheduler(
 		T message,
 		DateTimeOffset scheduledTime,
 		CancellationToken cancellationToken) =>
-		ScheduleObjectAsync(message, typeof(T), scheduledTime, cancellationToken);
+		ScheduleObjectAsync(message!, typeof(T), scheduledTime, cancellationToken);
 
 	/// <inheritdoc />
 	public async Task<bool> CancelAsync(
@@ -207,6 +207,7 @@ internal class EventBridgeMessageScheduler(
 		return new DateTimeOffset(dateTime);
 	}
 
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Calls BuildInputPayload which uses System.Text.Json.JsonSerializer")]
 	private async Task<string> ScheduleObjectAsync(
 		object message,
 		Type messageType,
@@ -301,7 +302,7 @@ internal class EventBridgeMessageScheduler(
 			target.DeadLetterConfig = new DeadLetterConfig { Arn = _options.DeadLetterQueueArn, };
 		}
 
-		if (IsEventBridgeTarget(_options.TargetArn))
+		if (IsEventBridgeTarget(_options.TargetArn!))
 		{
 			target.EventBridgeParameters = new EventBridgeParameters { DetailType = messageType.Name, Source = "dispatch", };
 		}

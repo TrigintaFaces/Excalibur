@@ -120,8 +120,10 @@ internal sealed class CachingMiddleware(
 		var key = keyBuilder.CreateKey(action, context);
 
 		// Check if message implements any ICacheable<T> interface
+		#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
 		var messageType = message.GetType();
 		var cacheableInterface = GetCacheableInterface(messageType);
+#pragma warning restore IL2072
 		var isInterfaceCacheable = cacheableInterface != null;
 		var isAttrCacheable = messageType.IsDefined(typeof(CacheResultAttribute), inherit: true);
 
@@ -166,9 +168,11 @@ internal sealed class CachingMiddleware(
 				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
 		}
 
+		#pragma warning disable IL2111 // DynamicallyAccessedMembers on lambda parameter
 		return _cacheableInterfaceCache.GetOrAdd(messageType, static ([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) =>
 			type.GetInterfaces()
 				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>)));
+#pragma warning restore IL2111
 	}
 
 	/// <summary>
@@ -190,9 +194,11 @@ internal sealed class CachingMiddleware(
 				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>));
 		}
 
+		#pragma warning disable IL2111 // DynamicallyAccessedMembers on lambda parameter
 		return _actionInterfaceCache.GetOrAdd(messageType, static ([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) =>
 			type.GetInterfaces()
 				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>)));
+#pragma warning restore IL2111
 	}
 
 	/// <summary>
@@ -229,8 +235,10 @@ internal sealed class CachingMiddleware(
 		Justification = "ICacheable interface members are accessed via nameof for stability")]
 	private static CacheableInfo? GetCacheableInfo(IDispatchMessage message)
 	{
+		#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetCacheableInterface
 		var messageType = message.GetType();
 		var cacheableInterface = GetCacheableInterface(messageType);
+#pragma warning restore IL2072
 
 		if (cacheableInterface == null)
 		{
@@ -323,7 +331,9 @@ internal sealed class CachingMiddleware(
 
 				// Determine the return type from the message type
 				var messageType = message.GetType();
+#pragma warning disable IL2072 // DynamicallyAccessedMembers requirement on GetActionInterface
 				var actionInterface = GetActionInterface(messageType);
+#pragma warning restore IL2072
 
 				if (actionInterface is not null)
 				{
