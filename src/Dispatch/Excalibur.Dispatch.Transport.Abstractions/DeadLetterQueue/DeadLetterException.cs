@@ -9,16 +9,19 @@ namespace Excalibur.Dispatch.Transport;
 /// <remarks> Initializes a new instance of the <see cref="DeadLetterException" /> class. </remarks>
 public sealed class DeadLetterException(string message, string exceptionType, string? stackTrace) : Exception(message)
 {
+	/// <inheritdoc />
 	public DeadLetterException()
 		: this(string.Empty, string.Empty, null)
 	{
 	}
 
+	/// <inheritdoc />
 	public DeadLetterException(string? message)
 		: this(message ?? string.Empty, string.Empty, null)
 	{
 	}
 
+	/// <inheritdoc />
 	public DeadLetterException(string? message, Exception? innerException)
 		: this(message ?? string.Empty, innerException?.GetType().FullName ?? string.Empty, innerException?.StackTrace)
 	{

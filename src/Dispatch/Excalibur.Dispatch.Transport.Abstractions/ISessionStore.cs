@@ -4,4 +4,5 @@
 
 namespace Excalibur.Dispatch.Transport;
 
+/// <summary>Provides session state persistence for transport sessions.</summary>
 public interface ISessionStore;

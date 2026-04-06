@@ -8,8 +8,23 @@ namespace Excalibur.Dispatch.Transport;
 /// </summary>
 public enum MessagePriority
 {
+	/// <summary>
+	/// Low priority. Messages are processed after all higher-priority messages.
+	/// </summary>
 	Low = 0,
+
+	/// <summary>
+	/// Normal priority. The default priority for messages.
+	/// </summary>
 	Normal = 1,
+
+	/// <summary>
+	/// High priority. Messages are processed before normal and low-priority messages.
+	/// </summary>
 	High = 2,
+
+	/// <summary>
+	/// Critical priority. Messages are processed with the highest urgency.
+	/// </summary>
 	Critical = 3,
 }

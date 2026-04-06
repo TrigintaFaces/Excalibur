@@ -4,13 +4,15 @@
 
 namespace Excalibur.Dispatch.Transport;
 
+/// <summary>Defines a channel sender for publishing messages.</summary>
 public interface IChannelSender
 {
 	/// <summary>
+	/// Sends a message asynchronously through the channel.
 	/// </summary>
-	/// <typeparam name="T"> </typeparam>
-	/// <param name="message"> </param>
-	/// <param name="cancellationToken"> </param>
+	/// <typeparam name="T">The type of message to send.</typeparam>
+	/// <param name="message">The message to send.</param>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
 	/// <returns> A <see cref="Task" /> representing the result of the asynchronous operation. </returns>
 	Task SendAsync<T>(T message, CancellationToken cancellationToken);
 }

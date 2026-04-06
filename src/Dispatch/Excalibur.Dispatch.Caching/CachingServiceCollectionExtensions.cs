@@ -430,7 +430,10 @@ public static class CachingServiceCollectionExtensions
 		public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Cache;
 
 		/// <inheritdoc />
-		[UnconditionalSuppressMessage("AOT", "IL3050:Using RequiresDynamicCode member in AOT", Justification = "CachingMiddleware is only invoked when caching is enabled and AOT limitations are acceptable")]
+		[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+			Justification = "CachingMiddleware is only invoked when caching is enabled and AOT limitations are acceptable")]
+		[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+			Justification = "CachingMiddleware is only invoked when caching is enabled and AOT limitations are acceptable")]
 		public ValueTask<IMessageResult> InvokeAsync(
 			IDispatchMessage message,
 			IMessageContext context,

@@ -83,6 +83,10 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="name"> The name of the circuit breaker. </param>
 	/// <param name="configureOptions"> Action to configure circuit breaker options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.")]
 	public static IServiceCollection AddPollyCircuitBreaker(
 		this IServiceCollection services,
 		string name,
@@ -107,6 +111,10 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="name"> The name of the retry policy. </param>
 	/// <param name="configureOptions"> Action to configure retry options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.")]
 	public static IServiceCollection AddPollyRetryPolicy(
 		this IServiceCollection services,
 		string name,
@@ -131,6 +139,10 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="name"> The name of the retry policy. </param>
 	/// <param name="configureOptions"> Action to configure retry options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.")]
 	public static IServiceCollection AddRetryPolicyWithJitter(
 		this IServiceCollection services,
 		string name,
@@ -164,6 +176,10 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="resourceName"> The name of the resource to protect with bulkhead. </param>
 	/// <param name="configureOptions"> Action to configure bulkhead options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.")]
 	public static IServiceCollection AddBulkhead(
 		this IServiceCollection services,
 		string resourceName,
@@ -186,6 +202,10 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="name"> The name of the circuit breaker. </param>
 	/// <param name="configureOptions"> Action to configure distributed circuit breaker options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.")]
 	public static IServiceCollection AddDistributedCircuitBreaker(
 		this IServiceCollection services,
 		string name,
@@ -210,6 +230,10 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure timeout manager options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.")]
 	public static IServiceCollection ConfigureTimeoutManager(
 		this IServiceCollection services,
 		Action<TimeoutManagerOptions> configureOptions)
@@ -231,6 +255,10 @@ public static class PollyResilienceServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure graceful degradation options. </param>
 	/// <returns> The service collection for method chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresUnreferencedCode.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Delegates to AddPollyResilience which is already annotated with RequiresDynamicCode.")]
 	public static IServiceCollection ConfigureGracefulDegradation(
 		this IServiceCollection services,
 		Action<GracefulDegradationOptions> configureOptions)

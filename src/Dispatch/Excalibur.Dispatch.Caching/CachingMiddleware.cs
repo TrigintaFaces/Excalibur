@@ -150,7 +150,9 @@ internal sealed class CachingMiddleware(
 	/// <summary>
 	/// Resolves the ICacheable interface for a type using a bounded cache.
 	/// </summary>
-	private static Type? GetCacheableInterface(Type messageType)
+	[UnconditionalSuppressMessage("AOT", "IL2070:DynamicallyAccessedMembers",
+		Justification = "GetInterfaces is used for well-known ICacheable<> interface resolution. Types implementing ICacheable are preserved by DI registration.")]
+	private static Type? GetCacheableInterface([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
 	{
 		if (_cacheableInterfaceCache.TryGetValue(messageType, out var cached))
 		{
@@ -164,7 +166,7 @@ internal sealed class CachingMiddleware(
 				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>));
 		}
 
-		return _cacheableInterfaceCache.GetOrAdd(messageType, static type =>
+		return _cacheableInterfaceCache.GetOrAdd(messageType, static ([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) =>
 			type.GetInterfaces()
 				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ICacheable<>)));
 	}
@@ -172,7 +174,9 @@ internal sealed class CachingMiddleware(
 	/// <summary>
 	/// Resolves the IDispatchAction interface for a type using a bounded cache.
 	/// </summary>
-	private static Type? GetActionInterface(Type messageType)
+	[UnconditionalSuppressMessage("AOT", "IL2070:DynamicallyAccessedMembers",
+		Justification = "GetInterfaces is used for well-known IDispatchAction<> interface resolution. Types implementing IDispatchAction are preserved by DI registration.")]
+	private static Type? GetActionInterface([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type messageType)
 	{
 		if (_actionInterfaceCache.TryGetValue(messageType, out var cached))
 		{
@@ -186,7 +190,7 @@ internal sealed class CachingMiddleware(
 				.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>));
 		}
 
-		return _actionInterfaceCache.GetOrAdd(messageType, static type =>
+		return _actionInterfaceCache.GetOrAdd(messageType, static ([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) =>
 			type.GetInterfaces()
 				.FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>)));
 	}
@@ -248,6 +252,8 @@ internal sealed class CachingMiddleware(
 	/// <param name="cachedResult">The cached value to deserialize.</param>
 	/// <returns>The deserialized value.</returns>
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize(String, Type, JsonSerializerOptions)")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "ResolveTypeByName and JsonSerializer.Deserialize are used for runtime cache deserialization. Types are preserved by DI registration.")]
 	private static object DeserializeCachedValue(CachedValue cachedResult)
 	{
 		var cachedValue = cachedResult.Value;
@@ -331,9 +337,11 @@ internal sealed class CachingMiddleware(
 					return resultInstance;
 				}
 
+				#pragma warning disable IL2075 // GetInterfaces on runtime type for diagnostic message only
 				var implementedInterfaces = string.Join(
 					", ",
 					messageType.GetInterfaces().Select(static i => i.Name));
+				#pragma warning restore IL2075
 				throw new InvalidOperationException(
 					string.Format(
 						CultureInfo.CurrentCulture,
@@ -661,6 +669,8 @@ internal sealed class CachingMiddleware(
 	/// <param name="attr"> The cache result attribute. </param>
 	/// <param name="context"> The message context. </param>
 	/// <returns> True if the result should be cached; otherwise, false. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "ShouldCache uses MakeGenericType which is guarded by RuntimeFeature.IsDynamicCodeSupported check.")]
 	private bool ShouldCacheBasedOnPolicy(
 		IDispatchMessage message,
 		object? returnValue,
@@ -745,6 +755,8 @@ internal sealed class CachingMiddleware(
 		return _globalPolicy?.ShouldCache(message, result) ?? true;
 	}
 
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Assembly.GetType is used for runtime cache deserialization. Types are preserved by DI registration.")]
 	private static Type? ResolveTypeByName(string typeName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(typeName);

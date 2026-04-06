@@ -9,11 +9,23 @@ namespace Excalibur.Dispatch.Transport;
 /// </summary>
 public sealed class TransportPollingStatistics
 {
+	/// <summary>
+	/// Gets or sets the total number of polling operations performed.
+	/// </summary>
 	public int TotalPolls { get; set; }
 
+	/// <summary>
+	/// Gets or sets the total number of messages received across all polls.
+	/// </summary>
 	public int TotalMessages { get; set; }
 
+	/// <summary>
+	/// Gets or sets the total number of errors encountered during polling.
+	/// </summary>
 	public int TotalErrors { get; set; }
 
+	/// <summary>
+	/// Gets or sets the total cumulative duration of all polling operations.
+	/// </summary>
 	public TimeSpan TotalDuration { get; set; }
 }
