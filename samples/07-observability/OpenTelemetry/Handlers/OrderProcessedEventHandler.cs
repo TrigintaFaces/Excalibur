@@ -52,7 +52,7 @@ public sealed class OrderProcessedEventHandler : IEventHandler<OrderProcessedEve
 		catch (Exception ex)
 		{
 			_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
-			activity?.RecordException(ex);
+			activity?.AddException(ex);
 			_logger.LogError(ex, "Failed to handle order {OrderId}", eventMessage.OrderId);
 			throw;
 		}

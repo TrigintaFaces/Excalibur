@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using CloudNative.CloudEvents;
 
 namespace Excalibur.Dispatch.Transport.Decorators;
@@ -30,6 +32,10 @@ internal sealed class CloudEventsTransportSender : DelegatingTransportSender
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "CloudEvent JSON serialization is inherently reflection-based. AOT consumers should provide a custom ICloudEventMapper.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "CloudEvent JSON serialization is inherently reflection-based. AOT consumers should provide a custom ICloudEventMapper.")]
 	public override async Task<SendResult> SendAsync(TransportMessage message, CancellationToken cancellationToken)
 	{
 		var cloudEvent = _cloudEventFactory(message);
@@ -40,6 +46,10 @@ internal sealed class CloudEventsTransportSender : DelegatingTransportSender
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "CloudEvent JSON serialization is inherently reflection-based. AOT consumers should provide a custom ICloudEventMapper.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "CloudEvent JSON serialization is inherently reflection-based. AOT consumers should provide a custom ICloudEventMapper.")]
 	public override async Task<BatchSendResult> SendBatchAsync(IReadOnlyList<TransportMessage> messages, CancellationToken cancellationToken)
 	{
 		var encodedMessages = new List<TransportMessage>(messages.Count);

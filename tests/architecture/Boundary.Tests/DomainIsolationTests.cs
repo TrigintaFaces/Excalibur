@@ -217,8 +217,9 @@ public sealed class DomainIsolationTests
         var actualDependencies = domainTypes
             .SelectMany(t => t.Assembly.GetReferencedAssemblies())
             .Select(a => a.Name)
+            .Where(name => name is not null)
             .Distinct()
-            .Where(name => !name.StartsWith("System.") &&
+            .Where(name => !name!.StartsWith("System.") &&
                            !name.StartsWith("mscorlib") &&
                            !name.StartsWith("netstandard") &&
                            !name.Equals("Excalibur.Domain", StringComparison.Ordinal))
