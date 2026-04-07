@@ -58,7 +58,7 @@ public sealed class DbConnectionExtensionsShould : UnitTestBase
 		var exception = await Should.ThrowAsync<OperationFailedException>(async () =>
 			await connection.ResolveAsync(request));
 
-		exception.InnerException.ShouldBeOfType<InvalidOperationException>();
+		exception.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

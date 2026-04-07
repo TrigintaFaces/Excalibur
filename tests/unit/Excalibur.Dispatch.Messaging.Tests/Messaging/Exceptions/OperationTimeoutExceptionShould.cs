@@ -114,7 +114,7 @@ public sealed class OperationTimeoutExceptionShould
 		// Assert
 		exception.Operation.ShouldBe("LongRunningTask");
 		exception.Duration.ShouldBe(elapsed);
-		exception.InnerException.ShouldBe(operationCanceledException);
+		exception.InnerException!.ShouldBe(operationCanceledException);
 	}
 
 	[Fact]
@@ -202,7 +202,7 @@ public sealed class OperationTimeoutExceptionShould
 		var exception = new OperationTimeoutException("Timeout occurred", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)

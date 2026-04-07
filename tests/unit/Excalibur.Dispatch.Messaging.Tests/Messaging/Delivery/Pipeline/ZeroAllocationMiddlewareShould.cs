@@ -283,7 +283,7 @@ public sealed class ZeroAllocationMiddlewareShould
 		// Assert
 		result.ContinueExecution.ShouldBeTrue();
 		result.Success.ShouldBeTrue();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -295,7 +295,7 @@ public sealed class ZeroAllocationMiddlewareShould
 		// Assert
 		result.ContinueExecution.ShouldBeFalse();
 		result.Success.ShouldBeFalse();
-		result.Error.ShouldBe("Test error");
+		result.Error!.ShouldBe("Test error");
 	}
 
 	[Fact]
@@ -307,7 +307,7 @@ public sealed class ZeroAllocationMiddlewareShould
 		// Assert
 		result.ContinueExecution.ShouldBeFalse();
 		result.Success.ShouldBeTrue();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -317,7 +317,7 @@ public sealed class ZeroAllocationMiddlewareShould
 		var result = MiddlewareResult.Continue();
 
 		// Assert
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -330,7 +330,7 @@ public sealed class ZeroAllocationMiddlewareShould
 		var result = MiddlewareResult.StopWithError(errorMessage);
 
 		// Assert
-		result.Error.ShouldBe(errorMessage);
+		result.Error!.ShouldBe(errorMessage);
 	}
 
 	#endregion

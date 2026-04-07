@@ -117,6 +117,7 @@ internal sealed class MongoDbSnapshotDocument
 			CreatedAt = new DateTimeOffset(CreatedAt, TimeSpan.Zero)
 		};
 
+#pragma warning disable IL2026, IL3050 // AOT: metadata serialization uses reflection-based JSON for Dictionary<string, object>
 	private static byte[]? SerializeMetadata(IDictionary<string, object>? metadata)
 	{
 		if (metadata == null || metadata.Count == 0)
@@ -136,4 +137,5 @@ internal sealed class MongoDbSnapshotDocument
 
 		return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(data);
 	}
+#pragma warning restore IL2026, IL3050
 }

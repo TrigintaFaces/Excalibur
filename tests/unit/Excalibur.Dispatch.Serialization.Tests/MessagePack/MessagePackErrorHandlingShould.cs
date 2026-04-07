@@ -231,7 +231,7 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.Deserialize<TestPluggableMessage>(corrupt.AsSpan()));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -276,7 +276,7 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.DeserializeObject(corrupt, typeof(TestPluggableMessage)));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -306,7 +306,7 @@ public sealed class MessagePackErrorHandlingShould : UnitTestBase
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.SerializeObject(badObj, typeof(NonSerializableForTests)));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 	}
 
 	#endregion

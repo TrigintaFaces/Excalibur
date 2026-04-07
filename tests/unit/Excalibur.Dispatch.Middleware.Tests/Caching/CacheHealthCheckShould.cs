@@ -99,7 +99,7 @@ public sealed class CacheHealthCheckShould : UnitTestBase
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("failed");
-		result.Exception.ShouldBe(expectedException);
+		result.Exception!.ShouldBe(expectedException);
 	}
 
 	[Fact]

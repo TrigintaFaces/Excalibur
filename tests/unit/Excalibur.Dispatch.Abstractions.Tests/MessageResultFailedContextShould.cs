@@ -27,7 +27,7 @@ public sealed class MessageResultFailedContextShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Validation failed");
+		result.ErrorMessage!.ShouldBe("Validation failed");
 		result.ProblemDetails.ShouldBe(problemDetails);
 	}
 
@@ -69,7 +69,7 @@ public sealed class MessageResultFailedContextShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.ProblemDetails.ShouldBeNull();
 		result.ValidationResult.ShouldBeNull();
 		result.AuthorizationResult.ShouldBeNull();
@@ -120,7 +120,7 @@ public sealed class MessageResultFailedContextShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Something broke");
+		result.ErrorMessage!.ShouldContain("Something broke");
 	}
 
 	[Fact]
@@ -133,7 +133,7 @@ public sealed class MessageResultFailedContextShould
 		var result = MessageResult.Failed(exception);
 
 		// Assert
-		result.ErrorMessage.ShouldContain("InvalidOperationException");
+		result.ErrorMessage!.ShouldContain("InvalidOperationException");
 	}
 
 	[Fact]
@@ -156,7 +156,7 @@ public sealed class MessageResultFailedContextShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Something broke");
+		result.ErrorMessage!.ShouldContain("Something broke");
 		result.ReturnValue.ShouldBe(default(int));
 	}
 
@@ -170,7 +170,7 @@ public sealed class MessageResultFailedContextShould
 		var result = MessageResult.Failed<string>(exception);
 
 		// Assert
-		result.ErrorMessage.ShouldContain("ArgumentException");
+		result.ErrorMessage!.ShouldContain("ArgumentException");
 	}
 
 	[Fact]

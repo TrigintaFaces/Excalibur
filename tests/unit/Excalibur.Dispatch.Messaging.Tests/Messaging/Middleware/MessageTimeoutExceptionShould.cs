@@ -113,7 +113,7 @@ public sealed class MessageTimeoutExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -123,7 +123,7 @@ public sealed class MessageTimeoutExceptionShould
 		var exception = new MessageTimeoutException("Message", null!);
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	#endregion

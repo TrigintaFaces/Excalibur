@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -116,7 +117,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			ConsistentRead = _options.UseConsistentReads
 		};
 
-		var response = await _client.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
+		var response = await _client!.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (response.Item == null || response.Item.Count == 0)
 		{
@@ -158,7 +159,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			ConsistentRead = true
 		};
 
-		var existing = await _client.GetItemAsync(getRequest, cancellationToken).ConfigureAwait(false);
+		var existing = await _client!.GetItemAsync(getRequest, cancellationToken).ConfigureAwait(false);
 
 		DateTimeOffset createdUtc;
 		if (existing.Item?.Count > 0 && existing.Item.TryGetValue(DynamoDbSagaDocument.CreatedUtc, out var createdAttr))
@@ -179,7 +180,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 		var putRequest = new PutItemRequest { TableName = _options.TableName, Item = document };
 
-		_ = await _client.PutItemAsync(putRequest, cancellationToken).ConfigureAwait(false);
+		_ = await _client!.PutItemAsync(putRequest, cancellationToken).ConfigureAwait(false);
 		LogSagaSaved(sagaType, sagaState.SagaId, sagaState.Completed);
 	}
 
@@ -220,7 +221,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	{
 		try
 		{
-			_ = await _client.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
 		}
 		catch (ResourceNotFoundException)
 		{
@@ -240,7 +241,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				BillingMode = BillingMode.PAY_PER_REQUEST
 			};
 
-			_ = await _client.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
 
 			// Wait for table to be active
 			var describeRequest = new DescribeTableRequest { TableName = _options.TableName };
@@ -248,7 +249,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			do
 			{
 				await Task.Delay(500, cancellationToken).ConfigureAwait(false);
-				var describeResponse = await _client.DescribeTableAsync(describeRequest, cancellationToken)
+				var describeResponse = await _client!.DescribeTableAsync(describeRequest, cancellationToken)
 					.ConfigureAwait(false);
 				status = describeResponse.Table.TableStatus;
 			} while (status != TableStatus.ACTIVE);
@@ -262,7 +263,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 					TimeToLiveSpecification = new TimeToLiveSpecification { Enabled = true, AttributeName = _options.TtlAttributeName }
 				};
 
-				_ = await _client.UpdateTimeToLiveAsync(ttlRequest, cancellationToken).ConfigureAwait(false);
+				_ = await _client!.UpdateTimeToLiveAsync(ttlRequest, cancellationToken).ConfigureAwait(false);
 			}
 		}
 	}

@@ -565,7 +565,7 @@ public sealed class AzureKeyVaultProviderShould
 			CancellationToken.None);
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Azure Key Vault error");
+		result.ErrorMessage!.ShouldContain("Azure Key Vault error");
 	}
 
 	[Fact]

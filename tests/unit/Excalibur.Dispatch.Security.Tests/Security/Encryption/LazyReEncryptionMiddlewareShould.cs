@@ -410,7 +410,7 @@ public sealed class LazyReEncryptionMiddlewareShould
 			middleware.InvokeAsync(message, context, next, CancellationToken.None).AsTask());
 
 		ex.ItemId.ShouldBe("old-key");
-		ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+		ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

@@ -248,7 +248,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 			serializer.SerializeObject(badObj, typeof(NonSerializableClass)));
 
 		// Assert
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 		ex.Message.ShouldContain("serialize");
 	}
 
@@ -266,7 +266,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 			serializer.DeserializeObject(corrupt, typeof(TestPluggableMessage)));
 
 		// Assert
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 		ex.Message.ShouldContain("deserialize");
 	}
 
@@ -294,7 +294,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 		// It should NOT have another SerializationException as inner
 		if (ex.InnerException != null)
 		{
-			ex.InnerException.ShouldNotBeOfType<SerializationException>();
+			ex.InnerException!.ShouldNotBeOfType<SerializationException>();
 		}
 	}
 

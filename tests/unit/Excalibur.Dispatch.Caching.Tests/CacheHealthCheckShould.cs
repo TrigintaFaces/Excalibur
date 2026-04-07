@@ -87,7 +87,7 @@ public sealed class CacheHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("failed");
-		result.Exception.ShouldNotBeNull();
+		result.Exception!.ShouldNotBeNull();
 	}
 
 	[Fact]

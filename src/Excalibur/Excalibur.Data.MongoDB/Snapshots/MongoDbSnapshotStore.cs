@@ -158,7 +158,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		try
 		{
-			_ = await _collection.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
+			_ = await _collection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
 					.ConfigureAwait(false);
 
 			LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
@@ -204,7 +204,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		try
 		{
-			_ = await _collection.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
+			_ = await _collection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
 
 			LogSnapshotDeleted(aggregateType, aggregateId);
 		}
@@ -245,7 +245,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		try
 		{
-			_ = await _collection.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
+			_ = await _collection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
 
 			LogSnapshotOlderDeleted(aggregateType, aggregateId, olderThanVersion);
 		}

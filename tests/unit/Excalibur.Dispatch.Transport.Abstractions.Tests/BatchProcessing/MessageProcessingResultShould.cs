@@ -27,7 +27,7 @@ public sealed class MessageProcessingResultShould
     {
         var result = new MessageProcessingResult();
 
-        result.ErrorMessage.ShouldBeNull();
+        result.ErrorMessage!.ShouldBeNull();
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class MessageProcessingResultShould
     {
         var result = new MessageProcessingResult();
 
-        result.Exception.ShouldBeNull();
+        result.Exception!.ShouldBeNull();
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public sealed class MessageProcessingResultShould
 
         result.MessageId.ShouldBe("msg-1");
         result.IsSuccess.ShouldBeTrue();
-        result.ErrorMessage.ShouldBe("partial");
-        result.Exception.ShouldBe(ex);
+        result.ErrorMessage!.ShouldBe("partial");
+        result.Exception!.ShouldBe(ex);
         result.ProcessingDuration.ShouldBe(TimeSpan.FromMilliseconds(50));
         result.ShouldRetry.ShouldBeTrue();
         result.MovedToDeadLetter.ShouldBeTrue();

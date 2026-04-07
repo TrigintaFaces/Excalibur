@@ -95,14 +95,14 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 				.Set(x => x.RevokedBy, revokedBy)
 				.Set(x => x.RevokedOn, revokedOn);
 
-			var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+			var result = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 			LogGrantRevoked(userId, tenantId, grantType, qualifier);
 			return (int)result.ModifiedCount;
 		}
 		else
 		{
 			// Hard delete
-			var result = await _collection.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
+			var result = await _collection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
 			LogGrantDeleted(userId, tenantId, grantType, qualifier);
 			return (int)result.DeletedCount;
 		}
@@ -126,7 +126,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 			Builders<GrantDocument>.Filter.Eq(x => x.Qualifier, qualifier),
 			Builders<GrantDocument>.Filter.Eq(x => x.IsRevoked, false));
 
-		var count = await _collection.CountDocumentsAsync(filter, new CountOptions { Limit = 1 }, cancellationToken).ConfigureAwait(false);
+		var count = await _collection!.CountDocumentsAsync(filter, new CountOptions { Limit = 1 }, cancellationToken).ConfigureAwait(false);
 		return count > 0;
 	}
 
@@ -155,7 +155,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 		}
 
 		var filter = Builders<GrantDocument>.Filter.And(filters);
-		var documents = await _collection.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
+		var documents = await _collection!.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
 
 		return documents.Select(d => d.ToGrant()).ToList();
 	}
@@ -178,7 +178,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 			Builders<GrantDocument>.Filter.Eq(x => x.Qualifier, qualifier),
 			Builders<GrantDocument>.Filter.Eq(x => x.IsRevoked, false));
 
-		var document = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+		var document = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 		return document?.ToGrant();
 	}
 
@@ -192,7 +192,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 			Builders<GrantDocument>.Filter.Eq(x => x.UserId, userId),
 			Builders<GrantDocument>.Filter.Eq(x => x.IsRevoked, false));
 
-		var documents = await _collection.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
+		var documents = await _collection!.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
 		return documents.Select(d => d.ToGrant()).ToList();
 	}
 
@@ -212,7 +212,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 		var document = GrantDocument.FromGrant(grant);
 		var options = new ReplaceOptions { IsUpsert = true };
 
-		var result = await _collection.ReplaceOneAsync(filter, document, options, cancellationToken).ConfigureAwait(false);
+		var result = await _collection!.ReplaceOneAsync(filter, document, options, cancellationToken).ConfigureAwait(false);
 		LogGrantSaved(grant.UserId, grant.TenantId ?? "null", grant.GrantType, grant.Qualifier);
 
 		return result.ModifiedCount > 0 || result.UpsertedId is not null ? 1 : 0;
@@ -228,7 +228,7 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 			Builders<GrantDocument>.Filter.Eq(x => x.UserId, userId),
 			Builders<GrantDocument>.Filter.Eq(x => x.IsRevoked, false));
 
-		var documents = await _collection.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
+		var documents = await _collection!.Find(filter).ToListAsync(cancellationToken).ConfigureAwait(false);
 
 		// Return a dictionary keyed by grantType:qualifier
 		var result = new Dictionary<string, object>();

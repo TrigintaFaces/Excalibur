@@ -71,7 +71,7 @@ public sealed class RateLimitExceededResultShould
 		var result = new RateLimitExceededResult();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -155,7 +155,7 @@ public sealed class RateLimitExceededResultShould
 		result.ErrorMessage = "Rate limit exceeded for tenant-123";
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Rate limit exceeded for tenant-123");
+		result.ErrorMessage!.ShouldBe("Rate limit exceeded for tenant-123");
 	}
 
 	[Fact]
@@ -211,7 +211,7 @@ public sealed class RateLimitExceededResultShould
 		result.RoutingDecision.ShouldBe(routingDecision);
 		result.ValidationResult.ShouldBe("valid");
 		result.AuthorizationResult.ShouldBe("authorized");
-		result.ErrorMessage.ShouldBe("Too many requests");
+		result.ErrorMessage!.ShouldBe("Too many requests");
 		result.CacheHit.ShouldBeFalse();
 		result.RetryAfterMilliseconds.ShouldBe(10000);
 		result.RateLimitKey.ShouldBe("user:12345");

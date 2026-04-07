@@ -174,7 +174,7 @@ public sealed class InMemoryCronJobStoreShould
 		var history = (await _store.GetJobHistoryAsync(job.Id, _ct)).ToList();
 		history.Count.ShouldBe(1);
 		history[0].Success.ShouldBeFalse();
-		history[0].Error.ShouldBe("timeout");
+		history[0].Error!.ShouldBe("timeout");
 	}
 
 	[Fact]

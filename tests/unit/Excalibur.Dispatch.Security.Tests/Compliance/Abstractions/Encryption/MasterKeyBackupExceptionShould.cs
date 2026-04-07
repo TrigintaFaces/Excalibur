@@ -31,7 +31,7 @@ public sealed class MasterKeyBackupExceptionShould
         var inner = new InvalidOperationException("inner");
         var ex = new MasterKeyBackupException("outer", inner);
 
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

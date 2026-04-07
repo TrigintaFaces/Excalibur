@@ -34,7 +34,7 @@ public sealed class SagaStepFailedShould
 	public void DefaultErrorMessageToEmpty()
 	{
 		var sut = new SagaStepFailed();
-		sut.ErrorMessage.ShouldBe(string.Empty);
+		sut.ErrorMessage!.ShouldBe(string.Empty);
 	}
 
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class SagaStepFailedShould
 		sut.SagaId.ShouldBe("saga-5");
 		sut.StepName.ShouldBe("ChargeCustomer");
 		sut.StepIndex.ShouldBe(3);
-		sut.ErrorMessage.ShouldBe("Insufficient funds");
+		sut.ErrorMessage!.ShouldBe("Insufficient funds");
 		sut.RetryCount.ShouldBe(2);
 	}
 

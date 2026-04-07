@@ -48,7 +48,7 @@ public sealed class RateLimitExceededResultCoverageShould
         result.RoutingDecision.ShouldBe(routingDecision);
         result.ValidationResult.ShouldBe("validation");
         result.AuthorizationResult.ShouldBe("authorization");
-        result.ErrorMessage.ShouldBe("Rate limit exceeded");
+        result.ErrorMessage!.ShouldBe("Rate limit exceeded");
         result.CacheHit.ShouldBeTrue();
         result.RetryAfterMilliseconds.ShouldBe(3000);
         result.RateLimitKey.ShouldBe("tenant:abc");
@@ -65,7 +65,7 @@ public sealed class RateLimitExceededResultCoverageShould
         result.RoutingDecision.ShouldBeNull();
         result.ValidationResult.ShouldBeNull();
         result.AuthorizationResult.ShouldBeNull();
-        result.ErrorMessage.ShouldBeNull();
+        result.ErrorMessage!.ShouldBeNull();
         result.RateLimitKey.ShouldBeNull();
         result.CacheHit.ShouldBeFalse();
         result.Succeeded.ShouldBeFalse();

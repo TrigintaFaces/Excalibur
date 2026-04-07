@@ -17,7 +17,7 @@ public sealed class MigrationExceptionShould
 
 		// Assert
 		ex.Message.ShouldBe("test error");
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -31,6 +31,6 @@ public sealed class MigrationExceptionShould
 
 		// Assert
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 }

@@ -316,6 +316,6 @@ public sealed class BackgroundServiceResultsShould : UnitTestBase
 	public void HaveErrorConstant()
 	{
 		// Assert
-		BackgroundServiceResults.Error.ShouldBe("error");
+		BackgroundServiceResults.Error!.ShouldBe("error");
 	}
 }

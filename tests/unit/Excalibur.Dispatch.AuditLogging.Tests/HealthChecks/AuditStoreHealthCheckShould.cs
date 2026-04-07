@@ -52,7 +52,7 @@ public sealed class AuditStoreHealthCheckShould
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description.ShouldContain("Connection failed");
-        result.Exception.ShouldNotBeNull();
+        result.Exception!.ShouldNotBeNull();
     }
 
     [Fact]

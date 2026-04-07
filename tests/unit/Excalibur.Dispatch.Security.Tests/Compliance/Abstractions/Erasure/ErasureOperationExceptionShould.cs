@@ -31,7 +31,7 @@ public sealed class ErasureOperationExceptionShould
         var inner = new InvalidOperationException("inner");
         var ex = new ErasureOperationException("outer", inner);
 
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

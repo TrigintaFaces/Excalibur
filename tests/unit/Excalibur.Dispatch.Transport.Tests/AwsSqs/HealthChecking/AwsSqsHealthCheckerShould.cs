@@ -138,6 +138,6 @@ public sealed class AwsSqsHealthCheckerShould
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("Connection failed");
 		result.Data.ShouldContainKey("Exception");
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 }

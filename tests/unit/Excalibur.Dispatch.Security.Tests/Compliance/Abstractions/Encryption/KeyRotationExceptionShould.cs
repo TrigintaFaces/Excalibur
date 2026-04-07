@@ -33,7 +33,7 @@ public sealed class KeyRotationExceptionShould
         var inner = new InvalidOperationException("inner");
         var ex = new KeyRotationException("outer", inner);
 
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

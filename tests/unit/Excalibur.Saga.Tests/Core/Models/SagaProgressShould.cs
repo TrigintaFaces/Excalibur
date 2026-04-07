@@ -71,7 +71,7 @@ public sealed class SagaProgressShould
 		var progress = new SagaProgress();
 
 		// Assert
-		progress.ErrorMessage.ShouldBeNull();
+		progress.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -161,7 +161,7 @@ public sealed class SagaProgressShould
 		var progress = new SagaProgress { ErrorMessage = "Payment failed" };
 
 		// Assert
-		progress.ErrorMessage.ShouldBe("Payment failed");
+		progress.ErrorMessage!.ShouldBe("Payment failed");
 	}
 
 	[Fact]
@@ -303,7 +303,7 @@ public sealed class SagaProgressShould
 		// Assert
 		progress.IsSuccess.ShouldBeFalse();
 		progress.Duration.ShouldBeNull();
-		progress.ErrorMessage.ShouldBeNull();
+		progress.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -348,7 +348,7 @@ public sealed class SagaProgressShould
 
 		// Assert
 		progress.IsSuccess.ShouldBeFalse();
-		progress.ErrorMessage.ShouldNotBeNull();
+		progress.ErrorMessage!.ShouldNotBeNull();
 		progress.CompletedSteps.ShouldBeLessThan(progress.TotalSteps);
 	}
 

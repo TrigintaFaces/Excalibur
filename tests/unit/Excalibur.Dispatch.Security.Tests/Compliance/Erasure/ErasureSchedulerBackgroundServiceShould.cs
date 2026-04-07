@@ -253,7 +253,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		result.Success.ShouldBeTrue();
 		result.KeysDeleted.ShouldBe(5);
 		result.RecordsAffected.ShouldBe(10);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -264,7 +264,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Test error message");
+		result.ErrorMessage!.ShouldBe("Test error message");
 		result.KeysDeleted.ShouldBe(0);
 		result.RecordsAffected.ShouldBe(0);
 	}

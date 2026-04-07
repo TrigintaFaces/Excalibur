@@ -13,7 +13,7 @@ public sealed class EncryptionExceptionShould
 
 		ex.Message.ShouldNotBeNullOrWhiteSpace();
 		ex.ErrorCode.ShouldBe(EncryptionErrorCode.Unknown);
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -32,7 +32,7 @@ public sealed class EncryptionExceptionShould
 		var ex = new EncryptionException("test message", inner);
 
 		ex.Message.ShouldBe("test message");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]
@@ -81,7 +81,7 @@ public sealed class DecryptionExceptionShould
 		var ex = new DecryptionException("decryption failed", inner);
 
 		ex.Message.ShouldBe("decryption failed");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 		ex.ErrorCode.ShouldBe(EncryptionErrorCode.InvalidCiphertext);
 	}
 
@@ -101,7 +101,7 @@ public sealed class DecryptionExceptionShould
 		var ex = new DecryptionException("auth failed", inner, EncryptionErrorCode.AuthenticationFailed);
 
 		ex.Message.ShouldBe("auth failed");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 		ex.ErrorCode.ShouldBe(EncryptionErrorCode.AuthenticationFailed);
 	}
 

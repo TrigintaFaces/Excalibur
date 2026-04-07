@@ -72,7 +72,7 @@ public sealed class SqsTransportSenderShould : IAsyncDisposable
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.Error.ShouldNotBeNull();
+		result.Error!.ShouldNotBeNull();
 		result.Error!.IsRetryable.ShouldBeTrue();
 	}
 
@@ -347,7 +347,7 @@ public sealed class SqsTransportSenderShould : IAsyncDisposable
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.Error.ShouldNotBeNull();
+		result.Error!.ShouldNotBeNull();
 		result.Error!.IsRetryable.ShouldBeFalse();
 	}
 

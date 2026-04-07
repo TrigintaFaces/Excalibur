@@ -80,7 +80,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 			var clientOptions = CreateClientOptions();
 			_client = CreateClient(clientOptions);
-			_database = _client.GetDatabase(_options.DatabaseName);
+			_database = _client!.GetDatabase(_options.DatabaseName);
 
 			if (_options.CreateContainerIfNotExists)
 			{
@@ -89,7 +89,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 					DefaultTimeToLive = _options.DefaultTimeToLiveSeconds
 				};
 
-				var response = await _database.CreateContainerIfNotExistsAsync(
+				var response = await _database!.CreateContainerIfNotExistsAsync(
 					containerProperties,
 					_options.ContainerThroughput,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -98,7 +98,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			}
 			else
 			{
-				_container = _database.GetContainer(_options.ContainerName);
+				_container = _database!.GetContainer(_options.ContainerName);
 			}
 
 			_initialized = true;
@@ -124,7 +124,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 		try
 		{
-			var response = await _container.CreateItemAsync(
+			var response = await _container!.CreateItemAsync(
 				document,
 				cosmosPartitionKey,
 				new ItemRequestOptions { EnableContentResponseOnWrite = true },
@@ -181,7 +181,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		var cosmosPartitionKey = new CosmosPartitionKey(partitionKey.Value);
-		var batch = _container.CreateTransactionalBatch(cosmosPartitionKey);
+		var batch = _container!.CreateTransactionalBatch(cosmosPartitionKey);
 
 		foreach (var message in messages)
 		{
@@ -266,7 +266,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			string? continuationToken = null;
 			string? sessionToken = null;
 
-			var iterator = _container.GetItemQueryIterator<OutboxDocument>(query, requestOptions: queryOptions);
+			var iterator = _container!.GetItemQueryIterator<OutboxDocument>(query, requestOptions: queryOptions);
 
 			if (iterator.HasMoreResults)
 			{
@@ -326,7 +326,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		try
 		{
 			// Read the existing document first
-			var readResponse = await _container.ReadItemAsync<OutboxDocument>(
+			var readResponse = await _container!.ReadItemAsync<OutboxDocument>(
 				messageId,
 				cosmosPartitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -341,7 +341,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				document.Ttl = _options.DefaultTimeToLiveSeconds;
 			}
 
-			var replaceResponse = await _container.ReplaceItemAsync(
+			var replaceResponse = await _container!.ReplaceItemAsync(
 				document,
 				messageId,
 				cosmosPartitionKey,
@@ -405,7 +405,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		{
 			try
 			{
-				var response = await _container.ReadItemAsync<OutboxDocument>(
+				var response = await _container!.ReadItemAsync<OutboxDocument>(
 					messageId,
 					cosmosPartitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -420,7 +420,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		}
 
 		// Update all documents in a batch
-		var batch = _container.CreateTransactionalBatch(cosmosPartitionKey);
+		var batch = _container!.CreateTransactionalBatch(cosmosPartitionKey);
 		foreach (var (doc, etag) in documents)
 		{
 			doc.IsPublished = true;
@@ -510,7 +510,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			var deletedCount = 0;
 			double totalRequestCharge = 0;
 
-			var iterator = _container.GetItemQueryIterator<CleanupDocumentDto>(query, requestOptions: queryOptions);
+			var iterator = _container!.GetItemQueryIterator<CleanupDocumentDto>(query, requestOptions: queryOptions);
 
 			while (iterator.HasMoreResults)
 			{
@@ -521,7 +521,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				{
 					try
 					{
-						var deleteResponse = await _container.DeleteItemAsync<object>(
+						var deleteResponse = await _container!.DeleteItemAsync<object>(
 							item.Id,
 							new CosmosPartitionKey(partitionKey.Value),
 							cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -622,7 +622,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 		try
 		{
-			var readResponse = await _container.ReadItemAsync<OutboxDocument>(
+			var readResponse = await _container!.ReadItemAsync<OutboxDocument>(
 				messageId,
 				cosmosPartitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -631,7 +631,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			document.RetryCount++;
 			document.LastError = errorMessage;
 
-			var replaceResponse = await _container.ReplaceItemAsync(
+			var replaceResponse = await _container!.ReplaceItemAsync(
 				document,
 				messageId,
 				cosmosPartitionKey,

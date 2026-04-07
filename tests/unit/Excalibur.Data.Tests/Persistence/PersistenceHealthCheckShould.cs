@@ -122,7 +122,7 @@ public sealed class PersistenceHealthCheckShould
 
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("failed");
-		result.Exception.ShouldNotBeNull();
+		result.Exception!.ShouldNotBeNull();
 		result.Data["error"].ShouldBe("Connection refused");
 	}
 

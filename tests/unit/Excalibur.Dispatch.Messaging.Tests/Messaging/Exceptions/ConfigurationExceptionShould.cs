@@ -62,7 +62,7 @@ public sealed class ConfigurationExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.ErrorCode.ShouldBe(ErrorCodes.ConfigurationInvalid);
 	}
 
@@ -95,7 +95,7 @@ public sealed class ConfigurationExceptionShould
 		// Assert
 		exception.ErrorCode.ShouldBe(errorCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]

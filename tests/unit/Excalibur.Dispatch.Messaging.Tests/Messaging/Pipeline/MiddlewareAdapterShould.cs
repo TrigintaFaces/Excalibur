@@ -167,7 +167,7 @@ public sealed class MiddlewareAdapterShould : IDisposable
 		// Assert
 		result.ContinueExecution.ShouldBeTrue();
 		result.Success.ShouldBeTrue();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -197,7 +197,7 @@ public sealed class MiddlewareAdapterShould : IDisposable
 		// Assert
 		result.ContinueExecution.ShouldBeFalse();
 		result.Success.ShouldBeTrue();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -228,7 +228,7 @@ public sealed class MiddlewareAdapterShould : IDisposable
 		// Assert
 		result.ContinueExecution.ShouldBeFalse();
 		result.Success.ShouldBeFalse();
-		result.Error.ShouldBe("Test error message");
+		result.Error!.ShouldBe("Test error message");
 	}
 
 	[Fact]
@@ -258,7 +258,7 @@ public sealed class MiddlewareAdapterShould : IDisposable
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.Error.ShouldBe("Unknown error");
+		result.Error!.ShouldBe("Unknown error");
 	}
 
 	[Fact]

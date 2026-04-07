@@ -21,7 +21,7 @@ public sealed class SigningExceptionShould
 		// Assert
 		exception.ShouldNotBeNull();
 		exception.Message.ShouldNotBeEmpty();
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -35,7 +35,7 @@ public sealed class SigningExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -50,8 +50,8 @@ public sealed class SigningExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
-		exception.InnerException.Message.ShouldBe("Key not found");
+		exception.InnerException!.ShouldBe(innerException);
+		exception.InnerException!.Message.ShouldBe("Key not found");
 	}
 
 	[Fact]

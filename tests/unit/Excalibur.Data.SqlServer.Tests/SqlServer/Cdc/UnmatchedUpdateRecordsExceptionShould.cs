@@ -76,7 +76,7 @@ public sealed class UnmatchedUpdateRecordsExceptionShould
 
 		var exception = new UnmatchedUpdateRecordsException(lsn, innerException: inner);
 
-		exception.InnerException.ShouldBeSameAs(inner);
+		exception.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class UnmatchedUpdateRecordsExceptionShould
 		var inner = new InvalidOperationException();
 		var exception = new UnmatchedUpdateRecordsException("test", inner);
 
-		exception.InnerException.ShouldBeSameAs(inner);
+		exception.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]
@@ -112,6 +112,6 @@ public sealed class UnmatchedUpdateRecordsExceptionShould
 
 		exception.StatusCode.ShouldBe(404);
 		exception.Message.ShouldBe("not found");
-		exception.InnerException.ShouldBeSameAs(inner);
+		exception.InnerException!.ShouldBeSameAs(inner);
 	}
 }

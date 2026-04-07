@@ -49,7 +49,7 @@ public sealed class DispatchExceptionShould
 
 		// Assert
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

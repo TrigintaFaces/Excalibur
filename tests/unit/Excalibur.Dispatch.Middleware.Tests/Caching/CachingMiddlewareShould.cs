@@ -323,7 +323,7 @@ public sealed class CachingMiddlewareShould : UnitTestBase
 		result.Succeeded.ShouldBeTrue();
 		result.CacheHit.ShouldBeTrue();
 		result.ProblemDetails.ShouldBeNull();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 
 		// Verify it's an IMessageResult<string> with correct value
 		var typedResult = result.ShouldBeAssignableTo<IMessageResult<string>>();

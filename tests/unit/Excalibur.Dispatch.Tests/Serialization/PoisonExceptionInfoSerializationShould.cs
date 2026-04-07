@@ -59,9 +59,9 @@ public sealed class PoisonExceptionInfoSerializationShould
 		result.Type.ShouldBe("System.AggregateException");
 		result.Message.ShouldBe("Outer error");
 
-		result.InnerException.ShouldNotBeNull();
+		result.InnerException!.ShouldNotBeNull();
 		result.InnerException.Type.ShouldBe("System.ArgumentException");
-		result.InnerException.Message.ShouldBe("Inner error");
+		result.InnerException!.Message.ShouldBe("Inner error");
 		result.InnerException.StackTrace.ShouldBe("at Inner.Method()");
 	}
 
@@ -110,7 +110,7 @@ public sealed class PoisonExceptionInfoSerializationShould
 		result.Type.ShouldBeNull();
 		result.Message.ShouldBeNull();
 		result.StackTrace.ShouldBeNull();
-		result.InnerException.ShouldBeNull();
+		result.InnerException!.ShouldBeNull();
 		result.Data.ShouldBeNull();
 	}
 

@@ -20,7 +20,7 @@ public sealed class EncryptionExceptionShould : UnitTestBase
 		// Assert
 		exception.Message.ShouldNotBeNullOrWhiteSpace();
 		exception.ErrorCode.ShouldBe(EncryptionErrorCode.Unknown);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -49,7 +49,7 @@ public sealed class EncryptionExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

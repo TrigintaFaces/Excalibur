@@ -38,7 +38,7 @@ public sealed class StepResultShould
 			Duration = TimeSpan.FromSeconds(1),
 		};
 
-		sut.ErrorMessage.ShouldBeNull();
+		sut.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -53,6 +53,6 @@ public sealed class StepResultShould
 			ErrorMessage = "15 documents failed validation",
 		};
 
-		sut.ErrorMessage.ShouldBe("15 documents failed validation");
+		sut.ErrorMessage!.ShouldBe("15 documents failed validation");
 	}
 }

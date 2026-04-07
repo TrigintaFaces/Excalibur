@@ -248,8 +248,8 @@ public sealed class HandlerInvokerRegistryShould : IDisposable
 		var ex = await Should.ThrowAsync<System.Reflection.TargetInvocationException>(() =>
 			invoker(handler, message, CancellationToken.None));
 
-		_ = ex.InnerException.ShouldBeOfType<InvalidOperationException>();
-		ex.InnerException.Message.ShouldBe("Handler error");
+		_ = ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
+		ex.InnerException!.Message.ShouldBe("Handler error");
 	}
 
 	[Fact]

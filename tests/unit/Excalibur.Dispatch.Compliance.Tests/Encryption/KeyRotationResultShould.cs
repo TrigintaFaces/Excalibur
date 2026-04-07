@@ -23,7 +23,7 @@ public sealed class KeyRotationResultShould
 		result.Success.ShouldBeTrue();
 		result.NewKey.ShouldBeSameAs(newKey);
 		result.PreviousKey.ShouldBeNull();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class KeyRotationResultShould
 		var result = KeyRotationResult.Failed("Provider unavailable");
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Provider unavailable");
+		result.ErrorMessage!.ShouldBe("Provider unavailable");
 		result.NewKey.ShouldBeNull();
 		result.PreviousKey.ShouldBeNull();
 	}

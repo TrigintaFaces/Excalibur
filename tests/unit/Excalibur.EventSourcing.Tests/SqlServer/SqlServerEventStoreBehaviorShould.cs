@@ -43,7 +43,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrWhiteSpace();
+		result.ErrorMessage!.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
@@ -195,7 +195,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 		method.ShouldNotBeNull();
 
 		var ex = Should.Throw<TargetInvocationException>(() => method!.Invoke(null, [null]));
-		ex.InnerException.ShouldBeOfType<ArgumentNullException>();
+		ex.InnerException!.ShouldBeOfType<ArgumentNullException>();
 
 		var factory = (Func<Microsoft.Data.SqlClient.SqlConnection>)method.Invoke(null, [InvalidConnectionString])!;
 		var connection = factory();

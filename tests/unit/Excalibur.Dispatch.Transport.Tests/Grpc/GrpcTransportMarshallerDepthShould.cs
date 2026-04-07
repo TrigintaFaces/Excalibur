@@ -122,7 +122,7 @@ public sealed class GrpcTransportMarshallerDepthShould
 		deserialized.IsSuccess.ShouldBeFalse();
 		deserialized.MessageId.ShouldBeNull();
 		deserialized.ErrorCode.ShouldBe("UNAVAILABLE");
-		deserialized.ErrorMessage.ShouldBe("Server unavailable");
+		deserialized.ErrorMessage!.ShouldBe("Server unavailable");
 	}
 
 	[Fact]

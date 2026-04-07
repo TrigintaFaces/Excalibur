@@ -52,7 +52,7 @@ public sealed class ApiExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -69,7 +69,7 @@ public sealed class ApiExceptionShould
 		// Assert
 		exception.StatusCode.ShouldBe(statusCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

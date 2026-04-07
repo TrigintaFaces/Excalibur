@@ -126,7 +126,7 @@ public sealed class MigrationStatusShould : UnitTestBase
 
 		// Assert
 		status.State.ShouldBe(MigrationState.Failed);
-		status.ErrorMessage.ShouldBe("Connection timeout after 5 retries");
+		status.ErrorMessage!.ShouldBe("Connection timeout after 5 retries");
 	}
 
 	[Fact]

@@ -770,7 +770,7 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		var inner = new InvalidOperationException("inner");
 		var ex = new MasterKeyBackupException("outer", inner);
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	private void SetupKeyAndEncryption(string keyId)

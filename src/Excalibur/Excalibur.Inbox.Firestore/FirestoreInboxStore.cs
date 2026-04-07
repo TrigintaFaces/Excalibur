@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Inbox.Observability;
 
 using Google.Cloud.Firestore;
+using Google.Apis.Auth.OAuth2;
 
 using Grpc.Core;
 
@@ -93,7 +94,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
 		var docId = GetDocumentId(messageId, handlerType);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var data = CreateDocumentData(entry);
 
@@ -122,7 +123,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -159,7 +160,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		// Create a minimal document for first-writer-wins
 		var now = DateTimeOffset.UtcNow;
@@ -198,7 +199,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -220,7 +221,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -244,7 +245,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -296,7 +297,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 	{
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
-		var snapshot = await _collection.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+		var snapshot = await _collection!.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
 		return snapshot.Documents.Select(SnapshotToEntry);
 	}
@@ -310,7 +311,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 		// For efficiency, we query each status separately with a limit of 0
 		// This requires reading all documents for accurate counts
 
-		var allDocs = await _collection.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+		var allDocs = await _collection!.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
 		var total = 0;
 		var processed = 0;
@@ -361,7 +362,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 		var snapshot = await query.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
 		var deleted = 0;
-		var batch = _db.StartBatch();
+		var batch = _db!.StartBatch();
 		const int maxBatchSize = 500; // Firestore batch limit
 
 		foreach (var doc in snapshot.Documents)
@@ -372,7 +373,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 			if (deleted % maxBatchSize == 0)
 			{
 				_ = await batch.CommitAsync(cancellationToken).ConfigureAwait(false);
-				batch = _db.StartBatch();
+				batch = _db!.StartBatch();
 			}
 		}
 
@@ -514,11 +515,11 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 
 		if (!string.IsNullOrEmpty(_options.CredentialsPath))
 		{
-			builder.CredentialsPath = _options.CredentialsPath;
+			builder.Credential = GoogleCredential.FromFile(_options.CredentialsPath!);
 		}
 		else if (!string.IsNullOrEmpty(_options.CredentialsJson))
 		{
-			builder.JsonCredentials = _options.CredentialsJson;
+			builder.Credential = GoogleCredential.FromJson(_options.CredentialsJson);
 		}
 
 		_db = await builder.BuildAsync().ConfigureAwait(false);

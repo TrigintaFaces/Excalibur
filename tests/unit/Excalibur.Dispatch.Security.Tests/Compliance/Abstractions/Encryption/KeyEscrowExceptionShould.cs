@@ -31,7 +31,7 @@ public sealed class KeyEscrowExceptionShould
         var inner = new InvalidOperationException("inner");
         var ex = new KeyEscrowException("outer", inner);
 
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

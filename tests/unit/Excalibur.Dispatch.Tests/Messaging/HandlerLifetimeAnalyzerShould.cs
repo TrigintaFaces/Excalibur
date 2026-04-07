@@ -262,27 +262,27 @@ public sealed class HandlerLifetimeAnalyzerShould
 			Task.FromResult("result");
 	}
 
-	public sealed class HandlerWithSingletonDep(ISingletonDep dep) : IActionHandler<TestCommand>
+	public sealed class HandlerWithSingletonDep(ISingletonDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
-	public sealed class HandlerWithScopedDep(IScopedDep dep) : IActionHandler<TestCommand>
+	public sealed class HandlerWithScopedDep(IScopedDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
-	public sealed class HandlerWithTransientDep(ITransientDep dep) : IActionHandler<TestCommand>
+	public sealed class HandlerWithTransientDep(ITransientDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
-	public sealed class HandlerWithUnknownDep(IUnknownDep dep) : IActionHandler<TestCommand>
+	public sealed class HandlerWithUnknownDep(IUnknownDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
-	public sealed class HandlerWithLoggerDep(ILogger<HandlerWithLoggerDep> logger) : IActionHandler<TestCommand>
+	public sealed class HandlerWithLoggerDep(ILogger<HandlerWithLoggerDep> _logger) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}

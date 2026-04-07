@@ -23,7 +23,7 @@ public sealed class ProjectionErrorContextShould
 
 		sut.ProjectionType.ShouldBe("OrderProjection");
 		sut.OperationType.ShouldBe("Index");
-		sut.Exception.ShouldBeSameAs(ex);
+		sut.Exception!.ShouldBeSameAs(ex);
 		sut.IndexName.ShouldBe("orders");
 	}
 

@@ -94,7 +94,7 @@ public sealed class ApiExceptionShould
 		var ex = new ApiException("Outer message", inner);
 
 		// Assert
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -104,7 +104,7 @@ public sealed class ApiExceptionShould
 		var ex = new ApiException("Outer message", null);
 
 		// Assert
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 	}
 
 	#endregion

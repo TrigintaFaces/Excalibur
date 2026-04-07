@@ -68,7 +68,7 @@ public sealed class GrpcTransportMessagesShould
 		response.IsSuccess.ShouldBeFalse();
 		response.MessageId.ShouldBeNull();
 		response.ErrorCode.ShouldBeNull();
-		response.ErrorMessage.ShouldBeNull();
+		response.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]

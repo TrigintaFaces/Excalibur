@@ -130,8 +130,8 @@ public sealed class EncryptionMigrationServiceShould
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.MigratedData.ShouldBeNull();
-		result.ErrorMessage.ShouldContain("Decryption failed");
-		_ = result.Exception.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("Decryption failed");
+		_ = result.Exception!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -153,7 +153,7 @@ public sealed class EncryptionMigrationServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Encryption failed");
+		result.ErrorMessage!.ShouldContain("Encryption failed");
 	}
 
 	[Fact]
@@ -618,7 +618,7 @@ public sealed class EncryptionMigrationServiceShould
 		var status = await _sut.GetMigrationStatusAsync(migrationId, CancellationToken.None);
 		_ = status.ShouldNotBeNull();
 		status.State.ShouldBe(MigrationState.Cancelled);
-		status.ErrorMessage.ShouldBe("Migration was cancelled");
+		status.ErrorMessage!.ShouldBe("Migration was cancelled");
 	}
 
 	[Fact]

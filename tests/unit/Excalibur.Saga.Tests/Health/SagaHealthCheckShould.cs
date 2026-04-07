@@ -147,8 +147,8 @@ public sealed class SagaHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldBe("Saga health check failed");
-		result.Exception.ShouldNotBeNull();
-		result.Exception.Message.ShouldBe("Database connection failed");
+		result.Exception!.ShouldNotBeNull();
+		result.Exception!.Message.ShouldBe("Database connection failed");
 	}
 
 	#endregion

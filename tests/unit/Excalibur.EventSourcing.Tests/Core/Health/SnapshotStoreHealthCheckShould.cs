@@ -83,7 +83,7 @@ public sealed class SnapshotStoreHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("unreachable");
-		result.Exception.ShouldBeOfType<TimeoutException>();
+		result.Exception!.ShouldBeOfType<TimeoutException>();
 	}
 
 	[Fact]

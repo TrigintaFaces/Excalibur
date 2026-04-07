@@ -5,8 +5,12 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Cdc.Firestore;
 
+/// <summary>
+/// Validates <see cref="FirestoreCdcStateStoreOptions"/> configuration at startup.
+/// </summary>
 public sealed class FirestoreCdcStateStoreOptionsValidator : IValidateOptions<FirestoreCdcStateStoreOptions>
 {
+	/// <inheritdoc/>
 	public ValidateOptionsResult Validate(string? name, FirestoreCdcStateStoreOptions options)
 	{
 		if (options is null)

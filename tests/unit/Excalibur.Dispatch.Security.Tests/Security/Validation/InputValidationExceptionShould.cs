@@ -68,7 +68,7 @@ public sealed class InputValidationExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.ValidationErrors.ShouldBeEmpty();
 	}
 

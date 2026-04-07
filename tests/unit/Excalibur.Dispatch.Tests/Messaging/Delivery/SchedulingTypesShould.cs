@@ -81,7 +81,7 @@ public sealed class SchedulingTypesShould
 		history.StartedUtc.ShouldBe(default);
 		history.CompletedUtc.ShouldBeNull();
 		history.Success.ShouldBeFalse();
-		history.Error.ShouldBeNull();
+		history.Error!.ShouldBeNull();
 		history.Duration.ShouldBeNull();
 	}
 

@@ -23,7 +23,7 @@ public sealed class TestFixtureAssertionExceptionShould
 		var ex = new TestFixtureAssertionException("outer", inner);
 
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]

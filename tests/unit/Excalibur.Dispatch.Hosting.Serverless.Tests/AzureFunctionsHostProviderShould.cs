@@ -215,7 +215,7 @@ public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 			_ = itemsProperty.GetValue(uninitialized);
 			var itemsSetterEx = Should.Throw<TargetInvocationException>(() =>
 				itemsProperty.SetValue(uninitialized, new Dictionary<object, object>()));
-			itemsSetterEx.InnerException.ShouldBeOfType<NotSupportedException>();
+			itemsSetterEx.InnerException!.ShouldBeOfType<NotSupportedException>();
 			defaultContextType.GetProperty("Features")!.GetValue(uninitialized).ShouldBeNull();
 		}
 		finally

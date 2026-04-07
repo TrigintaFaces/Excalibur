@@ -57,7 +57,7 @@ public sealed class MissingDataProcessorExceptionShould : UnitTestBase
 		var ex = new MissingDataProcessorException(recordType: "OrderRecord", innerException: inner);
 
 		// Assert
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]
@@ -105,6 +105,6 @@ public sealed class MissingDataProcessorExceptionShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe("test message");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 }

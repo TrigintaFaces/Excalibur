@@ -297,7 +297,7 @@ public sealed partial class FluentSagaOrchestration<TSagaInput, TSagaOutput>
 		}
 
 		// Exhausted all retries
-		LogRetryExhausted(lastException, step.Name, _maxRetryAttempts);
+		LogRetryExhausted(lastException!, step.Name, _maxRetryAttempts);
 		throw lastException!;
 	}
 

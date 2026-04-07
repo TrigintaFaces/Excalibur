@@ -388,7 +388,7 @@ public sealed partial class PayloadSerializerSerializeObjectShould
 		var ex = Should.Throw<SerializationException>(() =>
 			sut.SerializeObject(message, typeof(ComplexTestMessage)));
 		ex.Message.ShouldContain("serialize");
-		_ = ex.InnerException.ShouldBeOfType<ArgumentException>();
+		_ = ex.InnerException!.ShouldBeOfType<ArgumentException>();
 	}
 
 	[Fact]
@@ -406,8 +406,8 @@ public sealed partial class PayloadSerializerSerializeObjectShould
 		var ex = Should.Throw<SerializationException>(() =>
 			sut.SerializeObject(message, typeof(TestMessage)));
 		ex.Message.ShouldContain("serialize");
-		_ = ex.InnerException.ShouldNotBeNull();
-		ex.InnerException.Message.ShouldContain("Intentional");
+		_ = ex.InnerException!.ShouldNotBeNull();
+		ex.InnerException!.Message.ShouldContain("Intentional");
 	}
 
 	#endregion Error Handling Tests

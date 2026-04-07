@@ -15,7 +15,7 @@ public sealed class DeadLetterDocumentShould
 		var doc = new DeadLetterDocument<string>();
 
 		doc.OriginalDocument.ShouldBeNull();
-		doc.ErrorMessage.ShouldBe(string.Empty);
+		doc.ErrorMessage!.ShouldBe(string.Empty);
 		doc.ErrorType.ShouldBe(string.Empty);
 		doc.Timestamp.ShouldBe(default);
 		doc.RetryCount.ShouldBe(0);
@@ -35,7 +35,7 @@ public sealed class DeadLetterDocumentShould
 		};
 
 		doc.OriginalDocument.ShouldBe("test-doc");
-		doc.ErrorMessage.ShouldBe("Something failed");
+		doc.ErrorMessage!.ShouldBe("Something failed");
 		doc.ErrorType.ShouldBe("InvalidOperationException");
 		doc.Timestamp.ShouldBe(timestamp);
 		doc.RetryCount.ShouldBe(3);

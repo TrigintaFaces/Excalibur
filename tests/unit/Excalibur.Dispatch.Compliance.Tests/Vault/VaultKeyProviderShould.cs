@@ -642,7 +642,7 @@ public sealed class VaultKeyProviderShould
 			CancellationToken.None);
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Vault error");
+		result.ErrorMessage!.ShouldContain("Vault error");
 	}
 
 	[Fact]
@@ -717,7 +717,7 @@ public sealed class VaultKeyProviderShould
 			CancellationToken.None);
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("unexpected");
+		result.ErrorMessage!.ShouldContain("unexpected");
 	}
 
 	[Fact]

@@ -27,7 +27,7 @@ public sealed class MessageResultCancelledShould
 		var result = MessageResult.Cancelled();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -98,7 +98,7 @@ public sealed class MessageResultCancelledShould
 		var result = MessageResult.Cancelled<string>();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]

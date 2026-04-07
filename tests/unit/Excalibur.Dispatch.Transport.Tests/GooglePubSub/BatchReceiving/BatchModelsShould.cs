@@ -86,7 +86,7 @@ public sealed class BatchModelsShould
 		// Assert
 		message.MessageId.ShouldBe("msg-1");
 		message.AckId.ShouldBe("ack-1");
-		message.Error.ShouldBeSameAs(error);
+		message.Error!.ShouldBeSameAs(error);
 		message.ShouldRetry.ShouldBeFalse();
 		message.RetryDelay.ShouldBe(TimeSpan.FromSeconds(5));
 	}

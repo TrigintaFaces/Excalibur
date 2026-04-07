@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Google.Api.Gax;
 using Google.Cloud.Firestore;
+using Google.Apis.Auth.OAuth2;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -77,7 +78,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 			LogInitializing(_options.CollectionName);
 
 			_db = await CreateDatabaseAsync(cancellationToken).ConfigureAwait(false);
-			_collection = _db.Collection(_options.CollectionName);
+			_collection = _db!.Collection(_options.CollectionName);
 			_initialized = true;
 		}
 		finally
@@ -97,7 +98,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		var docData = ToFirestoreDocument(message, partitionKey);
-		var docRef = _collection.Document(message.MessageId);
+		var docRef = _collection!.Document(message.MessageId);
 
 		try
 		{
@@ -163,12 +164,12 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 
 			foreach (var batch in batches)
 			{
-				var writeBatch = _db.StartBatch();
+				var writeBatch = _db!.StartBatch();
 
 				foreach (var message in batch)
 				{
 					var docData = ToFirestoreDocument(message, partitionKey);
-					var docRef = _collection.Document(message.MessageId);
+					var docRef = _collection!.Document(message.MessageId);
 					_ = writeBatch.Set(docRef, docData);
 				}
 
@@ -283,7 +284,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 
 		try
 		{
-			var docRef = _collection.Document(messageId);
+			var docRef = _collection!.Document(messageId);
 			var updates = new Dictionary<string, object> { ["isPublished"] = true, ["publishedAt"] = publishedAt.ToString("o") };
 
 			if (ttlTimestamp.HasValue)
@@ -354,11 +355,11 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 
 			foreach (var batch in batches)
 			{
-				var writeBatch = _db.StartBatch();
+				var writeBatch = _db!.StartBatch();
 
 				foreach (var messageId in batch)
 				{
-					var docRef = _collection.Document(messageId);
+					var docRef = _collection!.Document(messageId);
 					var updates = new Dictionary<string, object> { ["isPublished"] = true, ["publishedAt"] = publishedAt.ToString("o") };
 
 					if (ttlTimestamp.HasValue)
@@ -439,7 +440,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 
 			foreach (var batch in batches)
 			{
-				var writeBatch = _db.StartBatch();
+				var writeBatch = _db!.StartBatch();
 
 				foreach (var doc in batch)
 				{
@@ -524,7 +525,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 		var result = WriteStoreTelemetry.Results.Success;
 		try
 		{
-			var docRef = _collection.Document(messageId);
+			var docRef = _collection!.Document(messageId);
 			var updates = new Dictionary<string, object> { ["retryCount"] = FieldValue.Increment(1) };
 
 			if (!string.IsNullOrEmpty(errorMessage))
@@ -668,11 +669,11 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
 		{
-			builder.CredentialsPath = _options.CredentialsPath;
+			builder.Credential = GoogleCredential.FromFile(_options.CredentialsPath!);
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsJson))
 		{
-			builder.JsonCredentials = _options.CredentialsJson;
+			builder.Credential = GoogleCredential.FromJson(_options.CredentialsJson);
 		}
 
 		return await builder.BuildAsync(cancellationToken).ConfigureAwait(false);

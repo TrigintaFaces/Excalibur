@@ -55,8 +55,8 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		var result = await sut.ExportAsync(auditEvent, CancellationToken.None).ConfigureAwait(false);
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("400");
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("400");
 		result.IsTransientError.ShouldBeFalse();
 	}
 
@@ -90,7 +90,7 @@ public sealed class SplunkAuditExporterShould : IDisposable
 
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldBe("Connection refused");
+		result.ErrorMessage!.ShouldBe("Connection refused");
 	}
 
 	[Fact]
@@ -206,7 +206,7 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		var result = await sut.CheckHealthAsync(CancellationToken.None).ConfigureAwait(false);
 
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -218,7 +218,7 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		var result = await sut.CheckHealthAsync(CancellationToken.None).ConfigureAwait(false);
 
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Connection refused");
+		result.ErrorMessage!.ShouldBe("Connection refused");
 	}
 
 	[Fact]

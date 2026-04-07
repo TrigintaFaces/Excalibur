@@ -46,7 +46,7 @@ public sealed class InputSanitizationExceptionShould
 		var exception = new InputSanitizationException();
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	#endregion
@@ -106,7 +106,7 @@ public sealed class InputSanitizationExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -116,7 +116,7 @@ public sealed class InputSanitizationExceptionShould
 		var exception = new InputSanitizationException("Message", null!);
 
 		// Assert
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -130,8 +130,8 @@ public sealed class InputSanitizationExceptionShould
 		var exception = new InputSanitizationException("Sanitization failed", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
-		exception.InnerException.InnerException.ShouldBe(rootCause);
+		exception.InnerException!.ShouldBe(innerException);
+		exception.InnerException.InnerException!.ShouldBe(rootCause);
 	}
 
 	#endregion

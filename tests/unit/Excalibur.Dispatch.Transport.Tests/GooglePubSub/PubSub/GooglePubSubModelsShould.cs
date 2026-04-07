@@ -19,7 +19,7 @@ public sealed class GooglePubSubModelsShould
 		// Assert
 		error.AckId.ShouldBe("ack-123");
 		error.Message.ShouldBe("Failed to ack");
-		error.Exception.ShouldBeNull();
+		error.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -32,7 +32,7 @@ public sealed class GooglePubSubModelsShould
 		var error = new AckError("ack-456", "Error", ex);
 
 		// Assert
-		error.Exception.ShouldBe(ex);
+		error.Exception!.ShouldBe(ex);
 	}
 
 	[Fact]

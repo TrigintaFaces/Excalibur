@@ -57,7 +57,7 @@ public sealed class MultipleDataProcessorExceptionShould : UnitTestBase
 		var ex = new MultipleDataProcessorException(recordType: "OrderRecord", innerException: inner);
 
 		// Assert
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]
@@ -115,6 +115,6 @@ public sealed class MultipleDataProcessorExceptionShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe("test message");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 }

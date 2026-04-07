@@ -39,7 +39,7 @@ public sealed class KeyRotationResultShould : UnitTestBase
 		result.Success.ShouldBeTrue();
 		result.NewKey.ShouldBe(newKey);
 		result.PreviousKey.ShouldBe(previousKey);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class KeyRotationResultShould : UnitTestBase
 		result.Success.ShouldBeTrue();
 		result.NewKey.ShouldBe(newKey);
 		result.PreviousKey.ShouldBeNull();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -76,7 +76,7 @@ public sealed class KeyRotationResultShould : UnitTestBase
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe(errorMessage);
+		result.ErrorMessage!.ShouldBe(errorMessage);
 		result.NewKey.ShouldBeNull();
 		result.PreviousKey.ShouldBeNull();
 	}

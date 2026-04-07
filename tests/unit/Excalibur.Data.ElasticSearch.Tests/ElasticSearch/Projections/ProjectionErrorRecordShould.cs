@@ -28,7 +28,7 @@ public sealed class ProjectionErrorRecordShould
 		sut.ProjectionType.ShouldBe("OrderProjection");
 		sut.OperationType.ShouldBe("Index");
 		sut.IndexName.ShouldBe("orders");
-		sut.ErrorMessage.ShouldBe("Mapping exception");
+		sut.ErrorMessage!.ShouldBe("Mapping exception");
 	}
 
 	[Fact]

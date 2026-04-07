@@ -36,7 +36,7 @@ public sealed class ActivityAuditedShould
 		audited.ActivityName.ShouldBe("TestActivity");
 		audited.ApplicationName.ShouldBe("TestApp");
 		audited.ClientAddress.ShouldBe("10.0.0.1");
-		audited.Exception.ShouldBe("Error occurred");
+		audited.Exception!.ShouldBe("Error occurred");
 		audited.Login.ShouldBe("jdoe");
 		audited.Request.ShouldBe("{\"id\":1}");
 		audited.Response.ShouldBe("OK");
@@ -102,7 +102,7 @@ public sealed class ActivityAuditedShould
 
 		// Assert
 		audited.ClientAddress.ShouldBeNull();
-		audited.Exception.ShouldBeNull();
+		audited.Exception!.ShouldBeNull();
 		audited.Login.ShouldBeNull();
 		audited.Response.ShouldBeNull();
 		audited.TenantId.ShouldBeNull();

@@ -19,7 +19,7 @@ public sealed class BulkOperationFailureShould
 		};
 
 		sut.DocumentId.ShouldBe("doc-123");
-		sut.ErrorMessage.ShouldBe("Mapping exception on field 'price'");
+		sut.ErrorMessage!.ShouldBe("Mapping exception on field 'price'");
 	}
 
 	[Fact]

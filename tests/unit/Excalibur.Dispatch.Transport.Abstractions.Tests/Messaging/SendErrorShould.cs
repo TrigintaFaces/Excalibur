@@ -35,7 +35,7 @@ public sealed class SendErrorShould
     {
         var error = new SendError();
 
-        error.Exception.ShouldBeNull();
+        error.Exception!.ShouldBeNull();
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed class SendErrorShould
 
         error.Code.ShouldBe("InvalidOperationException");
         error.Message.ShouldBe("something went wrong");
-        error.Exception.ShouldBe(ex);
+        error.Exception!.ShouldBe(ex);
         error.IsRetryable.ShouldBeFalse();
     }
 
@@ -81,7 +81,7 @@ public sealed class SendErrorShould
 
         error.Code.ShouldBe("CONN_REFUSED");
         error.Message.ShouldBe("Connection refused");
-        error.Exception.ShouldBe(ex);
+        error.Exception!.ShouldBe(ex);
         error.IsRetryable.ShouldBeTrue();
     }
 }

@@ -42,7 +42,7 @@ public sealed class DbConnectionExtensionsDepthShould
 		// Act & Assert
 		var ex = await Should.ThrowAsync<OperationFailedException>(
 			() => connection.ResolveAsync(dataRequest));
-		ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+		ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

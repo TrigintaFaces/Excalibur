@@ -123,9 +123,9 @@ public sealed class AwsCloudWatchAuditExporterDepthShould : IDisposable
 		var result = await sut.ExportAsync(auditEvent, CancellationToken.None);
 
 		// Assert
-		result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("403");
-		result.ErrorMessage.ShouldContain("Access denied");
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("403");
+		result.ErrorMessage!.ShouldContain("Access denied");
 	}
 
 	[Fact]

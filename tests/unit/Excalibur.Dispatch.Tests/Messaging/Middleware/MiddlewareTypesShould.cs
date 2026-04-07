@@ -35,7 +35,7 @@ public sealed class MiddlewareTypesShould
 		var ex = new AuthenticationException("Access denied");
 
 		ex.Message.ShouldBe("Access denied");
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -45,7 +45,7 @@ public sealed class MiddlewareTypesShould
 		var ex = new AuthenticationException("Access denied", inner);
 
 		ex.Message.ShouldBe("Access denied");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

@@ -144,7 +144,7 @@ public sealed class MessagePackPluggableSerializerShould : UnitTestBase
 		// Act & Assert — the exception from MessagePack should have an inner exception
 		var ex = Should.Throw<global::MessagePack.MessagePackSerializationException>(() =>
 			serializer.SerializeToBytes(unserializable));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -187,7 +187,7 @@ public sealed class MessagePackPluggableSerializerShould : UnitTestBase
 		// Act & Assert - Verify the catch wraps the exception properly
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.Deserialize<TestPluggableMessage>(corruptData.AsSpan()));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 		ex.Message.ShouldContain("deserialize");
 	}
 
@@ -273,7 +273,7 @@ public sealed class MessagePackPluggableSerializerShould : UnitTestBase
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.SerializeObject(unserializable, typeof(UnserializableType)));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 		ex.Message.ShouldContain("serialize");
 	}
 
@@ -329,7 +329,7 @@ public sealed class MessagePackPluggableSerializerShould : UnitTestBase
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
 			serializer.DeserializeObject(corruptData, typeof(TestPluggableMessage)));
-		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException!.ShouldNotBeNull();
 		ex.Message.ShouldContain("deserialize");
 	}
 

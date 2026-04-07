@@ -89,7 +89,7 @@ public sealed class FieldConstraintsShould
 
 		// Assert
 		constraint.FieldName.ShouldBe("Name");
-		constraint.ErrorMessage.ShouldBe("Name is required");
+		constraint.ErrorMessage!.ShouldBe("Name is required");
 	}
 
 	// --- GuidFormatConstraint ---

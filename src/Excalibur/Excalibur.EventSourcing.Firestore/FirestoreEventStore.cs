@@ -14,6 +14,7 @@ using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Observability;
 
 using Google.Cloud.Firestore;
+using Google.Apis.Auth.OAuth2;
 
 using Grpc.Core;
 
@@ -150,7 +151,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		try
 		{
 			var events = new List<CloudStoredEvent>();
-			var query = _db.Collection(_options.EventsCollectionName)
+			var query = _db!.Collection(_options.EventsCollectionName)
 				.WhereEqualTo("streamId", streamId)
 				.OrderBy("version");
 
@@ -213,7 +214,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		try
 		{
 			var events = new List<CloudStoredEvent>();
-			var query = _db.Collection(_options.EventsCollectionName)
+			var query = _db!.Collection(_options.EventsCollectionName)
 				.WhereEqualTo("streamId", streamId)
 				.WhereGreaterThan("version", fromVersion)
 				.OrderBy("version");
@@ -295,10 +296,10 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			var conflictDetected = false;
 			var currentActualVersion = expectedVersion;
 
-			await _db.RunTransactionAsync(async transaction =>
+			await _db!.RunTransactionAsync(async transaction =>
 			{
 				// Check current version
-				var versionQuery = _db.Collection(_options.EventsCollectionName)
+				var versionQuery = _db!.Collection(_options.EventsCollectionName)
 					.WhereEqualTo("streamId", streamId)
 					.OrderByDescending("version")
 					.Limit(1);
@@ -327,7 +328,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 					version++;
 					var eventTypeName = EventTypeNameHelper.GetEventTypeName(evt.GetType());
 					var docId = $"{streamId}:{version}";
-					var docRef = _db.Collection(_options.EventsCollectionName).Document(docId);
+					var docRef = _db!.Collection(_options.EventsCollectionName).Document(docId);
 
 					var data = new Dictionary<string, object>
 					{
@@ -427,7 +428,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 		var streamId = BuildStreamId(aggregateType, aggregateId);
 
-		var query = _db.Collection(_options.EventsCollectionName)
+		var query = _db!.Collection(_options.EventsCollectionName)
 			.WhereEqualTo("streamId", streamId)
 			.OrderByDescending("version")
 			.Limit(1);
@@ -589,11 +590,11 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 		if (!string.IsNullOrWhiteSpace(_options.CredentialsJson))
 		{
-			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, JsonCredentials = _options.CredentialsJson };
+			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, Credential = GoogleCredential.FromJson(_options.CredentialsJson) };
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
 		{
-			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, CredentialsPath = _options.CredentialsPath };
+			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, Credential = GoogleCredential.FromFile(_options.CredentialsPath!) };
 		}
 		else
 		{

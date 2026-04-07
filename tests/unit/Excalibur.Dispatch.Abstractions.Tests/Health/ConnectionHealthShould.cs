@@ -20,7 +20,7 @@ public sealed class ConnectionHealthShould
 
 		// Assert
 		health.IsHealthy.ShouldBeTrue();
-		health.ErrorMessage.ShouldBeNull();
+		health.ErrorMessage!.ShouldBeNull();
 		health.CheckedAtTicks.ShouldBeGreaterThan(0);
 	}
 
@@ -42,7 +42,7 @@ public sealed class ConnectionHealthShould
 
 		// Assert
 		health.IsHealthy.ShouldBeFalse();
-		health.ErrorMessage.ShouldBe("Connection refused");
+		health.ErrorMessage!.ShouldBe("Connection refused");
 		health.CheckedAtTicks.ShouldBeGreaterThan(0);
 	}
 
@@ -92,7 +92,7 @@ public sealed class ConnectionHealthShould
 
 		// Assert
 		health.IsHealthy.ShouldBeFalse();
-		health.ErrorMessage.ShouldBe("Database unavailable");
+		health.ErrorMessage!.ShouldBe("Database unavailable");
 		health.ResponseTimeMs.ShouldBeGreaterThanOrEqualTo(0);
 	}
 
@@ -152,6 +152,6 @@ public sealed class ConnectionHealthShould
 
 		// Assert
 		health.IsHealthy.ShouldBeFalse();
-		health.ErrorMessage.ShouldBe("Error occurred");
+		health.ErrorMessage!.ShouldBe("Error occurred");
 	}
 }

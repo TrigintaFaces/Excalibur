@@ -158,8 +158,8 @@ public sealed class EventStoreErasureContributorFunctionalShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Partial erasure");
-		result.ErrorMessage.ShouldContain("Connection lost");
+		result.ErrorMessage!.ShouldContain("Partial erasure");
+		result.ErrorMessage!.ShouldContain("Connection lost");
 	}
 
 	[Fact]

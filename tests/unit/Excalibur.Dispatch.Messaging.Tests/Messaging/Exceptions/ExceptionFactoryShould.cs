@@ -362,7 +362,7 @@ public sealed class ExceptionFactoryShould
 		// Assert
 		_ = ex.ShouldNotBeNull();
 		ex.Message.ShouldBe("Wrapped message");
-		ex.InnerException.ShouldBe(innerEx);
+		ex.InnerException!.ShouldBe(innerEx);
 	}
 
 	[Fact]

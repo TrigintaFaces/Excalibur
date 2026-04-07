@@ -81,7 +81,7 @@ public sealed class ResourceExceptionShould
 		exception.Resource.ShouldBe("Order");
 		exception.StatusCode.ShouldBe(404);
 		exception.Message.ShouldBe("Not found");
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -144,7 +144,7 @@ public sealed class ResourceExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe("Error message");
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 		exception.Resource.ShouldBeNull();
 	}
 
@@ -160,7 +160,7 @@ public sealed class ResourceExceptionShould
 		// Assert
 		exception.StatusCode.ShouldBe(400);
 		exception.Message.ShouldBe("Bad request");
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 		exception.Resource.ShouldBe("Test");
 	}
 

@@ -32,7 +32,7 @@ public sealed class EncryptionMigrationExceptionShould
         var ex = new EncryptionMigrationException("outer", inner);
 
         ex.Message.ShouldBe("outer");
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

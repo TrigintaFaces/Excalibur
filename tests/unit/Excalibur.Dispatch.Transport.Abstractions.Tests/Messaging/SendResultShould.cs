@@ -14,7 +14,7 @@ public sealed class SendResultShould
         result.IsSuccess.ShouldBeTrue();
         result.MessageId.ShouldBe("msg-123");
         result.AcceptedAt.ShouldNotBeNull();
-        result.Error.ShouldBeNull();
+        result.Error!.ShouldBeNull();
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class SendResultShould
         var result = SendResult.Failure(error);
 
         result.IsSuccess.ShouldBeFalse();
-        result.Error.ShouldBe(error);
+        result.Error!.ShouldBe(error);
         result.MessageId.ShouldBeNull();
     }
 

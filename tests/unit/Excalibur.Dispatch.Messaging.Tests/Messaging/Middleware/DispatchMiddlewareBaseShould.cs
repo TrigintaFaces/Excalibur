@@ -339,8 +339,8 @@ public sealed class DispatchMiddlewareBaseShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(
 			middleware.InvokeAsync(message, context, next, CancellationToken.None).AsTask());
 		ex.Message.ShouldContain("encountered an error");
-		_ = ex.InnerException.ShouldNotBeNull();
-		ex.InnerException.Message.ShouldBe("Test error");
+		_ = ex.InnerException!.ShouldNotBeNull();
+		ex.InnerException!.Message.ShouldBe("Test error");
 	}
 
 	#endregion

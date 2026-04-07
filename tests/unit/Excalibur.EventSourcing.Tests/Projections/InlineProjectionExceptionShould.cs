@@ -28,7 +28,7 @@ public sealed class InlineProjectionExceptionShould
 		ex.AggregateId.ShouldBe("order-1");
 		ex.AggregateType.ShouldBe("Order");
 		ex.FailedProjectionType.ShouldBe(typeof(OrderSummary));
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]

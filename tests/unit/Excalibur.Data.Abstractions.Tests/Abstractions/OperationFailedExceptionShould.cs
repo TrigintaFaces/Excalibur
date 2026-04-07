@@ -195,7 +195,7 @@ public sealed class OperationFailedExceptionShould : UnitTestBase
 		var exception = new OperationFailedException(operation, resource, null, null, innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	[Fact]
@@ -221,7 +221,7 @@ public sealed class OperationFailedExceptionShould : UnitTestBase
 		exception.Resource.ShouldBe(resource);
 		exception.StatusCode.ShouldBe(statusCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	#endregion

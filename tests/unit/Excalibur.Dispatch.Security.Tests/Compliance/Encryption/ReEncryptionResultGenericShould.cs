@@ -152,7 +152,7 @@ public sealed class ReEncryptionResultGenericShould
 			duration: TimeSpan.FromMilliseconds(50));
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -170,7 +170,7 @@ public sealed class ReEncryptionResultGenericShould
 			duration: TimeSpan.FromMilliseconds(50));
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	#endregion Succeeded Factory Method Tests
@@ -215,7 +215,7 @@ public sealed class ReEncryptionResultGenericShould
 		var result = ReEncryptionResult<TestEntity>.Failed(entity, "Provider not found");
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Provider not found");
+		result.ErrorMessage!.ShouldBe("Provider not found");
 	}
 
 	[Fact]
@@ -229,7 +229,7 @@ public sealed class ReEncryptionResultGenericShould
 		var result = ReEncryptionResult<TestEntity>.Failed(entity, "Error", exception);
 
 		// Assert
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -242,7 +242,7 @@ public sealed class ReEncryptionResultGenericShould
 		var result = ReEncryptionResult<TestEntity>.Failed(entity, "Error");
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]

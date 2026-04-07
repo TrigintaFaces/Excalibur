@@ -206,7 +206,7 @@ public sealed class ProcessManagerShould
 			innerException);
 
 		// Assert
-		exception.InnerException.ShouldBeSameAs(innerException);
+		exception.InnerException!.ShouldBeSameAs(innerException);
 	}
 
 	#endregion

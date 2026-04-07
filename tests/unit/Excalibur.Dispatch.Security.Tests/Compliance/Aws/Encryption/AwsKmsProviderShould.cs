@@ -1042,7 +1042,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 	}
 
 	[Fact]

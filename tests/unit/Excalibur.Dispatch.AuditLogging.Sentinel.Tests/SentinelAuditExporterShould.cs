@@ -66,8 +66,8 @@ public sealed class SentinelAuditExporterShould : IDisposable
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("403");
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("403");
 		result.IsTransientError.ShouldBeFalse();
 	}
 
@@ -107,7 +107,7 @@ public sealed class SentinelAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldBe("Connection refused");
+		result.ErrorMessage!.ShouldBe("Connection refused");
 	}
 
 	[Fact]
@@ -230,7 +230,7 @@ public sealed class SentinelAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -245,7 +245,7 @@ public sealed class SentinelAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Connection refused");
+		result.ErrorMessage!.ShouldBe("Connection refused");
 	}
 
 	[Fact]

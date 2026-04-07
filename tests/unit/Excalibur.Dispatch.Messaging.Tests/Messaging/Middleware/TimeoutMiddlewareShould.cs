@@ -270,8 +270,8 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
-		result.ErrorMessage.ShouldContain("timed out");
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldContain("timed out");
 	}
 
 	[Fact]

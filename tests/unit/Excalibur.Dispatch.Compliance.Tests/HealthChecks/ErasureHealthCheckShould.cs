@@ -52,7 +52,7 @@ public sealed class ErasureHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("Store unavailable");
-		result.Exception.ShouldNotBeNull();
+		result.Exception!.ShouldNotBeNull();
 		result.Data.ShouldContainKey("duration_ms");
 	}
 

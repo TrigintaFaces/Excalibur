@@ -31,7 +31,7 @@ public sealed class StepResultShould
 		var result = new StepResult();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -41,7 +41,7 @@ public sealed class StepResultShould
 		var result = new StepResult();
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -96,7 +96,7 @@ public sealed class StepResultShould
 		var result = new StepResult { ErrorMessage = "Something went wrong" };
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Something went wrong");
+		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	[Fact]
@@ -109,7 +109,7 @@ public sealed class StepResultShould
 		var result = new StepResult { Exception = exception };
 
 		// Assert
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -160,8 +160,8 @@ public sealed class StepResultShould
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
-		result.ErrorMessage.ShouldBeNull();
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 		result.ShouldRetry.ShouldBeFalse();
 	}
 
@@ -200,8 +200,8 @@ public sealed class StepResultShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Payment declined");
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBe("Payment declined");
+		result.Exception!.ShouldBeNull();
 		result.ShouldRetry.ShouldBeFalse();
 	}
 
@@ -216,9 +216,9 @@ public sealed class StepResultShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Service unavailable");
-		result.Exception.ShouldBe(exception);
-		result.Exception.ShouldBeOfType<TimeoutException>();
+		result.ErrorMessage!.ShouldBe("Service unavailable");
+		result.Exception!.ShouldBe(exception);
+		result.Exception!.ShouldBeOfType<TimeoutException>();
 	}
 
 	[Fact]
@@ -231,7 +231,7 @@ public sealed class StepResultShould
 		result.IsSuccess.ShouldBeFalse();
 		result.ShouldRetry.ShouldBeTrue();
 		result.RetryDelay.ShouldBe(TimeSpan.FromSeconds(30));
-		result.ErrorMessage.ShouldBe("Rate limit exceeded");
+		result.ErrorMessage!.ShouldBe("Rate limit exceeded");
 	}
 
 	[Fact]
@@ -289,8 +289,8 @@ public sealed class StepResultShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Insufficient funds");
-		result.Exception.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("Insufficient funds");
+		result.Exception!.ShouldNotBeNull();
 	}
 
 	[Fact]

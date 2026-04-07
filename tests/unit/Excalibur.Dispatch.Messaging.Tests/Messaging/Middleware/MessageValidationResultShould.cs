@@ -107,7 +107,7 @@ public sealed class MessageValidationResultShould
 		// Assert
 		result.Errors.Count.ShouldBe(1);
 		result.Errors[0].PropertyName.ShouldBe("Amount");
-		result.Errors[0].ErrorMessage.ShouldBe("Amount must be positive");
+		result.Errors[0].ErrorMessage!.ShouldBe("Amount must be positive");
 	}
 
 	#endregion

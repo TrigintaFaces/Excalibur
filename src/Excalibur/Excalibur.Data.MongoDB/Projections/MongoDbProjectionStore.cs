@@ -120,7 +120,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		var filter = Builders<MongoDbProjectionDocument>.Filter.Eq(d => d.Id, document.Id);
 		var replaceOptions = new ReplaceOptions { IsUpsert = true };
 
-		_ = await _collection.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
+		_ = await _collection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
 			.ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
@@ -139,7 +139,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		var documentId = CreateDocumentId(id);
 		var filter = Builders<MongoDbProjectionDocument>.Filter.Eq(d => d.Id, documentId);
 
-		_ = await _collection.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
+		_ = await _collection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
 
 		LogDeleted(_projectionType, id);
 	}
@@ -157,7 +157,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		var filter = BuildFilter(filters);
 		var sort = BuildSort(options);
 
-		var findFluent = _collection.Find(filter).Sort(sort);
+		var findFluent = _collection!.Find(filter).Sort(sort);
 
 		if (options?.Skip is not null)
 		{
@@ -195,7 +195,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 		var filter = BuildFilter(filters);
 
-		return await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
+		return await _collection!.CountDocumentsAsync(filter, cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -360,7 +360,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 				indexBuilder.Ascending(d => d.ProjectionId)),
 			new CreateIndexOptions { Name = "ix_type_id" });
 
-		_ = await _collection.Indexes.CreateManyAsync(
+		_ = await _collection!.Indexes.CreateManyAsync(
 			[typeIndex, compoundIndex],
 			cancellationToken).ConfigureAwait(false);
 	}

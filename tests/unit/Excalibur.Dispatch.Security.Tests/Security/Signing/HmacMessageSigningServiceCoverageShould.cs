@@ -554,7 +554,7 @@ public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
         // Act & Assert
         var ex = await Should.ThrowAsync<SigningException>(
             () => sut.SignMessageAsync(new byte[] { 1, 2, 3 }, context, CancellationToken.None));
-        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Fact]
@@ -576,7 +576,7 @@ public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
         // Act & Assert
         var ex = await Should.ThrowAsync<VerificationException>(
             () => sut.VerifySignatureAsync(new byte[] { 1, 2, 3 }, new byte[32], context, CancellationToken.None));
-        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
     }
 
     [Fact]

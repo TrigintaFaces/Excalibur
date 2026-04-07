@@ -75,11 +75,11 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			var clientOptions = CreateClientOptions();
 			_client = CreateClient(clientOptions);
 
-			var database = _client.GetDatabase(_options.DatabaseName);
+			var database = _client!.GetDatabase(_options.DatabaseName);
 			_container = database.GetContainer(_options.ContainerName);
 
 			// Verify connectivity
-			_ = await _container.ReadContainerAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+			_ = await _container!.ReadContainerAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			_initialized = true;
 		}
@@ -113,7 +113,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			_ = await _container.CreateItemAsync(
+			_ = await _container!.CreateItemAsync(
 				document,
 				new PartitionKey(handlerType),
 				new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
@@ -143,7 +143,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			var response = await _container.ReadItemAsync<CosmosDbInboxDocument>(
+			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
 				new PartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -159,7 +159,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			document.Status = (int)InboxStatus.Processed;
 			document.ProcessedAt = DateTimeOffset.UtcNow;
 
-			_ = await _container.ReplaceItemAsync(
+			_ = await _container!.ReplaceItemAsync(
 				document,
 				documentId,
 				new PartitionKey(handlerType),
@@ -199,7 +199,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			_ = await _container.CreateItemAsync(
+			_ = await _container!.CreateItemAsync(
 				document,
 				new PartitionKey(handlerType),
 				new ItemRequestOptions { EnableContentResponseOnWrite = false },
@@ -230,7 +230,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			var response = await _container.ReadItemAsync<CosmosDbInboxDocument>(
+			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
 				new PartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -255,7 +255,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			var response = await _container.ReadItemAsync<CosmosDbInboxDocument>(
+			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
 				new PartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -283,7 +283,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			var response = await _container.ReadItemAsync<CosmosDbInboxDocument>(
+			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
 				new PartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -294,7 +294,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			document.LastAttemptAt = DateTimeOffset.UtcNow;
 			document.RetryCount++;
 
-			_ = await _container.ReplaceItemAsync(
+			_ = await _container!.ReplaceItemAsync(
 				document,
 				documentId,
 				new PartitionKey(handlerType),
@@ -346,7 +346,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 		var queryOptions = new QueryRequestOptions { MaxItemCount = batchSize };
 		var results = new List<InboxEntry>();
 
-		using var iterator = _container.GetItemQueryIterator<CosmosDbInboxDocument>(queryDefinition, requestOptions: queryOptions);
+		using var iterator = _container!.GetItemQueryIterator<CosmosDbInboxDocument>(queryDefinition, requestOptions: queryOptions);
 
 		while (iterator.HasMoreResults && results.Count < batchSize)
 		{
@@ -373,7 +373,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 		const string queryText = "SELECT * FROM c";
 		var results = new List<InboxEntry>();
 
-		using var iterator = _container.GetItemQueryIterator<CosmosDbInboxDocument>(new QueryDefinition(queryText));
+		using var iterator = _container!.GetItemQueryIterator<CosmosDbInboxDocument>(new QueryDefinition(queryText));
 
 		while (iterator.HasMoreResults)
 		{
@@ -403,7 +403,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			.WithParameter("@received", (int)InboxStatus.Received)
 			.WithParameter("@processing", (int)InboxStatus.Processing);
 
-		using var iterator = _container.GetItemQueryIterator<InboxStatisticsDto>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<InboxStatisticsDto>(queryDefinition);
 
 		if (iterator.HasMoreResults)
 		{
@@ -440,7 +440,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		var documentsToDelete = new List<(string Id, string HandlerType)>();
 
-		using var iterator = _container.GetItemQueryIterator<CosmosDbInboxDocument>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<CosmosDbInboxDocument>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{
@@ -453,7 +453,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 		{
 			try
 			{
-				_ = await _container.DeleteItemAsync<CosmosDbInboxDocument>(
+				_ = await _container!.DeleteItemAsync<CosmosDbInboxDocument>(
 					id,
 					new PartitionKey(handlerType),
 					cancellationToken: cancellationToken).ConfigureAwait(false);

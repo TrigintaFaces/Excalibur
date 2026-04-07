@@ -132,7 +132,7 @@ public sealed class SigningModelsCoverageShould
         var inner = new InvalidOperationException("inner");
         var ex3 = new SigningException("outer", inner);
         ex3.Message.ShouldBe("outer");
-        ex3.InnerException.ShouldBe(inner);
+        ex3.InnerException!.ShouldBe(inner);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class SigningModelsCoverageShould
         var inner = new InvalidOperationException("inner");
         var ex3 = new VerificationException("outer", inner);
         ex3.Message.ShouldBe("outer");
-        ex3.InnerException.ShouldBe(inner);
+        ex3.InnerException!.ShouldBe(inner);
     }
 
     [Theory]

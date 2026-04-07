@@ -150,7 +150,7 @@ public sealed class ApiExceptionShould
 		var exception = new ApiException("Outer error", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 		exception.Message.ShouldBe("Outer error");
 	}
 

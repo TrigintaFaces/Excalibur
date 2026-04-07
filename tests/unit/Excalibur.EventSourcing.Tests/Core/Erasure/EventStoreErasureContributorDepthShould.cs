@@ -155,7 +155,7 @@ public sealed class EventStoreErasureContributorDepthShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Partial erasure");
+		result.ErrorMessage!.ShouldContain("Partial erasure");
 	}
 
 	[Fact]

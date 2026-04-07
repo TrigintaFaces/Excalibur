@@ -36,7 +36,7 @@ public sealed class DecryptionExceptionShould
         var ex = new DecryptionException("outer", inner);
 
         ex.Message.ShouldBe("outer");
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
         ex.ErrorCode.ShouldBe(EncryptionErrorCode.InvalidCiphertext);
     }
 
@@ -55,7 +55,7 @@ public sealed class DecryptionExceptionShould
         var ex = new DecryptionException("msg", inner, EncryptionErrorCode.KeyNotFound);
 
         ex.ErrorCode.ShouldBe(EncryptionErrorCode.KeyNotFound);
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

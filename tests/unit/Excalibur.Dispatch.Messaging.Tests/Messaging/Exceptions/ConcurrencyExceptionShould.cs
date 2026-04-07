@@ -188,7 +188,7 @@ public sealed class ConcurrencyExceptionShould
 		var exception = new ConcurrencyException("Concurrency error", innerException);
 
 		// Assert
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	// [Serializable] attribute-absence test removed -- enforced by RS0030 banned API analyzer (Sprint 690)

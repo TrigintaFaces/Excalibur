@@ -121,7 +121,7 @@ public sealed class SerializationExceptionShould
 		var ex = new SerializationException("Outer", innerEx);
 
 		// Assert
-		ex.InnerException.ShouldBe(innerEx);
+		ex.InnerException!.ShouldBe(innerEx);
 	}
 
 	[Fact]
@@ -303,7 +303,7 @@ public sealed class SerializationExceptionShould
 		var ex = SerializationException.Wrap<string>("serialize", innerEx);
 
 		// Assert
-		ex.InnerException.ShouldBe(innerEx);
+		ex.InnerException!.ShouldBe(innerEx);
 	}
 
 	[Fact]
@@ -429,7 +429,7 @@ public sealed class SerializationExceptionShould
 		ex.SerializerId.ShouldBe((byte)0x01);
 		ex.SerializerName.ShouldBe("JsonSerializer");
 		ex.Operation.ShouldBe(SerializationOperation.Serialize);
-		ex.InnerException.ShouldBe(innerEx);
+		ex.InnerException!.ShouldBe(innerEx);
 	}
 
 	#endregion
@@ -465,7 +465,7 @@ public sealed class SerializationExceptionShould
 		ex.SerializerId.ShouldBe((byte)0x02);
 		ex.SerializerName.ShouldBe("MessagePackSerializer");
 		ex.Operation.ShouldBe(SerializationOperation.Deserialize);
-		ex.InnerException.ShouldBe(innerEx);
+		ex.InnerException!.ShouldBe(innerEx);
 	}
 
 	#endregion

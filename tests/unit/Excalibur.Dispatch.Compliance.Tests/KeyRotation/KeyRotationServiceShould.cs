@@ -194,7 +194,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 		var result = await sut.ForceRotateAsync("unknown", "test", CancellationToken.None).ConfigureAwait(false);
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("not found");
+		result.ErrorMessage!.ShouldContain("not found");
 	}
 
 	[Fact]

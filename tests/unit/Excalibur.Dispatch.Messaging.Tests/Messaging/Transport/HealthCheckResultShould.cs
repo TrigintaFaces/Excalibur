@@ -28,7 +28,7 @@ public sealed class HealthCheckResultShould
 		_ = result.ShouldNotBeNull();
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldBe(string.Empty);
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	#endregion
@@ -131,7 +131,7 @@ public sealed class HealthCheckResultShould
 		result.Exception = exception;
 
 		// Assert
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -147,7 +147,7 @@ public sealed class HealthCheckResultShould
 		result.Exception = null;
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	#endregion
@@ -163,7 +163,7 @@ public sealed class HealthCheckResultShould
 		// Assert
 		result.IsHealthy.ShouldBeTrue();
 		result.Description.ShouldBe("Healthy");
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 		result.CheckTimestamp.ShouldNotBe(default);
 	}
 
@@ -176,7 +176,7 @@ public sealed class HealthCheckResultShould
 		// Assert
 		result.IsHealthy.ShouldBeTrue();
 		result.Description.ShouldBe("RabbitMQ connection established");
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -188,7 +188,7 @@ public sealed class HealthCheckResultShould
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldBe("Connection refused");
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 		result.CheckTimestamp.ShouldNotBe(default);
 	}
 
@@ -204,7 +204,7 @@ public sealed class HealthCheckResultShould
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldBe("Failed to connect to broker");
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	#endregion
@@ -257,7 +257,7 @@ public sealed class HealthCheckResultShould
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldBe("Connection failed");
 		result.CheckTimestamp.ShouldBe(timestamp);
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 	}
 
 	#endregion
@@ -273,7 +273,7 @@ public sealed class HealthCheckResultShould
 		// Assert
 		result.IsHealthy.ShouldBeTrue();
 		result.Description.ShouldContain("RabbitMQ");
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -288,8 +288,8 @@ public sealed class HealthCheckResultShould
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldContain("Kafka");
-		_ = result.Exception.ShouldNotBeNull();
-		result.Exception.Message.ShouldBe("Connection refused");
+		_ = result.Exception!.ShouldNotBeNull();
+		result.Exception!.Message.ShouldBe("Connection refused");
 	}
 
 	[Fact]
@@ -303,7 +303,7 @@ public sealed class HealthCheckResultShould
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		_ = result.Exception.ShouldBeOfType<TimeoutException>();
+		_ = result.Exception!.ShouldBeOfType<TimeoutException>();
 	}
 
 	[Fact]
@@ -318,7 +318,7 @@ public sealed class HealthCheckResultShould
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
 		result.Description.ShouldContain("Authentication failed");
-		_ = result.Exception.ShouldBeOfType<UnauthorizedAccessException>();
+		_ = result.Exception!.ShouldBeOfType<UnauthorizedAccessException>();
 	}
 
 	#endregion

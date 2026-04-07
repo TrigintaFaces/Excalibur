@@ -86,7 +86,7 @@ public sealed class DispatchTelemetryConstantsShould
 		DispatchTelemetryConstants.Tags.BatchSize.ShouldBe("batch.size");
 		DispatchTelemetryConstants.Tags.IsDuplicate.ShouldBe("message.is_duplicate");
 		DispatchTelemetryConstants.Tags.ErrorType.ShouldBe("error.type");
-		DispatchTelemetryConstants.Tags.ErrorMessage.ShouldBe("error.message");
+		DispatchTelemetryConstants.Tags.ErrorMessage!.ShouldBe("error.message");
 		DispatchTelemetryConstants.Tags.IsRetryable.ShouldBe("error.retryable");
 	}
 

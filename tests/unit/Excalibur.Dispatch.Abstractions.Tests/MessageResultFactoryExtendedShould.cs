@@ -20,7 +20,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.ProblemDetails.ShouldBeNull();
 	}
 
@@ -101,7 +101,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Something went wrong");
+		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Name is required");
+		result.ErrorMessage!.ShouldBe("Name is required");
 		result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("validation-error");
 	}
@@ -132,7 +132,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Error occurred");
+		result.ErrorMessage!.ShouldBe("Error occurred");
 		result.ReturnValue.ShouldBe(default);
 	}
 
@@ -147,7 +147,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Not found");
+		result.ErrorMessage!.ShouldBe("Not found");
 		result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.ErrorCode.ShouldBe(404);
 	}
@@ -163,9 +163,9 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("Something broke");
-		result.ErrorMessage.ShouldContain("InvalidOperationException");
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("Something broke");
+		result.ErrorMessage!.ShouldContain("InvalidOperationException");
 	}
 
 	[Fact]
@@ -187,9 +187,9 @@ public sealed class MessageResultFactoryExtendedShould
 		// Assert
 		result.Succeeded.ShouldBeFalse();
 		result.ReturnValue.ShouldBe(default);
-		result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("Bad argument");
-		result.ErrorMessage.ShouldContain("ArgumentException");
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("Bad argument");
+		result.ErrorMessage!.ShouldContain("ArgumentException");
 	}
 
 	[Fact]
@@ -217,7 +217,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Unauthorized access");
+		result.ErrorMessage!.ShouldBe("Unauthorized access");
 		result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Type.ShouldBe("auth-error");
 		result.ProblemDetails.ErrorCode.ShouldBe(403);
@@ -233,7 +233,7 @@ public sealed class MessageResultFactoryExtendedShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.ProblemDetails.ShouldBeNull();
 		result.ValidationResult.ShouldBeNull();
 		result.AuthorizationResult.ShouldBeNull();

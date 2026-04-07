@@ -140,7 +140,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 
 		// Assert
 		health.IsHealthy.ShouldBeFalse();
-		health.ErrorMessage.ShouldContain("Connection failed");
+		health.ErrorMessage!.ShouldContain("Connection failed");
 	}
 
 	[Fact]

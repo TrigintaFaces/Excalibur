@@ -30,7 +30,7 @@ public sealed class ConfigurationExceptionShould
 		var inner = new InvalidOperationException("inner");
 		var ex = new ConfigurationException("bad config", inner);
 
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -48,7 +48,7 @@ public sealed class ConfigurationExceptionShould
 		var ex = new ConfigurationException(ErrorCodes.ConfigurationLoadFailed, "load failed", inner);
 
 		ex.ErrorCode.ShouldBe(ErrorCodes.ConfigurationLoadFailed);
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

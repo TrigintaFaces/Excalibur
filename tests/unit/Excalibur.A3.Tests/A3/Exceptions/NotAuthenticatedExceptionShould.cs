@@ -23,7 +23,7 @@ public sealed class NotAuthenticatedExceptionShould : UnitTestBase
 		// Assert
 		exception.StatusCode.ShouldBe(NotAuthenticatedException.DefaultStatusCode);
 		exception.Message.ShouldBe(NotAuthenticatedException.DefaultMessage);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -52,7 +52,7 @@ public sealed class NotAuthenticatedExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -69,7 +69,7 @@ public sealed class NotAuthenticatedExceptionShould : UnitTestBase
 		// Assert
 		exception.StatusCode.ShouldBe(statusCode);
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -198,7 +198,7 @@ public sealed class NotAuthenticatedExceptionShould : UnitTestBase
 			NotAuthenticatedException.ThrowIf(true, innerException: inner));
 
 		// Assert
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion

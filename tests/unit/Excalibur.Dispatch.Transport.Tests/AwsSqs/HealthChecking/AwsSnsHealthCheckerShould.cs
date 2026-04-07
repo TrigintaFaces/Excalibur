@@ -149,6 +149,6 @@ public sealed class AwsSnsHealthCheckerShould
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldContain("SNS unavailable");
 		result.Data.ShouldContainKey("Exception");
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 }

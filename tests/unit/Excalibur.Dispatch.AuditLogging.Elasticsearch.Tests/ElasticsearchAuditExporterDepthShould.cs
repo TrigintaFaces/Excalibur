@@ -162,8 +162,8 @@ public sealed class ElasticsearchAuditExporterDepthShould : IDisposable
 		var result = await sut.ExportAsync(CreateAuditEvent(), CancellationToken.None);
 
 		// Assert
-		result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("403");
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("403");
 	}
 
 	[Fact]

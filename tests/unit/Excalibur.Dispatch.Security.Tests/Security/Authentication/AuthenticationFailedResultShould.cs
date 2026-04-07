@@ -71,7 +71,7 @@ public sealed class AuthenticationFailedResultShould
 		var result = new AuthenticationFailedResult();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -171,7 +171,7 @@ public sealed class AuthenticationFailedResultShould
 		result.ErrorMessage = "Token validation failed";
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Token validation failed");
+		result.ErrorMessage!.ShouldBe("Token validation failed");
 	}
 
 	[Fact]
@@ -231,7 +231,7 @@ public sealed class AuthenticationFailedResultShould
 		result.RoutingDecision.ShouldBe(routingDecision);
 		result.ValidationResult.ShouldBe("valid");
 		result.AuthorizationResult.ShouldBe("denied");
-		result.ErrorMessage.ShouldBe("Invalid token signature");
+		result.ErrorMessage!.ShouldBe("Invalid token signature");
 		result.CacheHit.ShouldBeFalse();
 		result.Reason.ShouldBe(AuthenticationFailureReason.InvalidToken);
 	}

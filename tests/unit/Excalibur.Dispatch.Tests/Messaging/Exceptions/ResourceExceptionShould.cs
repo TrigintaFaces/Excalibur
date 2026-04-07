@@ -31,7 +31,7 @@ public sealed class ResourceExceptionShould
 		var ex = new ResourceException("msg", inner);
 
 		ex.Message.ShouldBe("msg");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 		ex.StatusCode.ShouldBe(404);
 	}
 

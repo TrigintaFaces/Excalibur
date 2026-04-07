@@ -190,7 +190,7 @@ public sealed class OpenSearchAuditExporterShould : IDisposable
 		var result = await sut.ExportAsync(CreateAuditEvent(), CancellationToken.None).ConfigureAwait(false);
 
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldNotBeNull();
 	}
 
 	[Fact]

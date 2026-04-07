@@ -24,7 +24,7 @@ public sealed class ContextIntegrityExceptionShould : UnitTestBase
 		// Assert
 		exception.ShouldNotBeNull();
 		exception.Message.ShouldNotBeNullOrEmpty(); // Default exception message
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class ContextIntegrityExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -53,7 +53,7 @@ public sealed class ContextIntegrityExceptionShould : UnitTestBase
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(innerException);
+		exception.InnerException!.ShouldBe(innerException);
 	}
 
 	#endregion

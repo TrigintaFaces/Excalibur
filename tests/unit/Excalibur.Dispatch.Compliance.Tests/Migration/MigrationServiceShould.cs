@@ -140,7 +140,7 @@ public sealed class MigrationServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Unable to detect");
+		result.ErrorMessage!.ShouldContain("Unable to detect");
 	}
 
 	[Fact]

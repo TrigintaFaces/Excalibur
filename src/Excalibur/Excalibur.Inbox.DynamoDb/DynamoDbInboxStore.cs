@@ -97,7 +97,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			_client = CreateClient();
 
 			// Verify connectivity by describing the table
-			_ = await _client.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
 
 			_initialized = true;
 		}
@@ -139,7 +139,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			_ = await _client.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 			LogCreatedEntry(messageId, handlerType);
 			return entry;
 		}
@@ -166,7 +166,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 		// First check if entry exists and its current status
 		var getRequest = new GetItemRequest { TableName = _options.TableName, Key = key, ConsistentRead = _options.UseConsistentReads };
 
-		var getResponse = await _client.GetItemAsync(getRequest, cancellationToken).ConfigureAwait(false);
+		var getResponse = await _client!.GetItemAsync(getRequest, cancellationToken).ConfigureAwait(false);
 
 		if (getResponse.Item == null || getResponse.Item.Count == 0)
 		{
@@ -194,7 +194,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			}
 		};
 
-		_ = await _client.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
+		_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
 		LogMarkedProcessed(messageId, handlerType);
 	}
 
@@ -230,7 +230,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			_ = await _client.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 			LogFirstProcessor(messageId, handlerType);
 			return true;
 		}
@@ -263,7 +263,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 			ExpressionAttributeNames = new Dictionary<string, string> { ["#status"] = "status" }
 		};
 
-		var response = await _client.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
+		var response = await _client!.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (response.Item == null || response.Item.Count == 0)
 		{
@@ -286,7 +286,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		var request = new GetItemRequest { TableName = _options.TableName, Key = key, ConsistentRead = _options.UseConsistentReads };
 
-		var response = await _client.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
+		var response = await _client!.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (response.Item == null || response.Item.Count == 0)
 		{
@@ -329,7 +329,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 
 		try
 		{
-			_ = await _client.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.UpdateItemAsync(updateRequest, cancellationToken).ConfigureAwait(false);
 			LogMarkedFailed(messageId, handlerType, errorMessage);
 		}
 		catch (ConditionalCheckFailedException)
@@ -382,7 +382,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.ScanAsync(request, cancellationToken).ConfigureAwait(false);
+			response = await _client!.ScanAsync(request, cancellationToken).ConfigureAwait(false);
 
 			foreach (var item in response.Items)
 			{
@@ -414,7 +414,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.ScanAsync(request, cancellationToken).ConfigureAwait(false);
+			response = await _client!.ScanAsync(request, cancellationToken).ConfigureAwait(false);
 			results.AddRange(response.Items.Select(ItemToEntry));
 		} while (response.LastEvaluatedKey?.Count > 0);
 
@@ -447,7 +447,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.ScanAsync(request, cancellationToken).ConfigureAwait(false);
+			response = await _client!.ScanAsync(request, cancellationToken).ConfigureAwait(false);
 
 			foreach (var item in response.Items)
 			{
@@ -512,7 +512,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 				scanRequest.ExclusiveStartKey = scanResponse.LastEvaluatedKey;
 			}
 
-			scanResponse = await _client.ScanAsync(scanRequest, cancellationToken).ConfigureAwait(false);
+			scanResponse = await _client!.ScanAsync(scanRequest, cancellationToken).ConfigureAwait(false);
 			itemsToDelete.AddRange(scanResponse.Items);
 		} while (scanResponse.LastEvaluatedKey?.Count > 0);
 
@@ -540,7 +540,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IInboxStoreAdmin, 
 				RequestItems = new Dictionary<string, List<WriteRequest>> { [_options.TableName] = writeRequests }
 			};
 
-			var batchResponse = await _client.BatchWriteItemAsync(batchRequest, cancellationToken)
+			var batchResponse = await _client!.BatchWriteItemAsync(batchRequest, cancellationToken)
 				.ConfigureAwait(false);
 
 			deletedCount += writeRequests.Count - (batchResponse.UnprocessedItems.TryGetValue(_options.TableName, out var unprocessed)

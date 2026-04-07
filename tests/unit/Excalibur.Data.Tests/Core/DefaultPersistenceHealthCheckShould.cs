@@ -187,7 +187,7 @@ public sealed class DefaultPersistenceHealthCheckShould
 		var result = await _healthCheck.CheckDetailedHealthAsync(provider, CancellationToken.None);
 
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Exception.ShouldNotBeNull();
+		result.Exception!.ShouldNotBeNull();
 	}
 
 	[Fact]

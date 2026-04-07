@@ -21,7 +21,7 @@ public sealed class CloudNativeTypesShould
 
 		// Assert
 		ex.Message.ShouldNotBeNull();
-		ex.InnerException.ShouldBeNull();
+		ex.InnerException!.ShouldBeNull();
 		ex.CircuitName.ShouldBeNull();
 		ex.RetryAfter.ShouldBeNull();
 	}
@@ -59,7 +59,7 @@ public sealed class CloudNativeTypesShould
 
 		// Assert
 		ex.Message.ShouldBe("circuit is open");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

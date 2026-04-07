@@ -47,7 +47,7 @@ public sealed class DocumentationExamplesShould
 		// Simple failure with error message
 		IMessageResult result1 = MessageResult.Failed("Order not found");
 		result1.Succeeded.ShouldBeFalse();
-		result1.ErrorMessage.ShouldBe("Order not found");
+		result1.ErrorMessage!.ShouldBe("Order not found");
 
 		// Failure with problem details
 		var problemDetails = new MessageProblemDetails

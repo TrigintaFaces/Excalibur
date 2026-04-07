@@ -203,7 +203,7 @@ public sealed class ExceptionFactoryShould
 		var inner = new IOException("disk full");
 		var ex = ExceptionFactory.Wrap(inner, "Failed to persist", "SYS002");
 
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 		ex.Message.ShouldBe("Failed to persist");
 		ex.ErrorCode.ShouldBe("SYS002");
 	}

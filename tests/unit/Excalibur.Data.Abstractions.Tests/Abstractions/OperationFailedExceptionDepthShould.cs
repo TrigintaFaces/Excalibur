@@ -15,7 +15,7 @@ public sealed class OperationFailedExceptionDepthShould
         ex.Resource.ShouldBe("Order");
         ex.StatusCode.ShouldBe(OperationFailedException.DefaultStatusCode);
         ex.Message.ShouldBe(OperationFailedException.DefaultMessage);
-        ex.InnerException.ShouldBeNull();
+        ex.InnerException!.ShouldBeNull();
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class OperationFailedExceptionDepthShould
         var ex = new OperationFailedException("Create", "Item", innerException: inner);
 
         // Assert
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class OperationFailedExceptionDepthShould
         ex.Resource.ShouldBe("Report");
         ex.StatusCode.ShouldBe(504);
         ex.Message.ShouldBe("Gateway timeout");
-        ex.InnerException.ShouldBe(inner);
+        ex.InnerException!.ShouldBe(inner);
     }
 
     [Fact]

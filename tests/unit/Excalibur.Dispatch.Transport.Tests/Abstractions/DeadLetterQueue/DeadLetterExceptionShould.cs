@@ -18,7 +18,7 @@ public sealed class DeadLetterExceptionShould
         exception.Message.ShouldBe(string.Empty);
         exception.ExceptionType.ShouldBe(string.Empty);
         exception.OriginalStackTrace.ShouldBeNull();
-        exception.InnerException.ShouldBeNull();
+        exception.InnerException!.ShouldBeNull();
     }
 
     [Fact]

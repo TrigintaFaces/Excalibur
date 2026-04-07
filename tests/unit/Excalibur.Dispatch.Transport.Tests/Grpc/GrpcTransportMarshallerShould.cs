@@ -103,7 +103,7 @@ public sealed class GrpcTransportMarshallerShould
 		deserialized.Results.Count.ShouldBe(2);
 		deserialized.Results[0].IsSuccess.ShouldBeTrue();
 		deserialized.Results[1].ErrorCode.ShouldBe("ERR");
-		deserialized.Results[1].ErrorMessage.ShouldBe("fail");
+		deserialized.Results[1].ErrorMessage!.ShouldBe("fail");
 	}
 
 	[Fact]

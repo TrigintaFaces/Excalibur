@@ -345,7 +345,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("not found");
+		result.ErrorMessage!.ShouldContain("not found");
 	}
 
 	[Fact]

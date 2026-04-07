@@ -167,7 +167,7 @@ public sealed class MessagingEnumsShould
 	{
 		ValidationSeverity.Info.ShouldBe((ValidationSeverity)0);
 		ValidationSeverity.Warning.ShouldBe((ValidationSeverity)1);
-		ValidationSeverity.Error.ShouldBe((ValidationSeverity)2);
+		ValidationSeverity.Error!.ShouldBe((ValidationSeverity)2);
 		ValidationSeverity.Critical.ShouldBe((ValidationSeverity)3);
 	}
 

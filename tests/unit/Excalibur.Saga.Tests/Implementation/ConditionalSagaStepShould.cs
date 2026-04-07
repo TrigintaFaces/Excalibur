@@ -339,7 +339,7 @@ public sealed class ConditionalSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("returned null result");
+		result.ErrorMessage!.ShouldContain("returned null result");
 	}
 
 	[Fact]
@@ -358,7 +358,7 @@ public sealed class ConditionalSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("failed");
+		result.ErrorMessage!.ShouldContain("failed");
 	}
 
 	#endregion
@@ -450,7 +450,7 @@ public sealed class ConditionalSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Compensation failed");
+		result.ErrorMessage!.ShouldContain("Compensation failed");
 	}
 
 	#endregion

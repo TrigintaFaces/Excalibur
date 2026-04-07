@@ -138,7 +138,7 @@ public sealed class HealthCheckDataBuilderShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldBe("Not good");
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 		result.Data.ShouldContainKey("Exception");
 	}
 
@@ -182,7 +182,7 @@ public sealed class HealthCheckDataBuilderShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Degraded);
-		result.Exception.ShouldBe(exception);
+		result.Exception!.ShouldBe(exception);
 		result.Data.ShouldContainKey("Exception");
 		result.Data["Exception"].ShouldBe("TimeoutException");
 	}

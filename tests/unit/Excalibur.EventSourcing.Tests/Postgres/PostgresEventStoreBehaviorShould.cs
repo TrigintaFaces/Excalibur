@@ -43,7 +43,7 @@ public sealed class PostgresEventStoreBehaviorShould : UnitTestBase
 
 		result.Success.ShouldBeFalse();
 		result.IsConcurrencyConflict.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrWhiteSpace();
+		result.ErrorMessage!.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]

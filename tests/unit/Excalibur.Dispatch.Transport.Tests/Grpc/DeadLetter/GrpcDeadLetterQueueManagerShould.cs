@@ -100,7 +100,7 @@ public sealed class GrpcDeadLetterQueueManagerShould
 		var messages = await _sut.GetDeadLetterMessagesAsync(10, CancellationToken.None);
 
 		// Assert
-		messages[0].Exception.ShouldBe(exception);
+		messages[0].Exception!.ShouldBe(exception);
 	}
 
 	#endregion

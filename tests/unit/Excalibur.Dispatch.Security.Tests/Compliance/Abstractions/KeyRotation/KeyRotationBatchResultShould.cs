@@ -87,6 +87,6 @@ public sealed class KeyRotationBatchResultShould
 
         error.KeyId.ShouldBe("key-1");
         error.Message.ShouldBe("Rotation failed");
-        error.Exception.ShouldNotBeNull();
+        error.Exception!.ShouldNotBeNull();
     }
 }

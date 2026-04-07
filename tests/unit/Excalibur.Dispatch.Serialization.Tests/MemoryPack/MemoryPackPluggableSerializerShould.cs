@@ -226,7 +226,7 @@ public sealed class MemoryPackPluggableSerializerShould
 
 		ex.Message.ShouldContain("deserialize");
 		ex.Message.ShouldContain(nameof(UnregisteredType));
-		_ = ex.InnerException.ShouldNotBeNull();
+		_ = ex.InnerException!.ShouldNotBeNull();
 	}
 
 	#endregion Deserialize<T> Tests
@@ -278,7 +278,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var ex = Should.Throw<SerializationException>(() =>
 			_sut.SerializeObject(unregisteredValue, typeof(UnregisteredType)));
 
-		_ = ex.InnerException.ShouldNotBeNull();
+		_ = ex.InnerException!.ShouldNotBeNull();
 		ex.Message.ShouldContain("serialize");
 		ex.Message.ShouldContain(nameof(UnregisteredType));
 	}

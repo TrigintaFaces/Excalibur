@@ -66,7 +66,7 @@ public sealed class InvalidDataProcessorExceptionShould : UnitTestBase
 		var ex = new InvalidDataProcessorException(processorType: null, message: null, innerException: inner);
 
 		// Assert
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 
 	[Fact]
@@ -100,6 +100,6 @@ public sealed class InvalidDataProcessorExceptionShould : UnitTestBase
 
 		// Assert
 		ex.Message.ShouldBe("test message");
-		ex.InnerException.ShouldBeSameAs(inner);
+		ex.InnerException!.ShouldBeSameAs(inner);
 	}
 }

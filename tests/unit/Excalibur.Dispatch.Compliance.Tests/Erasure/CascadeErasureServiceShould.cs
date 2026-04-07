@@ -128,7 +128,7 @@ public sealed class CascadeErasureServiceShould
         var result = await _sut.EraseWithCascadeAsync("user-1", options, CancellationToken.None);
 
         result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldNotBeNullOrWhiteSpace();
+        result.ErrorMessage!.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]

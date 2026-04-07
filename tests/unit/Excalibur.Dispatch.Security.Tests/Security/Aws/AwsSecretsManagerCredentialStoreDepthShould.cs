@@ -87,7 +87,7 @@ public sealed class AwsSecretsManagerCredentialStoreDepthShould
 
 		ex.Message.ShouldContain("Failed to store secret");
 		ex.Message.ShouldContain("test");
-		ex.InnerException.ShouldBeOfType<ArgumentException>();
+		ex.InnerException!.ShouldBeOfType<ArgumentException>();
 	}
 
 	[Fact]
@@ -108,7 +108,7 @@ public sealed class AwsSecretsManagerCredentialStoreDepthShould
 
 		ex.Message.ShouldContain("Failed to retrieve secret");
 		ex.Message.ShouldContain("test-key");
-		ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+		ex.InnerException!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

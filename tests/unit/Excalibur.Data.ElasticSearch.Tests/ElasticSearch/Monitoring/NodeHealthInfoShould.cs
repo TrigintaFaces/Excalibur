@@ -106,7 +106,7 @@ public sealed class NodeHealthInfoShould
 		var node = new NodeHealthInfo();
 
 		// Assert
-		node.ErrorMessage.ShouldBeNull();
+		node.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -210,7 +210,7 @@ public sealed class NodeHealthInfoShould
 		var node = new NodeHealthInfo { ErrorMessage = "Node unreachable" };
 
 		// Assert
-		node.ErrorMessage.ShouldBe("Node unreachable");
+		node.ErrorMessage!.ShouldBe("Node unreachable");
 	}
 
 	[Fact]
@@ -261,7 +261,7 @@ public sealed class NodeHealthInfoShould
 		node.IsHealthy.ShouldBeTrue();
 		node.NodeId.ShouldBe("abc123");
 		node.CpuUsagePercent.ShouldBe(25.0);
-		node.ErrorMessage.ShouldBeNull();
+		node.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -285,7 +285,7 @@ public sealed class NodeHealthInfoShould
 		// Assert
 		node.IsHealthy.ShouldBeFalse();
 		node.CpuUsagePercent.ShouldBe(99.0);
-		node.ErrorMessage.ShouldNotBeNull();
+		node.ErrorMessage!.ShouldNotBeNull();
 	}
 
 	#endregion

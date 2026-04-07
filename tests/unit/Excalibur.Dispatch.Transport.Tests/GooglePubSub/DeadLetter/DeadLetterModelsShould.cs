@@ -61,7 +61,7 @@ public sealed class DeadLetterModelsShould
 
 		// Assert
 		record.Timestamp.ShouldBe(default);
-		record.Exception.ShouldBeNull();
+		record.Exception!.ShouldBeNull();
 		record.ExceptionType.ShouldBe(string.Empty);
 		record.Message.ShouldBe(string.Empty);
 		record.StackTraceHash.ShouldBe(string.Empty);
@@ -86,7 +86,7 @@ public sealed class DeadLetterModelsShould
 
 		// Assert
 		record.Timestamp.ShouldBe(now);
-		record.Exception.ShouldBe(ex);
+		record.Exception!.ShouldBe(ex);
 		record.ExceptionType.ShouldBe("InvalidOperationException");
 		record.Message.ShouldBe("test error");
 		record.StackTraceHash.ShouldBe("abc123");

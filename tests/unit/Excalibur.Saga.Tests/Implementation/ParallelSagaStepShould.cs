@@ -288,7 +288,7 @@ public sealed class ParallelSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Parallel execution failed");
+		result.ErrorMessage!.ShouldContain("Parallel execution failed");
 	}
 
 	[Fact]
@@ -312,7 +312,7 @@ public sealed class ParallelSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("failed");
+		result.ErrorMessage!.ShouldContain("failed");
 	}
 
 	[Fact]
@@ -423,7 +423,7 @@ public sealed class ParallelSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("compensation failed");
+		result.ErrorMessage!.ShouldContain("compensation failed");
 	}
 
 	#endregion
@@ -495,7 +495,7 @@ public sealed class ParallelSagaStepShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Parallel execution failed");
+		result.ErrorMessage!.ShouldContain("Parallel execution failed");
 	}
 
 	[Fact]

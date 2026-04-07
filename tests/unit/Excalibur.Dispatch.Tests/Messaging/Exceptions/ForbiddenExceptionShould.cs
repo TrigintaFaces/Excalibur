@@ -31,7 +31,7 @@ public sealed class ForbiddenExceptionShould
 		var ex = new ForbiddenException("msg", inner);
 
 		ex.Message.ShouldBe("msg");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

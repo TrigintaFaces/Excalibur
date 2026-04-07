@@ -73,7 +73,7 @@ public sealed class MessageResultDepthShould
 	{
 		var result = MessageResult.Failed("something went wrong");
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("something went wrong");
+		result.ErrorMessage!.ShouldBe("something went wrong");
 	}
 
 	[Fact]
@@ -91,7 +91,7 @@ public sealed class MessageResultDepthShould
 	{
 		var result = MessageResult.Failed<int>("error msg");
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("error msg");
+		result.ErrorMessage!.ShouldBe("error msg");
 		result.ReturnValue.ShouldBe(default);
 	}
 
@@ -120,6 +120,6 @@ public sealed class MessageResultDepthShould
 		var problem = A.Fake<IMessageProblemDetails>();
 		A.CallTo(() => problem.Detail).Returns("some detail");
 		var result = MessageResult.Failed(problem);
-		result.ErrorMessage.ShouldBe("some detail");
+		result.ErrorMessage!.ShouldBe("some detail");
 	}
 }

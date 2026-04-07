@@ -22,7 +22,7 @@ public sealed class ElasticsearchExceptionsShould
 		ex.DocumentId.ShouldBe("doc-123");
 		ex.DocumentType.ShouldBe(typeof(string));
 		ex.ApiCallDetails.ShouldBe("API call details");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 		ex.Message.ShouldContain("doc-123");
 		ex.Message.ShouldContain("String");
 	}
@@ -61,7 +61,7 @@ public sealed class ElasticsearchExceptionsShould
 		var inner = new InvalidOperationException("inner");
 		var ex = new ElasticsearchDeleteException("test message", inner);
 		ex.Message.ShouldBe("test message");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]
@@ -70,7 +70,7 @@ public sealed class ElasticsearchExceptionsShould
 		var inner = new InvalidOperationException("inner");
 		var ex = new ElasticsearchDeleteException(404, "not found", inner);
 		ex.StatusCode.ShouldBe(404);
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	// ElasticsearchGetByIdException
@@ -105,7 +105,7 @@ public sealed class ElasticsearchExceptionsShould
 	{
 		var inner = new InvalidOperationException("inner");
 		var ex = new ElasticsearchGetByIdException("test msg", inner);
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	// ElasticsearchIndexingException
@@ -140,7 +140,7 @@ public sealed class ElasticsearchExceptionsShould
 	{
 		var inner = new InvalidOperationException("inner");
 		var ex = new ElasticsearchIndexingException("test", inner);
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	// ElasticsearchSearchException
@@ -174,7 +174,7 @@ public sealed class ElasticsearchExceptionsShould
 	{
 		var inner = new InvalidOperationException("inner");
 		var ex = new ElasticsearchSearchException("test", inner);
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	// ElasticsearchUpdateException
@@ -208,6 +208,6 @@ public sealed class ElasticsearchExceptionsShould
 	{
 		var inner = new InvalidOperationException("inner");
 		var ex = new ElasticsearchUpdateException("test", inner);
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 }

@@ -81,7 +81,7 @@ public sealed class StepExecutionRecordShould
 		var record = new StepExecutionRecord();
 
 		// Assert
-		record.ErrorMessage.ShouldBeNull();
+		record.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -171,7 +171,7 @@ public sealed class StepExecutionRecordShould
 		var record = new StepExecutionRecord { ErrorMessage = "Step failed due to timeout" };
 
 		// Assert
-		record.ErrorMessage.ShouldBe("Step failed due to timeout");
+		record.ErrorMessage!.ShouldBe("Step failed due to timeout");
 	}
 
 	[Fact]
@@ -264,7 +264,7 @@ public sealed class StepExecutionRecordShould
 		// Assert
 		record.IsSuccess.ShouldBeTrue();
 		record.WasCompensated.ShouldBeFalse();
-		record.ErrorMessage.ShouldBeNull();
+		record.ErrorMessage!.ShouldBeNull();
 		record.Duration.ShouldNotBeNull();
 	}
 
@@ -290,7 +290,7 @@ public sealed class StepExecutionRecordShould
 
 		// Assert
 		record.IsSuccess.ShouldBeFalse();
-		record.ErrorMessage.ShouldNotBeNull();
+		record.ErrorMessage!.ShouldNotBeNull();
 		record.RetryCount.ShouldBe(3);
 	}
 

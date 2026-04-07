@@ -439,7 +439,7 @@ public sealed class DispatchPipelineShould : UnitTestBase
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Error handled");
+		result.ErrorMessage!.ShouldBe("Error handled");
 	}
 
 	[Fact]

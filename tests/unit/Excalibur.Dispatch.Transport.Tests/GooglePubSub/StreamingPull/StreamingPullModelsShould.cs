@@ -209,7 +209,7 @@ public sealed class StreamingPullModelsShould
 		args.MessageId.ShouldBe("msg-1");
 		args.Success.ShouldBeTrue();
 		args.Duration.ShouldBe(TimeSpan.FromMilliseconds(50));
-		args.Error.ShouldBeNull();
+		args.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -225,7 +225,7 @@ public sealed class StreamingPullModelsShould
 		args.MessageId.ShouldBe("msg-2");
 		args.Success.ShouldBeFalse();
 		args.Duration.ShouldBe(TimeSpan.FromMilliseconds(100));
-		args.Error.ShouldBeSameAs(error);
+		args.Error!.ShouldBeSameAs(error);
 	}
 
 	[Fact]
@@ -237,7 +237,7 @@ public sealed class StreamingPullModelsShould
 		// Assert
 		error.AckId.ShouldBe("ack-1");
 		error.Message.ShouldBe("DEADLINE_EXCEEDED");
-		error.Exception.ShouldBeNull();
+		error.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -252,7 +252,7 @@ public sealed class StreamingPullModelsShould
 		// Assert
 		error.AckId.ShouldBe("ack-2");
 		error.Message.ShouldBe("Timeout");
-		error.Exception.ShouldBeSameAs(ex);
+		error.Exception!.ShouldBeSameAs(ex);
 	}
 
 	[Fact]

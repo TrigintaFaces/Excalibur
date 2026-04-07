@@ -191,7 +191,7 @@ public sealed class CascadeErasureServiceWorkflowShould
 
 		// Assert - should fail gracefully
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Resolver service unavailable");
+		result.ErrorMessage!.ShouldContain("Resolver service unavailable");
 		result.PrimarySubjectId.ShouldBe("user-A");
 	}
 

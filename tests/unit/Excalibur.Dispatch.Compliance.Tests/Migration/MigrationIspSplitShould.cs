@@ -192,7 +192,7 @@ public sealed class MigrationIspSplitShould : UnitTestBase
 		result.MigratedCiphertext.ShouldBe(migrated);
 		result.SourceVersion.ShouldBe(EncryptionVersion.Version10);
 		result.TargetVersion.ShouldBe(EncryptionVersion.Version11);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.Duration.ShouldBe(duration);
 	}
 
@@ -207,7 +207,7 @@ public sealed class MigrationIspSplitShould : UnitTestBase
 
 		result.Success.ShouldBeFalse();
 		result.MigratedCiphertext.ShouldBeNull();
-		result.ErrorMessage.ShouldBe("Key not found");
+		result.ErrorMessage!.ShouldBe("Key not found");
 		result.OriginalCiphertext.ShouldBe(original);
 	}
 
@@ -222,7 +222,7 @@ public sealed class MigrationIspSplitShould : UnitTestBase
 		result.MigratedCiphertext.ShouldBeSameAs(original);
 		result.SourceVersion.ShouldBe(result.TargetVersion);
 		result.Duration.ShouldBe(TimeSpan.Zero);
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	#endregion

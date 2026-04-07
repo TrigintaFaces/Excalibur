@@ -973,7 +973,7 @@ public sealed class ErasureServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("not found");
+		result.ErrorMessage!.ShouldContain("not found");
 	}
 
 	[Fact]
@@ -1002,7 +1002,7 @@ public sealed class ErasureServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Invalid status");
+		result.ErrorMessage!.ShouldContain("Invalid status");
 	}
 
 	[Fact]

@@ -203,7 +203,7 @@ public sealed class ConditionalSagaStepFunctionalShould
 
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("failed");
+		result.ErrorMessage!.ShouldContain("failed");
 	}
 
 	[Fact]

@@ -66,8 +66,8 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.EventId.ShouldBe(auditEvent.EventId);
-		result.ErrorMessage.ShouldNotBeNull();
-		result.ErrorMessage.ShouldContain("400");
+		result.ErrorMessage!.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldContain("400");
 		result.IsTransientError.ShouldBeFalse();
 	}
 
@@ -107,7 +107,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldBe("Connection refused");
+		result.ErrorMessage!.ShouldBe("Connection refused");
 	}
 
 	[Fact]
@@ -235,7 +235,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNull();
+		result.ErrorMessage!.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -250,7 +250,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Connection refused");
+		result.ErrorMessage!.ShouldBe("Connection refused");
 	}
 
 	[Fact]

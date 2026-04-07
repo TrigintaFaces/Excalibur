@@ -500,7 +500,7 @@ public sealed class InterceptedMiddlewareInvocationShould : UnitTestBase
 		}
 	}
 
-	private sealed class ThrowingMiddleware(string name, Exception exception) : IDispatchMiddleware
+	private sealed class ThrowingMiddleware(string _name, Exception exception) : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Validation;
 

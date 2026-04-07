@@ -508,7 +508,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Exception handled gracefully");
+		result.ErrorMessage!.ShouldBe("Exception handled gracefully");
 	}
 
 	[Fact]
@@ -781,7 +781,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 
 		// Assert
 		result.ShouldBe(customResult);
-		result.ErrorMessage.ShouldBe("Custom short-circuit response");
+		result.ErrorMessage!.ShouldBe("Custom short-circuit response");
 	}
 
 	[Fact]
@@ -826,7 +826,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Unauthorized");
+		result.ErrorMessage!.ShouldBe("Unauthorized");
 		invocations.ShouldNotContain("Second");
 	}
 
@@ -849,7 +849,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Validation failed");
+		result.ErrorMessage!.ShouldBe("Validation failed");
 		invocations.ShouldNotContain("Second");
 	}
 
@@ -895,7 +895,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Rate limit exceeded");
+		result.ErrorMessage!.ShouldBe("Rate limit exceeded");
 		invocations.ShouldNotContain("Second");
 	}
 
@@ -1308,7 +1308,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 		}
 	}
 
-	private sealed class ContextWriterMiddleware(string name, DispatchMiddlewareStage? stage, string key, object value) : IDispatchMiddleware
+	private sealed class ContextWriterMiddleware(string _name, DispatchMiddlewareStage? stage, string key, object value) : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => stage;
 
@@ -1331,7 +1331,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 		}
 	}
 
-	private sealed class MessageModifierMiddleware(string name, DispatchMiddlewareStage? stage, List<string> invocations) : IDispatchMiddleware
+	private sealed class MessageModifierMiddleware(string _name, DispatchMiddlewareStage? stage, List<string> _invocations) : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => stage;
 
@@ -1381,7 +1381,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 		}
 	}
 
-	private sealed class ThrowingMiddleware(string name, DispatchMiddlewareStage? stage, Exception exception) : IDispatchMiddleware
+	private sealed class ThrowingMiddleware(string _name, DispatchMiddlewareStage? stage, Exception exception) : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => stage;
 
@@ -1491,7 +1491,7 @@ public sealed class MiddlewarePipelineShould : UnitTestBase
 		}
 	}
 
-	private sealed class ShortCircuitWithResultMiddleware(string name, DispatchMiddlewareStage? stage, IMessageResult result) : IDispatchMiddleware
+	private sealed class ShortCircuitWithResultMiddleware(string _name, DispatchMiddlewareStage? stage, IMessageResult result) : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => stage;
 

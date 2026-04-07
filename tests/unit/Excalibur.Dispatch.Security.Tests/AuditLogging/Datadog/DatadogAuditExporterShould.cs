@@ -129,7 +129,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.EventId.ShouldBe(auditEvent.EventId);
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 		result.IsTransientError.ShouldBeFalse();
 	}
 
@@ -332,7 +332,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Connection refused");
+		result.ErrorMessage!.ShouldContain("Connection refused");
 	}
 
 	[Fact]
@@ -421,7 +421,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldContain("Connection refused");
+		result.ErrorMessage!.ShouldContain("Connection refused");
 	}
 
 	[Fact]
@@ -437,7 +437,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
 	}
 
 	#endregion HttpRequestException and Timeout Tests
@@ -578,8 +578,8 @@ public sealed class DatadogAuditExporterShould : IDisposable
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
-		result.ErrorMessage.ShouldContain("Unexpected status code");
+		result.ErrorMessage!.ShouldNotBeNullOrEmpty();
+		result.ErrorMessage!.ShouldContain("Unexpected status code");
 		result.Diagnostics.ShouldNotBeNull();
 	}
 

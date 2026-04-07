@@ -27,7 +27,7 @@ public sealed class SchemaRegistryExceptionShould
 
 		// Assert
 		exception.Message.ShouldNotBeEmpty();
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -41,7 +41,7 @@ public sealed class SchemaRegistryExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBeNull();
+		exception.InnerException!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -56,7 +56,7 @@ public sealed class SchemaRegistryExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe(message);
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 	}
 
 	#endregion
@@ -176,7 +176,7 @@ public sealed class SchemaRegistryExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe("Failed to register schema");
-		exception.InnerException.ShouldBe(inner);
+		exception.InnerException!.ShouldBe(inner);
 		exception.Subject.ShouldBe("events-value");
 		exception.SchemaId.ShouldBe(999);
 		exception.StatusCode.ShouldBe(500);

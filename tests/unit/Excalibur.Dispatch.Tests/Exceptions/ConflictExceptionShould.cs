@@ -42,7 +42,7 @@ public sealed class ConflictExceptionShould
 
 		// Assert
 		ex.Message.ShouldBe("outer");
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 		ex.StatusCode.ShouldBe(409);
 	}
 

@@ -195,7 +195,7 @@ public sealed class MigrationServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Unable to detect");
+		result.ErrorMessage!.ShouldContain("Unable to detect");
 	}
 
 	[Fact]
@@ -274,7 +274,7 @@ public sealed class MigrationServiceShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Decryption failed");
+		result.ErrorMessage!.ShouldContain("Decryption failed");
 	}
 
 	[Fact]

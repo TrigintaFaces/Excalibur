@@ -164,7 +164,7 @@ public sealed class ICacheableDefaultsShould : UnitTestBase
 		result.Succeeded.ShouldBeTrue();
 		result.CacheHit.ShouldBeTrue();
 		result.ProblemDetails.ShouldBeNull();
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 		result.ValidationResult.ShouldBeNull();
 		result.AuthorizationResult.ShouldBeNull();
 

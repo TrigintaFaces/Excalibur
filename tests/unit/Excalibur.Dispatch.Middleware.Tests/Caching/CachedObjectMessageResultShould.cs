@@ -58,7 +58,7 @@ public sealed class CachedObjectMessageResultShould : UnitTestBase
 	{
 		var result = new CachedObjectMessageResult("test");
 
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]

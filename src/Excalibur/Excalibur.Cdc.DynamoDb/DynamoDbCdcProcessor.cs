@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 using System.Collections.Concurrent;
 
 using Amazon.DynamoDBStreams;
@@ -237,7 +238,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 			_currentPosition = _options.StartPosition ?? savedPosition ?? DynamoDbCdcPosition.Beginning(_streamArn);
 
 			// Initialize shard positions from saved position
-			foreach (var kvp in _currentPosition.ShardPositions)
+			foreach (var kvp in _currentPosition!.ShardPositions)
 			{
 				_shardPositions[kvp.Key] = kvp.Value;
 			}
@@ -409,7 +410,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		var newImage = DynamoDbAttributeValueConverter.ToAttributeValueMap(streamRecord.NewImage);
 		var oldImage = DynamoDbAttributeValueConverter.ToAttributeValueMap(streamRecord.OldImage);
 
-		var position = _currentPosition.WithShardPosition(shardId, sequenceNumber);
+		var position = _currentPosition!.WithShardPosition(shardId, sequenceNumber);
 		var changeType = MapChangeType(record.EventName);
 
 		return changeType switch

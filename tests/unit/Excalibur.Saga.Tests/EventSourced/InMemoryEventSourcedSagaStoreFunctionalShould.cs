@@ -138,11 +138,11 @@ public sealed class InMemoryEventSourcedSagaStoreFunctionalShould
 		// Assert
 		state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.Failed);
-		state.ErrorMessage.ShouldBe("Step2 failed after 3 retries");
+		state.ErrorMessage!.ShouldBe("Step2 failed after 3 retries");
 		state.StepHistory.Count.ShouldBe(2);
 		state.StepHistory[0].IsSuccess.ShouldBeTrue();
 		state.StepHistory[1].IsSuccess.ShouldBeFalse();
-		state.StepHistory[1].ErrorMessage.ShouldBe("Payment declined");
+		state.StepHistory[1].ErrorMessage!.ShouldBe("Payment declined");
 		state.StepHistory[1].RetryCount.ShouldBe(3);
 		state.CompletedAt.ShouldNotBeNull();
 	}
@@ -339,6 +339,6 @@ public sealed class InMemoryEventSourcedSagaStoreFunctionalShould
 		state.ShouldNotBeNull();
 		state.Status.ShouldBe(SagaStatus.Cancelled);
 		state.CompletedAt.ShouldNotBeNull();
-		state.ErrorMessage.ShouldBe("User requested");
+		state.ErrorMessage!.ShouldBe("User requested");
 	}
 }

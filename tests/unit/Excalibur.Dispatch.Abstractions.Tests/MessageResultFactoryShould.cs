@@ -81,7 +81,7 @@ public sealed class MessageResultFactoryShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Something went wrong");
+		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	[Fact]
@@ -116,7 +116,7 @@ public sealed class MessageResultFactoryShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("Error occurred");
+		result.ErrorMessage!.ShouldBe("Error occurred");
 	}
 
 	[Fact]

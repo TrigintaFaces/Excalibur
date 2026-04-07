@@ -159,8 +159,8 @@ public sealed class SagaHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
 		result.Description.ShouldBe("Saga health check failed");
-		_ = result.Exception.ShouldNotBeNull();
-		_ = result.Exception.ShouldBeOfType<InvalidOperationException>();
+		_ = result.Exception!.ShouldNotBeNull();
+		_ = result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

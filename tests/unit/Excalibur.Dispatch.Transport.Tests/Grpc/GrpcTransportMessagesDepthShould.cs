@@ -100,7 +100,7 @@ public sealed class GrpcTransportMessagesDepthShould
 		response.IsSuccess.ShouldBeFalse();
 		response.MessageId.ShouldBeNull();
 		response.ErrorCode.ShouldBe("RATE_LIMITED");
-		response.ErrorMessage.ShouldBe("Too many requests");
+		response.ErrorMessage!.ShouldBe("Too many requests");
 	}
 
 	[Fact]

@@ -21,7 +21,7 @@ public sealed class SendResultShould
         result.AcceptedAt.ShouldNotBeNull();
         result.AcceptedAt!.Value.ShouldBeGreaterThanOrEqualTo(before);
         result.AcceptedAt!.Value.ShouldBeLessThanOrEqualTo(after);
-        result.Error.ShouldBeNull();
+        result.Error!.ShouldBeNull();
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class SendResultShould
         var result = SendResult.Failure(error);
 
         result.IsSuccess.ShouldBeFalse();
-        result.Error.ShouldBeSameAs(error);
+        result.Error!.ShouldBeSameAs(error);
         result.MessageId.ShouldBeNull();
     }
 
@@ -62,6 +62,6 @@ public sealed class SendResultShould
         result.SequenceNumber.ShouldBeNull();
         result.Partition.ShouldBeNull();
         result.AcceptedAt.ShouldBeNull();
-        result.Error.ShouldBeNull();
+        result.Error!.ShouldBeNull();
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.Firestore;
@@ -9,6 +10,7 @@ using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 using Google.Cloud.Firestore;
+using Google.Apis.Auth.OAuth2;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -94,7 +96,7 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var docId = GetDocumentId(sagaId, typeof(TSagaState).Name);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -124,7 +126,7 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 		var stateJson = _serializer.Serialize(sagaState);
 		var sagaType = typeof(TSagaState).Name;
 		var docId = GetDocumentId(sagaState.SagaId, sagaType);
-		var docRef = _collection.Document(docId);
+		var docRef = _collection!.Document(docId);
 
 		// Read existing to preserve createdUtc
 		var existingSnapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -193,11 +195,11 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 
 		if (!string.IsNullOrEmpty(_options.CredentialsPath))
 		{
-			builder.CredentialsPath = _options.CredentialsPath;
+			builder.Credential = GoogleCredential.FromFile(_options.CredentialsPath!);
 		}
 		else if (!string.IsNullOrEmpty(_options.CredentialsJson))
 		{
-			builder.JsonCredentials = _options.CredentialsJson;
+			builder.Credential = GoogleCredential.FromJson(_options.CredentialsJson);
 		}
 
 		_db = await builder.BuildAsync().ConfigureAwait(false);

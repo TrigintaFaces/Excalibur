@@ -112,7 +112,7 @@ public sealed class MigrationServiceWorkflowShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("Key unavailable");
+		result.ErrorMessage!.ShouldContain("Key unavailable");
 		progress.FailureCount.ShouldBe(1);
 	}
 

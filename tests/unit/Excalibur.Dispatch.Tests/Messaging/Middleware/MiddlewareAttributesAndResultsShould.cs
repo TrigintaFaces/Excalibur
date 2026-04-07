@@ -48,7 +48,7 @@ public sealed class MiddlewareAttributesAndResultsShould
 		var error = new ValidationError("Name", "Name is required");
 
 		error.PropertyName.ShouldBe("Name");
-		error.ErrorMessage.ShouldBe("Name is required");
+		error.ErrorMessage!.ShouldBe("Name is required");
 	}
 
 	[Fact]
@@ -84,7 +84,7 @@ public sealed class MiddlewareAttributesAndResultsShould
 		result.IsValid.ShouldBeFalse();
 		result.Errors.Count.ShouldBe(2);
 		result.Errors[0].PropertyName.ShouldBe("Field1");
-		result.Errors[1].ErrorMessage.ShouldBe("Too long");
+		result.Errors[1].ErrorMessage!.ShouldBe("Too long");
 	}
 
 	[Fact]

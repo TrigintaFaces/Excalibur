@@ -17,7 +17,7 @@ public sealed class ProcessingResultShould
 
 		// Assert
 		result.Success.ShouldBeTrue();
-		result.Error.ShouldBeNull();
+		result.Error!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -28,7 +28,7 @@ public sealed class ProcessingResultShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.Error.ShouldBe("timeout");
+		result.Error!.ShouldBe("timeout");
 	}
 
 	[Fact]

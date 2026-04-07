@@ -36,7 +36,7 @@ public sealed class ResourceAlreadyExistsExceptionShould
 		var inner = new InvalidOperationException("inner");
 		var ex = new ResourceAlreadyExistsException("key", "Order", innerException: inner);
 
-		ex.InnerException.ShouldBe(inner);
+		ex.InnerException!.ShouldBe(inner);
 	}
 
 	[Fact]

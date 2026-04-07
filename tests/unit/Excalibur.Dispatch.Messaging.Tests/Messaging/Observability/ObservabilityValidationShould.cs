@@ -318,8 +318,8 @@ public sealed class ObservabilityValidationShould : IDisposable
 		errorLogs.ShouldNotBeEmpty("Error should be logged for observability");
 
 		var errorLog = errorLogs.First();
-		_ = errorLog.Exception.ShouldNotBeNull("Exception details should be captured");
-		_ = errorLog.Exception.ShouldBeOfType<InvalidOperationException>();
+		_ = errorLog.Exception!.ShouldNotBeNull("Exception details should be captured");
+		_ = errorLog.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]

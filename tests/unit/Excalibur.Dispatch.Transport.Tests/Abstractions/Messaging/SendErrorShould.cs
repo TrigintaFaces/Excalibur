@@ -15,7 +15,7 @@ public sealed class SendErrorShould
         var error = new SendError();
         error.Code.ShouldBe(string.Empty);
         error.Message.ShouldBe(string.Empty);
-        error.Exception.ShouldBeNull();
+        error.Exception!.ShouldBeNull();
         error.IsRetryable.ShouldBeFalse();
     }
 
@@ -33,7 +33,7 @@ public sealed class SendErrorShould
 
         error.Code.ShouldBe("InvalidOp");
         error.Message.ShouldBe("Something went wrong");
-        error.Exception.ShouldBeSameAs(ex);
+        error.Exception!.ShouldBeSameAs(ex);
         error.IsRetryable.ShouldBeTrue();
     }
 
@@ -45,7 +45,7 @@ public sealed class SendErrorShould
 
         error.Code.ShouldBe("TimeoutException");
         error.Message.ShouldBe("Connection timed out");
-        error.Exception.ShouldBeSameAs(ex);
+        error.Exception!.ShouldBeSameAs(ex);
         error.IsRetryable.ShouldBeFalse();
     }
 

@@ -177,8 +177,8 @@ public sealed class ReEncryptionServiceShould
 		result.TargetProviderId.ShouldBe("tgt");
 		result.FieldsReEncrypted.ShouldBe(5);
 		result.Duration.ShouldBe(TimeSpan.FromSeconds(1));
-		result.ErrorMessage.ShouldBeNull();
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -187,8 +187,8 @@ public sealed class ReEncryptionServiceShould
 		var ex = new InvalidOperationException("test error");
 		var result = ReEncryptionResult.Failed("test error", ex);
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldBe("test error");
-		result.Exception.ShouldBeSameAs(ex);
+		result.ErrorMessage!.ShouldBe("test error");
+		result.Exception!.ShouldBeSameAs(ex);
 	}
 
 	[Fact]
@@ -211,7 +211,7 @@ public sealed class ReEncryptionServiceShould
 		var result = ReEncryptionResult<EntityWithoutEncryptedFields>.Failed(entity, "oops");
 		result.Success.ShouldBeFalse();
 		result.Entity.ShouldBeSameAs(entity);
-		result.ErrorMessage.ShouldBe("oops");
+		result.ErrorMessage!.ShouldBe("oops");
 	}
 
 	[Fact]

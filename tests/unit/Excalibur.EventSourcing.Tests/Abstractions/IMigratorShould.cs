@@ -34,8 +34,8 @@ public sealed class IMigratorShould
 		// Assert
 		result.Success.ShouldBeTrue();
 		result.AppliedMigrations.ShouldBeEmpty();
-		result.ErrorMessage.ShouldBeNull();
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -86,7 +86,7 @@ public sealed class IMigratorShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("lock");
+		result.ErrorMessage!.ShouldContain("lock");
 		result.AppliedMigrations.ShouldBeEmpty();
 	}
 
@@ -104,8 +104,8 @@ public sealed class IMigratorShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("failed");
-		result.Exception.ShouldBe(exception);
+		result.ErrorMessage!.ShouldContain("failed");
+		result.Exception!.ShouldBe(exception);
 	}
 
 	[Fact]
@@ -260,7 +260,7 @@ public sealed class IMigratorShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("not found");
+		result.ErrorMessage!.ShouldContain("not found");
 	}
 
 	[Fact]
@@ -292,7 +292,7 @@ public sealed class IMigratorShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.ErrorMessage.ShouldContain("lock");
+		result.ErrorMessage!.ShouldContain("lock");
 	}
 
 	[Fact]
@@ -324,8 +324,8 @@ public sealed class IMigratorShould
 
 		// Assert
 		result.Success.ShouldBeFalse();
-		result.Exception.ShouldBe(exception);
-		result.ErrorMessage.ShouldContain("Rollback failed");
+		result.Exception!.ShouldBe(exception);
+		result.ErrorMessage!.ShouldContain("Rollback failed");
 	}
 
 	#endregion RollbackAsync Tests

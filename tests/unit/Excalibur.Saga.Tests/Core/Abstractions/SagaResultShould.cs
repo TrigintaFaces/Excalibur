@@ -51,7 +51,7 @@ public sealed class SagaResultShould
 		var result = new SagaResult<TestSagaData>();
 
 		// Assert
-		result.ErrorMessage.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -61,7 +61,7 @@ public sealed class SagaResultShould
 		var result = new SagaResult<TestSagaData>();
 
 		// Assert
-		result.Exception.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -213,7 +213,7 @@ public sealed class SagaResultShould
 		};
 
 		// Assert
-		result.ErrorMessage.ShouldBe("Something went wrong");
+		result.ErrorMessage!.ShouldBe("Something went wrong");
 	}
 
 	[Fact]
@@ -229,7 +229,7 @@ public sealed class SagaResultShould
 		};
 
 		// Assert
-		result.Exception.ShouldBeSameAs(exception);
+		result.Exception!.ShouldBeSameAs(exception);
 	}
 
 	[Fact]
@@ -294,8 +294,8 @@ public sealed class SagaResultShould
 		result.SagaId.ShouldBe("saga-success-1");
 		result.FinalState.ShouldBe(SagaState.Completed);
 		result.Data.OrderId.ShouldBe("order-789");
-		result.ErrorMessage.ShouldBeNull();
-		result.Exception.ShouldBeNull();
+		result.ErrorMessage!.ShouldBeNull();
+		result.Exception!.ShouldBeNull();
 		result.Activities.Count.ShouldBe(2);
 	}
 
@@ -318,8 +318,8 @@ public sealed class SagaResultShould
 		// Assert
 		result.IsSuccess.ShouldBeFalse();
 		result.FinalState.ShouldBe(SagaState.CompensationFailed);
-		result.ErrorMessage.ShouldBe("Payment processing failed");
-		result.Exception.ShouldBeSameAs(exception);
+		result.ErrorMessage!.ShouldBe("Payment processing failed");
+		result.Exception!.ShouldBeSameAs(exception);
 	}
 
 	[Fact]

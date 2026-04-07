@@ -16,7 +16,7 @@ public sealed class TransportSecurityExceptionShould
         var exception = new TransportSecurityException();
 
         exception.Message.ShouldBe("Transport security requirements were not met.");
-        exception.InnerException.ShouldBeNull();
+        exception.InnerException!.ShouldBeNull();
         exception.TransportName.ShouldBeNull();
         exception.FailureReason.ShouldBe(TransportSecurityFailureReason.Unspecified);
     }
@@ -27,7 +27,7 @@ public sealed class TransportSecurityExceptionShould
         var exception = new TransportSecurityException("TLS is required but not enabled");
 
         exception.Message.ShouldBe("TLS is required but not enabled");
-        exception.InnerException.ShouldBeNull();
+        exception.InnerException!.ShouldBeNull();
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public sealed class TransportSecurityExceptionShould
         var exception = new TransportSecurityException("TLS handshake failed", innerException);
 
         exception.Message.ShouldBe("TLS handshake failed");
-        exception.InnerException.ShouldBe(innerException);
+        exception.InnerException!.ShouldBe(innerException);
     }
 
     [Theory]
@@ -119,7 +119,7 @@ public sealed class TransportSecurityExceptionShould
         };
 
         exception.Message.ShouldContain("certificate validation");
-        exception.InnerException.ShouldBe(innerException);
+        exception.InnerException!.ShouldBe(innerException);
         exception.TransportName.ShouldBe("AzureServiceBus");
         exception.FailureReason.ShouldBe(TransportSecurityFailureReason.CertificateValidationFailed);
     }

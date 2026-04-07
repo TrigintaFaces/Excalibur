@@ -458,7 +458,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 				// Circuit is now open - verify the exception mapping
 				// Must catch before InvalidOperationException since CircuitBreakerOpenException inherits from it
 				cbEx.Message.ShouldContain("test-service");
-				_ = cbEx.InnerException.ShouldNotBeNull();
+				_ = cbEx.InnerException!.ShouldNotBeNull();
 				return; // Test passed
 			}
 			catch (InvalidOperationException)

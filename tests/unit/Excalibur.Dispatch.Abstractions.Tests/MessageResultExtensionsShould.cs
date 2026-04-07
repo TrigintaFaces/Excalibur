@@ -1204,7 +1204,7 @@ public sealed class MessageResultExtensionsShould
 		var mapped = result.Map(x => x.ToString());
 
 		// Assert
-		mapped.ErrorMessage.ShouldBe("Custom error message");
+		mapped.ErrorMessage!.ShouldBe("Custom error message");
 	}
 
 	[Fact]
@@ -1217,7 +1217,7 @@ public sealed class MessageResultExtensionsShould
 		var bound = result.Bind(x => MessageResult.Success(x.ToString()));
 
 		// Assert
-		bound.ErrorMessage.ShouldBe("Original error");
+		bound.ErrorMessage!.ShouldBe("Original error");
 	}
 
 	[Fact]
@@ -1383,7 +1383,7 @@ public sealed class MessageResultExtensionsShould
 		// Assert
 		output.Succeeded.ShouldBeFalse();
 		output.ProblemDetails.ErrorCode.ShouldBe(400);
-		output.ErrorMessage.ShouldBe("First failure");
+		output.ErrorMessage!.ShouldBe("First failure");
 	}
 
 	[Fact]

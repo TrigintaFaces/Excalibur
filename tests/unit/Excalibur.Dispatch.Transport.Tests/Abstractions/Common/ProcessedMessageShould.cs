@@ -64,7 +64,7 @@ public sealed class ProcessedMessageShould
 		var message = new ProcessedMessage();
 
 		// Assert
-		message.ErrorMessage.ShouldBeNull();
+		message.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -130,7 +130,7 @@ public sealed class ProcessedMessageShould
 		message.ErrorMessage = "Processing failed due to timeout";
 
 		// Assert
-		message.ErrorMessage.ShouldBe("Processing failed due to timeout");
+		message.ErrorMessage!.ShouldBe("Processing failed due to timeout");
 	}
 
 	[Fact]
@@ -154,7 +154,7 @@ public sealed class ProcessedMessageShould
 		message.ProcessedAt.ShouldBe(processedAt);
 		message.Duration.ShouldBe(TimeSpan.FromMilliseconds(50));
 		message.Success.ShouldBeTrue();
-		message.ErrorMessage.ShouldBeNull();
+		message.ErrorMessage!.ShouldBeNull();
 	}
 
 	[Fact]
@@ -178,6 +178,6 @@ public sealed class ProcessedMessageShould
 		message.ProcessedAt.ShouldBe(processedAt);
 		message.Duration.ShouldBe(TimeSpan.FromSeconds(30));
 		message.Success.ShouldBeFalse();
-		message.ErrorMessage.ShouldBe("Operation timed out");
+		message.ErrorMessage!.ShouldBe("Operation timed out");
 	}
 }

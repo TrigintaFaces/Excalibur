@@ -76,8 +76,8 @@ public sealed class ClaimCheckHealthCheckDepthShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Exception.ShouldNotBeNull();
-		result.Exception.ShouldBeOfType<InvalidOperationException>();
+		result.Exception!.ShouldNotBeNull();
+		result.Exception!.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]
@@ -97,7 +97,7 @@ public sealed class ClaimCheckHealthCheckDepthShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Exception.ShouldBeOfType<KeyNotFoundException>();
+		result.Exception!.ShouldBeOfType<KeyNotFoundException>();
 	}
 
 	[Fact]

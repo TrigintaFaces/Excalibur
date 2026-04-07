@@ -65,7 +65,7 @@ public sealed class MoreEnumsShould
 	{
 		ConfigValidationSeverity.Info.ShouldBe((ConfigValidationSeverity)0);
 		ConfigValidationSeverity.Warning.ShouldBe((ConfigValidationSeverity)1);
-		ConfigValidationSeverity.Error.ShouldBe((ConfigValidationSeverity)2);
+		ConfigValidationSeverity.Error!.ShouldBe((ConfigValidationSeverity)2);
 	}
 
 	// --- Middleware enums ---
