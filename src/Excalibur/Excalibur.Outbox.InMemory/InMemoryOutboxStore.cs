@@ -75,7 +75,9 @@ public sealed partial class InMemoryOutboxStore : IOutboxStore, IOutboxStoreAdmi
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
+#pragma warning disable IL2026, IL3050 // In-memory store uses reflection-based serialization
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
+#pragma warning restore IL2026, IL3050
 
 		var outbound = new OutboundMessage(messageType, payload, messageType)
 		{

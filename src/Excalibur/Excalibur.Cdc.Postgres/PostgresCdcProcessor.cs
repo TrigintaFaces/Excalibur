@@ -147,7 +147,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			}
 
 			// Update position
-			_replicationConnection.SetReplicationStatus(message.WalEnd);
+			_replicationConnection!.SetReplicationStatus(message.WalEnd);
 			_currentPosition = new PostgresCdcPosition(message.WalEnd);
 
 			if (count >= _options.BatchSize)
@@ -194,7 +194,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		// Acknowledge to Postgres
 		if (_replicationConnection is not null)
 		{
-			_replicationConnection.SetReplicationStatus(position.Lsn);
+			_replicationConnection!.SetReplicationStatus(position.Lsn);
 		}
 
 		LogConfirmed(position.LsnString);
@@ -316,7 +316,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		}.ToString();
 
 		_replicationConnection = new LogicalReplicationConnection(connectionString);
-		await _replicationConnection.Open(cancellationToken).ConfigureAwait(false);
+		await _replicationConnection!.Open(cancellationToken).ConfigureAwait(false);
 
 		// Check if slot exists, create if needed
 		if (_options.Replication.AutoCreateSlot)
@@ -388,7 +388,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			}
 
 			// Update position and acknowledge
-			_replicationConnection.SetReplicationStatus(message.WalEnd);
+			_replicationConnection!.SetReplicationStatus(message.WalEnd);
 			_currentPosition = new PostgresCdcPosition(message.WalEnd);
 		}
 

@@ -429,7 +429,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 	{
 		var parameters = new List<KeyValuePair<string, string>>
 		{
-			new("grant_type", "refresh_token"), new("refresh_token", refreshToken), new("client_id", oauth2Settings.ClientId),
+			new("grant_type", "refresh_token"), new("refresh_token", refreshToken), new("client_id", oauth2Settings.ClientId!),
 		};
 
 		if (!string.IsNullOrWhiteSpace(clientSecret))
@@ -518,8 +518,8 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			// Parse the token response (reuse OAuth2TokenResponse as the format is identical)
 			var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-			#pragma warning restore IL2026, IL3050
 			var tokenResponse = JsonSerializer.Deserialize<OAuth2TokenResponse>(responseContent);
+			#pragma warning restore IL2026, IL3050
 
 			if (tokenResponse is null || string.IsNullOrWhiteSpace(tokenResponse.AccessToken))
 			{
@@ -563,7 +563,7 @@ public sealed class SecureElasticsearchAuthenticationProvider : IElasticsearchAu
 		var parameters = new List<KeyValuePair<string, string>>
 		{
 			new("grant_type", "client_credentials"),
-			new("client_id", serviceAccountSettings.AccountId),
+			new("client_id", serviceAccountSettings.AccountId!),
 			new("client_secret", clientSecret),
 		};
 

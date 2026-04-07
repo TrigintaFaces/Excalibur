@@ -43,7 +43,7 @@ public static class SqlServerProjectionStoreExtensions
 
 			#pragma warning disable IL2026, IL3050 // SqlServerProjectionStore uses reflection-based JSON serialization
 			return new SqlServerProjectionStore<TProjection>(
-				options.Value.ConnectionString,
+				options.Value.ConnectionString ?? throw new InvalidOperationException("SqlServerProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);

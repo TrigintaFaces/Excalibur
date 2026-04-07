@@ -186,7 +186,7 @@ internal sealed class SecurityAuditMaintenanceService
 			var archiveFilePath = Path.Combine(archiveLocation, $"audit-archive-{cutoffDate:yyyy-MM-dd}.json.gz");
 
 			// Ensure archive directory exists
-			_ = Directory.CreateDirectory(Path.GetDirectoryName(archiveFilePath));
+			_ = Directory.CreateDirectory(Path.GetDirectoryName(archiveFilePath)!);
 
 			await using var fileStream = File.Create(archiveFilePath);
 			await using var gzipStream = new GZipStream(fileStream, CompressionMode.Compress);

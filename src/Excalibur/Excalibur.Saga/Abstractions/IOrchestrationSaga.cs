@@ -20,7 +20,7 @@ namespace Excalibur.Saga.Abstractions;
 /// <item>Strong consistency guarantees needed</item>
 /// </list>
 /// <para><strong>Alternatives:</strong> For event-driven choreography patterns where services autonomously react to domain events,
-/// use <see cref="Messaging.Delivery.ISaga"/> instead.</para>
+/// use <c>ISaga</c> instead.</para>
 /// <para><strong>Examples:</strong> Order processing saga (payment â†’ inventory â†’ shipment), multi-step approval workflows,
 /// transactional sagas requiring compensating actions.</para>
 /// </remarks>

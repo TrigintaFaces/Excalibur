@@ -167,7 +167,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		// Store message as hash - use HSETNX pattern to check uniqueness atomically
 		// First, check if the message hash already exists by trying to get any field
-		var existingType = await _database.HashGetAsync(key, "MessageType").ConfigureAwait(false);
+		var existingType = await _database!.HashGetAsync(key, "MessageType").ConfigureAwait(false);
 		if (existingType.HasValue)
 		{
 			throw new InvalidOperationException(
@@ -179,10 +179,10 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		// Store message as hash
 		var entries = SerializeToHashEntries(message);
-		await _database.HashSetAsync(key, entries).ConfigureAwait(false);
+		await _database!.HashSetAsync(key, entries).ConfigureAwait(false);
 
 		// Verify we actually created it (another thread might have beaten us)
-		var actualType = await _database.HashGetAsync(key, "MessageType").ConfigureAwait(false);
+		var actualType = await _database!.HashGetAsync(key, "MessageType").ConfigureAwait(false);
 		if (actualType != message.MessageType)
 		{
 			throw new InvalidOperationException(
@@ -197,7 +197,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		// GetUnsentMessagesAsync will move due scheduled messages to staged
 		if (message.ScheduledAt.HasValue)
 		{
-			_ = await _database.SortedSetAddAsync(
+			_ = await _database!.SortedSetAddAsync(
 				GetScheduledIndexKey(),
 				message.Id,
 				message.ScheduledAt.Value.ToUnixTimeMilliseconds()).ConfigureAwait(false);
@@ -206,7 +206,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		{
 			// Score: priority (inverted, lower = higher priority) + creation timestamp for ordering
 			var score = ((double)message.Priority * 1_000_000_000_000) + message.CreatedAt.ToUnixTimeMilliseconds();
-			_ = await _database.SortedSetAddAsync(
+			_ = await _database!.SortedSetAddAsync(
 				GetStagedIndexKey(),
 				message.Id,
 				score).ConfigureAwait(false);
@@ -258,7 +258,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		await MoveScheduledToStagedAsync(now).ConfigureAwait(false);
 
 		// Get staged messages ordered by priority (score)
-		var messageIds = await _database.SortedSetRangeByRankAsync(
+		var messageIds = await _database!.SortedSetRangeByRankAsync(
 			GetStagedIndexKey(),
 			0,
 			batchSize - 1).ConfigureAwait(false);
@@ -293,7 +293,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		var sentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
 
 		// Use Lua script for atomic check-and-update
-		var result = await _database.ScriptEvaluateAsync(
+		var result = await _database!.ScriptEvaluateAsync(
 			MarkSentLuaScript,
 			[key, GetStagedIndexKey(), GetSentIndexKey(), GetScheduledIndexKey()],
 			[messageId, sentAt, ((int)OutboxStatus.Sent).ToString()]).ConfigureAwait(false);
@@ -320,7 +320,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		// Set TTL if configured
 		if (_options.SentMessageTtlSeconds > 0)
 		{
-			_ = await _database.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.SentMessageTtlSeconds)).ConfigureAwait(false);
+			_ = await _database!.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.SentMessageTtlSeconds)).ConfigureAwait(false);
 		}
 
 		LogMessageSent(messageId);
@@ -338,7 +338,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		var key = GetMessageKey(messageId);
 
 		// Check if exists first - silent return per conformance tests
-		var exists = await _database.KeyExistsAsync(key).ConfigureAwait(false);
+		var exists = await _database!.KeyExistsAsync(key).ConfigureAwait(false);
 		if (!exists)
 		{
 			return;
@@ -347,7 +347,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		var lastAttemptAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
 
 		// Use Lua script for atomic update
-		_ = await _database.ScriptEvaluateAsync(
+		_ = await _database!.ScriptEvaluateAsync(
 			MarkFailedLuaScript,
 			[key, GetStagedIndexKey(), GetFailedIndexKey()],
 			[messageId, errorMessage, retryCount.ToString(), lastAttemptAt, ((int)OutboxStatus.Failed).ToString()]).ConfigureAwait(false);
@@ -367,7 +367,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
 		// Get all failed message IDs
-		var messageIds = await _database.SortedSetRangeByRankAsync(
+		var messageIds = await _database!.SortedSetRangeByRankAsync(
 			GetFailedIndexKey(),
 			0,
 			-1).ConfigureAwait(false);
@@ -415,7 +415,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		var maxScore = scheduledBefore.ToUnixTimeMilliseconds();
 
-		var messageIds = await _database.SortedSetRangeByScoreAsync(
+		var messageIds = await _database!.SortedSetRangeByScoreAsync(
 			GetScheduledIndexKey(),
 			double.NegativeInfinity,
 			maxScore,
@@ -450,7 +450,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		var maxScore = olderThan.ToUnixTimeMilliseconds();
 
 		// Get sent messages older than the cutoff
-		var messageIds = await _database.SortedSetRangeByScoreAsync(
+		var messageIds = await _database!.SortedSetRangeByScoreAsync(
 			GetSentIndexKey(),
 			double.NegativeInfinity,
 			maxScore,
@@ -466,9 +466,9 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 			}
 
 			var key = GetMessageKey(id);
-			if (await _database.KeyDeleteAsync(key).ConfigureAwait(false))
+			if (await _database!.KeyDeleteAsync(key).ConfigureAwait(false))
 			{
-				_ = await _database.SortedSetRemoveAsync(GetSentIndexKey(), id).ConfigureAwait(false);
+				_ = await _database!.SortedSetRemoveAsync(GetSentIndexKey(), id).ConfigureAwait(false);
 				count++;
 			}
 		}
@@ -487,14 +487,14 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		var now = DateTimeOffset.UtcNow;
 
-		var stagedCount = (int)await _database.SortedSetLengthAsync(GetStagedIndexKey()).ConfigureAwait(false);
-		var sentCount = (int)await _database.SortedSetLengthAsync(GetSentIndexKey()).ConfigureAwait(false);
-		var failedCount = (int)await _database.SortedSetLengthAsync(GetFailedIndexKey()).ConfigureAwait(false);
-		var scheduledCount = (int)await _database.SortedSetLengthAsync(GetScheduledIndexKey()).ConfigureAwait(false);
+		var stagedCount = (int)await _database!.SortedSetLengthAsync(GetStagedIndexKey()).ConfigureAwait(false);
+		var sentCount = (int)await _database!.SortedSetLengthAsync(GetSentIndexKey()).ConfigureAwait(false);
+		var failedCount = (int)await _database!.SortedSetLengthAsync(GetFailedIndexKey()).ConfigureAwait(false);
+		var scheduledCount = (int)await _database!.SortedSetLengthAsync(GetScheduledIndexKey()).ConfigureAwait(false);
 
 		// Get oldest unsent (first in staged sorted set)
 		TimeSpan? oldestUnsentAge = null;
-		var oldestStaged = await _database.SortedSetRangeByRankAsync(GetStagedIndexKey(), 0, 0).ConfigureAwait(false);
+		var oldestStaged = await _database!.SortedSetRangeByRankAsync(GetStagedIndexKey(), 0, 0).ConfigureAwait(false);
 		if (oldestStaged.Length > 0)
 		{
 			var message = await GetMessageByIdAsync(oldestStaged[0]).ConfigureAwait(false);
@@ -506,7 +506,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		// Get oldest failed
 		TimeSpan? oldestFailedAge = null;
-		var oldestFailed = await _database.SortedSetRangeByRankAsync(GetFailedIndexKey(), 0, 0).ConfigureAwait(false);
+		var oldestFailed = await _database!.SortedSetRangeByRankAsync(GetFailedIndexKey(), 0, 0).ConfigureAwait(false);
 		if (oldestFailed.Length > 0)
 		{
 			var message = await GetMessageByIdAsync(oldestFailed[0]).ConfigureAwait(false);
@@ -702,7 +702,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	private async Task MoveScheduledToStagedAsync(long nowMs)
 	{
 		// Get scheduled messages that are now due
-		var dueMessages = await _database.SortedSetRangeByScoreAsync(
+		var dueMessages = await _database!.SortedSetRangeByScoreAsync(
 			GetScheduledIndexKey(),
 			double.NegativeInfinity,
 			nowMs).ConfigureAwait(false);
@@ -717,15 +717,15 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 			// Move to staged index
 			var score = ((double)message.Priority * 1_000_000_000_000) + message.CreatedAt.ToUnixTimeMilliseconds();
-			_ = await _database.SortedSetAddAsync(GetStagedIndexKey(), id, score).ConfigureAwait(false);
-			_ = await _database.SortedSetRemoveAsync(GetScheduledIndexKey(), id).ConfigureAwait(false);
+			_ = await _database!.SortedSetAddAsync(GetStagedIndexKey(), id, score).ConfigureAwait(false);
+			_ = await _database!.SortedSetRemoveAsync(GetScheduledIndexKey(), id).ConfigureAwait(false);
 		}
 	}
 
 	private async Task<OutboundMessage?> GetMessageByIdAsync(string messageId)
 	{
 		var key = GetMessageKey(messageId);
-		var entries = await _database.HashGetAllAsync(key).ConfigureAwait(false);
+		var entries = await _database!.HashGetAllAsync(key).ConfigureAwait(false);
 
 		if (entries.Length == 0)
 		{

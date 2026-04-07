@@ -68,7 +68,7 @@ public static class SagaBuilderExtensions
 	/// </para>
 	/// <para>
 	/// The coordination middleware runs at the <see cref="Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage.End"/>
-	/// stage and processes <see cref="Excalibur.Saga.Orchestration.ISagaEvent"/> messages
+	/// stage and processes <see cref="EventSourced.ISagaEvent"/> messages
 	/// through the <see cref="SagaCoordinator"/>.
 	/// </para>
 	/// </remarks>

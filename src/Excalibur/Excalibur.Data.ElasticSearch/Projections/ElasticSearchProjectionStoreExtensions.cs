@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using Elastic.Clients.Elasticsearch;
 
 using Excalibur.Data.ElasticSearch.Projections;
@@ -32,7 +33,7 @@ public static class ElasticSearchProjectionStoreExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configureOptions">Action to configure projection store options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddElasticSearchProjectionStore<TProjection>(
+	public static IServiceCollection AddElasticSearchProjectionStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
 		this IServiceCollection services,
 		Action<ElasticSearchProjectionStoreOptions> configureOptions)
 		where TProjection : class
@@ -66,7 +67,7 @@ public static class ElasticSearchProjectionStoreExtensions
 	/// <param name="nodeUri">The ElasticSearch node URI.</param>
 	/// <param name="configureOptions">Optional action to further configure projection store options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddElasticSearchProjectionStore<TProjection>(
+	public static IServiceCollection AddElasticSearchProjectionStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
 		this IServiceCollection services,
 		string nodeUri,
 		Action<ElasticSearchProjectionStoreOptions>? configureOptions = null)
@@ -94,7 +95,7 @@ public static class ElasticSearchProjectionStoreExtensions
 	/// Use this overload for advanced scenarios like shared client instances,
 	/// custom connection pooling, or integration with existing ElasticSearch infrastructure.
 	/// </remarks>
-	public static IServiceCollection AddElasticSearchProjectionStore<TProjection>(
+	public static IServiceCollection AddElasticSearchProjectionStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
 		this IServiceCollection services,
 		Func<IServiceProvider, ElasticsearchClient> clientFactory,
 		Action<ElasticSearchProjectionStoreOptions> configureOptions)

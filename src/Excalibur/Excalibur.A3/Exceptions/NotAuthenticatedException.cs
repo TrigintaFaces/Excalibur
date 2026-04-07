@@ -23,16 +23,19 @@ public sealed class NotAuthenticatedException(int? statusCode = null, string? me
 	/// </summary>
 	public const string DefaultMessage = "Authentication failed.";
 
+	/// <inheritdoc/>
 	public NotAuthenticatedException()
 		: this(null, null, null)
 	{
 	}
 
+	/// <inheritdoc/>
 	public NotAuthenticatedException(string message)
 		: this(null, message, null)
 	{
 	}
 
+	/// <inheritdoc/>
 	public NotAuthenticatedException(string message, Exception? innerException)
 		: this(null, message, innerException)
 	{

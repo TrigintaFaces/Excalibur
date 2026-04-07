@@ -155,12 +155,12 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 	[RequiresUnreferencedCode("Validator.TryValidateObject uses reflection to inspect object properties for validation attributes. Ensure all validated types are annotated with DynamicallyAccessedMembers.")]
 	public void Validate()
 	{
+#pragma warning disable IL2026, IL3050 // ValidationContext and Validator.TryValidateObject use reflection
 		var validationContext = new ValidationContext(this);
 		var validationResults = new List<ValidationResult>();
 
-		#pragma warning disable IL2026, IL3050 // Validator.TryValidateObject uses reflection
 		if (!Validator.TryValidateObject(this, validationContext, validationResults, validateAllProperties: true))
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 		{
 			var errors = string.Join("; ", validationResults.Select(static r => r.ErrorMessage));
 			throw new ValidationException($"Postgres persistence options validation failed: {errors}");
@@ -328,12 +328,12 @@ public sealed class PostgresConnectionOptions
 	/// <exception cref="ValidationException"> Thrown when validation fails. </exception>
 	internal void Validate()
 	{
+#pragma warning disable IL2026, IL3050 // ValidationContext and Validator.TryValidateObject use reflection
 		var validationContext = new ValidationContext(this);
 		var validationResults = new List<ValidationResult>();
 
-		#pragma warning disable IL2026, IL3050 // Validator.TryValidateObject uses reflection
 		if (!Validator.TryValidateObject(this, validationContext, validationResults, validateAllProperties: true))
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 		{
 			var errors = string.Join("; ", validationResults.Select(static r => r.ErrorMessage));
 			throw new ValidationException($"Postgres connection options validation failed: {errors}");
@@ -389,12 +389,12 @@ public sealed class PostgresStatementOptions
 	/// <exception cref="ValidationException"> Thrown when validation fails. </exception>
 	internal void Validate()
 	{
+#pragma warning disable IL2026, IL3050 // ValidationContext and Validator.TryValidateObject use reflection
 		var validationContext = new ValidationContext(this);
 		var validationResults = new List<ValidationResult>();
 
-		#pragma warning disable IL2026, IL3050 // Validator.TryValidateObject uses reflection
 		if (!Validator.TryValidateObject(this, validationContext, validationResults, validateAllProperties: true))
-		#pragma warning restore IL2026, IL3050
+#pragma warning restore IL2026, IL3050
 		{
 			var errors = string.Join("; ", validationResults.Select(static r => r.ErrorMessage));
 			throw new ValidationException($"Postgres statement options validation failed: {errors}");

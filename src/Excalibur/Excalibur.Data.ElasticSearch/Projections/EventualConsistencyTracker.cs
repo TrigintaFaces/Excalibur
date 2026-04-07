@@ -13,6 +13,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.ElasticSearch.Projections;
 
+#pragma warning disable CS8604 // Possible null reference argument -- Elastic client API nullability annotations are overly strict for query builder lambdas
+
 /// <summary>
 /// Tracks eventual consistency between write and read models using Elasticsearch indices.
 /// </summary>

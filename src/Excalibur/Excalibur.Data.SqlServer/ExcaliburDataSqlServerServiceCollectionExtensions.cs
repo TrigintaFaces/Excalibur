@@ -57,7 +57,9 @@ public static class ExcaliburDataSqlServerServiceCollectionExtensions
 
 		foreach (var typeHandler in additionalTypeHandlers)
 		{
+			#pragma warning disable IL2026, IL3050 // RegisterTypeHandler uses reflection for Dapper type handler registration
 			RegisterTypeHandler(typeHandler);
+#pragma warning restore IL2026, IL3050
 		}
 	}
 
@@ -66,6 +68,7 @@ public static class ExcaliburDataSqlServerServiceCollectionExtensions
 	/// </summary>
 	/// <param name="handler"> The type handler to register. </param>
 	/// <exception cref="InvalidOperationException"> </exception>
+	[RequiresUnreferencedCode("Uses reflection to find and invoke generic AddTypeHandler.")]
 	[RequiresDynamicCode("Calls System.Reflection.MethodInfo.MakeGenericMethod(params Type[])")]
 	private static void RegisterTypeHandler(object handler)
 	{

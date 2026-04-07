@@ -64,7 +64,7 @@ public sealed class ElasticsearchIndexingException : ApiException
 	/// <value>
 	/// The name of the Elasticsearch index where the operation failed.
 	/// </value>
-	public string IndexName { get; }
+	public string IndexName { get; } = string.Empty;
 
 	/// <summary>
 	/// Gets the type of the document that failed to index.
@@ -80,5 +80,5 @@ public sealed class ElasticsearchIndexingException : ApiException
 	/// <value>
 	/// Details about the API call that failed.
 	/// </value>
-	public string ApiCallDetails { get; }
+	public string ApiCallDetails { get; } = string.Empty;
 }

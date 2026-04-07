@@ -408,11 +408,13 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 
 		await EnsureIndicesAsync(cancellationToken).ConfigureAwait(false);
 
+#pragma warning disable CS8604 // Possible null reference argument -- Elastic API nullability annotations are overly strict
 		var response = await _client.SearchAsync<SchemaVersionDocument>(
 				s => s.Index(_historyIndexName).Size(1000).Query(q => q.Term(t => t.Field("projectionType").Value(projectionType)))
 					.Sort(s => s.Field("registeredAt", new FieldSort { Order = SortOrder.Asc })),
 				cancellationToken)
 			.ConfigureAwait(false);
+#pragma warning restore CS8604
 
 		if (!response.IsValidResponse || response.Documents is null)
 		{
@@ -615,7 +617,9 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		object schema = document.SchemaJson;
 		try
 		{
-			schema = JsonSerializer.Deserialize<JsonElement>(document.SchemaJson);
+			#pragma warning disable IL2026, IL3050 // Schema deserialization uses reflection
+			schema = JsonSerializer.Deserialize<JsonElement>(document.SchemaJson)!;
+#pragma warning restore IL2026, IL3050
 		}
 		catch
 		{
@@ -869,11 +873,13 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		string projectionType,
 		CancellationToken cancellationToken)
 	{
+#pragma warning disable CS8604 // Possible null reference argument -- Elastic API nullability annotations are overly strict
 		var response = await _client.SearchAsync<MigrationHistoryDocument>(
 				s => s.Index(_migrationIndexName).Size(1000).Query(q => q.Term(t => t.Field("projectionType").Value(projectionType)))
 					.Sort(s => s.Field("recordedAt", new FieldSort { Order = SortOrder.Desc })),
 				cancellationToken)
 			.ConfigureAwait(false);
+#pragma warning restore CS8604
 
 		if (!response.IsValidResponse || response.Documents is null)
 		{

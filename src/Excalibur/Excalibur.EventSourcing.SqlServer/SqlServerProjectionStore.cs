@@ -217,11 +217,10 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		var results = await connection.QueryAsync<string>(
 				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
-		#pragma warning restore IL2026, IL3050
-
 		return results
 			.Select(json => JsonSerializer.Deserialize<TProjection>(json, _jsonOptions)!)
 			.ToList();
+		#pragma warning restore IL2026, IL3050
 	}
 
 	/// <inheritdoc/>

@@ -14,6 +14,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class PostgresDataExecutorServiceCollectionExtensions
 {
+	/// <summary>
+	/// Registers Postgres data executors with the specified connection factory.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionFactory">Factory for creating database connections.</param>
+	/// <returns>The service collection for chaining.</returns>
 	public static IServiceCollection AddPostgresDataExecutors(
 		this IServiceCollection services,
 		Func<IDbConnection> connectionFactory)

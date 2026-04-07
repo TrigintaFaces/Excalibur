@@ -22,6 +22,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.ElasticSearch.Projections;
 
+#pragma warning disable CS8604 // Possible null reference argument -- Elastic client API nullability annotations are overly strict for query builder lambdas
+
 /// <summary>
 /// ElasticSearch implementation of <see cref="IProjectionStore{TProjection}"/>.
 /// </summary>
@@ -140,7 +142,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var response = await _client
+		var response = await _client!
 			.GetAsync<ElasticSearchProjectionDocument>(_indexName, id, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -183,7 +185,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var document = ElasticSearchProjectionDocument.FromProjection(id, _projectionType, projection);
 
 		// IndexAsync with same ID performs upsert (insert or replace)
-		var response = await _client
+		var response = await _client!
 			.IndexAsync(document, _indexName, id, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -217,7 +219,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var deleteRequest = new DeleteRequest(_indexName, new Id(id));
-		var response = await _client
+		var response = await _client!
 			.DeleteAsync(deleteRequest, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -253,7 +255,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		var searchRequest = BuildSearchRequest(filters, options);
 
-		var response = await _client
+		var response = await _client!
 			.SearchAsync(searchRequest, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -299,7 +301,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		var query = BuildQuery(filters);
 
-		var response = await _client
+		var response = await _client!
 			.CountAsync<ElasticSearchProjectionDocument>(c => c
 				.Indices(_indexName)
 				.Query(query), cancellationToken)
@@ -740,7 +742,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 	private async Task CreateIndexIfNotExistsAsync(CancellationToken cancellationToken)
 	{
-		var existsResponse = await _client.Indices
+		var existsResponse = await _client!.Indices
 			.ExistsAsync(_indexName, cancellationToken)
 			.ConfigureAwait(false);
 
@@ -755,7 +757,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		// - Strings become text with .keyword subfield
 		// - Numbers become long/double
 		// - Dates become date
-		var createResponse = await _client.Indices
+		var createResponse = await _client!.Indices
 			.CreateAsync(_indexName, c => c
 				.Settings(s => s
 					.NumberOfShards(_options.NumberOfShards)

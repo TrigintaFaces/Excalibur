@@ -10,7 +10,7 @@ using Excalibur.Data.Abstractions;
 namespace Excalibur.Data.Postgres.RequestProviders;
 
 /// <summary>
-/// A query provider for Postgres databases, implementing the <see cref="IGrantRequestProvider" /> interface.
+/// A query provider for Postgres databases, implementing the <c>IGrantRequestProvider</c> interface.
 /// </summary>
 public sealed class PostgresGrantRequestProvider
 {

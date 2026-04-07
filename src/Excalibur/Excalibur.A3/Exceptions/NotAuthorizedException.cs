@@ -38,18 +38,22 @@ public sealed class NotAuthorizedException : ApiException
 		UserName = user.FullName;
 	}
 
+	/// <inheritdoc/>
 	public NotAuthorizedException() : base()
 	{
 	}
 
+	/// <inheritdoc/>
 	public NotAuthorizedException(string message) : base(message)
 	{
 	}
 
+	/// <inheritdoc/>
 	public NotAuthorizedException(string message, Exception? innerException) : base(message, innerException)
 	{
 	}
 
+	/// <inheritdoc/>
 	public NotAuthorizedException(int statusCode, string? message, Exception? innerException) : base(statusCode, message, innerException)
 	{
 	}

@@ -63,7 +63,7 @@ public sealed class ElasticsearchDeleteException : ApiException
 	/// <value>
 	/// The ID of the document that could not be deleted.
 	/// </value>
-	public string DocumentId { get; }
+	public string DocumentId { get; } = string.Empty;
 
 	/// <summary>
 	/// Gets the type of the document that could not be deleted.
@@ -79,5 +79,5 @@ public sealed class ElasticsearchDeleteException : ApiException
 	/// <value>
 	/// Details of the API call that failed.
 	/// </value>
-	public string ApiCallDetails { get; }
+	public string ApiCallDetails { get; } = string.Empty;
 }

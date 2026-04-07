@@ -393,15 +393,17 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 
 			var nextRotationDue = DateTimeOffset.UtcNow.Add(_options.KeyRotationInterval);
 
+			var newKeyVersion = generationResult.KeyVersion ?? throw new InvalidOperationException($"Key generation succeeded for '{keyName}' but KeyVersion is null.");
+
 			// Raise key rotation event
 			KeyRotated?.Invoke(this, new KeyRotatedEventArgs(
-				keyName, generationResult.KeyVersion, DateTimeOffset.UtcNow, nextRotationDue));
+				keyName, newKeyVersion, DateTimeOffset.UtcNow, nextRotationDue));
 
 			_logger.LogInformation(
 				"Key {KeyName} rotated successfully from version {PreviousVersion} to {NewVersion}",
-				keyName, previousVersion, generationResult.KeyVersion);
+				keyName, previousVersion, newKeyVersion);
 
-			return KeyRotationResult.CreateSuccess(keyName, generationResult.KeyVersion, previousVersion, nextRotationDue);
+			return KeyRotationResult.CreateSuccess(keyName, newKeyVersion, previousVersion, nextRotationDue);
 		}
 		catch (Exception ex)
 		{

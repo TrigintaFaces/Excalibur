@@ -62,7 +62,9 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+		#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
 		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobOptions>(JobConfigSectionName);
+#pragma warning restore IL2026, IL3050
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
 		_ = configurator.AddJob<DataProcessingJob>(jobKey, job => job
@@ -87,7 +89,9 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+		#pragma warning disable IL2026, IL3050 // GetJobConfiguration uses IConfiguration.Get<T>() which requires unreferenced/dynamic code
 		var jobConfig = configuration.GetJobConfiguration<DataProcessingJobOptions>(JobConfigSectionName);
+#pragma warning restore IL2026, IL3050
 
 		_ = healthChecks.Add(new HealthCheckRegistration(
 			$"{jobConfig.JobName}HealthCheck",

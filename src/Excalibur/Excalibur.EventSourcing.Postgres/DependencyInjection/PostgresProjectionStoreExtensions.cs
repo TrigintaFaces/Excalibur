@@ -44,7 +44,7 @@ public static class PostgresProjectionStoreExtensions
 
 			#pragma warning disable IL2026, IL3050 // PostgresProjectionStore uses reflection-based JSON serialization
 			return new PostgresProjectionStore<TProjection>(
-				options.Value.ConnectionString,
+				options.Value.ConnectionString ?? throw new InvalidOperationException("PostgresProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);
