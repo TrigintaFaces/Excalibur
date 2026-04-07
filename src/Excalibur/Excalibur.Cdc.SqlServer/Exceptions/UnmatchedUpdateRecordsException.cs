@@ -57,5 +57,5 @@ public sealed class UnmatchedUpdateRecordsException : ApiException
 	/// Gets or sets the LSN for which the duplicate record exists.
 	/// </summary>
 	/// <value> The LSN for which the duplicate record exists. </value>
-	public byte[] Lsn { get; private set; }
+	public byte[] Lsn { get; private set; } = [];
 }

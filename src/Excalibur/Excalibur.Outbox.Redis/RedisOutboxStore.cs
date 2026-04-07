@@ -271,7 +271,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 				break;
 			}
 
-			var message = await GetMessageByIdAsync(id).ConfigureAwait(false);
+			var message = await GetMessageByIdAsync(id!).ConfigureAwait(false);
 			if (message != null && message.Status == OutboxStatus.Staged)
 			{
 				messages.Add(message);
@@ -381,7 +381,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 				break;
 			}
 
-			var message = await GetMessageByIdAsync(id).ConfigureAwait(false);
+			var message = await GetMessageByIdAsync(id!).ConfigureAwait(false);
 			if (message == null || message.Status != OutboxStatus.Failed)
 			{
 				continue;
@@ -430,7 +430,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 				break;
 			}
 
-			var message = await GetMessageByIdAsync(id).ConfigureAwait(false);
+			var message = await GetMessageByIdAsync(id!).ConfigureAwait(false);
 			if (message != null)
 			{
 				messages.Add(message);
@@ -465,7 +465,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 				break;
 			}
 
-			var key = GetMessageKey(id);
+			var key = GetMessageKey(id!);
 			if (await _database!.KeyDeleteAsync(key).ConfigureAwait(false))
 			{
 				_ = await _database!.SortedSetRemoveAsync(GetSentIndexKey(), id).ConfigureAwait(false);
@@ -497,7 +497,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		var oldestStaged = await _database!.SortedSetRangeByRankAsync(GetStagedIndexKey(), 0, 0).ConfigureAwait(false);
 		if (oldestStaged.Length > 0)
 		{
-			var message = await GetMessageByIdAsync(oldestStaged[0]).ConfigureAwait(false);
+			var message = await GetMessageByIdAsync(oldestStaged[0]!).ConfigureAwait(false);
 			if (message != null)
 			{
 				oldestUnsentAge = now - message.CreatedAt;
@@ -509,7 +509,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		var oldestFailed = await _database!.SortedSetRangeByRankAsync(GetFailedIndexKey(), 0, 0).ConfigureAwait(false);
 		if (oldestFailed.Length > 0)
 		{
-			var message = await GetMessageByIdAsync(oldestFailed[0]).ConfigureAwait(false);
+			var message = await GetMessageByIdAsync(oldestFailed[0]!).ConfigureAwait(false);
 			if (message != null)
 			{
 				oldestFailedAge = now - message.CreatedAt;
@@ -709,7 +709,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		foreach (var id in dueMessages)
 		{
-			var message = await GetMessageByIdAsync(id).ConfigureAwait(false);
+			var message = await GetMessageByIdAsync(id!).ConfigureAwait(false);
 			if (message == null)
 			{
 				continue;

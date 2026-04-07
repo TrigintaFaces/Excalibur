@@ -60,7 +60,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(string connectionString, ILogger<SqlServerEventStore> logger)
@@ -76,7 +76,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(
@@ -96,7 +96,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(

@@ -191,7 +191,7 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 		var documentId = CreateDocumentId(viewName, viewId);
 
 		var deleteRequest = new DeleteRequest(_options.ViewsIndexName, new Id(documentId));
-		var response = await _client
+		var response = await _client!
 			.DeleteAsync(deleteRequest, cancellationToken)
 			.ConfigureAwait(false);
 

@@ -60,5 +60,5 @@ public sealed class CdcMultipleTableHandlerException : ApiException
 	/// <value>
 	/// The name of the table for which multiple handlers were found.
 	/// </value>
-	public string TableName { get; private set; }
+	public string TableName { get; private set; } = string.Empty;
 }

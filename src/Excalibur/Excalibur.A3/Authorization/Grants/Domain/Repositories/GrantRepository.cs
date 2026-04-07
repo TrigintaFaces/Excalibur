@@ -75,6 +75,8 @@ public partial class GrantRepository : IGrantRepository
 		SaveAsync(aggregate, expectedETag: null, cancellationToken);
 
 	/// <inheritdoc />
+	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Aggregate serialization uses reflection.")]
+	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Aggregate serialization uses runtime code generation.")]
 	public async Task SaveAsync(Grant aggregate, string? expectedETag, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);

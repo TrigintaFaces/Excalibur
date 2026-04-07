@@ -44,7 +44,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IInboxStoreAdmin
 	public SqlServerInboxStore(
 		IOptions<SqlServerInboxOptions> options,
 		ILogger<SqlServerInboxStore> logger)
-		: this(CreateConnectionFactory(options?.Value), options?.Value, logger)
+		: this(CreateConnectionFactory(options!.Value), options.Value, logger)
 	{
 	}
 
@@ -425,11 +425,14 @@ public sealed class SqlServerInboxStore : IInboxStore, IInboxStoreAdmin
 
 	#region Private Methods
 
+	#pragma warning disable IL2026, IL3050 // JSON serialization for inbox metadata
 	private string SerializeMetadata(IDictionary<string, object> metadata)
 	{
 		return JsonSerializer.Serialize(metadata, _jsonOptions);
 	}
+	#pragma warning restore IL2026, IL3050
 
+	#pragma warning disable IL2026, IL3050 // JSON deserialization for inbox metadata
 	private IDictionary<string, object> DeserializeMetadata(string? json)
 	{
 		if (string.IsNullOrEmpty(json))
@@ -440,6 +443,7 @@ public sealed class SqlServerInboxStore : IInboxStore, IInboxStoreAdmin
 		return JsonSerializer.Deserialize<Dictionary<string, object>>(json, _jsonOptions)
 			   ?? new Dictionary<string, object>(StringComparer.Ordinal);
 	}
+	#pragma warning restore IL2026, IL3050
 
 	private InboxEntry MapRowToEntry(InboxEntryRow row)
 	{

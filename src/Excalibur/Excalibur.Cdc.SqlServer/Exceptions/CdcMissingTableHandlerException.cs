@@ -52,5 +52,5 @@ public sealed class CdcMissingTableHandlerException : ApiException
 	/// <value>
 	/// The name of the table for which the handler is missing.
 	/// </value>
-	public string TableName { get; private set; }
+	public string TableName { get; private set; } = string.Empty;
 }

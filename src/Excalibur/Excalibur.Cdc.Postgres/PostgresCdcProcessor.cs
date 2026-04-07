@@ -333,7 +333,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		{
 			// Check if slot already exists by trying to create it
 			// CreatePgOutputReplicationSlot will fail if slot exists
-			_ = await _replicationConnection
+			_ = await _replicationConnection!
 				.CreatePgOutputReplicationSlot(
 					_options.ReplicationSlotName,
 					slotSnapshotInitMode: LogicalSlotSnapshotInitMode.NoExport,

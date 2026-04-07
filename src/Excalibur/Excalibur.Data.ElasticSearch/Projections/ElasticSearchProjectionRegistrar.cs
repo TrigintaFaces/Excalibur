@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Data.ElasticSearch.Projections;
@@ -47,7 +49,7 @@ public sealed class ElasticSearchProjectionRegistrar
 	/// <typeparam name="TProjection">The projection type to store.</typeparam>
 	/// <param name="configureOptions">Optional action to override per-projection options.</param>
 	/// <returns>This registrar for fluent chaining.</returns>
-	public ElasticSearchProjectionRegistrar Add<TProjection>(
+	public ElasticSearchProjectionRegistrar Add<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
 		Action<ElasticSearchProjectionStoreOptions>? configureOptions = null)
 		where TProjection : class
 	{

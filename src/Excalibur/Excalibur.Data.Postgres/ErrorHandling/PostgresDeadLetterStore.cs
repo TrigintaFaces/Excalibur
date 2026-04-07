@@ -199,11 +199,11 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 
 		using var connection = CreateConnection();
 
-		#pragma warning disable IL2026, IL3050 // Dapper QueryAsync uses reflection for type mapping
+		#pragma warning disable IL2026, IL3050 // Dapper QueryAsync and ToDeadLetterMessage use reflection
 		var results = await connection.QueryAsync<DeadLetterMessageDto>(sql, parameters).ConfigureAwait(false);
-		#pragma warning restore IL2026, IL3050
 
 		return results.Select(static dto => dto.ToDeadLetterMessage());
+		#pragma warning restore IL2026, IL3050
 	}
 
 	/// <inheritdoc />

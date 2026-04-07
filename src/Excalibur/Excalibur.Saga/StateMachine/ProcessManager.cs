@@ -19,7 +19,7 @@ namespace Excalibur.Saga.StateMachine;
 /// <typeparam name="TData"> The type of saga state data that extends <see cref="SagaState" />. </typeparam>
 /// <remarks>
 /// <para>
-/// ProcessManager extends <see cref="SagaBase{TData}" /> to provide a structured state machine approach to saga orchestration. States are
+/// ProcessManager extends <see cref="Orchestration.SagaBase{TData}" /> to provide a structured state machine approach to saga orchestration. States are
 /// defined declaratively using fluent APIs:
 /// </para>
 /// <list type="bullet">
