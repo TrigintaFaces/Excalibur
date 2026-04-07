@@ -3,7 +3,6 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
 
 namespace Excalibur.Dispatch.Middleware.Batch;
@@ -13,9 +12,6 @@ namespace Excalibur.Dispatch.Middleware.Batch;
 /// </summary>
 internal sealed class BatchMessageContext : IMessageContext
 {
-	private static readonly IMessageVersionMetadata DefaultVersionMetadata = new MessageVersionMetadata();
-	private static readonly IValidationResult DefaultValidationResult = SerializableValidationResult.Success();
-	private static readonly IAuthorizationResult DefaultAuthorizationResult = Abstractions.AuthorizationResult.Success();
 	public BatchMessageContext(IList<IMessageContext> contexts)
 	{
 		if (contexts.Count == 0)

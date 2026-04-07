@@ -1776,9 +1776,6 @@ internal sealed partial class LocalMessageBus(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private IServiceProvider GetProvider() => provider;
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private object ActivateHandler(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 		Type handlerType,

@@ -23,7 +23,6 @@ namespace Excalibur.Dispatch.Compliance;
 /// </remarks>
 public sealed partial class RetentionEnforcementService : IRetentionEnforcementService
 {
-	private readonly IErasureService? _erasureService;
 	private readonly IOptions<RetentionEnforcementOptions> _options;
 	private readonly ILogger<RetentionEnforcementService> _logger;
 
@@ -32,15 +31,12 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 	/// </summary>
 	/// <param name="options">The retention enforcement options.</param>
 	/// <param name="logger">The logger.</param>
-	/// <param name="erasureService">Optional erasure service for deleting expired data.</param>
 	public RetentionEnforcementService(
 		IOptions<RetentionEnforcementOptions> options,
-		ILogger<RetentionEnforcementService> logger,
-		IErasureService? erasureService = null)
+		ILogger<RetentionEnforcementService> logger)
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_erasureService = erasureService;
 	}
 
 	/// <inheritdoc />

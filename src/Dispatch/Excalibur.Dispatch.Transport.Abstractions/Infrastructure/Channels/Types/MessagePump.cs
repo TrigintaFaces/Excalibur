@@ -23,8 +23,6 @@ internal sealed class MessagePump : IChannelMessagePump
 	private CancellationTokenSource? _cancellationTokenSource;
 	private Task? _processingTask;
 	private volatile bool _isRunning;
-	private int _messagesConsumed;
-	private int _messagesFailed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MessagePump" /> class.
@@ -155,10 +153,6 @@ internal sealed class MessagePump : IChannelMessagePump
 		_cancellationTokenSource?.Dispose();
 		_ = (_channel?.Writer.TryComplete());
 	}
-
-	private void OnMessageConsumed() => Interlocked.Increment(ref _messagesConsumed);
-
-	private void OnMessageFailed() => Interlocked.Increment(ref _messagesFailed);
 
 	private async Task ProcessMessagesAsync(CancellationToken cancellationToken)
 	{

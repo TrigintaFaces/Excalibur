@@ -24,7 +24,6 @@ internal sealed class RedisTransactionScope : ITransactionScope, ITransactionSco
 
 
 	private readonly RedisPersistenceProvider _provider;
-	private readonly TimeSpan? _timeout;
 	private readonly List<Func<Task>> _onCommitCallbacks = [];
 	private readonly List<Func<Task>> _onRollbackCallbacks = [];
 	private readonly List<Func<TransactionStatus, Task>> _onCompleteCallbacks = [];
@@ -36,7 +35,6 @@ internal sealed class RedisTransactionScope : ITransactionScope, ITransactionSco
 	{
 		_provider = provider;
 		IsolationLevel = isolationLevel;
-		_timeout = timeout;
 		TransactionId = Guid.NewGuid().ToString();
 		StartTime = DateTimeOffset.UtcNow;
 		Timeout = timeout ?? TimeSpan.FromMinutes(1);

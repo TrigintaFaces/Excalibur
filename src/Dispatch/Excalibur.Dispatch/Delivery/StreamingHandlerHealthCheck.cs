@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Delivery;
@@ -25,17 +26,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// </remarks>
 internal sealed class StreamingHandlerHealthCheck : IHealthCheck
 {
-	private readonly IServiceProvider _serviceProvider;
 	private volatile IReadOnlyList<Type>? _cachedHandlerTypes;
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="StreamingHandlerHealthCheck"/> class.
-	/// </summary>
-	/// <param name="serviceProvider">The service provider for resolving streaming handlers.</param>
-	public StreamingHandlerHealthCheck(IServiceProvider serviceProvider)
-	{
-		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-	}
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
@@ -81,7 +72,7 @@ internal sealed class StreamingHandlerHealthCheck : IHealthCheck
 	/// repeated reflection on every health check invocation.
 	/// </summary>
 	[RequiresUnreferencedCode("Uses AppDomain.GetAssemblies() and Type.GetInterfaces() to discover IStreamingDocumentHandler implementations at runtime.")]
-	private static IReadOnlyList<Type> DiscoverHandlerTypes()
+	private static ReadOnlyCollection<Type> DiscoverHandlerTypes()
 	{
 		return AppDomain.CurrentDomain.GetAssemblies()
 			.SelectMany(a =>

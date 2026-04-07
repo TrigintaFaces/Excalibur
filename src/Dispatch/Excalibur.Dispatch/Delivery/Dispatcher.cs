@@ -81,8 +81,6 @@ internal sealed class Dispatcher(
 	[ThreadStatic] private static MessageDispatchInfo s_cachedDispatchInfo;
 	[ThreadStatic] private static bool s_cachedDispatchInfoInitialized;
 
-	private readonly ConcurrentDictionary<Type, bool> _middlewareBypassCache = new();
-
 	// PERF-T5: Per-type routing decision cache for deterministic routers.
 	// When the router is DefaultDispatchRouter (static rules), routing decisions are identical
 	// for the same message type across dispatches. Caching eliminates ~1-2μs of router invocation
@@ -2050,26 +2048,6 @@ internal sealed class Dispatcher(
 		}
 
 		return !(busOptionsMap?.TryGetValue(LocalBusName, out var localOptions) == true && localOptions?.EnableRetries == true);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private bool CanBypassMiddlewareForMessage(IDispatchMessage message)
-	{
-		if (_canBypassAllMiddleware)
-		{
-			return true;
-		}
-
-		if (_concreteMiddlewareInvoker is null)
-		{
-			return false;
-		}
-
-		var messageType = message.GetType();
-		return _middlewareBypassCache.GetOrAdd(
-			messageType,
-			static (type, invoker) => invoker.CanBypassFor(type),
-			_concreteMiddlewareInvoker);
 	}
 
 	/// <summary>

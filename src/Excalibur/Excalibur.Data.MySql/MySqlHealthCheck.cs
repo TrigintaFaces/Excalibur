@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.MySql;
 
@@ -12,19 +11,14 @@ namespace Excalibur.Data.MySql;
 internal sealed class MySqlHealthCheck : IHealthCheck
 {
 	private readonly MySqlPersistenceProvider _provider;
-	private readonly MySqlProviderOptions _options;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MySqlHealthCheck"/> class.
 	/// </summary>
 	/// <param name="provider">The MySQL persistence provider.</param>
-	/// <param name="options">The MySQL provider options.</param>
-	public MySqlHealthCheck(
-		MySqlPersistenceProvider provider,
-		IOptions<MySqlProviderOptions> options)
+	public MySqlHealthCheck(MySqlPersistenceProvider provider)
 	{
 		_provider = provider ?? throw new ArgumentNullException(nameof(provider));
-		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	}
 
 	/// <inheritdoc/>

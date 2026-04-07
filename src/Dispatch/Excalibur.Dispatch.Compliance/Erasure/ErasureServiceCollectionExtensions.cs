@@ -154,7 +154,7 @@ public static class ErasureServiceCollectionExtensions
 	/// </item>
 	/// </list>
 	/// <para>
-	/// Requires <see cref="IErasureStore" />, <see cref="IKeyManagementProvider" />, and <see cref="IDataInventoryService" /> to
+	/// Requires <see cref="IErasureStore" /> and <see cref="IDataInventoryService" /> to
 	/// be registered.
 	/// </para>
 	/// </remarks>
@@ -320,7 +320,6 @@ public static class ErasureServiceCollectionExtensions
 		// Register core service with factory to resolve optional dependencies
 		services.TryAddScoped<IErasureService>(sp => new ErasureService(
 			sp.GetRequiredService<IErasureStore>(),
-			sp.GetRequiredService<IKeyManagementProvider>(),
 			sp.GetRequiredService<IKeyManagementAdmin>(),
 			sp.GetRequiredService<IOptions<ErasureOptions>>(),
 			sp.GetRequiredService<ILogger<ErasureService>>(),

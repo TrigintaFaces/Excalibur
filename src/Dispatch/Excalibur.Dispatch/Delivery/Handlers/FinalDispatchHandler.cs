@@ -152,7 +152,7 @@ public sealed partial class FinalDispatchHandler(
 			cacheHit);
 	}
 
-	private static IReadOnlyList<IRouteResult> GetTargetRoutes(RoutingDecision? routingDecision)
+	private static List<IRouteResult> GetTargetRoutes(RoutingDecision? routingDecision)
 	{
 		if (routingDecision?.Endpoints is { Count: > 0 } endpoints)
 		{

@@ -60,7 +60,7 @@ internal sealed partial class DefaultEntitlementReportProvider(
 		ArgumentException.ThrowIfNullOrEmpty(tenantId);
 
 		var queryStore = grantStore.GetService(typeof(IGrantQueryStore)) as IGrantQueryStore;
-		IReadOnlyList<EntitlementEntry> entries;
+		List<EntitlementEntry> entries;
 
 		if (queryStore is not null)
 		{

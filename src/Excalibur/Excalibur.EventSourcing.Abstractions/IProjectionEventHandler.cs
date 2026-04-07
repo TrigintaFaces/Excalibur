@@ -20,7 +20,9 @@ namespace Excalibur.EventSourcing.Abstractions;
 /// For simple synchronous projections, prefer <c>When&lt;TEvent&gt;</c> lambdas instead.
 /// </para>
 /// </remarks>
+#pragma warning disable CA1711 // Identifier 'EventHandler' suffix is intentional — this IS an event handler for projections
 public interface IProjectionEventHandler<TProjection, in TEvent>
+#pragma warning restore CA1711
 	where TProjection : class, new()
 	where TEvent : IDomainEvent
 {

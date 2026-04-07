@@ -265,7 +265,7 @@ public static class DispatcherContextExtensions
 		return MessageResult.Failed(problem);
 	}
 
-	private static IMessageResult<TResponse> CreateLocalFailureResult<TResponse>(Exception exception, string title)
+	private static SimpleMessageResultOfT<TResponse> CreateLocalFailureResult<TResponse>(Exception exception, string title)
 	{
 		var problem = new MessageProblemDetails
 		{

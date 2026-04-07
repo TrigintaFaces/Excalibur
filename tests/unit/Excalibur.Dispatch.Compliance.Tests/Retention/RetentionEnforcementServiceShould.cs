@@ -71,19 +71,6 @@ public sealed class RetentionEnforcementServiceShould
 				Microsoft.Extensions.Options.Options.Create(new RetentionEnforcementOptions()),
 				null!));
 	}
-
-	[Fact]
-	public void Accept_optional_erasure_service()
-	{
-		var erasureService = A.Fake<IErasureService>();
-
-		var sut = new RetentionEnforcementService(
-			Microsoft.Extensions.Options.Options.Create(new RetentionEnforcementOptions()),
-			NullLogger<RetentionEnforcementService>.Instance,
-			erasureService);
-
-		sut.ShouldNotBeNull();
-	}
 }
 
 [Trait("Category", "Unit")]

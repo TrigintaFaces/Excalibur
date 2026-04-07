@@ -151,7 +151,7 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 		return FilterApplicableMiddleware(messageKind, NoEnabledFeatures);
 	}
 
-	private IReadOnlyList<Type> FilterApplicableMiddleware(
+	private List<Type> FilterApplicableMiddleware(
 		MessageKinds messageKind,
 		IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{
@@ -173,15 +173,15 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 		return applicable.Count == 0 ? [] : applicable;
 	}
 
-	private static MiddlewareRule[] BuildMiddlewareRules(IReadOnlyList<Type> middlewareTypes)
+	private static MiddlewareRule[] BuildMiddlewareRules(Type[] middlewareTypes)
 	{
-		if (middlewareTypes.Count == 0)
+		if (middlewareTypes.Length == 0)
 		{
 			return [];
 		}
 
-		var rules = new MiddlewareRule[middlewareTypes.Count];
-		for (var i = 0; i < middlewareTypes.Count; i++)
+		var rules = new MiddlewareRule[middlewareTypes.Length];
+		for (var i = 0; i < middlewareTypes.Length; i++)
 		{
 			rules[i] = MiddlewareRule.Create(middlewareTypes[i]);
 		}

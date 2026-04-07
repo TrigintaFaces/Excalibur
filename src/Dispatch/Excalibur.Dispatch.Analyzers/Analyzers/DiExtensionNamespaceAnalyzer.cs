@@ -15,7 +15,6 @@ namespace Excalibur.Dispatch.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class DiExtensionNamespaceAnalyzer : DiagnosticAnalyzer
 {
-    private const string ExpectedNamespace = "Microsoft.Extensions.DependencyInjection";
     private const string ServiceCollectionTypeName = "Microsoft.Extensions.DependencyInjection.IServiceCollection";
 
     /// <inheritdoc />

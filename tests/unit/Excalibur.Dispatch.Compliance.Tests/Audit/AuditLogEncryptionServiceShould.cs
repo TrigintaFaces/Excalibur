@@ -11,7 +11,6 @@ namespace Excalibur.Dispatch.Compliance.Tests.Audit;
 public sealed class AuditLogEncryptionServiceShould : IDisposable
 {
 	private readonly IEncryptionProvider _encryptionProvider = A.Fake<IEncryptionProvider>();
-	private readonly IKeyManagementProvider _keyManagementProvider = A.Fake<IKeyManagementProvider>();
 	private readonly AuditLogEncryptionOptions _options = new()
 	{
 		EncryptFields = ["ActorId", "IpAddress"],
@@ -189,7 +188,6 @@ public sealed class AuditLogEncryptionServiceShould : IDisposable
 		};
 		var sut = new AuditLogEncryptionService(
 			_realEncryptionProvider,
-			_realKeyManagement,
 			Microsoft.Extensions.Options.Options.Create(options),
 			_logger);
 
@@ -301,18 +299,6 @@ public sealed class AuditLogEncryptionServiceShould : IDisposable
 		Should.Throw<ArgumentNullException>(() =>
 			new AuditLogEncryptionService(
 				null!,
-				_keyManagementProvider,
-				Microsoft.Extensions.Options.Options.Create(_options),
-				_logger));
-	}
-
-	[Fact]
-	public void Throw_for_null_key_management_provider()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			new AuditLogEncryptionService(
-				_encryptionProvider,
-				null!,
 				Microsoft.Extensions.Options.Options.Create(_options),
 				_logger));
 	}
@@ -323,7 +309,6 @@ public sealed class AuditLogEncryptionServiceShould : IDisposable
 		Should.Throw<ArgumentNullException>(() =>
 			new AuditLogEncryptionService(
 				_encryptionProvider,
-				_keyManagementProvider,
 				null!,
 				_logger));
 	}
@@ -334,7 +319,6 @@ public sealed class AuditLogEncryptionServiceShould : IDisposable
 		Should.Throw<ArgumentNullException>(() =>
 			new AuditLogEncryptionService(
 				_encryptionProvider,
-				_keyManagementProvider,
 				Microsoft.Extensions.Options.Options.Create(_options),
 				null!));
 	}
@@ -348,14 +332,12 @@ public sealed class AuditLogEncryptionServiceShould : IDisposable
 	private AuditLogEncryptionService CreateService() =>
 		new(
 			_encryptionProvider,
-			_keyManagementProvider,
 			Microsoft.Extensions.Options.Options.Create(_options),
 			_logger);
 
 	private AuditLogEncryptionService CreateRealService() =>
 		new(
 			_realEncryptionProvider,
-			_realKeyManagement,
 			Microsoft.Extensions.Options.Options.Create(_options),
 			_logger);
 

@@ -19,7 +19,6 @@ public sealed class ErasureServiceShould
 	private readonly IErasureQueryStore _queryStore;
 	private readonly ILegalHoldService _legalHoldService;
 	private readonly IDataInventoryService _dataInventoryService;
-	private readonly IKeyManagementProvider _keyProvider;
 	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<ErasureOptions> _options;
 	private readonly ErasureService _sut;
@@ -31,7 +30,6 @@ public sealed class ErasureServiceShould
 		_queryStore = A.Fake<IErasureQueryStore>();
 		_legalHoldService = A.Fake<ILegalHoldService>();
 		_dataInventoryService = A.Fake<IDataInventoryService>();
-		_keyProvider = A.Fake<IKeyManagementProvider>();
 		_keyAdmin = A.Fake<IKeyManagementAdmin>();
 		_options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions
 		{
@@ -46,7 +44,6 @@ public sealed class ErasureServiceShould
 
 		_sut = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
@@ -62,7 +59,6 @@ public sealed class ErasureServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
 			null!,
-			_keyProvider,
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
@@ -70,19 +66,6 @@ public sealed class ErasureServiceShould
 			null));
 	}
 
-	[Fact]
-	public void Constructor_ThrowsArgumentNullException_WhenKeyProviderIsNull()
-	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
-			_store,
-			null!,
-			_keyAdmin,
-			_options,
-			NullLogger<ErasureService>.Instance,
-			null,
-			null));
-	}
 
 	[Fact]
 	public void Constructor_ThrowsArgumentNullException_WhenOptionsIsNull()
@@ -90,7 +73,6 @@ public sealed class ErasureServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			null!,
 			NullLogger<ErasureService>.Instance,
@@ -104,7 +86,6 @@ public sealed class ErasureServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
 			null!,
@@ -118,7 +99,6 @@ public sealed class ErasureServiceShould
 		// Act & Assert - should not throw
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
@@ -134,7 +114,6 @@ public sealed class ErasureServiceShould
 		// Act & Assert - should not throw
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
@@ -341,7 +320,6 @@ public sealed class ErasureServiceShould
 		// Arrange
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
@@ -414,7 +392,6 @@ public sealed class ErasureServiceShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions { DefaultGracePeriod = TimeSpan.FromHours(48) });
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
@@ -466,7 +443,6 @@ public sealed class ErasureServiceShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions { MinimumGracePeriod = TimeSpan.FromHours(2) });
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
@@ -498,7 +474,6 @@ public sealed class ErasureServiceShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions { MaximumGracePeriod = TimeSpan.FromDays(7) });
 		var service = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,

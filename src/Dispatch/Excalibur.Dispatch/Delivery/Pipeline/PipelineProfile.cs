@@ -222,7 +222,7 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 		return FilterApplicableMiddleware(messageKind, NoEnabledFeatures);
 	}
 
-	private IReadOnlyList<Type> FilterApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
+	private List<Type> FilterApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{
 		if (_middlewareRules.Length == 0)
 		{

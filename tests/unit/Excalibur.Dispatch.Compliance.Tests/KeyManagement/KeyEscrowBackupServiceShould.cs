@@ -9,7 +9,6 @@ namespace Excalibur.Dispatch.Compliance.Tests.KeyManagement;
 public sealed class KeyEscrowBackupServiceShould
 {
 	private readonly IEncryptionProvider _encryptionProvider = A.Fake<IEncryptionProvider>();
-	private readonly IKeyManagementProvider _keyManagementProvider = A.Fake<IKeyManagementProvider>();
 	private readonly NullLogger<KeyEscrowBackupService> _logger = NullLogger<KeyEscrowBackupService>.Instance;
 
 	[Fact]
@@ -265,23 +264,16 @@ public sealed class KeyEscrowBackupServiceShould
 	public void Throw_for_null_encryption_provider()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new KeyEscrowBackupService(null!, _keyManagementProvider, _logger));
-	}
-
-	[Fact]
-	public void Throw_for_null_key_management_provider()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			new KeyEscrowBackupService(_encryptionProvider, null!, _logger));
+			new KeyEscrowBackupService(null!, _logger));
 	}
 
 	[Fact]
 	public void Throw_for_null_logger()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new KeyEscrowBackupService(_encryptionProvider, _keyManagementProvider, null!));
+			new KeyEscrowBackupService(_encryptionProvider, null!));
 	}
 
 	private KeyEscrowBackupService CreateService() =>
-		new(_encryptionProvider, _keyManagementProvider, _logger);
+		new(_encryptionProvider, _logger);
 }

@@ -73,7 +73,6 @@ public sealed partial class ErasureService : IErasureService
 	private readonly IErasureStore _store;
 	private readonly ILegalHoldService? _legalHoldService;
 	private readonly IDataInventoryService? _dataInventoryService;
-	private readonly IKeyManagementProvider _keyProvider;
 	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<ErasureOptions> _options;
 	private readonly ILogger<ErasureService> _logger;
@@ -83,7 +82,6 @@ public sealed partial class ErasureService : IErasureService
 	/// Initializes a new instance of the <see cref="ErasureService"/> class.
 	/// </summary>
 	/// <param name="store">The erasure store for persistence.</param>
-	/// <param name="keyProvider">The key management provider for core key operations.</param>
 	/// <param name="keyAdmin">The key management admin provider for key deletion.</param>
 	/// <param name="options">The erasure options (includes signing configuration via <see cref="ErasureRetentionOptions.SigningKey"/>).</param>
 	/// <param name="logger">The logger.</param>
@@ -92,7 +90,6 @@ public sealed partial class ErasureService : IErasureService
 	/// <param name="contributors">Optional erasure contributors for additional store erasure (event stores, snapshot stores, etc.).</param>
 	public ErasureService(
 		IErasureStore store,
-		IKeyManagementProvider keyProvider,
 		IKeyManagementAdmin keyAdmin,
 		IOptions<ErasureOptions> options,
 		ILogger<ErasureService> logger,
@@ -101,7 +98,6 @@ public sealed partial class ErasureService : IErasureService
 		IEnumerable<IErasureContributor>? contributors = null)
 	{
 		_store = store ?? throw new ArgumentNullException(nameof(store));
-		_keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
 		_keyAdmin = keyAdmin ?? throw new ArgumentNullException(nameof(keyAdmin));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));

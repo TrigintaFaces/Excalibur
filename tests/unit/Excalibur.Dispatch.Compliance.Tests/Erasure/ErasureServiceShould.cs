@@ -7,7 +7,6 @@ namespace Excalibur.Dispatch.Compliance.Tests.Erasure;
 public sealed class ErasureServiceShould
 {
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
-	private readonly IKeyManagementProvider _keyProvider = A.Fake<IKeyManagementProvider>();
 	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 	private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
@@ -22,7 +21,6 @@ public sealed class ErasureServiceShould
 
 		_sut = new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
@@ -494,7 +492,7 @@ public sealed class ErasureServiceShould
 			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
 		});
 		var sut = new ErasureService(
-			_store, _keyProvider, _keyAdmin, options,
+			_store, _keyAdmin, options,
 			NullLogger<ErasureService>.Instance,
 			null, // no legal hold service
 			null); // no data inventory service
@@ -513,27 +511,18 @@ public sealed class ErasureServiceShould
 	public void Throw_for_null_store()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(null!, _keyProvider, _keyAdmin,
+			new ErasureService(null!, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				NullLogger<ErasureService>.Instance,
 				null, null));
 	}
 
-	[Fact]
-	public void Throw_for_null_key_provider()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(_store, null!, _keyAdmin,
-				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
-				NullLogger<ErasureService>.Instance,
-				null, null));
-	}
 
 	[Fact]
 	public void Throw_for_null_options()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(_store, _keyProvider, _keyAdmin,
+			new ErasureService(_store, _keyAdmin,
 				null!,
 				NullLogger<ErasureService>.Instance,
 				null, null));
@@ -543,7 +532,7 @@ public sealed class ErasureServiceShould
 	public void Throw_for_null_logger()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(_store, _keyProvider, _keyAdmin,
+			new ErasureService(_store, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				null!,
 				null, null));
@@ -602,7 +591,7 @@ public sealed class ErasureServiceShould
 			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
 		});
 		var sut = new ErasureService(
-			_store, _keyProvider, _keyAdmin, options,
+			_store, _keyAdmin, options,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService, null,
 			[contributor]);

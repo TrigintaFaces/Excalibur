@@ -39,7 +39,8 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		ExportFormat.Csv,
 		ExportFormat.Xml,
 		ExportFormat.Pdf,
-				ExportFormat.Excel
+				ExportFormat.Excel,
+				ExportFormat.Text
 	];
 
 	private static readonly CompositeFormat ReportNotExportableFormat =
@@ -106,13 +107,14 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			ExportFormat.Xml => await ExportToXmlAsync(report, options, cancellationToken).ConfigureAwait(false),
 			ExportFormat.Pdf => await ExportToPdfAsync(report, options, cancellationToken).ConfigureAwait(false),
 			ExportFormat.Excel => await ExportToExcelAsync(report, options, cancellationToken).ConfigureAwait(false),
+			ExportFormat.Text => ExportToText(report, options),
 			_ => throw new ArgumentOutOfRangeException(
 					nameof(format),
 					format,
 					Resources.Soc2ReportExporter_UnsupportedFormat)
 		};
 
-		var finalData = options.Compress && format is ExportFormat.Json or ExportFormat.Csv or ExportFormat.Xml
+		var finalData = options.Compress && format is ExportFormat.Json or ExportFormat.Csv or ExportFormat.Xml or ExportFormat.Text
 			? await CompressAsync(data, cancellationToken).ConfigureAwait(false)
 			: data;
 
@@ -755,6 +757,15 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 		return xml.ToString();
 	}
 
+	private static (byte[] Data, string ContentType, string FileName) ExportToText(
+		Soc2Report report,
+		Soc2ReportExportOptions options)
+	{
+		var text = GenerateTextReport(report, options);
+		var data = System.Text.Encoding.UTF8.GetBytes(text);
+		return (data, "text/plain", $"soc2-report-{report.ReportId}.txt");
+	}
+
 	private static string GenerateTextReport(Soc2Report report, Soc2ReportExportOptions options)
 	{
 		var text = new StringBuilder();
@@ -869,6 +880,7 @@ public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 			ExportFormat.Xml => ".xml",
 			ExportFormat.Pdf => ".pdf",
 			ExportFormat.Excel => ".xlsx",
+			ExportFormat.Text => ".txt",
 			_ => ".dat"
 		};
 

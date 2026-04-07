@@ -1217,6 +1217,7 @@ Excalibur.Dispatch.Compliance.ExportFormat.Csv = 2 -> Excalibur.Dispatch.Complia
 Excalibur.Dispatch.Compliance.ExportFormat.Excel = 1 -> Excalibur.Dispatch.Compliance.ExportFormat
 Excalibur.Dispatch.Compliance.ExportFormat.Json = 3 -> Excalibur.Dispatch.Compliance.ExportFormat
 Excalibur.Dispatch.Compliance.ExportFormat.Pdf = 0 -> Excalibur.Dispatch.Compliance.ExportFormat
+Excalibur.Dispatch.Compliance.ExportFormat.Text = 5 -> Excalibur.Dispatch.Compliance.ExportFormat
 Excalibur.Dispatch.Compliance.ExportFormat.Xml = 4 -> Excalibur.Dispatch.Compliance.ExportFormat
 Excalibur.Dispatch.Compliance.ExportResult
 Excalibur.Dispatch.Compliance.ExportResult.Checksum.get -> string?

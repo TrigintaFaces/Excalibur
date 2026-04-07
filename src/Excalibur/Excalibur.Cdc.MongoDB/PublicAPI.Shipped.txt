@@ -103,9 +103,6 @@ Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.DatabaseName.get -> string!
 Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.DatabaseName.set -> void
 Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.MongoDbCdcStateStoreOptions() -> void
 Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.Validate() -> void
-Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptionsValidator
-Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptionsValidator.MongoDbCdcStateStoreOptionsValidator() -> void
-Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptionsValidator.Validate(string? name, Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
 Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions
 Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.FullDocument.get -> bool
 Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.FullDocument.set -> void

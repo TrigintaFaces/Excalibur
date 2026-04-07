@@ -28,7 +28,7 @@ namespace Excalibur.Data.OpenSearch.IndexManagement;
 /// <param name="client"> The OpenSearch client instance. </param>
 /// <param name="logger"> The logger instance. </param>
 /// <exception cref="ArgumentNullException"> Thrown if any parameter is null. </exception>
-internal partial class IndexLifecycleManager(IOpenSearchClient client, ILogger<IndexLifecycleManager> logger) : IIndexLifecycleManager
+internal sealed partial class IndexLifecycleManager(IOpenSearchClient client, ILogger<IndexLifecycleManager> logger) : IIndexLifecycleManager
 {
 	private readonly IOpenSearchClient _client = client ?? throw new ArgumentNullException(nameof(client));
 	private readonly ILogger<IndexLifecycleManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));

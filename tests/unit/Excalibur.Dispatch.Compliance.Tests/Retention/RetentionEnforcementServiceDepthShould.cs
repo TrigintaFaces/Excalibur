@@ -61,20 +61,6 @@ public sealed class RetentionEnforcementServiceDepthShould
 	}
 
 	[Fact]
-	public async Task Enforce_retention_with_erasure_service()
-	{
-		var erasureService = A.Fake<IErasureService>();
-		var sut = new RetentionEnforcementService(
-			Microsoft.Extensions.Options.Options.Create(_options),
-			_logger,
-			erasureService);
-
-		var result = await sut.EnforceRetentionAsync(CancellationToken.None).ConfigureAwait(false);
-
-		result.ShouldNotBeNull();
-	}
-
-	[Fact]
 	public void Throw_for_null_options_in_constructor()
 	{
 		Should.Throw<ArgumentNullException>(

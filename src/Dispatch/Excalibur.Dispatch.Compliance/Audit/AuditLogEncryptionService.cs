@@ -33,7 +33,6 @@ public sealed partial class AuditLogEncryptionService : IAuditLogEncryptor
 	private const int MinEnvelopeSizeBytes = AesGcmIvSizeBytes + AesGcmAuthTagSizeBytes;
 
 	private readonly IEncryptionProvider _encryptionProvider;
-	private readonly IKeyManagementProvider _keyManagementProvider;
 	private readonly IOptions<AuditLogEncryptionOptions> _options;
 	private readonly ILogger<AuditLogEncryptionService> _logger;
 
@@ -41,17 +40,14 @@ public sealed partial class AuditLogEncryptionService : IAuditLogEncryptor
 	/// Initializes a new instance of the <see cref="AuditLogEncryptionService"/> class.
 	/// </summary>
 	/// <param name="encryptionProvider">The encryption provider.</param>
-	/// <param name="keyManagementProvider">The key management provider for key access.</param>
 	/// <param name="options">The audit log encryption options.</param>
 	/// <param name="logger">The logger.</param>
 	public AuditLogEncryptionService(
 		IEncryptionProvider encryptionProvider,
-		IKeyManagementProvider keyManagementProvider,
 		IOptions<AuditLogEncryptionOptions> options,
 		ILogger<AuditLogEncryptionService> logger)
 	{
 		_encryptionProvider = encryptionProvider ?? throw new ArgumentNullException(nameof(encryptionProvider));
-		_keyManagementProvider = keyManagementProvider ?? throw new ArgumentNullException(nameof(keyManagementProvider));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}

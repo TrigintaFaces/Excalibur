@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.Redis;
 
@@ -12,19 +11,14 @@ namespace Excalibur.Data.Redis;
 internal sealed class RedisHealthCheck : IHealthCheck
 {
 	private readonly RedisPersistenceProvider _provider;
-	private readonly RedisProviderOptions _options;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RedisHealthCheck"/> class.
 	/// </summary>
 	/// <param name="provider">The Redis persistence provider.</param>
-	/// <param name="options">The Redis provider options.</param>
-	public RedisHealthCheck(
-		RedisPersistenceProvider provider,
-		IOptions<RedisProviderOptions> options)
+	public RedisHealthCheck(RedisPersistenceProvider provider)
 	{
 		_provider = provider ?? throw new ArgumentNullException(nameof(provider));
-		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	}
 
 	/// <inheritdoc/>

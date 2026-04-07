@@ -387,7 +387,7 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 		return applicable.Count == 0 ? [] : applicable;
 	}
 
-	private IReadOnlyList<Type> FilterApplicableMiddleware(
+	private List<Type> FilterApplicableMiddleware(
 		MessageKinds messageKind,
 		IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{

@@ -11,7 +11,6 @@ namespace Excalibur.Dispatch.Compliance.Tests.Erasure;
 public sealed class ErasureServiceExecutionWorkflowShould
 {
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
-	private readonly IKeyManagementProvider _keyProvider = A.Fake<IKeyManagementProvider>();
 	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 	private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
@@ -27,7 +26,6 @@ public sealed class ErasureServiceExecutionWorkflowShould
 
 		return new ErasureService(
 			_store,
-			_keyProvider,
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,

@@ -270,7 +270,7 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 		}
 	}
 
-	private static (string Host, int Port) ParseTcpEndpoint(string endpoint, IReadOnlyDictionary<string, object> metadata)
+	private static (string Host, int Port) ParseTcpEndpoint(string endpoint, Dictionary<string, object> metadata)
 	{
 		// Check metadata for explicit host/port override
 		if (metadata.TryGetValue("tcp_host", out var hostObj) &&

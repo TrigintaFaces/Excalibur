@@ -17,8 +17,8 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// </remarks>
 public sealed class AotHandlerActivator : IHandlerActivator
 {
-	private static readonly IHandlerActivator GeneratedActivator = new SourceGeneratedHandlerActivator();
-	private static readonly IHandlerActivator FallbackActivator = new SourceGeneratedHandlerActivatorFallback();
+	private static readonly SourceGeneratedHandlerActivator GeneratedActivator = new();
+	private static readonly SourceGeneratedHandlerActivatorFallback FallbackActivator = new();
 
 	/// <summary>
 	/// Activates a handler instance using AOT-compatible source-generated code.

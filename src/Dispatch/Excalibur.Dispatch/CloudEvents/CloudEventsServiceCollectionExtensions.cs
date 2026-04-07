@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Configuration;
@@ -24,11 +23,6 @@ public static class CloudEventsServiceCollectionExtensions
 	/// </summary>
 	internal const string CloudEventMapperTypeName =
 		"Excalibur.Dispatch.Transport.ICloudEventMapper`1, Excalibur.Dispatch.Transport.Abstractions";
-
-	private static readonly Type CloudEventMapperOpenGenericType = Excalibur.Dispatch.TypeResolution.TypeResolver.ResolveType(
-																	   CloudEventMapperTypeName)
-																   ?? throw new InvalidOperationException(
-																	   $"Unable to locate CloudEvent mapper type: {CloudEventMapperTypeName}");
 
 	/// <summary>
 	/// Adds a schema registry for CloudEvent schema management.
@@ -93,34 +87,5 @@ public static class CloudEventsServiceCollectionExtensions
 		_ = builder.Services.Configure<CloudEventOptions>(options => configureExclusions(options.ExcludedExtensions));
 
 		return builder;
-	}
-
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Mapper resolution is opt-in and based on runtime transport types. Consumers targeting AOT should register concrete mappers explicitly.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Using member which requires dynamic code can break when AOT compiling",
-		Justification =
-			"Mapper resolution is opt-in and based on runtime transport types. Consumers targeting AOT should register concrete mappers explicitly.")]
-	private static Func<Type, object> GetMapperFactory(IServiceProvider serviceProvider)
-	{
-		var cache = new ConcurrentDictionary<Type, object>();
-		return transportType =>
-		{
-			ArgumentNullException.ThrowIfNull(transportType);
-			return cache.GetOrAdd(
-				transportType,
-				static (type, provider) =>
-				{
-#pragma warning disable IL2055 // MakeGenericType with runtime type arguments
-					var mapperType = CloudEventMapperOpenGenericType.MakeGenericType(type);
-#pragma warning restore IL2055
-					return provider.GetRequiredService(mapperType);
-				},
-				serviceProvider);
-		};
 	}
 }

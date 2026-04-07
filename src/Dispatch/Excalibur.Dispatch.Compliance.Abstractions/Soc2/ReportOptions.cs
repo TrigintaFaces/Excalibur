@@ -22,7 +22,10 @@ public enum ExportFormat
 	Json,
 
 	/// <summary>XML format.</summary>
-	Xml
+	Xml,
+
+	/// <summary>Plain text report.</summary>
+	Text
 }
 
 /// <summary>

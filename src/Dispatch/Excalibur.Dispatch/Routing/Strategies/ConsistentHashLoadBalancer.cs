@@ -114,7 +114,7 @@ internal partial class ConsistentHashLoadBalancer(
 
 	private static bool RoutesUnchanged(
 		IReadOnlyList<RouteDefinition> routes,
-		IReadOnlyDictionary<string, int> routeWeightSnapshot)
+		Dictionary<string, int> routeWeightSnapshot)
 	{
 		if (routes.Count != routeWeightSnapshot.Count)
 		{

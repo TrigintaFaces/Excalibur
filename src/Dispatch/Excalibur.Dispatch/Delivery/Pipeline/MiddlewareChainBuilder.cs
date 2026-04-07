@@ -284,11 +284,11 @@ internal sealed class MiddlewareChainBuilder
 	}
 
 	private static int ComputePipelineSignature(
-		IReadOnlyList<IDispatchMiddleware> middlewares,
+		IDispatchMiddleware[] middlewares,
 		IMiddlewareApplicabilityStrategy? applicabilityStrategy)
 	{
 		var hash = new HashCode();
-		hash.Add(middlewares.Count);
+		hash.Add(middlewares.Length);
 
 		foreach (var middleware in middlewares)
 		{

@@ -48,22 +48,18 @@ public sealed partial class KeyEscrowBackupService : IKeyEscrowService
 {
 	private readonly ConcurrentDictionary<string, EscrowEntry> _escrowStore = new(StringComparer.OrdinalIgnoreCase);
 	private readonly IEncryptionProvider _encryptionProvider;
-	private readonly IKeyManagementProvider _keyManagementProvider;
 	private readonly ILogger<KeyEscrowBackupService> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="KeyEscrowBackupService"/> class.
 	/// </summary>
 	/// <param name="encryptionProvider">The encryption provider for encrypting escrowed keys.</param>
-	/// <param name="keyManagementProvider">The key management provider.</param>
 	/// <param name="logger">The logger.</param>
 	public KeyEscrowBackupService(
 		IEncryptionProvider encryptionProvider,
-		IKeyManagementProvider keyManagementProvider,
 		ILogger<KeyEscrowBackupService> logger)
 	{
 		_encryptionProvider = encryptionProvider ?? throw new ArgumentNullException(nameof(encryptionProvider));
-		_keyManagementProvider = keyManagementProvider ?? throw new ArgumentNullException(nameof(keyManagementProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
