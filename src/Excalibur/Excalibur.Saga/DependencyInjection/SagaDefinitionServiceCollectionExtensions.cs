@@ -79,6 +79,8 @@ public static class SagaDefinitionServiceCollectionExtensions
 		return services;
 	}
 
+	[UnconditionalSuppressMessage("Trimming", "IL2070:DynamicallyAccessedMembers on parameter",
+		Justification = "Called only from AddSagaDefinitionsFromAssembly which is already marked [RequiresUnreferencedCode]")]
 	private static bool ImplementsSagaDefinition(Type type) =>
 		type.GetInterfaces().Any(static i =>
 			i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ISagaDefinition<>));

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+
 using System.Collections.Concurrent;
 
 using Excalibur.Saga.Models;
@@ -64,7 +65,7 @@ public sealed partial class InMemorySagaCorrelationQuery : ISagaCorrelationQuery
 		var results = sagaIds
 			.Distinct()
 			.Select(id => _sagaEntries.TryGetValue(id, out var entry) ? entry : null)
-			.Where(entry => entry is not null)
+			.OfType<SagaCorrelationEntry>()
 			.Where(entry => options.IncludeCompleted || entry.Status != SagaStatus.Completed)
 			.Take(options.MaxResults)
 			.Select(entry => new SagaQueryResult(
@@ -101,7 +102,7 @@ public sealed partial class InMemorySagaCorrelationQuery : ISagaCorrelationQuery
 		var results = sagaIds
 			.Distinct()
 			.Select(id => _sagaEntries.TryGetValue(id, out var entry) ? entry : null)
-			.Where(entry => entry is not null)
+			.OfType<SagaCorrelationEntry>()
 			.Where(entry => options.IncludeCompleted || entry.Status != SagaStatus.Completed)
 			.Take(options.MaxResults)
 			.Select(entry => new SagaQueryResult(

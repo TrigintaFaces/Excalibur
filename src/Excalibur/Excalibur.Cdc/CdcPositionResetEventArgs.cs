@@ -143,7 +143,7 @@ public sealed class CdcPositionResetEventArgs
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// Recovery may be attempted multiple times based on <see cref="CdcRecoveryOptions.MaxRecoveryAttempts"/>.
+	/// Recovery may be attempted multiple times based on <see cref="CdcOptions.MaxRecoveryAttempts"/>.
 	/// This property indicates which attempt is currently in progress.
 	/// </para>
 	/// </remarks>

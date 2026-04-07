@@ -37,8 +37,10 @@ public sealed class AggregateBulkOperations<TAggregate, TKey> : IAggregateBulkOp
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Aggregate rehydration may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate rehydration may require dynamic code generation.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026",
+		Justification = "Aggregate rehydration delegates to EventSourcedRepository which handles type preservation.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Aggregate rehydration delegates to EventSourcedRepository which handles dynamic code.")]
 	public async Task<IReadOnlyDictionary<TKey, TAggregate>> LoadManyAsync(
 		IEnumerable<TKey> aggregateIds,
 		CancellationToken cancellationToken)
@@ -64,8 +66,10 @@ public sealed class AggregateBulkOperations<TAggregate, TKey> : IAggregateBulkOp
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026",
+		Justification = "Aggregate persistence delegates to EventSourcedRepository which handles type preservation.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Aggregate persistence delegates to EventSourcedRepository which handles dynamic code.")]
 	public async Task<BulkSaveResult<TKey>> SaveManyAsync(
 		IEnumerable<TAggregate> aggregates,
 		CancellationToken cancellationToken)

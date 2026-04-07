@@ -24,6 +24,8 @@ namespace Excalibur.Saga.Orchestration;
 /// <param name="serviceProvider"> Service provider for dependency injection and saga instantiation. </param>
 /// <param name="sagaStore"> Persistent store for saga state management and retrieval. </param>
 /// <param name="logger"> Logger for saga coordination activities, errors, and performance metrics. </param>
+[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break when trimming",
+	Justification = "HandleEventInternalAsync is preserved via DI registration and reflection is only used in JIT mode")]
 public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, ISagaStore sagaStore, ILogger<SagaCoordinator> logger)
 	: ISagaCoordinator
 {

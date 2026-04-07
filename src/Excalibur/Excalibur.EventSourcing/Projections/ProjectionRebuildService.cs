@@ -52,8 +52,10 @@ public sealed partial class ProjectionRebuildService : IProjectionRebuildService
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Event deserialization during rebuild may require preserved members.")]
-	[RequiresDynamicCode("Event deserialization uses dynamic code generation.")]
+	[UnconditionalSuppressMessage("AOT", "IL2026",
+		Justification = "Event deserialization during rebuild uses IEventSerializer which consumers configure with preserved types.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Event deserialization during rebuild uses IEventSerializer which consumers configure.")]
 	public async Task RebuildAsync<TProjection>(CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{

@@ -27,7 +27,7 @@ public static class ConfigurationBuilderExtensions
 
 		if (string.Equals(context, "REMOTE", StringComparison.Ordinal))
 		{
-			builder.AddSystemsManager(applicationParameterStoreName, context);
+			builder.AddSystemsManager(applicationParameterStoreName, context!);
 		}
 		else if (!string.IsNullOrEmpty(localContext))
 		{

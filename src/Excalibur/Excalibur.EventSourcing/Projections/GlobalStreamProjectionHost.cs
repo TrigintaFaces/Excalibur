@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
@@ -94,6 +96,10 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Event deserialization is inherently dynamic; projection host requires runtime type resolution.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026",
+		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		var opts = _options.Value;

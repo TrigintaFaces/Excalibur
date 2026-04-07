@@ -82,7 +82,8 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Assembly scanning uses reflection to discover IImmutableProjectionHandler<T, TEvent> implementations.")]
-	[RequiresDynamicCode("Assembly scanning uses MakeGenericMethod to invoke RegisterScannedHandler with discovered types.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Assembly scanning uses MakeGenericMethod; consumers should use explicit registration for AOT scenarios.")]
 	public IImmutableProjectionBuilder<TProjection> AddImmutableProjectionHandlersFromAssembly(Assembly assembly)
 	{
 		ArgumentNullException.ThrowIfNull(assembly);

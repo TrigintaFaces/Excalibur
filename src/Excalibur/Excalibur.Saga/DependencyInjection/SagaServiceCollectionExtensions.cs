@@ -166,7 +166,9 @@ public static class SagaServiceCollectionExtensions
 	/// <typeparam name="TSagaState">The saga state type.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSaga<TSaga, TSagaState>(this IServiceCollection services)
+	public static IServiceCollection AddSaga<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSaga,
+		TSagaState>(this IServiceCollection services)
 		where TSaga : class
 		where TSagaState : Excalibur.Dispatch.Abstractions.Messaging.SagaState
 	{

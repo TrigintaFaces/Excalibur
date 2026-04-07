@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.EventSourcing.Abstractions;
 
@@ -51,6 +52,10 @@ public abstract class SnapshotUpgrader<TFrom, TTo> : ISnapshotUpgrader
 		string.Equals(aggregateType, AggregateType, StringComparison.Ordinal) && fromVersion == FromVersion;
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL2026",
+		Justification = "Snapshot serialization uses ISnapshotSerializer which consumers configure with preserved types.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Snapshot serialization uses ISnapshotSerializer which consumers configure.")]
 	public byte[] Upgrade(byte[] oldSnapshotData)
 	{
 		ArgumentNullException.ThrowIfNull(oldSnapshotData);

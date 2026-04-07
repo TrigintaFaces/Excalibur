@@ -57,7 +57,9 @@ public static class SagaEnhancementsServiceCollectionExtensions
 	/// <typeparam name="THandler">The handler implementation type.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSagaNotFoundHandler<TSaga, THandler>(this IServiceCollection services)
+	public static IServiceCollection AddSagaNotFoundHandler<TSaga,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
+		this IServiceCollection services)
 		where TSaga : class
 		where THandler : class, ISagaNotFoundHandler<TSaga>
 	{
@@ -196,7 +198,9 @@ public static class SagaEnhancementsServiceCollectionExtensions
 	/// <typeparam name="TProvider">The idempotency provider implementation type.</typeparam>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddSagaIdempotency<TProvider>(this IServiceCollection services)
+	public static IServiceCollection AddSagaIdempotency<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(
+		this IServiceCollection services)
 		where TProvider : class, ISagaIdempotencyProvider
 	{
 		ArgumentNullException.ThrowIfNull(services);

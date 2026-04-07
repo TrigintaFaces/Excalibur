@@ -45,18 +45,22 @@ public sealed class InvalidDataProcessorException : ApiException
 	{
 	}
 
+	/// <inheritdoc/>
 	public InvalidDataProcessorException() : base()
 	{
 	}
 
+	/// <inheritdoc/>
 	public InvalidDataProcessorException(string message) : base(message)
 	{
 	}
 
+	/// <inheritdoc/>
 	public InvalidDataProcessorException(string message, Exception? innerException) : base(message, innerException)
 	{
 	}
 
+	/// <inheritdoc/>
 	public InvalidDataProcessorException(int statusCode, string? message, Exception? innerException) : base(statusCode, message, innerException)
 	{
 	}

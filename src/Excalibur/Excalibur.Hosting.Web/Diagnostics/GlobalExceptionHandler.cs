@@ -60,11 +60,11 @@ public partial class GlobalExceptionHandler : IExceptionHandler
 		ArgumentNullException.ThrowIfNull(exception);
 
 		var statusCode = exception.GetStatusCode() ?? StatusCodes.Status500InternalServerError;
-		var traceId = Activity.Current?.Id ?? httpContext?.TraceIdentifier ?? string.Empty;
+		var traceId = Activity.Current?.Id ?? httpContext.TraceIdentifier ?? string.Empty;
 		var exceptionId = exception is ApiException apiException ? apiException.Id : Uuid7Extensions.GenerateGuid();
 		var problemDetails = BuildProblemDetails(exception, statusCode, traceId, exceptionId);
 
-		LogException(httpContext, exception, traceId, exceptionId, statusCode, _logger);
+		LogException(httpContext!, exception, traceId, exceptionId, statusCode, _logger);
 
 		httpContext.Response.StatusCode = statusCode;
 		httpContext.Response.ContentType = "application/problem+json";

@@ -91,7 +91,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Assembly scanning uses reflection to discover IProjectionEventHandler<T, TEvent> implementations.")]
-	[RequiresDynamicCode("Assembly scanning uses MakeGenericMethod to invoke RegisterScannedHandler with discovered types.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Assembly scanning uses MakeGenericMethod; consumers should use explicit registration for AOT scenarios.")]
 	public IProjectionBuilder<TProjection> AddProjectionHandlersFromAssembly(Assembly assembly)
 	{
 		ArgumentNullException.ThrowIfNull(assembly);

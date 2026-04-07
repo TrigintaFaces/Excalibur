@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
@@ -224,6 +225,10 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 	/// Returns the deserialized events and the version of the last successfully deserialized event.
 	/// This ensures the subscription position only advances past events that were actually processed.
 	/// </summary>
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Event deserialization is inherently dynamic; subscription is not AOT-compatible by design.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026",
+		Justification = "Event deserialization requires type metadata; subscription consumers must preserve event types.")]
 	private (List<IDomainEvent> Events, long LastVersion) DeserializeEventsWithVersionTracking(
 		IReadOnlyList<StoredEvent> storedEvents,
 		long currentPosition)

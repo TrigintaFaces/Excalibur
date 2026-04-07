@@ -152,7 +152,7 @@ public sealed partial class MessageOutbox(
 
 		var outboxMessages = integrationEvents.Select(evt => new OutboxMessage(
 			messageId: Uuid7Extensions.GenerateString(),
-			messageType: evt.GetType().FullName,
+			messageType: evt.GetType().FullName ?? evt.GetType().Name,
 			messageMetadata: serializer.Serialize(metadata),
 			messageBody: serializer.Serialize(evt),
 			createdAt: created,

@@ -451,7 +451,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 				if (batch.Count == 0)
 				{
-					LogNoInboxRecord(_dispatcherId);
+					LogNoInboxRecord(_dispatcherId!);
 
 					break;
 				}
@@ -460,7 +460,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 				foreach (var inboxRecord in batch)
 				{
-					if (await _idQueue.AddAsync(inboxRecord.MessageId, cancellationToken).ConfigureAwait(false))
+					if (await _idQueue!.AddAsync(inboxRecord.MessageId, cancellationToken).ConfigureAwait(false))
 					{
 						var inboxMessage = ConvertToInboxMessageWithEnvelopeSupport(inboxRecord);
 						await _inboxMessages.Writer.WriteAsync(inboxMessage, cancellationToken).ConfigureAwait(false);
@@ -687,7 +687,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					// Record failure for circuit breaker
 					circuitBreaker.RecordFailure(ex);
 
-					LogDispatchError(message.ExternalMessageId, _dispatcherId, ex);
+					LogDispatchError(message.ExternalMessageId, _dispatcherId!, ex);
 
 					if (attempt >= _options.MaxAttempts)
 					{
@@ -812,9 +812,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		Justification = "Inbox dispatch uses runtime deserialization for stored message payloads.")]
 	private async Task DispatchSingleMessageAsync(IInboxMessage message, CancellationToken cancellationToken)
 	{
-		LogDispatchingMessage(message.ExternalMessageId, _dispatcherId);
+		LogDispatchingMessage(message.ExternalMessageId, _dispatcherId!);
 		await DispatchAsync(message, cancellationToken).ConfigureAwait(false);
-		LogDispatchSuccess(message.ExternalMessageId, _dispatcherId);
+		LogDispatchSuccess(message.ExternalMessageId, _dispatcherId!);
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]

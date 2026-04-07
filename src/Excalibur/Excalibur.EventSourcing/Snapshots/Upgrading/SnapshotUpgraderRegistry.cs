@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.Logging;
@@ -46,6 +48,8 @@ public sealed partial class SnapshotUpgraderRegistry
 	/// <param name="serializer">The serializer for snapshot data conversion.</param>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="upgrader"/> or <paramref name="serializer"/> is null.</exception>
 	/// <exception cref="InvalidOperationException">Thrown when a duplicate upgrader is registered for the same aggregate type and version range.</exception>
+	[RequiresUnreferencedCode("Snapshot serialization/deserialization may reference types not preserved during trimming.")]
+	[RequiresDynamicCode("Snapshot serialization/deserialization requires dynamic code generation for type inspection.")]
 	public void Register<TFrom, TTo>(
 		ISnapshotUpgrader<TFrom, TTo> upgrader,
 		ISnapshotSerializer serializer)

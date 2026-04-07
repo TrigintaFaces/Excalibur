@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
@@ -41,6 +42,10 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "Ephemeral projections use JSON serialization and event deserialization which are inherently dynamic.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026",
+		Justification = "Ephemeral projections require type metadata for JSON and event deserialization; consumers must preserve types.")]
 	public async Task<TProjection> BuildAsync<TProjection>(
 		string aggregateId,
 		string aggregateType,

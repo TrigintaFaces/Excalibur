@@ -429,7 +429,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				aggregate.Id.ToString() ?? string.Empty,
 				typeof(TAggregate).Name,
 				expectedETag,
-				aggregate.ETag);
+				aggregate.ETag ?? string.Empty);
 		}
 
 		await SaveAsync(aggregate, cancellationToken).ConfigureAwait(false);
@@ -540,6 +540,8 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// Attempts to upgrade snapshot data if auto-upgrading is enabled and the version differs.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	[RequiresUnreferencedCode("Snapshot upgrading may reference types not preserved during trimming.")]
+	[RequiresDynamicCode("Snapshot upgrading may require dynamic code generation for serialization.")]
 	private Domain.Model.ISnapshot TryUpgradeSnapshot(Domain.Model.ISnapshot snapshot, string aggregateType)
 	{
 		if (!_enableAutoSnapshotUpgrade || _snapshotVersionManager is null)

@@ -24,11 +24,19 @@ internal sealed class HealthReportJsonConverter : JsonConverter<HealthReport>
 
 	/// <inheritdoc />
 	/// <remarks> Writes a <see cref="HealthReport" /> to JSON format. </remarks>
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(Utf8JsonWriter, TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(Utf8JsonWriter, TValue, JsonSerializerOptions)")]
+	[UnconditionalSuppressMessage("AOT", "IL3050",
+		Justification = "HealthReport.Entries is a well-known dictionary type; serialization is safe.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026",
+		Justification = "HealthReport.Entries is a well-known dictionary type; all members are preserved.")]
 	public override void Write(Utf8JsonWriter writer, HealthReport? value, JsonSerializerOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(writer);
+
+		if (value is null)
+		{
+			writer.WriteNullValue();
+			return;
+		}
 
 		writer.WriteStartObject();
 

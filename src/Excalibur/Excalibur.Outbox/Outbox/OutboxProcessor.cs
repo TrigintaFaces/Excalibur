@@ -407,7 +407,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 				if (batch.Count == 0)
 				{
-					LogProducerIdleExiting(_dispatcherId);
+					LogProducerIdleExiting(_dispatcherId!);
 
 					break;
 				}
@@ -416,7 +416,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 				foreach (var outboxRecord in batch)
 				{
-					if (await _idQueue.AddAsync(outboxRecord.MessageId, cancellationToken).ConfigureAwait(false))
+					if (await _idQueue!.AddAsync(outboxRecord.MessageId, cancellationToken).ConfigureAwait(false))
 					{
 						await _outboxMessages.Writer.WriteAsync(outboxRecord, cancellationToken).ConfigureAwait(false);
 						totalQueued++;
@@ -572,7 +572,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 		try
 		{
-			LogDispatchingOutboxRecord(message.MessageId, _dispatcherId);
+			LogDispatchingOutboxRecord(message.MessageId, _dispatcherId!);
 
 			// Execute dispatch through circuit breaker
 			await circuitBreaker.ExecuteAsync(async ct =>
@@ -584,7 +584,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Record success for circuit breaker
 			circuitBreaker.RecordSuccess();
 
-			LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId);
+			LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
 
 			BackgroundServiceMetrics.RecordProcessingDuration(BackgroundServiceTypes.Outbox, stopwatch.Elapsed.TotalMilliseconds);
 
@@ -603,7 +603,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Record failure for circuit breaker
 			circuitBreaker.RecordFailure(ex);
 
-			LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId, ex);
+			LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
 
 			activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
 			BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
@@ -747,7 +747,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					// Record failure for circuit breaker
 					circuitBreaker.RecordFailure(ex);
 
-					LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId, ex);
+					LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
 
 					if (attempt >= _options.MaxAttempts)
 					{
@@ -982,11 +982,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		using var activity = BackgroundServiceActivitySource.StartMessageDispatch(BackgroundServiceTypes.Outbox, message.MessageId);
 		_ = activity?.SetTag("excalibur.outbox.dispatcher_id", _dispatcherId);
 
-		LogDispatchingOutboxRecord(message.MessageId, _dispatcherId);
+		LogDispatchingOutboxRecord(message.MessageId, _dispatcherId!);
 
 		await DispatchAsync(message, cancellationToken).ConfigureAwait(false);
 
-		LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId);
+		LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
