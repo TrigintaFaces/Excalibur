@@ -24,7 +24,7 @@ internal sealed class SourceGeneratedHandlerActivatorFallback : IHandlerActivato
 	/// </summary>
 	/// <param name="handlerType"> The type of handler to activate. </param>
 	/// <param name="context"> The message context to inject into the handler. </param>
-	/// <param name="provider"> The service provider for dependency Excalibur.Tests.Integration. </param>
+	/// <param name="provider"> The service provider for dependency resolution. </param>
 	/// <returns> The activated handler instance. </returns>
 	/// <exception cref="InvalidOperationException"> Thrown when the handler cannot be activated. </exception>
 	[UnconditionalSuppressMessage(

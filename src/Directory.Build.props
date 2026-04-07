@@ -126,12 +126,7 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
 	</ItemGroup>
 
-	<!-- Public API baseline files for Microsoft.CodeAnalysis.PublicApiAnalyzers -->
-	<ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt')">
-		<AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt" />
-	</ItemGroup>
-
-	<ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Unshipped.txt')">
-		<AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI.Unshipped.txt" />
-	</ItemGroup>
+	<!-- PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt are auto-registered as AdditionalFiles
+	     by Microsoft.CodeAnalysis.PublicApiAnalyzers 3.3.4+ targets. Do NOT add them manually
+	     here — doing so causes "Duplicate source file" warnings during docfx metadata extraction. -->
 </Project>

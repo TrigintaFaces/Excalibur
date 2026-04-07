@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Options.Routing;
 public sealed class RoutingOptions
 {
 	/// <summary>
-	/// Gets or sets optional path or policy for dynamic route Excalibur.Tests.Integration.
+	/// Gets or sets optional path or policy for dynamic route resolution.
 	/// </summary>
 	/// <value>The current <see cref="RoutingPolicyPath"/> value.</value>
 	public string? RoutingPolicyPath { get; set; }

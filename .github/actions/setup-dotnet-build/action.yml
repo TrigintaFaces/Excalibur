@@ -6,8 +6,9 @@ inputs:
     description: 'Git ref to checkout'
     required: true
   checkout-token:
-    description: 'Token for checkout'
-    required: true
+    description: 'Token for checkout (defaults to github.token)'
+    required: false
+    default: ''
   fetch-depth:
     description: 'Number of commits to fetch (0 for full history)'
     required: false
@@ -32,7 +33,6 @@ runs:
       uses: actions/checkout@v6
       with:
         ref: ${{ inputs.checkout-ref }}
-        token: ${{ inputs.checkout-token }}
         fetch-depth: ${{ inputs.fetch-depth }}
 
     - name: Free disk space (Ubuntu)

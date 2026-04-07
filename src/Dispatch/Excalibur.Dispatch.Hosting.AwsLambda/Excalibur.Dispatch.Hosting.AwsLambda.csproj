@@ -2,7 +2,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <IsAotCompatible>true</IsAotCompatible>
+    <!-- AWS Lambda SDK dependencies produce IL trim warnings; cannot honestly claim AOT-compatible -->
+    <IsAotCompatible>false</IsAotCompatible>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <DefineConstants>$(DefineConstants);AWS_LAMBDA_SUPPORT</DefineConstants>
     <RootNamespace>Excalibur.Dispatch.Hosting.AwsLambda</RootNamespace>

@@ -156,7 +156,9 @@ foreach ($file in $srcFiles) {
         # Files with [RequiresUnreferencedCode] or [RequiresDynamicCode] are properly annotated
         # per Microsoft AOT guidelines -- framework code serializing polymorphic/generic types
         # cannot use source-generated contexts and annotations are the correct solution.
-        if ($content -match '\[Requires(UnreferencedCode|DynamicCode)') {
+        # Match both short form [RequiresUnreferencedCode] and fully-qualified
+        # [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode].
+        if ($content -match '\[(\w+\.)*Requires(UnreferencedCode|DynamicCode)') {
             $jsonAnnotated += $relativePath
         }
         else {

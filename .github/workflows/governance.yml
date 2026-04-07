@@ -8,9 +8,10 @@ on:
         required: true
         type: string
       checkout-token:
-        description: 'Token for checkout'
-        required: true
+        description: 'Token for checkout (defaults to github.token)'
+        required: false
         type: string
+        default: ''
       event-name:
         description: 'The triggering event name (push, pull_request, etc.)'
         required: true
@@ -34,7 +35,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Setup .NET build environment
@@ -67,7 +67,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Setup .NET build environment
@@ -99,7 +98,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Setup .NET build environment
@@ -173,7 +171,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
 
       - name: Run PublicAPI baseline audit
         shell: pwsh
@@ -196,7 +193,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Setup .NET build environment
@@ -229,7 +225,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Setup .NET build environment
@@ -265,7 +260,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Setup .NET build environment
@@ -297,7 +291,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Setup .NET build environment
@@ -332,7 +325,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Setup .NET build environment
@@ -361,7 +353,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.checkout-ref }}
-          token: ${{ inputs.checkout-token }}
           fetch-depth: 1
 
       - name: Verify specs live under management/specs/**
