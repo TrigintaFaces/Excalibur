@@ -672,11 +672,15 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
 		{
+			#pragma warning disable CS0618 // Obsolete CredentialsPath/JsonCredentials
 			builder.CredentialsPath = _options.CredentialsPath;
+#pragma warning restore CS0618
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsJson))
 		{
+			#pragma warning disable CS0618
 			builder.JsonCredentials = _options.CredentialsJson;
+#pragma warning restore CS0618
 		}
 
 		return await builder.BuildAsync(cancellationToken).ConfigureAwait(false);

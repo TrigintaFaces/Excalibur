@@ -194,11 +194,15 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 
 		if (!string.IsNullOrEmpty(_options.CredentialsPath))
 		{
+			#pragma warning disable CS0618 // Obsolete CredentialsPath/JsonCredentials
 			builder.CredentialsPath = _options.CredentialsPath;
+#pragma warning restore CS0618
 		}
 		else if (!string.IsNullOrEmpty(_options.CredentialsJson))
 		{
+			#pragma warning disable CS0618
 			builder.JsonCredentials = _options.CredentialsJson;
+#pragma warning restore CS0618
 		}
 
 		_db = await builder.BuildAsync().ConfigureAwait(false);

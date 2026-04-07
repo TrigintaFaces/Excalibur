@@ -602,7 +602,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 			// Step 2: Insert inbox entry for deduplication
 			var insertInboxSql = $"""
-			                      INSERT INTO {_inboxOptions.QualifiedTableName}
+			                      INSERT INTO {_inboxOptions!.QualifiedTableName}
 			                      	(MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt, Status, RetryCount, CorrelationId, TenantId, Source)
 			                      VALUES
 			                      	(@MessageId, @HandlerType, @MessageType, @Payload, @Metadata, @ReceivedAt, @ProcessedAt, @Status, @RetryCount, @CorrelationId, @TenantId, @Source)
@@ -927,7 +927,9 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 	private string SerializeMetadataForInbox(IDictionary<string, object> metadata)
 	{
+		#pragma warning disable IL2026, IL3050 // JsonSerializer with Type parameter requires unreferenced code
 		return JsonSerializer.Serialize(metadata, _jsonOptions);
+		#pragma warning restore IL2026, IL3050
 	}
 
 	#region Per-Transport Methods
@@ -1497,7 +1499,9 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		}
 
 		// Fallback to System.Text.Json for backward compatibility
+		#pragma warning disable IL2026, IL3050 // JsonSerializer with Type parameter requires unreferenced code
 		return JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), _jsonOptions);
+		#pragma warning restore IL2026, IL3050
 	}
 
 	/// <summary>
@@ -1541,8 +1545,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		}
 
 		// Fallback to System.Text.Json for legacy payloads
+		#pragma warning disable IL2026, IL3050 // JsonSerializer with generic type requires unreferenced code
 		return JsonSerializer.Deserialize<T>(payload, _jsonOptions)
 			   ?? throw new InvalidOperationException($"Deserialization returned null for type {typeof(T).Name}.");
+		#pragma warning restore IL2026, IL3050
 	}
 
 	private async Task InsertMessageAsync(
@@ -1598,10 +1604,12 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			Id = row.Id,
 			MessageType = row.MessageType,
 			Payload = row.Payload,
+				#pragma warning disable IL2026, IL3050
 			Headers = string.IsNullOrEmpty(row.Headers)
 				? new Dictionary<string, object>(StringComparer.Ordinal)
 				: JsonSerializer.Deserialize<Dictionary<string, object>>(row.Headers, _jsonOptions)
 				  ?? new Dictionary<string, object>(StringComparer.Ordinal),
+				#pragma warning restore IL2026, IL3050
 			Destination = row.Destination,
 			CreatedAt = row.CreatedAt,
 			ScheduledAt = row.ScheduledAt,

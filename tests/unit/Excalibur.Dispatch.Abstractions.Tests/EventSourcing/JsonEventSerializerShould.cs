@@ -219,7 +219,7 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 
 		// Act - resolve twice
 		var result1 = serializer.ResolveType(fullName!);
-		var result2 = serializer.ResolveType(fullName);
+		var result2 = serializer.ResolveType(fullName!);
 
 		// Assert
 		result1.ShouldBe(result2);

@@ -5,8 +5,12 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Cdc.DynamoDb;
 
+/// <summary>
+/// Validates <see cref="DynamoDbCdcStateStoreOptions"/> configuration.
+/// </summary>
 public sealed class DynamoDbCdcStateStoreOptionsValidator : IValidateOptions<DynamoDbCdcStateStoreOptions>
 {
+	/// <inheritdoc/>
 	public ValidateOptionsResult Validate(string? name, DynamoDbCdcStateStoreOptions options)
 	{
 		if (options is null)

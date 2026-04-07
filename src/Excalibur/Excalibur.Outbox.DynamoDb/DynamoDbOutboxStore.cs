@@ -119,7 +119,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 			};
 
-			var response = await _client.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 			var consumedCapacity = response.ConsumedCapacity?.WriteCapacityUnits ?? 0;
 
 			LogOperationCompleted("Add", consumedCapacity);
@@ -180,7 +180,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 			};
 
-			var response = await _client.BatchWriteItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.BatchWriteItemAsync(request, cancellationToken).ConfigureAwait(false);
 			var consumedCapacity = response.ConsumedCapacity?.Sum(c => c.WriteCapacityUnits) ?? 0;
 
 			LogOperationCompleted("AddBatch", consumedCapacity);
@@ -252,7 +252,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 			};
 
-			var response = await _client.QueryAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
 			var consumedCapacity = response.ConsumedCapacity?.ReadCapacityUnits ?? 0;
 
 			var messages = response.Items.Select(FromAttributeMap).ToList();
@@ -328,7 +328,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				request.ExpressionAttributeValues[":ttl"] = new() { N = ttl.ToString() };
 			}
 
-			var response = await _client.UpdateItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.UpdateItemAsync(request, cancellationToken).ConfigureAwait(false);
 			var consumedCapacity = response.ConsumedCapacity?.WriteCapacityUnits ?? 0;
 
 			LogOperationCompleted("MarkAsPublished", consumedCapacity);
@@ -446,7 +446,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 			};
 
-			var queryResponse = await _client.QueryAsync(queryRequest, cancellationToken).ConfigureAwait(false);
+			var queryResponse = await _client!.QueryAsync(queryRequest, cancellationToken).ConfigureAwait(false);
 			totalCapacity += queryResponse.ConsumedCapacity?.ReadCapacityUnits ?? 0;
 
 			foreach (var item in queryResponse.Items)
@@ -462,7 +462,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 					ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 				};
 
-				var deleteResponse = await _client.DeleteItemAsync(deleteRequest, cancellationToken)
+				var deleteResponse = await _client!.DeleteItemAsync(deleteRequest, cancellationToken)
 					.ConfigureAwait(false);
 				totalCapacity += deleteResponse.ConsumedCapacity?.WriteCapacityUnits ?? 0;
 				deletedCount++;
@@ -576,7 +576,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				ReturnConsumedCapacity = ReturnConsumedCapacity.TOTAL
 			};
 
-			var response = await _client.UpdateItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.UpdateItemAsync(request, cancellationToken).ConfigureAwait(false);
 			var consumedCapacity = response.ConsumedCapacity?.WriteCapacityUnits ?? 0;
 
 			LogOperationCompleted("IncrementRetryCount", consumedCapacity);
@@ -678,7 +678,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 	{
 		try
 		{
-			_ = await _client.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
 		}
 		catch (ResourceNotFoundException)
 		{
@@ -707,13 +707,13 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				};
 			}
 
-			_ = await _client.CreateTableAsync(request, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.CreateTableAsync(request, cancellationToken).ConfigureAwait(false);
 
 			// Wait for table to become active
 			var timeout = DateTimeOffset.UtcNow.AddMinutes(2);
 			while (DateTimeOffset.UtcNow < timeout)
 			{
-				var describe = await _client.DescribeTableAsync(_options.TableName, cancellationToken)
+				var describe = await _client!.DescribeTableAsync(_options.TableName, cancellationToken)
 					.ConfigureAwait(false);
 				if (describe.Table.TableStatus == TableStatus.ACTIVE)
 				{
@@ -726,7 +726,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			// Enable TTL if configured
 			if (_options.DefaultTimeToLiveSeconds > 0)
 			{
-				_ = await _client.UpdateTimeToLiveAsync(
+				_ = await _client!.UpdateTimeToLiveAsync(
 					new UpdateTimeToLiveRequest
 					{
 						TableName = _options.TableName,

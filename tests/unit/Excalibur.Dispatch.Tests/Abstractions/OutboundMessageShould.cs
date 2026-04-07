@@ -682,7 +682,7 @@ public sealed class OutboundMessageShould
 
 		// Assert
 		message.TargetTransports!.ShouldContain("rabbitmq");
-		message.TargetTransports.ShouldContain("kafka");
+		message.TargetTransports!.ShouldContain("kafka");
 	}
 
 	[Fact]

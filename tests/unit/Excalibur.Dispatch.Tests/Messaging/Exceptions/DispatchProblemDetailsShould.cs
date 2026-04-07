@@ -157,7 +157,7 @@ public sealed class DispatchProblemDetailsShould
 
 		pd.Status.ShouldBe(404);
 		pd.Detail!.ShouldContain("Customer");
-		pd.Detail.ShouldNotContain("ID");
+		pd.Detail!.ShouldNotContain("ID");
 	}
 
 	[Fact]

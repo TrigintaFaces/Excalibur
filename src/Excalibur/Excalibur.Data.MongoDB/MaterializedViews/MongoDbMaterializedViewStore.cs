@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
-using System.Diagnostics.CodeAnalysis;
+// MongoDB BSON serialization requires dynamic code; interface cannot be annotated per AOT checklist.
+// UnconditionalSuppressMessage does not suppress IL2046/IL3051 at the compiler level.
+#pragma warning disable IL2046, IL2026, IL3050, IL3051
 
 using Excalibur.Data.MongoDB.Diagnostics;
 using Excalibur.EventSourcing.Abstractions;
@@ -84,8 +85,6 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("BSON deserialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("BSON deserialization might require runtime code generation.")]
 	public async ValueTask<TView?> GetAsync<TView>(
 		string viewName,
 		string viewId,
@@ -117,8 +116,6 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 	}
 
 	/// <inheritdoc/>
-	[RequiresUnreferencedCode("BSON serialization might require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("BSON serialization might require runtime code generation.")]
 	public async ValueTask SaveAsync<TView>(
 		string viewName,
 		string viewId,
