@@ -14,6 +14,8 @@ namespace Excalibur.Data.Postgres.Persistence;
 internal sealed class PostgresPersistenceOptionsValidator : IValidateOptions<PostgresPersistenceOptions>
 {
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("Calls Excalibur.Data.Postgres.Persistence.PostgresPersistenceOptions.Validate()")]
 	public ValidateOptionsResult Validate(string? name, PostgresPersistenceOptions options)
 	{

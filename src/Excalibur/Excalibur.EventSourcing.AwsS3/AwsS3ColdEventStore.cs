@@ -148,8 +148,10 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 		await using var responseStream = response.ResponseStream;
 		await using var gzipStream = new GZipStream(responseStream, CompressionMode.Decompress);
 
+		#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 		var events = await JsonSerializer.DeserializeAsync<List<StoredEvent>>(
 			gzipStream, _jsonOptions, cancellationToken).ConfigureAwait(false);
+		#pragma warning restore IL2026, IL3050
 
 		return events ?? [];
 	}
@@ -162,8 +164,10 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 		using var memoryStream = new MemoryStream();
 		{
 			await using var gzipStream = new GZipStream(memoryStream, CompressionLevel.Optimal, leaveOpen: true);
+			#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			await JsonSerializer.SerializeAsync(gzipStream, events, _jsonOptions, cancellationToken)
 				.ConfigureAwait(false);
+			#pragma warning restore IL2026, IL3050
 		}
 
 		memoryStream.Position = 0;

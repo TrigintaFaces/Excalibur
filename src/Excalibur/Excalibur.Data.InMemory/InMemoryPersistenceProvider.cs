@@ -226,6 +226,8 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)
@@ -404,7 +406,9 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 					{
 						try
 						{
+							#pragma warning disable IL2026, IL3050 // PersistToDiskAsync uses JSON serialization
 							await PersistToDiskAsync(CancellationToken.None).ConfigureAwait(false);
+							#pragma warning restore IL2026, IL3050
 						}
 						catch (Exception ex)
 						{
@@ -422,6 +426,8 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async ValueTask DisposeAsync()

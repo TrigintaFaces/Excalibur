@@ -56,6 +56,8 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		Justification = "JSON serialization used for properties storage; Dictionary<string, string> is well-defined and preserved")]
 	[RequiresDynamicCode(
 		"JSON serialization of message properties dictionary requires dynamic code generation for type-specific serialization logic.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	public async Task StoreAsync(DeadLetterMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -103,8 +105,10 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 
 		LogStoredDeadLetterMessage(message.MessageId, message.MessageType, message.Reason);
 	}
-
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	public async Task<DeadLetterMessage?> GetByIdAsync(string messageId, CancellationToken cancellationToken)
 	{
@@ -194,7 +198,10 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		parameters.Add("MaxResults", filter.MaxResults);
 
 		using var connection = CreateConnection();
+
+		#pragma warning disable IL2026, IL3050 // Dapper QueryAsync uses reflection for type mapping
 		var results = await connection.QueryAsync<DeadLetterMessageDto>(sql, parameters).ConfigureAwait(false);
+		#pragma warning restore IL2026, IL3050
 
 		return results.Select(static dto => dto.ToDeadLetterMessage());
 	}

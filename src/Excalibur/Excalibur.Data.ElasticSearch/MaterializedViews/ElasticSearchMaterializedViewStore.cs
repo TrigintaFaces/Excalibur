@@ -91,8 +91,10 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 			WriteIndented = false
 		};
 	}
-
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("JSON deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON deserialization might require runtime code generation.")]
 	public async ValueTask<TView?> GetAsync<TView>(
@@ -125,8 +127,10 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 		// Deserialize the view data from JSON string
 		return JsonSerializer.Deserialize<TView>(response.Source.Data, _jsonOptions);
 	}
-
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("JSON serialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization might require runtime code generation.")]
 	public async ValueTask SaveAsync<TView>(

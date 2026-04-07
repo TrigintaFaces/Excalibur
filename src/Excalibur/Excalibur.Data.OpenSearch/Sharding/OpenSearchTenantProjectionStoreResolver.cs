@@ -72,6 +72,7 @@ internal sealed class OpenSearchTenantProjectionStoreResolver<TProjection>
 			_loggerFactory.CreateLogger<OpenSearchProjectionStore<TProjection>>());
 	}
 
+	#pragma warning disable IL2091 // Serialization/reflection inherently not AOT-safe
 	private sealed class StaticOptionsMonitor<T> : IOptionsMonitor<T>
 	{
 		public StaticOptionsMonitor(T value) => CurrentValue = value;
@@ -79,4 +80,5 @@ internal sealed class OpenSearchTenantProjectionStoreResolver<TProjection>
 		public T Get(string? name) => CurrentValue;
 		public IDisposable? OnChange(Action<T, string?> listener) => null;
 	}
+	#pragma warning restore IL2091
 }

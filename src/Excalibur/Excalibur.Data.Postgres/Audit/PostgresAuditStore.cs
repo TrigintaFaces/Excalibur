@@ -84,7 +84,9 @@ public sealed partial class PostgresAuditStore : IAuditStore, IAsyncDisposable
 			RETURNING sequence_number
 			""";
 
+		#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 		var metadataJson = auditEvent.Metadata != null ? JsonSerializer.Serialize(auditEvent.Metadata) : null;
+		#pragma warning restore IL2026, IL3050
 
 		var sequenceNumber = await connection.ExecuteScalarAsync<long>(
 			new CommandDefinition(sql, new
@@ -481,7 +483,9 @@ public sealed partial class PostgresAuditStore : IAuditStore, IAsyncDisposable
 			IReadOnlyDictionary<string, string>? metadataDict = null;
 			if (!string.IsNullOrEmpty(metadata))
 			{
+				#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 				metadataDict = JsonSerializer.Deserialize<Dictionary<string, string>>(metadata);
+				#pragma warning restore IL2026, IL3050
 			}
 
 			return new AuditEvent

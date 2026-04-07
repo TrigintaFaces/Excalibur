@@ -605,7 +605,9 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 
 	private static string SerializeSchema(object schema)
 	{
+		#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 		return JsonSerializer.Serialize(schema);
+		#pragma warning restore IL2026, IL3050
 	}
 
 	private static SchemaVersionRegistration ToRegistration(SchemaVersionDocument document)
@@ -841,7 +843,9 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 			ProjectionType = projectionType,
 			PlanId = result.PlanId,
 			RecordedAt = DateTimeOffset.UtcNow,
+			#pragma warning disable IL2026, IL3050 // JSON serialization uses reflection
 			ResultJson = JsonSerializer.Serialize(result),
+			#pragma warning restore IL2026, IL3050
 		};
 
 		var documentId = $"{projectionType}:{result.PlanId}";
@@ -884,7 +888,9 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 				continue;
 			}
 
+			#pragma warning disable IL2026, IL3050 // JSON deserialization uses reflection
 			var result = JsonSerializer.Deserialize<SchemaMigrationResult>(document.ResultJson);
+			#pragma warning restore IL2026, IL3050
 			if (result is not null)
 			{
 				results.Add(result);

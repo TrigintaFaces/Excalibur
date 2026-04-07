@@ -42,11 +42,13 @@ public static class PostgresProjectionStoreExtensions
 
 			options.Value.Validate();
 
+			#pragma warning disable IL2026, IL3050 // PostgresProjectionStore uses reflection-based JSON serialization
 			return new PostgresProjectionStore<TProjection>(
 				options.Value.ConnectionString,
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);
+			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;

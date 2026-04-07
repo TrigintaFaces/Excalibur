@@ -387,7 +387,9 @@ public sealed partial class PostgresOutboxStore(
 		var outboxMessage = new OutboxMessage(
 			message.Id,
 			message.MessageType,
+			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			System.Text.Json.JsonSerializer.Serialize(message.Headers ?? new Dictionary<string, object>(StringComparer.Ordinal)),
+			#pragma warning restore IL2026, IL3050
 			System.Text.Encoding.UTF8.GetString(message.Payload),
 			DateTimeOffset.UtcNow);
 
@@ -405,6 +407,8 @@ public sealed partial class PostgresOutboxStore(
 		"JSON serialization of message payload and metadata may reference types not preserved during trimming. Ensure all serialized types are annotated with DynamicallyAccessedMembers.")]
 	[RequiresDynamicCode(
 		"JSON serialization of message payload and metadata requires dynamic code generation for reflection-based property access and value conversion.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -440,6 +444,8 @@ public sealed partial class PostgresOutboxStore(
 	/// <returns> Collection of unsent outbound messages. </returns>
 	[RequiresUnreferencedCode(
 		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresDynamicCode(
 		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
 	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(

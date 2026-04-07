@@ -96,8 +96,10 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 			WriteIndented = false
 		};
 	}
-
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task<TProjection?> GetByIdAsync(
@@ -126,8 +128,10 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 
 		return JsonSerializer.Deserialize<TProjection>(json, _jsonOptions);
 	}
-
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public async Task UpsertAsync(
@@ -209,9 +213,11 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		#pragma warning disable IL2026, IL3050 // Dapper QueryAsync uses reflection for type mapping
 		var results = await connection.QueryAsync<string>(
 				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
+		#pragma warning restore IL2026, IL3050
 
 		return results
 			.Select(json => JsonSerializer.Deserialize<TProjection>(json, _jsonOptions)!)

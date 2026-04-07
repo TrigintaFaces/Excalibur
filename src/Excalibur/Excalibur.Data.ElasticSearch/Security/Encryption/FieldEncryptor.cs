@@ -79,8 +79,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 	/// <inheritdoc />
 	public bool SupportsIntegrityValidation => true;
-
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("JSON serialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON serialization uses reflection to dynamically access and serialize types")]
 	public async Task<object> EncryptDocumentAsync(object document, CancellationToken cancellationToken)
@@ -120,8 +122,10 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			_ = _encryptionSemaphore.Release();
 		}
 	}
-
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task<object> DecryptDocumentAsync(object encryptedDocument, CancellationToken cancellationToken)
@@ -172,6 +176,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("JSON serialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON serialization uses reflection to dynamically access and serialize types")]
 	public async Task<EncryptedFieldResult> EncryptFieldAsync(
@@ -239,6 +245,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
 	[RequiresUnreferencedCode("JSON deserialization may require unreferenced types for reflection-based operations")]
 	[RequiresDynamicCode("JSON deserialization uses reflection to dynamically create and populate types")]
 	public async Task<object> DecryptFieldAsync(

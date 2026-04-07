@@ -41,11 +41,13 @@ public static class SqlServerProjectionStoreExtensions
 
 			options.Value.Validate();
 
+			#pragma warning disable IL2026, IL3050 // SqlServerProjectionStore uses reflection-based JSON serialization
 			return new SqlServerProjectionStore<TProjection>(
 				options.Value.ConnectionString,
 				logger,
 				options.Value.TableName,
 				options.Value.JsonSerializerOptions);
+			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;

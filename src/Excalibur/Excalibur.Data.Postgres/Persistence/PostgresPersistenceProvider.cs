@@ -810,8 +810,10 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 
 		return metrics;
 	}
-
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	public async Task InitializeAsync(IPersistenceOptions options, CancellationToken cancellationToken)
 	{

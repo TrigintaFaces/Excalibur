@@ -50,7 +50,9 @@ public static class ElasticSearchProjectionStoreExtensions
 			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<TProjection>>>();
 
+			#pragma warning disable IL2026, IL3050 // ElasticSearchProjectionStore constructor chain uses reflection-based serialization
 			return new ElasticSearchProjectionStore<TProjection>(optionsMonitor, logger);
+			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;
@@ -113,7 +115,9 @@ public static class ElasticSearchProjectionStoreExtensions
 			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<TProjection>>>();
 
+			#pragma warning disable IL2026, IL3050 // ElasticSearchProjectionStore constructor chain uses reflection-based serialization
 			return new ElasticSearchProjectionStore<TProjection>(client, optionsMonitor, logger);
+			#pragma warning restore IL2026, IL3050
 		});
 
 		return services;

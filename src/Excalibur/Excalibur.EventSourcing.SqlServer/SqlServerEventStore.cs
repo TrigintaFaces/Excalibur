@@ -316,7 +316,9 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 		{
 			version++;
 			var eventData = SerializeEventWithEnvelopeSupport(@event, aggregateId, aggregateType, version);
+			#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			var metadata = @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null;
+			#pragma warning restore IL2026, IL3050
 			var eventTypeName = EventTypeNameHelper.GetEventTypeName(@event.GetType());
 
 			var position = await connection.ResolveAsync(
@@ -473,11 +475,15 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure
 
 		if (_internalSerializer is null)
 		{
+			#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			return SerializeEvent(@event);
+			#pragma warning restore IL2026, IL3050
 		}
 
 		// Create envelope with event data
+		#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 		var eventBytes = SerializeEvent(@event);
+		#pragma warning restore IL2026, IL3050
 
 		var envelope = new EventEnvelope
 		{

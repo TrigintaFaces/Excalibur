@@ -13,6 +13,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.ElasticSearch.Resilience;
 
+#pragma warning disable IL2026, IL3050, IL2075 // This class inherently uses reflection for Elasticsearch request inspection and monitoring
+
 /// <summary>
 /// Provides resilient Elasticsearch operations with comprehensive monitoring, metrics collection, and distributed tracing. This client
 /// integrates resilience patterns with observability features for production-ready Elasticsearch operations.

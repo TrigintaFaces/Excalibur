@@ -824,7 +824,9 @@ public sealed partial class ElasticSearchProjectionStore<
 		public static ElasticSearchProjectionDocument FromProjection<T>(string id, string projectionType, T projection)
 			where T : class
 		{
+			#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 			var json = JsonSerializer.Serialize(projection, JsonOptions);
+			#pragma warning restore IL2026, IL3050
 			var data = JsonDocument.Parse(json).RootElement;
 
 			return new ElasticSearchProjectionDocument
@@ -849,7 +851,9 @@ public sealed partial class ElasticSearchProjectionStore<
 				return null;
 			}
 
+			#pragma warning disable IL2026, IL3050 // JSON deserialization uses reflection
 			return JsonSerializer.Deserialize<T>(Data.GetRawText(), JsonOptions);
+			#pragma warning restore IL2026, IL3050
 		}
 	}
 

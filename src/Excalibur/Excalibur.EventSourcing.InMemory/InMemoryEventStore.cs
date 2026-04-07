@@ -204,7 +204,9 @@ internal sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 							AggregateId: aggregateId,
 							AggregateType: aggregateType,
 							EventType: eventTypeName,
+							#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 							EventData: SerializeEvent(@event),
+							#pragma warning restore IL2026, IL3050
 							Metadata: @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null,
 							Version: version,
 							Timestamp: @event.OccurredAt);

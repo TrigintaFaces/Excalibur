@@ -65,12 +65,15 @@ internal sealed class ElasticSearchTenantProjectionStoreResolver<TProjection>
 		var settings = new ElasticsearchClientSettings(new Uri(nodeUri));
 		var client = new ElasticsearchClient(settings);
 
+		#pragma warning disable IL2091 // Serialization/reflection inherently not AOT-safe
 		return new ElasticSearchProjectionStore<TProjection>(
 			client,
 			optionsMonitor,
 			_loggerFactory.CreateLogger<ElasticSearchProjectionStore<TProjection>>());
+		#pragma warning restore IL2091
 	}
 
+	#pragma warning disable IL2091 // StaticOptionsMonitor generic type not statically analyzable
 	/// <summary>
 	/// Simple IOptionsMonitor implementation for per-shard static options.
 	/// </summary>
@@ -81,4 +84,5 @@ internal sealed class ElasticSearchTenantProjectionStoreResolver<TProjection>
 		public T Get(string? name) => CurrentValue;
 		public IDisposable? OnChange(Action<T, string?> listener) => null;
 	}
+	#pragma warning restore IL2091
 }

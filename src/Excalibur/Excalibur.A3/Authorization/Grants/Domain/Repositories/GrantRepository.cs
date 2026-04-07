@@ -51,6 +51,8 @@ public partial class GrantRepository : IGrantRepository
 	}
 
 	/// <inheritdoc />
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
 	public async Task<Grant?> GetByIdAsync(string aggregateId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
@@ -67,6 +69,8 @@ public partial class GrantRepository : IGrantRepository
 	}
 
 	/// <inheritdoc />
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
 	public Task SaveAsync(Grant aggregate, CancellationToken cancellationToken) =>
 		SaveAsync(aggregate, expectedETag: null, cancellationToken);
 

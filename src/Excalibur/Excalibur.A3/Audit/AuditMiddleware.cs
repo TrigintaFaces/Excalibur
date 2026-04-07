@@ -35,7 +35,6 @@ public sealed partial class AuditMiddleware(
 	/// </summary>
 	/// <value> The middleware execution stage, set to <see cref="DispatchMiddlewareStage.End" />. </value>
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.End;
-
 	/// <summary>
 	/// Executes the audit middleware logic to record audit information for auditable actions.
 	/// </summary>
@@ -44,6 +43,9 @@ public sealed partial class AuditMiddleware(
 	/// <param name="nextDelegate"> The next middleware delegate in the pipeline. </param>
 	/// <param name="cancellationToken"> Token to cancel the operation. </param>
 	/// <returns> The result of the message processing. </returns>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+
 	[RequiresDynamicCode("Audit middleware uses reflection for dynamic type resolution.")]
 	[RequiresUnreferencedCode("Audit middleware may access types that could be trimmed.")]
 	public async ValueTask<IMessageResult> InvokeAsync(

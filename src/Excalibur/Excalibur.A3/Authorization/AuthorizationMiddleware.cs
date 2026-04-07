@@ -45,6 +45,8 @@ internal sealed class AuthorizationMiddleware(
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Authorization middleware may access types that could be trimmed.")]
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 		Justification = "Authorization middleware requires coordination of multiple authorization types by design.")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection; interface intentionally omits attribute for clean consumer API.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
 		IDispatchMessage message,
 		IMessageContext context,

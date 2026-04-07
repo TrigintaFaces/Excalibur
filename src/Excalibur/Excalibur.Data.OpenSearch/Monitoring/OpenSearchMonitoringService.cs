@@ -430,6 +430,7 @@ internal sealed class OpenSearchMonitoringService(
 		/// </summary>
 		/// <param name="response"> The OpenSearch response. </param>
 		/// <param name="documentCount"> The number of documents processed (for bulk operations). </param>
+		[RequiresUnreferencedCode("Calls CompleteOperation which uses reflection")]
 		public void Complete(IResponse response, long? documentCount = null)
 		{
 			if (_completed || _disposed || !_enableMonitoring)
@@ -438,7 +439,9 @@ internal sealed class OpenSearchMonitoringService(
 			}
 
 			var duration = DateTimeOffset.UtcNow - _startTime;
+			#pragma warning disable IL2026, IL3050 // CompleteOperation uses reflection-based monitoring
 			_service.CompleteOperation(
+			#pragma warning restore IL2026, IL3050
 				_operationType,
 				response,
 				duration,

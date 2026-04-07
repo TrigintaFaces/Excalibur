@@ -53,7 +53,9 @@ public sealed class QuartzGenericJobAdapter<TJob, TContext>(
 		{
 			try
 			{
+				#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
 				jobContext = JsonSerializer.Deserialize<TContext>(jsonContext);
+				#pragma warning restore IL2026, IL3050
 			}
 			catch (JsonException ex)
 			{
