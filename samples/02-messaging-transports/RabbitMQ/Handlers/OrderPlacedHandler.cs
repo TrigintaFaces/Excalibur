@@ -17,15 +17,15 @@ namespace RabbitMQSample.Handlers;
 /// In a real application, this might trigger notifications, update read models,
 /// or initiate downstream processes.
 /// </remarks>
-public sealed class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
+public sealed class OrderPlacedHandler : IEventHandler<OrderPlacedEvent>
 {
-	private readonly ILogger<OrderPlacedEventHandler> _logger;
+	private readonly ILogger<OrderPlacedHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="OrderPlacedEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="OrderPlacedHandler"/> class.
 	/// </summary>
 	/// <param name="logger">The logger instance.</param>
-	public OrderPlacedEventHandler(ILogger<OrderPlacedEventHandler> logger)
+	public OrderPlacedHandler(ILogger<OrderPlacedHandler> logger)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}

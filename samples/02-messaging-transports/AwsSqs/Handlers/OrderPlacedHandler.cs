@@ -1,31 +1,31 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: Apache-2.0
 
-using AzureServiceBusSample.Messages;
+using AwsSqsSample.Messages;
 
 using Excalibur.Dispatch.Abstractions.Delivery;
 
 using Microsoft.Extensions.Logging;
 
-namespace AzureServiceBusSample.Handlers;
+namespace AwsSqsSample.Handlers;
 
 /// <summary>
-/// Handles <see cref="OrderPlacedEvent"/> messages received from Azure Service Bus.
+/// Handles <see cref="OrderPlacedEvent"/> messages received from AWS SQS.
 /// </summary>
 /// <remarks>
-/// This handler demonstrates how to process messages consumed from Azure Service Bus.
+/// This handler demonstrates how to process messages consumed from AWS SQS.
 /// In a real application, this might trigger notifications, update read models,
 /// or initiate downstream processes.
 /// </remarks>
-public sealed class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
+public sealed class OrderPlacedHandler : IEventHandler<OrderPlacedEvent>
 {
-	private readonly ILogger<OrderPlacedEventHandler> _logger;
+	private readonly ILogger<OrderPlacedHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="OrderPlacedEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="OrderPlacedHandler"/> class.
 	/// </summary>
 	/// <param name="logger">The logger instance.</param>
-	public OrderPlacedEventHandler(ILogger<OrderPlacedEventHandler> logger)
+	public OrderPlacedHandler(ILogger<OrderPlacedHandler> logger)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}

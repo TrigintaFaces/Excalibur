@@ -191,7 +191,7 @@ README.md                  # This file
 Messages/
    OrderEvents.cs          # Event classes
 Handlers/
-    OrderEventHandlers.cs  # Event handlers
+    OrderHandlers.cs  # Event handlers
 ```
 
 ## Related Samples

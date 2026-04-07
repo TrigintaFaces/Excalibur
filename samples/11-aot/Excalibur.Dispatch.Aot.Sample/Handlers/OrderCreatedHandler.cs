@@ -15,16 +15,16 @@ namespace Excalibur.Dispatch.Aot.Sample.Handlers;
 /// - Multiple handlers can subscribe to the same event
 /// - All discovered at compile time by source generators
 /// </remarks>
-public sealed class OrderEventHandler : IEventHandler<OrderCreatedEvent>
+public sealed class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 {
 	/// <inheritdoc />
 	public Task HandleAsync(OrderCreatedEvent evt, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(evt);
 
-		Console.WriteLine("[OrderEventHandler] Processing OrderCreatedEvent");
-		Console.WriteLine($"[OrderEventHandler] Order {evt.OrderId} created at {evt.OccurredAt}");
-		Console.WriteLine($"[OrderEventHandler] Customer: {evt.CustomerId}, Amount: ${evt.TotalAmount:F2}");
+		Console.WriteLine("[OrderCreatedHandler] Processing OrderCreatedEvent");
+		Console.WriteLine($"[OrderCreatedHandler] Order {evt.OrderId} created at {evt.OccurredAt}");
+		Console.WriteLine($"[OrderCreatedHandler] Customer: {evt.CustomerId}, Amount: ${evt.TotalAmount:F2}");
 
 		// In a real application, this could:
 		// - Update read models

@@ -20,15 +20,15 @@ namespace KafkaSample.Handlers;
 /// - Update real-time dashboards
 /// - Feed machine learning models
 /// </remarks>
-public sealed class SensorReadingEventHandler : IEventHandler<SensorReadingEvent>
+public sealed class SensorReadingHandler : IEventHandler<SensorReadingEvent>
 {
-	private readonly ILogger<SensorReadingEventHandler> _logger;
+	private readonly ILogger<SensorReadingHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="SensorReadingEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="SensorReadingHandler"/> class.
 	/// </summary>
 	/// <param name="logger">The logger instance.</param>
-	public SensorReadingEventHandler(ILogger<SensorReadingEventHandler> logger)
+	public SensorReadingHandler(ILogger<SensorReadingHandler> logger)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}

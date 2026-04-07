@@ -137,7 +137,7 @@ README.md                  # This file
 Messages/
    OrderEvents.cs          # MemoryPackable event classes
 Handlers/
-    OrderEventHandlers.cs  # Event handlers for processing
+    OrderHandlers.cs  # Event handlers for processing
 ```
 
 ## NativeAOT Deployment

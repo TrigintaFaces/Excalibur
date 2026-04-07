@@ -81,8 +81,8 @@ MessageEncryption/
 │   ├── CustomerCreatedEvent.cs    # PII encryption example
 │   └── PaymentProcessedEvent.cs   # PCI compliance example
 ├── Handlers/
-│   ├── CustomerCreatedEventHandler.cs
-│   └── PaymentProcessedEventHandler.cs
+│   ├── CustomerCreatedHandler.cs
+│   └── PaymentProcessedHandler.cs
 ├── Program.cs                      # Encryption demos
 ├── appsettings.json               # Configuration
 └── README.md                      # This file

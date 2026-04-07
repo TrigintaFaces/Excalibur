@@ -15,11 +15,11 @@ namespace OpenTelemetrySample.Handlers;
 /// <summary>
 /// Handles order processed events with OpenTelemetry tracing.
 /// </summary>
-public sealed class OrderProcessedEventHandler : IEventHandler<OrderProcessedEvent>
+public sealed class OrderProcessedHandler : IEventHandler<OrderProcessedEvent>
 {
-	private readonly ILogger<OrderProcessedEventHandler> _logger;
+	private readonly ILogger<OrderProcessedHandler> _logger;
 
-	public OrderProcessedEventHandler(ILogger<OrderProcessedEventHandler> logger)
+	public OrderProcessedHandler(ILogger<OrderProcessedHandler> logger)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
@@ -31,7 +31,7 @@ public sealed class OrderProcessedEventHandler : IEventHandler<OrderProcessedEve
 		// Create a child span for handler processing
 		using var activity = DispatchActivitySource.Instance.StartActivity("HandleOrderProcessed");
 		_ = (activity?.SetTag("order.id", eventMessage.OrderId));
-		_ = (activity?.SetTag("handler.type", nameof(OrderProcessedEventHandler)));
+		_ = (activity?.SetTag("handler.type", nameof(OrderProcessedHandler)));
 
 		_logger.LogInformation(
 			"Handling order {OrderId} for customer {CustomerId}, amount: {Amount:C}",

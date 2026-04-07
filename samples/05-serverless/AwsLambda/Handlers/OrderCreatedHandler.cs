@@ -1,26 +1,26 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Delivery;
+using AwsLambdaSample.Messages;
 
-using GoogleCloudFunctionsSample.Messages;
+using Excalibur.Dispatch.Abstractions.Delivery;
 
 using Microsoft.Extensions.Logging;
 
-namespace GoogleCloudFunctionsSample.Handlers;
+namespace AwsLambdaSample.Handlers;
 
 /// <summary>
 /// Handles order created events.
 /// </summary>
-public sealed class OrderCreatedEventHandler : IEventHandler<OrderCreatedEvent>
+public sealed class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 {
-	private readonly ILogger<OrderCreatedEventHandler> _logger;
+	private readonly ILogger<OrderCreatedHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="OrderCreatedEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="OrderCreatedHandler"/> class.
 	/// </summary>
 	/// <param name="logger">The logger instance.</param>
-	public OrderCreatedEventHandler(ILogger<OrderCreatedEventHandler> logger)
+	public OrderCreatedHandler(ILogger<OrderCreatedHandler> logger)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
@@ -38,9 +38,9 @@ public sealed class OrderCreatedEventHandler : IEventHandler<OrderCreatedEvent>
 			eventMessage.TotalAmount);
 
 		// In a real application, you might:
-		// 1. Store order in Cloud Firestore
-		// 2. Send notification via Cloud Pub/Sub
-		// 3. Update BigQuery analytics
+		// 1. Store order in DynamoDB
+		// 2. Send confirmation via SNS/SES
+		// 3. Update analytics in Kinesis
 
 		return Task.CompletedTask;
 	}

@@ -3,18 +3,14 @@
 
 using Excalibur.Dispatch.Abstractions.Delivery;
 
-namespace MinimalSample;
+namespace RemoteBusSample;
 
-/// <summary>
-/// Handles the PingEvent. Events can have multiple handlers.
-/// </summary>
-public sealed class PingEventHandler : IEventHandler<PingEvent>
+public sealed class PingHandler : IEventHandler<PingEvent>
 {
-	/// <inheritdoc />
 	public Task HandleAsync(PingEvent eventMessage, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(eventMessage);
-		Console.WriteLine($"[PingEventHandler] Event received: {eventMessage.Message}");
+		Console.WriteLine($"Received event: {eventMessage.Message}");
 		return Task.CompletedTask;
 	}
 }

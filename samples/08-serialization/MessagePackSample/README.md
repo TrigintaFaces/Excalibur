@@ -136,7 +136,7 @@ MessagePackSample/
 ├── Messages/
 │   └── OrderEvents.cs        # MessagePack-annotated event classes
 └── Handlers/
-    └── OrderEventHandlers.cs # Event handlers for processing
+    └── OrderHandlers.cs # Event handlers for processing
 ```
 
 ## Configuration Options

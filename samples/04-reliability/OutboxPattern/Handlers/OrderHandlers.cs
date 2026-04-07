@@ -13,14 +13,14 @@ namespace OutboxPattern.Handlers;
 /// Handles order placed events.
 /// Demonstrates basic event handling with outbox.
 /// </summary>
-public sealed class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
+public sealed class OrderPlacedHandler : IEventHandler<OrderPlacedEvent>
 {
-	private readonly ILogger<OrderPlacedEventHandler> _logger;
+	private readonly ILogger<OrderPlacedHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="OrderPlacedEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="OrderPlacedHandler"/> class.
 	/// </summary>
-	public OrderPlacedEventHandler(ILogger<OrderPlacedEventHandler> logger) => _logger = logger;
+	public OrderPlacedHandler(ILogger<OrderPlacedHandler> logger) => _logger = logger;
 
 	/// <inheritdoc/>
 	public Task HandleAsync(OrderPlacedEvent message, CancellationToken cancellationToken)
@@ -38,14 +38,14 @@ public sealed class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
 /// <summary>
 /// Handles payment processed events.
 /// </summary>
-public sealed class PaymentProcessedEventHandler : IEventHandler<PaymentProcessedEvent>
+public sealed class PaymentProcessedHandler : IEventHandler<PaymentProcessedEvent>
 {
-	private readonly ILogger<PaymentProcessedEventHandler> _logger;
+	private readonly ILogger<PaymentProcessedHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="PaymentProcessedEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="PaymentProcessedHandler"/> class.
 	/// </summary>
-	public PaymentProcessedEventHandler(ILogger<PaymentProcessedEventHandler> logger) => _logger = logger;
+	public PaymentProcessedHandler(ILogger<PaymentProcessedHandler> logger) => _logger = logger;
 
 	/// <inheritdoc/>
 	public Task HandleAsync(PaymentProcessedEvent message, CancellationToken cancellationToken)
@@ -63,14 +63,14 @@ public sealed class PaymentProcessedEventHandler : IEventHandler<PaymentProcesse
 /// <summary>
 /// Handles inventory reserved events.
 /// </summary>
-public sealed class InventoryReservedEventHandler : IEventHandler<InventoryReservedEvent>
+public sealed class InventoryReservedHandler : IEventHandler<InventoryReservedEvent>
 {
-	private readonly ILogger<InventoryReservedEventHandler> _logger;
+	private readonly ILogger<InventoryReservedHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="InventoryReservedEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="InventoryReservedHandler"/> class.
 	/// </summary>
-	public InventoryReservedEventHandler(ILogger<InventoryReservedEventHandler> logger) => _logger = logger;
+	public InventoryReservedHandler(ILogger<InventoryReservedHandler> logger) => _logger = logger;
 
 	/// <inheritdoc/>
 	public Task HandleAsync(InventoryReservedEvent message, CancellationToken cancellationToken)
@@ -88,14 +88,14 @@ public sealed class InventoryReservedEventHandler : IEventHandler<InventoryReser
 /// <summary>
 /// Handles order failed events.
 /// </summary>
-public sealed class OrderFailedEventHandler : IEventHandler<OrderFailedEvent>
+public sealed class OrderFailedHandler : IEventHandler<OrderFailedEvent>
 {
-	private readonly ILogger<OrderFailedEventHandler> _logger;
+	private readonly ILogger<OrderFailedHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="OrderFailedEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="OrderFailedHandler"/> class.
 	/// </summary>
-	public OrderFailedEventHandler(ILogger<OrderFailedEventHandler> logger) => _logger = logger;
+	public OrderFailedHandler(ILogger<OrderFailedHandler> logger) => _logger = logger;
 
 	/// <inheritdoc/>
 	public Task HandleAsync(OrderFailedEvent message, CancellationToken cancellationToken)

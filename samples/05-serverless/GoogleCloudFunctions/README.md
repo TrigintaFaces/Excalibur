@@ -19,7 +19,7 @@ GoogleCloudFunctions/
 │   ├── PubSubFunction.cs        # Pub/Sub-triggered function
 │   └── ScheduledFunction.cs     # Cloud Scheduler-triggered function
 ├── Handlers/
-│   ├── OrderCreatedEventHandler.cs   # Order event handler
+│   ├── OrderCreatedHandler.cs   # Order event handler
 │   └── ScheduledTaskHandler.cs       # Scheduled task handler
 ├── Messages/
 │   └── OrderMessages.cs         # Event definitions

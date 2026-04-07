@@ -32,6 +32,13 @@ jobs:
     runs-on: ubuntu-latest
     if: inputs.run-performance-tests == 'true'
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -104,6 +111,13 @@ jobs:
     runs-on: windows-latest
     if: inputs.run-performance-tests == 'true'
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -167,6 +181,13 @@ jobs:
     runs-on: ubuntu-latest
     if: inputs.run-performance-tests == 'true'
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -230,6 +251,13 @@ jobs:
     runs-on: ubuntu-latest
     if: inputs.run-performance-tests == 'true'
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -291,6 +319,13 @@ jobs:
     runs-on: ubuntu-latest
     if: inputs.run-performance-tests == 'true'
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:

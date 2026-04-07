@@ -107,7 +107,12 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		IPayloadSerializer? payloadSerializer,
 		IOptions<SqlServerInboxOptions>? inboxOptions,
 		ILogger<SqlServerOutboxStore> logger)
-		: this(CreateConnectionFactory(options!.Value), options!.Value, payloadSerializer, inboxOptions?.Value, logger)
+		: this(
+			CreateConnectionFactory((options ?? throw new ArgumentNullException(nameof(options))).Value),
+			options.Value,
+			payloadSerializer,
+			inboxOptions?.Value,
+			logger)
 	{
 	}
 

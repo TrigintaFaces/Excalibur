@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -138,15 +138,9 @@ jobs:
       - name: Run AOT build analysis (report-only)
         shell: pwsh
         run: |
-          # Report-only: capture exit code but do not fail the job
-          $exitCode = 0
-          try {
-            ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath ./aot-build-analysis
-            $exitCode = $LASTEXITCODE
-          } catch {
-            $exitCode = 2
-            Write-Host "::warning::AOT build analysis threw an exception: $_"
-          }
+          # Report-only: run as subprocess so exit 1 from script does not fail the step
+          pwsh -File ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath ./aot-build-analysis
+          $exitCode = $LASTEXITCODE
           Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
 
       - name: Upload analysis report

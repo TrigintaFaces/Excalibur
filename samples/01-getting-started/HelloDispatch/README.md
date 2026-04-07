@@ -31,7 +31,7 @@ HelloDispatch/
 ├── PingCommand.cs           # Command: IDispatchAction<string>
 ├── PingCommandHandler.cs    # Handler: IActionHandler<PingCommand, string>
 ├── PingEvent.cs             # Event: IDispatchEvent
-└── PingEventConsumer.cs     # Handler: IEventHandler<PingEvent>
+└── PingHandler.cs           # Handler: IEventHandler<PingEvent>
 ```
 
 ## Key Configuration
@@ -62,7 +62,7 @@ _ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 ## Message Flow
 
 1. **PingCommand** is dispatched and returns a `string` response ("Pong: Hello")
-2. **PingEvent** is dispatched and handled by `PingEventHandler`
+2. **PingEvent** is dispatched and handled by `PingHandler`
 
 ## Dependencies
 

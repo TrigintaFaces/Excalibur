@@ -12,14 +12,14 @@ namespace ProtobufSample.Handlers;
 /// <summary>
 /// Handles order placed events.
 /// </summary>
-public sealed class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
+public sealed class OrderPlacedHandler : IEventHandler<OrderPlacedEvent>
 {
-	private readonly ILogger<OrderPlacedEventHandler> _logger;
+	private readonly ILogger<OrderPlacedHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="OrderPlacedEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="OrderPlacedHandler"/> class.
 	/// </summary>
-	public OrderPlacedEventHandler(ILogger<OrderPlacedEventHandler> logger) => _logger = logger;
+	public OrderPlacedHandler(ILogger<OrderPlacedHandler> logger) => _logger = logger;
 
 	/// <inheritdoc/>
 	public Task HandleAsync(OrderPlacedEvent message, CancellationToken cancellationToken)
@@ -39,14 +39,14 @@ public sealed class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
 /// <summary>
 /// Handles order cancelled events.
 /// </summary>
-public sealed class OrderCancelledEventHandler : IEventHandler<OrderCancelledEvent>
+public sealed class OrderCancelledHandler : IEventHandler<OrderCancelledEvent>
 {
-	private readonly ILogger<OrderCancelledEventHandler> _logger;
+	private readonly ILogger<OrderCancelledHandler> _logger;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="OrderCancelledEventHandler"/> class.
+	/// Initializes a new instance of the <see cref="OrderCancelledHandler"/> class.
 	/// </summary>
-	public OrderCancelledEventHandler(ILogger<OrderCancelledEventHandler> logger) => _logger = logger;
+	public OrderCancelledHandler(ILogger<OrderCancelledHandler> logger) => _logger = logger;
 
 	/// <inheritdoc/>
 	public Task HandleAsync(OrderCancelledEvent message, CancellationToken cancellationToken)

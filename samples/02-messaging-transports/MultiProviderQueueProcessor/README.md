@@ -94,7 +94,7 @@ MultiProviderQueueProcessor/
 ├── Events/
 │   └── OrderEvents.cs              # Domain events
 ├── Handlers/
-│   └── OrderEventHandlers.cs       # Event handlers
+│   └── OrderHandlers.cs            # Event handlers
 ├── Infrastructure/
 │   ├── DatabaseInitializer.cs      # Schema setup
 │   ├── OrderRepository.cs          # Event-sourced repository

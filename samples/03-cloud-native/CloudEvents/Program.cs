@@ -95,11 +95,11 @@ namespace Excalibur.Dispatch.Samples.CloudEvents
 	/// Handler that processes the order placed event.
 	/// In a real app, this might update projections, send notifications, etc.
 	/// </summary>
-	public sealed class OrderPlacedEventHandler : IEventHandler<OrderPlacedEvent>
+	public sealed class OrderPlacedHandler : IEventHandler<OrderPlacedEvent>
 	{
 		public Task HandleAsync(OrderPlacedEvent @event, CancellationToken cancellationToken)
 		{
-			Console.WriteLine($"[OrderPlacedEventHandler] Order {@event.OrderId} placed by {@event.CustomerId} for ${@event.TotalAmount}");
+			Console.WriteLine($"[OrderPlacedHandler] Order {@event.OrderId} placed by {@event.CustomerId} for ${@event.TotalAmount}");
 			return Task.CompletedTask;
 		}
 	}

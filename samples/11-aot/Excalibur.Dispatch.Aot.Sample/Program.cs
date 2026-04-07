@@ -97,7 +97,7 @@ Console.WriteLine();
 // ============================================================================
 Console.WriteLine("--- Demo 2: Event with Multiple Handlers ---");
 Console.WriteLine("(OrderCreatedEvent was dispatched by CreateOrderHandler)");
-Console.WriteLine("Both OrderEventHandler and OrderAnalyticsHandler processed it.");
+Console.WriteLine("Both OrderCreatedHandler and OrderAnalyticsHandler processed it.");
 Console.WriteLine();
 
 // ============================================================================

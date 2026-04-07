@@ -117,7 +117,7 @@ AzureFunctions/
 │   └── OrderMessages.cs           # Command and event definitions
 ├── Handlers/
 │   ├── OrderCommandHandler.cs     # Handles CreateOrderCommand
-│   └── OrderEventHandler.cs       # Handles OrderCreatedEvent
+│   └── OrderHandler.cs       # Handles OrderCreatedEvent
 ├── Program.cs                     # Azure Functions host configuration
 ├── host.json                      # Azure Functions host settings
 ├── local.settings.json            # Local development settings

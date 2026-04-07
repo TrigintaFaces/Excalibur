@@ -53,7 +53,11 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		IOptions<SqlServerDeadLetterQueueOptions> options,
 		ILogger<SqlServerDeadLetterQueue> logger,
 		Func<object, Task>? replayHandler = null)
-		: this(CreateConnectionFactory(options.Value), options.Value, logger, replayHandler)
+		: this(
+			CreateConnectionFactory((options ?? throw new ArgumentNullException(nameof(options))).Value),
+			options.Value,
+			logger,
+			replayHandler)
 	{
 	}
 

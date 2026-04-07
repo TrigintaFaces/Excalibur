@@ -140,6 +140,7 @@ Write-Host ""
 Write-Host "Scanning for untyped JsonSerializer usage..." -ForegroundColor Cyan
 
 $jsonViolations = @()
+$jsonAnnotated = @()
 $srcFiles = Get-ChildItem -Path (Join-Path $repoRoot 'src') -Filter '*.cs' -Recurse |
     Where-Object { $_.FullName -notmatch '(Tests|Benchmarks|obj|bin)' }
 
@@ -151,11 +152,21 @@ foreach ($file in $srcFiles) {
     if ($content -match 'JsonSerializer\.(Serialize|Deserialize)\s*(<[^>]+>)?\s*\([^)]*JsonSerializerOptions' -and
         $content -notmatch 'JsonSerializer\.(Serialize|Deserialize)\s*(<[^>]+>)?\s*\([^)]*JsonSerializerContext') {
         $relativePath = $file.FullName.Replace($repoRoot, '').TrimStart('\/')
-        $jsonViolations += $relativePath
+
+        # Files with [RequiresUnreferencedCode] or [RequiresDynamicCode] are properly annotated
+        # per Microsoft AOT guidelines -- framework code serializing polymorphic/generic types
+        # cannot use source-generated contexts and annotations are the correct solution.
+        if ($content -match '\[Requires(UnreferencedCode|DynamicCode)') {
+            $jsonAnnotated += $relativePath
+        }
+        else {
+            $jsonViolations += $relativePath
+        }
     }
 }
 
-Write-Host "  Found $($jsonViolations.Count) file(s) with untyped JsonSerializer usage" -ForegroundColor $(if ($jsonViolations.Count -eq 0) { 'Green' } else { 'Yellow' })
+Write-Host "  Found $($jsonViolations.Count) file(s) with unannotated untyped JsonSerializer usage" -ForegroundColor $(if ($jsonViolations.Count -eq 0) { 'Green' } else { 'Yellow' })
+Write-Host "  Found $($jsonAnnotated.Count) file(s) with properly annotated JsonSerializer usage (AOT-honest)" -ForegroundColor Green
 
 # ============================================================================
 # Check IsAotCompatible declarations
@@ -177,6 +188,7 @@ $report = @{
     TotalProjects        = $projects.Count
     TotalILWarnings      = $totalWarnings
     UntypedJsonFiles     = $jsonViolations.Count
+    AnnotatedJsonFiles   = $jsonAnnotated.Count
     MissingDeclaration   = $missingDeclaration.Count
     DishonestClaims      = $dishonestClaims.Count
     ClaimsAotCompatible  = $claimsAot.Count
@@ -191,6 +203,7 @@ $report = @{
         }
     })
     UntypedJsonViolations = @($jsonViolations)
+    AnnotatedJsonFiles    = @($jsonAnnotated)
 }
 
 $report | ConvertTo-Json -Depth 5 | Out-File -FilePath $reportJsonFile -Encoding utf8
@@ -213,7 +226,8 @@ $md = @"
 | Missing Declaration | $($missingDeclaration.Count) |
 | Dishonest Claims (true + warnings) | $($dishonestClaims.Count) |
 | Total IL Warnings | $totalWarnings |
-| Untyped JsonSerializer Files | $($jsonViolations.Count) |
+| Unannotated Untyped JsonSerializer | $($jsonViolations.Count) |
+| Annotated JsonSerializer (AOT-honest) | $($jsonAnnotated.Count) |
 
 "@
 
@@ -245,9 +259,18 @@ if ($projectsWithWarnings.Count -gt 0) {
 }
 
 if ($jsonViolations.Count -gt 0) {
-    $md += "## Untyped JsonSerializer Usage`n`n"
-    $md += "These files use JsonSerializer with JsonSerializerOptions instead of source-generated context:`n`n"
+    $md += "## Unannotated Untyped JsonSerializer Usage (Violations)`n`n"
+    $md += "These files use JsonSerializer without source-generated context AND without ``[RequiresUnreferencedCode]`` annotations:`n`n"
     foreach ($f in $jsonViolations) {
+        $md += "- ``$f```n"
+    }
+    $md += "`n"
+}
+
+if ($jsonAnnotated.Count -gt 0) {
+    $md += "## Annotated JsonSerializer Usage (AOT-Honest)`n`n"
+    $md += "These files use JsonSerializer for polymorphic/generic types and are properly annotated with ``[RequiresUnreferencedCode]``/``[RequiresDynamicCode]`` per Microsoft AOT guidelines:`n`n"
+    foreach ($f in $jsonAnnotated) {
         $md += "- ``$f```n"
     }
     $md += "`n"
@@ -265,7 +288,8 @@ Write-Host "  AOT Build Analysis Summary"
 Write-Host "========================================"
 Write-Host "  Projects:           $($projects.Count)"
 Write-Host "  IL Warnings:        $totalWarnings"
-Write-Host "  Untyped JSON:       $($jsonViolations.Count) files"
+Write-Host "  Unannotated JSON:   $($jsonViolations.Count) files"
+Write-Host "  Annotated JSON:     $($jsonAnnotated.Count) files (AOT-honest)"
 Write-Host "  Missing AOT decl:   $($missingDeclaration.Count)"
 Write-Host "  Dishonest claims:   $($dishonestClaims.Count)"
 Write-Host "========================================"
@@ -274,6 +298,10 @@ Write-Host ""
 Write-Host "Reports: $reportJsonFile, $reportMdFile" -ForegroundColor Cyan
 
 # Determine exit code
+# Only fail for IL warnings or UNANNOTATED untyped JSON usage.
+# Files with [RequiresUnreferencedCode]/[RequiresDynamicCode] annotations are properly
+# handled per Microsoft AOT guidelines -- framework code serializing polymorphic/generic
+# types cannot use source-generated contexts and annotations are the correct solution.
 if ($totalWarnings -gt 0 -or $jsonViolations.Count -gt 0) {
     Write-Host "AOT build analysis found issues." -ForegroundColor Yellow
     exit 1

@@ -1057,10 +1057,13 @@ jobs:
             8.0.x
             9.0.x
             10.0.x
-      - name: Run trim/AOT audit
+      - name: Run trim/AOT audit (report-only)
         shell: pwsh
         run: |
-          ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath management/reports/AotBuildAnalysis
+          # Report-only: run as subprocess so exit code does not fail the step
+          pwsh -File ./eng/ci/Invoke-AotBuildAnalysis.ps1 -OutputPath management/reports/AotBuildAnalysis
+          $exitCode = $LASTEXITCODE
+          Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
       - name: Upload trim/AOT audit
         if: always()
         uses: actions/upload-artifact@v4

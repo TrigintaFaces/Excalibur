@@ -90,7 +90,7 @@ RemoteBusSample/
 ├── PingCommand.cs           # Command definition (in-process)
 ├── PingCommandHandler.cs    # Command handler
 ├── PingEvent.cs             # Integration event (routed to RabbitMQ)
-├── PingEventConsumer.cs     # Event handler
+├── PingHandler.cs           # Event handler
 ├── Program.cs               # Application entry point
 ├── appsettings.json         # Configuration
 └── README.md                # This file

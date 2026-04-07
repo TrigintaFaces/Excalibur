@@ -93,7 +93,7 @@ RabbitMQ/
 ├── Messages/
 │   └── OrderPlacedEvent.cs      # Integration event definition
 ├── Handlers/
-│   └── OrderPlacedEventHandler.cs # Message handler
+│   └── OrderPlacedHandler.cs # Message handler
 ├── Program.cs                    # Application entry point
 ├── appsettings.json             # Configuration
 ├── docker-compose.yml           # RabbitMQ container
@@ -124,7 +124,7 @@ The sample configures CloudEvents formatting via `ConfigureCloudEvents()` for in
 
 ### Event Handlers
 
-`OrderPlacedEventHandler` implements `IEventHandler<OrderPlacedEvent>` to process messages consumed from RabbitMQ.
+`OrderPlacedHandler` implements `IEventHandler<OrderPlacedEvent>` to process messages consumed from RabbitMQ.
 
 ## Cleanup
 

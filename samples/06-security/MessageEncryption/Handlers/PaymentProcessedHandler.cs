@@ -13,14 +13,14 @@ namespace MessageEncryptionSample.Handlers;
 /// <summary>
 /// Handler that processes payment events and demonstrates decryption of sensitive data.
 /// </summary>
-public sealed class PaymentProcessedEventHandler : IEventHandler<PaymentProcessedEvent>
+public sealed class PaymentProcessedHandler : IEventHandler<PaymentProcessedEvent>
 {
 	private readonly IMessageEncryptionService _encryptionService;
-	private readonly ILogger<PaymentProcessedEventHandler> _logger;
+	private readonly ILogger<PaymentProcessedHandler> _logger;
 
-	public PaymentProcessedEventHandler(
+	public PaymentProcessedHandler(
 		IMessageEncryptionService encryptionService,
-		ILogger<PaymentProcessedEventHandler> logger)
+		ILogger<PaymentProcessedHandler> logger)
 	{
 		_encryptionService = encryptionService;
 		_logger = logger;

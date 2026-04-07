@@ -30,6 +30,13 @@ jobs:
     name: Solution Governance Validation
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -56,6 +63,13 @@ jobs:
     name: Package Dependency Graph Validation
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -81,6 +95,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -171,6 +192,13 @@ jobs:
     name: API Compatibility
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -197,6 +225,13 @@ jobs:
     name: Transitive Bloat Audit
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -226,6 +261,13 @@ jobs:
     name: Banned APIs Scan
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -251,6 +293,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
@@ -279,6 +328,13 @@ jobs:
     name: Warnings Scan (report-only)
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code (needed to resolve local composite action)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token }}
+          fetch-depth: 1
+
       - name: Setup .NET build environment
         uses: ./.github/actions/setup-dotnet-build
         with:

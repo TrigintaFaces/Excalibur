@@ -14,14 +14,14 @@ namespace MessageEncryptionSample.Handlers;
 /// <summary>
 /// Handler that processes customer events and demonstrates field-level decryption.
 /// </summary>
-public sealed class CustomerCreatedEventHandler : IEventHandler<CustomerCreatedEvent>
+public sealed class CustomerCreatedHandler : IEventHandler<CustomerCreatedEvent>
 {
 	private readonly IMessageEncryptionService _encryptionService;
-	private readonly ILogger<CustomerCreatedEventHandler> _logger;
+	private readonly ILogger<CustomerCreatedHandler> _logger;
 
-	public CustomerCreatedEventHandler(
+	public CustomerCreatedHandler(
 		IMessageEncryptionService encryptionService,
-		ILogger<CustomerCreatedEventHandler> logger)
+		ILogger<CustomerCreatedHandler> logger)
 	{
 		_encryptionService = encryptionService;
 		_logger = logger;

@@ -41,4 +41,4 @@ namespace Excalibur.Dispatch.Aot.Sample.Serialization;
 	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
 	WriteIndented = false,
 	DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
-internal partial class AppJsonSerializerContext : JsonSerializerContext;
+internal sealed partial class AppJsonSerializerContext : JsonSerializerContext;

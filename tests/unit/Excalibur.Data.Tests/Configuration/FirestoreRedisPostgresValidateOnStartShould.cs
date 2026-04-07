@@ -57,7 +57,11 @@ public sealed class FirestoreRedisPostgresValidateOnStartShould
 		// FirestoreCdc has a validator class but it is not registered in DI.
 		// Verify options are resolvable instead.
 		var services = new ServiceCollection();
-		_ = services.AddFirestoreCdc(opts => { });
+		_ = services.AddFirestoreCdc(opts =>
+		{
+			opts.CollectionPath = "test-collection";
+			opts.ProcessorName = "test-processor";
+		});
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetService<IOptions<FirestoreCdcOptions>>();
@@ -71,6 +75,8 @@ public sealed class FirestoreRedisPostgresValidateOnStartShould
 		var services = new ServiceCollection();
 		_ = services.AddFirestoreCdc(opts =>
 		{
+			opts.CollectionPath = "test-collection";
+			opts.ProcessorName = "test-processor";
 			opts.MaxBatchSize = 50;
 		});
 

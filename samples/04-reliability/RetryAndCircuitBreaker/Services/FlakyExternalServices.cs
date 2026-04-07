@@ -11,7 +11,6 @@ namespace RetryAndCircuitBreaker.Services;
 public sealed class FlakyPaymentService
 {
 	private readonly ILogger<FlakyPaymentService> _logger;
-	private readonly Random _random = new();
 	private int _callCount;
 	private int _successThreshold = 3; // Succeed after this many attempts
 

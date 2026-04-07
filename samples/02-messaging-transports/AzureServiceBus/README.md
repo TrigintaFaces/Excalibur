@@ -137,7 +137,7 @@ AzureServiceBus/
 ├── Messages/
 │   └── OrderPlacedEvent.cs       # Integration event definition
 ├── Handlers/
-│   └── OrderPlacedEventHandler.cs # Message handler
+│   └── OrderPlacedHandler.cs # Message handler
 ├── Program.cs                     # Application entry point
 ├── appsettings.json              # Configuration
 └── README.md                     # This file

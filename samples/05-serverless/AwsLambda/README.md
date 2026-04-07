@@ -130,7 +130,7 @@ AwsLambda/
 ├── Messages/
 │   └── OrderMessages.cs           # Event definitions
 ├── Handlers/
-│   ├── OrderCreatedEventHandler.cs
+│   ├── OrderCreatedHandler.cs
 │   └── ScheduledTaskHandler.cs
 ├── Startup.cs                     # DI configuration
 ├── AwsLambda.csproj

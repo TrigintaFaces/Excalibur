@@ -46,7 +46,7 @@ Order created: <guid>
 
 --- Demo 2: Event with Multiple Handlers ---
 (OrderCreatedEvent was dispatched by CreateOrderHandler)
-Both OrderEventHandler and OrderAnalyticsHandler processed it.
+Both OrderCreatedHandler and OrderAnalyticsHandler processed it.
 
 --- Demo 3: Query Order ---
 Order retrieved (source-generated serialization):
@@ -197,7 +197,7 @@ Excalibur.Dispatch.Aot.Sample/
 ├── Handlers/
 │   ├── CreateOrderHandler.cs      # Command handler
 │   ├── GetOrderHandler.cs         # Query handler
-│   └── OrderEventHandler.cs       # Event handlers (2)
+│   └── OrderCreatedHandler.cs       # Event handlers (2)
 ├── Serialization/
 │   └── AppJsonSerializerContext.cs # Source-generated JSON
 └── README.md                      # This file
