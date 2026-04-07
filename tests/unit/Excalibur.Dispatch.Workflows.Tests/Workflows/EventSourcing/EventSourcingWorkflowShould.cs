@@ -143,7 +143,7 @@ public sealed class EventSourcingWorkflowShould
 		// Act - Load aggregate from snapshot + any new events
 		var loadedSnapshot = await snapshotStore.GetAsync<CounterSnapshot>(aggregateId);
 		var restoredAggregate = new CounterAggregate(aggregateId);
-		restoredAggregate.RestoreFromSnapshot(loadedSnapshot);
+		restoredAggregate.RestoreFromSnapshot(loadedSnapshot!);
 
 		// Assert - Restored aggregate has correct state
 		restoredAggregate.Count.ShouldBe(105);

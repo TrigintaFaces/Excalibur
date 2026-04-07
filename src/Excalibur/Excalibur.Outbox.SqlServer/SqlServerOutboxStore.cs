@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 using System.Data;
 using System.Text.Json;
 
@@ -108,7 +107,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		IPayloadSerializer? payloadSerializer,
 		IOptions<SqlServerInboxOptions>? inboxOptions,
 		ILogger<SqlServerOutboxStore> logger)
-		: this(CreateConnectionFactory(options?.Value), options?.Value, payloadSerializer, inboxOptions?.Value, logger)
+		: this(CreateConnectionFactory(options!.Value), options!.Value, payloadSerializer, inboxOptions?.Value, logger)
 	{
 	}
 
@@ -603,7 +602,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 			// Step 2: Insert inbox entry for deduplication
 			var insertInboxSql = $"""
-			                      INSERT INTO {_inboxOptions!.QualifiedTableName}
+			                      INSERT INTO {_inboxOptions.QualifiedTableName}
 			                      	(MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt, ProcessedAt, Status, RetryCount, CorrelationId, TenantId, Source)
 			                      VALUES
 			                      	(@MessageId, @HandlerType, @MessageType, @Payload, @Metadata, @ReceivedAt, @ProcessedAt, @Status, @RetryCount, @CorrelationId, @TenantId, @Source)
@@ -922,7 +921,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		// Compare connection strings to detect same-database scenario Use case-insensitive comparison as connection string keys are case-insensitive
 		return string.Equals(
 			_options.ConnectionString,
-			_inboxOptions!.ConnectionString,
+			_inboxOptions.ConnectionString,
 			StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -1494,7 +1493,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			// Use the actual runtime type for serialization to support binary serializers (MemoryPack, MessagePack) which require concrete
 			// types, not interfaces
 			var runtimeType = message.GetType();
-			return _payloadSerializer!.SerializeObject(message, runtimeType);
+			return _payloadSerializer.SerializeObject(message, runtimeType);
 		}
 
 		// Fallback to System.Text.Json for backward compatibility
@@ -1531,7 +1530,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			var firstByte = payload[0];
 			if (IsValidSerializerId(firstByte))
 			{
-				return _payloadSerializer!.Deserialize<T>(payload);
+				return _payloadSerializer.Deserialize<T>(payload);
 			}
 
 			// Legacy detection: No valid magic byte, assume System.Text.Json

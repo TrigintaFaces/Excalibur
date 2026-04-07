@@ -55,7 +55,7 @@ public sealed class MessageResultExtensionsShould
 		var result = MessageResult.Failed<string?>(null as string, null);
 
 		// Act
-		var mapped = result.Map(x => x.Length);
+		var mapped = result.Map(x => x!.Length);
 
 		// Assert
 		mapped.Succeeded.ShouldBeFalse();
@@ -159,7 +159,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Assert
 		bound.Succeeded.ShouldBeFalse();
-		bound.ProblemDetails.ErrorCode.ShouldBe(500);
+		bound.ProblemDetails!.ErrorCode.ShouldBe(500);
 	}
 
 	[Fact]
@@ -1049,7 +1049,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Assert
 		mapped.Succeeded.ShouldBeFalse();
-		mapped.ProblemDetails.ErrorCode.ShouldBe(404);
+		mapped.ProblemDetails!.ErrorCode.ShouldBe(404);
 		mapperCalled.ShouldBeFalse();
 	}
 
@@ -1071,7 +1071,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Assert
 		bound.Succeeded.ShouldBeFalse();
-		bound.ProblemDetails.ErrorCode.ShouldBe(500);
+		bound.ProblemDetails!.ErrorCode.ShouldBe(500);
 		binderCalled.ShouldBeFalse();
 	}
 
@@ -1092,7 +1092,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Assert
 		mapped.Succeeded.ShouldBeFalse();
-		mapped.ProblemDetails.ErrorCode.ShouldBe(403);
+		mapped.ProblemDetails!.ErrorCode.ShouldBe(403);
 		mapperCalled.ShouldBeFalse();
 	}
 
@@ -1113,7 +1113,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Assert
 		bound.Succeeded.ShouldBeFalse();
-		bound.ProblemDetails.ErrorCode.ShouldBe(409);
+		bound.ProblemDetails!.ErrorCode.ShouldBe(409);
 		binderCalled.ShouldBeFalse();
 	}
 
@@ -1382,7 +1382,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Assert
 		output.Succeeded.ShouldBeFalse();
-		output.ProblemDetails.ErrorCode.ShouldBe(400);
+		output.ProblemDetails!.ErrorCode.ShouldBe(400);
 		output.ErrorMessage!.ShouldBe("First failure");
 	}
 

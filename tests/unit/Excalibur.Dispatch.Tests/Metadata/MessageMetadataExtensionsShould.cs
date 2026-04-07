@@ -672,6 +672,6 @@ public sealed class MessageMetadataExtensionsShould
 
 		enriched.GetTraceParent().ShouldNotBeNullOrWhiteSpace();
 		enriched.GetTraceState().ShouldBe("state=test");
-		enriched.GetBaggage().ShouldContain("key1=val1");
+		enriched.GetBaggage()!.ShouldContain("key1=val1");
 	}
 }

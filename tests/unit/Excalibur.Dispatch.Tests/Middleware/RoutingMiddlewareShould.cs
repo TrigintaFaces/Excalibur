@@ -160,6 +160,6 @@ public sealed class RoutingMiddlewareShould : UnitTestBase
 		// Assert
 		result.Succeeded.ShouldBeTrue();
 		_context.GetRoutingDecision().ShouldNotBeNull();
-		_context.GetRoutingDecision().Endpoints.Count.ShouldBe(3);
+		_context.GetRoutingDecision()!.Endpoints.Count.ShouldBe(3);
 	}
 }

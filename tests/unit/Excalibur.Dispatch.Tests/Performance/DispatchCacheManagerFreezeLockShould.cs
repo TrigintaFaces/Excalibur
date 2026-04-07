@@ -98,7 +98,7 @@ public sealed class DispatchCacheManagerFreezeLockShould : IDisposable
 
 		// Hold the lock to force timeout
 		var freezeCompleted = false;
-		lock (lockObj)
+		lock (lockObj!)
 		{
 			// FreezeAll should not throw but log warning and return
 			manager.FreezeAll();

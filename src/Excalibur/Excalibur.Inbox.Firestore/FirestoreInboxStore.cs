@@ -7,7 +7,6 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Inbox.Observability;
 
 using Google.Cloud.Firestore;
-using Google.Apis.Auth.OAuth2;
 
 using Grpc.Core;
 
@@ -276,7 +275,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 	{
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
-		var query = _collection
+		var query = _collection!
 			.WhereEqualTo("status", (int)InboxStatus.Failed)
 			.WhereLessThan("retryCount", maxRetries);
 
@@ -355,7 +354,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 
 		var cutoff = olderThan;
 
-		var query = _collection
+		var query = _collection!
 			.WhereEqualTo("status", (int)InboxStatus.Processed)
 			.WhereLessThan("processedAt", Timestamp.FromDateTimeOffset(cutoff));
 
@@ -515,11 +514,11 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IInboxStoreAdmin,
 
 		if (!string.IsNullOrEmpty(_options.CredentialsPath))
 		{
-			builder.Credential = GoogleCredential.FromFile(_options.CredentialsPath!);
+			builder.CredentialsPath = _options.CredentialsPath;
 		}
 		else if (!string.IsNullOrEmpty(_options.CredentialsJson))
 		{
-			builder.Credential = GoogleCredential.FromJson(_options.CredentialsJson);
+			builder.JsonCredentials = _options.CredentialsJson;
 		}
 
 		_db = await builder.BuildAsync().ConfigureAwait(false);

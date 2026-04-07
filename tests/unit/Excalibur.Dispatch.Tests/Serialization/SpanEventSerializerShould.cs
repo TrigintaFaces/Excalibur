@@ -658,7 +658,7 @@ public sealed class SpanEventSerializerShould
 		var typeName = expectedType.AssemblyQualifiedName;
 
 		// Act
-		var result = serializer.ResolveType(typeName);
+		var result = serializer.ResolveType(typeName!);
 
 		// Assert
 		result.ShouldBe(expectedType);

@@ -102,7 +102,7 @@ public sealed class MessageContextExtensionsShould : IDisposable
 		IMessageContext? nullContext = null;
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => nullContext.SetProperty("key", "value"));
+		_ = Should.Throw<ArgumentNullException>(() => nullContext!.SetProperty("key", "value"));
 	}
 
 	[Fact]
@@ -112,7 +112,7 @@ public sealed class MessageContextExtensionsShould : IDisposable
 		IMessageContext? nullContext = null;
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => nullContext.GetProperty<string>("key"));
+		_ = Should.Throw<ArgumentNullException>(() => nullContext!.GetProperty<string>("key"));
 	}
 
 	[Fact]
@@ -196,7 +196,7 @@ public sealed class MessageContextExtensionsShould : IDisposable
 		IMessageContext? nullContext = null;
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => nullContext.TryGetProperty<string>("key", out _));
+		_ = Should.Throw<ArgumentNullException>(() => nullContext!.TryGetProperty<string>("key", out _));
 	}
 
 	[Fact]
@@ -246,7 +246,7 @@ public sealed class MessageContextExtensionsShould : IDisposable
 		IMessageContext? nullContext = null;
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => nullContext.RemoveProperty("key"));
+		_ = Should.Throw<ArgumentNullException>(() => nullContext!.RemoveProperty("key"));
 	}
 
 	[Fact]
@@ -313,7 +313,7 @@ public sealed class MessageContextExtensionsShould : IDisposable
 		IMessageContext? nullContext = null;
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => nullContext.TryGetValue<string>("key", out _));
+		_ = Should.Throw<ArgumentNullException>(() => nullContext!.TryGetValue<string>("key", out _));
 	}
 
 	#endregion

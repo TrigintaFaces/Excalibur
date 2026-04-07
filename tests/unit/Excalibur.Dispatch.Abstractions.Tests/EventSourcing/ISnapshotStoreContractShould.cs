@@ -114,7 +114,7 @@ public sealed class ISnapshotStoreContractShould
 		var getLatestMethod = interfaceType.GetMethod(nameof(ISnapshotStore.GetLatestSnapshotAsync));
 
 		// Act
-		var returnType = getLatestMethod.ReturnType;
+		var returnType = getLatestMethod!.ReturnType;
 
 		// Assert
 		returnType.ShouldBe(typeof(ValueTask<ISnapshot?>), "GetLatestSnapshotAsync must return nullable ISnapshot to handle missing snapshots");

@@ -50,8 +50,8 @@ public sealed class JsonEventSerializerBoundedCacheShould : UnitTestBase
 		var typeName = typeof(string).AssemblyQualifiedName;
 
 		// Act — resolve the same type twice
-		var result1 = serializer.ResolveType(typeName);
-		var result2 = serializer.ResolveType(typeName);
+		var result1 = serializer.ResolveType(typeName!);
+		var result2 = serializer.ResolveType(typeName!);
 
 		// Assert — both should return the same type (cached)
 		result1.ShouldBe(typeof(string));

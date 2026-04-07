@@ -80,7 +80,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 			var clientOptions = CreateClientOptions();
 			_client = CreateClient(clientOptions);
-			_database = _client!.GetDatabase(_options.DatabaseName);
+			_database = _client.GetDatabase(_options.DatabaseName);
 
 			if (_options.CreateContainerIfNotExists)
 			{
@@ -89,7 +89,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 					DefaultTimeToLive = _options.DefaultTimeToLiveSeconds
 				};
 
-				var response = await _database!.CreateContainerIfNotExistsAsync(
+				var response = await _database.CreateContainerIfNotExistsAsync(
 					containerProperties,
 					_options.ContainerThroughput,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -98,7 +98,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			}
 			else
 			{
-				_container = _database!.GetContainer(_options.ContainerName);
+				_container = _database.GetContainer(_options.ContainerName);
 			}
 
 			_initialized = true;
@@ -579,7 +579,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		try
 		{
 			subscription = new CosmosDbOutboxChangeFeedSubscription(
-				_container,
+				_container!,
 				options ?? ChangeFeedOptions.Default,
 				_logger);
 
@@ -697,9 +697,11 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			PartitionKey = partitionKey.Value,
 			MessageType = message.MessageType,
 			Payload = Convert.ToBase64String(message.Payload),
+#pragma warning disable IL2026
 			Headers = message.Headers != null
 				? JsonSerializer.Serialize(message.Headers, JsonOptions)
 				: null,
+#pragma warning restore IL2026
 			AggregateId = message.AggregateId,
 			AggregateType = message.AggregateType,
 			CorrelationId = message.CorrelationId,
@@ -717,9 +719,11 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			MessageId = doc.Id,
 			MessageType = doc.MessageType,
 			Payload = Convert.FromBase64String(doc.Payload),
+#pragma warning disable IL2026
 			Headers = !string.IsNullOrEmpty(doc.Headers)
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.Headers, JsonOptions)
 				: null,
+#pragma warning restore IL2026
 			AggregateId = doc.AggregateId,
 			AggregateType = doc.AggregateType,
 			CorrelationId = doc.CorrelationId,

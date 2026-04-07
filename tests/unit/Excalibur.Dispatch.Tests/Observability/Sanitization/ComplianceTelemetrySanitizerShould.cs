@@ -835,7 +835,7 @@ public sealed class ComplianceTelemetrySanitizerShould
 		for (var i = 0; i < inputs.Length; i++)
 		{
 			results[i].ShouldNotBeNull();
-			results[i].ShouldNotContain(inputs[i]);
+			results[i]!.ShouldNotContain(inputs[i]);
 			results[i].ShouldBe("[REDACTED]");
 		}
 	}
@@ -864,7 +864,7 @@ public sealed class ComplianceTelemetrySanitizerShould
 		for (var i = 0; i < inputs.Length; i++)
 		{
 			results1[i].ShouldNotBeNull();
-			results1[i].ShouldNotContain(inputs[i]);
+			results1[i]!.ShouldNotContain(inputs[i]);
 			results1[i].ShouldBe(results2[i]);
 		}
 	}
@@ -887,7 +887,7 @@ public sealed class ComplianceTelemetrySanitizerShould
 		for (var i = 0; i < uniqueCount; i++)
 		{
 			results[i].ShouldNotBeNull();
-			results[i].ShouldNotContain($"user{i}@example.com");
+			results[i]!.ShouldNotContain($"user{i}@example.com");
 			results[i].ShouldBe("[REDACTED]");
 		}
 	}

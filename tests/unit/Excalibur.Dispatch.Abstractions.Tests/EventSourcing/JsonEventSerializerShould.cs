@@ -173,7 +173,7 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 		var fullName = typeof(string).AssemblyQualifiedName;
 
 		// Act
-		var result = serializer.ResolveType(fullName);
+		var result = serializer.ResolveType(fullName!);
 
 		// Assert
 		result.ShouldBe(typeof(string));
@@ -218,7 +218,7 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 		var fullName = typeof(int).AssemblyQualifiedName;
 
 		// Act - resolve twice
-		var result1 = serializer.ResolveType(fullName);
+		var result1 = serializer.ResolveType(fullName!);
 		var result2 = serializer.ResolveType(fullName);
 
 		// Assert

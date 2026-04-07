@@ -73,7 +73,7 @@ public sealed class ExcludeKindsAttributeShould
 			.FirstOrDefault();
 
 		// Assert
-		attributeUsage.ValidOn.ShouldBe(AttributeTargets.Class);
+		attributeUsage!.ValidOn.ShouldBe(AttributeTargets.Class);
 	}
 
 	#endregion

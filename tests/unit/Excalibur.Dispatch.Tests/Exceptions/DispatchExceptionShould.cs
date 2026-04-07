@@ -213,7 +213,7 @@ public sealed class DispatchExceptionShould
 		details.SuggestedAction.ShouldBe("Check the field values");
 		details.Category.ShouldBe("Validation");
 		details.Severity.ShouldBe("Warning");
-		details.Instance.ShouldContain("urn:excalibur:error:");
+		details.Instance!.ShouldContain("urn:excalibur:error:");
 	}
 
 	[Fact]

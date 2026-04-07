@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-#pragma warning disable IL2026, IL2046, IL3050, IL3051 // AOT: Cloud-native provider uses reflection-based serialization
 
 using System.Diagnostics.CodeAnalysis;
 
@@ -102,7 +101,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 		var documentId = MongoDbMaterializedViewDocument.CreateId(viewName, viewId);
 		var filter = Builders<MongoDbMaterializedViewDocument>.Filter.Eq(d => d.Id, documentId);
 
-		var document = await _viewsCollection
+		var document = await _viewsCollection!
 			.Find(filter)
 			.FirstOrDefaultAsync(cancellationToken)
 			.ConfigureAwait(false);
@@ -189,7 +188,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 
 		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
 
-		var document = await _positionsCollection
+		var document = await _positionsCollection!
 			.Find(filter)
 			.FirstOrDefaultAsync(cancellationToken)
 			.ConfigureAwait(false);
@@ -284,7 +283,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 				viewIndexBuilder.Ascending(d => d.ViewId)),
 			new CreateIndexOptions { Name = "ix_view_name_id" });
 
-		_ = await _viewsCollection.Indexes.CreateManyAsync(
+		_ = await _viewsCollection!.Indexes.CreateManyAsync(
 			[viewNameIndex, viewIdIndex],
 			cancellationToken).ConfigureAwait(false);
 
@@ -295,7 +294,7 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 			positionIndexBuilder.Ascending(d => d.ViewName),
 			new CreateIndexOptions { Name = "ix_view_name" });
 
-		_ = await _positionsCollection.Indexes.CreateManyAsync(
+		_ = await _positionsCollection!.Indexes.CreateManyAsync(
 			[positionViewNameIndex],
 			cancellationToken).ConfigureAwait(false);
 

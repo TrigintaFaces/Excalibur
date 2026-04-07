@@ -151,7 +151,7 @@ public sealed class SerializationShould : UnitTestBase
 		var deserialized = JsonSerializer.Deserialize<TestDomainEvent>(serialized, _jsonOptions);
 
 		// Assert
-		_ = deserialized.Metadata.ShouldNotBeNull();
+		_ = deserialized!.Metadata.ShouldNotBeNull();
 		deserialized.Metadata.Count.ShouldBe(metadata.Count);
 		deserialized.Metadata.ShouldContainKey("CorrelationId");
 		deserialized.Metadata.ShouldContainKey("UserId");
@@ -190,7 +190,7 @@ public sealed class SerializationShould : UnitTestBase
 		;
 
 		// Assert
-		deserialized.AggregateId.ShouldBe(specialChars);
+		deserialized!.AggregateId.ShouldBe(specialChars);
 	}
 
 	[Fact]
@@ -209,7 +209,7 @@ public sealed class SerializationShould : UnitTestBase
 		var deserialized = JsonSerializer.Deserialize<TestIntegrationEvent>(serialized, _jsonOptions);
 
 		// Assert
-		deserialized.Payload.Length.ShouldBe(largeString.Length);
+		deserialized!.Payload!.Length.ShouldBe(largeString.Length);
 		serialized.Length.ShouldBeGreaterThan(1024 * 1024); // > 1MB
 	}
 
@@ -226,7 +226,7 @@ public sealed class SerializationShould : UnitTestBase
 		;
 
 		// Assert
-		deserialized.AggregateId.ShouldBe(unicodeText);
+		deserialized!.AggregateId.ShouldBe(unicodeText);
 	}
 
 	[Fact]
@@ -242,7 +242,7 @@ public sealed class SerializationShould : UnitTestBase
 		;
 
 		// Assert
-		_ = deserialized.Metadata.ShouldNotBeNull();
+		_ = deserialized!.Metadata.ShouldNotBeNull();
 	}
 
 	#endregion Edge Cases Tests (5 tests)
@@ -278,7 +278,7 @@ public sealed class SerializationShould : UnitTestBase
 		;
 
 		// Assert
-		deserialized.EventType.ShouldBe(nameof(TestDomainEvent));
+		deserialized!.EventType.ShouldBe(nameof(TestDomainEvent));
 	}
 
 	[Fact]

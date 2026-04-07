@@ -147,7 +147,7 @@ public sealed class DispatchProblemDetailsShould
 
 		pd.Status.ShouldBe(404);
 		pd.ErrorCode.ShouldBe(ErrorCodes.ResourceNotFound);
-		pd.Detail.ShouldContain("order-123");
+		pd.Detail!.ShouldContain("order-123");
 	}
 
 	[Fact]
@@ -156,7 +156,7 @@ public sealed class DispatchProblemDetailsShould
 		var pd = DispatchProblemDetails.ForNotFound("Customer");
 
 		pd.Status.ShouldBe(404);
-		pd.Detail.ShouldContain("Customer");
+		pd.Detail!.ShouldContain("Customer");
 		pd.Detail.ShouldNotContain("ID");
 	}
 
@@ -176,7 +176,7 @@ public sealed class DispatchProblemDetailsShould
 		var pd = DispatchProblemDetails.ForUnauthorized();
 
 		pd.Status.ShouldBe(401);
-		pd.Detail.ShouldContain("Authentication is required");
+		pd.Detail!.ShouldContain("Authentication is required");
 	}
 
 	[Fact]
@@ -194,6 +194,6 @@ public sealed class DispatchProblemDetailsShould
 		var pd = DispatchProblemDetails.ForForbidden();
 
 		pd.Status.ShouldBe(403);
-		pd.Detail.ShouldContain("permission");
+		pd.Detail!.ShouldContain("permission");
 	}
 }

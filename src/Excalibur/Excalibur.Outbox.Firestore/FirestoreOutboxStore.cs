@@ -12,7 +12,6 @@ using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Google.Api.Gax;
 using Google.Cloud.Firestore;
-using Google.Apis.Auth.OAuth2;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -78,7 +77,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 			LogInitializing(_options.CollectionName);
 
 			_db = await CreateDatabaseAsync(cancellationToken).ConfigureAwait(false);
-			_collection = _db!.Collection(_options.CollectionName);
+			_collection = _db.Collection(_options.CollectionName);
 			_initialized = true;
 		}
 		finally
@@ -226,7 +225,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 		var result = WriteStoreTelemetry.Results.Success;
 		try
 		{
-			var query = _collection
+			var query = _collection!
 				.WhereEqualTo("partitionKey", partitionKey.Value)
 				.WhereEqualTo("isPublished", false)
 				.Limit(batchSize);
@@ -426,7 +425,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 
 		try
 		{
-			var query = _collection
+			var query = _collection!
 				.WhereEqualTo("partitionKey", partitionKey.Value)
 				.WhereEqualTo("isPublished", true)
 				.WhereLessThan("publishedAt", cutoffDate.ToString("o"));
@@ -489,7 +488,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 		try
 		{
 			var subscription = new FirestoreOutboxListenerSubscription(
-				_db,
+				_db!,
 				_options,
 				_logger);
 
@@ -598,7 +597,9 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 
 		if (message.Headers != null)
 		{
+#pragma warning disable IL2026
 			doc["headers"] = JsonSerializer.Serialize(message.Headers, JsonOptions);
+#pragma warning restore IL2026
 		}
 
 		if (!string.IsNullOrEmpty(message.AggregateId))
@@ -641,9 +642,11 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 			MessageId = doc.GetValue<string>("messageId"),
 			MessageType = doc.GetValue<string>("messageType"),
 			Payload = Convert.FromBase64String(doc.GetValue<string>("payload")),
+#pragma warning disable IL2026
 			Headers = doc.ContainsField("headers") && doc.GetValue<string?>("headers") != null
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.GetValue<string>("headers"), JsonOptions)
 				: null,
+#pragma warning restore IL2026
 			AggregateId = doc.ContainsField("aggregateId") ? doc.GetValue<string?>("aggregateId") : null,
 			AggregateType = doc.ContainsField("aggregateType") ? doc.GetValue<string?>("aggregateType") : null,
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,
@@ -669,11 +672,11 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
 		{
-			builder.Credential = GoogleCredential.FromFile(_options.CredentialsPath!);
+			builder.CredentialsPath = _options.CredentialsPath;
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsJson))
 		{
-			builder.Credential = GoogleCredential.FromJson(_options.CredentialsJson);
+			builder.JsonCredentials = _options.CredentialsJson;
 		}
 
 		return await builder.BuildAsync(cancellationToken).ConfigureAwait(false);

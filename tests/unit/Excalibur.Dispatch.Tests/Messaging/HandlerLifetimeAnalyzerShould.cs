@@ -262,26 +262,31 @@ public sealed class HandlerLifetimeAnalyzerShould
 			Task.FromResult("result");
 	}
 
+	#pragma warning disable CS9113
 	public sealed class HandlerWithSingletonDep(ISingletonDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
+	#pragma warning disable CS9113
 	public sealed class HandlerWithScopedDep(IScopedDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
+	#pragma warning disable CS9113
 	public sealed class HandlerWithTransientDep(ITransientDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
+	#pragma warning disable CS9113
 	public sealed class HandlerWithUnknownDep(IUnknownDep _dep) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 
+	#pragma warning disable CS9113
 	public sealed class HandlerWithLoggerDep(ILogger<HandlerWithLoggerDep> _logger) : IActionHandler<TestCommand>
 	{
 		public Task HandleAsync(TestCommand action, CancellationToken cancellationToken) => Task.CompletedTask;

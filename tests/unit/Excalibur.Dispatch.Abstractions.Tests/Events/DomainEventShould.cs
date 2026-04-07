@@ -80,7 +80,7 @@ public sealed class DomainEventShould
 		eventWithMetadata.Metadata.ShouldContainKey("key1");
 		eventWithMetadata.Metadata["key1"].ShouldBe("value1");
 
-		eventWithMultipleMetadata.Metadata.ShouldContainKey("key1");
+		eventWithMultipleMetadata.Metadata!.ShouldContainKey("key1");
 		eventWithMultipleMetadata.Metadata.ShouldContainKey("key2");
 		eventWithMultipleMetadata.Metadata["key2"].ShouldBe(42);
 	}

@@ -201,9 +201,11 @@ public sealed partial class FirestoreOutboxListenerSubscription : IChangeFeedSub
 			MessageId = doc.GetValue<string>("messageId"),
 			MessageType = doc.GetValue<string>("messageType"),
 			Payload = Convert.FromBase64String(doc.GetValue<string>("payload")),
+#pragma warning disable IL2026
 			Headers = doc.ContainsField("headers") && doc.GetValue<string?>("headers") != null
 				? JsonSerializer.Deserialize<Dictionary<string, string>>(doc.GetValue<string>("headers"), JsonOptions)
 				: null,
+#pragma warning restore IL2026
 			AggregateId = doc.ContainsField("aggregateId") ? doc.GetValue<string?>("aggregateId") : null,
 			AggregateType = doc.ContainsField("aggregateType") ? doc.GetValue<string?>("aggregateType") : null,
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,

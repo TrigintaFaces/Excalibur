@@ -53,7 +53,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		IOptions<SqlServerDeadLetterQueueOptions> options,
 		ILogger<SqlServerDeadLetterQueue> logger,
 		Func<object, Task>? replayHandler = null)
-		: this(CreateConnectionFactory(options!.Value), options.Value, logger, replayHandler)
+		: this(CreateConnectionFactory(options.Value), options.Value, logger, replayHandler)
 	{
 	}
 
@@ -105,10 +105,12 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		ArgumentNullException.ThrowIfNull(message);
 
 		var id = Guid.NewGuid();
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 		var payload = JsonSerializer.SerializeToUtf8Bytes(message, _jsonOptions);
 		var metadataJson = metadata is { Count: > 0 }
 			? JsonSerializer.Serialize(metadata, _jsonOptions)
 			: null;
+#pragma warning restore IL2026, IL3050
 
 		var sql = $"""
 		           INSERT INTO {_options.QualifiedTableName}
@@ -226,7 +228,9 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		{
 			try
 			{
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 				var message = JsonSerializer.Deserialize<object>(entry.Payload, _jsonOptions);
+#pragma warning restore IL2026, IL3050
 				if (message is not null)
 				{
 					await _replayHandler(message).ConfigureAwait(false);
@@ -447,7 +451,9 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		IDictionary<string, string>? metadata = null;
 		if (!string.IsNullOrEmpty(row.Metadata))
 		{
+#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(row.Metadata, _jsonOptions);
+#pragma warning restore IL2026, IL3050
 		}
 
 		return new DeadLetterEntry

@@ -309,7 +309,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var subscription = new CosmosDbEventStoreChangeFeedSubscription(
-			_container,
+			_container!,
 			_options.Value,
 			_logger);
 
@@ -426,8 +426,10 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			EventType = eventTypeName,
 			Version = version,
 			Timestamp = evt.OccurredAt,
+#pragma warning disable IL2026
 			EventData = JsonSerializer.SerializeToUtf8Bytes(evt),
 			Metadata = evt.Metadata != null ? JsonSerializer.SerializeToUtf8Bytes(evt.Metadata) : null
+#pragma warning restore IL2026
 		};
 	}
 

@@ -134,6 +134,7 @@ public static class DynamoDbStalePositionDetector
 			additionalContext["SequenceNumber"] = sequenceNumber;
 		}
 
+#pragma warning disable IL2026 // CDC position serialization inherently uses reflection-based JSON
 		return new CdcPositionResetEventArgs
 		{
 			ProcessorId = processorId,
@@ -150,6 +151,7 @@ public static class DynamoDbStalePositionDetector
 			DetectedAt = DateTimeOffset.UtcNow,
 			AdditionalContext = additionalContext.Count > 0 ? additionalContext : null
 		};
+#pragma warning restore IL2026
 	}
 
 	/// <summary>

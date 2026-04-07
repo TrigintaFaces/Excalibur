@@ -400,7 +400,7 @@ public sealed class TimeAwareSchedulerOptionsShould
 		// Arrange
 		var options = new TimeAwareSchedulerOptions();
 		var messageType = typeof(string);
-		options.MessageTypeSchedulingTimeouts[messageType.FullName] = TimeSpan.FromMinutes(4);
+		options.MessageTypeSchedulingTimeouts[messageType.FullName!] = TimeSpan.FromMinutes(4);
 
 		// Act
 		var result = options.GetTimeoutForMessageType(messageType, TimeoutOperationType.Handler);

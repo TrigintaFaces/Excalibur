@@ -64,7 +64,7 @@ public sealed class SerializationHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Description.ShouldContain("No current serializer configured");
+		result.Description!.ShouldContain("No current serializer configured");
 	}
 
 	#endregion Unhealthy Tests
@@ -147,7 +147,7 @@ public sealed class SerializationHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Degraded);
-		result.Description.ShouldContain("failed");
+		result.Description!.ShouldContain("failed");
 		result.Data["failed_count"].ShouldBe(1);
 	}
 
@@ -168,7 +168,7 @@ public sealed class SerializationHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Degraded);
-		result.Description.ShouldContain("failed");
+		result.Description!.ShouldContain("failed");
 	}
 
 	/// <summary>

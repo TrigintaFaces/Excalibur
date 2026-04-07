@@ -104,7 +104,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		try
 		{
-			var document = await _collection
+			var document = await _collection!
 					.Find(filter)
 					.FirstOrDefaultAsync(cancellationToken)
 					.ConfigureAwait(false);
@@ -317,7 +317,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 			indexBuilder.Ascending(d => d.Version),
 			new CreateIndexOptions { Name = "ix_version" });
 
-		_ = await _collection.Indexes.CreateManyAsync(
+		_ = await _collection!.Indexes.CreateManyAsync(
 			[aggregateIndex, versionIndex],
 			cancellationToken).ConfigureAwait(false);
 

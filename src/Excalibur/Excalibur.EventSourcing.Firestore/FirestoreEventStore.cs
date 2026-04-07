@@ -14,7 +14,6 @@ using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Observability;
 
 using Google.Cloud.Firestore;
-using Google.Apis.Auth.OAuth2;
 
 using Grpc.Core;
 
@@ -330,6 +329,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 					var docId = $"{streamId}:{version}";
 					var docRef = _db!.Collection(_options.EventsCollectionName).Document(docId);
 
+#pragma warning disable IL2026
 					var data = new Dictionary<string, object>
 					{
 						["eventId"] = evt.EventId.ToString(),
@@ -346,6 +346,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 					{
 						data["metadata"] = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata));
 					}
+#pragma warning restore IL2026
 
 					transaction.Create(docRef, data);
 				}
@@ -410,7 +411,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var subscription = new FirestoreEventStoreListenerSubscription(
-			_db,
+			_db!,
 			_options,
 			_logger);
 
@@ -590,11 +591,11 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 		if (!string.IsNullOrWhiteSpace(_options.CredentialsJson))
 		{
-			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, Credential = GoogleCredential.FromJson(_options.CredentialsJson) };
+			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, JsonCredentials = _options.CredentialsJson };
 		}
 		else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
 		{
-			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, Credential = GoogleCredential.FromFile(_options.CredentialsPath!) };
+			builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId, CredentialsPath = _options.CredentialsPath };
 		}
 		else
 		{

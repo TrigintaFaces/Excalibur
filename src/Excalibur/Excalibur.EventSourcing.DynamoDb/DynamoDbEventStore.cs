@@ -472,7 +472,9 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 	private static byte[] SerializeEvent(IDomainEvent evt)
 	{
+#pragma warning disable IL2026
 		return JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType());
+#pragma warning restore IL2026
 	}
 
 	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent) =>
@@ -599,9 +601,11 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			["version"] = new AttributeValue { N = version.ToString() },
 			["timestamp"] = new AttributeValue { S = evt.OccurredAt.ToString("O") },
 			["eventData"] = new AttributeValue { S = Convert.ToBase64String(SerializeEvent(evt)) },
+#pragma warning disable IL2026
 			["metadata"] = evt.Metadata != null
 				? new AttributeValue { S = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata)) }
 				: new AttributeValue { NULL = true }
+#pragma warning restore IL2026
 		};
 	}
 

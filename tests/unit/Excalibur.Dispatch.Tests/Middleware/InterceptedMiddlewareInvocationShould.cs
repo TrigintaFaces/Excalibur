@@ -500,6 +500,7 @@ public sealed class InterceptedMiddlewareInvocationShould : UnitTestBase
 		}
 	}
 
+	#pragma warning disable CS9113
 	private sealed class ThrowingMiddleware(string _name, Exception exception) : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Validation;

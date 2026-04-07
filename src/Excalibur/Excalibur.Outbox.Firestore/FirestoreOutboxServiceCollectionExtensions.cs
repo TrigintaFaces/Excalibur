@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Data.Abstractions.CloudNative;
 using Excalibur.Outbox.Firestore;
 
@@ -45,6 +47,8 @@ public static class FirestoreOutboxServiceCollectionExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configuration">The configuration section containing the options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding is used at startup with known types.")]
 	public static IServiceCollection AddFirestoreOutboxStore(
 		this IServiceCollection services,
 		IConfiguration configuration)

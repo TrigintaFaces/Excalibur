@@ -10,7 +10,6 @@ using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Serialization;
 
 using Google.Cloud.Firestore;
-using Google.Apis.Auth.OAuth2;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -195,11 +194,11 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 
 		if (!string.IsNullOrEmpty(_options.CredentialsPath))
 		{
-			builder.Credential = GoogleCredential.FromFile(_options.CredentialsPath!);
+			builder.CredentialsPath = _options.CredentialsPath;
 		}
 		else if (!string.IsNullOrEmpty(_options.CredentialsJson))
 		{
-			builder.Credential = GoogleCredential.FromJson(_options.CredentialsJson);
+			builder.JsonCredentials = _options.CredentialsJson;
 		}
 
 		_db = await builder.BuildAsync().ConfigureAwait(false);

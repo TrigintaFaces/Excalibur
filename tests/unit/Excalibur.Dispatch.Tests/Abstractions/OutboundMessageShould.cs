@@ -681,7 +681,7 @@ public sealed class OutboundMessageShould
 		_ = message.AddTransport("kafka");
 
 		// Assert
-		message.TargetTransports.ShouldContain("rabbitmq");
+		message.TargetTransports!.ShouldContain("rabbitmq");
 		message.TargetTransports.ShouldContain("kafka");
 	}
 
@@ -938,7 +938,7 @@ public sealed class OutboundMessageShould
 
 		// Assert
 		message.Status.ShouldBe(OutboxStatus.PartiallyFailed);
-		message.LastError.ShouldContain("1 of 2 transports failed");
+		message.LastError!.ShouldContain("1 of 2 transports failed");
 	}
 
 	#endregion

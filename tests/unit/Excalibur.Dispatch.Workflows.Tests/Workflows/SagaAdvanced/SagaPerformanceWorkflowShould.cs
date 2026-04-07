@@ -588,7 +588,7 @@ public sealed class SagaPerformanceWorkflowShould
 
 		public async Task ProcessStepWithTraceAsync(string sagaId, string step)
 		{
-			var stepSpan = _tracer.StartSpan($"Step:{step}", _rootSpan.TraceId, _rootSpan.SpanId);
+			var stepSpan = _tracer.StartSpan($"Step:{step}", _rootSpan!.TraceId, _rootSpan!.SpanId);
 			stepSpan.Tags["saga.id"] = sagaId;
 			stepSpan.Tags["saga.step"] = step;
 
@@ -625,7 +625,7 @@ public sealed class SagaPerformanceWorkflowShould
 			await _store.SaveAsync(state).ConfigureAwait(false);
 			_metrics.RecordSagaCompleted();
 
-			_rootSpan.Tags["saga.status"] = "completed";
+			_rootSpan!.Tags["saga.status"] = "completed";
 			_tracer.EndSpan(_rootSpan);
 
 			_log.Log($"Saga:Complete:{sagaId}:Traced");
