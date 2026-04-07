@@ -131,9 +131,17 @@ public sealed class PostgresSagaStoreContainerFixture : ContainerFixtureBase
 	/// <inheritdoc/>
 	protected override async Task DisposeContainerAsync(CancellationToken cancellationToken)
 	{
-		if (_container is not null)
+		try
 		{
-			await _container.DisposeAsync().ConfigureAwait(false);
+			if (_container is not null)
+			{
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _container.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
+			}
+		}
+		catch (Exception)
+		{
+			// Suppress disposal errors and timeouts to prevent test host crash
 		}
 	}
 }

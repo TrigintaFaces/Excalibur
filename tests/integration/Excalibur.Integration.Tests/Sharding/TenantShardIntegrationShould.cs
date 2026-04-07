@@ -57,9 +57,17 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 
 	public async Task DisposeAsync()
 	{
-		if (_container is not null)
+		try
 		{
-			await _container.DisposeAsync().ConfigureAwait(false);
+			if (_container is not null)
+			{
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _container.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
+			}
+		}
+		catch (Exception)
+		{
+			// Suppress disposal errors and timeouts to prevent test host crash
 		}
 	}
 

@@ -14,7 +14,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Provides extension methods to add CDC health checks.
 /// </summary>
-public static class CdcHealthChecksBuilderExtensions
+public static class SqlServerCdcHealthChecksBuilderExtensions
 {
 	/// <summary>
 	/// Adds a health check for the CDC (Change Data Capture) processor.

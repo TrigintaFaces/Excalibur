@@ -128,6 +128,10 @@ public static class DispatchServiceCollectionExtensions
 		"AOT",
 		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
 		Justification = "Handler warmup uses expression compilation. In AOT scenarios, source-generated dispatchers bypass these code paths.")]
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2072:Target parameter of 'HandlerRegistry.Register' has DynamicallyAccessedMemberTypes requirements.",
+		Justification = "Handler types come from DI ServiceDescriptor.ImplementationType which lacks annotations. In AOT scenarios, source-generated registration bypasses this code path.")]
 	public static IServiceCollection AddDispatchHandlers(this IServiceCollection services, params Assembly[]? assembliesToScan)
 	{
 		ArgumentNullException.ThrowIfNull(services);

@@ -88,11 +88,14 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 		try
 		{
 			if (_container is not null)
-				await _container.DisposeAsync().ConfigureAwait(false);
+			{
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _container.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
+			}
 		}
 		catch (Exception)
 		{
-			// Suppress disposal errors to prevent test host crash
+			// Suppress disposal errors and timeouts to prevent test host crash
 		}
 	}
 

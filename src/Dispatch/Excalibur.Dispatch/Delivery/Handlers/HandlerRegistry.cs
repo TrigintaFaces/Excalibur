@@ -3,6 +3,7 @@
 
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
 
@@ -84,13 +85,9 @@ internal sealed class HandlerRegistry : IHandlerRegistry
 	/// <param name="messageType"> The type of message the handler processes. </param>
 	/// <param name="handlerType"> The type of the handler. </param>
 	/// <param name="expectsResponse"> Whether the handler is expected to return a response. </param>
-	public void Register(Type messageType, Type handlerType, bool expectsResponse)
+	public void Register(Type messageType, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type handlerType, bool expectsResponse)
 	{
-		// IL2067: handlerType flows from DI ServiceDescriptor.ImplementationType which lacks DynamicallyAccessedMembers.
-		// Suppressed because handler types are registered via generic AddHandler<T>() and the annotation cannot propagate through DI.
-#pragma warning disable IL2067
 		var entry = new HandlerRegistryEntry(messageType, handlerType, expectsResponse);
-#pragma warning restore IL2067
 		HandlerRegistryEntry[]? snapshot = null;
 
 		_ = _handlers.AddOrUpdate(

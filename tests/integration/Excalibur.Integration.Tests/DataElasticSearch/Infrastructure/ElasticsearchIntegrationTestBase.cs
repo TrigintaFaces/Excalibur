@@ -152,10 +152,18 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime, IDispos
 		finally
 		{
 			// Stop container
-			if (_container != null)
+			try
 			{
-				await _container.StopAsync().ConfigureAwait(false);
-				await _container.DisposeAsync().ConfigureAwait(false);
+				if (_container != null)
+				{
+					using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+					await _container.StopAsync(cts.Token).ConfigureAwait(false);
+					await _container.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
+				}
+			}
+			catch (Exception)
+			{
+				// Suppress disposal errors and timeouts to prevent test host crash
 			}
 		}
 	}

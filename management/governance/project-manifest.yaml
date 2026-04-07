@@ -30,6 +30,7 @@ projects:
   - path: samples/02-messaging-transports/RabbitMQ/RabbitMQSample.csproj
   - path: samples/02-messaging-transports/RemoteBusSample/RemoteBusSample.csproj
   - path: samples/02-messaging-transports/TransportBindings/TransportBindings.csproj
+  - path: samples/03-cloud-native/CloudEvents/CloudEvents.csproj
   - path: samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj
   - path: samples/04-reliability/OutboxPattern/OutboxPattern.csproj
   - path: samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj
@@ -71,6 +72,7 @@ projects:
   - path: samples/09-advanced/SqlServerEventStore/SqlServerEventStore.csproj
   - path: samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj
   - path: samples/09-advanced/DataProcessingBackgroundService/DataProcessingBackgroundService.csproj
+  - path: samples/09-advanced/Testing/Testing.csproj
   - path: samples/09-advanced/TransactionalHandlers/TransactionalHandlers.csproj
   - path: samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj
   - path: samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj

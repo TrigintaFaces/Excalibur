@@ -61,7 +61,8 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 		{
 			try
 			{
-				await _container.DisposeAsync().ConfigureAwait(false);
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _container.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
