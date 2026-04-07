@@ -96,7 +96,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 
 		try
 		{
-			await _collection.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
+			await _collection!.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
 			LogCreatedEntry(_logger, messageId, handlerType, null);
 			return entry;
 		}
@@ -120,7 +120,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 		var id = MongoDbInboxDocument.CreateId(messageId, handlerType);
 		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
 
-		var existing = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+		var existing = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
 					   ?? throw new InvalidOperationException(
 						   $"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
 
@@ -135,7 +135,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 			.Set(d => d.ProcessedAt, DateTimeOffset.UtcNow)
 			.Set(d => d.LastError, null);
 
-		_ = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		LogProcessedEntry(_logger, messageId, handlerType, null);
 	}
@@ -162,7 +162,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 
 		try
 		{
-			await _collection.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
+			await _collection!.InsertOneAsync(document, cancellationToken: cancellationToken).ConfigureAwait(false);
 			LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
 			return true;
 		}
@@ -188,7 +188,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id),
 			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Status, (int)InboxStatus.Processed));
 
-		var count = await _collection.CountDocumentsAsync(filter, cancellationToken: cancellationToken).ConfigureAwait(false);
+		var count = await _collection!.CountDocumentsAsync(filter, cancellationToken: cancellationToken).ConfigureAwait(false);
 		return count > 0;
 	}
 
@@ -203,7 +203,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 		var id = MongoDbInboxDocument.CreateId(messageId, handlerType);
 		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
 
-		var document = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+		var document = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 		return document?.ToInboxEntry();
 	}
 
@@ -221,7 +221,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 		var id = MongoDbInboxDocument.CreateId(messageId, handlerType);
 		var filter = Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Id, id);
 
-		_ = await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+		_ = await _collection!.Find(filter).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
 			?? throw new InvalidOperationException(
 				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
 
@@ -231,7 +231,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 			.Set(d => d.LastAttemptAt, DateTimeOffset.UtcNow)
 			.Inc(d => d.RetryCount, 1);
 
-		_ = await _collection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
 
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
 	}
@@ -255,7 +255,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 			filter = filterBuilder.And(filter, filterBuilder.Lt(d => d.LastAttemptAt, olderThan.Value));
 		}
 
-		var documents = await _collection
+		var documents = await _collection!
 			.Find(filter)
 			.Limit(batchSize)
 			.ToListAsync(cancellationToken)
@@ -269,7 +269,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documents = await _collection
+		var documents = await _collection!
 			.Find(Builders<MongoDbInboxDocument>.Filter.Empty)
 			.ToListAsync(cancellationToken)
 			.ConfigureAwait(false);
@@ -284,14 +284,14 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 
 		var filter = Builders<MongoDbInboxDocument>.Filter;
 
-		var total = await _collection.CountDocumentsAsync(filter.Empty, cancellationToken: cancellationToken).ConfigureAwait(false);
-		var processed = await _collection
+		var total = await _collection!.CountDocumentsAsync(filter.Empty, cancellationToken: cancellationToken).ConfigureAwait(false);
+		var processed = await _collection!
 			.CountDocumentsAsync(filter.Eq(d => d.Status, (int)InboxStatus.Processed), cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
-		var failed = await _collection
+		var failed = await _collection!
 			.CountDocumentsAsync(filter.Eq(d => d.Status, (int)InboxStatus.Failed), cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
-		var pending = await _collection.CountDocumentsAsync(
+		var pending = await _collection!.CountDocumentsAsync(
 			filter.Or(
 				filter.Eq(d => d.Status, (int)InboxStatus.Received),
 				filter.Eq(d => d.Status, (int)InboxStatus.Processing)),
@@ -317,7 +317,7 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 			Builders<MongoDbInboxDocument>.Filter.Eq(d => d.Status, (int)InboxStatus.Processed),
 			Builders<MongoDbInboxDocument>.Filter.Lt(d => d.ProcessedAt, olderThan));
 
-		var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+		var result = await _collection!.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
 
 		LogCleanedUpEntries(_logger, (int)result.DeletedCount, null);
 		return (int)result.DeletedCount;
@@ -402,10 +402,10 @@ public sealed partial class MongoDbInboxStore : IInboxStore, IInboxStoreAdmin, I
 				indexBuilder.Ascending(d => d.ProcessedAt),
 				new CreateIndexOptions { ExpireAfter = TimeSpan.FromSeconds(_options.DefaultTtlSeconds) });
 
-			_ = await _collection.Indexes.CreateOneAsync(ttlIndex, cancellationToken: cancellationToken).ConfigureAwait(false);
+			_ = await _collection!.Indexes.CreateOneAsync(ttlIndex, cancellationToken: cancellationToken).ConfigureAwait(false);
 		}
 
-		_ = await _collection.Indexes.CreateManyAsync([handlerIndex, statusIndex], cancellationToken).ConfigureAwait(false);
+		_ = await _collection!.Indexes.CreateManyAsync([handlerIndex, statusIndex], cancellationToken).ConfigureAwait(false);
 
 		_initialized = true;
 	}

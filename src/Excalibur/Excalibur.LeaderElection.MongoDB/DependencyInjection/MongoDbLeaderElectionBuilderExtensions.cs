@@ -80,9 +80,11 @@ public static class MongoDbLeaderElectionBuilderExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
 		ArgumentNullException.ThrowIfNull(configuration);
 
+#pragma warning disable IL2026, IL3050 // AOT: Configuration binding uses reflection-based serialization
 		_ = builder.Services.AddOptions<MongoDbLeaderElectionOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+#pragma warning restore IL2026, IL3050
 
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbLeaderElectionOptions>, MongoDbLeaderElectionOptionsValidator>());

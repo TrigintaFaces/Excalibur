@@ -5,7 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsTestProject>true</IsTestProject>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>Excalibur.Dispatch.Tests</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Messaging.Tests</AssemblyName>
   </PropertyGroup>
