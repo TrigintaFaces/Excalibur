@@ -29,6 +29,17 @@ public sealed class MinHeapComparer : IComparer<(byte[] Lsn, string TableName)>,
 
 		return lsnComparison != 0 ? lsnComparison : string.CompareOrdinal(x.TableName, y.TableName);
 	}
+
+	/// <summary>
+	/// Compares two objects as LSN/table-name tuples for min-heap ordering.
+	/// </summary>
+	/// <param name="x">The first object to compare. Must be a <c>ValueTuple&lt;byte[], string&gt;</c>.</param>
+	/// <param name="y">The second object to compare. Must be a <c>ValueTuple&lt;byte[], string&gt;</c>.</param>
+	/// <returns>
+	/// A negative value if x is less than y, zero if they are equal,
+	/// or a positive value if x is greater than y.
+	/// </returns>
+	/// <exception cref="ArgumentException">Thrown when either argument is not a <c>ValueTuple&lt;byte[], string&gt;</c>.</exception>
 	public int Compare(object? x, object? y)
 	{
 		if (x == y)

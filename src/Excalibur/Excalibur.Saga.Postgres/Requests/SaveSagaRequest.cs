@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
 using System.Data;
 
 using Dapper;
@@ -35,6 +36,8 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// <param name="options">The Postgres saga store options.</param>
 	/// <param name="serializer">The JSON serializer for serializing saga state.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public SaveSagaRequest(
 		TSagaState sagaState,
 		PostgresSagaOptions options,

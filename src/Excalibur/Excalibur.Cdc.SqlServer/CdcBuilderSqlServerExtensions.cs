@@ -39,10 +39,10 @@ public static class CdcBuilderSqlServerExtensions
 	/// This is the primary method for configuring SQL Server as the CDC provider.
 	/// It registers the <see cref="CdcProcessor"/>, <see cref="CdcStateStore"/>,
 	/// and related services. Connection can be provided via the builder using
-	/// <see cref="ISqlServerCdcBuilder.ConnectionString"/>,
-	/// <see cref="ISqlServerCdcBuilder.ConnectionStringName"/>,
-	/// <see cref="ISqlServerCdcBuilder.ConnectionFactory"/>, or
-	/// <see cref="ISqlServerCdcBuilder.BindConfiguration"/>.
+	/// <see cref="ISqlServerCdcConnectionBuilder.ConnectionString(string)"/>,
+	/// <see cref="ISqlServerCdcConnectionBuilder.ConnectionStringName(string)"/>,
+	/// <see cref="ISqlServerCdcConnectionBuilder.ConnectionFactory(Func{IServiceProvider, Func{SqlConnection}})"/>, or
+	/// <see cref="ISqlServerCdcConnectionBuilder.BindConfiguration(string)"/>.
 	/// </para>
 	/// </remarks>
 	/// <example>

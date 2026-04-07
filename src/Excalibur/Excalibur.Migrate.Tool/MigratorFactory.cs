@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Loader;
 
 using Excalibur.EventSourcing.Abstractions;
@@ -92,6 +93,7 @@ internal static class MigratorFactory
 		return new MigratorResult(migrator, disposeLoggerFactory ? loggerFactory : null);
 	}
 
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Assembly loading for migration discovery is inherently reflection-based.")]
 	private static Assembly LoadMigrationAssembly(string? assemblyPath)
 	{
 		if (string.IsNullOrWhiteSpace(assemblyPath))

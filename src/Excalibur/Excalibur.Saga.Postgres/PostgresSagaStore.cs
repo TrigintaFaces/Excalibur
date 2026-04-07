@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+
+using System.Diagnostics.CodeAnalysis;
 using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Serialization;
@@ -48,7 +50,7 @@ public sealed class PostgresSagaStore : ISagaStore
 		IOptions<PostgresSagaOptions> options,
 		ILogger<PostgresSagaStore> logger,
 		DispatchJsonSerializer serializer)
-		: this(CreateConnectionFactory(options?.Value), options?.Value, logger, serializer)
+		: this(CreateConnectionFactory(options?.Value), options?.Value!, logger, serializer)
 	{
 	}
 
@@ -121,6 +123,8 @@ public sealed class PostgresSagaStore : ISagaStore
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of saga state is intentional.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of saga state is intentional.")]
 	public async Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState
 	{

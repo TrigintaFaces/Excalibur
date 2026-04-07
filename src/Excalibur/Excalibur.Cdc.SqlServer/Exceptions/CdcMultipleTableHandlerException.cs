@@ -38,18 +38,36 @@ public sealed class CdcMultipleTableHandlerException : ApiException
 		TableName = tableName;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CdcMultipleTableHandlerException" /> class with default values.
+	/// </summary>
 	public CdcMultipleTableHandlerException() : base()
 	{
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CdcMultipleTableHandlerException" /> class with a specified error message.
+	/// </summary>
+	/// <param name="message">The error message that explains the reason for the exception.</param>
 	public CdcMultipleTableHandlerException(string message) : base(message)
 	{
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CdcMultipleTableHandlerException" /> class with a specified error message and inner exception.
+	/// </summary>
+	/// <param name="message">The error message that explains the reason for the exception.</param>
+	/// <param name="innerException">The exception that is the cause of the current exception.</param>
 	public CdcMultipleTableHandlerException(string message, Exception? innerException) : base(message, innerException)
 	{
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CdcMultipleTableHandlerException" /> class with a status code, message, and inner exception.
+	/// </summary>
+	/// <param name="statusCode">The HTTP status code associated with the exception.</param>
+	/// <param name="message">The error message that explains the reason for the exception.</param>
+	/// <param name="innerException">The exception that is the cause of the current exception.</param>
 	public CdcMultipleTableHandlerException(int statusCode, string? message, Exception? innerException) : base(statusCode, message, innerException)
 	{
 	}

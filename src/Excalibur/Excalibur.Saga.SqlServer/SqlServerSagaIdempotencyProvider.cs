@@ -16,7 +16,7 @@ namespace Excalibur.Saga.SqlServer;
 /// <remarks>
 /// Tracks processed message idempotency keys in a SQL Server table to prevent
 /// duplicate saga message processing in distributed systems with at-least-once delivery.
-/// SQL is encapsulated in <see cref="DataRequestBase{TConnection,TModel}"/>-derived
+/// SQL is encapsulated in <c>DataRequestBase</c>-derived
 /// request classes under <c>Requests/</c>.
 /// </remarks>
 internal sealed partial class SqlServerSagaIdempotencyProvider : ISagaIdempotencyProvider

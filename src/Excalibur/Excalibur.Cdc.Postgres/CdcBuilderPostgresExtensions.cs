@@ -37,10 +37,10 @@ public static class CdcBuilderPostgresExtensions
 	/// This is the primary method for configuring Postgres as the CDC provider.
 	/// It registers the <see cref="PostgresCdcProcessor"/> and <see cref="PostgresCdcStateStore"/>.
 	/// Connection can be provided via the builder using
-	/// <see cref="IPostgresCdcBuilder.ConnectionString"/>,
-	/// <see cref="IPostgresCdcBuilder.ConnectionStringName"/>,
-	/// <see cref="IPostgresCdcBuilder.ConnectionFactory"/>, or
-	/// <see cref="IPostgresCdcBuilder.BindConfiguration"/>.
+	/// <see cref="IPostgresCdcConnectionBuilder.ConnectionString(string)"/>,
+	/// <see cref="IPostgresCdcConnectionBuilder.ConnectionStringName(string)"/>,
+	/// <see cref="IPostgresCdcConnectionBuilder.ConnectionFactory(Func{IServiceProvider, Func{NpgsqlConnection}})"/>, or
+	/// <see cref="IPostgresCdcConnectionBuilder.BindConfiguration(string)"/>.
 	/// </para>
 	/// <para>
 	/// Postgres CDC uses logical replication with the pgoutput protocol.

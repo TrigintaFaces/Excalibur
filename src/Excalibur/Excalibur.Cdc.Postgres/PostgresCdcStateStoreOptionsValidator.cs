@@ -7,8 +7,17 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Cdc.Postgres;
 
+/// <summary>
+/// Validates <see cref="PostgresCdcStateStoreOptions"/> ensuring required fields are present and contain valid SQL identifiers.
+/// </summary>
 public sealed class PostgresCdcStateStoreOptionsValidator : IValidateOptions<PostgresCdcStateStoreOptions>
 {
+	/// <summary>
+	/// Validates the specified <see cref="PostgresCdcStateStoreOptions"/> instance.
+	/// </summary>
+	/// <param name="name">The name of the options instance being validated.</param>
+	/// <param name="options">The options instance to validate.</param>
+	/// <returns>A <see cref="ValidateOptionsResult"/> indicating success or describing validation failures.</returns>
 	public ValidateOptionsResult Validate(string? name, PostgresCdcStateStoreOptions options)
 	{
 		if (options is null)
