@@ -66,7 +66,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 			.WithParameter("@grantType", grantType);
 
 		var documentsToDelete = new List<(string Id, string TenantId)>();
-		using var iterator = _container.GetItemQueryIterator<ActivityGroupDocument>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<ActivityGroupDocument>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{
@@ -79,7 +79,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 		{
 			try
 			{
-				_ = await _container.DeleteItemAsync<ActivityGroupDocument>(
+				_ = await _container!.DeleteItemAsync<ActivityGroupDocument>(
 					id,
 					new PartitionKey(tenantId),
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -108,7 +108,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 			.WithParameter("@grantType", grantType);
 
 		var documentsToDelete = new List<(string Id, string TenantId)>();
-		using var iterator = _container.GetItemQueryIterator<ActivityGroupDocument>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<ActivityGroupDocument>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{
@@ -121,7 +121,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 		{
 			try
 			{
-				_ = await _container.DeleteItemAsync<ActivityGroupDocument>(
+				_ = await _container!.DeleteItemAsync<ActivityGroupDocument>(
 					id,
 					new PartitionKey(tenantId),
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -170,7 +170,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 		var partitionKey = new PartitionKey(document.TenantId);
 		var options = new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite };
 
-		_ = await _container.UpsertItemAsync(
+		_ = await _container!.UpsertItemAsync(
 			document,
 			partitionKey,
 			options,
@@ -195,7 +195,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 			.WithParameter("@grantType", grantType);
 
 		var userIds = new HashSet<string>();
-		using var iterator = _container.GetItemQueryIterator<ActivityGroupDocument>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<ActivityGroupDocument>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{

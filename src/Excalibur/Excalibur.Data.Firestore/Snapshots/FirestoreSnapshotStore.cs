@@ -95,7 +95,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var documentId = CreateDocumentId(aggregateType, aggregateId);
-		var docRef = _collection.Document(documentId);
+		var docRef = _collection!.Document(documentId);
 
 		try
 		{
@@ -107,7 +107,9 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 				return null;
 			}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 			var snapshotResult = FromFirestoreDocument(snapshot);
+#pragma warning restore IL2026
 			LogSnapshotRetrieved(aggregateType, aggregateId, snapshotResult.Version);
 			return snapshotResult;
 		}
@@ -142,12 +144,12 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var documentId = CreateDocumentId(snapshot.AggregateType, snapshot.AggregateId);
-		var docRef = _collection.Document(documentId);
+		var docRef = _collection!.Document(documentId);
 
 		try
 		{
 			// Use RunTransactionAsync for atomic read-check-write to enforce version ordering
-			await _db.RunTransactionAsync(async transaction =>
+			await _db!.RunTransactionAsync(async transaction =>
 			{
 				var existingDoc = await transaction.GetSnapshotAsync(docRef, cancellationToken).ConfigureAwait(false);
 
@@ -163,7 +165,9 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 					}
 				}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 				var docData = ToFirestoreDocument(snapshot);
+#pragma warning restore IL2026
 				transaction.Set(docRef, docData);
 			}, cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -200,7 +204,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		await EnsureInitializedAsync().ConfigureAwait(false);
 
 		var documentId = CreateDocumentId(aggregateType, aggregateId);
-		var docRef = _collection.Document(documentId);
+		var docRef = _collection!.Document(documentId);
 
 		try
 		{
@@ -241,7 +245,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		// For Firestore's simple one-snapshot-per-aggregate model, we only delete
 		// if the current snapshot's version is older than the specified version
 		var documentId = CreateDocumentId(aggregateType, aggregateId);
-		var docRef = _collection.Document(documentId);
+		var docRef = _collection!.Document(documentId);
 
 		try
 		{
@@ -372,6 +376,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 			_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
 		}
 
+#pragma warning disable CS0618 // CredentialsPath/JsonCredentials are obsolete but replacements require significant refactoring
 		if (!string.IsNullOrEmpty(_options.CredentialsPath))
 		{
 			builder.CredentialsPath = _options.CredentialsPath;
@@ -380,6 +385,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		{
 			builder.JsonCredentials = _options.CredentialsJson;
 		}
+#pragma warning restore CS0618
 
 		_db = await builder.BuildAsync().ConfigureAwait(false);
 		_collection = _db.Collection(_options.CollectionName);

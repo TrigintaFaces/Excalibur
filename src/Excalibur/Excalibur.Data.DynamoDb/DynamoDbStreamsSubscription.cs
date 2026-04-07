@@ -221,7 +221,9 @@ TDocument>
 					var image = record.Dynamodb?.NewImage ?? record.Dynamodb?.OldImage;
 					if (image != null)
 					{
+#pragma warning disable IL2026
 						document = DeserializeDocument(image);
+#pragma warning restore IL2026
 					}
 
 					var documentId = GetDocumentIdFromRecord(record);

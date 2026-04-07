@@ -73,7 +73,9 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 	{
 		ArgumentNullException.ThrowIfNull(projection);
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		var json = JsonSerializer.Serialize(projection, _jsonOptions);
+#pragma warning restore IL2026
 		var data = new Dictionary<string, object>
 		{
 			["data"] = json,
@@ -142,6 +144,8 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 			return null;
 		}
 
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		return JsonSerializer.Deserialize<TProjection>(json, _jsonOptions);
+#pragma warning restore IL2026
 	}
 }

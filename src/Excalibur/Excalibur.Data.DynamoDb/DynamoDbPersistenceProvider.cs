@@ -200,7 +200,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		try
 		{
-			var response = await _client.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 			LogOperationCompleted("GetById", response.ConsumedCapacity?.CapacityUnits ?? 0);
 
@@ -209,7 +209,9 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 				return null;
 			}
 
+#pragma warning disable IL2026
 			return DeserializeDocument<TDocument>(response.Item);
+#pragma warning restore IL2026
 		}
 		catch (ResourceNotFoundException)
 		{
@@ -226,7 +228,9 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	{
 		EnsureInitialized();
 
+#pragma warning disable IL2026
 		var item = SerializeDocument(document, partitionKey);
+#pragma warning restore IL2026
 		var request = new PutItemRequest
 		{
 			TableName = _options.DefaultTableName,
@@ -238,7 +242,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		try
 		{
-			var response = await _client.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 			LogOperationCompleted("Create", response.ConsumedCapacity?.CapacityUnits ?? 0);
 
@@ -278,7 +282,9 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	{
 		EnsureInitialized();
 
+#pragma warning disable IL2026
 		var item = SerializeDocument(document, partitionKey);
+#pragma warning restore IL2026
 		var request = new PutItemRequest
 		{
 			TableName = _options.DefaultTableName,
@@ -301,7 +307,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		try
 		{
-			var response = await _client.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 			LogOperationCompleted("Update", response.ConsumedCapacity?.CapacityUnits ?? 0);
 
@@ -360,7 +366,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		try
 		{
-			var response = await _client.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 			LogOperationCompleted("Delete", response.ConsumedCapacity?.CapacityUnits ?? 0);
 
@@ -391,6 +397,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "DynamoDB query requires JSON serialization which is inherently trim-unsafe.")]
 	public async Task<CloudQueryResult<TDocument>> QueryAsync<TDocument>(
 		string queryText,
 		IPartitionKey partitionKey,
@@ -434,7 +441,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		try
 		{
-			var response = await _client.QueryAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
 
 			totalCapacity = response.ConsumedCapacity?.CapacityUnits ?? 0;
 			continuationToken = response.LastEvaluatedKey?.Count > 0
@@ -494,7 +501,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		try
 		{
-			var response = await _client.TransactWriteItemsAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.TransactWriteItemsAsync(request, cancellationToken).ConfigureAwait(false);
 
 			var totalCapacity = response.ConsumedCapacity?.Sum(c => c.CapacityUnits) ?? 0;
 			LogOperationCompleted("Batch", totalCapacity);
@@ -537,6 +544,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2095", Justification = "DynamicallyAccessedMembers constraint is satisfied by the caller's type parameter annotation.")]
 	public async Task<IChangeFeedSubscription<TDocument>> CreateChangeFeedSubscriptionAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 		TDocument>(
@@ -548,8 +556,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		EnsureInitialized();
 
 		var subscription = new DynamoDbStreamsSubscription<TDocument>(
-			_client,
-			_streamsClient,
+			_client!,
+			_streamsClient!,
 			containerName,
 			options ?? ChangeFeedOptions.Default,
 			_logger);
@@ -630,7 +638,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		{
 			try
 			{
-				var response = await _client.DescribeTableAsync(_options.DefaultTableName, cancellationToken)
+				var response = await _client!.DescribeTableAsync(_options.DefaultTableName, cancellationToken)
 					.ConfigureAwait(false);
 				stats["TableName"] = response.Table.TableName;
 				if (response.Table.TableStatus is { } tableStatus)
@@ -668,7 +676,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		try
 		{
-			var response = await _client.DescribeTableAsync(collectionName, cancellationToken)
+			var response = await _client!.DescribeTableAsync(collectionName, cancellationToken)
 				.ConfigureAwait(false);
 			var table = response.Table;
 
@@ -1033,7 +1041,9 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 				Put = new Put
 				{
 					TableName = _options.DefaultTableName,
+#pragma warning disable IL2026
 					Item = SerializeDocument(((ICloudBatchCreateOperation)operation).Document, partitionKey),
+#pragma warning restore IL2026
 					ConditionExpression = "attribute_not_exists(pk)"
 				}
 			},
@@ -1042,7 +1052,9 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 				Put = new Put
 				{
 					TableName = _options.DefaultTableName,
+#pragma warning disable IL2026
 					Item = SerializeDocument(((ICloudBatchReplaceOperation)operation).Document, partitionKey)
+#pragma warning restore IL2026
 				}
 			},
 			CloudBatchOperationType.Delete => new TransactWriteItem

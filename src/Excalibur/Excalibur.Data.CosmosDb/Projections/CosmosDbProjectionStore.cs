@@ -117,6 +117,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public async Task<TProjection?> GetByIdAsync(
 		string id,
 		CancellationToken cancellationToken)
@@ -130,7 +131,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 
 		try
 		{
-			var response = await _container.ReadItemAsync<CosmosDbProjectionDocument>(
+			var response = await _container!.ReadItemAsync<CosmosDbProjectionDocument>(
 				documentId,
 				new PartitionKey(_projectionType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -144,6 +145,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public async Task UpsertAsync(
 		string id,
 		TProjection projection,
@@ -164,7 +166,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 			UpdatedAt = DateTimeOffset.UtcNow.ToString("O")
 		};
 
-		_ = await _container.UpsertItemAsync(
+		_ = await _container!.UpsertItemAsync(
 			document,
 			new PartitionKey(_projectionType),
 			new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
@@ -187,7 +189,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 
 		try
 		{
-			_ = await _container.DeleteItemAsync<CosmosDbProjectionDocument>(
+			_ = await _container!.DeleteItemAsync<CosmosDbProjectionDocument>(
 				documentId,
 				new PartitionKey(_projectionType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -201,6 +203,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
@@ -238,7 +241,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 		}
 
 		var results = new List<TProjection>();
-		using var iterator = _container.GetItemQueryIterator<QueryResult>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<QueryResult>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{
@@ -277,7 +280,7 @@ public sealed partial class CosmosDbProjectionStore<TProjection> : IProjectionSt
 			queryDefinition = queryDefinition.WithParameter(paramName, paramValue);
 		}
 
-		using var iterator = _container.GetItemQueryIterator<long>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<long>(queryDefinition);
 		if (iterator.HasMoreResults)
 		{
 			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);

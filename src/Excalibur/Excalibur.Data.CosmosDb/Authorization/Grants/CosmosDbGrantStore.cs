@@ -72,7 +72,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 			if (revokedBy is not null && revokedOn.HasValue)
 			{
 				// Soft delete by marking as revoked
-				var response = await _container.ReadItemAsync<GrantDocument>(
+				var response = await _container!.ReadItemAsync<GrantDocument>(
 					documentId,
 					partitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -82,7 +82,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 				document.RevokedBy = revokedBy;
 				document.RevokedOn = revokedOn;
 
-				_ = await _container.ReplaceItemAsync(
+				_ = await _container!.ReplaceItemAsync(
 					document,
 					documentId,
 					partitionKey,
@@ -95,7 +95,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 			else
 			{
 				// Hard delete
-				_ = await _container.DeleteItemAsync<GrantDocument>(
+				_ = await _container!.DeleteItemAsync<GrantDocument>(
 					documentId,
 					partitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -126,7 +126,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 
 		try
 		{
-			var response = await _container.ReadItemAsync<GrantDocument>(
+			var response = await _container!.ReadItemAsync<GrantDocument>(
 				documentId,
 				partitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -176,7 +176,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 		var queryOptions = new QueryRequestOptions { PartitionKey = new PartitionKey(partitionKeyValue) };
 
 		var results = new List<Grant>();
-		using var iterator = _container.GetItemQueryIterator<GrantDocument>(queryDefinition, requestOptions: queryOptions);
+		using var iterator = _container!.GetItemQueryIterator<GrantDocument>(queryDefinition, requestOptions: queryOptions);
 
 		while (iterator.HasMoreResults)
 		{
@@ -203,7 +203,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 
 		try
 		{
-			var response = await _container.ReadItemAsync<GrantDocument>(
+			var response = await _container!.ReadItemAsync<GrantDocument>(
 				documentId,
 				partitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -230,7 +230,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 			.WithParameter("@userId", userId);
 
 		var results = new List<Grant>();
-		using var iterator = _container.GetItemQueryIterator<GrantDocument>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<GrantDocument>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{
@@ -253,7 +253,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 
 		var options = new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite };
 
-		_ = await _container.UpsertItemAsync(
+		_ = await _container!.UpsertItemAsync(
 			document,
 			partitionKey,
 			options,
@@ -276,7 +276,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 			.WithParameter("@userId", userId);
 
 		var result = new Dictionary<string, object>();
-		using var iterator = _container.GetItemQueryIterator<GrantDocument>(queryDefinition);
+		using var iterator = _container!.GetItemQueryIterator<GrantDocument>(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{

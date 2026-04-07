@@ -108,7 +108,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 				request.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.QueryAsync(request, cancellationToken).ConfigureAwait(false);
+			response = await _client!.QueryAsync(request, cancellationToken).ConfigureAwait(false);
 			itemsToDelete.AddRange(response.Items.Select(item =>
 				(ActivityGroupItem.GetTenantIdPK(item), ActivityGroupItem.GetSK(item))));
 		} while (response.LastEvaluatedKey?.Count > 0);
@@ -147,7 +147,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 				scanRequest.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.ScanAsync(scanRequest, cancellationToken).ConfigureAwait(false);
+			response = await _client!.ScanAsync(scanRequest, cancellationToken).ConfigureAwait(false);
 			itemsToDelete.AddRange(response.Items.Select(item =>
 				(ActivityGroupItem.GetTenantIdPK(item), ActivityGroupItem.GetSK(item))));
 		} while (response.LastEvaluatedKey?.Count > 0);
@@ -187,7 +187,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 
 		var request = new PutItemRequest { TableName = _options.ActivityGroupsTableName, Item = item };
 
-		_ = await _client.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
+		_ = await _client!.PutItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 		LogActivityGroupGrantInserted(userId, grantType, qualifier);
 		return 1;
@@ -220,7 +220,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 				scanRequest.ExclusiveStartKey = response.LastEvaluatedKey;
 			}
 
-			response = await _client.ScanAsync(scanRequest, cancellationToken).ConfigureAwait(false);
+			response = await _client!.ScanAsync(scanRequest, cancellationToken).ConfigureAwait(false);
 
 			foreach (var item in response.Items)
 			{
@@ -318,7 +318,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 				RequestItems = new Dictionary<string, List<WriteRequest>> { [_options.ActivityGroupsTableName] = writeRequests }
 			};
 
-			var batchResponse = await _client.BatchWriteItemAsync(batchRequest, cancellationToken)
+			var batchResponse = await _client!.BatchWriteItemAsync(batchRequest, cancellationToken)
 				.ConfigureAwait(false);
 
 			var unprocessedCount = batchResponse.UnprocessedItems.TryGetValue(

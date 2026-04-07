@@ -108,6 +108,7 @@ internal sealed class CosmosDbSnapshotDocument
 	/// </summary>
 	/// <param name="snapshot">The snapshot to convert.</param>
 	/// <returns>The Cosmos DB document representation.</returns>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public static CosmosDbSnapshotDocument FromSnapshot(ISnapshot snapshot) =>
 		new()
 		{
@@ -125,6 +126,7 @@ internal sealed class CosmosDbSnapshotDocument
 	/// Converts the document to a <see cref="Snapshot"/>.
 	/// </summary>
 	/// <returns>The snapshot representation.</returns>
+	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
 	public Snapshot ToSnapshot() =>
 		new()
 		{

@@ -212,6 +212,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2095", Justification = "Implementation has stricter DynamicallyAccessedMembers than interface requires")]
 	public async Task<CloudOperationResult<TDocument>> UpdateAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 		TDocument>(
@@ -420,6 +421,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2095", Justification = "Implementation has stricter DynamicallyAccessedMembers than interface requires")]
 	public async Task<IChangeFeedSubscription<TDocument>> CreateChangeFeedSubscriptionAsync<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 		TDocument>(
@@ -430,7 +432,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	{
 		EnsureInitialized();
 
-		var container = _database.GetContainer(containerName);
+		var container = _database!.GetContainer(containerName);
 		var subscription = new CosmosDbChangeFeedSubscription<TDocument>(
 			container,
 			options ?? ChangeFeedOptions.Default,
@@ -507,7 +509,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 		try
 		{
-			var response = await _database.ReadAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+			var response = await _database!.ReadAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 			stats["DatabaseId"] = response.Resource.Id;
 			stats["DatabaseSelfLink"] = response.Resource.SelfLink;
 			stats["RequestCharge"] = response.RequestCharge;
@@ -527,7 +529,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	{
 		EnsureInitialized();
 
-		var container = _database.GetContainer(collectionName);
+		var container = _database!.GetContainer(collectionName);
 		var info = new Dictionary<string, object>(StringComparer.Ordinal) { ["ContainerName"] = collectionName };
 
 		try
@@ -841,7 +843,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	}
 
 	private Container GetContainer(string? containerName = null) =>
-		_database.GetContainer(containerName ?? _options.DefaultContainerName
+		_database!.GetContainer(containerName ?? _options.DefaultContainerName
 			?? throw new InvalidOperationException(ErrorMessages.NoContainerNameSpecified));
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

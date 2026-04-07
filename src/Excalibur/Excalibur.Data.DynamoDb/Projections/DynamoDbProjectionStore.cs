@@ -85,7 +85,9 @@ public sealed class DynamoDbProjectionStore<TProjection> : IProjectionStore<TPro
 		ArgumentNullException.ThrowIfNull(projection);
 		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
+#pragma warning disable IL2026
 		var json = JsonSerializer.Serialize(projection, _jsonOptions);
+#pragma warning restore IL2026
 		var item = CreateKey(id);
 		item[DataAttribute] = new AttributeValue { S = json };
 		item[ProjectionTypeAttribute] = new AttributeValue { S = _projectionType };
@@ -185,7 +187,9 @@ public sealed class DynamoDbProjectionStore<TProjection> : IProjectionStore<TPro
 			return null;
 		}
 
+#pragma warning disable IL2026
 		return JsonSerializer.Deserialize<TProjection>(dataAttr.S, _jsonOptions);
+#pragma warning restore IL2026
 	}
 
 	private async Task EnsureTableAsync(CancellationToken cancellationToken)

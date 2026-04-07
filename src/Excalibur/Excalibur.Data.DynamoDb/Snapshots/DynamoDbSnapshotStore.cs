@@ -148,7 +148,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		try
 		{
-			var response = await _client.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 			if (response.Item == null || response.Item.Count == 0)
 			{
@@ -156,7 +156,9 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				return null;
 			}
 
+#pragma warning disable IL2026
 			var snapshot = DynamoDbSnapshotDocument.ToSnapshot(response.Item);
+#pragma warning restore IL2026
 			LogSnapshotRetrieved(aggregateType, aggregateId, snapshot.Version);
 
 			return snapshot;
@@ -219,7 +221,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		try
 		{
-			var existing = await _client.GetItemAsync(getRequest, cancellationToken).ConfigureAwait(false);
+			var existing = await _client!.GetItemAsync(getRequest, cancellationToken).ConfigureAwait(false);
 
 			if (existing.Item?.Count > 0)
 			{
@@ -237,7 +239,9 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			}
 
 			// Put with conditional expression - version must still be lower OR not exist
+#pragma warning disable IL2026
 			var document = DynamoDbSnapshotDocument.FromSnapshot(snapshot, _options.DefaultTtlSeconds);
+#pragma warning restore IL2026
 
 			var putRequest = new PutItemRequest
 			{
@@ -253,7 +257,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 			try
 			{
-				_ = await _client.PutItemAsync(putRequest, cancellationToken).ConfigureAwait(false);
+				_ = await _client!.PutItemAsync(putRequest, cancellationToken).ConfigureAwait(false);
 				LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
 			}
 			catch (ConditionalCheckFailedException)
@@ -319,7 +323,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		try
 		{
-			_ = await _client.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.DeleteItemAsync(request, cancellationToken).ConfigureAwait(false);
 			LogSnapshotDeleted(aggregateType, aggregateId);
 		}
 		catch (ProvisionedThroughputExceededException ex)
@@ -381,7 +385,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		try
 		{
-			var response = await _client.GetItemAsync(getRequest, cancellationToken).ConfigureAwait(false);
+			var response = await _client!.GetItemAsync(getRequest, cancellationToken).ConfigureAwait(false);
 
 			if (response.Item == null || response.Item.Count == 0)
 			{
@@ -420,7 +424,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 			try
 			{
-				_ = await _client.DeleteItemAsync(deleteRequest, cancellationToken).ConfigureAwait(false);
+				_ = await _client!.DeleteItemAsync(deleteRequest, cancellationToken).ConfigureAwait(false);
 				LogSnapshotOlderDeleted(aggregateType, aggregateId, olderThanVersion);
 			}
 			catch (ConditionalCheckFailedException)
@@ -500,7 +504,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	{
 		try
 		{
-			_ = await _client.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
 		}
 		catch (ResourceNotFoundException)
 		{
@@ -520,7 +524,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				BillingMode = BillingMode.PAY_PER_REQUEST
 			};
 
-			_ = await _client.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
 
 			// Wait for table to be active
 			var describeRequest = new DescribeTableRequest { TableName = _options.TableName };
@@ -528,7 +532,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			do
 			{
 				await Task.Delay(500, cancellationToken).ConfigureAwait(false);
-				var describeResponse = await _client.DescribeTableAsync(describeRequest, cancellationToken)
+				var describeResponse = await _client!.DescribeTableAsync(describeRequest, cancellationToken)
 					.ConfigureAwait(false);
 				status = describeResponse.Table.TableStatus;
 			} while (status != TableStatus.ACTIVE);
@@ -542,7 +546,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 					TimeToLiveSpecification = new TimeToLiveSpecification { Enabled = true, AttributeName = _options.TtlAttributeName }
 				};
 
-				_ = await _client.UpdateTimeToLiveAsync(ttlRequest, cancellationToken).ConfigureAwait(false);
+				_ = await _client!.UpdateTimeToLiveAsync(ttlRequest, cancellationToken).ConfigureAwait(false);
 			}
 		}
 	}

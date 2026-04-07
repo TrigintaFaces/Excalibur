@@ -128,7 +128,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		try
 		{
-			var response = await _container.ReadItemAsync<CosmosDbSnapshotDocument>(
+			var response = await _container!.ReadItemAsync<CosmosDbSnapshotDocument>(
 				documentId,
 				new PartitionKey(aggregateType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -181,7 +181,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		try
 		{
 			// Try to read existing snapshot to check version
-			var readResponse = await _container.ReadItemAsync<CosmosDbSnapshotDocument>(
+			var readResponse = await _container!.ReadItemAsync<CosmosDbSnapshotDocument>(
 				document.Id,
 				partitionKey,
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -197,7 +197,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			}
 
 			// Replace with ETag-based optimistic concurrency
-			_ = await _container.ReplaceItemAsync(
+			_ = await _container!.ReplaceItemAsync(
 				document,
 				document.Id,
 				partitionKey,
@@ -215,7 +215,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			// No existing snapshot, create new
 			try
 			{
-				_ = await _container.CreateItemAsync(
+				_ = await _container!.CreateItemAsync(
 					document,
 					partitionKey,
 					new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
@@ -227,7 +227,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			{
 				// Race condition: another process created the document between our read and create
 				// Re-read to check version and potentially replace
-				var conflictReadResponse = await _container.ReadItemAsync<CosmosDbSnapshotDocument>(
+				var conflictReadResponse = await _container!.ReadItemAsync<CosmosDbSnapshotDocument>(
 					document.Id,
 					partitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -241,7 +241,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				}
 
 				// Our version is newer, replace with ETag
-				_ = await _container.ReplaceItemAsync(
+				_ = await _container!.ReplaceItemAsync(
 					document,
 					document.Id,
 					partitionKey,
@@ -261,7 +261,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			// Re-read and check if newer version exists
 			try
 			{
-				var rereadResponse = await _container.ReadItemAsync<CosmosDbSnapshotDocument>(
+				var rereadResponse = await _container!.ReadItemAsync<CosmosDbSnapshotDocument>(
 					document.Id,
 					partitionKey,
 					cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -275,7 +275,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				}
 
 				// Retry once with new ETag
-				_ = await _container.ReplaceItemAsync(
+				_ = await _container!.ReplaceItemAsync(
 					document,
 					document.Id,
 					partitionKey,
@@ -334,7 +334,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		try
 		{
-			_ = await _container.DeleteItemAsync<CosmosDbSnapshotDocument>(
+			_ = await _container!.DeleteItemAsync<CosmosDbSnapshotDocument>(
 				documentId,
 				new PartitionKey(aggregateType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -387,7 +387,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		try
 		{
 			// Read the snapshot first to check version
-			var readResponse = await _container.ReadItemAsync<CosmosDbSnapshotDocument>(
+			var readResponse = await _container!.ReadItemAsync<CosmosDbSnapshotDocument>(
 				documentId,
 				new PartitionKey(aggregateType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -397,7 +397,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			// Only delete if version is less than olderThanVersion
 			if (existing.Version < olderThanVersion)
 			{
-				_ = await _container.DeleteItemAsync<CosmosDbSnapshotDocument>(
+				_ = await _container!.DeleteItemAsync<CosmosDbSnapshotDocument>(
 					documentId,
 					new PartitionKey(aggregateType),
 					new ItemRequestOptions { IfMatchEtag = readResponse.ETag },

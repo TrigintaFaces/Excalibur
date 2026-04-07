@@ -241,7 +241,9 @@ public sealed partial class FirestoreListenerSubscription<
 			TDocument? document = null;
 			if (change.Document.Exists)
 			{
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 				document = DeserializeDocument(change.Document);
+#pragma warning restore IL2026
 			}
 
 			var documentId = change.Document.Id;
