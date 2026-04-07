@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 namespace Excalibur.Dispatch.LeaderElection;
 
 /// <summary>
@@ -18,8 +16,6 @@ public interface IHealthBasedLeaderElection : ILeaderElection
 	/// <param name="metadata"> Optional health metadata. </param>
 	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns>A task that represents the asynchronous update operation.</returns>
-	[RequiresDynamicCode("JSON serialization of health metadata requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -27,7 +23,5 @@ public interface IHealthBasedLeaderElection : ILeaderElection
 	/// </summary>
 	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns> Health status of all candidates. </returns>
-	[RequiresDynamicCode("JSON serialization of candidate health requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken);
 }

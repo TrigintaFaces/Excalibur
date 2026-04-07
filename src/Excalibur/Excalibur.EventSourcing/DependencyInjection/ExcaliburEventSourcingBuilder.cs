@@ -130,15 +130,15 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	}
 
 	/// <summary>
-	/// Registers an event-sourced repository for an aggregate type that implements <see cref="IAggregateRoot{TAggregate, TKey}" /> with static
+	/// Registers an event-sourced repository for an aggregate type that implements <see cref="Domain.Model.IAggregateRoot{TAggregate, TKey}" /> with static
 	/// factory methods.
 	/// </summary>
-	/// <typeparam name="TAggregate"> The aggregate type implementing <see cref="IAggregateRoot{TAggregate, TKey}" />. </typeparam>
+	/// <typeparam name="TAggregate"> The aggregate type implementing <see cref="Domain.Model.IAggregateRoot{TAggregate, TKey}" />. </typeparam>
 	/// <typeparam name="TKey"> The key type for the aggregate. </typeparam>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks>
 	/// <para>
-	/// This overload automatically uses the <c> static Create(TKey) </c> method from <see cref="IAggregateRoot{TAggregate, TKey}" /> to create
+	/// This overload automatically uses the <c> static Create(TKey) </c> method from <see cref="Domain.Model.IAggregateRoot{TAggregate, TKey}" /> to create
 	/// aggregate instances. No factory function is required.
 	/// </para>
 	/// <para> <b> Usage: </b>

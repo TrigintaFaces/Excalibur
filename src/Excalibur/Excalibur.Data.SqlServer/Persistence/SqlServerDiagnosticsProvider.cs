@@ -164,7 +164,7 @@ internal sealed partial class SqlServerDiagnosticsProvider
 			}
 
 			var version = await connection.ExecuteScalarAsync<string>("SELECT @@VERSION").ConfigureAwait(false);
-			return SqlServerConnectionTestResult.Available(version);
+			return SqlServerConnectionTestResult.Available(version ?? string.Empty);
 		}
 		catch (Exception ex)
 		{

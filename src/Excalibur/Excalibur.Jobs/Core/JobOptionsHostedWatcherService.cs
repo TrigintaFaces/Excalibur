@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Diagnostics;
 
@@ -21,7 +23,8 @@ namespace Excalibur.Jobs.Core;
 /// <param name="scheduler"> The scheduler responsible for managing job execution. </param>
 /// <param name="configMonitor"> Monitors changes to the job configuration. </param>
 /// <param name="logger"> The logger for logging information and errors. </param>
-public sealed partial class JobOptionsHostedWatcherService<TJob, TOptions>(
+public sealed partial class JobOptionsHostedWatcherService<TJob,
+	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>(
 	IScheduler? scheduler,
 	IOptionsMonitor<TOptions> configMonitor,
 	ILogger<JobOptionsHostedWatcherService<TJob, TOptions>> logger) : IJobOptionsHostedWatcherService

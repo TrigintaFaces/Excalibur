@@ -3,6 +3,7 @@
 
 
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
@@ -46,6 +47,8 @@ public sealed class MoneyTypeHandler(string cultureName = "en-US", byte precisio
 	}
 
 	/// <inheritdoc />
+	[UnconditionalSuppressMessage("Trimming", "IL2075:DynamicallyAccessedMemberTypes",
+		Justification = "GetProperty is used for IDbDataParameter implementations that may not be SqlParameter. The Precision/Scale properties are well-known ADO.NET conventions.")]
 	public override void SetValue(IDbDataParameter parameter, Money? value)
 	{
 		ArgumentNullException.ThrowIfNull(parameter);

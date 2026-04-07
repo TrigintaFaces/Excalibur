@@ -127,12 +127,14 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		var count = 0;
 		var slot = new PgOutputReplicationSlot(_options.ReplicationSlotName);
 
+#pragma warning disable CS0618 // PgOutputReplicationOptions constructor is obsolete in newer Npgsql but no replacement available yet
 		var replicationOptions = new PgOutputReplicationOptions(
 			_options.PublicationName,
 			protocolVersion: 1,
 			binary: _options.Replication.UseBinaryProtocol);
+#pragma warning restore CS0618
 
-		await foreach (var message in _replicationConnection
+		await foreach (var message in _replicationConnection!
 						   .StartReplication(slot, replicationOptions, cancellationToken)
 						   .ConfigureAwait(false))
 		{
@@ -355,17 +357,19 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 		var slot = new PgOutputReplicationSlot(_options.ReplicationSlotName);
 
+#pragma warning disable CS0618 // PgOutputReplicationOptions constructor is obsolete in newer Npgsql but no replacement available yet
 		var replicationOptions = new PgOutputReplicationOptions(
 			_options.PublicationName,
 			protocolVersion: 1,
 			binary: _options.Replication.UseBinaryProtocol);
+#pragma warning restore CS0618
 
 		// Start from confirmed position or beginning
 		var startLsn = _confirmedPosition.IsValid ? _confirmedPosition.Lsn : default;
 
 		var count = 0;
 
-		await foreach (var message in _replicationConnection
+		await foreach (var message in _replicationConnection!
 						   .StartReplication(slot, replicationOptions, cancellationToken, startLsn)
 						   .ConfigureAwait(false))
 		{

@@ -124,7 +124,7 @@ public sealed partial class MessageOutbox(
 	/// <param name="cancellationToken"> Cancellation token for operation timeout and shutdown support. </param>
 	/// <returns> Task representing the asynchronous event saving operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when integrationEvents is null. </exception>
-	/// <exception cref="Exceptions.SerializationException"> Thrown when event or metadata serialization fails. </exception>
+	/// <exception cref="Excalibur.Dispatch.Abstractions.Serialization.SerializationException"> Thrown when event or metadata serialization fails. </exception>
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL3050:Using RequiresDynamicCode member in AOT",

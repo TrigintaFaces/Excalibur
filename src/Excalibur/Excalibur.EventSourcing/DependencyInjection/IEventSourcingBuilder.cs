@@ -15,7 +15,7 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// <remarks>
 /// <para>
 /// This interface follows the Microsoft-style fluent builder pattern,
-/// consistent with <see cref="Outbox.IOutboxBuilder"/> and <see cref="Cdc.ICdcBuilder"/>.
+/// consistent with <c>IOutboxBuilder</c> and <c>ICdcBuilder</c>.
 /// </para>
 /// <para>
 /// All methods return <c>this</c> for method chaining, enabling a fluent configuration experience.

@@ -30,8 +30,8 @@ public sealed partial class QuartzJobAdapter(
 	private readonly ILogger<QuartzJobAdapter> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Runtime type resolution is used to resolve job types from JobDataMap string values. " +
-		"Pass Type objects in JobDataMap instead of type name strings for AOT compatibility.")]
+	[UnconditionalSuppressMessage("AOT", "IL2046",
+		Justification = "IJob.Execute is defined in Quartz.NET and cannot be annotated. Runtime type resolution is used to resolve job types from JobDataMap.")]
 	public async Task Execute(IJobExecutionContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);

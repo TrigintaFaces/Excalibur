@@ -57,8 +57,8 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
 		Justification = "JSON serialization used for properties storage; Dictionary<string, string> is well-defined and preserved")]
-	[RequiresDynamicCode(
-		"JSON serialization of message properties dictionary requires dynamic code generation for type-specific serialization logic.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "JSON serialization of message properties dictionary uses well-known types that are preserved")]
 	public async Task StoreAsync(DeadLetterMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -104,7 +104,10 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	}
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Dapper query mapping and JSON deserialization use well-known types that are preserved")]
+	[UnconditionalSuppressMessage("AOT", "IL3051:RequiresDynamicCode",
+		Justification = "ToDeadLetterMessage uses JSON deserialization for properties; Dictionary<string, string> is well-defined")]
 	public async Task<DeadLetterMessage?> GetByIdAsync(string messageId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -336,7 +339,8 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 
 		[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
 			Justification = "JSON deserialization used for properties retrieval; Dictionary<string, string> is well-defined and preserved")]
-		[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
+		[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+			Justification = "JSON deserialization of Dictionary<string, string> uses well-known types that are preserved")]
 		public DeadLetterMessage ToDeadLetterMessage() =>
 			new()
 			{

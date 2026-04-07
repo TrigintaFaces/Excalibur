@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Diagnostics;
 
@@ -33,7 +35,8 @@ public sealed partial class JobOptionsHostedWatcherServiceFactory : IJobOptionsH
 	}
 
 	/// <inheritdoc />
-	public async Task<IJobOptionsHostedWatcherService> CreateAsync<TJob, TOptions>()
+	public async Task<IJobOptionsHostedWatcherService> CreateAsync<TJob,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>()
 		where TJob : IConfigurableJob<TOptions>
 		where TOptions : class, IJobOptions
 	{

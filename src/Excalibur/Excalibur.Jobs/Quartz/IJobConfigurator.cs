@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Jobs.Abstractions;
 
 namespace Excalibur.Jobs.Quartz;
@@ -22,7 +24,8 @@ public interface IJobConfigurator
 	/// <param name="cronExpression"> The cron expression for scheduling the job. </param>
 	/// <param name="jobKey"> Optional unique key for the job. If not provided, the job type name will be used. </param>
 	/// <returns> The job configurator for chaining. </returns>
-	IJobConfigurator AddJob<TJob>(string cronExpression, string? jobKey = null)
+	IJobConfigurator AddJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob>(
+		string cronExpression, string? jobKey = null)
 		where TJob : class, IBackgroundJob;
 
 	/// <summary>
@@ -34,7 +37,8 @@ public interface IJobConfigurator
 	/// <param name="context"> The context data to pass to the job. </param>
 	/// <param name="jobKey"> Optional unique key for the job. If not provided, the job type name will be used. </param>
 	/// <returns> The job configurator for chaining. </returns>
-	IJobConfigurator AddJob<TJob, TContext>(string cronExpression, TContext context, string? jobKey = null)
+	IJobConfigurator AddJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob, TContext>(
+		string cronExpression, TContext context, string? jobKey = null)
 		where TJob : class, IBackgroundJob<TContext>
 		where TContext : class;
 
@@ -44,7 +48,8 @@ public interface IJobConfigurator
 	/// <typeparam name="TJob"> The job implementation type. </typeparam>
 	/// <param name="jobKey"> Optional unique key for the job. If not provided, the job type name will be used. </param>
 	/// <returns> The job configurator for chaining. </returns>
-	IJobConfigurator AddOneTimeJob<TJob>(string? jobKey = null)
+	IJobConfigurator AddOneTimeJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob>(
+		string? jobKey = null)
 		where TJob : class, IBackgroundJob;
 
 	/// <summary>
@@ -54,6 +59,7 @@ public interface IJobConfigurator
 	/// <param name="delay"> The delay before executing the job. </param>
 	/// <param name="jobKey"> Optional unique key for the job. If not provided, the job type name will be used. </param>
 	/// <returns> The job configurator for chaining. </returns>
-	IJobConfigurator AddDelayedJob<TJob>(TimeSpan delay, string? jobKey = null)
+	IJobConfigurator AddDelayedJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob>(
+		TimeSpan delay, string? jobKey = null)
 		where TJob : class, IBackgroundJob;
 }

@@ -3,8 +3,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Net;
 using System.Text.Json;
 
@@ -94,7 +92,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 					.Handle<TaskCanceledException>(),
 				OnRetry = args =>
 				{
-					LogRetryWarning(args.Outcome.Exception, args.AttemptNumber, args.RetryDelay.TotalMilliseconds, _leaseName);
+					LogRetryWarning(args.Outcome.Exception!, args.AttemptNumber, args.RetryDelay.TotalMilliseconds, _leaseName);
 					return ValueTask.CompletedTask;
 				},
 			})
@@ -177,8 +175,6 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed. Consider using source generation.")]
-	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
 	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
 	{
 		if (!_isRunning)
@@ -192,19 +188,19 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 		{
 			if (_currentLease != null && IsLeader)
 			{
-				var healthData = new
+				var healthData = new KubernetesHealthAnnotation
 				{
-					candidateId = CandidateId,
-					isHealthy,
-					healthScore = isHealthy ? 1.0 : 0.0,
-					lastUpdated = DateTimeOffset.UtcNow,
-					metadata,
+					CandidateId = CandidateId,
+					IsHealthy = isHealthy,
+					HealthScore = isHealthy ? 1.0 : 0.0,
+					LastUpdated = DateTimeOffset.UtcNow,
+					Metadata = metadata,
 				};
 
 				// Add health data to lease annotations
 				_currentLease.Metadata.Annotations ??= new Dictionary<string, string>(StringComparer.Ordinal);
 				_currentLease.Metadata.Annotations[$"leader-election.excalibur.io/health-{CandidateId}"] =
-					JsonSerializer.Serialize(healthData);
+					JsonSerializer.Serialize(healthData, KubernetesLeaderElectionJsonContext.Default.KubernetesHealthAnnotation);
 
 				// Update the lease
 				await _retryPolicy.ExecuteAsync(
@@ -216,7 +212,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				if (!isHealthy && _options.StepDownWhenUnhealthy)
 				{
 					LogSteppingDownUnhealthy(_resourceName);
-					await ReleaseLeadershipAsync(_runningTokenSource.Token).ConfigureAwait(false);
+					await ReleaseLeadershipAsync(_runningTokenSource!.Token).ConfigureAwait(false);
 				}
 			}
 		}
@@ -227,8 +223,6 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed. Consider using source generation.")]
-	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
 	public async Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken)
 	{
 		var healthList = new List<CandidateHealth>();
@@ -250,32 +244,23 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 					{
 						try
 						{
-							var healthData = JsonSerializer.Deserialize<Dictionary<string, object>>(annotation.Value);
+							var healthData = JsonSerializer.Deserialize(
+								annotation.Value,
+								KubernetesLeaderElectionJsonContext.Default.KubernetesHealthAnnotation);
 							if (healthData != null)
 							{
 								healthList.Add(new CandidateHealth
 								{
-									CandidateId =
-										healthData.TryGetValue("candidateId", out var id) ? id.ToString() ?? string.Empty : string.Empty,
-									IsHealthy =
-										healthData.TryGetValue("isHealthy", out var healthy) &&
-										Convert.ToBoolean(healthy, CultureInfo.InvariantCulture),
-									HealthScore = healthData.TryGetValue("healthScore", out var score)
-										? Convert.ToDouble(score, CultureInfo.InvariantCulture)
-										: 0.0,
-									LastUpdated = healthData.TryGetValue("lastUpdated", out var updated)
-										? DateTimeOffset.Parse(
-											updated.ToString() ?? DateTimeOffset.UtcNow.ToString(CultureInfo.InvariantCulture),
-											CultureInfo.InvariantCulture)
-										: DateTimeOffset.UtcNow,
-									IsLeader =
-										string.Equals(
-											lease.Spec?.HolderIdentity,
-											healthData.TryGetValue("candidateId", out var cid) ? cid.ToString() : string.Empty,
-											StringComparison.Ordinal),
-									Metadata = healthData.TryGetValue("metadata", out var meta) &&
-									           meta is Dictionary<string, string> metadata
-										? metadata
+									CandidateId = healthData.CandidateId,
+									IsHealthy = healthData.IsHealthy,
+									HealthScore = healthData.HealthScore,
+									LastUpdated = healthData.LastUpdated,
+									IsLeader = string.Equals(
+										lease.Spec?.HolderIdentity,
+										healthData.CandidateId,
+										StringComparison.Ordinal),
+									Metadata = healthData.Metadata is not null
+										? new Dictionary<string, string>(healthData.Metadata, StringComparer.Ordinal)
 										: [],
 								});
 							}

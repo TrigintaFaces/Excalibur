@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Jobs.Abstractions;
 
 namespace Excalibur.Jobs.Core;
@@ -24,7 +26,8 @@ public interface IJobOptionsHostedWatcherServiceFactory
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if the necessary dependencies or parameters required to create the service are null.
 	/// </exception>
-	Task<IJobOptionsHostedWatcherService> CreateAsync<TJob, TOptions>()
+	Task<IJobOptionsHostedWatcherService> CreateAsync<TJob,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>()
 		where TJob : IConfigurableJob<TOptions>
 		where TOptions : class, IJobOptions;
 }

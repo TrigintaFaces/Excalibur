@@ -26,6 +26,10 @@ public static class ExcaliburDataSqlServerServiceCollectionExtensions
 	/// <param name="additionalTypeHandlers"> Optional additional Dapper type handlers to register. Handlers must inherit from <see cref="SqlMapper.TypeHandler{T}" />. </param>
 	/// <returns> The updated service collection. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="services" /> is null. </exception>
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "RegisterTypeHandler uses MakeGenericMethod for Dapper type handler registration. Dapper itself requires reflection.")]
+	[UnconditionalSuppressMessage("AOT", "IL2060:MakeGenericMethod",
+		Justification = "MakeGenericMethod is used to register Dapper type handlers dynamically. The generic type argument comes from the handler's base type.")]
 	public static IServiceCollection AddExcaliburSqlServices(
 		this IServiceCollection services,
 		params SqlMapper.ITypeHandler[]? additionalTypeHandlers)

@@ -37,7 +37,7 @@ namespace Excalibur.EventSourcing.Implementation;
 /// <list type="bullet">
 /// <item> Event loading and replay with version tracking </item>
 /// <item> Automatic upcasting via <see cref="IUpcastingPipeline" /> when configured </item>
-/// <item> Snapshot support via <see cref="ExcaliburSnapshotManager" /> </item>
+/// <item> Snapshot support via <see cref="ISnapshotManager" /> </item>
 /// <item> ETag-based optimistic concurrency control </item>
 /// <item> Outbox integration for reliable messaging of <see cref="IIntegrationEvent" /> instances </item>
 /// <item> CQRS write-side only — query operations belong in a separate read model </item>

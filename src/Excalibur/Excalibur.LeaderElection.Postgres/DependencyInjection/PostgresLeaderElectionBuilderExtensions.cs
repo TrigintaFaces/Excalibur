@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.LeaderElection;
@@ -51,6 +52,8 @@ public static class PostgresLeaderElectionBuilderExtensions
 	/// <param name="builder">The leader election builder.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="PostgresLeaderElectionOptions"/>.</param>
 	/// <returns>The builder for fluent chaining.</returns>
+	[RequiresUnreferencedCode("Configuration binding uses reflection. AOT consumers should use source-generated alternatives.")]
+	[RequiresDynamicCode("Configuration binding uses reflection. AOT consumers should use source-generated alternatives.")]
 	public static ILeaderElectionBuilder UsePostgres(
 		this ILeaderElectionBuilder builder,
 		IConfiguration configuration)
@@ -104,6 +107,8 @@ public static class PostgresLeaderElectionBuilderExtensions
 	/// <remarks>
 	/// Use the factory when you need multiple leader elections with different lock keys.
 	/// </remarks>
+	[RequiresUnreferencedCode("Configuration binding uses reflection. AOT consumers should use source-generated alternatives.")]
+	[RequiresDynamicCode("Configuration binding uses reflection. AOT consumers should use source-generated alternatives.")]
 	public static ILeaderElectionBuilder UsePostgresFactory(
 		this ILeaderElectionBuilder builder,
 		IConfiguration configuration)

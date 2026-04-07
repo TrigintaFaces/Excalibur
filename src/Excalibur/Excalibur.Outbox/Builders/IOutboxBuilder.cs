@@ -117,7 +117,7 @@ public interface IOutboxBuilder
 	/// </para>
 	/// <para>
 	/// For serverless scenarios where background services are not suitable,
-	/// omit this call and use <see cref="Outbox.IOutboxProcessor"/> directly.
+	/// omit this call and use <see cref="Excalibur.Dispatch.Abstractions.IOutboxProcessor"/> directly.
 	/// </para>
 	/// </remarks>
 	/// <example>

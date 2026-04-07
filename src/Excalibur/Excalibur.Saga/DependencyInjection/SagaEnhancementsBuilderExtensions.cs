@@ -55,7 +55,8 @@ public static class SagaEnhancementsBuilderExtensions
 	/// <typeparam name="THandler">The handler implementation type.</typeparam>
 	/// <param name="builder">The saga builder.</param>
 	/// <returns>The saga builder for chaining.</returns>
-	public static ISagaBuilder WithNotFoundHandler<TSaga, THandler>(this ISagaBuilder builder)
+	public static ISagaBuilder WithNotFoundHandler<TSaga,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(this ISagaBuilder builder)
 		where TSaga : class
 		where THandler : class, ISagaNotFoundHandler<TSaga>
 	{
@@ -186,7 +187,8 @@ public static class SagaEnhancementsBuilderExtensions
 	/// <typeparam name="TProvider">The idempotency provider implementation type.</typeparam>
 	/// <param name="builder">The saga builder.</param>
 	/// <returns>The saga builder for chaining.</returns>
-	public static ISagaBuilder WithIdempotency<TProvider>(this ISagaBuilder builder)
+	public static ISagaBuilder WithIdempotency<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(this ISagaBuilder builder)
 		where TProvider : class, ISagaIdempotencyProvider
 	{
 		ArgumentNullException.ThrowIfNull(builder);

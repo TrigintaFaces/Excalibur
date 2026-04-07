@@ -77,8 +77,10 @@ public abstract class SnapshotCreationJob<TAggregate, TKey>(
 		CancellationToken cancellationToken);
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Aggregate rehydration may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("Aggregate rehydration may require dynamic code generation.")]
+	[UnconditionalSuppressMessage("AOT", "IL2046",
+		Justification = "IBackgroundJob.ExecuteAsync does not carry AOT annotations. Aggregate rehydration may use reflection internally.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051",
+		Justification = "IBackgroundJob.ExecuteAsync does not carry AOT annotations. Aggregate rehydration may require dynamic code generation.")]
 	public async Task ExecuteAsync(CancellationToken cancellationToken)
 	{
 		SnapshotCreationJobLog.JobStarting(_logger, typeof(TAggregate).Name);

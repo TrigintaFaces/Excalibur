@@ -50,7 +50,9 @@ public static class QuartzServiceCollectionExtensions
 	/// </exception>
 	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
 	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
-	public static void AddJobWatcher<TJob, TOptions>(this IServiceCollection services, IConfigurationSection configurationSection)
+	public static void AddJobWatcher<TJob,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>(
+		this IServiceCollection services, IConfigurationSection configurationSection)
 		where TJob : IConfigurableJob<TOptions>
 		where TOptions : class, IJobOptions
 	{

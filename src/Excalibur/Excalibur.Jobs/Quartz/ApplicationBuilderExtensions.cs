@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.AspNetCore.Builder;
 
 namespace Excalibur.Jobs.Quartz;
@@ -17,6 +19,8 @@ public static class ApplicationBuilderExtensions
 	/// <param name="app"> The <see cref="IApplicationBuilder" /> instance to configure. </param>
 	/// <returns> The configured <see cref="IApplicationBuilder" /> instance. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="app" /> is null. </exception>
+	[RequiresUnreferencedCode("Calls UseExcaliburHealthChecks which uses JSON serialization that may require unreferenced code.")]
+	[RequiresDynamicCode("Calls UseExcaliburHealthChecks which uses JSON serialization that requires dynamic code generation.")]
 	public static IApplicationBuilder UseExcaliburJobHost(this IApplicationBuilder app)
 	{
 		ArgumentNullException.ThrowIfNull(app);

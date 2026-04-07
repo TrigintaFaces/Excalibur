@@ -93,7 +93,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 				ShouldHandle = new PredicateBuilder().Handle<Exception>(),
 				OnRetry = args =>
 				{
-					LogRetryAttempt(args.Outcome.Exception, args.AttemptNumber, args.RetryDelay.TotalSeconds, _resourceName);
+					LogRetryAttempt(args.Outcome.Exception!, args.AttemptNumber, args.RetryDelay.TotalSeconds, _resourceName);
 					return ValueTask.CompletedTask;
 				},
 			})
@@ -187,8 +187,6 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	}
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("JSON serialization of health metadata requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
 	{
 		var health = new CandidateHealth
@@ -227,8 +225,6 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	}
 
 	/// <inheritdoc />
-	[RequiresDynamicCode("JSON serialization of candidate health requires dynamic code generation for type inspection and property access")]
-	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
 	public async Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken)
 	{
 		var healthPrefix = GetHealthKeyPrefix();
