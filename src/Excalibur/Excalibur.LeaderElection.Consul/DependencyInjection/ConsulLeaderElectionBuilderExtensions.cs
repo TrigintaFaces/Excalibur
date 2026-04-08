@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Consul;
@@ -52,6 +53,8 @@ public static class ConsulLeaderElectionBuilderExtensions
 	/// <param name="builder">The leader election builder.</param>
 	/// <param name="configuration">The configuration section to bind to <see cref="ConsulLeaderElectionOptions"/>.</param>
 	/// <returns>The builder for fluent chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding for leader election options is expected to use reflection in this convenience overload")]
 	public static ILeaderElectionBuilder UseConsul(
 		this ILeaderElectionBuilder builder,
 		IConfiguration configuration)

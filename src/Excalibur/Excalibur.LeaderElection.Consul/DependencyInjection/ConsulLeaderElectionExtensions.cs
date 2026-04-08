@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Consul;
@@ -88,6 +89,8 @@ public static class ConsulLeaderElectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration section containing Consul options. </param>
 	/// <returns> The service collection for chaining. </returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding for leader election options is expected to use reflection in this convenience overload")]
 	public static IServiceCollection AddConsulLeaderElection(
 		this IServiceCollection services,
 		IConfiguration configuration)
