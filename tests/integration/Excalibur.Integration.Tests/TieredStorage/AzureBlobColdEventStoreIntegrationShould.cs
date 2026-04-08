@@ -19,6 +19,7 @@ namespace Excalibur.Integration.Tests.TieredStorage;
 public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 {
 	private AzuriteContainer? _container;
+	private ServiceProvider? _serviceProvider;
 	private IColdEventStore? _store;
 	private bool _available;
 
@@ -44,8 +45,8 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 				});
 			});
 
-			var sp = services.BuildServiceProvider();
-			_store = sp.GetRequiredService<IColdEventStore>();
+			_serviceProvider = services.BuildServiceProvider();
+			_store = _serviceProvider.GetRequiredService<IColdEventStore>();
 			_available = true;
 		}
 		catch (Exception)
@@ -56,6 +57,18 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 
 	public async Task DisposeAsync()
 	{
+		try
+		{
+			if (_serviceProvider is not null)
+			{
+				await _serviceProvider.DisposeAsync().ConfigureAwait(false);
+			}
+		}
+		catch (Exception)
+		{
+			// Best effort cleanup
+		}
+
 		try
 		{
 			if (_container is not null)
