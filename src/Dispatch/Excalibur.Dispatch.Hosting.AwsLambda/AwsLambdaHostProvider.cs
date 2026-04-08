@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Abstractions;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 namespace Excalibur.Dispatch.Hosting.AwsLambda;
 
 /// <summary>
@@ -26,6 +28,10 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 		!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LAMBDA_TASK_ROOT"));
 
 	/// <inheritdoc />
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT",
+		"IL2026:RequiresUnreferencedCode",
+		Justification = "DefaultLambdaJsonSerializer is registered as a fallback. " +
+			"Consumers targeting AOT should register SourceGeneratorLambdaJsonSerializer instead.")]
 	public void ConfigureServices(IServiceCollection services, ServerlessHostOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -37,7 +43,7 @@ internal partial class AwsLambdaHostProvider(ILogger<AwsLambdaHostProvider> logg
 		_ = services.AddSingleton(sp => CreateDefaultContext());
 
 		// Add Lambda serializer if not already configured
-		_ = services.AddSingleton<DefaultLambdaJsonSerializer>();
+		services.TryAddSingleton<DefaultLambdaJsonSerializer>();
 
 		// Configure cold start optimization if enabled
 		if (options.EnableColdStartOptimization)
