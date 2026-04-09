@@ -14,8 +14,8 @@
 //   SQL Server #1 (Legacy DB)         SQL Server #2 (Event Store)
 //   Port 1433                          Port 1434
 //   ┌───────────────────────┐         ┌───────────────────────────┐
-//   │  LegacyCustomers      │         │  eventsourcing.Events     │
-//   │  LegacyOrders         │         │  eventsourcing.Snapshots  │
+//   │  LegacyCustomers      │         │  dbo.EventStoreEvents     │
+//   │  LegacyOrders         │         │  dbo.EventStoreSnapshots  │
 //   │  LegacyOrderItems     │         └─────────────┬─────────────┘
 //   │  (CDC enabled)        │                       │
 //   └─────────┬─────────────┘                       │ Domain Events
@@ -90,6 +90,8 @@ using Elastic.Clients.Elasticsearch;
 using Elastic.Transport;
 
 using Excalibur.Cdc.SqlServer;
+using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -147,16 +149,6 @@ builder.Services
 builder.Services
 	.AddDispatch(typeof(Program).Assembly)
 	.AddSingleton<IEventSerializer, JsonEventSerializer>();
-
-// ============================================================================
-// SQL Server Event Store
-// ============================================================================
-
-builder.Services.AddSqlServerEventSourcing(options =>
-{
-	options.ConnectionString = eventStoreConnectionString;
-	options.HealthChecks.RegisterHealthChecks = true;
-});
 
 // ============================================================================
 // CDC Processing (Fluent Builder Pattern)
@@ -347,7 +339,19 @@ builder.Services.AddScoped<OrderFullTextSearchRepository>();
 
 builder.Services.AddExcaliburEventSourcing(es =>
 {
-	es.UseEventNotification();
+	// SQL Server event store with health checks
+	es.UseSqlServer(options =>
+	{
+		options.ConnectionString = eventStoreConnectionString;
+		options.HealthChecks.RegisterHealthChecks = true;
+	});
+
+	// Register event-sourced repositories used by CDC change handlers
+	es.AddRepository<CustomerAggregate, Guid>(id => new CustomerAggregate(id));
+	es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
+
+	// Snapshot every 100 events to keep aggregate rehydration fast
+	es.UseIntervalSnapshots(100);
 
 	// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
 	es.AddProjection<CustomerSearchProjection>(p => p

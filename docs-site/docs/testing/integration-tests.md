@@ -44,9 +44,9 @@ public class SqlServerIntegrationTests : IAsyncLifetime
         services.AddDispatch();
         services.AddExcaliburEventSourcing(builder =>
         {
+            builder.UseSqlServer(opts => opts.ConnectionString = _container.GetConnectionString());
             builder.AddRepository<Order, OrderId>();
         });
-        services.AddSqlServerEventSourcing(_container.GetConnectionString());
         services.AddExcaliburOutbox(outbox =>
         {
             outbox.UseSqlServer(_container.GetConnectionString());
@@ -263,9 +263,9 @@ public class IntegrationTestFixture : IAsyncLifetime
         services.AddDispatch();
         services.AddExcaliburEventSourcing(builder =>
         {
+            builder.UseSqlServer(opts => opts.ConnectionString = SqlServer.GetConnectionString());
             builder.AddRepository<Order, OrderId>();
         });
-        services.AddSqlServerEventSourcing(SqlServer.GetConnectionString());
         services.AddExcaliburOutbox(outbox =>
         {
             outbox.UseSqlServer(SqlServer.GetConnectionString());

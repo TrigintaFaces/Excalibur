@@ -36,7 +36,7 @@ namespace Excalibur.Dispatch.Middleware.Outbox;
 /// <para>
 /// For true <strong>Transactional Outbox</strong> guarantees (atomic commit of business
 /// data + outbox messages), the handler must stage messages directly within its own
-/// transaction scope -- for example via <c>IEventSourcedOutboxStore.AddAsync</c> or
+/// transaction scope -- for example via <c>ITransactionalOutboxWriter.StageMessageAsync</c> or
 /// by writing outbox entries within the same <c>IUnitOfWork</c>. The middleware approach
 /// is suitable when eventual consistency is acceptable or when the transport itself
 /// provides delivery guarantees.

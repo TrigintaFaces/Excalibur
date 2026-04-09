@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using System.Text;
 
 using Confluent.Kafka;
@@ -177,12 +178,12 @@ internal sealed partial class KafkaTransportSender : ITransportSender
 
 		if (message.CorrelationId is not null)
 		{
-			headers.Add("correlation-id", Encoding.UTF8.GetBytes(message.CorrelationId));
+			headers.Add(OutboxHeaderNames.CorrelationId, Encoding.UTF8.GetBytes(message.CorrelationId));
 		}
 
 		if (message.CausationId is not null)
 		{
-			headers.Add("causation-id", Encoding.UTF8.GetBytes(message.CausationId));
+			headers.Add(OutboxHeaderNames.CausationId, Encoding.UTF8.GetBytes(message.CausationId));
 		}
 
 		if (message.Subject is not null)

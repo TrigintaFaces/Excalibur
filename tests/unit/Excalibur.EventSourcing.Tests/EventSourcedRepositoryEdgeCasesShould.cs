@@ -412,8 +412,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			eventStore,
 			serializer,
 			id => new EdgeCaseAggregate(id),
-			upcastingPipeline,
-			upcastingOptions: options);
+			upcastingOptions: options,
+			upcastingPipeline: upcastingPipeline);
 
 		// Act
 		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);

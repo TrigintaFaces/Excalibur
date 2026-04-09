@@ -340,9 +340,9 @@ builder.Services.AddDispatch(dispatch =>
 // 2. Event Sourcing (aggregates + event store)
 builder.Services.AddExcaliburEventSourcing(es =>
 {
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 });
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 builder.Services.AddSqlServerProjectionStore<OrderSummary>(opts => opts.ConnectionString = connectionString);
 
 // 3. A3 Grant-Based Authorization

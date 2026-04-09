@@ -11,16 +11,13 @@ using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
-using Excalibur.EventSourcing.SqlServer.Outbox;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -225,33 +222,6 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server event-sourced outbox store implementation with a connection factory.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="connectionFactory">Factory for creating SQL connections.</param>
-	/// <param name="schema">The schema name for the outbox table. Default: "dbo".</param>
-	/// <param name="table">The outbox table name. Default: "EventSourcedOutbox".</param>
-	/// <returns>The service collection for method chaining.</returns>
-	public static IServiceCollection AddSqlServerOutboxStore(
-		this IServiceCollection services,
-		Func<SqlConnection> connectionFactory,
-		string schema = "dbo",
-		string table = "EventSourcedOutbox")
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(connectionFactory);
-
-		services.TryAddSingleton<IEventSourcedOutboxStore>(sp =>
-			new SqlServerEventSourcedOutboxStore(
-				connectionFactory,
-				sp.GetRequiredService<ILogger<SqlServerEventSourcedOutboxStore>>(),
-				schema,
-				table));
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds all SQL Server event sourcing implementations with configuration.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -292,14 +262,12 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 
 		_ = services.Configure(configure);
 
-		// Register subscription polling options validator for SQL injection prevention
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SubscriptionPollingOptions>, SubscriptionPollingOptionsValidator>());
-
 		// Register stores using connection factory from resolved connection string
 		Func<SqlConnection> connectionFactory = () => new SqlConnection(options.ConnectionString);
 		_ = services.AddSqlServerEventStore(connectionFactory, options.EventStoreSchema, options.EventStoreTable);
 		_ = services.AddSqlServerSnapshotStore(connectionFactory, options.SnapshotStoreSchema, options.SnapshotStoreTable);
-		_ = services.AddSqlServerOutboxStore(connectionFactory, options.OutboxSchema, options.OutboxTable);
+		// Outbox is now unified via Excalibur.Outbox.SqlServer (IOutboxStore + ITransactionalOutboxWriter).
+		// Register via: services.AddExcaliburOutbox(o => o.UseSqlServer(sql => sql.ConnectionString("...")))
 
 		// Register health checks if enabled
 		if (options.HealthChecks.RegisterHealthChecks)
@@ -313,10 +281,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 					options.ConnectionString,
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "sqlserver", "eventsourcing"])
-				.AddSqlServer(
-					options.ConnectionString,
-					name: options.HealthChecks.OutboxStoreHealthCheckName,
-					tags: ["outbox", "sqlserver", "eventsourcing"]);
+				;
 		}
 
 		return services;
@@ -352,14 +317,12 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		_ = services.AddOptions<SqlServerEventSourcingOptions>()
 			.Bind(configuration);
 
-		// Register subscription polling options validator for SQL injection prevention
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SubscriptionPollingOptions>, SubscriptionPollingOptionsValidator>());
-
 		// Register stores using connection factory from resolved connection string
 		Func<SqlConnection> connectionFactory = () => new SqlConnection(options.ConnectionString);
 		_ = services.AddSqlServerEventStore(connectionFactory, options.EventStoreSchema, options.EventStoreTable);
 		_ = services.AddSqlServerSnapshotStore(connectionFactory, options.SnapshotStoreSchema, options.SnapshotStoreTable);
-		_ = services.AddSqlServerOutboxStore(connectionFactory, options.OutboxSchema, options.OutboxTable);
+		// Outbox is now unified via Excalibur.Outbox.SqlServer (IOutboxStore + ITransactionalOutboxWriter).
+		// Register via: services.AddExcaliburOutbox(o => o.UseSqlServer(sql => sql.ConnectionString("...")))
 
 		// Register health checks if enabled
 		if (options.HealthChecks.RegisterHealthChecks)
@@ -373,10 +336,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 					options.ConnectionString,
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "sqlserver", "eventsourcing"])
-				.AddSqlServer(
-					options.ConnectionString,
-					name: options.HealthChecks.OutboxStoreHealthCheckName,
-					tags: ["outbox", "sqlserver", "eventsourcing"]);
+				;
 		}
 
 		return services;
@@ -403,7 +363,8 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 
 		_ = services.AddSqlServerEventStore(connectionFactory);
 		_ = services.AddSqlServerSnapshotStore(connectionFactory);
-		_ = services.AddSqlServerOutboxStore(connectionFactory);
+		// Outbox is now unified via Excalibur.Outbox.SqlServer (IOutboxStore + ITransactionalOutboxWriter).
+		// Register via: services.AddExcaliburOutbox(o => o.UseSqlServer(sql => sql.ConnectionString("...")))
 
 		return services;
 	}
@@ -600,32 +561,6 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds SQL Server event-sourced outbox store implementation using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
-	/// </summary>
-	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
-	/// <param name="services">The service collection.</param>
-	/// <param name="schema">The schema name for the outbox table. Default: "dbo".</param>
-	/// <param name="table">The outbox table name. Default: "EventSourcedOutbox".</param>
-	/// <returns>The service collection for method chaining.</returns>
-	public static IServiceCollection AddSqlServerOutboxStore<TDb>(
-		this IServiceCollection services,
-		string schema = "dbo",
-		string table = "EventSourcedOutbox")
-		where TDb : class, Excalibur.Data.Abstractions.IDb
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		services.TryAddSingleton<IEventSourcedOutboxStore>(sp =>
-			new SqlServerEventSourcedOutboxStore(
-				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
-				sp.GetRequiredService<ILogger<SqlServerEventSourcedOutboxStore>>(),
-				schema,
-				table));
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds all SQL Server event sourcing implementations using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
 	/// </summary>
 	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
@@ -634,8 +569,6 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	/// <param name="eventStoreTable">The event store table name. Default: "EventStoreEvents".</param>
 	/// <param name="snapshotStoreSchema">The schema name for the snapshot store table. Default: "dbo".</param>
 	/// <param name="snapshotStoreTable">The snapshot store table name. Default: "EventStoreSnapshots".</param>
-	/// <param name="outboxSchema">The schema name for the outbox table. Default: "dbo".</param>
-	/// <param name="outboxTable">The outbox table name. Default: "EventSourcedOutbox".</param>
 	/// <returns>The service collection for method chaining.</returns>
 	/// <remarks>
 	/// <para>
@@ -649,16 +582,16 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		string eventStoreSchema = "dbo",
 		string eventStoreTable = "EventStoreEvents",
 		string snapshotStoreSchema = "dbo",
-		string snapshotStoreTable = "EventStoreSnapshots",
-		string outboxSchema = "dbo",
-		string outboxTable = "EventSourcedOutbox")
+		string snapshotStoreTable = "EventStoreSnapshots")
 		where TDb : class, Excalibur.Data.Abstractions.IDb
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddSqlServerEventStore<TDb>(eventStoreSchema, eventStoreTable);
 		_ = services.AddSqlServerSnapshotStore<TDb>(snapshotStoreSchema, snapshotStoreTable);
-		_ = services.AddSqlServerOutboxStore<TDb>(outboxSchema, outboxTable);
+
+		// Outbox is now unified via Excalibur.Outbox.SqlServer (IOutboxStore + ITransactionalOutboxWriter).
+		// Register via: services.AddExcaliburOutbox(o => o.UseSqlServer(sql => sql.ConnectionString("...")))
 
 		return services;
 	}

@@ -171,13 +171,15 @@ volumes:
 #     -S localhost -U sa -P "YourStrong@Passw0rd" -C -d LegacyDb \
 #     -Q "EXEC sys.sp_cdc_enable_db"
 #
-# SQL Server #2 (Event Store) - Create database:
+# SQL Server #2 (Event Store) - Create database and tables:
 #
-#   docker exec -it excalibur-sqlserver-eventstore /opt/mssql-tools18/bin/sqlcmd \
-#     -S localhost -U sa -P "YourStrong@Passw0rd" -C \
-#     -Q "CREATE DATABASE EventStore"
+#   Run Section 2 of scripts/setup-databases.sql against port 1434.
+#   This creates the EventStore database plus the required tables:
+#     - dbo.EventStoreEvents     (domain events)
+#     - dbo.EventStoreSnapshots  (aggregate snapshots)
+#   The outbox table (dbo.OutboxMessages) is managed separately by Excalibur.Outbox.SqlServer.
 #
-# Note: The Excalibur.EventSourcing.SqlServer package will create the schema
-# automatically on first use.
+# Note: The framework does NOT auto-create tables. They must exist before
+# the application starts.
 #
 # ============================================================================

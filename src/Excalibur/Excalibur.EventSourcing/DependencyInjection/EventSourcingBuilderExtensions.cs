@@ -6,7 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Abstractions;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.Snapshots;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -35,7 +34,7 @@ public static class EventSourcingBuilderExtensions
 		where TStrategy : class, ISnapshotStrategy
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		builder.Services.TryAddSingleton<ISnapshotStrategy, TStrategy>();
+		ReplaceSnapshotStrategy(builder.Services, ServiceDescriptor.Singleton<ISnapshotStrategy, TStrategy>());
 		return builder;
 	}
 
@@ -48,7 +47,7 @@ public static class EventSourcingBuilderExtensions
 	public static IEventSourcingBuilder UseIntervalSnapshots(this IEventSourcingBuilder builder, int eventInterval = 100)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		builder.Services.TryAddSingleton<ISnapshotStrategy>(new IntervalSnapshotStrategy(eventInterval));
+		ReplaceSnapshotStrategy(builder.Services, ServiceDescriptor.Singleton<ISnapshotStrategy>(new IntervalSnapshotStrategy(eventInterval)));
 		return builder;
 	}
 
@@ -61,7 +60,7 @@ public static class EventSourcingBuilderExtensions
 	public static IEventSourcingBuilder UseTimeBasedSnapshots(this IEventSourcingBuilder builder, TimeSpan timeInterval)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		builder.Services.TryAddSingleton<ISnapshotStrategy>(new TimeBasedSnapshotStrategy(timeInterval));
+		ReplaceSnapshotStrategy(builder.Services, ServiceDescriptor.Singleton<ISnapshotStrategy>(new TimeBasedSnapshotStrategy(timeInterval)));
 		return builder;
 	}
 
@@ -74,7 +73,7 @@ public static class EventSourcingBuilderExtensions
 	public static IEventSourcingBuilder UseSizeBasedSnapshots(this IEventSourcingBuilder builder, long maxSizeInBytes)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		builder.Services.TryAddSingleton<ISnapshotStrategy>(new SizeBasedSnapshotStrategy(maxSizeInBytes));
+		ReplaceSnapshotStrategy(builder.Services, ServiceDescriptor.Singleton<ISnapshotStrategy>(new SizeBasedSnapshotStrategy(maxSizeInBytes)));
 		return builder;
 	}
 
@@ -91,7 +90,7 @@ public static class EventSourcingBuilderExtensions
 
 		var strategyBuilder = new CompositeSnapshotStrategyBuilder();
 		configure(strategyBuilder);
-		builder.Services.TryAddSingleton(strategyBuilder.Build());
+		ReplaceSnapshotStrategy(builder.Services, ServiceDescriptor.Singleton<ISnapshotStrategy>(strategyBuilder.Build()));
 		return builder;
 	}
 
@@ -103,7 +102,7 @@ public static class EventSourcingBuilderExtensions
 	public static IEventSourcingBuilder UseNoSnapshots(this IEventSourcingBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		builder.Services.TryAddSingleton<ISnapshotStrategy>(NoSnapshotStrategy.Instance);
+		ReplaceSnapshotStrategy(builder.Services, ServiceDescriptor.Singleton<ISnapshotStrategy>(NoSnapshotStrategy.Instance));
 		return builder;
 	}
 
@@ -140,18 +139,23 @@ public static class EventSourcingBuilderExtensions
 	}
 
 	/// <summary>
-	/// Configures a custom outbox store for event sourcing.
+	/// Configures a custom transactional outbox writer for event sourcing.
 	/// </summary>
-	/// <typeparam name="TOutboxStore"> The outbox store implementation type. </typeparam>
+	/// <typeparam name="TOutboxWriter"> The transactional outbox writer implementation type. </typeparam>
 	/// <param name="builder"> The builder. </param>
 	/// <returns> The builder for fluent configuration. </returns>
-	public static IEventSourcingBuilder UseOutboxStore<
+	/// <remarks>
+	/// Most consumers should register the unified outbox via <c>AddExcaliburOutbox(o => o.UseSqlServer(...))</c>
+	/// which automatically registers <see cref="ITransactionalOutboxWriter"/>. Use this method only for
+	/// custom implementations.
+	/// </remarks>
+	public static IEventSourcingBuilder UseTransactionalOutboxWriter<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-	TOutboxStore>(this IEventSourcingBuilder builder)
-		where TOutboxStore : class, IEventSourcedOutboxStore
+	TOutboxWriter>(this IEventSourcingBuilder builder)
+		where TOutboxWriter : class, ITransactionalOutboxWriter
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		builder.Services.TryAddSingleton<IEventSourcedOutboxStore, TOutboxStore>();
+		builder.Services.TryAddSingleton<ITransactionalOutboxWriter, TOutboxWriter>();
 		return builder;
 	}
 
@@ -241,5 +245,24 @@ public static class EventSourcingBuilderExtensions
 		});
 
 		return builder;
+	}
+
+	/// <summary>
+	/// Replaces any existing <see cref="ISnapshotStrategy"/> registration with the given descriptor.
+	/// This is necessary because <see cref="EventSourcingServiceCollectionExtensions.AddExcaliburEventSourcing(IServiceCollection)"/>
+	/// registers <see cref="NoSnapshotStrategy"/> as the default via TryAddSingleton before the
+	/// builder action runs. Without replace semantics, all Use*Snapshots methods would be no-ops.
+	/// </summary>
+	private static void ReplaceSnapshotStrategy(IServiceCollection services, ServiceDescriptor descriptor)
+	{
+		for (var i = services.Count - 1; i >= 0; i--)
+		{
+			if (services[i].ServiceType == typeof(ISnapshotStrategy))
+			{
+				services.RemoveAt(i);
+			}
+		}
+
+		services.Add(descriptor);
 	}
 }

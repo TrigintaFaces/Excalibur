@@ -115,7 +115,7 @@ internal sealed partial class AzureEventHubMessageBus(
 		var evt = new EventData(body);
 		if (context.CorrelationId != null)
 		{
-			evt.Properties["correlation-id"] = context.CorrelationId;
+			evt.Properties[OutboxHeaderNames.CorrelationId] = context.CorrelationId;
 		}
 
 		var traceParent = context.GetTraceParent();

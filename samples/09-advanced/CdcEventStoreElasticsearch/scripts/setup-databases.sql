@@ -8,7 +8,7 @@
 -- This script sets up the required databases for the sample:
 --
 --   1. SQL Server #1 (port 1433): LegacyDb with CDC enabled
---   2. SQL Server #2 (port 1434): EventStore (schema auto-created by framework)
+--   2. SQL Server #2 (port 1434): EventStore (tables must be created manually)
 --
 -- Run this script after docker-compose up -d and containers are healthy.
 --
@@ -156,9 +156,11 @@ GO
 -- ============================================================================
 -- SECTION 2: Run on SQL Server #2 (port 1434) - Event Store
 -- ============================================================================
--- NOTE: Run this section on SQL Server #2 (port 1434)!
-
-/*
+-- NOTE: Connect to SQL Server #2 (port 1434) before running this section!
+--
+-- The Excalibur.EventSourcing.SqlServer package does NOT auto-create tables.
+-- You must create the database and tables before running the application.
+-- ============================================================================
 
 USE master;
 GO
@@ -170,19 +172,72 @@ BEGIN
 END
 GO
 
--- The Excalibur.EventSourcing.SqlServer package will automatically create
--- the required schema (eventsourcing.Events, eventsourcing.Snapshots, etc.)
--- when the application first connects.
+USE EventStore;
+GO
+
+-- Events table (stores domain events per aggregate stream)
+-- Default table name: dbo.EventStoreEvents (configurable via SqlServerEventSourcingOptions)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEvents')
+BEGIN
+    CREATE TABLE [dbo].[EventStoreEvents]
+    (
+        [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
+        [EventId]        NVARCHAR(256)         NOT NULL,
+        [AggregateId]    NVARCHAR(256)         NOT NULL,
+        [AggregateType]  NVARCHAR(256)         NOT NULL,
+        [EventType]      NVARCHAR(256)         NOT NULL,
+        [EventData]      VARBINARY(MAX)        NOT NULL,
+        [Metadata]       VARBINARY(MAX)        NULL,
+        [Version]        BIGINT                NOT NULL,
+        [Timestamp]      DATETIMEOFFSET        NOT NULL,
+
+        CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
+        CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version])
+    );
+
+    CREATE INDEX [IX_EventStoreEvents_AggregateId] ON [dbo].[EventStoreEvents]([AggregateId], [AggregateType]);
+    CREATE INDEX [IX_EventStoreEvents_EventType] ON [dbo].[EventStoreEvents]([EventType]);
+
+    PRINT 'Created table: dbo.EventStoreEvents';
+END
+GO
+
+-- Snapshots table (stores latest aggregate snapshot for fast rehydration)
+-- Default table name: dbo.EventStoreSnapshots (configurable via SqlServerEventSourcingOptions)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreSnapshots')
+BEGIN
+    CREATE TABLE [dbo].[EventStoreSnapshots]
+    (
+        [SnapshotId]     NVARCHAR(256)         NOT NULL,
+        [AggregateId]    NVARCHAR(256)         NOT NULL,
+        [AggregateType]  NVARCHAR(256)         NOT NULL,
+        [Version]        BIGINT                NOT NULL,
+        [Data]           VARBINARY(MAX)        NOT NULL,
+        [CreatedAt]      DATETIMEOFFSET        NOT NULL,
+
+        CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType])
+    );
+
+    PRINT 'Created table: dbo.EventStoreSnapshots';
+END
+GO
+
+-- Outbox table: The unified outbox (dbo.OutboxMessages) is managed by
+-- Excalibur.Outbox.SqlServer and is created separately via AddExcaliburOutbox().
+-- It is NOT part of the event store schema.
 
 PRINT '';
 PRINT '============================================================================';
 PRINT 'SQL Server #2 (Event Store) setup complete!';
 PRINT '';
-PRINT 'The EventStore database is ready.';
-PRINT 'Schema will be created automatically by the framework on first use.';
+PRINT 'Tables created:';
+PRINT '  - dbo.EventStoreEvents     (domain events)';
+PRINT '  - dbo.EventStoreSnapshots  (aggregate snapshots)';
+PRINT '';
+PRINT 'Note: The outbox table (dbo.OutboxMessages) is managed separately by';
+PRINT '      Excalibur.Outbox.SqlServer via AddExcaliburOutbox().';
 PRINT '============================================================================';
-
-*/
+GO
 
 
 -- ============================================================================

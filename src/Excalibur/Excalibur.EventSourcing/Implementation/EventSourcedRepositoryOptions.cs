@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
+
 namespace Excalibur.EventSourcing.Implementation;
 
 /// <summary>
@@ -31,4 +33,13 @@ public sealed class EventSourcedRepositoryOptions
 	/// </summary>
 	/// <value>The target snapshot version. Default is 1.</value>
 	public int TargetSnapshotVersion { get; set; } = 1;
+
+	/// <summary>
+	/// Gets or sets the outbox staging strategy for integration events during aggregate save.
+	/// </summary>
+	/// <value>
+	/// The staging strategy. Default is <see cref="OutboxStagingStrategy.Auto"/>, which selects
+	/// the best available strategy based on registered infrastructure.
+	/// </value>
+	public OutboxStagingStrategy OutboxStagingStrategy { get; set; } = OutboxStagingStrategy.Auto;
 }

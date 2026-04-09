@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Implementation;
-using Excalibur.EventSourcing.Outbox;
+
 using Excalibur.EventSourcing.Snapshots;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -63,6 +63,7 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	/// </summary>
 	/// <typeparam name="TAggregate"> The aggregate type with string identifier. </typeparam>
 	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a string key. </param>
+	/// <param name="configureOptions"> Optional per-aggregate repository configuration (e.g., outbox staging strategy). </param>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks>
 	/// <para>
@@ -74,23 +75,36 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	public IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate>(
-		Func<string, TAggregate> aggregateFactory)
+		Func<string, TAggregate> aggregateFactory,
+		Action<EventSourcedRepositoryOptions>? configureOptions = null)
 		where TAggregate : class, Domain.Model.IAggregateRoot<string>, Domain.Model.IAggregateSnapshotSupport
 	{
 		ArgumentNullException.ThrowIfNull(aggregateFactory);
 
+		if (configureOptions is not null)
+		{
+			_ = Services.Configure(typeof(TAggregate).Name, configureOptions);
+		}
+
 		Services.TryAddSingleton<IEventSourcedRepository<TAggregate>>(sp =>
-			new EventSourcedRepository<TAggregate>(
+		{
+			var opts = ResolveRepositoryOptions<TAggregate>(sp, configureOptions);
+			return new EventSourcedRepository<TAggregate>(
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<IEventSerializer>(),
 				aggregateFactory,
-				sp.GetService<IUpcastingPipeline>(),
-				sp.GetService<ISnapshotManager>(),
-				sp.GetService<ISnapshotStrategy>(),
-				sp.GetService<IOptions<UpcastingOptions>>(),
-				sp.GetService<IEventSourcedOutboxStore>(),
-				sp.GetService<SnapshotVersionManager>(),
-				sp.GetService<IOptions<SnapshotUpgradingOptions>>()));
+				upcastingOptions: sp.GetService<IOptions<UpcastingOptions>>(),
+				snapshotUpgradingOptions: sp.GetService<IOptions<SnapshotUpgradingOptions>>(),
+				autoSnapshotOptions: sp.GetService<IOptionsMonitor<Abstractions.AutoSnapshotOptions>>(),
+				upcastingPipeline: sp.GetService<IUpcastingPipeline>(),
+				snapshotManager: sp.GetService<ISnapshotManager>(),
+				snapshotStrategy: sp.GetService<ISnapshotStrategy>(),
+				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
+				outboxStore: sp.GetService<IOutboxStore>(),
+				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
+				eventNotificationBroker: sp.GetService<IEventNotificationBroker>(),
+				outboxStagingStrategy: opts.Value.OutboxStagingStrategy);
+		});
 
 		return this;
 	}
@@ -101,30 +115,39 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	/// <typeparam name="TAggregate"> The aggregate type. </typeparam>
 	/// <typeparam name="TKey"> The key type for the aggregate. </typeparam>
 	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a key. </param>
+	/// <param name="configureOptions"> Optional per-aggregate repository configuration (e.g., outbox staging strategy). </param>
 	/// <returns> The builder for fluent configuration. </returns>
 	/// <remarks> Use this method for aggregates with non-string keys (e.g., Guid, int). </remarks>
 	[RequiresUnreferencedCode("Repository registration may require types that cannot be statically analyzed.")]
 	public IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate, TKey>(
-		Func<TKey, TAggregate> aggregateFactory)
+		Func<TKey, TAggregate> aggregateFactory,
+		Action<EventSourcedRepositoryOptions>? configureOptions = null)
 		where TAggregate : class, Domain.Model.IAggregateRoot<TKey>, Domain.Model.IAggregateSnapshotSupport
 		where TKey : notnull
 	{
 		ArgumentNullException.ThrowIfNull(aggregateFactory);
 
 		Services.TryAddSingleton<IEventSourcedRepository<TAggregate, TKey>>(sp =>
-			new EventSourcedRepository<TAggregate, TKey>(
+		{
+			var opts = ResolveRepositoryOptions<TAggregate>(sp, configureOptions);
+			return new EventSourcedRepository<TAggregate, TKey>(
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<IEventSerializer>(),
 				aggregateFactory,
-				sp.GetService<IUpcastingPipeline>(),
-				sp.GetService<ISnapshotManager>(),
-				sp.GetService<ISnapshotStrategy>(),
-				sp.GetService<IOptions<UpcastingOptions>>(),
-				sp.GetService<IEventSourcedOutboxStore>(),
-				sp.GetService<SnapshotVersionManager>(),
-				sp.GetService<IOptions<SnapshotUpgradingOptions>>()));
+				upcastingOptions: sp.GetService<IOptions<UpcastingOptions>>(),
+				snapshotUpgradingOptions: sp.GetService<IOptions<SnapshotUpgradingOptions>>(),
+				autoSnapshotOptions: sp.GetService<IOptionsMonitor<Abstractions.AutoSnapshotOptions>>(),
+				upcastingPipeline: sp.GetService<IUpcastingPipeline>(),
+				snapshotManager: sp.GetService<ISnapshotManager>(),
+				snapshotStrategy: sp.GetService<ISnapshotStrategy>(),
+				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
+				outboxStore: sp.GetService<IOutboxStore>(),
+				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
+				eventNotificationBroker: sp.GetService<IEventNotificationBroker>(),
+				outboxStagingStrategy: opts.Value.OutboxStagingStrategy);
+		});
 
 		return this;
 	}
@@ -166,6 +189,31 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 	{
 		_ = Services.AddKeyedSingleton<IEventStore, TEventStore>("default");
 		return this;
+	}
+
+	/// <summary>
+	/// Resolves repository options, merging global defaults with per-aggregate overrides.
+	/// </summary>
+	private static IOptions<EventSourcedRepositoryOptions> ResolveRepositoryOptions<TAggregate>(
+		IServiceProvider sp,
+		Action<EventSourcedRepositoryOptions>? configureOptions)
+	{
+		// Start from global options if registered
+		var globalOptions = sp.GetService<IOptions<EventSourcedRepositoryOptions>>()?.Value;
+		var options = new EventSourcedRepositoryOptions();
+
+		if (globalOptions is not null)
+		{
+			options.EnableAutoUpcast = globalOptions.EnableAutoUpcast;
+			options.EnableAutoSnapshotUpgrade = globalOptions.EnableAutoSnapshotUpgrade;
+			options.TargetSnapshotVersion = globalOptions.TargetSnapshotVersion;
+			options.OutboxStagingStrategy = globalOptions.OutboxStagingStrategy;
+		}
+
+		// Apply per-aggregate overrides
+		configureOptions?.Invoke(options);
+
+		return Microsoft.Extensions.Options.Options.Create(options);
 	}
 }
 

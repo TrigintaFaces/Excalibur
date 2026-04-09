@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Transport.GooglePubSub;
 
 using Google.Api.Gax;
@@ -209,7 +210,7 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 			: attributes.TryGetValue("message-id", out var mid) ? mid : Guid.NewGuid().ToString("N");
 
 		var contentType = attributes.TryGetValue("content-type", out var ct) ? ct : null;
-		var correlationId = attributes.TryGetValue("correlation-id", out var cid) ? cid : null;
+		var correlationId = attributes.TryGetValue(OutboxHeaderNames.CorrelationId, out var cid) ? cid : null;
 		var messageType = attributes.TryGetValue("message-type", out var mt) ? mt : null;
 		var subject = attributes.TryGetValue("subject", out var subj) ? subj : null;
 		var orderingKey = string.IsNullOrWhiteSpace(pubsubMessage.OrderingKey) ? null : pubsubMessage.OrderingKey;

@@ -292,10 +292,13 @@ See [GDPR Erasure](../compliance/gdpr-erasure.md) for complete implementation in
 
 ```csharp
 // SQL Server event sourcing automatically registers health checks
-services.AddSqlServerEventSourcing(options =>
+services.AddExcaliburEventSourcing(es =>
 {
-    options.ConnectionString = connectionString;
-    options.RegisterHealthChecks = true; // Default: true
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.HealthChecks.RegisterHealthChecks = true;
+    });
 });
 ```
 

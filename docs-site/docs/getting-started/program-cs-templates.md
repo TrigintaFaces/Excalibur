@@ -301,6 +301,7 @@ builder.Services.AddDispatchWithSqlServer(connectionString);
 
 builder.Services.AddExcaliburEventSourcing(es =>
 {
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
     es.AddRepository<TodoAggregate, Guid>(id => new TodoAggregate(id));
 
     // Inline projection: updated synchronously during SaveAsync()
@@ -315,7 +316,6 @@ builder.Services.AddExcaliburEventSourcing(es =>
         .When<TodoCompleted>((view, _) => { view.IsComplete = true; }));
 });
 
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 builder.Services.AddSqlServerProjectionStore<TodoView>(opts =>
 {
     opts.ConnectionString = connectionString;

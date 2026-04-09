@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Globalization;
 
@@ -207,7 +208,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 
 		if (message.CausationId is not null)
 		{
-			sbMessage.ApplicationProperties["causation-id"] = message.CausationId;
+			sbMessage.ApplicationProperties[OutboxHeaderNames.CausationId] = message.CausationId;
 		}
 
 		if (message.TimeToLive.HasValue)

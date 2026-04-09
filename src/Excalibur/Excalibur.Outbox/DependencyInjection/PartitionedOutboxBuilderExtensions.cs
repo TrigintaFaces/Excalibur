@@ -3,8 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.EventSourcing.DependencyInjection;
-using Excalibur.EventSourcing.Outbox;
+using Excalibur.Outbox;
+using Excalibur.Outbox.Partitioning;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -12,18 +12,18 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring partitioned outbox processing.
+/// Extension methods for configuring partitioned outbox processing on <see cref="IOutboxBuilder"/>.
 /// </summary>
-public static class PartitionedOutboxServiceCollectionExtensions
+public static class PartitionedOutboxBuilderExtensions
 {
 	/// <summary>
 	/// Enables partitioned outbox processing for improved throughput.
 	/// </summary>
-	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="builder">The outbox builder.</param>
 	/// <param name="configure">Action to configure partitioning options.</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	public static IEventSourcingBuilder UsePartitionedOutbox(
-		this IEventSourcingBuilder builder,
+	public static IOutboxBuilder UsePartitionedProcessing(
+		this IOutboxBuilder builder,
 		Action<OutboxPartitionOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
@@ -51,9 +51,6 @@ public static class PartitionedOutboxServiceCollectionExtensions
 				break;
 
 			case OutboxPartitionStrategy.PerShard:
-				// PerShard resolves ITenantShardMap from DI at runtime to build
-				// the shard-to-partition mapping. Requires EnableTenantSharding
-				// and ShardIds configured in OutboxPartitionOptions.
 				builder.Services.TryAddSingleton<IOutboxPartitioner>(sp =>
 				{
 					var shardMap = sp.GetRequiredService<ITenantShardMap>();
@@ -62,37 +59,24 @@ public static class PartitionedOutboxServiceCollectionExtensions
 				break;
 		}
 
-		// Register the partitioned processor background service
-		builder.Services.AddHostedService<PartitionedOutboxProcessorService>();
+		// The OutboxBackgroundService detects IOutboxPartitioner via DI and
+		// automatically runs N parallel processor loops when registered.
 
 		return builder;
 	}
 
 	/// <summary>
-	/// Enables partitioned outbox processing for improved throughput,
-	/// with options bound from an <see cref="IConfiguration"/> section.
+	/// Enables partitioned outbox processing with options bound from an <see cref="IConfiguration"/> section.
 	/// </summary>
-	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="builder">The outbox builder.</param>
 	/// <param name="configuration">The configuration section to bind <see cref="OutboxPartitionOptions"/> from.</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Unlike the <see cref="Action{T}"/>-based overload, this always registers the
-	/// partitioned processor. The <see cref="OutboxPartitionOptions.Strategy"/> is
-	/// resolved at runtime from bound configuration. Use <c>ValidateOnStart</c> to
-	/// catch misconfiguration early.
-	/// </para>
-	/// <para>
-	/// The <see cref="IOutboxPartitioner"/> is resolved at runtime based on the bound
-	/// <see cref="OutboxPartitionOptions.Strategy"/> value.
-	/// </para>
-	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Options validation/binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IEventSourcingBuilder UsePartitionedOutbox(
-		this IEventSourcingBuilder builder,
+		Justification = "Configuration binding uses reflection by design.")]
+	public static IOutboxBuilder UsePartitionedProcessing(
+		this IOutboxBuilder builder,
 		IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
@@ -104,7 +88,6 @@ public static class PartitionedOutboxServiceCollectionExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<OutboxPartitionOptions>, OutboxPartitionOptionsValidator>());
 
-		// Register the partitioner using deferred resolution based on bound options
 		builder.Services.TryAddSingleton<IOutboxPartitioner>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<OutboxPartitionOptions>>().Value;
@@ -120,8 +103,8 @@ public static class PartitionedOutboxServiceCollectionExtensions
 			};
 		});
 
-		// Register the partitioned processor background service
-		builder.Services.AddHostedService<PartitionedOutboxProcessorService>();
+		// The OutboxBackgroundService detects IOutboxPartitioner via DI and
+		// automatically runs N parallel processor loops when registered.
 
 		return builder;
 	}

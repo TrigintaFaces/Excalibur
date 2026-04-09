@@ -17,8 +17,8 @@
 //   SQL Server #1 (Legacy DB)         SQL Server #2 (Event Store)
 //   Port 1433                          Port 1434
 //   +-------------------+             +---------------------------+
-//   |  LegacyCustomers  |             |  eventsourcing.Events     |
-//   |  (CDC enabled)    |             |  eventsourcing.Snapshots  |
+//   |  LegacyCustomers  |             |  dbo.EventStoreEvents     |
+//   |  (CDC enabled)    |             |  dbo.EventStoreSnapshots  |
 //   +---------+---------+             +-------------+-------------+
 //             |                                     |
 //             | CdcJob (Quartz.NET)                 | Domain Events
@@ -74,6 +74,7 @@ using CdcJobQuartz.Domain;
 using CdcJobQuartz.Infrastructure;
 using CdcJobQuartz.Projections;
 
+using Excalibur.EventSourcing.SqlServer;
 using Excalibur.Jobs.Cdc;
 
 using Microsoft.Extensions.Configuration;
@@ -119,12 +120,7 @@ var eventStoreConnectionString = builder.Configuration.GetConnectionString("Even
 
 Console.WriteLine("[Infrastructure] SQL Server #2 (Event Store): localhost:1434");
 
-// Register SQL Server Event Sourcing (Event Store + Snapshot Store + Outbox Store)
-builder.Services.AddSqlServerEventSourcing(options =>
-{
-	options.ConnectionString = eventStoreConnectionString;
-	options.HealthChecks.RegisterHealthChecks = true;
-});
+// SQL Server event sourcing is configured below via es.UseSqlServer() in the builder
 
 // ============================================================================
 // Step 4: Configure CDC Processing with Named Connections
@@ -210,7 +206,12 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 
 builder.Services.AddExcaliburEventSourcing(es =>
 {
-	es.UseEventNotification();
+	// SQL Server event store, snapshot store, outbox store + health checks
+	es.UseSqlServer(options =>
+	{
+		options.ConnectionString = eventStoreConnectionString;
+		options.HealthChecks.RegisterHealthChecks = true;
+	});
 
 	// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
 	es.AddProjection<CustomerSearchProjection>(p => p

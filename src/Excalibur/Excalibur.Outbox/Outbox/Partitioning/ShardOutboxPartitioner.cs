@@ -3,7 +3,7 @@
 
 using Excalibur.Data.Abstractions.Sharding;
 
-namespace Excalibur.EventSourcing.Outbox;
+namespace Excalibur.Outbox.Partitioning;
 
 /// <summary>
 /// Partitions outbox messages by tenant shard. Each shard ID maps to a partition.

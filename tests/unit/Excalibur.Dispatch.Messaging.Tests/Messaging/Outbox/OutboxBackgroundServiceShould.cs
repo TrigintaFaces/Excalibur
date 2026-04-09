@@ -46,7 +46,7 @@ public sealed class OutboxBackgroundServiceShould
 			.Returns(PublishingResult.Success(0));
 
 		var options = CreateOptions(pollingInterval: TimeSpan.FromMilliseconds(100));
-		var service = new OutboxBackgroundService(_publisher, options, _logger);
+		var service = new OutboxBackgroundService(_publisher, options, A.Fake<IServiceProvider>(), _logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -82,7 +82,7 @@ public sealed class OutboxBackgroundServiceShould
 		var options = CreateOptions(
 			pollingInterval: TimeSpan.FromMilliseconds(100),
 			processScheduled: true);
-		var service = new OutboxBackgroundService(_publisher, options, _logger);
+		var service = new OutboxBackgroundService(_publisher, options, A.Fake<IServiceProvider>(), _logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -116,7 +116,7 @@ public sealed class OutboxBackgroundServiceShould
 		var options = CreateOptions(
 			pollingInterval: TimeSpan.FromMilliseconds(100),
 			processScheduled: false);
-		var service = new OutboxBackgroundService(_publisher, options, _logger);
+		var service = new OutboxBackgroundService(_publisher, options, A.Fake<IServiceProvider>(), _logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -155,7 +155,7 @@ public sealed class OutboxBackgroundServiceShould
 			pollingInterval: TimeSpan.FromMilliseconds(100),
 			retryFailed: true,
 			maxRetries: 5);
-		var service = new OutboxBackgroundService(_publisher, options, _logger);
+		var service = new OutboxBackgroundService(_publisher, options, A.Fake<IServiceProvider>(), _logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -189,7 +189,7 @@ public sealed class OutboxBackgroundServiceShould
 		var options = CreateOptions(
 			pollingInterval: TimeSpan.FromMilliseconds(100),
 			retryFailed: false);
-		var service = new OutboxBackgroundService(_publisher, options, _logger);
+		var service = new OutboxBackgroundService(_publisher, options, A.Fake<IServiceProvider>(), _logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -219,7 +219,7 @@ public sealed class OutboxBackgroundServiceShould
 			.Invokes(() => _ = pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 		var options = CreateOptions(enabled: false);
-		var service = new OutboxBackgroundService(_publisher, options, _logger);
+		var service = new OutboxBackgroundService(_publisher, options, A.Fake<IServiceProvider>(), _logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -267,7 +267,7 @@ public sealed class OutboxBackgroundServiceShould
 			});
 
 		var options = CreateOptions(pollingInterval: TimeSpan.FromMilliseconds(100));
-		var service = new OutboxBackgroundService(_publisher, options, _logger);
+		var service = new OutboxBackgroundService(_publisher, options, A.Fake<IServiceProvider>(), _logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -301,7 +301,7 @@ public sealed class OutboxBackgroundServiceShould
 			.Invokes(() => _ = pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 		var options = CreateOptions(pollingInterval: TimeSpan.FromSeconds(10));
-		var service = new OutboxBackgroundService(_publisher, options, _logger);
+		var service = new OutboxBackgroundService(_publisher, options, A.Fake<IServiceProvider>(), _logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -323,7 +323,7 @@ public sealed class OutboxBackgroundServiceShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new OutboxBackgroundService(null!, options, _logger));
+			new OutboxBackgroundService(null!, options, A.Fake<IServiceProvider>(), _logger));
 	}
 
 	[Fact]
@@ -331,7 +331,7 @@ public sealed class OutboxBackgroundServiceShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new OutboxBackgroundService(_publisher, null!, _logger));
+			new OutboxBackgroundService(_publisher, null!, A.Fake<IServiceProvider>(), _logger));
 	}
 
 	private static IOptions<OutboxProcessingOptions> CreateOptions(

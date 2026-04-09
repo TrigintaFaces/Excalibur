@@ -44,12 +44,14 @@ public interface IEventSourcingBuilder
 	/// </summary>
 	/// <typeparam name="TAggregate"> The aggregate type with string identifier. </typeparam>
 	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a string key. </param>
+	/// <param name="configureOptions"> Optional per-aggregate repository configuration (e.g., outbox staging strategy). </param>
 	/// <returns> The builder for fluent configuration. </returns>
 	[RequiresUnreferencedCode("Repository registration may require types that cannot be statically analyzed.")]
 	IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate>(
-		Func<string, TAggregate> aggregateFactory)
+		Func<string, TAggregate> aggregateFactory,
+		Action<Implementation.EventSourcedRepositoryOptions>? configureOptions = null)
 		where TAggregate : class, Domain.Model.IAggregateRoot<string>, Domain.Model.IAggregateSnapshotSupport;
 
 	/// <summary>
@@ -58,12 +60,14 @@ public interface IEventSourcingBuilder
 	/// <typeparam name="TAggregate"> The aggregate type. </typeparam>
 	/// <typeparam name="TKey"> The key type for the aggregate. </typeparam>
 	/// <param name="aggregateFactory"> Factory function to create aggregate instances from a key. </param>
+	/// <param name="configureOptions"> Optional per-aggregate repository configuration. </param>
 	/// <returns> The builder for fluent configuration. </returns>
 	[RequiresUnreferencedCode("Repository registration may require types that cannot be statically analyzed.")]
 	IEventSourcingBuilder AddRepository<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TAggregate, TKey>(
-		Func<TKey, TAggregate> aggregateFactory)
+		Func<TKey, TAggregate> aggregateFactory,
+		Action<Implementation.EventSourcedRepositoryOptions>? configureOptions = null)
 		where TAggregate : class, Domain.Model.IAggregateRoot<TKey>, Domain.Model.IAggregateSnapshotSupport
 		where TKey : notnull;
 

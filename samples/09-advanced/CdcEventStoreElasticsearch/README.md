@@ -16,8 +16,8 @@ This advanced sample demonstrates a production-ready CQRS/Event Sourcing archite
 SQL Server #1 (Legacy DB)         SQL Server #2 (Event Store)
 Port 1433                          Port 1434
 ┌───────────────────┐             ┌───────────────────────────┐
-│  LegacyCustomers  │             │  eventsourcing.Events     │
-│  (CDC enabled)    │             │  eventsourcing.Snapshots  │
+│  LegacyCustomers  │             │  dbo.EventStoreEvents     │
+│  (CDC enabled)    │             │  dbo.EventStoreSnapshots  │
 └─────────┬─────────┘             └─────────────┬─────────────┘
           │                                     │
           │ CDC Polling Service                 │ Domain Events
@@ -198,7 +198,7 @@ docker-compose --profile visualization up -d
 
 | Component | Package | Purpose |
 |-----------|---------|---------|
-| `AddSqlServerEventSourcing` | `Excalibur.EventSourcing.SqlServer` | Event store, snapshots, outbox |
+| `es.UseSqlServer(...)` | `Excalibur.EventSourcing.SqlServer` | Event store, snapshots (via builder) |
 | `AddExcaliburSqlServices` | `Excalibur.Data.SqlServer` | SQL services, Dapper handlers |
 | `AddCdcProcessor` | `Excalibur.Data.SqlServer` | CDC processor factory |
 | `IDataChangeEventProcessorFactory` | `Excalibur.Data.SqlServer` | Creates CDC processors |
@@ -241,9 +241,9 @@ docker-compose --profile visualization up -d
 
 ### Event Store Schema Issues
 
-The framework auto-creates the schema on first use. If issues persist:
+The framework does **not** auto-create tables. Run Section 2 of `scripts/setup-databases.sql` against SQL Server #2 (port 1434) before starting the application. To verify the tables exist:
 
 ```sql
 USE EventStore;
-SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'eventsourcing';
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo';
 ```

@@ -28,8 +28,4 @@ public sealed class PostgresEventSourcingHealthCheckOptions
 	/// </summary>
 	public string SnapshotStoreHealthCheckName { get; set; } = "Postgres-snapshot-store";
 
-	/// <summary>
-	/// Gets or sets the health check name for the outbox store. Default: "Postgres-outbox-store".
-	/// </summary>
-	public string OutboxStoreHealthCheckName { get; set; } = "Postgres-outbox-store";
 }

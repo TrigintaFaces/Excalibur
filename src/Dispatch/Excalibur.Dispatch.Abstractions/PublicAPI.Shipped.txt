@@ -630,12 +630,6 @@ Excalibur.Dispatch.Abstractions.IDomainEvent.EventType.get -> string!
 Excalibur.Dispatch.Abstractions.IDomainEvent.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Dispatch.Abstractions.IDomainEvent.OccurredAt.get -> System.DateTimeOffset
 Excalibur.Dispatch.Abstractions.IDomainEvent.Version.get -> long
-Excalibur.Dispatch.Abstractions.IEventOutboxStore
-Excalibur.Dispatch.Abstractions.IEventOutboxStore.AddAsync(Excalibur.Dispatch.Abstractions.OutboxMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Abstractions.IEventOutboxStore.DeletePublishedOlderThanAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Dispatch.Abstractions.IEventOutboxStore.GetPendingAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.OutboxMessage!>!>!
-Excalibur.Dispatch.Abstractions.IEventOutboxStore.IncrementRetryCountAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Abstractions.IEventOutboxStore.MarkAsPublishedAsync(System.Guid messageId, System.Data.IDbTransaction? transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Abstractions.IEventSerializer
 Excalibur.Dispatch.Abstractions.IEventSerializer.DeserializeEvent(byte[]! data, System.Type! eventType) -> Excalibur.Dispatch.Abstractions.IDomainEvent!
 Excalibur.Dispatch.Abstractions.IEventSerializer.GetTypeName(System.Type! type) -> string!
@@ -1588,27 +1582,6 @@ Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode
 Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode.EventuallyConsistent = 0 -> Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode
 Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode.Transactional = 1 -> Excalibur.Dispatch.Abstractions.Outbox.OutboxConsistencyMode
 Excalibur.Dispatch.Abstractions.Outbox.OutboxWriterExtensions
-Excalibur.Dispatch.Abstractions.OutboxMessage
-Excalibur.Dispatch.Abstractions.OutboxMessage.AggregateId.get -> string!
-Excalibur.Dispatch.Abstractions.OutboxMessage.AggregateId.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.AggregateType.get -> string!
-Excalibur.Dispatch.Abstractions.OutboxMessage.AggregateType.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.CreatedAt.get -> System.DateTimeOffset
-Excalibur.Dispatch.Abstractions.OutboxMessage.CreatedAt.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.EventData.get -> string!
-Excalibur.Dispatch.Abstractions.OutboxMessage.EventData.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.EventType.get -> string!
-Excalibur.Dispatch.Abstractions.OutboxMessage.EventType.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.Id.get -> System.Guid
-Excalibur.Dispatch.Abstractions.OutboxMessage.Id.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.MessageType.get -> string!
-Excalibur.Dispatch.Abstractions.OutboxMessage.MessageType.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.Metadata.get -> string?
-Excalibur.Dispatch.Abstractions.OutboxMessage.Metadata.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.PublishedAt.get -> System.DateTimeOffset?
-Excalibur.Dispatch.Abstractions.OutboxMessage.PublishedAt.init -> void
-Excalibur.Dispatch.Abstractions.OutboxMessage.RetryCount.get -> int
-Excalibur.Dispatch.Abstractions.OutboxMessage.RetryCount.init -> void
 Excalibur.Dispatch.Abstractions.OutboxStatistics
 Excalibur.Dispatch.Abstractions.OutboxStatistics.CapturedAt.get -> System.DateTimeOffset
 Excalibur.Dispatch.Abstractions.OutboxStatistics.CapturedAt.init -> void
@@ -3240,3 +3213,16 @@ virtual Excalibur.Dispatch.Abstractions.DomainEvent.OccurredAt.get -> System.Dat
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.OccurredAt.init -> void
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.Version.get -> long
 virtual Excalibur.Dispatch.Abstractions.DomainEvent.Version.init -> void
+Excalibur.Dispatch.Abstractions.ITransactionalOutboxWriter
+Excalibur.Dispatch.Abstractions.ITransactionalOutboxWriter.StageMessageAsync(Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Abstractions.OutboxHeaderNames
+const Excalibur.Dispatch.Abstractions.OutboxHeaderNames.AggregateId = "aggregate-id" -> string!
+const Excalibur.Dispatch.Abstractions.OutboxHeaderNames.AggregateType = "aggregate-type" -> string!
+const Excalibur.Dispatch.Abstractions.OutboxHeaderNames.CausationId = "causation-id" -> string!
+const Excalibur.Dispatch.Abstractions.OutboxHeaderNames.CorrelationId = "correlation-id" -> string!
+const Excalibur.Dispatch.Abstractions.OutboxHeaderNames.TenantId = "tenant-id" -> string!
+Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
+Excalibur.Dispatch.Abstractions.OutboxStagingStrategy.Auto = 0 -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
+Excalibur.Dispatch.Abstractions.OutboxStagingStrategy.Transactional = 1 -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
+Excalibur.Dispatch.Abstractions.OutboxStagingStrategy.EventuallyConsistent = 2 -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
+Excalibur.Dispatch.Abstractions.OutboxStagingStrategy.Deferred = 3 -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy

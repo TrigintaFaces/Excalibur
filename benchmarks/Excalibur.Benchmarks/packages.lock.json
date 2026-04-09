@@ -933,7 +933,8 @@
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Options": "[10.0.0, )",
-          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )"
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
+          "System.IO.Hashing": "[10.0.1, )"
         }
       },
       "excalibur.outbox.sqlserver": {

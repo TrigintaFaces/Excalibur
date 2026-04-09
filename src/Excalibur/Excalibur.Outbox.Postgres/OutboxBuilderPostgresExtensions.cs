@@ -141,6 +141,7 @@ public static class OutboxBuilderPostgresExtensions
 		builder.Services.AddKeyedSingleton<IOutboxStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresOutboxStore>());
 		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("postgres"));
+		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<PostgresOutboxStore>());
 
 		return builder;
 	}

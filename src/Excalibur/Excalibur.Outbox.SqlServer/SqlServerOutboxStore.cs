@@ -42,7 +42,9 @@ namespace Excalibur.Outbox.SqlServer;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+	Justification = "Store class implements multiple ISP sub-interfaces (IMultiTransportOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter) by design.")]
+public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;
@@ -1167,6 +1169,66 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		finally
 		{
 			RecordOperation("stage_with_transports", result, stopwatch.Elapsed);
+		}
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Stages a message within an externally owned transaction. The caller is responsible
+	/// for committing or rolling back the transaction. This enables atomic consistency
+	/// between event store appends and outbox writes in event sourcing scenarios.
+	/// </remarks>
+	public async ValueTask StageMessageAsync(
+		OutboundMessage message,
+		System.Data.IDbTransaction transaction,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(message);
+		ArgumentNullException.ThrowIfNull(transaction);
+
+		if (transaction is not SqlTransaction sqlTransaction)
+		{
+			throw new ArgumentException(
+				$"Expected SqlTransaction but received {transaction.GetType().Name}. " +
+				"The SQL Server outbox store requires a SqlTransaction for transactional staging.",
+				nameof(transaction));
+		}
+
+		var connection = sqlTransaction.Connection
+			?? throw new InvalidOperationException("The transaction's connection is null or has been disposed.");
+
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
+
+		try
+		{
+			await InsertMessageAsync(connection, sqlTransaction, message, cancellationToken).ConfigureAwait(false);
+
+			if (message.IsMultiTransport && message.TransportDeliveries.Count > 0)
+			{
+				foreach (var delivery in message.TransportDeliveries)
+				{
+					await InsertTransportDeliveryAsync(connection, sqlTransaction, delivery, cancellationToken).ConfigureAwait(false);
+				}
+			}
+
+			_logger.LogDebug("Staged outbox message {MessageId} within external transaction", message.Id);
+		}
+		catch (SqlException ex) when (ex.Number is 2627 or 2601)
+		{
+			result = WriteStoreTelemetry.Results.Conflict;
+			_logger.LogWarning(ex, "Duplicate outbox message detected for {MessageId}", message.Id);
+			throw new InvalidOperationException($"Outbox message '{message.Id}' already exists.", ex);
+		}
+		catch (Exception ex)
+		{
+			result = WriteStoreTelemetry.Results.Failure;
+			_logger.LogError(ex, "Failed to stage outbox message {MessageId} within external transaction", message.Id);
+			throw;
+		}
+		finally
+		{
+			RecordOperation("stage_transactional", result, stopwatch.Elapsed);
 		}
 	}
 

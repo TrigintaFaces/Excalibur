@@ -923,7 +923,7 @@ Excalibur.Dispatch.Delivery.ScheduledMessage.TraceParent.set -> void
 Excalibur.Dispatch.Delivery.ScheduledMessage.UserId.get -> string?
 Excalibur.Dispatch.Delivery.ScheduledMessage.UserId.set -> void
 Excalibur.Dispatch.Delivery.ScheduledMessageService
-Excalibur.Dispatch.Delivery.ScheduledMessageService.ScheduledMessageService(Excalibur.Dispatch.Delivery.IScheduleStore! scheduleStore, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.Delivery.ICronScheduler! cronScheduler, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Scheduling.SchedulerOptions!>! options, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Scheduling.CronScheduleOptions!>! cronOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.ScheduledMessageService!>! logger) -> void
+Excalibur.Dispatch.Delivery.ScheduledMessageService.ScheduledMessageService(Excalibur.Dispatch.Delivery.IScheduleStore! scheduleStore, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.Delivery.ICronScheduler! cronScheduler, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Scheduling.SchedulerOptions!>! options, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Scheduling.CronScheduleOptions!>! cronOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.ScheduledMessageService!>! logger, Excalibur.Dispatch.Abstractions.ITimePolicy? timePolicy = null, Excalibur.Dispatch.Abstractions.ITimeoutMonitor? timeoutMonitor = null) -> void
 Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>
 Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.AggregateId.get -> TKey
 Excalibur.Dispatch.Delivery.SnapshotEnvelope<TKey>.AggregateId.init -> void
@@ -938,8 +938,6 @@ Excalibur.Dispatch.Delivery.ThreadLocalPoolStats.CachedItems.set -> void
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats.MaxSize.get -> int
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats.MaxSize.set -> void
 Excalibur.Dispatch.Delivery.ThreadLocalPoolStats.ThreadLocalPoolStats() -> void
-Excalibur.Dispatch.Delivery.TimeAwareScheduledMessageService
-Excalibur.Dispatch.Delivery.TimeAwareScheduledMessageService.TimeAwareScheduledMessageService(Excalibur.Dispatch.Delivery.IScheduleStore! scheduleStore, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.Abstractions.ITimePolicy! timePolicy, Excalibur.Dispatch.Abstractions.ITimeoutMonitor? timeoutMonitor, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Scheduling.SchedulerOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.TimeAwareScheduledMessageService!>! logger) -> void
 Excalibur.Dispatch.Delivery.TimeZoneAwareCronExpression
 Excalibur.Dispatch.Delivery.TimeZoneAwareCronExpression.Expression.get -> string!
 Excalibur.Dispatch.Delivery.TimeZoneAwareCronExpression.GetDescription() -> string!
@@ -5433,8 +5431,6 @@ override Excalibur.Dispatch.Delivery.Pipeline.MiddlewareResult.Equals(object? ob
 override Excalibur.Dispatch.Delivery.Pipeline.MiddlewareResult.GetHashCode() -> int
 override Excalibur.Dispatch.Delivery.ScheduledMessageService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
 override Excalibur.Dispatch.Delivery.ScheduledMessageService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-override Excalibur.Dispatch.Delivery.TimeAwareScheduledMessageService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
-override Excalibur.Dispatch.Delivery.TimeAwareScheduledMessageService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 override Excalibur.Dispatch.Exceptions.DispatchException.ToProblemDetails() -> Excalibur.Dispatch.Abstractions.MessageProblemDetails!
 override Excalibur.Dispatch.Exceptions.ValidationException.ToDispatchProblemDetails() -> Excalibur.Dispatch.Exceptions.DispatchProblemDetails!
 override Excalibur.Dispatch.Messages.GenericDispatchMessage.ToString() -> string!

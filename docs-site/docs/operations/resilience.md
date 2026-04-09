@@ -24,12 +24,15 @@ Excalibur providers are designed for operational resilience, handling transient 
 The `SqlServerRetryPolicy` handles transient failures with exponential backoff automatically. Configure SQL Server stores with their storage-specific options:
 
 ```csharp
-// Event sourcing - configure storage options
-services.AddSqlServerEventSourcing(options =>
+// Event sourcing - configure storage options via builder
+services.AddExcaliburEventSourcing(es =>
 {
-    options.ConnectionString = connectionString;
-    options.EventStoreSchema = "dbo";
-    options.EventStoreTable = "EventStoreEvents";
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.EventStoreSchema = "dbo";
+        options.EventStoreTable = "EventStoreEvents";
+    });
 });
 
 // Outbox - configure storage and processing via fluent builder

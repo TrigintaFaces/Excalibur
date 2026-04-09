@@ -37,47 +37,56 @@ public static class DatabaseInitializer
 		logger.LogInformation("SQL Server schema initialization would happen here");
 		logger.LogInformation("Run the following SQL to create tables:");
 		logger.LogInformation(@"
--- Events table
-CREATE TABLE [dbo].[Events] (
-    [Id] BIGINT IDENTITY(1,1) PRIMARY KEY,
-    [AggregateId] NVARCHAR(256) NOT NULL,
-    [AggregateType] NVARCHAR(256) NOT NULL,
-    [EventType] NVARCHAR(512) NOT NULL,
-    [EventId] UNIQUEIDENTIFIER NOT NULL,
-    [Version] BIGINT NOT NULL,
-    [Payload] NVARCHAR(MAX) NOT NULL,
-    [Metadata] NVARCHAR(MAX) NULL,
-    [OccurredAt] DATETIMEOFFSET NOT NULL,
-    [CreatedAt] DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-    CONSTRAINT [UQ_Events_AggregateId_Version] UNIQUE ([AggregateId], [AggregateType], [Version])
-);
-CREATE INDEX [IX_Events_AggregateId] ON [dbo].[Events]([AggregateId], [AggregateType]);
+-- Events table (default: dbo.EventStoreEvents, configurable via SqlServerEventSourcingOptions)
+CREATE TABLE [dbo].[EventStoreEvents] (
+    [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
+    [EventId]        NVARCHAR(256)         NOT NULL,
+    [AggregateId]    NVARCHAR(256)         NOT NULL,
+    [AggregateType]  NVARCHAR(256)         NOT NULL,
+    [EventType]      NVARCHAR(256)         NOT NULL,
+    [EventData]      VARBINARY(MAX)        NOT NULL,
+    [Metadata]       VARBINARY(MAX)        NULL,
+    [Version]        BIGINT                NOT NULL,
+    [Timestamp]      DATETIMEOFFSET        NOT NULL,
 
--- Snapshots table
-CREATE TABLE [dbo].[Snapshots] (
-    [Id] BIGINT IDENTITY(1,1) PRIMARY KEY,
-    [AggregateId] NVARCHAR(256) NOT NULL,
-    [AggregateType] NVARCHAR(256) NOT NULL,
-    [Version] BIGINT NOT NULL,
-    [Payload] NVARCHAR(MAX) NOT NULL,
-    [CreatedAt] DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-    CONSTRAINT [UQ_Snapshots_AggregateId] UNIQUE ([AggregateId], [AggregateType])
+    CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
+    CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version])
+);
+CREATE INDEX [IX_EventStoreEvents_AggregateId] ON [dbo].[EventStoreEvents]([AggregateId], [AggregateType]);
+CREATE INDEX [IX_EventStoreEvents_EventType] ON [dbo].[EventStoreEvents]([EventType]);
+
+-- Snapshots table (default: dbo.EventStoreSnapshots, configurable via SqlServerEventSourcingOptions)
+CREATE TABLE [dbo].[EventStoreSnapshots] (
+    [SnapshotId]     NVARCHAR(256)         NOT NULL,
+    [AggregateId]    NVARCHAR(256)         NOT NULL,
+    [AggregateType]  NVARCHAR(256)         NOT NULL,
+    [Version]        BIGINT                NOT NULL,
+    [Data]           VARBINARY(MAX)        NOT NULL,
+    [CreatedAt]      DATETIMEOFFSET        NOT NULL,
+
+    CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType])
 );
 
--- Outbox table
-CREATE TABLE [dbo].[EventSourcedOutbox] (
-    [Id] BIGINT IDENTITY(1,1) PRIMARY KEY,
-    [AggregateId] NVARCHAR(256) NOT NULL,
-    [AggregateType] NVARCHAR(256) NOT NULL,
-    [EventType] NVARCHAR(512) NOT NULL,
-    [EventId] UNIQUEIDENTIFIER NOT NULL,
-    [Payload] NVARCHAR(MAX) NOT NULL,
-    [Metadata] NVARCHAR(MAX) NULL,
-    [PublishedAt] DATETIMEOFFSET NULL,
+-- Outbox table (default: dbo.OutboxMessages, configurable via SqlServerOutboxOptions)
+-- Note: The outbox is managed separately via AddExcaliburOutbox().
+CREATE TABLE [dbo].[OutboxMessages] (
+    [Id] NVARCHAR(256) NOT NULL PRIMARY KEY,
+    [MessageType] NVARCHAR(512) NOT NULL,
+    [Payload] VARBINARY(MAX) NOT NULL,
+    [Headers] NVARCHAR(MAX) NULL,
+    [Destination] NVARCHAR(512) NULL,
+    [CreatedAt] DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+    [ScheduledAt] DATETIMEOFFSET NULL,
+    [Status] INT NOT NULL DEFAULT 0,
     [RetryCount] INT NOT NULL DEFAULT 0,
-    [CreatedAt] DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET()
+    [CorrelationId] NVARCHAR(256) NULL,
+    [CausationId] NVARCHAR(256) NULL,
+    [TenantId] NVARCHAR(256) NULL,
+    [Priority] INT NOT NULL DEFAULT 0,
+    [TargetTransports] NVARCHAR(MAX) NULL,
+    [IsMultiTransport] BIT NOT NULL DEFAULT 0
 );
-CREATE INDEX [IX_Outbox_Unpublished] ON [dbo].[EventSourcedOutbox]([PublishedAt]) WHERE [PublishedAt] IS NULL;
+CREATE INDEX [IX_OutboxMessages_Status] ON [dbo].[OutboxMessages]([Status]) WHERE [Status] = 0;
 ");
 
 		return Task.CompletedTask;

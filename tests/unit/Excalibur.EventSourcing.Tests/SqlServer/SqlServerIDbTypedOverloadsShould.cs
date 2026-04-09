@@ -4,7 +4,6 @@
 using System.Data;
 
 using Excalibur.Data.Abstractions;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.SqlServer;
 
 using Microsoft.Data.SqlClient;
@@ -14,8 +13,7 @@ namespace Excalibur.EventSourcing.Tests.SqlServer;
 /// <summary>
 /// Unit tests for the generic IDb-typed SQL Server DI overloads (Sprint 659 T.2).
 /// Validates AddSqlServerEventStore&lt;TDb&gt;, AddSqlServerSnapshotStore&lt;TDb&gt;,
-/// AddSqlServerOutboxStore&lt;TDb&gt;, AddSqlServerEventSourcing&lt;TDb&gt;, and
-/// AddSqlServerProjectionStore&lt;TProjection, TDb&gt;.
+/// AddSqlServerEventSourcing&lt;TDb&gt;, and AddSqlServerProjectionStore&lt;TProjection, TDb&gt;.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "SqlServer")]
@@ -92,41 +90,6 @@ public sealed class SqlServerIDbTypedOverloadsShould : UnitTestBase
 		result.ShouldBeSameAs(services);
 	}
 
-	// --- AddSqlServerOutboxStore<TDb> (event-sourced) ---
-
-	[Fact]
-	public void RegisterOutboxStore_WithIDbTypedOverload()
-	{
-		var services = new ServiceCollection();
-		services.AddSingleton<IEventSourcingTestDb>(new TestDb());
-		services.AddLogging();
-
-		services.AddSqlServerOutboxStore<IEventSourcingTestDb>();
-
-		services.Any(sd =>
-			sd.ServiceType == typeof(IEventSourcedOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void ThrowWhenServicesNull_OutboxStore_IDbOverload()
-	{
-		IServiceCollection services = null!;
-
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddSqlServerOutboxStore<IEventSourcingTestDb>());
-	}
-
-	[Fact]
-	public void ReturnServicesForChaining_OutboxStore_IDbOverload()
-	{
-		var services = new ServiceCollection();
-
-		var result = services.AddSqlServerOutboxStore<IEventSourcingTestDb>();
-
-		result.ShouldBeSameAs(services);
-	}
-
 	// --- AddSqlServerEventSourcing<TDb> (compound) ---
 
 	[Fact]
@@ -138,10 +101,9 @@ public sealed class SqlServerIDbTypedOverloadsShould : UnitTestBase
 
 		services.AddSqlServerEventSourcing<IEventSourcingTestDb>();
 
-		// Should register event store, snapshot store, and outbox store
+		// Should register event store and snapshot store
 		services.Any(sd => sd.ServiceType == typeof(SqlServerEventStore)).ShouldBeTrue();
 		services.Any(sd => sd.ServiceType == typeof(SqlServerSnapshotStore)).ShouldBeTrue();
-		services.Any(sd => sd.ServiceType == typeof(IEventSourcedOutboxStore)).ShouldBeTrue();
 	}
 
 	[Fact]

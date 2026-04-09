@@ -3,7 +3,7 @@
 
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.EventSourcing.Outbox;
+namespace Excalibur.Outbox.Partitioning;
 
 /// <summary>
 /// Validates <see cref="OutboxPartitionOptions"/> at startup via the <c>ValidateOnStart</c> pipeline.

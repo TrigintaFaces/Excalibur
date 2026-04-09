@@ -37,15 +37,13 @@ Load snapshot at version 9,900
 ## Basic Setup
 
 ```csharp
-// Configure event sourcing with snapshot strategy
+// Configure event sourcing with provider and snapshot strategy in one builder
 services.AddExcaliburEventSourcing(builder =>
 {
+    builder.UseSqlServer(options => options.ConnectionString = connectionString);
     builder.AddRepository<OrderAggregate, Guid>();
     builder.UseIntervalSnapshots(100);  // Snapshot every 100 events
 });
-
-// Add the SQL Server event store and snapshot store
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 ```
 
 ## Snapshot Strategies
@@ -118,7 +116,10 @@ Store snapshots in the same database as events (default):
 
 ```csharp
 // SQL Server stores snapshots in the Snapshots table alongside events
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+});
 ```
 
 ### Separate Store
@@ -335,7 +336,7 @@ Metrics:
 
 ### Health Check
 
-Snapshot store health is monitored automatically when `RegisterHealthChecks = true` in `SqlServerEventSourcingOptions` (default). See [Event Store Setup](./event-store-setup.md) for details.
+Snapshot store health is monitored automatically when `HealthChecks.RegisterHealthChecks = true` in `SqlServerEventSourcingOptions` (default). See [Event Store Setup](./event-store-setup.md) for details.
 
 ## Best Practices
 

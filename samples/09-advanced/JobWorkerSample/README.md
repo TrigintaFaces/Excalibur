@@ -109,7 +109,8 @@ dotnet run
 ### With Job Persistence
 1. Ensure SQL Server LocalDB is available
 2. Update the `DefaultConnection` in `appsettings.Development.json`
-3. Run the application - it will automatically create the required tables
+3. Create the required tables manually (the framework does **not** auto-create tables)
+4. Run the application
 
 ### With Distributed Coordination
 1. Start a Redis server on `localhost:6379`

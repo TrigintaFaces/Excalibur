@@ -212,12 +212,14 @@ builder.Services.AddGooglePubSubTransport("google-pubsub", pubsub =>
 ### Event Store Setup
 
 ```csharp
-builder.Services.AddSqlServerEventSourcing(options =>
+builder.Services.AddExcaliburEventSourcing(es =>
 {
-    options.ConnectionString = connectionString;
-    options.EventStoreTable = "EventStoreEvents";
-    options.SnapshotStoreTable = "EventStoreSnapshots";
-    options.OutboxTable = "EventSourcedOutbox";
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.EventStoreTable = "EventStoreEvents";
+        options.SnapshotStoreTable = "EventStoreSnapshots";
+    });
 });
 ```
 

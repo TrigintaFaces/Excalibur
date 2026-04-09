@@ -354,7 +354,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Outbox [HostedService]", s => s.AddOutboxHostedService());
 		yield return Reg("Excalibur.Outbox [InboxHostedService]", s => s.AddInboxHostedService());
 		yield return Reg("Excalibur.Outbox.SqlServer", s =>
-			s.AddSqlServerOutboxStore(() => new Microsoft.Data.SqlClient.SqlConnection(MockConnectionString)));
+			s.AddSqlServerOutboxStore(opts => opts.ConnectionString = MockConnectionString));
 		yield return Reg("Excalibur.Outbox.CosmosDb", s =>
 			s.AddCosmosDbOutboxStore(_ => { }));
 		yield return Reg("Excalibur.Outbox.DynamoDb", s =>

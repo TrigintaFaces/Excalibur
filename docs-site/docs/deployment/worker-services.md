@@ -40,6 +40,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es =>
     {
+        es.UseSqlServer(opts => opts.ConnectionString = connectionString);
         es.AddRepository<OrderAggregate, OrderId>();
     });
 
@@ -55,9 +56,6 @@ builder.Services.AddExcalibur(excalibur =>
               });
     });
 });
-
-// Add SQL Server event sourcing provider separately
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 var host = builder.Build();
 await host.RunAsync();
@@ -444,29 +442,31 @@ builder.Services.AddSqlServerLeaderElection(
     });
 ```
 
-### Partitioned Processing
+### Scaled-Out Processing
 
-For high-volume scenarios:
+For high-volume scenarios, run multiple worker instances with unique processor IDs to prevent duplicate processing:
 
 ```csharp
-public class PartitionedOutboxWorker : BackgroundService
+public class OutboxWorker : BackgroundService
 {
-    private readonly int _partitionCount = 4;
-    private readonly int _partitionId;
+    private readonly IOutboxProcessor _processor;
 
-    public PartitionedOutboxWorker(IConfiguration config)
+    public OutboxWorker(IOutboxProcessor processor, IConfiguration config)
     {
-        _partitionId = int.Parse(config["Worker:PartitionId"] ?? "0");
+        _processor = processor;
+        _processor.Init(config["Worker:ProcessorId"] ?? Environment.MachineName);
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        // Process only messages for this partition
-        var processor = new PartitionedOutboxProcessor(
-            _partitionId,
-            _partitionCount);
-
-        await processor.DispatchPendingMessagesAsync(ct);
+        while (!ct.IsCancellationRequested)
+        {
+            var dispatched = await _processor.DispatchPendingMessagesAsync(ct);
+            if (dispatched == 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            }
+        }
     }
 }
 ```

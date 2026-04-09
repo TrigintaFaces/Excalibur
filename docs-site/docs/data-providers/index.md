@@ -305,7 +305,7 @@ Each provider uses sensible defaults for table/collection/container names. You c
 |----------|-------|-------------|-------------------|
 | **SQL Server** | Event Store | `EventStoreEvents` | `EventStoreTable` |
 | **SQL Server** | Snapshots | `EventStoreSnapshots` | `SnapshotStoreTable` |
-| **SQL Server** | Outbox | `EventSourcedOutbox` | `OutboxTable` |
+| **SQL Server** | Outbox (unified) | `OutboxMessages` | `OutboxTableName` (via `AddExcaliburOutbox`) |
 | **SQL Server** | Schema | `dbo` | `EventStoreSchema` / `SnapshotStoreSchema` / `OutboxSchema` |
 | **PostgreSQL** | Event Store | `event_store_events` | `EventStoreTable` |
 | **PostgreSQL** | Snapshots | `event_store_snapshots` | `SnapshotStoreTable` |

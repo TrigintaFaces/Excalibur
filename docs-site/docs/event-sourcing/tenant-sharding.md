@@ -228,18 +228,21 @@ This is distinct from `ITenantStoreResolver` (which routes to entirely different
 
 ## Integration with Other Features
 
-### Partitioned Outbox
+### Outbox Integration
 
-When sharding is enabled, the outbox can be partitioned per shard automatically using `OutboxPartitionStrategy.PerShard`:
+When sharding is enabled, the event sourcing outbox uses the unified `IOutboxStore` and `ITransactionalOutboxWriter` interfaces. Configure per-aggregate staging strategy to control how integration events are staged:
 
 ```csharp
-builder.UsePartitionedOutbox(opts =>
+services.AddExcaliburEventSourcing(es =>
 {
-    opts.Strategy = OutboxPartitionStrategy.PerShard;
+    es.AddRepository<Order>(id => new Order(id), opts =>
+    {
+        opts.OutboxStagingStrategy = OutboxStagingStrategy.Transactional;
+    });
 });
 ```
 
-Each shard gets its own outbox table and processor. See [Partitioned Outbox](../patterns/outbox.md#partitioned-outbox).
+The `PartitionKey` on `OutboundMessage` is set to the tenant ID (when available) or aggregate ID, enabling downstream partition-aware processing. See [Event Sourcing Outbox Integration](../patterns/outbox.md#event-sourcing-outbox-integration).
 
 ### Saga Routing
 

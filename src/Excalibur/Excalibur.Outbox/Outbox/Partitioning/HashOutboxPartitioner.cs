@@ -4,7 +4,7 @@
 using System.IO.Hashing;
 using System.Text;
 
-namespace Excalibur.EventSourcing.Outbox;
+namespace Excalibur.Outbox.Partitioning;
 
 /// <summary>
 /// Partitions outbox messages by hashing the tenant ID using XxHash32.

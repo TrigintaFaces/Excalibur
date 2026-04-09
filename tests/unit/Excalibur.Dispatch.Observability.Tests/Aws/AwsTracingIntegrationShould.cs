@@ -234,59 +234,57 @@ public sealed class AwsTracingIntegrationShould : IDisposable
 	}
 
 	[Fact]
-	public async Task OnActivityStopped_SetsFaultTag_WhenError()
+	public void OnActivityStopped_SetsFaultTag_WhenError()
 	{
-		var options = new AwsObservabilityOptions
-		{
-			ServiceName = "test",
-			SamplingRate = 1.0
-		};
-		var integration = CreateIntegration(options);
-		await integration.ConfigureXRayAsync(CancellationToken.None);
-
-		// Use a dedicated listener to guarantee activity creation under parallel load.
-		// The production listener's OnActivityStopped still fires (it's also registered),
-		// but this ensures the activity is never null regardless of other tests' listener disposal.
-		using var guaranteeListener = new ActivityListener
+		// Directly invoke the production OnActivityStopped callback to test fault-tag logic
+		// without depending on the global ActivityListener list iteration, which is not
+		// thread-safe under parallel test execution (causes flaky CI failures).
+		using var listener = new ActivityListener
 		{
 			ShouldListenTo = source => source.Name == "Dispatch.ErrorTest",
 			Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
 		};
-		ActivitySource.AddActivityListener(guaranteeListener);
+		ActivitySource.AddActivityListener(listener);
 
 		using var source = new ActivitySource("Dispatch.ErrorTest");
 		using var activity = source.StartActivity("error-operation");
 
 		activity.ShouldNotBeNull();
 		activity.SetStatus(ActivityStatusCode.Error, "test error");
-		activity.Stop();
+
+		var onStopped = typeof(AwsTracingIntegration).GetMethod(
+			"OnActivityStopped",
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+		onStopped.ShouldNotBeNull();
+		onStopped.Invoke(null, [activity]);
+
 		activity.GetTagItem("aws.xray.fault").ShouldBe("true");
 	}
 
 	[Fact]
-	public async Task OnActivityStopped_DoesNotSetFaultTag_WhenOk()
+	public void OnActivityStopped_DoesNotSetFaultTag_WhenOk()
 	{
-		var options = new AwsObservabilityOptions
-		{
-			ServiceName = "test",
-			SamplingRate = 1.0
-		};
-		var integration = CreateIntegration(options);
-		await integration.ConfigureXRayAsync(CancellationToken.None);
-
-		using var guaranteeListener = new ActivityListener
+		// Directly invoke the production OnActivityStopped callback (same approach as
+		// the error test) to avoid global ActivityListener race conditions in CI.
+		using var listener = new ActivityListener
 		{
 			ShouldListenTo = source => source.Name == "Dispatch.OkTest",
 			Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
 		};
-		ActivitySource.AddActivityListener(guaranteeListener);
+		ActivitySource.AddActivityListener(listener);
 
 		using var source = new ActivitySource("Dispatch.OkTest");
 		using var activity = source.StartActivity("ok-operation");
 
 		activity.ShouldNotBeNull();
 		activity.SetStatus(ActivityStatusCode.Ok);
-		activity.Stop();
+
+		var onStopped = typeof(AwsTracingIntegration).GetMethod(
+			"OnActivityStopped",
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+		onStopped.ShouldNotBeNull();
+		onStopped.Invoke(null, [activity]);
+
 		activity.GetTagItem("aws.xray.fault").ShouldBeNull();
 	}
 

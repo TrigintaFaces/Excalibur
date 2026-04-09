@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <item><see cref="IOutboxStoreAdmin"/> -- Admin operations (failed retrieval, scheduled messages, cleanup, stats)</item>
 /// <item><see cref="ITransactionalOutboxStore"/> -- Atomic batch operations for exactly-once delivery</item>
 /// <item><see cref="IMultiTransportOutboxStore"/> -- Per-transport delivery tracking for fan-out scenarios</item>
-/// <item><c>IEventSourcedOutboxStore</c> (in Excalibur.EventSourcing) -- Event sourcing integration with <c>IDbTransaction</c></item>
+/// <item><see cref="ITransactionalOutboxWriter"/> -- External transaction participation for atomic staging (event sourcing)</item>
 /// </list>
 /// </para>
 /// </remarks>

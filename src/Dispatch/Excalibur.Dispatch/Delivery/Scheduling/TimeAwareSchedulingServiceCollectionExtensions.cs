@@ -31,7 +31,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddTimePolicy();
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
+		_ = services.AddHostedService<ScheduledMessageService>();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -65,7 +65,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddTimePolicy(configuration);
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
+		_ = services.AddHostedService<ScheduledMessageService>();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -101,7 +101,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		}
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
+		_ = services.AddHostedService<ScheduledMessageService>();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -128,7 +128,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddAdaptiveTimeouts();
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
+		_ = services.AddHostedService<ScheduledMessageService>();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -161,7 +161,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddTimePolicyWithoutMonitoring();
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
+		_ = services.AddHostedService<ScheduledMessageService>();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -202,7 +202,7 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		});
 
 		// Register the time-aware scheduled message service
-		_ = services.AddHostedService<TimeAwareScheduledMessageService>();
+		_ = services.AddHostedService<ScheduledMessageService>();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<TimeAwareSchedulerOptions>, TimeAwareSchedulerOptionsValidator>());
@@ -232,7 +232,8 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Replaces the default scheduled message service with the time-aware implementation.
+	/// Enables time-aware timeout policies on an already-registered <see cref="ScheduledMessageService"/>.
+	/// Registers <see cref="ITimePolicy"/> services so the unified scheduler applies per-operation timeouts.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
@@ -240,14 +241,8 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Remove the default scheduled message service if it exists
-		var serviceDescriptor = services.FirstOrDefault(static s => s.ServiceType == typeof(ScheduledMessageService));
-		if (serviceDescriptor != null)
-		{
-			_ = services.Remove(serviceDescriptor);
-		}
-
-		// Add the time-aware implementation
+		// The unified ScheduledMessageService detects ITimePolicy via DI automatically.
+		// Just register the time policy services.
 		return services.AddTimeAwareScheduling();
 	}
 

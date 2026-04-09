@@ -30,6 +30,7 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es =>
     {
+        es.UseSqlServer(opts => opts.ConnectionString = connectionString);
         es.AddRepository<OrderAggregate, OrderId>();
         es.UseIntervalSnapshots(100);
     });
@@ -40,9 +41,6 @@ builder.Services.AddExcalibur(excalibur =>
         outbox.EnableBackgroundProcessing();
     });
 });
-
-// Add SQL Server event sourcing provider (event store, snapshot store, outbox store)
-builder.Services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 // Add controllers or minimal APIs
 builder.Services.AddControllers();

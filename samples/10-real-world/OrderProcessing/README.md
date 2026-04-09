@@ -229,9 +229,9 @@ The sample demonstrates 6 scenarios:
 
 ```csharp
 // Replace InMemoryOrderStore with:
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 services.AddExcaliburEventSourcing(es =>
 {
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 });
 ```
@@ -252,20 +252,16 @@ services.AddExcaliburSagas(sagas =>
 ```csharp
 // Configure resilience policies
 services.AddDispatch(builder => builder
-    .AddPollyResilience(options =>
-    {
-        options.AddRetryPolicy(3, TimeSpan.FromMilliseconds(100));
-        options.AddCircuitBreakerPolicy(5, TimeSpan.FromSeconds(30));
-    }));
+    .UseResilience());
 ```
 
 ### Use the Outbox Pattern
 
 ```csharp
 // Reliable messaging with transactional outbox
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
+services.AddExcaliburOutbox(o => o.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 services.AddDispatch(builder => builder
-    .AddOutboxMiddleware());
+    .UseOutbox());
 ```
 
 ### Add Projections

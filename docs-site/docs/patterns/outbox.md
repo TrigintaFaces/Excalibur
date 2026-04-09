@@ -691,20 +691,94 @@ WHERE [Error] IS NOT NULL;
 - Add database indexes
 - Scale out processors (with locking)
 
+## Event Sourcing Outbox Integration
+
+When using event sourcing, integration events can be staged to the unified outbox automatically during aggregate save. The `EventSourcedRepository` supports three staging strategies controlled by `OutboxStagingStrategy`:
+
+### Staging Strategies
+
+| Strategy | Behavior | Trade-off |
+|----------|----------|-----------|
+| `Auto` (default) | Framework selects the best available strategy | No configuration needed |
+| `Transactional` | Stages events in the same DB transaction as the event append | Zero message loss, adds save latency |
+| `EventuallyConsistent` | Stages events after a successful append in a separate call | Minimal latency, tiny loss window on crash |
+| `Deferred` | No staging during save; a background service picks up events later | Zero added latency, higher delivery delay |
+
+### Configuration
+
+```csharp
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseSqlServer(options => options.ConnectionString = connectionString);
+
+    // Per-aggregate staging strategy
+    es.AddRepository<Order>(id => new Order(id), opts =>
+    {
+        opts.OutboxStagingStrategy = OutboxStagingStrategy.Transactional;
+    });
+});
+
+// Register the unified outbox store (required for Transactional and EventuallyConsistent)
+services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(opts =>
+{
+    opts.ConnectionString = connectionString;
+}));
+```
+
+### How Auto Resolution Works
+
+When `OutboxStagingStrategy.Auto` is configured (the default), the repository checks at save time:
+
+1. If `ITransactionalOutboxWriter` and a transactional event store are registered, uses **Transactional**
+2. If only `IOutboxStore` is registered, uses **EventuallyConsistent**
+3. If neither is registered, uses **Deferred** (no staging)
+
+### ITransactionalOutboxWriter
+
+Relational outbox providers (SQL Server, PostgreSQL) implement `ITransactionalOutboxWriter` to participate in the event store's database transaction:
+
+```csharp
+public interface ITransactionalOutboxWriter
+{
+    ValueTask StageMessageAsync(
+        OutboundMessage message,
+        IDbTransaction transaction,
+        CancellationToken cancellationToken);
+}
+```
+
+NoSQL providers (CosmosDB, DynamoDB, MongoDB, etc.) do not implement this interface. Use `EventuallyConsistent` or `Deferred` staging with NoSQL event stores.
+
+### Standard Header Names
+
+The `OutboxHeaderNames` class provides well-known constants used in outbox message headers and event metadata:
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `AggregateId` | `"aggregate-id"` | Aggregate that produced the event |
+| `AggregateType` | `"aggregate-type"` | Aggregate type name |
+| `TenantId` | `"tenant-id"` | Multi-tenant routing |
+| `CorrelationId` | `"correlation-id"` | Distributed tracing |
+| `CausationId` | `"causation-id"` | Cause-effect linking |
+
 ## Partitioned Outbox
 
-At high event rates (100K+ events/sec), the single outbox table becomes a contention bottleneck. Partitioned outbox splits the outbox into multiple tables, each processed independently by its own background processor.
+At high event rates (100K+ events/sec), the single outbox table becomes a contention bottleneck. Partitioned outbox splits processing into multiple independent loops, each handling a subset of messages.
 
 ### Enable Partitioned Processing
 
 ```csharp
-services.AddExcaliburEventSourcing(builder =>
+services.AddExcaliburOutbox(outbox =>
 {
-    builder.UsePartitionedOutbox(opts =>
+    outbox.UseSqlServer(opts => opts.ConnectionString = connectionString);
+
+    outbox.UsePartitionedProcessing(opts =>
     {
         opts.Strategy = OutboxPartitionStrategy.ByTenantHash;
         opts.PartitionCount = 8;
         opts.ProcessorCountPerPartition = 1;
+        opts.PollingInterval = TimeSpan.FromSeconds(1);
+        opts.ErrorBackoffInterval = TimeSpan.FromSeconds(5);
     });
 });
 ```
@@ -713,9 +787,9 @@ services.AddExcaliburEventSourcing(builder =>
 
 | Strategy | Description | Use Case |
 |----------|-------------|----------|
-| `None` | Single outbox table (default, current behavior) | Low-to-moderate throughput |
-| `PerShard` | One outbox table per tenant shard | When tenant sharding (`vpbunk`) is active |
-| `ByTenantHash` | `XxHash32(tenantId) % N` partitions in same database | High throughput without sharding infrastructure |
+| `None` | Single processor loop (default) | Low-to-moderate throughput |
+| `PerShard` | One partition per tenant shard | When tenant sharding is active |
+| `ByTenantHash` | `XxHash32(tenantId) % N` partitions | High throughput without sharding infrastructure |
 
 ### How It Works
 
@@ -725,10 +799,10 @@ flowchart TD
     M2[Message tenantB] --> P
     M3[Message tenantC] --> P
 
-    P -->|"Hash % 4 = 0"| T0["Outbox_0 + DLQ_0"]
-    P -->|"Hash % 4 = 1"| T1["Outbox_1 + DLQ_1"]
-    P -->|"Hash % 4 = 2"| T2["Outbox_2 + DLQ_2"]
-    P -->|"Hash % 4 = 3"| T3["Outbox_3 + DLQ_3"]
+    P -->|"Hash % 4 = 0"| T0[Partition 0]
+    P -->|"Hash % 4 = 1"| T1[Partition 1]
+    P -->|"Hash % 4 = 2"| T2[Partition 2]
+    P -->|"Hash % 4 = 3"| T3[Partition 3]
 
     T0 --> W0[Processor 0]
     T1 --> W1[Processor 1]
@@ -736,10 +810,7 @@ flowchart TD
     T3 --> W3[Processor 3]
 ```
 
-Each partition has:
-- Its own outbox table (`Outbox_0`, `Outbox_1`, ...)
-- Its own DLQ table (`Outbox_0_dlq`, `Outbox_1_dlq`, ...)
-- An independent processor task (error isolation per partition)
+Each partition runs an independent processor loop with its own error isolation. When `ProcessorCountPerPartition > 1`, multiple concurrent processors handle the same partition.
 
 ### Configuration Options
 
@@ -747,25 +818,22 @@ Each partition has:
 |--------|---------|-------------|
 | `Strategy` | `None` | Partitioning strategy |
 | `PartitionCount` | 8 | Number of partitions (for `ByTenantHash`) |
-| `ProcessorCountPerPartition` | 1 | Processor instances per partition |
+| `ProcessorCountPerPartition` | 1 | Concurrent processor instances per partition |
+| `PollingInterval` | 1s | Delay when no messages are available |
+| `ErrorBackoffInterval` | 5s | Delay after a processing error |
+| `ShardIds` | `[]` | Required shard IDs when Strategy is `PerShard` |
 
-### Provider Support
+### Custom Partitioner
 
-Both SQL Server and PostgreSQL support partitioned outbox tables. The table manager auto-creates partition and DLQ tables on startup:
+Implement `IOutboxPartitioner` for custom routing logic:
 
-| Provider | Table Manager |
-|----------|--------------|
-| SQL Server | `SqlServerPartitionedOutboxTableManager` |
-| PostgreSQL | `PostgresPartitionedOutboxTableManager` |
-
-### Partitioned Outbox Metrics
-
-Meter: `Excalibur.EventSourcing.Outbox.Partitioned`
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `excalibur.eventsourcing.outbox.partition.messages_processed` | Counter | Messages processed per partition |
-| `excalibur.eventsourcing.outbox.partition.dlq_messages` | Counter | Messages sent to per-partition DLQ |
+```csharp
+public interface IOutboxPartitioner
+{
+    int GetPartition(string tenantId);
+    int PartitionCount { get; }
+}
+```
 
 ## Design Principles
 

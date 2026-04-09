@@ -1,4 +1,4 @@
-﻿# SQL Server Event Store Sample
+# SQL Server Event Store Sample
 
 This sample demonstrates **event sourcing with SQL Server** using the Excalibur framework.
 
@@ -60,57 +60,45 @@ docker-compose down -v   # Stop and remove data
 
 ## Database Schema
 
-The sample uses these tables in the `eventsourcing` schema:
+The sample uses these tables in the `dbo` schema (default, configurable via `SqlServerEventSourcingOptions`):
 
 ### Events Table
 
 ```sql
-CREATE TABLE eventsourcing.Events (
-    Id              BIGINT IDENTITY(1,1) NOT NULL,
-    StreamId        NVARCHAR(255)        NOT NULL,
-    Version         BIGINT               NOT NULL,
-    EventType       NVARCHAR(500)        NOT NULL,
-    Payload         NVARCHAR(MAX)        NOT NULL,
-    Metadata        NVARCHAR(MAX)        NULL,
-    CreatedAt       DATETIME2(7)         NOT NULL,
-    DispatchedAt    DATETIME2(7)         NULL,
+CREATE TABLE [dbo].[EventStoreEvents] (
+    [Position]       BIGINT IDENTITY(1,1)  NOT NULL,
+    [EventId]        NVARCHAR(256)         NOT NULL,
+    [AggregateId]    NVARCHAR(256)         NOT NULL,
+    [AggregateType]  NVARCHAR(256)         NOT NULL,
+    [EventType]      NVARCHAR(256)         NOT NULL,
+    [EventData]      VARBINARY(MAX)        NOT NULL,
+    [Metadata]       VARBINARY(MAX)        NULL,
+    [Version]        BIGINT                NOT NULL,
+    [Timestamp]      DATETIMEOFFSET        NOT NULL,
 
-    CONSTRAINT PK_Events PRIMARY KEY (Id),
-    CONSTRAINT UQ_Events_Stream_Version UNIQUE (StreamId, Version)
+    CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
+    CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version])
 );
 ```
 
 ### Snapshots Table
 
 ```sql
-CREATE TABLE eventsourcing.Snapshots (
-    Id              BIGINT IDENTITY(1,1) NOT NULL,
-    StreamId        NVARCHAR(255)        NOT NULL,
-    Version         BIGINT               NOT NULL,
-    SnapshotType    NVARCHAR(500)        NOT NULL,
-    Payload         NVARCHAR(MAX)        NOT NULL,
-    CreatedAt       DATETIME2(7)         NOT NULL,
+CREATE TABLE [dbo].[EventStoreSnapshots] (
+    [SnapshotId]     NVARCHAR(256)         NOT NULL,
+    [AggregateId]    NVARCHAR(256)         NOT NULL,
+    [AggregateType]  NVARCHAR(256)         NOT NULL,
+    [Version]        BIGINT                NOT NULL,
+    [Data]           VARBINARY(MAX)        NOT NULL,
+    [CreatedAt]      DATETIMEOFFSET        NOT NULL,
 
-    CONSTRAINT PK_Snapshots PRIMARY KEY (Id)
+    CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType])
 );
 ```
 
 ### Outbox Table
 
-```sql
-CREATE TABLE eventsourcing.Outbox (
-    Id              BIGINT IDENTITY(1,1) NOT NULL,
-    MessageId       UNIQUEIDENTIFIER     NOT NULL,
-    MessageType     NVARCHAR(500)        NOT NULL,
-    Payload         NVARCHAR(MAX)        NOT NULL,
-    Destination     NVARCHAR(255)        NULL,
-    CreatedAt       DATETIME2(7)         NOT NULL,
-    PublishedAt     DATETIME2(7)         NULL,
-    RetryCount      INT                  NOT NULL DEFAULT 0,
-
-    CONSTRAINT PK_Outbox PRIMARY KEY (Id)
-);
-```
+The unified outbox table (`dbo.OutboxMessages`) is managed by `Excalibur.Outbox.SqlServer` and registered separately via `AddExcaliburOutbox()`. It is not part of the event store schema.
 
 ## Configuration
 
@@ -127,14 +115,17 @@ CREATE TABLE eventsourcing.Outbox (
 ### Service Registration
 
 ```csharp
-// Option 1: Options-based registration
-services.AddSqlServerEventSourcing(options =>
+// Option 1: Builder pattern (preferred)
+services.AddExcaliburEventSourcing(es =>
 {
-    options.ConnectionString = connectionString;
-    options.HealthChecks.RegisterHealthChecks = true;
-    options.HealthChecks.EventStoreHealthCheckName = "eventstore-sqlserver";
-    options.HealthChecks.SnapshotStoreHealthCheckName = "snapshotstore-sqlserver";
-    options.HealthChecks.OutboxStoreHealthCheckName = "outbox-sqlserver";
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.HealthChecks.RegisterHealthChecks = true;
+        options.HealthChecks.EventStoreHealthCheckName = "eventstore-sqlserver";
+        options.HealthChecks.SnapshotStoreHealthCheckName = "snapshotstore-sqlserver";
+        options.HealthChecks.OutboxStoreHealthCheckName = "outbox-sqlserver";
+    });
 });
 
 // Option 2: Connection factory (advanced)
@@ -191,10 +182,9 @@ Reconstructed state from 4 events:
 
 | Method | Registers | Health Checks |
 |--------|-----------|---------------|
+| `es.UseSqlServer(...)` | All stores (via builder) | Optional |
 | `AddSqlServerEventStore` | Event store only | No |
 | `AddSqlServerSnapshotStore` | Snapshot store only | No |
-| `AddSqlServerOutboxStore` | Outbox store only | No |
-| `AddSqlServerEventSourcing` | All stores | Optional |
 
 ## Best Practices
 

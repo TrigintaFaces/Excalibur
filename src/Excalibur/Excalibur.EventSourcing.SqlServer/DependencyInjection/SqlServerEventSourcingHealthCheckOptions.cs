@@ -28,8 +28,4 @@ public sealed class SqlServerEventSourcingHealthCheckOptions
 	/// </summary>
 	public string SnapshotStoreHealthCheckName { get; set; } = "sqlserver-snapshot-store";
 
-	/// <summary>
-	/// Gets or sets the health check name for the outbox store. Default: "sqlserver-outbox-store".
-	/// </summary>
-	public string OutboxStoreHealthCheckName { get; set; } = "sqlserver-outbox-store";
 }

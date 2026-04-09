@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.Abstractions.Sharding;
-using Excalibur.EventSourcing.Outbox;
+using Excalibur.Outbox.Partitioning;
 
-namespace Excalibur.EventSourcing.Tests.Outbox;
+namespace Excalibur.Outbox.Tests.Partitioning;
 
 /// <summary>
 /// F.9 (2l3z7y): Unit tests for partitioned outbox -- partitioner routing, DLQ per partition.

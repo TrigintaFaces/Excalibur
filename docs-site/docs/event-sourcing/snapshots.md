@@ -41,25 +41,20 @@ flowchart LR
 ### Basic Setup
 
 ```csharp
-// Option 1: All-in-one SQL Server setup (recommended)
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
-
-// Option 2: Configure with options
-services.AddSqlServerEventSourcing(options =>
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
 {
-    options.ConnectionString = connectionString;
-    options.RegisterHealthChecks = true;
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.HealthChecks.RegisterHealthChecks = true;
+    });
+    es.UseIntervalSnapshots(100); // Every 100 events
 });
 
-// Option 3: Register stores separately
+// Alternative: Register stores separately
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
 services.AddSqlServerSnapshotStore(opts => opts.ConnectionString = connectionString);
-
-// Configure snapshot strategy via event sourcing builder
-services.AddExcaliburEventSourcing(builder =>
-{
-    builder.UseIntervalSnapshots(100); // Every 100 events
-});
 ```
 
 ### Snapshot Strategies

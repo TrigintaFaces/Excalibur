@@ -271,10 +271,8 @@ public sealed class EventSourcedRepositoryShould
 			eventStore,
 			CreateMockSerializer(v1Event),
 			id => new TestAggregate(id),
-			pipeline,
-			null,
-			null,
-			options);
+			upcastingOptions: options,
+			upcastingPipeline: pipeline);
 
 		// Act
 		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
@@ -309,10 +307,8 @@ public sealed class EventSourcedRepositoryShould
 			eventStore,
 			CreateMockSerializer(v1Event),
 			id => new TestAggregate(id),
-			pipeline,
-			null,
-			null,
-			options);
+			upcastingOptions: options,
+			upcastingPipeline: pipeline);
 
 		// Act
 		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
@@ -346,10 +342,8 @@ public sealed class EventSourcedRepositoryShould
 			eventStore,
 			CreateMockSerializer(updateEvent),
 			id => new TestAggregate(id),
-			pipeline,
-			null,
-			null,
-			options);
+			upcastingOptions: options,
+			upcastingPipeline: pipeline);
 
 		// Act
 		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);

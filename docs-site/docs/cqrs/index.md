@@ -209,7 +209,10 @@ Configuration:
 
 ```csharp
 // Write side: Event sourcing with SQL Server
-builder.Services.AddSqlServerEventSourcing(writeConnectionString);
+builder.Services.AddExcaliburEventSourcing(es =>
+{
+    es.UseSqlServer(opts => opts.ConnectionString = writeConnectionString);
+});
 
 // Read side: Separate read database
 builder.Services.AddScoped<IDbConnection>(_ =>

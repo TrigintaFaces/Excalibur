@@ -14,7 +14,7 @@ Pick your database and copy the registration:
 
 | Database | Package | Registration |
 |----------|---------|-------------|
-| **SQL Server** | `Excalibur.EventSourcing.SqlServer` | `services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connStr)` |
+| **SQL Server** | `Excalibur.EventSourcing.SqlServer` | `es.UseSqlServer(opts => opts.ConnectionString = connStr)` |
 | **PostgreSQL** | `Excalibur.EventSourcing.Postgres` | `services.AddPostgresEventSourcing(opts => opts.ConnectionString = connStr)` |
 | **MongoDB** | `Excalibur.Data.MongoDB` | `services.AddMongoDbSnapshotStore(opts => { ... })` |
 | **Cosmos DB** | `Excalibur.Data.CosmosDb` | `services.AddCosmosDb(opts => { ... })` |
@@ -22,7 +22,7 @@ Pick your database and copy the registration:
 | **Firestore** | `Excalibur.Data.Firestore` | `services.AddFirestore(opts => { ... })` |
 | **In-Memory** | `Excalibur.EventSourcing.InMemory` | `es.UseInMemory()` (builder only) |
 
-Each `AddXxxEventSourcing()` call registers `IEventStore`, `ISnapshotStore`, and `IEventSourcedOutboxStore` for that provider.
+Each `AddXxxEventSourcing()` call registers `IEventStore` and `ISnapshotStore` for that provider. Outbox is registered separately via `AddExcaliburOutbox()`.
 
 ## Before You Start
 
@@ -64,24 +64,24 @@ services.AddExcaliburEventSourcing(es =>
     });
 });
 
-// Alternative: Direct IServiceCollection registration
+// Alternative: Direct IServiceCollection registration (event store + snapshots only)
 services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 
 // Individual stores
 services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
 services.AddSqlServerSnapshotStore(opts => opts.ConnectionString = connectionString);
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
 
 // With connection factory
 services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
 services.AddSqlServerSnapshotStore(() => new SqlConnection(connectionString));
-services.AddSqlServerOutboxStore(() => new SqlConnection(connectionString));
 
 // With typed IDb marker (multi-database scenarios)
 services.AddSqlServerEventStore<IOrderDb>();
 services.AddSqlServerSnapshotStore<IOrderDb>();
-services.AddSqlServerOutboxStore<IOrderDb>();
-services.AddSqlServerEventSourcing<IOrderDb>(); // registers all three stores
+services.AddSqlServerEventSourcing<IOrderDb>(); // registers event store + snapshots
+
+// Outbox is registered separately via the unified outbox package
+services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(connectionString));
 ```
 
 ---
@@ -112,7 +112,7 @@ services.AddExcaliburEventSourcing(es =>
     es.UsePostgres(options =>
     {
         options.ConnectionString = connectionString;
-        options.RegisterHealthChecks = true;
+        options.HealthChecks.RegisterHealthChecks = true;
     });
 });
 

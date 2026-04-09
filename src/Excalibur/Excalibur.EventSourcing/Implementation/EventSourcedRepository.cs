@@ -11,7 +11,6 @@ using System.Text.Json;
 using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Versioning;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.Snapshots;
 
 using Microsoft.Extensions.Logging;
@@ -69,7 +68,9 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	private readonly ISnapshotManager? _snapshotManager;
 	private readonly ISnapshotStrategy? _snapshotStrategy;
 	private readonly IEventSerializer _eventSerializer;
-	private readonly IEventSourcedOutboxStore? _outboxStore;
+	private readonly ITransactionalOutboxWriter? _transactionalOutboxWriter;
+	private readonly IOutboxStore? _outboxStore;
+	private readonly OutboxStagingStrategy _outboxStagingStrategy;
 	private readonly SnapshotVersionManager? _snapshotVersionManager;
 	private readonly bool _enableAutoUpcast;
 	private readonly bool _enableAutoSnapshotUpgrade;
@@ -95,28 +96,32 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <param name="snapshotManager"> Optional snapshot manager. </param>
 	/// <param name="snapshotStrategy"> Optional snapshot strategy. </param>
 	/// <param name="upcastingOptions"> Optional upcasting configuration options. </param>
-	/// <param name="outboxStore"> Optional outbox store for staging integration events. </param>
+	/// <param name="transactionalOutboxWriter"> Optional transactional outbox writer for staging integration events atomically with event appends. </param>
+	/// <param name="outboxStore"> Optional outbox store for eventually-consistent staging when transactional writer is unavailable. </param>
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
 	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
 	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
 	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
+	/// <param name="outboxStagingStrategy"> The outbox staging strategy. Default is <see cref="OutboxStagingStrategy.Auto"/>. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
 		Func<TKey, TAggregate> aggregateFactory,
+		IOptions<UpcastingOptions>? upcastingOptions = null,
+		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
+		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
 		IUpcastingPipeline? upcastingPipeline = null,
 		ISnapshotManager? snapshotManager = null,
 		ISnapshotStrategy? snapshotStrategy = null,
-		IOptions<UpcastingOptions>? upcastingOptions = null,
-		IEventSourcedOutboxStore? outboxStore = null,
+		ITransactionalOutboxWriter? transactionalOutboxWriter = null,
+		IOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
-		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
-		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null,
 		IEventNotificationBroker? eventNotificationBroker = null,
-		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
-		TimeProvider? timeProvider = null)
+		TimeProvider? timeProvider = null,
+		OutboxStagingStrategy outboxStagingStrategy = OutboxStagingStrategy.Auto,
+		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null)
 	{
 		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
@@ -124,7 +129,9 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		_upcastingPipeline = upcastingPipeline;
 		_snapshotManager = snapshotManager;
 		_snapshotStrategy = snapshotStrategy;
+		_transactionalOutboxWriter = transactionalOutboxWriter;
 		_outboxStore = outboxStore;
+		_outboxStagingStrategy = outboxStagingStrategy;
 		_snapshotVersionManager = snapshotVersionManager;
 		_enableAutoUpcast = upcastingOptions?.Value.EnableAutoUpcastOnReplay ?? false;
 		_enableAutoSnapshotUpgrade = snapshotUpgradingOptions?.Value.EnableAutoUpgradeOnLoad ?? false;
@@ -146,7 +153,8 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <param name="upcastingPipeline"> Optional upcasting pipeline for version transformation. </param>
 	/// <param name="snapshotManager"> Optional snapshot manager. </param>
 	/// <param name="snapshotStrategy"> Optional snapshot strategy. </param>
-	/// <param name="outboxStore"> Optional outbox store for staging integration events. </param>
+	/// <param name="transactionalOutboxWriter"> Optional transactional outbox writer for staging integration events atomically with event appends. </param>
+	/// <param name="outboxStore"> Optional outbox store for eventually-consistent staging when transactional writer is unavailable. </param>
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
 	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
@@ -157,15 +165,16 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		IEventSerializer eventSerializer,
 		Func<TKey, TAggregate> aggregateFactory,
 		IOptions<EventSourcedRepositoryOptions> options,
+		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
 		IUpcastingPipeline? upcastingPipeline = null,
 		ISnapshotManager? snapshotManager = null,
 		ISnapshotStrategy? snapshotStrategy = null,
-		IEventSourcedOutboxStore? outboxStore = null,
+		ITransactionalOutboxWriter? transactionalOutboxWriter = null,
+		IOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
-		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null,
 		IEventNotificationBroker? eventNotificationBroker = null,
-		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
-		TimeProvider? timeProvider = null)
+		TimeProvider? timeProvider = null,
+		ILogger<EventSourcedRepository<TAggregate, TKey>>? logger = null)
 	{
 		ArgumentNullException.ThrowIfNull(eventStore);
 		ArgumentNullException.ThrowIfNull(eventSerializer);
@@ -178,7 +187,9 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		_upcastingPipeline = upcastingPipeline;
 		_snapshotManager = snapshotManager;
 		_snapshotStrategy = snapshotStrategy;
+		_transactionalOutboxWriter = transactionalOutboxWriter;
 		_outboxStore = outboxStore;
+		_outboxStagingStrategy = options.Value.OutboxStagingStrategy;
 		_snapshotVersionManager = snapshotVersionManager;
 		_enableAutoUpcast = options.Value.EnableAutoUpcast;
 		_enableAutoSnapshotUpgrade = options.Value.EnableAutoSnapshotUpgrade;
@@ -267,6 +278,8 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+		Justification = "SaveAsync orchestrates event append, transactional outbox, fallback outbox, snapshots, and notifications -- coupling is inherent to the coordination role.")]
 	public async Task SaveAsync(TAggregate aggregate, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
@@ -294,18 +307,21 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		// Formula: (committed event count) - 1 = max version
 		var expectedVersion = aggregate.Version - 1;
 
-		// When the event store supports transactions and outbox is configured,
-		// append events and stage outbox messages in a single atomic transaction.
-		if (_outboxStore is not null && _eventStore is ITransactionalEventStore txStore)
+		// Resolve effective staging strategy
+		var strategy = ResolveEffectiveStagingStrategy();
+
+		if (strategy == OutboxStagingStrategy.Transactional
+			&& _transactionalOutboxWriter is not null
+			&& _eventStore is ITransactionalEventStore txStore)
 		{
+			// Transactional: append events and stage outbox messages in a single atomic transaction.
 			await SaveWithTransactionalOutboxAsync(
 					txStore, stringId, aggregate, uncommittedEvents, expectedVersion, cancellationToken)
 				.ConfigureAwait(false);
 		}
 		else
 		{
-			// Non-transactional path: append events only.
-			// Integration events are published via OutboxBackgroundService instead.
+			// Non-transactional path: append events first.
 			var result = await _eventStore.AppendAsync(
 				stringId,
 				aggregate.AggregateType,
@@ -314,6 +330,15 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				cancellationToken).ConfigureAwait(false);
 
 			ThrowIfAppendFailed(result, aggregate);
+
+			// Eventually-consistent: stage integration events after successful append.
+			if (strategy == OutboxStagingStrategy.EventuallyConsistent && _outboxStore is not null)
+			{
+				await StageIntegrationEventsAsync(
+					stringId, aggregate, uncommittedEvents, cancellationToken).ConfigureAwait(false);
+			}
+
+			// Deferred: no staging here; events are picked up later by a background service.
 		}
 
 		aggregate.MarkEventsAsCommitted();
@@ -483,7 +508,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 		// Check Activity tags for tenant-id (set by middleware or upstream services)
 		foreach (var tag in activity.Tags)
 		{
-			if (string.Equals(tag.Key, "tenant-id", StringComparison.Ordinal)
+			if (string.Equals(tag.Key, OutboxHeaderNames.TenantId, StringComparison.Ordinal)
 				|| string.Equals(tag.Key, "tenant.id", StringComparison.Ordinal))
 			{
 				tenantId = tag.Value;
@@ -498,14 +523,14 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				continue;
 			}
 
-			if (!@event.Metadata.ContainsKey("correlation-id"))
+			if (!@event.Metadata.ContainsKey(OutboxHeaderNames.CorrelationId))
 			{
-				@event.Metadata["correlation-id"] = correlationId;
+				@event.Metadata[OutboxHeaderNames.CorrelationId] = correlationId;
 			}
 
-			if (tenantId is not null && !@event.Metadata.ContainsKey("tenant-id"))
+			if (tenantId is not null && !@event.Metadata.ContainsKey(OutboxHeaderNames.TenantId))
 			{
-				@event.Metadata["tenant-id"] = tenantId;
+				@event.Metadata[OutboxHeaderNames.TenantId] = tenantId;
 			}
 		}
 	}
@@ -622,7 +647,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 
 			ThrowIfAppendFailed(result, aggregate);
 
-			// Stage integration events to outbox within the same transaction
+			// Stage integration events to unified outbox within the same transaction
 			foreach (var @event in uncommittedEvents)
 			{
 				if (@event is not IIntegrationEvent)
@@ -630,21 +655,11 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 					continue;
 				}
 
-				var eventData = JsonSerializer.Serialize<object>(@event);
-				var outboxMessage = new Outbox.OutboxMessage
-				{
-					Id = Guid.NewGuid(),
-					AggregateId = aggregateId,
-					AggregateType = aggregate.AggregateType,
-					EventType = @event.EventType,
-					EventData = eventData,
-					CreatedAt = DateTimeOffset.UtcNow,
-					MessageType = @event.EventType,
-				};
+				var outboundMessage = CreateOutboundMessage(@event, aggregateId, aggregate.AggregateType);
 
 				if (transaction is not null)
 				{
-					await _outboxStore!.AddAsync(outboxMessage, transaction, cancellationToken)
+					await _transactionalOutboxWriter!.StageMessageAsync(outboundMessage, transaction, cancellationToken)
 						.ConfigureAwait(false);
 				}
 			}
@@ -664,6 +679,97 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 
 			throw;
 		}
+	}
+
+	/// <summary>
+	/// Resolves the effective outbox staging strategy based on configuration and available infrastructure.
+	/// </summary>
+	private OutboxStagingStrategy ResolveEffectiveStagingStrategy()
+	{
+		if (_outboxStagingStrategy != OutboxStagingStrategy.Auto)
+		{
+			return _outboxStagingStrategy;
+		}
+
+		// Auto: select best available strategy
+		if (_transactionalOutboxWriter is not null && _eventStore is ITransactionalEventStore)
+		{
+			return OutboxStagingStrategy.Transactional;
+		}
+
+		if (_outboxStore is not null)
+		{
+			return OutboxStagingStrategy.EventuallyConsistent;
+		}
+
+		return OutboxStagingStrategy.Deferred;
+	}
+
+	/// <summary>
+	/// Stages integration events to the outbox without transaction atomicity (eventually-consistent fallback).
+	/// </summary>
+	[RequiresUnreferencedCode("Aggregate persistence may require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("Aggregate persistence may require dynamic code generation.")]
+	private async Task StageIntegrationEventsAsync(
+		string aggregateId,
+		TAggregate aggregate,
+		IReadOnlyList<IDomainEvent> uncommittedEvents,
+		CancellationToken cancellationToken)
+	{
+		foreach (var @event in uncommittedEvents)
+		{
+			if (@event is not IIntegrationEvent)
+			{
+				continue;
+			}
+
+			var outboundMessage = CreateOutboundMessage(@event, aggregateId, aggregate.AggregateType);
+			await _outboxStore!.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// Creates an <see cref="OutboundMessage"/> from a domain event for outbox staging.
+	/// </summary>
+	[RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization may require dynamic code generation.")]
+	private OutboundMessage CreateOutboundMessage(IDomainEvent @event, string aggregateId, string aggregateType)
+	{
+		var eventData = JsonSerializer.Serialize(@event, @event.GetType());
+		var headers = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			[OutboxHeaderNames.AggregateId] = aggregateId,
+			[OutboxHeaderNames.AggregateType] = aggregateType,
+		};
+
+		if (@event.Metadata is { Count: > 0 })
+		{
+			foreach (var kvp in @event.Metadata)
+			{
+				headers.TryAdd(kvp.Key, kvp.Value);
+			}
+		}
+
+		// Extract tenant and correlation IDs from event metadata for outbox routing
+		var tenantId = @event.Metadata is not null && @event.Metadata.TryGetValue(OutboxHeaderNames.TenantId, out var tid)
+			? tid?.ToString() : null;
+		var correlationId = @event.Metadata is not null && @event.Metadata.TryGetValue(OutboxHeaderNames.CorrelationId, out var cid)
+			? cid?.ToString() : null;
+		var causationId = @event.Metadata is not null && @event.Metadata.TryGetValue(OutboxHeaderNames.CausationId, out var csid)
+			? csid?.ToString() : null;
+
+		return new OutboundMessage
+		{
+			Id = Guid.NewGuid().ToString(),
+			MessageType = @event.EventType,
+			Payload = Encoding.UTF8.GetBytes(eventData),
+			Headers = headers,
+			CreatedAt = _timeProvider.GetUtcNow(),
+			TenantId = tenantId,
+			CorrelationId = correlationId,
+			CausationId = causationId,
+			PartitionKey = tenantId ?? aggregateId,
+		};
 	}
 
 	/// <summary>
@@ -757,31 +863,36 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 	/// <param name="snapshotManager"> Optional snapshot manager. </param>
 	/// <param name="snapshotStrategy"> Optional snapshot strategy. </param>
 	/// <param name="upcastingOptions"> Optional upcasting configuration options. </param>
-	/// <param name="outboxStore"> Optional outbox store for staging integration events. </param>
+	/// <param name="transactionalOutboxWriter"> Optional transactional outbox writer for staging integration events atomically with event appends. </param>
+	/// <param name="outboxStore"> Optional outbox store for eventually-consistent staging when transactional writer is unavailable. </param>
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="snapshotUpgradingOptions"> Optional snapshot upgrading configuration options. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
 	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
 	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
 	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
+	/// <param name="outboxStagingStrategy"> The outbox staging strategy. Default is <see cref="OutboxStagingStrategy.Auto"/>. </param>
 	public EventSourcedRepository(
 		IEventStore eventStore,
 		IEventSerializer eventSerializer,
 		Func<string, TAggregate> aggregateFactory,
+		IOptions<UpcastingOptions>? upcastingOptions = null,
+		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
+		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
 		IUpcastingPipeline? upcastingPipeline = null,
 		ISnapshotManager? snapshotManager = null,
 		ISnapshotStrategy? snapshotStrategy = null,
-		IOptions<UpcastingOptions>? upcastingOptions = null,
-		IEventSourcedOutboxStore? outboxStore = null,
+		ITransactionalOutboxWriter? transactionalOutboxWriter = null,
+		IOutboxStore? outboxStore = null,
 		SnapshotVersionManager? snapshotVersionManager = null,
-		IOptions<SnapshotUpgradingOptions>? snapshotUpgradingOptions = null,
-		ILogger<EventSourcedRepository<TAggregate, string>>? logger = null,
 		IEventNotificationBroker? eventNotificationBroker = null,
-		IOptionsMonitor<Abstractions.AutoSnapshotOptions>? autoSnapshotOptions = null,
-		TimeProvider? timeProvider = null)
-		: base(eventStore, eventSerializer, aggregateFactory, upcastingPipeline, snapshotManager, snapshotStrategy,
-			upcastingOptions, outboxStore, snapshotVersionManager, snapshotUpgradingOptions, logger,
-			eventNotificationBroker, autoSnapshotOptions, timeProvider)
+		TimeProvider? timeProvider = null,
+		OutboxStagingStrategy outboxStagingStrategy = OutboxStagingStrategy.Auto,
+		ILogger<EventSourcedRepository<TAggregate, string>>? logger = null)
+		: base(eventStore, eventSerializer, aggregateFactory, upcastingOptions, snapshotUpgradingOptions,
+			autoSnapshotOptions, upcastingPipeline, snapshotManager, snapshotStrategy,
+			transactionalOutboxWriter, outboxStore, snapshotVersionManager, eventNotificationBroker,
+			timeProvider, outboxStagingStrategy, logger)
 	{
 	}
 }

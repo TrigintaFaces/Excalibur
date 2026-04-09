@@ -81,9 +81,9 @@ public class SqlServerRepositoryTests : IAsyncLifetime
         services.AddDispatch();
         services.AddExcaliburEventSourcing(builder =>
         {
+            builder.UseSqlServer(opts => opts.ConnectionString = _container.GetConnectionString());
             builder.AddRepository<Order, OrderId>();
         });
-        services.AddSqlServerEventSourcing(_container.GetConnectionString());
 
         _provider = services.BuildServiceProvider();
         _repository = _provider.GetRequiredService<IEventSourcedRepository<Order, OrderId>>();
@@ -365,9 +365,9 @@ public class DatabaseFixture : IAsyncLifetime
         services.AddDispatch();
         services.AddExcaliburEventSourcing(builder =>
         {
+            builder.UseSqlServer(opts => opts.ConnectionString = Container.GetConnectionString());
             builder.AddRepository<Order, OrderId>();
         });
-        services.AddSqlServerEventSourcing(Container.GetConnectionString());
         Provider = services.BuildServiceProvider();
     }
 

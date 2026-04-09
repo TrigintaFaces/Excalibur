@@ -130,11 +130,11 @@ internal sealed partial class TraceContextValidator(ILogger<TraceContextValidato
 
 		foreach (var baggageItem in activity.Baggage)
 		{
-			if (string.Equals(baggageItem.Key, "correlation-id", StringComparison.Ordinal))
+			if (string.Equals(baggageItem.Key, OutboxHeaderNames.CorrelationId, StringComparison.Ordinal))
 			{
 				correlationBaggage = baggageItem.Value;
 			}
-			else if (string.Equals(baggageItem.Key, "tenant-id", StringComparison.Ordinal))
+			else if (string.Equals(baggageItem.Key, OutboxHeaderNames.TenantId, StringComparison.Ordinal))
 			{
 				tenantBaggage = baggageItem.Value;
 			}

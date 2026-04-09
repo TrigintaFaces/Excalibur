@@ -3,7 +3,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-namespace Excalibur.EventSourcing.Outbox;
+namespace Excalibur.Outbox.Partitioning;
 
 /// <summary>
 /// Partitioning strategy for the outbox table.

@@ -19,6 +19,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing.SqlServer;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,18 +55,15 @@ var connectionString = builder.Configuration.GetConnectionString("EventStore")
 					   ?? throw new InvalidOperationException(
 						   "ConnectionString 'EventStore' not found. Ensure appsettings.json is configured.");
 
-// Register SQL Server event sourcing with options
-builder.Services.AddSqlServerEventSourcing(options =>
-{
-	options.ConnectionString = connectionString;
-	options.HealthChecks.RegisterHealthChecks = true;
-});
-
-// ============================================================
-// Configure Event Sourcing Repository
-// ============================================================
 builder.Services.AddExcaliburEventSourcing(es =>
 {
+	// SQL Server event store, snapshot store, outbox store + health checks
+	es.UseSqlServer(options =>
+	{
+		options.ConnectionString = connectionString;
+		options.HealthChecks.RegisterHealthChecks = true;
+	});
+
 	// Register the BankAccountAggregate repository with factory
 	_ = es.AddRepository<BankAccountAggregate, Guid>(id => new BankAccountAggregate(id));
 });
@@ -236,18 +234,16 @@ logger.LogInformation("");
 logger.LogInformation("Registration Methods:");
 logger.LogInformation("  | Method                          | Description                    |");
 logger.LogInformation("  |---------------------------------|--------------------------------|");
+logger.LogInformation("  | es.UseSqlServer(...)            | All stores via builder (prefer) |");
 logger.LogInformation("  | AddSqlServerEventStore          | Event store only               |");
 logger.LogInformation("  | AddSqlServerSnapshotStore       | Snapshot store only            |");
-logger.LogInformation("  | AddSqlServerOutboxStore         | Outbox store only              |");
-logger.LogInformation("  | AddSqlServerEventSourcing       | All stores + health checks     |");
 logger.LogInformation("");
 logger.LogInformation("Key Tables:");
 logger.LogInformation("  | Table                           | Purpose                        |");
 logger.LogInformation("  |---------------------------------|--------------------------------|");
-logger.LogInformation("  | eventsourcing.Events            | Domain events                  |");
-logger.LogInformation("  | eventsourcing.Snapshots         | Aggregate snapshots            |");
-logger.LogInformation("  | eventsourcing.Outbox            | Transactional outbox           |");
-logger.LogInformation("  | eventsourcing.ProjectionCheckpoints | Projection progress       |");
+logger.LogInformation("  | dbo.EventStoreEvents            | Domain events                  |");
+logger.LogInformation("  | dbo.EventStoreSnapshots         | Aggregate snapshots            |");
+logger.LogInformation("  | dbo.OutboxMessages              | Unified outbox (separate pkg)  |");
 
 logger.LogInformation("");
 logger.LogInformation("Sample completed. Press Ctrl+C to exit...");

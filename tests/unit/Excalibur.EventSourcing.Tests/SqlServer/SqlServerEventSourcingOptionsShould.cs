@@ -113,16 +113,6 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveDefaultOutboxStoreHealthCheckName()
-	{
-		// Arrange & Act
-		var options = new SqlServerEventSourcingOptions();
-
-		// Assert
-		options.HealthChecks.OutboxStoreHealthCheckName.ShouldBe("sqlserver-outbox-store");
-	}
-
-	[Fact]
 	public void AllowCustomConnectionString()
 	{
 		// Arrange
@@ -250,18 +240,5 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 
 		// Assert
 		options.HealthChecks.SnapshotStoreHealthCheckName.ShouldBe("custom-snapshot-store-health");
-	}
-
-	[Fact]
-	public void AllowCustomOutboxStoreHealthCheckName()
-	{
-		// Arrange
-		var options = new SqlServerEventSourcingOptions();
-
-		// Act
-		options.HealthChecks.OutboxStoreHealthCheckName = "custom-outbox-store-health";
-
-		// Assert
-		options.HealthChecks.OutboxStoreHealthCheckName.ShouldBe("custom-outbox-store-health");
 	}
 }

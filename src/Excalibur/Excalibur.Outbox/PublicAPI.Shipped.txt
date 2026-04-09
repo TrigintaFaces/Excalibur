@@ -473,3 +473,27 @@ static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtension
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddInboxHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddOutboxHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.HasExcaliburOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
+Excalibur.Outbox.Partitioning.IOutboxPartitioner
+Excalibur.Outbox.Partitioning.IOutboxPartitioner.GetPartition(string! tenantId) -> int
+Excalibur.Outbox.Partitioning.IOutboxPartitioner.PartitionCount.get -> int
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.OutboxPartitionOptions() -> void
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.ErrorBackoffInterval.get -> System.TimeSpan
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.ErrorBackoffInterval.set -> void
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.PartitionCount.get -> int
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.PartitionCount.set -> void
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.PollingInterval.set -> void
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.ProcessorCountPerPartition.get -> int
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.ProcessorCountPerPartition.set -> void
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.ShardIds.get -> System.Collections.Generic.List<string!>!
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.ShardIds.set -> void
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.Strategy.get -> Excalibur.Outbox.Partitioning.OutboxPartitionStrategy
+Excalibur.Outbox.Partitioning.OutboxPartitionOptions.Strategy.set -> void
+Excalibur.Outbox.Partitioning.OutboxPartitionStrategy
+Excalibur.Outbox.Partitioning.OutboxPartitionStrategy.None = 0 -> Excalibur.Outbox.Partitioning.OutboxPartitionStrategy
+Excalibur.Outbox.Partitioning.OutboxPartitionStrategy.PerShard = 1 -> Excalibur.Outbox.Partitioning.OutboxPartitionStrategy
+Excalibur.Outbox.Partitioning.OutboxPartitionStrategy.ByTenantHash = 2 -> Excalibur.Outbox.Partitioning.OutboxPartitionStrategy
+Microsoft.Extensions.DependencyInjection.PartitionedOutboxBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.PartitionedOutboxBuilderExtensions.UsePartitionedProcessing(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Partitioning.OutboxPartitionOptions!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
+static Microsoft.Extensions.DependencyInjection.PartitionedOutboxBuilderExtensions.UsePartitionedProcessing(this Excalibur.Outbox.IOutboxBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Outbox.IOutboxBuilder!

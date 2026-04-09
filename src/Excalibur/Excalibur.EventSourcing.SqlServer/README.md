@@ -31,15 +31,22 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 ## Usage
 
 ```csharp
-// Register SQL Server event store with options
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.EventStoreSchema = "events";
+    });
+    es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
+});
+
+// Alternative: Direct registration
 services.AddSqlServerEventSourcing(options =>
 {
     options.ConnectionString = connectionString;
-    options.EventStoreSchema = "events";
 });
-
-// Or with connection factory for multi-tenant scenarios
-services.AddSqlServerEventSourcing(() => new SqlConnection(connectionString));
 ```
 
 ## Database Schema

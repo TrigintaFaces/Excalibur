@@ -3,6 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Dapper;
+
 using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
@@ -29,7 +31,7 @@ public sealed partial class PostgresOutboxStore(
 	IDb db,
 	IOptions<PostgresOutboxStoreOptions> options,
 	ILogger<PostgresOutboxStore> logger,
-	PostgresOutboxStoreMetrics? metrics = null) : IOutboxStore, IOutboxStoreAdmin, IDisposable
+	PostgresOutboxStoreMetrics? metrics = null) : IOutboxStore, IOutboxStoreAdmin, ITransactionalOutboxWriter, IDisposable
 {
 	private readonly IDb _db = db ?? throw new ArgumentNullException(nameof(db));
 	private readonly PostgresOutboxStoreOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -394,6 +396,81 @@ public sealed partial class PostgresOutboxStore(
 			DateTimeOffset.UtcNow);
 
 		_ = await SaveMessagesAsync(new[] { outboxMessage }, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Stages a message within an externally owned transaction. The caller is responsible
+	/// for committing or rolling back the transaction. This enables atomic consistency
+	/// between event store appends and outbox writes in event sourcing scenarios.
+	/// </remarks>
+	public async ValueTask StageMessageAsync(
+		OutboundMessage message,
+		System.Data.IDbTransaction transaction,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(message);
+		ArgumentNullException.ThrowIfNull(transaction);
+
+		if (transaction is not Npgsql.NpgsqlTransaction)
+		{
+			throw new ArgumentException(
+				$"Expected NpgsqlTransaction but received {transaction.GetType().Name}. " +
+				"The Postgres outbox store requires an NpgsqlTransaction for transactional staging.",
+				nameof(transaction));
+		}
+
+		var connection = transaction.Connection
+			?? throw new InvalidOperationException("The transaction's connection is null or has been disposed.");
+
+		var stopwatch = ValueStopwatch.StartNew();
+		try
+		{
+			var outboxMsg = new OutboxMessage(
+				message.Id,
+				message.MessageType,
+				#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
+				System.Text.Json.JsonSerializer.Serialize(message.Headers ?? new Dictionary<string, object>(StringComparer.Ordinal)),
+				#pragma warning restore IL2026, IL3050
+				System.Text.Encoding.UTF8.GetString(message.Payload),
+				DateTimeOffset.UtcNow);
+
+			var req = new InsertOutboxMessage(
+				outboxMsg.MessageId,
+				outboxMsg.MessageType,
+				outboxMsg.MessageMetadata,
+				outboxMsg.MessageBody,
+				_options.QualifiedOutboxTableName,
+				DbTimeouts.RegularTimeoutSeconds,
+				cancellationToken);
+
+			// Execute using the externally provided transaction's connection
+			_ = await connection.ExecuteAsync(
+				new Dapper.CommandDefinition(
+					req.Command.CommandText,
+					req.Command.Parameters,
+					transaction,
+					req.Command.CommandTimeout,
+					cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+			_logger.LogDebug("Staged outbox message {MessageId} within external transaction", message.Id);
+		}
+		catch (Npgsql.PostgresException ex) when (ex.SqlState == Npgsql.PostgresErrorCodes.UniqueViolation)
+		{
+			_logger.LogWarning(ex, "Duplicate outbox message detected for {MessageId}", message.Id);
+			throw new InvalidOperationException($"Outbox message '{message.Id}' already exists.", ex);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Failed to stage outbox message {MessageId} within external transaction", message.Id);
+			throw;
+		}
+		finally
+		{
+			var durationMs = stopwatch.Elapsed.TotalMilliseconds;
+			_metrics.RecordSaveMessages(durationMs, 1);
+			LogOperationCompleted(durationMs, "StageTransactional");
+		}
 	}
 
 	/// <summary>

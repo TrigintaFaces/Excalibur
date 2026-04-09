@@ -525,7 +525,7 @@ public sealed class ExcaliburEventSourcingBuilderShould
 	#region Edge Cases
 
 	[Fact]
-	public void MultipleStrategyRegistrations_FirstWins_DueToTryAddSemantics()
+	public void MultipleStrategyRegistrations_LastWins_DueToReplaceSemantics()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -536,9 +536,39 @@ public sealed class ExcaliburEventSourcingBuilderShould
 		_ = builder.UseTimeBasedSnapshots(TimeSpan.FromMinutes(5));
 		var provider = services.BuildServiceProvider();
 
-		// Assert - First registration wins due to TryAddSingleton
+		// Assert - Last registration wins because Use* methods replace previous strategy
+		var strategy = provider.GetRequiredService<ISnapshotStrategy>();
+		_ = strategy.ShouldBeOfType<TimeBasedSnapshotStrategy>();
+	}
+
+	[Fact]
+	public void UseIntervalSnapshots_ReplacesDefaultNoSnapshotStrategy()
+	{
+		// Arrange — AddExcaliburEventSourcing registers NoSnapshotStrategy as default
+		var services = new ServiceCollection();
+		services.AddExcaliburEventSourcing(builder => builder.UseIntervalSnapshots(50));
+		var provider = services.BuildServiceProvider();
+
+		// Assert — UseIntervalSnapshots must override the default, not be a no-op
 		var strategy = provider.GetRequiredService<ISnapshotStrategy>();
 		_ = strategy.ShouldBeOfType<IntervalSnapshotStrategy>();
+	}
+
+	[Fact]
+	public void ReplaceSnapshotStrategy_LeavesExactlyOneRegistration()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		var builder = new ExcaliburEventSourcingBuilder(services);
+
+		// Act - Register three strategies sequentially
+		_ = builder.UseIntervalSnapshots(100);
+		_ = builder.UseTimeBasedSnapshots(TimeSpan.FromMinutes(5));
+		_ = builder.UseSizeBasedSnapshots(1024);
+
+		// Assert - Only one ISnapshotStrategy registration remains
+		var registrations = services.Where(d => d.ServiceType == typeof(ISnapshotStrategy)).ToList();
+		registrations.Count.ShouldBe(1);
 	}
 
 	[Fact]

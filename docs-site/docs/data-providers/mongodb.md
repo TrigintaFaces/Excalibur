@@ -41,7 +41,7 @@ services.AddMongoDbSnapshotStore(options =>
 |--------|-------------------|-------------|
 | `AddMongoDbSnapshotStore(opts)` | `ISnapshotStore` | `CollectionName` |
 | `AddMongoDbProjectionStore<T>(connStr, dbName, opts?)` | `IProjectionStore<T>` | `CollectionName` |
-| `AddMongoDbOutboxStore(opts)` | `IEventSourcedOutboxStore` | `CollectionName` |
+| `AddMongoDbOutboxStore(opts)` | `IOutboxStore` | `CollectionName` |
 | `AddMongoDbSagaStore(opts)` | `ISagaStore` | `CollectionName` |
 
 ### Batch Projection Registration

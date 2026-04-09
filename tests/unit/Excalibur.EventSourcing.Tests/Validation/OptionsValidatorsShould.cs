@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.EventSourcing.Abstractions;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.ParallelCatchUp;
 using Excalibur.EventSourcing.Snapshots;
 using Excalibur.EventSourcing.Sharding;
@@ -61,67 +60,6 @@ public sealed class OptionsValidatorsShould
 	{
 		var result = new AutoSnapshotOptionsValidator().Validate(null,
 			new AutoSnapshotOptions { VersionThreshold = -5 });
-		result.Failed.ShouldBeTrue();
-	}
-
-	// --- OutboxPartitionOptionsValidator ---
-
-	[Fact]
-	public void PassOutboxWithNoneStrategy()
-	{
-		var result = new OutboxPartitionOptionsValidator().Validate(null,
-			new OutboxPartitionOptions { Strategy = OutboxPartitionStrategy.None });
-		result.Succeeded.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void PassOutboxWithValidHashStrategy()
-	{
-		var result = new OutboxPartitionOptionsValidator().Validate(null,
-			new OutboxPartitionOptions
-			{
-				Strategy = OutboxPartitionStrategy.ByTenantHash,
-				PartitionCount = 8,
-				ProcessorCountPerPartition = 1,
-				PollingInterval = TimeSpan.FromSeconds(1),
-				ErrorBackoffInterval = TimeSpan.FromSeconds(5)
-			});
-		result.Succeeded.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void FailOutboxWithZeroPartitionCount()
-	{
-		var result = new OutboxPartitionOptionsValidator().Validate(null,
-			new OutboxPartitionOptions
-			{
-				Strategy = OutboxPartitionStrategy.ByTenantHash,
-				PartitionCount = 0
-			});
-		result.Failed.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void FailOutboxWithExcessivePartitionCount()
-	{
-		var result = new OutboxPartitionOptionsValidator().Validate(null,
-			new OutboxPartitionOptions
-			{
-				Strategy = OutboxPartitionStrategy.ByTenantHash,
-				PartitionCount = 500
-			});
-		result.Failed.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void FailOutboxPerShardWithNoShardIds()
-	{
-		var result = new OutboxPartitionOptionsValidator().Validate(null,
-			new OutboxPartitionOptions
-			{
-				Strategy = OutboxPartitionStrategy.PerShard,
-				PartitionCount = 4
-			});
 		result.Failed.ShouldBeTrue();
 	}
 

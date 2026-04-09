@@ -117,23 +117,19 @@ These samples follow:
 
 ```csharp
 // Replace InMemoryOrderStore with:
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
 services.AddExcaliburEventSourcing(es =>
 {
+    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 });
 
 // Add resilience
 services.AddDispatch(builder => builder
-    .AddPollyResilience(options =>
-    {
-        options.AddRetryPolicy(3, TimeSpan.FromMilliseconds(100));
-        options.AddCircuitBreakerPolicy(5, TimeSpan.FromSeconds(30));
-    }));
+    .UseResilience());
 
 // Add outbox for reliability
-services.AddSqlServerEventSourcingOutbox(opts => opts.ConnectionString = connectionString);
-services.AddDispatch(builder => builder.AddOutboxMiddleware());
+services.AddExcaliburOutbox(o => o.UseSqlServer(sql => sql.ConnectionString(connectionString)));
+services.AddDispatch(builder => builder.UseOutbox());
 ```
 
 ## Related Categories

@@ -320,7 +320,10 @@ public class SqlServerIntegrationTests : IAsyncLifetime
         {
             dispatch.AddHandlersFromAssembly(typeof(SqlServerIntegrationTests).Assembly);
         });
-        services.AddSqlServerEventSourcing(_sqlContainer.GetConnectionString());
+        services.AddExcaliburEventSourcing(es =>
+        {
+            es.UseSqlServer(opts => opts.ConnectionString = _sqlContainer.GetConnectionString());
+        });
 
         _services = services.BuildServiceProvider();
 

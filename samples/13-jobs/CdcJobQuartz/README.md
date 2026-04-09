@@ -14,8 +14,8 @@ This sample uses the same architecture as the `CdcEventStoreElasticsearch` sampl
 SQL Server #1 (Legacy DB)         SQL Server #2 (Event Store)
 Port 1433                          Port 1434
 ┌───────────────────┐             ┌───────────────────────────┐
-│  LegacyCustomers  │             │  eventsourcing.Events     │
-│  (CDC enabled)    │             │  eventsourcing.Snapshots  │
+│  LegacyCustomers  │             │  dbo.EventStoreEvents     │
+│  (CDC enabled)    │             │  dbo.EventStoreSnapshots  │
 └─────────┬─────────┘             └─────────────┬─────────────┘
           │                                     │
           │ CdcJob (Quartz.NET)                 │ Domain Events
@@ -236,7 +236,7 @@ cd scripts
 | `CdcJobOptions` | `Excalibur.Jobs` | Job configuration model |
 | `AddExcaliburJobHost` | `Excalibur.Jobs` | Quartz.NET + Excalibur integration |
 | `AddCdcProcessor` | `Excalibur.Data.SqlServer` | CDC processor factory |
-| `AddSqlServerEventSourcing` | `Excalibur.EventSourcing.SqlServer` | Event store |
+| `es.UseSqlServer(...)` | `Excalibur.EventSourcing.SqlServer` | Event store (via builder) |
 
 ## Health Checks
 

@@ -53,7 +53,7 @@ services.AddExcaliburEventSourcing(es =>
 // This registers:
 // - IEventStore (SqlServerEventStore)
 // - ISnapshotStore (SqlServerSnapshotStore)
-// - IEventSourcedOutboxStore (SqlServerEventSourcedOutboxStore)
+// Outbox is registered separately via AddExcaliburOutbox()
 ```
 
 :::tip Alternative: Direct registration
@@ -132,6 +132,32 @@ services.AddExcaliburEventSourcing(builder =>
         key => new OrderAggregate(key, tenantId));
 });
 ```
+
+### Per-Aggregate Repository Options
+
+Configure repository behavior per aggregate type using `EventSourcedRepositoryOptions`:
+
+```csharp
+services.AddExcaliburEventSourcing(builder =>
+{
+    builder.AddRepository<OrderAggregate, Guid>(
+        key => new OrderAggregate(key),
+        opts =>
+        {
+            opts.OutboxStagingStrategy = OutboxStagingStrategy.Transactional;
+            opts.EnableAutoUpcast = true;
+            opts.EnableAutoSnapshotUpgrade = true;
+            opts.TargetSnapshotVersion = 2;
+        });
+});
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `OutboxStagingStrategy` | `Auto` | How integration events are staged to the outbox during save (`Auto`, `Transactional`, `EventuallyConsistent`, `Deferred`) |
+| `EnableAutoUpcast` | `false` | Apply upcasting pipeline during event replay |
+| `EnableAutoSnapshotUpgrade` | `false` | Upgrade snapshots on load via `SnapshotVersionManager` |
+| `TargetSnapshotVersion` | `1` | Target version for automatic snapshot upgrades |
 
 ### String-Keyed Aggregates
 
@@ -249,9 +275,9 @@ CREATE TABLE [EventSourcing].[Snapshots] (
 | `EventStoreTable` | `"EventStoreEvents"` | Name of events table |
 | `SnapshotStoreSchema` | `"dbo"` | Database schema for the snapshots table |
 | `SnapshotStoreTable` | `"EventStoreSnapshots"` | Name of snapshots table |
-| `OutboxSchema` | `"dbo"` | Database schema for the outbox table |
-| `OutboxTable` | `"EventSourcedOutbox"` | Name of outbox table |
-| `RegisterHealthChecks` | `true` | Whether to register health checks |
+| `OutboxSchema` | `"dbo"` | Database schema for the partitioned outbox table |
+| `OutboxTable` | `"EventSourcedOutbox"` | Name of partitioned outbox table (unified outbox uses `AddExcaliburOutbox()`) |
+| `HealthChecks.RegisterHealthChecks` | `true` | Whether to register health checks |
 
 All schema and table names are validated against SQL injection using `SqlIdentifierValidator` (alphanumeric + underscore whitelist, bracket-escaped in queries).
 
@@ -271,13 +297,16 @@ When registering individual stores, use their lightweight options classes:
 To use custom table names (e.g., for multi-tenant isolation or naming conventions):
 
 ```csharp
-services.AddSqlServerEventSourcing(opts =>
+services.AddExcaliburEventSourcing(es =>
 {
-    opts.ConnectionString = connectionString;
-    opts.EventStoreSchema = "ordering";
-    opts.EventStoreTable = "DomainEvents";
-    opts.SnapshotStoreSchema = "ordering";
-    opts.SnapshotStoreTable = "AggregateSnapshots";
+    es.UseSqlServer(opts =>
+    {
+        opts.ConnectionString = connectionString;
+        opts.EventStoreSchema = "ordering";
+        opts.EventStoreTable = "DomainEvents";
+        opts.SnapshotStoreSchema = "ordering";
+        opts.SnapshotStoreTable = "AggregateSnapshots";
+    });
 });
 ```
 

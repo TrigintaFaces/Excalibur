@@ -144,7 +144,7 @@ builder.Services.AddExcaliburEventSourcing(es =>
 });
 ```
 
-The `IEventSourcingBuilder` provides fluent configuration: `AddRepository`, `UseEventStore`, `UseIntervalSnapshots`, `UseTimeBasedSnapshots`, `UseNoSnapshots`, `UseEventSerializer`, `UseOutboxStore`, `AddUpcastingPipeline`, `AddSnapshotUpgrading`.
+The `IEventSourcingBuilder` provides fluent configuration: `AddRepository`, `UseEventStore`, `UseIntervalSnapshots`, `UseTimeBasedSnapshots`, `UseNoSnapshots`, `UseEventSerializer`, `UseTransactionalOutboxWriter`, `AddUpcastingPipeline`, `AddSnapshotUpgrading`.
 
 ### Excalibur Outbox
 

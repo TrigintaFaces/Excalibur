@@ -11,7 +11,6 @@ using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;
-using Excalibur.EventSourcing.Outbox;
 using Excalibur.EventSourcing.Postgres;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
 
@@ -229,33 +228,6 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds Postgres event-sourced outbox store implementation with an NpgsqlDataSource.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
-	/// <param name="schema">The schema name for the outbox table. Default: "public".</param>
-	/// <param name="table">The outbox table name. Default: "event_sourced_outbox".</param>
-	/// <returns>The service collection for method chaining.</returns>
-	public static IServiceCollection AddPostgresOutboxStore(
-		this IServiceCollection services,
-		NpgsqlDataSource dataSource,
-		string schema = "public",
-		string table = "event_sourced_outbox")
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(dataSource);
-
-		services.TryAddSingleton<IEventSourcedOutboxStore>(sp =>
-			new PostgresEventSourcedOutboxStore(
-				dataSource,
-				sp.GetRequiredService<ILogger<PostgresEventSourcedOutboxStore>>(),
-				schema,
-				table));
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds all Postgres event sourcing implementations with configuration.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -303,7 +275,8 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		services.TryAddSingleton(dataSource);
 		_ = services.AddPostgresEventStore(dataSource, options.EventStoreSchema, options.EventStoreTable);
 		_ = services.AddPostgresSnapshotStore(dataSource, options.SnapshotStoreSchema, options.SnapshotStoreTable);
-		_ = services.AddPostgresOutboxStore(dataSource, options.OutboxSchema, options.OutboxTable);
+		// Outbox is now unified via Excalibur.Outbox.Postgres (IOutboxStore + ITransactionalOutboxWriter).
+		// Register via: services.AddExcaliburOutbox(o => o.UsePostgres(...))
 
 		// Register health checks if enabled
 		if (options.HealthChecks.RegisterHealthChecks)
@@ -317,10 +290,7 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 					options.ConnectionString,
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "Postgres", "eventsourcing"])
-				.AddNpgSql(
-					options.ConnectionString,
-					name: options.HealthChecks.OutboxStoreHealthCheckName,
-					tags: ["outbox", "Postgres", "eventsourcing"]);
+				;
 		}
 
 		return services;
@@ -363,7 +333,8 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		services.TryAddSingleton(dataSource);
 		_ = services.AddPostgresEventStore(dataSource, options.EventStoreSchema, options.EventStoreTable);
 		_ = services.AddPostgresSnapshotStore(dataSource, options.SnapshotStoreSchema, options.SnapshotStoreTable);
-		_ = services.AddPostgresOutboxStore(dataSource, options.OutboxSchema, options.OutboxTable);
+		// Outbox is now unified via Excalibur.Outbox.Postgres (IOutboxStore + ITransactionalOutboxWriter).
+		// Register via: services.AddExcaliburOutbox(o => o.UsePostgres(...))
 
 		// Register health checks if enabled
 		if (options.HealthChecks.RegisterHealthChecks)
@@ -377,10 +348,7 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 					options.ConnectionString,
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "Postgres", "eventsourcing"])
-				.AddNpgSql(
-					options.ConnectionString,
-					name: options.HealthChecks.OutboxStoreHealthCheckName,
-					tags: ["outbox", "Postgres", "eventsourcing"]);
+				;
 		}
 
 		return services;
@@ -407,7 +375,8 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 
 		_ = services.AddPostgresEventStore(dataSource);
 		_ = services.AddPostgresSnapshotStore(dataSource);
-		_ = services.AddPostgresOutboxStore(dataSource);
+		// Outbox is now unified via Excalibur.Outbox.Postgres (IOutboxStore + ITransactionalOutboxWriter).
+		// Register via: services.AddExcaliburOutbox(o => o.UsePostgres(...))
 
 		return services;
 	}
