@@ -34,6 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -49,7 +50,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -57,7 +58,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -88,7 +89,7 @@ jobs:
           ls -lh perf-build-output.tar.gz
 
       - name: Upload build output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: perf-build-output-linux
           path: perf-build-output.tar.gz
@@ -97,7 +98,7 @@ jobs:
 
       - name: Upload performance test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: performance-test-results
           path: "**/performance-tests.trx"
@@ -123,7 +124,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -131,7 +132,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -152,7 +153,7 @@ jobs:
           tar -czf perf-build-output.tar.gz -T /tmp/artifact-paths.txt
 
       - name: Upload build output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact-name }}
           path: perf-build-output.tar.gz
@@ -184,7 +185,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -192,13 +193,16 @@ jobs:
             10.0.x
 
       - name: Download pre-built benchmark artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact }}
 
       - name: Extract build output
         shell: bash
         run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Run hot path benchmarks
         shell: pwsh
@@ -227,7 +231,7 @@ jobs:
           & dotnet $benchmarkArgs
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: hot-path-results-${{ matrix.os }}
           path: BenchmarkDotNet.Artifacts
@@ -337,7 +341,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -345,12 +349,15 @@ jobs:
             10.0.x
 
       - name: Download pre-built benchmark artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: perf-build-output-linux
 
       - name: Extract build output
         run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Run memory allocation benchmarks
         run: |
@@ -365,7 +372,7 @@ jobs:
                --artifacts ./BenchmarkDotNet.Artifacts
 
       - name: Upload memory benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: memory-benchmark-results
           path: BenchmarkDotNet.Artifacts
@@ -382,7 +389,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -390,12 +397,15 @@ jobs:
             10.0.x
 
       - name: Download pre-built benchmark artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: perf-build-output-linux
 
       - name: Extract build output
         run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       # TODO: Enable when benchmarks/CloudNativePatterns.Benchmarks project exists
       # - name: Run cloud native patterns benchmarks
@@ -433,7 +443,7 @@ jobs:
                --artifacts ./ThroughputBenchmarks
 
       - name: Upload throughput results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: throughput-benchmark-results
           path: |
@@ -456,7 +466,7 @@ jobs:
           path: benchmark-results
 
       - name: Setup Python for analysis
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -582,7 +592,7 @@ jobs:
           EOF
 
       - name: Upload performance analysis
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: performance-analysis
           path: |

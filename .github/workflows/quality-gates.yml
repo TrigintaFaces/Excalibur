@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   COVERAGE_THRESHOLD: 65
@@ -84,7 +85,7 @@ jobs:
           docker system prune -af || true
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -92,7 +93,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -114,7 +115,7 @@ jobs:
           ls -lh qg-build-output.tar.gz
 
       - name: Upload build output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: qg-build-output
           path: qg-build-output.tar.gz
@@ -144,7 +145,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -152,12 +153,15 @@ jobs:
             10.0.x
 
       - name: Download pre-built artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: qg-build-output
 
       - name: Extract build output
         run: tar -xzf qg-build-output.tar.gz && rm qg-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Run shard tests with coverage
         run: |
@@ -173,7 +177,7 @@ jobs:
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload shard coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-shard-${{ matrix.shard.name }}
           path: ./coverage/**/coverage.cobertura.xml
@@ -239,7 +243,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: ./coverage/merged
@@ -259,7 +263,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -267,12 +271,15 @@ jobs:
             10.0.x
 
       - name: Download pre-built artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: qg-build-output
 
       - name: Extract build output
         run: tar -xzf qg-build-output.tar.gz && rm qg-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Run deterministic unit and DI tests
         run: |
@@ -300,7 +307,7 @@ jobs:
           fi
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: test-results
@@ -321,7 +328,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -329,12 +336,15 @@ jobs:
             10.0.x
 
       - name: Download pre-built artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: qg-build-output
 
       - name: Extract build output
         run: tar -xzf qg-build-output.tar.gz && rm qg-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Run transport conformance suite
         run: |
@@ -348,7 +358,7 @@ jobs:
             --results-directory ./transport-conformance-results
 
       - name: Upload transport conformance results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: transport-conformance-results
@@ -380,7 +390,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -415,7 +425,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -423,12 +433,15 @@ jobs:
             10.0.x
 
       - name: Download pre-built artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: qg-build-output
 
       - name: Extract build output
         run: tar -xzf qg-build-output.tar.gz && rm qg-build-output.tar.gz
+
+      - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Validate Dispatch→Excalibur Dependency Direction
         run: |
@@ -504,7 +517,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -518,7 +531,7 @@ jobs:
 
       - name: Upload API compatibility report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: api-compat-report-quality-gates
           path: management/reports/ApiCompatReport

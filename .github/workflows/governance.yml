@@ -22,6 +22,7 @@ permissions:
   pull-requests: read
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -51,7 +52,7 @@ jobs:
 
       - name: Upload governance report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: solution-governance-report
           path: |
@@ -83,7 +84,7 @@ jobs:
 
       - name: Upload dependency graph report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: package-dependency-report
           path: management/reports/PackageDependencyReport
@@ -179,7 +180,7 @@ jobs:
 
       - name: Upload PublicAPI baseline report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: public-api-baseline-report
           path: management/reports/PublicApiBaselineReport
@@ -211,7 +212,7 @@ jobs:
 
       - name: Upload ApiCompat report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: api-compat-report
           path: management/reports/ApiCompatReport
@@ -246,7 +247,7 @@ jobs:
 
       - name: Upload transitive bloat report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: transitive-bloat-report
           path: management/reports/TransitiveBloatReport
@@ -276,7 +277,7 @@ jobs:
 
       - name: Upload banned APIs report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: banned-apis-report
           path: management/reports/BannedApisReport
@@ -312,7 +313,7 @@ jobs:
             -FailOnGuardrailBreach
 
       - name: Upload inventory report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dependency-inventory
           path: management/reports/dependency-inventory.md
@@ -340,7 +341,7 @@ jobs:
           ./eng/ci/warnings-scan.ps1 -OutDir management/reports/WarningsReport
 
       - name: Upload warnings report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: warnings-report
           path: management/reports/WarningsReport
@@ -376,7 +377,7 @@ jobs:
 
       - name: Upload specs guard report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: specs-location-violations
           path: management/reports/specs-location-violations-${{ github.run_id }}.md

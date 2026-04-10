@@ -22,6 +22,7 @@ permissions:
   pull-requests: read
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -61,7 +62,7 @@ jobs:
 
       - name: Upload SAST log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sast-build
           path: sast-build.log
@@ -101,7 +102,7 @@ jobs:
 
       - name: Upload Gitleaks report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: gitleaks-report
           path: gitleaks.sarif
@@ -144,7 +145,7 @@ jobs:
           find . -name "bom.json" -o -name "bom.xml"
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cyclonedx-sbom
           path: |
@@ -250,7 +251,7 @@ jobs:
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true'
         timeout-minutes: 3
         continue-on-error: true
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           repo-token: ${{ github.token }}
           fail-on-severity: high
@@ -268,7 +269,7 @@ jobs:
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
         timeout-minutes: 3
         continue-on-error: true
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           repo-token: ${{ github.token }}
           fail-on-severity: high
@@ -339,7 +340,7 @@ jobs:
           }
 
       - name: Upload dependency audit
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dependency-audit
           path: management/reports/DependencyAuditReport
@@ -403,7 +404,7 @@ jobs:
 
       - name: Upload OSS metadata report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: oss-metadata-report
           path: management/reports/OssMetadataReport/oss-metadata.json
