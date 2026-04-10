@@ -28,21 +28,10 @@ env:
   COVERAGE_THRESHOLD: 65
 
 jobs:
-  # Build validation across multiple platforms
+  # ── Primary build (Ubuntu) -- critical path for all downstream jobs ──
   build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            runtime: linux-x64
-          - os: windows-latest
-            runtime: win-x64
-          - os: macos-latest
-            runtime: osx-x64
+    name: Build (Ubuntu)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -51,8 +40,7 @@ jobs:
           token: ${{ github.token }}
           fetch-depth: 1
 
-      - name: Free disk space (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Free disk space
         shell: bash
         run: |
           set -euo pipefail
@@ -86,33 +74,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      # ── Ubuntu: Build shipping + tests (shipping needed for pack/deterministic validation) ──
-      - name: Restore all projects (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Restore all projects
         run: |
           dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
           dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
 
-      - name: Build shipping projects (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build shipping projects
         run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
 
-      - name: Deterministic build validation (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Deterministic build validation
         run: |
           echo "Validating deterministic builds with CI flag..."
           dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore -p:CI=true --verbosity quiet
           echo "✅ Deterministic build validation successful (Sprint 318 T3.4 AD-318-3)"
 
-      - name: Package validation (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Package validation
         run: |
           echo "Validating packageable projects..."
           dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./packages
           echo "✅ Package creation successful"
 
-      - name: Upload build artifacts (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
@@ -121,12 +103,10 @@ jobs:
             ./packages/*.snupkg
           retention-days: 1
 
-      - name: Build test projects (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build test projects
         run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
 
-      - name: Package build output for downstream jobs (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Package build output for downstream jobs
         shell: bash
         run: |
           set -euo pipefail
@@ -136,8 +116,7 @@ jobs:
           tar -czf build-output-linux.tar.gz -T /tmp/artifact-paths.txt
           ls -lh build-output-linux.tar.gz
 
-      - name: Upload build output (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
           name: build-output-linux
@@ -145,54 +124,64 @@ jobs:
           retention-days: 1
           compression-level: 0
 
-      # ── macOS/Windows: Build tests only (TestsOnly.slnf compiles src/ as dependencies) ──
-      - name: Restore and build test projects (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
-          dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
+  # ── Cross-platform builds (Windows + macOS) -- run in parallel with Ubuntu, don't block critical path ──
+  build-cross-platform:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            artifact-name: build-output-windows
+          - os: macos-latest
+            runtime: osx-x64
+            artifact-name: build-output-macos
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+          fetch-depth: 1
 
-      - name: Package build output for downstream jobs (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: .nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore and build all projects
+        run: |
+          dotnet restore Excalibur.sln --verbosity quiet
+          dotnet build Excalibur.sln --configuration Release --no-restore --verbosity quiet
+
+      - name: Package build output for downstream jobs
         shell: bash
         run: |
           set -euo pipefail
           find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
           find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
-          tar -czf build-output-macos.tar.gz -T /tmp/artifact-paths.txt
-          ls -lh build-output-macos.tar.gz
+          tar -czf build-output.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh build-output.tar.gz
 
-      - name: Upload build output (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
-          name: build-output-macos
-          path: build-output-macos.tar.gz
-          retention-days: 1
-          compression-level: 0
-
-      - name: Restore and build test projects (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
-          dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
-
-      - name: Package build output for downstream jobs (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: bash
-        run: |
-          set -euo pipefail
-          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
-          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
-          tar -czf build-output-windows.tar.gz -T /tmp/artifact-paths.txt
-          ls -lh build-output-windows.tar.gz
-
-      - name: Upload build output (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-output-windows
-          path: build-output-windows.tar.gz
+          name: ${{ matrix.artifact-name }}
+          path: build-output.tar.gz
           retention-days: 1
           compression-level: 0
 
@@ -554,7 +543,7 @@ jobs:
   unit-tests-windows:
     name: Unit Tests (Windows - Deterministic)
     runs-on: windows-latest
-    needs: [build, smoke-tests, unit-shard-coverage]
+    needs: [build-cross-platform, smoke-tests, unit-shard-coverage]
     timeout-minutes: 60
     env:
       VSTEST_CONNECTION_TIMEOUT: 300
@@ -606,7 +595,7 @@ jobs:
   unit-tests-windows-async-risk:
     name: Unit Tests (Windows - Async Risk)
     runs-on: windows-latest
-    needs: [build, smoke-tests, unit-shard-coverage]
+    needs: [build-cross-platform, smoke-tests, unit-shard-coverage]
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 60
     env:
@@ -659,7 +648,7 @@ jobs:
   unit-tests-macos:
     name: Unit Tests (macOS - Deterministic)
     runs-on: macos-latest
-    needs: [build, smoke-tests, unit-shard-coverage]
+    needs: [build-cross-platform, smoke-tests, unit-shard-coverage]
     timeout-minutes: 60
     steps:
       - name: Checkout code
@@ -717,7 +706,7 @@ jobs:
   unit-tests-macos-async-risk:
     name: Unit Tests (macOS - Async Risk)
     runs-on: macos-latest
-    needs: [build, smoke-tests, unit-shard-coverage, unit-tests-macos]
+    needs: [build-cross-platform, smoke-tests, unit-shard-coverage, unit-tests-macos]
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 60
     steps:
@@ -1306,7 +1295,7 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [build, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation]
+    needs: [build, build-cross-platform, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation]
     if: always()
     steps:
       - name: Generate CI summary
