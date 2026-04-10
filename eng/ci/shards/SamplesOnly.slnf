@@ -60,7 +60,22 @@
       "samples\\10-real-world\\EnhancedStores\\ECommerceSample\\ECommerceSample.csproj",
       "samples\\10-real-world\\OrderProcessing\\OrderProcessing.csproj",
       "samples\\11-aot\\Excalibur.Dispatch.Aot.Sample\\Excalibur.Dispatch.Aot.Sample.csproj",
-      "samples\\12-vertical-slice-api\\HealthcareApi\\HealthcareApi.csproj"
+      "samples\\12-vertical-slice-api\\HealthcareApi\\HealthcareApi.csproj",
+      "samples\\14-data-providers\\ElasticSearch-GettingStarted\\ElasticSearch-GettingStarted.csproj",
+      "samples\\14-data-providers\\ElasticSearch-Querying\\ElasticSearch-Querying.csproj",
+      "samples\\14-data-providers\\ElasticSearch-Paging\\ElasticSearch-Paging.csproj",
+      "samples\\14-data-providers\\ElasticSearch-IndexManagement\\ElasticSearch-IndexManagement.csproj",
+      "samples\\14-data-providers\\ElasticSearch-Resilience\\ElasticSearch-Resilience.csproj",
+      "samples\\14-data-providers\\ElasticSearch-Projections\\ElasticSearch-Projections.csproj",
+      "samples\\14-data-providers\\ElasticSearch-InboxOutbox\\ElasticSearch-InboxOutbox.csproj",
+      "samples\\14-data-providers\\CosmosDb\\CosmosDb.csproj",
+      "samples\\14-data-providers\\DynamoDb\\DynamoDb.csproj",
+      "samples\\14-data-providers\\Firestore\\Firestore.csproj",
+      "samples\\14-data-providers\\MongoDB\\MongoDB.csproj",
+      "samples\\14-data-providers\\MySql\\MySql.csproj",
+      "samples\\14-data-providers\\OpenSearch\\OpenSearch.csproj",
+      "samples\\14-data-providers\\Postgres\\Postgres.csproj",
+      "samples\\14-data-providers\\Redis\\Redis.csproj"
     ]
   }
 }

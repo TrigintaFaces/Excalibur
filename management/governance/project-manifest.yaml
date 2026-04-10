@@ -83,6 +83,22 @@ projects:
   - path: samples/10-real-world/OrderProcessing/OrderProcessing.csproj
   - path: samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
   - path: samples/12-vertical-slice-api/HealthcareApi/HealthcareApi.csproj
+  # 14-data-providers
+  - path: samples/14-data-providers/ElasticSearch-GettingStarted/ElasticSearch-GettingStarted.csproj
+  - path: samples/14-data-providers/ElasticSearch-Querying/ElasticSearch-Querying.csproj
+  - path: samples/14-data-providers/ElasticSearch-Paging/ElasticSearch-Paging.csproj
+  - path: samples/14-data-providers/ElasticSearch-IndexManagement/ElasticSearch-IndexManagement.csproj
+  - path: samples/14-data-providers/ElasticSearch-Resilience/ElasticSearch-Resilience.csproj
+  - path: samples/14-data-providers/ElasticSearch-Projections/ElasticSearch-Projections.csproj
+  - path: samples/14-data-providers/ElasticSearch-InboxOutbox/ElasticSearch-InboxOutbox.csproj
+  - path: samples/14-data-providers/CosmosDb/CosmosDb.csproj
+  - path: samples/14-data-providers/DynamoDb/DynamoDb.csproj
+  - path: samples/14-data-providers/Firestore/Firestore.csproj
+  - path: samples/14-data-providers/MongoDB/MongoDB.csproj
+  - path: samples/14-data-providers/MySql/MySql.csproj
+  - path: samples/14-data-providers/OpenSearch/OpenSearch.csproj
+  - path: samples/14-data-providers/Postgres/Postgres.csproj
+  - path: samples/14-data-providers/Redis/Redis.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Analyzers/Excalibur.Dispatch.Analyzers.csproj
   - path: src/Dispatch/Excalibur.Dispatch.AuditLogging.Aws/Excalibur.Dispatch.AuditLogging.Aws.csproj

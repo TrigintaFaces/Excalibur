@@ -32,7 +32,7 @@ jobs:
     name: Pre-Release Validation
     runs-on: ubuntu-latest
     env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+      VSTEST_CONNECTION_TIMEOUT: 600
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -306,7 +306,7 @@ jobs:
     needs: [pre-release-validation, pre-tag-soak-build]
     timeout-minutes: 120
     env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+      VSTEST_CONNECTION_TIMEOUT: 600
     strategy:
       fail-fast: false
       matrix:

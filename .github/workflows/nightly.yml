@@ -117,7 +117,7 @@ jobs:
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=nightly-unit-${{ matrix.shard.name }}.trx" \
+            --logger "trx;LogFilePrefix=nightly-unit-${{ matrix.shard.name }}" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
             --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
@@ -165,7 +165,7 @@ jobs:
             --no-build \
             -m:1 \
             --blame-hang-timeout 10m \
-            --logger "trx;LogFileName=nightly-integration.trx" \
+            --logger "trx;LogFilePrefix=nightly-integration" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
             --filter "Category=Integration|Category=EndToEnd" \

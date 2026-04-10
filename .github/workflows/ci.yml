@@ -75,9 +75,7 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore all projects
-        run: |
-          dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
-          dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Build shipping projects
         run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
@@ -103,8 +101,8 @@ jobs:
             ./packages/*.snupkg
           retention-days: 1
 
-      - name: Build test projects
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
+      - name: Build all projects
+        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity quiet
 
       - name: Package build output for downstream jobs
         shell: bash
@@ -443,7 +441,7 @@ jobs:
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=unit-tests-${{ matrix.shard.name }}.trx" \
+            --logger "trx;LogFilePrefix=unit-tests-${{ matrix.shard.name }}" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
@@ -516,7 +514,7 @@ jobs:
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=unit-tests-async-risk-${{ matrix.shard.name }}.trx" \
+            --logger "trx;LogFilePrefix=unit-tests-async-risk-${{ matrix.shard.name }}" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
@@ -546,7 +544,7 @@ jobs:
     needs: [build-cross-platform, smoke-tests, unit-shard-coverage]
     timeout-minutes: 60
     env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+      VSTEST_CONNECTION_TIMEOUT: 600
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -581,7 +579,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          dotnet test eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows-deterministic.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+          dotnet test eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFilePrefix=unit-tests-windows-deterministic" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload test results
         if: always()
@@ -599,7 +597,7 @@ jobs:
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 60
     env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+      VSTEST_CONNECTION_TIMEOUT: 600
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -687,7 +685,7 @@ jobs:
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=unit-tests-macos-deterministic.trx" \
+            --logger "trx;LogFilePrefix=unit-tests-macos-deterministic" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
             --filter "${{ env.MACOS_UNIT_TEST_FILTER }}" \
