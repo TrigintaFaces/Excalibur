@@ -426,7 +426,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: management/reports/CoverageReport
@@ -466,7 +466,7 @@ jobs:
           echo "Artifacts contain Cobertura XML from CI test jobs." >> "$f"
           echo "See uploaded artifacts: code-coverage-*" >> "$f"
       - name: Upload coverage baseline
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-baseline
           path: management/reports/coverage-${{ github.run_id }}.md

@@ -50,22 +50,17 @@ jobs:
             git fetch --no-tags --depth=1 origin "${HEAD_SHA}"
           fi
 
-          CHANGED_FILES="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" || true)"
-          if [[ -z "${CHANGED_FILES}" ]]; then
-            echo "core_perf=false" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
+          CHANGED=$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" 2>/dev/null || echo "")
 
-          PATTERN='^(src/Dispatch/Excalibur\.Dispatch/|src/Dispatch/Excalibur\.Dispatch\.Abstractions/|src/Dispatch/Excalibur\.Dispatch\.Transport\.[^/]+/|src/Dispatch/Excalibur\.Dispatch\.Transport\.Abstractions/|benchmarks/|eng/run-comparative-benchmarks\.ps1$|eng/run-benchmark-matrix\.ps1$|eng/validate-performance-gates\.ps1$|\.github/workflows/performance-tests\.yml$|\.github/workflows/ci\.yml$|\.github/workflows/quality-gates\.yml$)'
-          if printf '%s\n' "${CHANGED_FILES}" | grep -Eq "${PATTERN}"; then
-            echo "core_perf=true" >> "${GITHUB_OUTPUT}"
+          if echo "$CHANGED" | grep -qE '^(src/Dispatch/|src/Excalibur/|tests/|benchmarks/|eng/)'; then
+            echo "core_perf=true" >> "$GITHUB_OUTPUT"
           else
-            echo "core_perf=false" >> "${GITHUB_OUTPUT}"
+            echo "core_perf=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # Build once for all downstream jobs
-  build:
-    name: Build (Quality Gates)
+  # Code analysis gate -- build with -warnaserror to enforce analyzer rules
+  code-analysis:
+    name: Code Analysis (Warning-as-Error Build)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -100,33 +95,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore and build full solution
+      - name: Restore and build with warning-as-error
         run: |
           dotnet restore --verbosity quiet
           dotnet build --configuration Release --no-restore --verbosity quiet -warnaserror /p:TreatWarningsAsErrors=true
 
-      - name: Package build output
-        shell: bash
-        run: |
-          set -euo pipefail
-          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
-          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
-          tar -czf qg-build-output.tar.gz -T /tmp/artifact-paths.txt
-          ls -lh qg-build-output.tar.gz
-
-      - name: Upload build output
-        uses: actions/upload-artifact@v6
-        with:
-          name: qg-build-output
-          path: qg-build-output.tar.gz
-          retention-days: 1
-          compression-level: 0
-
-  # Code coverage quality gate (sharded for runtime stability)
+  # Code coverage quality gate (sharded, self-contained)
   coverage-shards:
     name: "Code Coverage (Shard: ${{ matrix.shard.name }})"
     runs-on: ubuntu-latest
-    needs: build
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -152,16 +129,18 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Download pre-built artifacts
-        uses: actions/download-artifact@v8
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
         with:
-          name: qg-build-output
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
-      - name: Extract build output
-        run: tar -xzf qg-build-output.tar.gz && rm qg-build-output.tar.gz
-
-      - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+      - name: Restore and build shard
+        run: |
+          dotnet restore ${{ matrix.shard.filter }} --verbosity quiet
+          dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore --verbosity quiet
 
       - name: Run shard tests with coverage
         run: |
@@ -177,7 +156,7 @@ jobs:
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload shard coverage artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-shard-${{ matrix.shard.name }}
           path: ./coverage/**/coverage.cobertura.xml
@@ -243,17 +222,16 @@ jobs:
           fi
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: ./coverage/merged
           retention-days: 7
 
-  # Test quality gate
+  # Test quality gate (self-contained)
   test-quality:
     name: Test Quality
     runs-on: ubuntu-latest
-    needs: build
     timeout-minutes: 20
     steps:
       - name: Checkout code
@@ -270,16 +248,18 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Download pre-built artifacts
-        uses: actions/download-artifact@v8
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
         with:
-          name: qg-build-output
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
-      - name: Extract build output
-        run: tar -xzf qg-build-output.tar.gz && rm qg-build-output.tar.gz
-
-      - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+      - name: Restore and build
+        run: |
+          dotnet restore eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
+          dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Run deterministic unit and DI tests
         run: |
@@ -307,17 +287,18 @@ jobs:
           fi
 
       - name: Upload test results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
           path: ./test-results
           retention-days: 7
 
+  # Transport conformance (self-contained, conditional)
   transport-conformance:
     name: Transport Conformance (Core/Perf Changes)
     runs-on: ubuntu-latest
-    needs: [core-perf-change-detection, build]
+    needs: core-perf-change-detection
     if: github.event_name == 'workflow_dispatch' || needs.core-perf-change-detection.outputs.core_perf == 'true'
     timeout-minutes: 30
     steps:
@@ -335,16 +316,18 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Download pre-built artifacts
-        uses: actions/download-artifact@v8
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
         with:
-          name: qg-build-output
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
-      - name: Extract build output
-        run: tar -xzf qg-build-output.tar.gz && rm qg-build-output.tar.gz
-
-      - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+      - name: Restore and build
+        run: |
+          dotnet restore tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --verbosity quiet
+          dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --configuration Release --no-restore --verbosity quiet
 
       - name: Run transport conformance suite
         run: |
@@ -358,24 +341,12 @@ jobs:
             --results-directory ./transport-conformance-results
 
       - name: Upload transport conformance results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: transport-conformance-results
           path: ./transport-conformance-results
           retention-days: 7
-
-  # Code analysis quality gate — build with analyzers already done in build job
-  code-analysis:
-    name: Code Analysis
-    runs-on: ubuntu-latest
-    needs: build
-    timeout-minutes: 5
-    steps:
-      - name: Confirm analyzer build succeeded
-        run: |
-          echo "✅ Build with -warnaserror and TreatWarningsAsErrors=true succeeded in build job"
-          echo "Code analysis gate passed — all analyzer rules enforced during build phase."
 
   # Solution governance gate (Sprint 506)
   governance:
@@ -411,11 +382,10 @@ jobs:
             Write-Host "eng/ci/shards/ShippingOnly.slnf not found, skipping warning audit"
           }
 
-  # Architecture validation gate
+  # Architecture validation gate (self-contained)
   architecture:
     name: Architecture Validation
     runs-on: ubuntu-latest
-    needs: build
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -432,75 +402,56 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Download pre-built artifacts
-        uses: actions/download-artifact@v8
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
         with:
-          name: qg-build-output
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
-      - name: Extract build output
-        run: tar -xzf qg-build-output.tar.gz && rm qg-build-output.tar.gz
-
-      - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
-
-      - name: Validate Dispatch→Excalibur Dependency Direction
+      - name: Validate Dispatch-Excalibur Dependency Direction
         run: |
-          echo "Checking for forbidden Dispatch→Excalibur references..."
+          echo "Checking for forbidden Dispatch-Excalibur references..."
 
-          # Check for ProjectReference to Excalibur application-framework packages (FORBIDDEN)
-          # Excalibur.Dispatch.* references are allowed (same framework after rename)
-          # Only flag Excalibur.Domain, Excalibur.EventSourcing, Excalibur.Data, etc.
           PROJECT_VIOLATIONS=$(grep -rE '<ProjectReference.*Excalibur\.(Domain|EventSourcing|Data|Saga|Application|Outbox|Jobs|LeaderElection[^.]|Hosting\.(Web|Jobs)|Security[^.])' src/Dispatch/**/*.csproj 2>/dev/null || true)
-
-          # Check for PackageReference to Excalibur application-framework packages (FORBIDDEN)
           PACKAGE_VIOLATIONS=$(grep -rE '<PackageReference.*Include="Excalibur\.(Domain|EventSourcing|Data|Saga|Application|Outbox|Jobs|Security)' src/Dispatch/**/*.csproj 2>/dev/null || true)
 
           VIOLATIONS=""
-          if [ -n "$PROJECT_VIOLATIONS" ]; then
-            VIOLATIONS="$PROJECT_VIOLATIONS"
-          fi
-          if [ -n "$PACKAGE_VIOLATIONS" ]; then
-            VIOLATIONS="$VIOLATIONS$PACKAGE_VIOLATIONS"
-          fi
+          if [ -n "$PROJECT_VIOLATIONS" ]; then VIOLATIONS="$PROJECT_VIOLATIONS"; fi
+          if [ -n "$PACKAGE_VIOLATIONS" ]; then VIOLATIONS="$VIOLATIONS$PACKAGE_VIOLATIONS"; fi
 
           if [ -n "$VIOLATIONS" ]; then
-            echo ""
             echo "❌ DEPENDENCY DIRECTION VIOLATION DETECTED"
-            echo "============================================"
-            echo "Dispatch packages CANNOT reference Excalibur packages."
-            echo "The allowed direction is: Excalibur → Dispatch"
-            echo ""
-            echo "Violations found:"
             echo "$VIOLATIONS"
-            echo ""
-            echo "To fix: Move the dependent code to an Excalibur package,"
-            echo "or refactor to use only Excalibur.Dispatch.Abstractions types."
             exit 1
           else
-            echo "✅ No Dispatch→Excalibur dependency violations found"
+            echo "✅ No Dispatch-Excalibur dependency violations found"
+          fi
+
+      - name: Build architecture tests
+        run: |
+          if [ -d "tests/architecture/Boundary.Tests" ]; then
+            dotnet restore tests/architecture/Boundary.Tests/Boundary.Tests.csproj --verbosity quiet
+            dotnet build tests/architecture/Boundary.Tests/Boundary.Tests.csproj --configuration Release --no-restore --verbosity quiet
           fi
 
       - name: Run architecture tests
         run: |
-          # Architecture tests validate boundary constraints - failures should block PRs
           if [ -d "tests/ArchitectureTests" ]; then
-            dotnet test tests/ArchitectureTests \
-              --configuration Release --no-build \
-              --blame-hang-timeout 5m \
-              --logger "console;verbosity=quiet"
+            dotnet restore tests/ArchitectureTests --verbosity quiet
+            dotnet build tests/ArchitectureTests --configuration Release --no-restore --verbosity quiet
+            dotnet test tests/ArchitectureTests --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet"
           else
-            echo "⚠️ Architecture test project not found, skipping..."
+            echo "Architecture test project not found, skipping..."
           fi
 
       - name: Run boundary tests (Sprint 506)
         run: |
           if [ -d "tests/architecture/Boundary.Tests" ]; then
-            dotnet test tests/architecture/Boundary.Tests/ \
-              --configuration Release --no-build \
-              --blame-hang-timeout 5m \
-              --logger "console;verbosity=quiet"
+            dotnet test tests/architecture/Boundary.Tests/ --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet"
           else
-            echo "⚠️ Boundary.Tests project not yet created, skipping..."
+            echo "Boundary.Tests project not yet created, skipping..."
           fi
 
   # API compatibility gate
@@ -531,7 +482,7 @@ jobs:
 
       - name: Upload API compatibility report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: api-compat-report-quality-gates
           path: management/reports/ApiCompatReport
@@ -572,40 +523,34 @@ jobs:
 
           # --- Advisory gates ---
           conformance_result="${{ needs.transport-conformance.result }}"
-          if [ "$conformance_result" = "skipped" ]; then
-            echo "Transport conformance: SKIPPED (no core/perf changes)"
-          elif [ "$conformance_result" != "success" ]; then
+          if [ "$conformance_result" != "success" ] && [ "$conformance_result" != "skipped" ]; then
             advisory_failures="${advisory_failures}transport-conformance=${conformance_result} "
           fi
 
-          # --- Summary table ---
-          {
-            echo "## Quality Gates Summary"
-            echo ""
-            echo "| Gate | Status | Tier |"
-            echo "|------|--------|------|"
-            echo "| coverage | ${{ needs.coverage.result }} | blocking |"
-            echo "| test-quality | ${{ needs.test-quality.result }} | blocking |"
-            echo "| code-analysis | ${{ needs.code-analysis.result }} | blocking |"
-            echo "| governance | ${{ needs.governance.result }} | blocking |"
-            echo "| architecture | ${{ needs.architecture.result }} | blocking |"
-            echo "| api-compatibility | ${{ needs.api-compatibility.result }} | blocking |"
-            echo "| transport-conformance | ${conformance_result} | advisory |"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # --- Verdict ---
-          if [ -n "$advisory_failures" ]; then
-            echo "::warning::Advisory gate failures (non-blocking): ${advisory_failures}"
-            echo "Advisory failures (non-blocking): ${advisory_failures}" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          # --- Report ---
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Quality Gates" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Gate | Result | Tier |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|--------|------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Code Coverage | ${{ needs.coverage.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Test Quality | ${{ needs.test-quality.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Code Analysis | ${{ needs.code-analysis.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Governance | ${{ needs.governance.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Architecture | ${{ needs.architecture.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API Compatibility | ${{ needs.api-compatibility.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Transport Conformance | ${{ needs.transport-conformance.result }} | advisory |" >> "$GITHUB_STEP_SUMMARY"
 
           if [ -n "$blocking_failures" ]; then
-            echo ""
-            echo "Blocking failures: ${blocking_failures}" >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::QUALITY GATES FAILED - blocking failures: ${blocking_failures}"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ Blocking gate failures: ${blocking_failures}" >> "$GITHUB_STEP_SUMMARY"
             exit 1
-          else
-            echo "All blocking quality gates passed." >> "$GITHUB_STEP_SUMMARY"
-            echo "All blocking quality gates passed."
           fi
+
+          if [ -n "$advisory_failures" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "⚠️ Advisory gate failures (non-blocking): ${advisory_failures}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ All blocking quality gates passed." >> "$GITHUB_STEP_SUMMARY"

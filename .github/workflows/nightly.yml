@@ -28,60 +28,10 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 jobs:
-  # Step 1: ShippingOnly restore + build
-  shipping-build:
-    name: ShippingOnly Build (Release)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore and build all projects
-        run: |
-          dotnet restore eng/ci/shards/TestsOnly.slnf
-          dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
-
-      - name: Package build output
-        shell: bash
-        run: |
-          set -euo pipefail
-          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
-          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
-          tar -czf nightly-build-output.tar.gz -T /tmp/artifact-paths.txt
-          ls -lh nightly-build-output.tar.gz
-
-      - name: Upload build output
-        uses: actions/upload-artifact@v6
-        with:
-          name: nightly-build-output
-          path: nightly-build-output.tar.gz
-          retention-days: 1
-          compression-level: 0
-
-  # Step 2: Deterministic unit test shards
+  # Deterministic unit test shards (self-contained, no artifact sharing)
   deterministic-unit-tests:
     name: Deterministic Unit Tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
-    needs: shipping-build
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -104,16 +54,19 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Download pre-built artifacts
-        uses: actions/download-artifact@v8
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
         with:
-          name: nightly-build-output
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
-      - name: Extract build output
-        run: tar -xzf nightly-build-output.tar.gz && rm nightly-build-output.tar.gz
+      - name: Restore dependencies
+        run: dotnet restore ${{ matrix.shard.filter }} --verbosity quiet
 
-      - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+      - name: Build
+        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore --verbosity quiet
 
       - name: Run Unit Tests
         run: |
@@ -129,13 +82,13 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nightly-unit-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 14
 
-  # Step 3: Integration tests (single-threaded for Docker stability)
+  # Integration tests (self-contained, single-threaded for Docker stability)
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -154,16 +107,19 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Download pre-built artifacts
-        uses: actions/download-artifact@v8
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
         with:
-          name: nightly-build-output
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
-      - name: Extract build output
-        run: tar -xzf nightly-build-output.tar.gz && rm nightly-build-output.tar.gz
+      - name: Restore dependencies
+        run: dotnet restore eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
-      - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+      - name: Build
+        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Run Integration Tests (-m:1)
         run: |
@@ -180,17 +136,16 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nightly-integration
           path: TestResults/*.trx
           retention-days: 14
 
-  # Step 4: Package composition validation
+  # Package composition validation (self-contained)
   package-composition:
     name: Package Composition
     runs-on: ubuntu-latest
-    needs: shipping-build
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -204,26 +159,22 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Download pre-built artifacts
-        uses: actions/download-artifact@v8
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
         with:
-          name: nightly-build-output
-
-      - name: Extract build output
-        run: tar -xzf nightly-build-output.tar.gz && rm nightly-build-output.tar.gz
-
-      - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Validate package composition
         shell: pwsh
-        run: ./eng/validate-package-composition.ps1 -SkipBuild
+        run: ./eng/validate-package-composition.ps1
 
-  # Step 5: Dependency vulnerability audit
+  # Dependency vulnerability audit (no build needed, runs dotnet list)
   dependency-audit:
     name: Dependency Vulnerability Audit
     runs-on: ubuntu-latest
-    needs: shipping-build
     timeout-minutes: 20
     steps:
       - name: Checkout code
@@ -250,17 +201,17 @@ jobs:
 
       - name: Upload dependency audit
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nightly-dependency-audit
           path: management/reports/DependencyAuditReport
           retention-days: 14
 
-  # Step 6: Nightly summary + failure notification
+  # Nightly summary + failure notification
   nightly-summary:
     name: Nightly Summary
     runs-on: ubuntu-latest
-    needs: [shipping-build, deterministic-unit-tests, integration-tests, package-composition, dependency-audit]
+    needs: [deterministic-unit-tests, integration-tests, package-composition, dependency-audit]
     if: always()
     timeout-minutes: 5
     steps:
@@ -272,14 +223,12 @@ jobs:
         shell: bash
         run: |
           # Check job outcomes from needs context
-          shipping="${{ needs.shipping-build.result }}"
           unit="${{ needs.deterministic-unit-tests.result }}"
           integration="${{ needs.integration-tests.result }}"
           packages="${{ needs.package-composition.result }}"
           audit="${{ needs.dependency-audit.result }}"
 
           failures=""
-          if [ "$shipping" != "success" ]; then failures="${failures}shipping-build ($shipping), "; fi
           if [ "$unit" != "success" ]; then failures="${failures}deterministic-unit-tests ($unit), "; fi
           if [ "$integration" != "success" ] && [ "$integration" != "skipped" ]; then failures="${failures}integration-tests ($integration), "; fi
           if [ "$packages" != "success" ]; then failures="${failures}package-composition ($packages), "; fi
@@ -308,7 +257,6 @@ jobs:
             echo ""
             echo "| Job | Result |"
             echo "|-----|--------|"
-            echo "| ShippingOnly Build | ${{ needs.shipping-build.result }} |"
             echo "| Deterministic Unit Tests | ${{ needs.deterministic-unit-tests.result }} |"
             echo "| Integration Tests | ${{ needs.integration-tests.result }} |"
             echo "| Package Composition | ${{ needs.package-composition.result }} |"

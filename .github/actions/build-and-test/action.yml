@@ -1,0 +1,146 @@
+name: 'Build and Test'
+description: 'Self-contained composite action: checkout, SDK install, NuGet cache, restore, build, and test a solution filter.'
+
+inputs:
+  checkout-ref:
+    description: 'Git ref to checkout'
+    required: true
+  checkout-token:
+    description: 'Token for checkout (defaults to github.token)'
+    required: false
+    default: ''
+  fetch-depth:
+    description: 'Number of commits to fetch (0 for full history)'
+    required: false
+    default: '1'
+  solution-filter:
+    description: 'Solution filter path (.slnf) to restore, build, and test'
+    required: true
+  test-filter:
+    description: 'dotnet test --filter value (empty to run all tests in the slnf)'
+    required: false
+    default: ''
+  collect-coverage:
+    description: 'Collect XPlat Code Coverage (true/false)'
+    required: false
+    default: 'false'
+  blame-timeout:
+    description: 'Timeout for blame hang detection'
+    required: false
+    default: '5m'
+  results-prefix:
+    description: 'Prefix for TRX log file names (LogFilePrefix)'
+    required: true
+  test-session-timeout:
+    description: 'Test session timeout in milliseconds'
+    required: false
+    default: '900000'
+  max-cpu-count:
+    description: 'Maximum parallel test processes (-m:N). Empty for default parallelism.'
+    required: false
+    default: ''
+  free-disk-space:
+    description: 'Free disk space on Ubuntu before build'
+    required: false
+    default: 'false'
+  quarantine-mode:
+    description: 'Quarantine filter mode: Exclude (default), Include, or None'
+    required: false
+    default: 'Exclude'
+  base-test-filter:
+    description: 'Base test filter before quarantine processing'
+    required: false
+    default: '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ inputs.checkout-ref }}
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: Free disk space (Ubuntu)
+      if: inputs.free-disk-space == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo rm -rf /usr/share/swift || true
+        sudo rm -rf /usr/local/lib/android || true
+        sudo rm -rf /opt/ghc || true
+        sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+        sudo rm -rf /home/linuxbrew || true
+        sudo rm -rf /usr/local/.ghcup || true
+        sudo rm -rf /usr/local/share/boost || true
+        sudo apt-get clean || true
+        docker system prune -af || true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: |
+          8.0.x
+          9.0.x
+          10.0.x
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v5
+      with:
+        path: .nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      shell: bash
+      run: dotnet restore ${{ inputs.solution-filter }} --verbosity quiet
+
+    - name: Build
+      shell: bash
+      run: dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet
+
+    - name: Compose test filter
+      if: inputs.quarantine-mode != 'None'
+      id: filter
+      shell: pwsh
+      run: |
+        $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter '${{ inputs.base-test-filter }}' -Mode ${{ inputs.quarantine-mode }} -AsJson | ConvertFrom-Json
+        "TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+        Write-Host "Using test filter with $($filterInfo.count) quarantine adjustments."
+
+    - name: Set default test filter
+      if: inputs.quarantine-mode == 'None'
+      shell: bash
+      run: echo "TEST_FILTER=${{ inputs.test-filter }}" >> $GITHUB_ENV
+
+    - name: Run tests
+      shell: bash
+      run: |
+        ARGS=(
+          "dotnet" "test" "${{ inputs.solution-filter }}"
+          "--configuration" "Release"
+          "--no-build"
+          "--blame-hang-timeout" "${{ inputs.blame-timeout }}"
+          "--logger" "trx;LogFilePrefix=${{ inputs.results-prefix }}"
+          "--logger" "console;verbosity=minimal"
+          "--results-directory" "./TestResults"
+        )
+
+        if [ -n "$TEST_FILTER" ]; then
+          ARGS+=("--filter" "$TEST_FILTER")
+        fi
+
+        if [ "${{ inputs.collect-coverage }}" = "true" ]; then
+          ARGS+=("--collect:XPlat Code Coverage" "--" "DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura")
+        fi
+
+        if [ -n "${{ inputs.max-cpu-count }}" ]; then
+          ARGS+=("-m:${{ inputs.max-cpu-count }}")
+        fi
+
+        if [ "${{ inputs.collect-coverage }}" != "true" ] && [ -n "${{ inputs.test-session-timeout }}" ]; then
+          ARGS+=("--" "RunConfiguration.TestSessionTimeout=${{ inputs.test-session-timeout }}")
+        fi
+
+        "${ARGS[@]}"
