@@ -1,18 +1,7 @@
 name: 'Build and Test'
-description: 'Self-contained composite action: checkout, SDK install, NuGet cache, restore, build, and test a solution filter.'
+description: 'Composite action: SDK install, NuGet cache, restore, build, and test a solution filter. Requires actions/checkout BEFORE this action.'
 
 inputs:
-  checkout-ref:
-    description: 'Git ref to checkout'
-    required: true
-  checkout-token:
-    description: 'Token for checkout (defaults to github.token)'
-    required: false
-    default: ''
-  fetch-depth:
-    description: 'Number of commits to fetch (0 for full history)'
-    required: false
-    default: '1'
   solution-filter:
     description: 'Solution filter path (.slnf) to restore, build, and test'
     required: true
@@ -55,12 +44,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-      with:
-        ref: ${{ inputs.checkout-ref }}
-        fetch-depth: ${{ inputs.fetch-depth }}
-
     - name: Free disk space (Ubuntu)
       if: inputs.free-disk-space == 'true' && runner.os == 'Linux'
       shell: bash
