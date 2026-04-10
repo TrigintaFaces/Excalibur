@@ -1450,6 +1450,8 @@ jobs:
         run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Restore NuGet packages for runtime dependencies
+        run: dotnet restore Excalibur.sln --verbosity quiet
+
       - name: Run conformance tests
         run: |
           dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
