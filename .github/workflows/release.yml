@@ -128,10 +128,14 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: |
+          dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
+          dotnet restore eng/ci/shards/ReleaseBlocking.slnf --verbosity quiet
 
-      - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
+      - name: Build release-blocking projects
+        run: |
+          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity minimal
+          dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal
 
       - name: Validate governance release invariants
         shell: pwsh
@@ -382,11 +386,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+      - name: Restore shipping projects
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
-      - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
+      - name: Build shipping projects
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity minimal
 
       - name: Create release packages
         shell: bash

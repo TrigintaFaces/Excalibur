@@ -286,7 +286,7 @@ public sealed class ConfigurationValidationServiceShould : UnitTestBase
 			validators,
 			_appLifetime,
 			NullLogger<ConfigurationValidationService>.Instance,
-			options is not null ? Microsoft.Extensions.Options.Options.Create(options) : null!);
+			Microsoft.Extensions.Options.Options.Create(options ?? new ConfigurationValidationOptions()));
 	}
 
 	private static IConfigurationValidator CreatePassingValidator(string name, int priority = 0)

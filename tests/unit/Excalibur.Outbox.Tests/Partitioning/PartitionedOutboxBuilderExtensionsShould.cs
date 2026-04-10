@@ -87,6 +87,7 @@ public sealed class PartitionedOutboxBuilderExtensionsShould
 		var shardMap = A.Fake<ITenantShardMap>();
 		var builder = CreateBuilder();
 		builder.Services.AddSingleton(shardMap);
+		builder.Services.AddLogging();
 
 		builder.UsePartitionedProcessing(o =>
 		{

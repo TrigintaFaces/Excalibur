@@ -86,10 +86,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
+      # ── Ubuntu: Build shipping + tests (shipping needed for pack/deterministic validation) ──
+      - name: Restore all projects (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
+          dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
 
-      - name: Build solution
+      - name: Build shipping projects (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
         run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Deterministic build validation (Ubuntu only)
@@ -106,7 +111,7 @@ jobs:
           dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./packages
           echo "✅ Package creation successful"
 
-      - name: Upload build artifacts
+      - name: Upload build artifacts (Ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
@@ -116,12 +121,9 @@ jobs:
             ./packages/*.snupkg
           retention-days: 1
 
-      # ── Build-once pattern: compile all test projects so downstream jobs skip build ──
       - name: Build test projects (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        run: |
-          dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
-          dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
+        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Package build output for downstream jobs (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
@@ -143,7 +145,8 @@ jobs:
           retention-days: 1
           compression-level: 0
 
-      - name: Build test projects (macOS)
+      # ── macOS/Windows: Build tests only (TestsOnly.slnf compiles src/ as dependencies) ──
+      - name: Restore and build test projects (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
@@ -168,7 +171,7 @@ jobs:
           retention-days: 1
           compression-level: 0
 
-      - name: Build test projects (Windows)
+      - name: Restore and build test projects (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet

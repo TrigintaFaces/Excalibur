@@ -54,13 +54,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore (ShippingOnly)
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf
-
-      - name: Build (Release, ShippingOnly)
-        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore
-
-      - name: Build test projects
+      - name: Restore and build all projects
         run: |
           dotnet restore eng/ci/shards/TestsOnly.slnf
           dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore

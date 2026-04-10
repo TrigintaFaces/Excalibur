@@ -70,6 +70,11 @@ jobs:
       - name: Build performance test shard
         run: dotnet build eng/ci/shards/PerformanceTests.slnf --configuration Release --no-restore
 
+      - name: Build benchmark project for downstream jobs
+        run: |
+          dotnet restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
       - name: Run performance test shard
         run: dotnet test eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFileName=performance-tests.trx" --logger "console;verbosity=minimal" --filter "Category=Performance"
 
@@ -98,11 +103,19 @@ jobs:
           path: "**/performance-tests.trx"
           retention-days: 30
 
-  # Windows benchmark build (hot-path needs Windows artifacts)
-  benchmark-build-windows:
-    name: Benchmark Build (Windows)
-    runs-on: windows-latest
+  # Platform-specific benchmark builds (hot-path needs pre-built artifacts per OS)
+  benchmark-build:
+    name: Benchmark Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     needs: performance-unit-tests
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            artifact-name: perf-build-output-windows
+          - os: macos-latest
+            artifact-name: perf-build-output-macos
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -127,7 +140,7 @@ jobs:
 
       - name: Restore and build benchmarks
         run: |
-          dotnet restore
+          dotnet restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
           dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Package build output
@@ -141,19 +154,19 @@ jobs:
       - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
-          name: perf-build-output-windows
+          name: ${{ matrix.artifact-name }}
           path: perf-build-output.tar.gz
           retention-days: 1
           compression-level: 0
 
-  # Hot path benchmarks - critical performance validation
+  # Hot path benchmarks - critical performance validation (Linux, Windows, macOS)
   hot-path-benchmarks:
     name: Hot Path Benchmarks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: [performance-unit-tests, benchmark-build-windows]
+    needs: [performance-unit-tests, benchmark-build]
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
             runtime: linux-x64
@@ -161,6 +174,9 @@ jobs:
           - os: windows-latest
             runtime: win-x64
             artifact: perf-build-output-windows
+          - os: macos-latest
+            runtime: osx-arm64
+            artifact: perf-build-output-macos
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
