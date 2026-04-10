@@ -28,7 +28,8 @@
       "tests\\unit\\Excalibur.Dispatch.SourceGenerators.Tests\\Excalibur.Dispatch.SourceGenerators.Tests.csproj",
       "tests\\unit\\Excalibur.Tests\\Excalibur.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Serialization.Tests\\Excalibur.Dispatch.Serialization.Tests.csproj",
-      "tests\\unit\\Excalibur.Data.IdentityMap.Tests\\Excalibur.Data.IdentityMap.Tests.csproj"
+      "tests\\unit\\Excalibur.Data.IdentityMap.Tests\\Excalibur.Data.IdentityMap.Tests.csproj",
+      "tests\\contract\\Excalibur.Dispatch.Contract.Tests\\Excalibur.Dispatch.Contract.Tests.csproj"
     ]
   }
 }

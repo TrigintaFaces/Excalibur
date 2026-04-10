@@ -116,6 +116,23 @@ public interface IProjectionBuilder<TProjection>
 #pragma warning restore RS0016
 
 	/// <summary>
+	/// Registers a key derivation function for the specified event type.
+	/// When an inline projection processes an event of this type, the projection
+	/// instance is loaded and stored using the derived key instead of the aggregate ID.
+	/// This enables multi-stream projections keyed by event data (e.g., category, tenant, date).
+	/// </summary>
+	/// <typeparam name="TEvent">The domain event type to extract the key from.</typeparam>
+	/// <param name="keySelector">
+	/// A function that extracts the projection key from the event.
+	/// Must return a non-null, non-empty string.
+	/// </param>
+	/// <returns>This builder for fluent chaining.</returns>
+#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
+	IProjectionBuilder<TProjection> KeyedBy<TEvent>(Func<TEvent, string> keySelector)
+		where TEvent : IDomainEvent;
+#pragma warning restore RS0016
+
+	/// <summary>
 	/// Configures optional caching for ephemeral projection results.
 	/// Only applies when the projection is used via <c>IEphemeralProjectionEngine</c>.
 	/// </summary>
@@ -123,23 +140,4 @@ public interface IProjectionBuilder<TProjection>
 	/// <returns>This builder for fluent chaining.</returns>
 	IProjectionBuilder<TProjection> WithCacheTtl(TimeSpan ttl);
 
-	/// <summary>
-	/// Enables dirty checking to skip persistence when a handler produces no state change.
-	/// </summary>
-	/// <param name="mode">
-	/// The dirty checking strategy. Default is <see cref="DirtyCheckingMode.Equality"/>
-	/// which uses <see cref="object.Equals(object?)"/> comparison.
-	/// </param>
-	/// <returns>This builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// For records (immutable projections), <see cref="DirtyCheckingMode.Equality"/> leverages
-	/// the compiler-generated value equality. For mutable projections, ensure <c>Equals</c>
-	/// is properly implemented or use <see cref="DirtyCheckingMode.ReferenceEquality"/>.
-	/// </para>
-	/// </remarks>
-#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
-	IProjectionBuilder<TProjection> WithDirtyChecking(DirtyCheckingMode mode = DirtyCheckingMode.Equality);
-
-#pragma warning restore RS0016
 }

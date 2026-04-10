@@ -6,7 +6,7 @@ namespace Excalibur.Outbox.Partitioning;
 /// <summary>
 /// Determines which outbox partition a message should be routed to.
 /// </summary>
-public interface IOutboxPartitioner
+internal interface IOutboxPartitioner
 {
 	/// <summary>
 	/// Gets the partition index for the given tenant.

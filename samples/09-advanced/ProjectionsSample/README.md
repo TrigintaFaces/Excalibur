@@ -83,20 +83,29 @@ services.AddExcaliburEventSourcing(builder =>
 - Couples read and write performance
 - Projection failures need `IProjectionRecovery` (events are already committed)
 
-### 2. Multi-Stream Projections
+### 2. Multi-Stream Projections (KeyedBy)
 
-Aggregate data from multiple event streams:
+Use `KeyedBy<TEvent>()` to aggregate data from multiple event streams into a single projection instance keyed by custom data (e.g., category name instead of aggregate ID):
 
 ```csharp
-public class CategorySummaryProjection : IProjection<string>
-{
-    public string CategoryName { get; set; }
-    public int TotalProducts { get; set; }
-    public decimal AveragePrice { get; set; }
-    public decimal TotalInventoryValue { get; set; }
-    // Aggregates data from all products in category
-}
+builder.AddProjection<CategorySummaryProjection>(p => p
+    .Inline()
+    .KeyedBy<ProductCreated>(e => e.Category.ToUpperInvariant())
+    .KeyedBy<ProductPriceChanged>(e => e.Category.ToUpperInvariant())
+    .When<ProductCreated>((proj, e) =>
+    {
+        proj.CategoryName = e.Category;
+        proj.TotalProducts++;
+        // ...
+    })
+    .When<ProductPriceChanged>((proj, e) =>
+    {
+        proj.ProductPrices[e.ProductId.ToString()] = e.NewPrice;
+        // ...
+    }));
 ```
+
+The framework uses the `KeyedBy` selector to derive the projection ID from each event. All products in the same category share one `CategorySummaryProjection` instance, loaded and saved automatically during `SaveAsync()`.
 
 This pattern is useful for:
 - Dashboard summaries
@@ -185,13 +194,12 @@ Supported filter operators:
 ```
 ProjectionsSample/
 ├── Domain/
-│   ├── Events.cs              # Domain events
+│   ├── Events.cs              # Domain events (all carry Category for KeyedBy)
 │   └── ProductAggregate.cs    # Event-sourced aggregate
 ├── Projections/
-│   ├── ProductCatalogProjection.cs          # Product read model
-│   ├── ProductCatalogProjectionHandler.cs   # Event handler
-│   ├── CategorySummaryProjection.cs         # Multi-stream projection
-│   └── CategorySummaryProjectionHandler.cs  # Aggregation handler
+│   ├── ProductCatalogProjection.cs          # Product read model (single-stream)
+│   ├── ProductCatalogProjectionHandler.cs   # DI-resolved event handlers
+│   └── CategorySummaryProjection.cs         # Multi-stream projection (KeyedBy)
 ├── Infrastructure/
 │   ├── InMemoryProjectionStore.cs   # Demo store implementation
 │   └── ProjectionCheckpoint.cs      # Checkpoint tracking
@@ -204,10 +212,10 @@ ProjectionsSample/
 ### 1. Design for Queries
 Design projections around specific query needs, not around aggregates:
 ```csharp
-// ✓ Good: Designed for catalog listing
+// Good: Designed for catalog listing
 class ProductCatalogProjection { Name, Price, InStock, Category }
 
-// ✗ Bad: Just mirroring the aggregate
+// Bad: Just mirroring the aggregate
 class ProductProjection { Name, Price, Stock, IsActive, CreatedAt, ... }
 ```
 

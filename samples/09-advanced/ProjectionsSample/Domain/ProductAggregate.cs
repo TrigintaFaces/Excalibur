@@ -82,7 +82,7 @@ public class ProductAggregate : AggregateRoot<Guid>
 			return;
 		}
 
-		RaiseEvent(new ProductPriceChanged(Id, Price, newPrice));
+		RaiseEvent(new ProductPriceChanged(Id, Category, Price, newPrice));
 	}
 
 	/// <summary>
@@ -93,7 +93,7 @@ public class ProductAggregate : AggregateRoot<Guid>
 		EnsureActive();
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
 
-		RaiseEvent(new ProductStockAdded(Id, quantity, StockLevel + quantity));
+		RaiseEvent(new ProductStockAdded(Id, Category, quantity, StockLevel + quantity));
 	}
 
 	/// <summary>
@@ -110,7 +110,7 @@ public class ProductAggregate : AggregateRoot<Guid>
 				$"Cannot remove {quantity} units. Only {StockLevel} in stock.");
 		}
 
-		RaiseEvent(new ProductStockRemoved(Id, quantity, StockLevel - quantity, reason));
+		RaiseEvent(new ProductStockRemoved(Id, Category, quantity, StockLevel - quantity, reason));
 	}
 
 	/// <summary>
@@ -121,7 +121,7 @@ public class ProductAggregate : AggregateRoot<Guid>
 		EnsureActive();
 		ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
-		RaiseEvent(new ProductDiscontinued(Id, reason));
+		RaiseEvent(new ProductDiscontinued(Id, Category, reason));
 	}
 
 	/// <inheritdoc/>

@@ -4,7 +4,7 @@
 
 using Excalibur.Dispatch.Abstractions.Configuration;
 
-namespace Excalibur.Saga.Orchestration;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for configuring dispatch orchestration in the builder. Provides methods to register orchestration services including

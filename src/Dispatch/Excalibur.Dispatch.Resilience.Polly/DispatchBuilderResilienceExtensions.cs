@@ -5,14 +5,19 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Resilience;
+using Excalibur.Dispatch.Resilience.Polly;
 
-using Microsoft.Extensions.DependencyInjection;
+using BackoffStrategy = Excalibur.Dispatch.Resilience.BackoffStrategy;
+using CircuitBreakerOptions = Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions;
+using ITransportCircuitBreakerRegistry = Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry;
+using RetryOptions = Excalibur.Dispatch.Resilience.Polly.RetryOptions;
+
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Polly;
 
-namespace Excalibur.Dispatch.Resilience.Polly;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for adding resilience to IDispatchBuilder.

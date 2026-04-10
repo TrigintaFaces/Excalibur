@@ -8,12 +8,13 @@ using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.Outbox.SqlServer;
+using Excalibur.Outbox.SqlServer;
+
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for configuring SQL Server outbox store.

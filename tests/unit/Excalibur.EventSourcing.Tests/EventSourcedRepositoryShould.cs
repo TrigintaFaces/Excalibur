@@ -21,6 +21,8 @@ using Xunit;
 
 // Use Excalibur.EventSourcing.Abstractions as canonical source (AD-251-2)
 using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
+using IEventNotificationBroker = Excalibur.EventSourcing.Abstractions.IEventNotificationBroker;
+using EventNotificationContext = Excalibur.EventSourcing.Abstractions.EventNotificationContext;
 using StoredEvent = Excalibur.EventSourcing.Abstractions.StoredEvent;
 using AppendResult = Excalibur.EventSourcing.Abstractions.AppendResult;
 
@@ -806,4 +808,180 @@ public sealed class EventSourcedRepositoryShould
 	}
 
 	#endregion Interface Implementation Tests
+
+	#region Event Notification Snapshot Tests
+
+	[Fact]
+	public async Task SaveAsync_ShouldNotifyBrokerWithEventsAfterMarkEventsAsCommitted()
+	{
+		// Arrange -- This test verifies the fix where uncommitted events are snapshotted
+		// via .ToList() BEFORE MarkEventsAsCommitted() clears the aggregate's internal list.
+		// Without the snapshot, the broker would receive an empty list.
+		var aggregateId = "agg-notify-1";
+		var aggregate = new TestAggregate(aggregateId);
+		aggregate.Create("Notify Test");
+
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._,
+				A<string>._,
+				A<IEnumerable<IDomainEvent>>._,
+				A<long>._,
+				A<CancellationToken>._))
+			.Returns(AppendResult.CreateSuccess(1, 0));
+
+		var broker = A.Fake<IEventNotificationBroker>();
+		IReadOnlyList<IDomainEvent>? capturedEvents = null;
+		_ = A.CallTo(() => broker.NotifyAsync(
+				A<IReadOnlyList<IDomainEvent>>._,
+				A<EventNotificationContext>._,
+				A<CancellationToken>._))
+			.Invokes((IReadOnlyList<IDomainEvent> events, EventNotificationContext _, CancellationToken _) =>
+			{
+				capturedEvents = events;
+			})
+			.Returns(Task.CompletedTask);
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			CreateMockSerializer(),
+			id => new TestAggregate(id),
+			eventNotificationBroker: broker);
+
+		// Act
+		await repository.SaveAsync(aggregate, CancellationToken.None);
+
+		// Assert -- broker was called with a non-empty event list
+		_ = A.CallTo(() => broker.NotifyAsync(
+			A<IReadOnlyList<IDomainEvent>>._,
+			A<EventNotificationContext>._,
+			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+
+		capturedEvents.ShouldNotBeNull();
+		capturedEvents.Count.ShouldBe(1);
+		capturedEvents[0].ShouldBeOfType<TestCreatedEventV1>();
+
+		// Also verify that MarkEventsAsCommitted has already run
+		aggregate.GetUncommittedEvents().Count.ShouldBe(0);
+	}
+
+	[Fact]
+	public async Task SaveAsync_ShouldNotifyBrokerWithMultipleEvents()
+	{
+		// Arrange -- verify snapshot captures all events, not just the first
+		var aggregateId = "agg-notify-multi";
+		var aggregate = new TestAggregate(aggregateId);
+		aggregate.Create("Multi Test");
+		aggregate.Update("Updated Value");
+
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._,
+				A<string>._,
+				A<IEnumerable<IDomainEvent>>._,
+				A<long>._,
+				A<CancellationToken>._))
+			.Returns(AppendResult.CreateSuccess(2, 0));
+
+		var broker = A.Fake<IEventNotificationBroker>();
+		IReadOnlyList<IDomainEvent>? capturedEvents = null;
+		_ = A.CallTo(() => broker.NotifyAsync(
+				A<IReadOnlyList<IDomainEvent>>._,
+				A<EventNotificationContext>._,
+				A<CancellationToken>._))
+			.Invokes((IReadOnlyList<IDomainEvent> events, EventNotificationContext _, CancellationToken _) =>
+			{
+				capturedEvents = events;
+			})
+			.Returns(Task.CompletedTask);
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			CreateMockSerializer(),
+			id => new TestAggregate(id),
+			eventNotificationBroker: broker);
+
+		// Act
+		await repository.SaveAsync(aggregate, CancellationToken.None);
+
+		// Assert -- broker received both events
+		capturedEvents.ShouldNotBeNull();
+		capturedEvents.Count.ShouldBe(2);
+		capturedEvents[0].ShouldBeOfType<TestCreatedEventV1>();
+		capturedEvents[1].ShouldBeOfType<TestUpdatedEvent>();
+	}
+
+	[Fact]
+	public async Task SaveAsync_ShouldNotNotifyBrokerWhenAppendFails()
+	{
+		// Arrange -- verify broker is never called if AppendAsync fails
+		var aggregateId = "agg-notify-fail";
+		var aggregate = new TestAggregate(aggregateId);
+		aggregate.Create("Fail Test");
+
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._,
+				A<string>._,
+				A<IEnumerable<IDomainEvent>>._,
+				A<long>._,
+				A<CancellationToken>._))
+			.Returns(AppendResult.CreateConcurrencyConflict(0, 1));
+
+		var broker = A.Fake<IEventNotificationBroker>();
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			CreateMockSerializer(),
+			id => new TestAggregate(id),
+			eventNotificationBroker: broker);
+
+		// Act & Assert -- save should throw due to concurrency conflict
+		await Should.ThrowAsync<ConcurrencyException>(
+			() => repository.SaveAsync(aggregate, CancellationToken.None));
+
+		// Broker should never have been called
+		A.CallTo(() => broker.NotifyAsync(
+			A<IReadOnlyList<IDomainEvent>>._,
+			A<EventNotificationContext>._,
+			A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task SaveAsync_ShouldPropagateExceptionWhenBrokerThrows()
+	{
+		// Arrange -- verify broker exceptions propagate to caller
+		var aggregateId = "agg-notify-throw";
+		var aggregate = new TestAggregate(aggregateId);
+		aggregate.Create("Throw Test");
+
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._,
+				A<string>._,
+				A<IEnumerable<IDomainEvent>>._,
+				A<long>._,
+				A<CancellationToken>._))
+			.Returns(AppendResult.CreateSuccess(1, 0));
+
+		var broker = A.Fake<IEventNotificationBroker>();
+		_ = A.CallTo(() => broker.NotifyAsync(
+				A<IReadOnlyList<IDomainEvent>>._,
+				A<EventNotificationContext>._,
+				A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("Broker failed"));
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			CreateMockSerializer(),
+			id => new TestAggregate(id),
+			eventNotificationBroker: broker);
+
+		// Act & Assert -- broker failure should propagate
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => repository.SaveAsync(aggregate, CancellationToken.None));
+		ex.Message.ShouldBe("Broker failed");
+	}
+
+	#endregion Event Notification Snapshot Tests
 }

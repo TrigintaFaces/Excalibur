@@ -116,6 +116,83 @@ jobs:
             ./packages/*.snupkg
           retention-days: 1
 
+      # ── Build-once pattern: compile all test projects so downstream jobs skip build ──
+      - name: Build test projects (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
+          dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
+
+      - name: Package build output for downstream jobs (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Packaging build output for downstream test/validation jobs..."
+          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf build-output-linux.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh build-output-linux.tar.gz
+
+      - name: Upload build output (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-linux
+          path: build-output-linux.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+      - name: Build test projects (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
+          dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
+
+      - name: Package build output for downstream jobs (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf build-output-macos.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh build-output-macos.tar.gz
+
+      - name: Upload build output (macOS)
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-macos
+          path: build-output-macos.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+      - name: Build test projects (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
+          dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
+
+      - name: Package build output for downstream jobs (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf build-output-windows.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh build-output-windows.tar.gz
+
+      - name: Upload build output (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-windows
+          path: build-output-windows.tar.gz
+          retention-days: 1
+          compression-level: 0
+
   # Security scanning (reusable workflow)
   call-security:
     needs: build
@@ -268,19 +345,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Run Smoke Tests (Priority=0)
         run: |
@@ -358,19 +429,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore ${{ matrix.shard.filter }}
-
-      - name: Build shard
-        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Compose unit test filter
         shell: pwsh
@@ -437,19 +502,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore ${{ matrix.shard.filter }}
-
-      - name: Build shard
-        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Compose unit test filter
         shell: pwsh
@@ -511,19 +570,14 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-windows
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/UnitTests-Deterministic.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore
+      - name: Extract build output
+        shell: bash
+        run: tar -xzf build-output-windows.tar.gz && rm build-output-windows.tar.gz
 
       - name: Compose Windows unit test filter
         shell: pwsh
@@ -569,19 +623,14 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-windows
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/UnitTests-AsyncRisk.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/UnitTests-AsyncRisk.slnf --configuration Release --no-restore
+      - name: Extract build output
+        shell: bash
+        run: tar -xzf build-output-windows.tar.gz && rm build-output-windows.tar.gz
 
       - name: Compose Windows unit test filter
         shell: pwsh
@@ -600,6 +649,123 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-unit-windows-async-risk
+          path: TestResults/*.trx
+          retention-days: 30
+
+  # Cross-platform unit test validation (macOS) -- Deterministic blocking tier
+  unit-tests-macos:
+    name: Unit Tests (macOS - Deterministic)
+    runs-on: macos-latest
+    needs: [build, smoke-tests, unit-shard-coverage]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-macos
+
+      - name: Extract build output
+        run: tar -xzf build-output-macos.tar.gz && rm build-output-macos.tar.gz
+
+      - name: Compose macOS unit test filter
+        shell: pwsh
+        run: |
+          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+          "MACOS_UNIT_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          Write-Host "Using macOS unit filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Run Unit Tests
+        run: |
+          dotnet test eng/ci/shards/UnitTests-Deterministic.slnf \
+            --configuration Release \
+            --no-build \
+            --blame-hang-timeout 5m \
+            --logger "trx;LogFileName=unit-tests-macos-deterministic.trx" \
+            --logger "console;verbosity=minimal" \
+            --results-directory ./TestResults \
+            --filter "${{ env.MACOS_UNIT_TEST_FILTER }}" \
+            -- RunConfiguration.TestSessionTimeout=1500000
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-unit-macos-deterministic
+          path: TestResults/*.trx
+          retention-days: 30
+
+  # Cross-platform unit test validation (macOS) -- Async-risk advisory tier
+  # Sequenced after deterministic tier to limit concurrent macOS runners (10x billing)
+  unit-tests-macos-async-risk:
+    name: Unit Tests (macOS - Async Risk)
+    runs-on: macos-latest
+    needs: [build, smoke-tests, unit-shard-coverage, unit-tests-macos]
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-macos
+
+      - name: Extract build output
+        run: tar -xzf build-output-macos.tar.gz && rm build-output-macos.tar.gz
+
+      - name: Compose macOS unit test filter
+        shell: pwsh
+        run: |
+          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+          "MACOS_UNIT_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          Write-Host "Using macOS unit filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Run Unit Tests
+        run: |
+          dotnet test eng/ci/shards/UnitTests-AsyncRisk.slnf \
+            -m:1 \
+            --configuration Release \
+            --no-build \
+            --blame-hang-timeout 5m \
+            --logger "trx;LogFilePrefix=unit-tests-macos-async-risk" \
+            --logger "console;verbosity=minimal" \
+            --results-directory ./TestResults \
+            --filter "${{ env.MACOS_UNIT_TEST_FILTER }}" \
+            -- RunConfiguration.TestSessionTimeout=1500000 RunConfiguration.MaxCpuCount=1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-unit-macos-async-risk
           path: TestResults/*.trx
           retention-days: 30
 
@@ -629,19 +795,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/IntegrationTests.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Integration preflight diagnostics
         shell: pwsh
@@ -734,19 +894,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Run Functional Tests
         run: |
@@ -798,19 +952,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore tests/contract/Excalibur.Dispatch.Contract.Tests/Excalibur.Dispatch.Contract.Tests.csproj
-
-      - name: Build contract tests
-        run: dotnet build tests/contract/Excalibur.Dispatch.Contract.Tests/Excalibur.Dispatch.Contract.Tests.csproj --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Run contract tests
         run: |
@@ -861,19 +1009,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
-
-      - name: Build architecture tests
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Run architecture test projects
         run: |
@@ -950,14 +1092,6 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
       - name: Compose quarantined test filter
         shell: pwsh
         run: |
@@ -973,13 +1107,15 @@ jobs:
             Write-Host "Running $($filterInfo.count) quarantined tests."
           }
 
-      - name: Restore dependencies
+      - name: Download pre-built test artifacts
         if: env.FLAKY_TEST_COUNT != '0'
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-linux
 
-      - name: Build tests
+      - name: Extract build output
         if: env.FLAKY_TEST_COUNT != '0'
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Run quarantined tests
         if: env.FLAKY_TEST_COUNT != '0'
@@ -1113,24 +1249,6 @@ jobs:
           token: ${{ github.token }}
           fetch-depth: 1
 
-      - name: Free disk space (Ubuntu)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Disk usage before cleanup:"
-          df -h
-          sudo rm -rf /usr/share/swift || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          sudo rm -rf /home/linuxbrew || true
-          sudo rm -rf /usr/local/.ghcup || true
-          sudo rm -rf /usr/local/share/boost || true
-          sudo apt-get clean || true
-          docker system prune -af || true
-          echo "Disk usage after cleanup:"
-          df -h
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -1139,19 +1257,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
-
-      - name: Build solution
-        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
 
       - name: Scan for vulnerable packages (R20.10)
         run: |
@@ -1191,7 +1303,7 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [build, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation]
+    needs: [build, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation]
     if: always()
     steps:
       - name: Generate CI summary
@@ -1209,7 +1321,9 @@ jobs:
           echo "| Build | ${{ needs.build.result == 'success' && '✅' || '❌' }} ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests (Priority=0) | ${{ needs.smoke-tests.result == 'success' && '✅' || '❌' }} ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Shard Coverage | ${{ needs.unit-shard-coverage.result == 'success' && '✅' || '❌' }} ${{ needs.unit-shard-coverage.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (Linux) | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (Windows) | ${{ needs.unit-tests-windows.result == 'success' && '✅' || '❌' }} ${{ needs.unit-tests-windows.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (macOS) | ${{ needs.unit-tests-macos.result == 'success' && '✅' || '❌' }} ${{ needs.unit-tests-macos.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅' || '❌' }} ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Flaky Quarantine Governance | ${{ needs.flaky-quarantine-governance.result == 'success' && '✅' || '❌' }} ${{ needs.flaky-quarantine-governance.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Flaky Quarantine Suite (Non-blocking) | ${{ needs.flaky-tests-quarantine.result == 'success' && '✅' || (needs.flaky-tests-quarantine.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.flaky-tests-quarantine.result }} |" >> $GITHUB_STEP_SUMMARY
@@ -1298,10 +1412,12 @@ jobs:
             8.0.x
             9.0.x
             10.0.x
-      - name: Restore & build
-        run: |
-          dotnet restore
-          dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --configuration Release --no-restore
+      - name: Download pre-built test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-linux
+      - name: Extract build output
+        run: tar -xzf build-output-linux.tar.gz && rm build-output-linux.tar.gz
       - name: Run conformance tests
         run: |
           dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
@@ -1329,7 +1445,7 @@ jobs:
   release-blocking-tests:
     name: Release-Blocking Test Governance
     runs-on: ubuntu-latest
-    needs: [unit-shard-coverage, unit-tests, unit-tests-windows]
+    needs: [unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos]
     if: always()
     steps:
       - name: Validate release-blocking test matrix
@@ -1348,19 +1464,22 @@ jobs:
           shard="${{ needs.unit-shard-coverage.result }}"
           unit="${{ needs.unit-tests.result }}"
           unit_win="${{ needs.unit-tests-windows.result }}"
+          unit_mac="${{ needs.unit-tests-macos.result }}"
 
           echo "## ✅ Release-Blocking Test Governance" >> "$GITHUB_STEP_SUMMARY"
-          echo "Deterministic blocking tier: core/transport/middleware/excalibur only. Async-risk (messaging/observability) is advisory." >> "$GITHUB_STEP_SUMMARY"
+          echo "Deterministic blocking tier: core/transport/middleware/excalibur on all platforms. Async-risk (messaging/observability) is advisory." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Suite | Status | Tier |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-shard-coverage | $shard | blocking |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| unit-tests (deterministic) | $unit | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unit-tests-linux (deterministic) | $unit | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-tests-windows (deterministic) | $unit_win | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unit-tests-macos (deterministic) | $unit_mac | blocking |" >> "$GITHUB_STEP_SUMMARY"
 
           require_success "unit-shard-coverage" "$shard"
           require_success "unit-tests" "$unit"
           require_success "unit-tests-windows" "$unit_win"
+          require_success "unit-tests-macos" "$unit_mac"
 
           if [ ${#failures[@]} -gt 0 ]; then
             printf '❌ %s\n' "One or more release-blocking test suites failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
@@ -1641,10 +1760,11 @@ jobs:
           fi
 
   # Sprint 462 S462.4: AOT Sample Build Validation
+  # Sequenced after sample-validation to reduce peak concurrent jobs (both build independently)
   aot-sample-validation:
     name: AOT Sample Validation (S462.4)
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, sample-validation]
     timeout-minutes: 15
     steps:
       - name: Checkout code

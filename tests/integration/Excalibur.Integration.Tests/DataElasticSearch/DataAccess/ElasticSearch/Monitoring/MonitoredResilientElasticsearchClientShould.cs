@@ -43,7 +43,8 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 			var configuration = new ConfigurationBuilder()
 				.AddInMemoryCollection(new Dictionary<string, string?>
 				{
-					["ElasticSearch:Url"] = _elasticsearchContainer.GetConnectionString(),
+					["ElasticSearch:Url"] = _elasticsearchContainer.GetConnectionString()
+						.Replace("https://", "http://", StringComparison.OrdinalIgnoreCase),
 					["ElasticSearch:Resilience:Enabled"] = "true",
 					["ElasticSearch:Resilience:Retry:MaxAttempts"] = "3",
 					["ElasticSearch:Resilience:CircuitBreaker:Enabled"] = "true",
@@ -281,15 +282,30 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 	/// <inheritdoc/>
 	public async Task DisposeAsync()
 	{
-		if (_serviceProvider is not null)
+		try
 		{
-			await _serviceProvider.DisposeAsync().ConfigureAwait(false);
+			if (_serviceProvider is not null)
+			{
+				await _serviceProvider.DisposeAsync().ConfigureAwait(false);
+			}
+		}
+		catch (Exception)
+		{
+			// Suppress service provider disposal errors
 		}
 
-		if (_elasticsearchContainer is not null)
+		try
 		{
-			await _elasticsearchContainer.StopAsync().ConfigureAwait(false);
-			await _elasticsearchContainer.DisposeAsync().ConfigureAwait(false);
+			if (_elasticsearchContainer is not null)
+			{
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await _elasticsearchContainer.StopAsync(cts.Token).ConfigureAwait(false);
+				await _elasticsearchContainer.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
+			}
+		}
+		catch (Exception)
+		{
+			// Suppress container disposal errors and timeouts to prevent test host hang
 		}
 	}
 

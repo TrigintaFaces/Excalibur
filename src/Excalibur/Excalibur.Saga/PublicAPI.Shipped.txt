@@ -701,8 +701,8 @@ Excalibur.Saga.Models.StepStatus.Running = 1 -> Excalibur.Saga.Models.StepStatus
 Excalibur.Saga.Models.StepStatus.Skipped = 4 -> Excalibur.Saga.Models.StepStatus
 Excalibur.Saga.Models.StepStatus.Succeeded = 2 -> Excalibur.Saga.Models.StepStatus
 Excalibur.Saga.Models.StepStatus.TimedOut = 5 -> Excalibur.Saga.Models.StepStatus
-Excalibur.Saga.Orchestration.DispatchOrchestrationExtensions
-Excalibur.Saga.Orchestration.OrchestrationDispatchBuilderExtensions
+Microsoft.Extensions.DependencyInjection.DispatchOrchestrationExtensions
+Microsoft.Extensions.DependencyInjection.OrchestrationDispatchBuilderExtensions
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.CancelTimeoutAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Dispatcher.get -> Excalibur.Dispatch.Abstractions.IDispatcher!
@@ -1079,8 +1079,8 @@ static Excalibur.Saga.Models.StepResult.Failure(string! errorMessage, System.Exc
 static Excalibur.Saga.Models.StepResult.Retry(System.TimeSpan delay, string! reason) -> Excalibur.Saga.Models.StepResult!
 static Excalibur.Saga.Models.StepResult.Success() -> Excalibur.Saga.Models.StepResult!
 static Excalibur.Saga.Models.StepResult.Success(System.Collections.Generic.IDictionary<string!, object!>! outputData) -> Excalibur.Saga.Models.StepResult!
-static Excalibur.Saga.Orchestration.DispatchOrchestrationExtensions.AddDispatchOrchestration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Excalibur.Saga.Orchestration.OrchestrationDispatchBuilderExtensions.AddDispatchOrchestration(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchOrchestrationExtensions.AddDispatchOrchestration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OrchestrationDispatchBuilderExtensions.AddDispatchOrchestration(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaInfo(System.Type! sagaType) -> Excalibur.Dispatch.Abstractions.Messaging.SagaInfo?
 static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaTypeForEvent(System.Type! eventType) -> System.Type?
 static Excalibur.Saga.Orchestration.SagaRegistry.Register<TSaga, TSagaState>(System.Action<Excalibur.Dispatch.Abstractions.Messaging.SagaInfo!>! configure) -> void

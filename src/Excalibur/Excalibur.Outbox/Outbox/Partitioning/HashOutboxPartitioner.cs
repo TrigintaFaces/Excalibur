@@ -31,7 +31,14 @@ internal sealed class HashOutboxPartitioner : IOutboxPartitioner
 
 		// XxHash32: deterministic, fast, excellent distribution.
 		// Stable across processes, .NET versions, and platforms.
-		var hash = XxHash32.HashToUInt32(Encoding.UTF8.GetBytes(tenantId));
+		var byteCount = Encoding.UTF8.GetByteCount(tenantId);
+		byte[]? rented = null;
+		var buffer = byteCount <= 256
+			? stackalloc byte[byteCount]
+			: (rented = new byte[byteCount]).AsSpan();
+		Encoding.UTF8.GetBytes(tenantId, buffer);
+		var hash = XxHash32.HashToUInt32(buffer);
+		_ = rented; // suppress unused warning
 		return (int)(hash % (uint)_partitionCount);
 	}
 

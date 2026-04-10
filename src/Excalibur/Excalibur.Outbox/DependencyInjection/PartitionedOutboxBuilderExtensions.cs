@@ -7,6 +7,7 @@ using Excalibur.Outbox;
 using Excalibur.Outbox.Partitioning;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -54,7 +55,8 @@ public static class PartitionedOutboxBuilderExtensions
 				builder.Services.TryAddSingleton<IOutboxPartitioner>(sp =>
 				{
 					var shardMap = sp.GetRequiredService<ITenantShardMap>();
-					return new ShardOutboxPartitioner(shardMap, options.ShardIds);
+					var logger = sp.GetRequiredService<ILogger<ShardOutboxPartitioner>>();
+					return new ShardOutboxPartitioner(shardMap, options.ShardIds, logger);
 				});
 				break;
 		}
@@ -98,7 +100,8 @@ public static class PartitionedOutboxBuilderExtensions
 				OutboxPartitionStrategy.PerShard =>
 					new ShardOutboxPartitioner(
 						sp.GetRequiredService<ITenantShardMap>(),
-						options.ShardIds),
+						options.ShardIds,
+						sp.GetRequiredService<ILogger<ShardOutboxPartitioner>>()),
 				_ => new HashOutboxPartitioner(options.PartitionCount),
 			};
 		});

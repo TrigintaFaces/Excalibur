@@ -23,7 +23,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	private readonly MultiStreamProjection<TProjection> _projection = new();
 	private ProjectionMode _mode = ProjectionMode.Async;
 	private TimeSpan? _cacheTtl;
-	private DirtyCheckingMode _dirtyCheckingMode;
 
 	/// <summary>
 	/// Creates a builder with a registry for direct build (used by tests).
@@ -163,16 +162,18 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	}
 
 	/// <inheritdoc />
-	public IProjectionBuilder<TProjection> WithCacheTtl(TimeSpan ttl)
+	public IProjectionBuilder<TProjection> KeyedBy<TEvent>(Func<TEvent, string> keySelector)
+		where TEvent : IDomainEvent
 	{
-		_cacheTtl = ttl;
+		ArgumentNullException.ThrowIfNull(keySelector);
+		_projection.AddKeySelector(keySelector);
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IProjectionBuilder<TProjection> WithDirtyChecking(DirtyCheckingMode mode = DirtyCheckingMode.Equality)
+	public IProjectionBuilder<TProjection> WithCacheTtl(TimeSpan ttl)
 	{
-		_dirtyCheckingMode = mode;
+		_cacheTtl = ttl;
 		return this;
 	}
 
@@ -180,11 +181,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	/// Gets the optional cache TTL configured via <see cref="WithCacheTtl"/>.
 	/// </summary>
 	internal TimeSpan? CacheTtl => _cacheTtl;
-
-	/// <summary>
-	/// Gets the dirty checking mode configured via <see cref="WithDirtyChecking"/>.
-	/// </summary>
-	internal DirtyCheckingMode DirtyChecking => _dirtyCheckingMode;
 
 	/// <summary>
 	/// Builds and registers the projection using the registry provided at construction.
@@ -229,14 +225,14 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	{
 		var projection = _projection;
 
-		// Fast path: when all handlers are synchronous, use the simpler single-ID code path
-		// that avoids Dictionary allocation and async overhead.
+		// Fast path: when all handlers are synchronous and no key selectors exist,
+		// use the simpler single-ID code path that avoids Dictionary allocation and async overhead.
 		if (!projection.HasAsyncHandlers)
 		{
 			return CreateSyncOnlyApplyDelegate(projection);
 		}
 
-		// Full path: supports both sync and async handlers, multi-ID via OverrideProjectionId (D1)
+		// Full path: supports both sync and async handlers, multi-ID via KeyedBy and OverrideProjectionId (D1)
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
@@ -248,7 +244,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 			// Multi-ID: lazily loaded projection instances keyed by projection ID (D1)
 			var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
-			var defaultId = context.AggregateId;
 
 			foreach (var @event in events)
 			{
@@ -260,27 +255,35 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 				var handlerEntry = entry.Value;
 
+				// Derive projection ID: KeyedBy selector if registered, else aggregate ID
+				var keySelector = projection.GetKeySelector(@event.GetType());
+				var projectionId = keySelector is not null ? keySelector(@event) : context.AggregateId;
+
+				if (string.IsNullOrEmpty(projectionId))
+				{
+					throw new InvalidOperationException(
+						$"KeyedBy selector for event type {@event.GetType().Name} returned a null or empty projection ID.");
+				}
+
 				// Reset OverrideProjectionId per event
 				handlerContext.OverrideProjectionId = null;
 
 				if (handlerEntry.SyncAction is not null)
 				{
-					// Sync handler always targets the default aggregate ID
-					var state = await GetOrLoadAsync(projections, store, defaultId, cancellationToken)
+					var state = await GetOrLoadAsync(projections, store, projectionId, cancellationToken)
 						.ConfigureAwait(false);
 					handlerEntry.SyncAction(state, @event);
 				}
 				else if (handlerEntry.AsyncHandler is not null)
 				{
-					// Load default projection first (handler may override ID)
-					var state = await GetOrLoadAsync(projections, store, defaultId, cancellationToken)
+					var state = await GetOrLoadAsync(projections, store, projectionId, cancellationToken)
 						.ConfigureAwait(false);
 					await handlerEntry.AsyncHandler(state, @event, handlerContext, serviceProvider, cancellationToken)
 						.ConfigureAwait(false);
 
-					// If handler set a custom ID, load that projection and re-invoke (D1)
+					// OverrideProjectionId escape hatch: if handler set a DIFFERENT key, re-invoke there
 					if (handlerContext.OverrideProjectionId is not null
-						&& !string.Equals(handlerContext.OverrideProjectionId, defaultId, StringComparison.Ordinal))
+						&& !string.Equals(handlerContext.OverrideProjectionId, projectionId, StringComparison.Ordinal))
 					{
 						var customId = handlerContext.OverrideProjectionId;
 						var customState = await GetOrLoadAsync(projections, store, customId, cancellationToken)
@@ -318,11 +321,54 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 	/// <summary>
 	/// Creates a simplified delegate for projections that only have sync handlers.
-	/// Avoids Dictionary allocation and async overhead.
+	/// Avoids Dictionary allocation and async overhead when no key selectors are present.
 	/// </summary>
 	private static ProjectionRegistration.InlineApplyDelegate CreateSyncOnlyApplyDelegate(
 		MultiStreamProjection<TProjection> projection)
 	{
+		// When key selectors exist, different events may target different projection IDs
+		if (projection.HasKeySelectors)
+		{
+			return async (events, context, serviceProvider, cancellationToken) =>
+			{
+				var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
+				var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
+
+				foreach (var @event in events)
+				{
+					if (projection.GetHandler(@event.GetType()) is null)
+					{
+						continue;
+					}
+
+					var keySelector = projection.GetKeySelector(@event.GetType());
+					var id = keySelector is not null ? keySelector(@event) : context.AggregateId;
+
+					if (string.IsNullOrEmpty(id))
+					{
+						throw new InvalidOperationException(
+							$"KeyedBy selector for event type {@event.GetType().Name} returned a null or empty projection ID.");
+					}
+
+					if (!projections.TryGetValue(id, out var state))
+					{
+						state = await store.GetByIdAsync(id, cancellationToken)
+							.ConfigureAwait(false) ?? new TProjection();
+						projections[id] = state;
+					}
+
+					projection.Apply(state, @event);
+				}
+
+				foreach (var (id, state) in projections)
+				{
+					await store.UpsertAsync(id, state, cancellationToken)
+						.ConfigureAwait(false);
+				}
+			};
+		}
+
+		// Original fast path: no key selectors, single projection by aggregate ID
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();

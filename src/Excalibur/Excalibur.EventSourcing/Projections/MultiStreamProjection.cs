@@ -16,12 +16,13 @@ namespace Excalibur.EventSourcing.Projections;
 /// It contains the stream sources, event handlers, and can apply events to a projection instance.
 /// </para>
 /// </remarks>
-public sealed class MultiStreamProjection<TProjection>
+internal sealed class MultiStreamProjection<TProjection>
 	where TProjection : class, new()
 {
 	private readonly Dictionary<Type, ProjectionHandlerEntry> _handlers = [];
 	private readonly List<string> _streams = [];
 	private readonly List<string> _categories = [];
+	private readonly Dictionary<Type, Func<IDomainEvent, string>> _keySelectors = [];
 
 	/// <summary>
 	/// Gets the stream identifiers this projection sources events from.
@@ -81,6 +82,35 @@ public sealed class MultiStreamProjection<TProjection>
 			SyncAction: null,
 			handler);
 	}
+
+	/// <summary>
+	/// Registers a key derivation function for the specified event type.
+	/// When processing an event of this type, the projection instance is loaded
+	/// and stored using the derived key instead of the aggregate ID.
+	/// </summary>
+	/// <typeparam name="TEvent">The event type to extract the key from.</typeparam>
+	/// <param name="keySelector">A function that extracts the projection key from the event.</param>
+	internal void AddKeySelector<TEvent>(Func<TEvent, string> keySelector)
+		where TEvent : IDomainEvent
+	{
+		_keySelectors[typeof(TEvent)] = e => keySelector((TEvent)e);
+	}
+
+	/// <summary>
+	/// Gets the key selector for the specified event type, if one is registered.
+	/// </summary>
+	/// <param name="eventType">The event type to look up.</param>
+	/// <returns>The key selector function, or <see langword="null"/> if none is registered.</returns>
+	internal Func<IDomainEvent, string>? GetKeySelector(Type eventType)
+	{
+		return _keySelectors.GetValueOrDefault(eventType);
+	}
+
+	/// <summary>
+	/// Gets whether any key selectors are registered, indicating events may target
+	/// different projection IDs based on event data.
+	/// </summary>
+	internal bool HasKeySelectors => _keySelectors.Count > 0;
 
 	/// <summary>
 	/// Gets the handler entry for the specified event type.

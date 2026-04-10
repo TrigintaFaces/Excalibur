@@ -18,10 +18,9 @@ namespace Excalibur.Integration.Tests.DataElasticSearch;
 /// <summary>
 ///     Base class for Elasticsearch integration tests with TestContainers support.
 /// </summary>
-public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime, IDisposable
+public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 {
 	private ElasticsearchContainer? _container;
-	private bool _disposed;
 
 	/// <summary>
 	///     Gets the service provider for the test.
@@ -177,6 +176,7 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime, IDispos
 			.WithName($"es-test-{Guid.NewGuid():N}")
 			.WithEnvironment("discovery.type", "single-node")
 			.WithEnvironment("xpack.security.enabled", EnableSecurity.ToString().ToUpperInvariant())
+			.WithEnvironment("xpack.security.http.ssl.enabled", "false")
 			.WithEnvironment("xpack.monitoring.enabled", EnableMonitoring.ToString().ToUpperInvariant())
 			.WithEnvironment("indices.query.bool.max_clause_count", "10000")
 			.WithEnvironment("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
@@ -190,8 +190,7 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime, IDispos
 		if (EnableSecurity)
 		{
 			builder = builder
-				.WithEnvironment("ELASTIC_PASSWORD", "changeme")
-				.WithEnvironment("xpack.security.http.ssl.enabled", "false");
+				.WithEnvironment("ELASTIC_PASSWORD", "changeme");
 		}
 
 		_container = builder.Build();
@@ -209,39 +208,47 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime, IDispos
 		var maxAttempts = 30;
 		var attempt = 0;
 
-		while (attempt < maxAttempts)
-		{
-			try
-			{
-				// CA2000: Settings object lifetime is managed by ElasticsearchClient
-#pragma warning disable CA2000
-				var settings = new ElasticsearchClientSettings(new Uri(ConnectionString))
-					.DefaultIndex($"{TestIndexPrefix}default")
-					.EnableDebugMode()
-					.PrettyJson();
+		// Create a single client for health checking to avoid leaking connection pools
+#pragma warning disable CA2000 // Settings object lifetime is managed by ElasticsearchClient
+		var settings = new ElasticsearchClientSettings(new Uri(ConnectionString))
+			.DefaultIndex($"{TestIndexPrefix}default")
+			.EnableDebugMode()
+			.PrettyJson();
 #pragma warning restore CA2000
 
-				if (EnableSecurity)
-				{
-					settings = settings.Authentication(new BasicAuthentication("elastic", "changeme"));
-				}
+		if (EnableSecurity)
+		{
+			settings = settings.Authentication(new BasicAuthentication("elastic", "changeme"));
+		}
 
-				var tempClient = new ElasticsearchClient(settings);
-				var health = await tempClient.Cluster.HealthAsync().ConfigureAwait(false);
+		var tempClient = new ElasticsearchClient(settings);
 
-				if (health.IsValidResponse &&
-					(health.Status == HealthStatus.Green || health.Status == HealthStatus.Yellow))
-				{
-					return;
-				}
-			}
-			catch
+		try
+		{
+			while (attempt < maxAttempts)
 			{
-				// Ignore and retry
-			}
+				try
+				{
+					var health = await tempClient.Cluster.HealthAsync().ConfigureAwait(false);
 
-			attempt++;
-			await Task.Delay(1000).ConfigureAwait(false);
+					if (health.IsValidResponse &&
+						(health.Status == HealthStatus.Green || health.Status == HealthStatus.Yellow))
+					{
+						return;
+					}
+				}
+				catch
+				{
+					// Ignore and retry
+				}
+
+				attempt++;
+				await Task.Delay(1000).ConfigureAwait(false);
+			}
+		}
+		finally
+		{
+			(tempClient as IDisposable)?.Dispose();
 		}
 
 		throw new InvalidOperationException("Elasticsearch cluster failed to become healthy");
@@ -437,29 +444,4 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime, IDispos
 	/// <returns> The service instance. </returns>
 	protected TService GetService<TService>() where TService : notnull => ServiceProvider.GetRequiredService<TService>();
 
-	/// <summary>
-	///     Disposes of test resources.
-	/// </summary>
-	public void Dispose()
-	{
-		Dispose(true);
-		GC.SuppressFinalize(this);
-	}
-
-	/// <summary>
-	///     Disposes of test resources.
-	/// </summary>
-	/// <param name="disposing"> Whether to dispose managed resources. </param>
-	protected virtual void Dispose(bool disposing)
-	{
-		if (!_disposed)
-		{
-			if (disposing)
-			{
-				DisposeAsync().GetAwaiter().GetResult();
-			}
-
-			_disposed = true;
-		}
-	}
 }

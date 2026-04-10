@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -12,7 +12,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Disable code style/analyzer rules for benchmark code -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);CA1707;CA1001;CA1849;SA1402;IDE0005;IDE0011;MA0048;MA0036;SA1623;CA1052</NoWarn>
+    <NoWarn>$(NoWarn);CA1707;CA1001;CA1849;SA1402;IDE0005;IDE0011;MA0048;MA0036;SA1623;CA1052;CS1591;SA1600;SA1201;SA1305;MA0038;MA0042;MA0051;MA0076;CA1711;CA1812;CA1852;CA1859</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />

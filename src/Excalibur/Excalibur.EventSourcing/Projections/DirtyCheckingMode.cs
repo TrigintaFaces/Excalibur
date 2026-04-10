@@ -6,7 +6,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// <summary>
 /// Controls how projection dirty checking is performed before persisting state.
 /// </summary>
-public enum DirtyCheckingMode
+internal enum DirtyCheckingMode
 {
 	/// <summary>
 	/// No dirty checking -- always persist after handler invocation (default).

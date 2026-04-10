@@ -3,8 +3,22 @@ name: Release Rehearsal
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'eng/**'
+      - '*.props'
+      - '*.targets'
+      - 'Directory.Packages.props'
+      - '.github/workflows/release-rehearsal.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'eng/**'
+      - '*.props'
+      - '*.targets'
+      - 'Directory.Packages.props'
+      - '.github/workflows/release-rehearsal.yml'
   workflow_dispatch:
 
 concurrency:

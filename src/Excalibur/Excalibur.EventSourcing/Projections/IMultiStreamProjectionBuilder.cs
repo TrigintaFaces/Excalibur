@@ -28,7 +28,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// </code>
 /// </para>
 /// </remarks>
-public interface IMultiStreamProjectionBuilder<TProjection>
+internal interface IMultiStreamProjectionBuilder<TProjection>
 	where TProjection : class, new()
 {
 	/// <summary>

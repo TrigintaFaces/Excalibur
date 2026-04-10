@@ -342,18 +342,6 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		"Failed to stage outbound message {MessageType} in outbox store")]
 	private partial void LogFailedToStageWithStore(string messageType, Exception ex);
 
-	[LoggerMessage(MiddlewareEventId.MessageStagedInOutbox + 31, LogLevel.Debug,
-		"Staging {MessageCount} outbound messages in outbox")]
-	private partial void LogStagingOutboundMessages(int messageCount);
-
-	[LoggerMessage(MiddlewareEventId.MessageStagedInOutbox + 32, LogLevel.Debug,
-		"Staged outbound message {MessageType} in outbox with ID {OutboxEntryId}")]
-	private partial void LogStagedOutboundMessage(string messageType, string outboxEntryId);
-
-	[LoggerMessage(MiddlewareEventId.OutboxStagingFailed + 40, LogLevel.Error,
-		"Failed to stage outbound message {MessageType} in outbox")]
-	private partial void LogFailedToStageMessage(string messageType, Exception ex);
-
 	[LoggerMessage(MiddlewareEventId.OutboxStagingFailed + 41, LogLevel.Error,
 		"Failed to serialize message {MessageType} for outbox")]
 	private partial void LogFailedToSerializeMessage(string messageType, Exception ex);

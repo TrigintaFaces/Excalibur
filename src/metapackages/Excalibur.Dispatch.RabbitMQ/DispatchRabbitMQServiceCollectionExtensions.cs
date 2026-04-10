@@ -4,7 +4,6 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Resilience.Polly;
 using Excalibur.Dispatch.Transport.RabbitMQ;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -22,10 +21,8 @@ public static class DispatchRabbitMQServiceCollectionExtensions
 	/// <param name="configureRabbitMQ">RabbitMQ transport configuration.</param>
 	/// <param name="configureDispatch">Optional additional dispatch builder configuration.</param>
 	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Resilience configuration binding is expected to use reflection in this convenience metapackage")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Resilience configuration binding is expected to use dynamic code in this convenience metapackage")]
+	[RequiresUnreferencedCode("Resilience configuration binding uses reflection for property access and value conversion.")]
+	[RequiresDynamicCode("Resilience configuration binding requires dynamic code generation for property reflection and value conversion.")]
 	public static IServiceCollection AddDispatchRabbitMQ(
 		this IServiceCollection services,
 		Action<IRabbitMQTransportBuilder> configureRabbitMQ,

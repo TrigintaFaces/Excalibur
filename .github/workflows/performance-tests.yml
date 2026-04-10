@@ -73,6 +73,23 @@ jobs:
       - name: Run performance test shard
         run: dotnet test eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFileName=performance-tests.trx" --logger "console;verbosity=minimal" --filter "Category=Performance"
 
+      - name: Package build output for benchmark jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests benchmarks -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests benchmarks \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf perf-build-output.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh perf-build-output.tar.gz
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-build-output-linux
+          path: perf-build-output.tar.gz
+          retention-days: 1
+          compression-level: 0
+
       - name: Upload performance test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -81,19 +98,11 @@ jobs:
           path: "**/performance-tests.trx"
           retention-days: 30
 
-  # Hot path benchmarks - critical performance validation
-  hot-path-benchmarks:
-    name: Hot Path Benchmarks (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  # Windows benchmark build (hot-path needs Windows artifacts)
+  benchmark-build-windows:
+    name: Benchmark Build (Windows)
+    runs-on: windows-latest
     needs: performance-unit-tests
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            runtime: linux-x64
-          - os: windows-latest
-            runtime: win-x64
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -116,11 +125,64 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Restore and build benchmarks
+        run: |
+          dotnet restore
+          dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+      - name: Package build output
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests benchmarks -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests benchmarks \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf perf-build-output.tar.gz -T /tmp/artifact-paths.txt
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-build-output-windows
+          path: perf-build-output.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+  # Hot path benchmarks - critical performance validation
+  hot-path-benchmarks:
+    name: Hot Path Benchmarks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [performance-unit-tests, benchmark-build-windows]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact: perf-build-output-linux
+          - os: windows-latest
+            runtime: win-x64
+            artifact: perf-build-output-windows
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Download pre-built benchmark artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+
+      - name: Extract build output
+        shell: bash
+        run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
 
       - name: Run hot path benchmarks
         shell: pwsh
@@ -266,19 +328,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built benchmark artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: perf-build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+      - name: Extract build output
+        run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
 
       - name: Run memory allocation benchmarks
         run: |
@@ -317,19 +373,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built benchmark artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: perf-build-output-linux
 
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+      - name: Extract build output
+        run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
 
       # TODO: Enable when benchmarks/CloudNativePatterns.Benchmarks project exists
       # - name: Run cloud native patterns benchmarks

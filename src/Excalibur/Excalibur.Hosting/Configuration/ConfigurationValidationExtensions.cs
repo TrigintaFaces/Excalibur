@@ -4,12 +4,12 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Hosting.Configuration;
 using Excalibur.Hosting.Configuration.Validators;
 
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace Excalibur.Hosting.Configuration;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for registering configuration validation services.
@@ -28,10 +28,12 @@ public static class ConfigurationValidationExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Register the validation options
-		var options = new ConfigurationValidationOptions();
-		configureOptions?.Invoke(options);
-		_ = services.AddSingleton(options);
+		// Register the validation options via IOptions<T> pattern
+		var optionsBuilder = services.AddOptions<ConfigurationValidationOptions>();
+		if (configureOptions is not null)
+		{
+			optionsBuilder.Configure(configureOptions);
+		}
 
 		// Register the validation service as a hosted service
 		_ = services.AddHostedService<ConfigurationValidationService>();

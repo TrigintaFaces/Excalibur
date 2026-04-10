@@ -4,7 +4,6 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Resilience.Polly;
 using Excalibur.Dispatch.Transport.Aws;
 
 namespace Microsoft.Extensions.DependencyInjection;

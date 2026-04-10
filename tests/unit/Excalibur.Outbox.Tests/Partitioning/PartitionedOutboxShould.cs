@@ -3,6 +3,7 @@
 
 using Excalibur.Data.Abstractions.Sharding;
 using Excalibur.Outbox.Partitioning;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Outbox.Tests.Partitioning;
 
@@ -93,7 +94,7 @@ public sealed class PartitionedOutboxShould
 		_ = A.CallTo(() => shardMap.GetShardInfo("tenant-b"))
 			.Returns(new ShardInfo("shard-2", "conn2"));
 
-		var partitioner = new ShardOutboxPartitioner(shardMap, ["shard-1", "shard-2"]);
+		var partitioner = new ShardOutboxPartitioner(shardMap, ["shard-1", "shard-2"], NullLogger<ShardOutboxPartitioner>.Instance);
 
 		partitioner.GetPartition("tenant-a").ShouldBe(0);
 		partitioner.GetPartition("tenant-b").ShouldBe(1);
@@ -106,7 +107,7 @@ public sealed class PartitionedOutboxShould
 		_ = A.CallTo(() => shardMap.GetShardInfo("tenant-x"))
 			.Returns(new ShardInfo("unknown-shard", "conn"));
 
-		var partitioner = new ShardOutboxPartitioner(shardMap, ["shard-1"]);
+		var partitioner = new ShardOutboxPartitioner(shardMap, ["shard-1"], NullLogger<ShardOutboxPartitioner>.Instance);
 
 		partitioner.GetPartition("tenant-x").ShouldBe(0);
 	}
@@ -115,7 +116,7 @@ public sealed class PartitionedOutboxShould
 	public void ShardPartitionerExposesPartitionCount()
 	{
 		var shardMap = A.Fake<ITenantShardMap>();
-		var partitioner = new ShardOutboxPartitioner(shardMap, ["a", "b", "c"]);
+		var partitioner = new ShardOutboxPartitioner(shardMap, ["a", "b", "c"], NullLogger<ShardOutboxPartitioner>.Instance);
 		partitioner.PartitionCount.ShouldBe(3);
 	}
 
@@ -126,7 +127,7 @@ public sealed class PartitionedOutboxShould
 		_ = A.CallTo(() => shardMap.GetShardInfo("tenant-a"))
 			.Returns(new ShardInfo("SHARD-1", "conn1"));
 
-		var partitioner = new ShardOutboxPartitioner(shardMap, ["shard-1"]);
+		var partitioner = new ShardOutboxPartitioner(shardMap, ["shard-1"], NullLogger<ShardOutboxPartitioner>.Instance);
 		partitioner.GetPartition("tenant-a").ShouldBe(0);
 	}
 

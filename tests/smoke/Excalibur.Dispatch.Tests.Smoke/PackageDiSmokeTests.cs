@@ -8,6 +8,7 @@ using System.Reflection;
 
 using Excalibur.Dispatch.Serialization.MessagePack;
 using Excalibur.Dispatch.Serialization.Protobuf;
+using Excalibur.Outbox.SqlServer;
 using Excalibur.Saga.Orchestration;
 
 using Microsoft.Extensions.Configuration;
@@ -151,8 +152,8 @@ public sealed class PackageDiSmokeTests
 		// ══════════════════════════════════════════════════════════
 
 		yield return Reg("Excalibur.Dispatch.Security", s =>
-			Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddDispatchSecurityMiddleware(
-				s, (Excalibur.Dispatch.Security.SecurityOptions opt) => { }));
+			s.AddDispatchSecurityMiddleware(
+				(Excalibur.Dispatch.Security.SecurityOptions opt) => { }));
 		yield return Reg("Excalibur.Dispatch.Security.Azure", s => s.AddAzureServiceBusSecurityValidation());
 
 		// ══════════════════════════════════════════════════════════

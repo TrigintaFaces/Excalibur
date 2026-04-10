@@ -3,13 +3,14 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch.Security;
+
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.Dispatch.Security;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for registering security middleware and services.
@@ -281,7 +282,8 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<ISignatureAlgorithmProvider, Ed25519SignatureAlgorithmProvider>());
 
-		// Composite replaces HMAC-only service
+		// Composite replaces HMAC-only service (Replace ensures single registration)
+		services.RemoveAll<IMessageSigningService>();
 		services.AddSingleton<IMessageSigningService, CompositeMessageSigningService>();
 
 		// Register middleware (same as AddMessageSigning)

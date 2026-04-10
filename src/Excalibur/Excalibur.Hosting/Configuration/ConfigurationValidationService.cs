@@ -10,6 +10,7 @@ using Excalibur.Hosting.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Hosting.Configuration;
 
@@ -37,18 +38,19 @@ internal sealed partial class ConfigurationValidationService : IHostedService
 		IEnumerable<IConfigurationValidator> validators,
 		IHostApplicationLifetime applicationLifetime,
 		ILogger<ConfigurationValidationService> logger,
-		ConfigurationValidationOptions? options = null)
+		IOptions<ConfigurationValidationOptions> options)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(validators);
 		ArgumentNullException.ThrowIfNull(applicationLifetime);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(options);
 
 		_configuration = configuration;
 		_validators = validators;
 		_applicationLifetime = applicationLifetime;
 		_logger = logger;
-		_options = options ?? new ConfigurationValidationOptions();
+		_options = options.Value;
 	}
 
 	/// <inheritdoc />

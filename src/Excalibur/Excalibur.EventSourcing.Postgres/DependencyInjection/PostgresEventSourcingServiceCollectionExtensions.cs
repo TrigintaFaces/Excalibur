@@ -514,11 +514,15 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	private static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
 		services.AddKeyedSingleton<IEventStore>("postgres", (sp, _) =>
-			new TelemetryEventStore(
+		{
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(EventSourcingMeters.EventStore) ?? new Meter(EventSourcingMeters.EventStore);
+			return new TelemetryEventStore(
 				sp.GetRequiredService<PostgresEventStore>(),
-				new Meter(EventSourcingMeters.EventStore),
+				meter,
 				new ActivitySource(EventSourcingActivitySources.EventStore),
-				"Postgres"));
+				"Postgres");
+		});
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("postgres"));
 	}
@@ -526,11 +530,15 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	private static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)
 	{
 		services.AddKeyedSingleton<ISnapshotStore>("postgres", (sp, _) =>
-			new TelemetrySnapshotStore(
+		{
+			var meterFactory = sp.GetService<IMeterFactory>();
+			var meter = meterFactory?.Create(EventSourcingMeters.SnapshotStore) ?? new Meter(EventSourcingMeters.SnapshotStore);
+			return new TelemetrySnapshotStore(
 				sp.GetRequiredService<PostgresSnapshotStore>(),
-				new Meter(EventSourcingMeters.SnapshotStore),
+				meter,
 				new ActivitySource(EventSourcingActivitySources.SnapshotStore),
-				"Postgres"));
+				"Postgres");
+		});
 		services.TryAddKeyedSingleton<ISnapshotStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISnapshotStore>("postgres"));
 	}

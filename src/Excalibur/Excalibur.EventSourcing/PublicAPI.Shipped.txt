@@ -230,10 +230,6 @@ Excalibur.EventSourcing.ParallelCatchUp.StreamRange.EndPosition.init -> void
 Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StartPosition.get -> long
 Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StartPosition.init -> void
 Excalibur.EventSourcing.ParallelCatchUp.StreamRange.StreamRange(long StartPosition, long EndPosition) -> void
-Excalibur.EventSourcing.Projections.DirtyCheckingMode
-Excalibur.EventSourcing.Projections.DirtyCheckingMode.Equality = 1 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
-Excalibur.EventSourcing.Projections.DirtyCheckingMode.None = 0 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
-Excalibur.EventSourcing.Projections.DirtyCheckingMode.ReferenceEquality = 2 -> Excalibur.EventSourcing.Projections.DirtyCheckingMode
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState>
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState>.GlobalStreamProjectionHost(Excalibur.EventSourcing.Queries.IGlobalStreamQuery! globalStreamQuery, Excalibur.EventSourcing.Projections.IGlobalStreamProjection<TState!>! projection, Excalibur.Dispatch.Abstractions.IEventSerializer! eventSerializer, Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore! checkpointStore, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Projections.GlobalStreamProjectionHost<TState!>!>! logger, System.IServiceProvider! serviceProvider, Excalibur.EventSourcing.Abstractions.ICursorMapStore? cursorMapStore = null) -> void
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions
@@ -248,11 +244,6 @@ Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions.ProjectionName
 Excalibur.EventSourcing.Projections.GlobalStreamProjectionOptions.ProjectionName.set -> void
 Excalibur.EventSourcing.Projections.IGlobalStreamProjection<TState>
 Excalibur.EventSourcing.Projections.IGlobalStreamProjection<TState>.ApplyAsync(Excalibur.Dispatch.Abstractions.IDomainEvent! domainEvent, TState! state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>
-Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>.Build() -> Excalibur.EventSourcing.Projections.MultiStreamProjection<TProjection!>!
-Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>.FromCategory(string! category) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
-Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>.FromStream(string! streamId) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
-Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection>.When<TEvent>(System.Action<TProjection!, TEvent>! handler) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Async() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Inline() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
@@ -262,18 +253,6 @@ Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>.Config
 Excalibur.EventSourcing.Projections.IProjectionRebuildService
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.RebuildAsync<TProjection>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.EventSourcing.Projections.MultiStreamProjection<TProjection>
-Excalibur.EventSourcing.Projections.MultiStreamProjection<TProjection>.Apply(TProjection! projection, Excalibur.Dispatch.Abstractions.IDomainEvent! domainEvent) -> bool
-Excalibur.EventSourcing.Projections.MultiStreamProjection<TProjection>.Categories.get -> System.Collections.Generic.IReadOnlyList<string!>!
-Excalibur.EventSourcing.Projections.MultiStreamProjection<TProjection>.HandledEventTypes.get -> System.Collections.Generic.IReadOnlyCollection<System.Type!>!
-Excalibur.EventSourcing.Projections.MultiStreamProjection<TProjection>.MultiStreamProjection() -> void
-Excalibur.EventSourcing.Projections.MultiStreamProjection<TProjection>.Streams.get -> System.Collections.Generic.IReadOnlyList<string!>!
-Excalibur.EventSourcing.Projections.MultiStreamProjectionBuilder<TProjection>
-Excalibur.EventSourcing.Projections.MultiStreamProjectionBuilder<TProjection>.Build() -> Excalibur.EventSourcing.Projections.MultiStreamProjection<TProjection!>!
-Excalibur.EventSourcing.Projections.MultiStreamProjectionBuilder<TProjection>.FromCategory(string! category) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
-Excalibur.EventSourcing.Projections.MultiStreamProjectionBuilder<TProjection>.FromStream(string! streamId) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
-Excalibur.EventSourcing.Projections.MultiStreamProjectionBuilder<TProjection>.MultiStreamProjectionBuilder() -> void
-Excalibur.EventSourcing.Projections.MultiStreamProjectionBuilder<TProjection>.When<TEvent>(System.Action<TProjection!, TEvent>! handler) -> Excalibur.EventSourcing.Projections.IMultiStreamProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.BatchDelay.get -> System.TimeSpan
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.BatchDelay.set -> void

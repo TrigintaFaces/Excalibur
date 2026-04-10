@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -81,10 +82,10 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	private readonly TimeProvider _timeProvider;
 	private readonly ILogger? _logger;
 
-	// Tracked per aggregate load for auto-snapshot decision context
-	private long? _lastLoadedSnapshotVersion;
+	// Tracked per aggregate ID for auto-snapshot decision context (thread-safe for concurrent loads/saves)
+	private readonly ConcurrentDictionary<string, SnapshotTrackingState> _snapshotTracking = new(StringComparer.Ordinal);
 
-	private DateTimeOffset? _lastLoadedSnapshotTimestamp;
+	private readonly record struct SnapshotTrackingState(long Version, DateTimeOffset Timestamp);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EventSourcedRepository{TAggregate, TKey}" /> class.
@@ -225,8 +226,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				snapshotVersion = snapshot.Version;
 
 				// Track snapshot state for auto-snapshot decisions in SaveAsync
-				_lastLoadedSnapshotVersion = snapshot.Version;
-				_lastLoadedSnapshotTimestamp = snapshot.CreatedAt;
+				_snapshotTracking[stringId] = new SnapshotTrackingState(snapshot.Version, snapshot.CreatedAt);
 			}
 		}
 
@@ -284,11 +284,15 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
 
-		var uncommittedEvents = aggregate.GetUncommittedEvents();
-		if (uncommittedEvents.Count == 0)
+		var rawEvents = aggregate.GetUncommittedEvents();
+		if (rawEvents.Count == 0)
 		{
 			return;
 		}
+
+		// Snapshot the events before MarkEventsAsCommitted clears the aggregate's internal list.
+		// The snapshot is used for event notification after commit.
+		var uncommittedEvents = rawEvents.ToList();
 
 		var stringId = aggregate.Id.ToString() ?? throw new InvalidOperationException(
 			Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
@@ -374,8 +378,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 					.ConfigureAwait(false);
 
 				// Update tracked state after successful snapshot
-				_lastLoadedSnapshotVersion = aggregate.Version;
-				_lastLoadedSnapshotTimestamp = DateTimeOffset.UtcNow;
+				_snapshotTracking[stringId] = new SnapshotTrackingState(aggregate.Version, _timeProvider.GetUtcNow());
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
@@ -398,13 +401,16 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 				|| autoOptions.VersionThreshold is not null
 				|| autoOptions.CustomPolicy is not null)
 			{
-				var eventsSinceSnapshot = (int)(aggregate.Version - (_lastLoadedSnapshotVersion ?? 0));
+				var tracked = _snapshotTracking.GetValueOrDefault(stringId);
+				var lastVersion = tracked.Version > 0 ? (long?)tracked.Version : null;
+				var lastTimestamp = tracked.Timestamp != default ? (DateTimeOffset?)tracked.Timestamp : null;
+				var eventsSinceSnapshot = (int)(aggregate.Version - (lastVersion ?? 0));
 				var decisionContext = new Abstractions.SnapshotDecisionContext(
 					stringId,
 					aggregate.AggregateType,
 					aggregate.Version,
-					_lastLoadedSnapshotVersion,
-					_lastLoadedSnapshotTimestamp,
+					lastVersion,
+					lastTimestamp,
 					eventsSinceSnapshot);
 
 				AutoSnapshotMetrics.Evaluated.Add(1);
@@ -419,8 +425,7 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 							.ConfigureAwait(false);
 
 						// Update tracked state after successful auto-snapshot
-						_lastLoadedSnapshotVersion = aggregate.Version;
-						_lastLoadedSnapshotTimestamp = _timeProvider.GetUtcNow();
+						_snapshotTracking[stringId] = new SnapshotTrackingState(aggregate.Version, _timeProvider.GetUtcNow());
 
 						AutoSnapshotMetrics.Created.Add(1);
 					}

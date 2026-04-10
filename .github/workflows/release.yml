@@ -204,19 +204,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-  # Build and package libraries
-  pre-tag-unit-soak:
-    name: Pre-Tag Unit Soak (${{ matrix.os }}, run ${{ matrix.iteration }})
+  # Build once per OS, then soak iterations download pre-built artifacts
+  pre-tag-soak-build:
+    name: Pre-Tag Soak Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: pre-release-validation
-    timeout-minutes: 120
-    env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        iteration: [1, 2, 3]
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -282,6 +279,55 @@ jobs:
       - name: Build release-blocking shard
         run: dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal
 
+      - name: Package build output
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf soak-build-output.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh soak-build-output.tar.gz
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-build-${{ matrix.os }}
+          path: soak-build-output.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+  pre-tag-unit-soak:
+    name: Pre-Tag Unit Soak (${{ matrix.os }}, 3 iterations)
+    runs-on: ${{ matrix.os }}
+    needs: [pre-release-validation, pre-tag-soak-build]
+    timeout-minutes: 120
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Download pre-built soak artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: soak-build-${{ matrix.os }}
+
+      - name: Extract build output
+        shell: bash
+        run: tar -xzf soak-build-output.tar.gz && rm soak-build-output.tar.gz
+
       - name: Compose pre-tag soak filter
         shell: pwsh
         run: |
@@ -290,14 +336,20 @@ jobs:
           "PRETAG_SOAK_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
           Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
 
-      - name: Run unit shard soak iteration
-        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+      - name: "Soak iteration 1 of 3"
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-1" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+
+      - name: "Soak iteration 2 of 3"
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-2" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+
+      - name: "Soak iteration 3 of 3"
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-3" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload soak test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}
+          name: pre-tag-unit-soak-${{ matrix.os }}
           path: "**/pre-tag-unit-soak-*.trx"
           retention-days: 30
 

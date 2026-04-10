@@ -60,6 +60,28 @@ jobs:
       - name: Build (Release, ShippingOnly)
         run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore
 
+      - name: Build test projects
+        run: |
+          dotnet restore eng/ci/shards/TestsOnly.slnf
+          dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+
+      - name: Package build output
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests -path '*/bin/Release' -type d > /tmp/artifact-paths.txt
+          find src tests \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf nightly-build-output.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh nightly-build-output.tar.gz
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-build-output
+          path: nightly-build-output.tar.gz
+          retention-days: 1
+          compression-level: 0
+
   # Step 2: Deterministic unit test shards
   deterministic-unit-tests:
     name: Deterministic Unit Tests (${{ matrix.shard.name }})
@@ -87,19 +109,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: nightly-build-output
 
-      - name: Restore dependencies
-        run: dotnet restore ${{ matrix.shard.filter }}
-
-      - name: Build shard
-        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf nightly-build-output.tar.gz && rm nightly-build-output.tar.gz
 
       - name: Run Unit Tests
         run: |
@@ -140,19 +156,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: nightly-build-output
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/IntegrationTests.slnf
-
-      - name: Build
-        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf nightly-build-output.tar.gz && rm nightly-build-output.tar.gz
 
       - name: Run Integration Tests (-m:1)
         run: |
@@ -193,18 +203,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download pre-built artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: nightly-build-output
 
-      - name: Restore and build (ShippingOnly)
-        run: |
-          dotnet restore eng/ci/shards/ShippingOnly.slnf
-          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore
+      - name: Extract build output
+        run: tar -xzf nightly-build-output.tar.gz && rm nightly-build-output.tar.gz
 
       - name: Validate package composition
         shell: pwsh

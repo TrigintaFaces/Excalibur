@@ -58,6 +58,23 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      - name: Package restore metadata for downstream job
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src samples -path '*/bin/Release' -type d > /tmp/artifact-paths.txt 2>/dev/null || true
+          find src samples \( -name 'project.assets.json' -o -name '*.nuget.g.props' -o -name '*.nuget.g.targets' -o -name '*.nuget.dgspec.json' \) >> /tmp/artifact-paths.txt
+          tar -czf aot-restore-output.tar.gz -T /tmp/artifact-paths.txt
+          ls -lh aot-restore-output.tar.gz
+
+      - name: Upload restore metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: aot-restore-output
+          path: aot-restore-output.tar.gz
+          retention-days: 1
+          compression-level: 0
+
       - name: Run AOT publish validation
         shell: pwsh
         run: |
@@ -110,6 +127,7 @@ jobs:
   aot-build-analysis:
     name: AOT Build Analysis (report-only)
     runs-on: ubuntu-latest
+    needs: aot-publish-validation
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -124,16 +142,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
+      - name: Download restore metadata
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          name: aot-restore-output
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Extract restore output
+        run: tar -xzf aot-restore-output.tar.gz && rm aot-restore-output.tar.gz
 
       - name: Run AOT build analysis (report-only)
         shell: pwsh

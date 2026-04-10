@@ -6,15 +6,15 @@ using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Data.SqlServer.Persistence;
 
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.Data.SqlServer.Persistence;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for configuring SQL Server persistence services.

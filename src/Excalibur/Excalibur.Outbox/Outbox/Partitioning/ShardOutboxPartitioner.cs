@@ -3,24 +3,29 @@
 
 using Excalibur.Data.Abstractions.Sharding;
 
+using Microsoft.Extensions.Logging;
+
 namespace Excalibur.Outbox.Partitioning;
 
 /// <summary>
 /// Partitions outbox messages by tenant shard. Each shard ID maps to a partition.
 /// </summary>
-internal sealed class ShardOutboxPartitioner : IOutboxPartitioner
+internal sealed partial class ShardOutboxPartitioner : IOutboxPartitioner
 {
 	private readonly ITenantShardMap _shardMap;
 	private readonly Dictionary<string, int> _shardToPartition;
 	private readonly int _partitionCount;
+	private readonly ILogger<ShardOutboxPartitioner> _logger;
 
-	internal ShardOutboxPartitioner(ITenantShardMap shardMap, IReadOnlyList<string> shardIds)
+	internal ShardOutboxPartitioner(ITenantShardMap shardMap, IReadOnlyList<string> shardIds, ILogger<ShardOutboxPartitioner> logger)
 	{
 		ArgumentNullException.ThrowIfNull(shardMap);
 		ArgumentNullException.ThrowIfNull(shardIds);
+		ArgumentNullException.ThrowIfNull(logger);
 
 		_shardMap = shardMap;
 		_partitionCount = shardIds.Count;
+		_logger = logger;
 		_shardToPartition = new Dictionary<string, int>(
 			shardIds.Count, StringComparer.OrdinalIgnoreCase);
 
@@ -34,10 +39,18 @@ internal sealed class ShardOutboxPartitioner : IOutboxPartitioner
 	public int GetPartition(string tenantId)
 	{
 		var shardInfo = _shardMap.GetShardInfo(tenantId);
-		return _shardToPartition.TryGetValue(shardInfo.ShardId, out var partition)
-			? partition
-			: 0;
+		if (_shardToPartition.TryGetValue(shardInfo.ShardId, out var partition))
+		{
+			return partition;
+		}
+
+		LogUnknownShardFallback(shardInfo.ShardId, tenantId);
+		return 0;
 	}
+
+	[LoggerMessage(Level = LogLevel.Warning,
+		Message = "Shard '{ShardId}' for tenant '{TenantId}' is not in the configured shard map. Falling back to partition 0.")]
+	private partial void LogUnknownShardFallback(string shardId, string tenantId);
 
 	/// <inheritdoc />
 	public int PartitionCount => _partitionCount;

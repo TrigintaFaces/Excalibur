@@ -10,6 +10,10 @@ namespace ProjectionsSample.Domain;
 // ============================================================================
 // These events represent state changes in our domain that projections will
 // listen to and use to build read models.
+//
+// Each event carries the Category so that multi-stream projections can use
+// KeyedBy<TEvent>(e => e.Category) to route events to the correct projection
+// instance without out-of-band context.
 
 /// <summary>
 /// Event raised when a new product is created.
@@ -26,6 +30,7 @@ public sealed record ProductCreated(
 /// </summary>
 public sealed record ProductPriceChanged(
 	Guid ProductId,
+	string Category,
 	decimal OldPrice,
 	decimal NewPrice) : DomainEvent;
 
@@ -34,6 +39,7 @@ public sealed record ProductPriceChanged(
 /// </summary>
 public sealed record ProductStockAdded(
 	Guid ProductId,
+	string Category,
 	int Quantity,
 	int NewStockLevel) : DomainEvent;
 
@@ -42,6 +48,7 @@ public sealed record ProductStockAdded(
 /// </summary>
 public sealed record ProductStockRemoved(
 	Guid ProductId,
+	string Category,
 	int Quantity,
 	int NewStockLevel,
 	string Reason) : DomainEvent;
@@ -49,4 +56,4 @@ public sealed record ProductStockRemoved(
 /// <summary>
 /// Event raised when a product is discontinued.
 /// </summary>
-public sealed record ProductDiscontinued(Guid ProductId, string Reason) : DomainEvent;
+public sealed record ProductDiscontinued(Guid ProductId, string Category, string Reason) : DomainEvent;

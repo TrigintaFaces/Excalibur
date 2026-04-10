@@ -54,8 +54,11 @@ flowchart TD
     Q2 -->|Yes| IMMUTABLE[AddImmutableProjection&lt;T&gt;<br/>.Inline]
     Q2 -->|No| Q4{Do I need DI,<br/>logging, or async<br/>in my handler?}
 
-    Q4 -->|No| INLINE_LAMBDA["AddProjection&lt;T&gt;<br/>.Inline().When&lt;TEvent&gt;(lambda)"]
+    Q4 -->|No| Q5{Does my projection key<br/>differ from aggregate ID?}
     Q4 -->|Yes| INLINE_DI["AddProjection&lt;T&gt;<br/>.Inline().WhenHandledBy&lt;TEvent, THandler&gt;()"]
+
+    Q5 -->|No| INLINE_LAMBDA["AddProjection&lt;T&gt;<br/>.Inline().When&lt;TEvent&gt;(lambda)"]
+    Q5 -->|Yes| INLINE_KEYED["AddProjection&lt;T&gt;<br/>.Inline().KeyedBy&lt;TEvent&gt;(selector)"]
 
     Q3 -->|No| EPHEMERAL["AddProjection&lt;T&gt;<br/>.Ephemeral()"]
     Q3 -->|Yes| ASYNC["AddProjection&lt;T&gt;<br/>.Async()"]
@@ -66,6 +69,7 @@ flowchart TD
 | Approach | Consistency | State Type | DI Support | Best For |
 |----------|------------|------------|------------|----------|
 | **Inline lambda** | Immediate | Mutable class | No | Simple property mapping |
+| **Inline + KeyedBy** | Immediate | Mutable class | No | Multi-stream aggregation (category, tenant) |
 | **Inline DI handler** | Immediate | Mutable class | Yes | Complex logic, logging |
 | **Inline immutable** | Immediate | Records, immutable | Yes | Functional patterns, audit trails |
 | **Async** | Eventual | Any | Yes | Reporting, search indexes |
@@ -123,6 +127,45 @@ builder.AddProjection<OrderSummary>(p => p
     .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
 ```
 
+### Multi-Stream Projections (KeyedBy)
+
+By default, inline projections are keyed by aggregate ID -- each aggregate gets its own projection instance. Use `KeyedBy<TEvent>()` to derive the projection key from event data instead, enabling projections that aggregate across multiple streams:
+
+```csharp
+builder.AddProjection<CategorySummaryProjection>(p => p
+    .Inline()
+    .KeyedBy<ProductCreated>(e => e.Category.ToUpperInvariant())
+    .KeyedBy<ProductPriceChanged>(e => e.Category.ToUpperInvariant())
+    .KeyedBy<ProductStockAdded>(e => e.Category.ToUpperInvariant())
+    .When<ProductCreated>((proj, e) =>
+    {
+        proj.CategoryName = e.Category;
+        proj.TotalProducts++;
+        proj.ActiveProducts++;
+    })
+    .When<ProductPriceChanged>((proj, e) =>
+    {
+        proj.ProductPrices[e.ProductId.ToString()] = e.NewPrice;
+    })
+    .When<ProductStockAdded>((proj, e) =>
+    {
+        proj.ProductStocks[e.ProductId.ToString()] = e.NewStockLevel;
+    }));
+```
+
+All products in "Electronics" share one `CategorySummaryProjection` instance, automatically loaded and saved during `SaveAsync()`. No manual handler classes or `GetUncommittedEvents()` loops needed.
+
+**Key rules:**
+
+- Register a `KeyedBy` selector for every event type that should route to a custom key. Events without a selector fall back to aggregate ID.
+- The key selector must return a non-null, non-empty string.
+- Events must carry the data needed for key derivation (e.g., a `Category` property on the event record).
+- `KeyedBy` works with both `When<T>` lambdas and `WhenHandledBy<T, THandler>` DI handlers.
+
+:::tip When to use KeyedBy vs OverrideProjectionId
+Use `KeyedBy` when the key can be derived purely from event data -- it works with all handler tiers and keeps registration declarative. Use `OverrideProjectionId` (Tier 3 only) when the key requires DI services, async lookups, or runtime logic beyond the event.
+:::
+
 ### DI-Resolved Handlers (Tier 3)
 
 When your projection logic needs dependency injection, async operations, or custom projection IDs, implement `IProjectionEventHandler<TProjection, TEvent>`:
@@ -177,9 +220,9 @@ builder.AddProjection<CustomerSearchProjection>(p => p
 Assembly scanning uses reflection and is annotated with `[RequiresUnreferencedCode]`. For AOT/trimming scenarios, use explicit `WhenHandledBy<TEvent, THandler>()` instead.
 :::
 
-### Custom Projection IDs
+### Custom Projection IDs (OverrideProjectionId)
 
-By default, projections are keyed by aggregate ID. Set `OverrideProjectionId` in a DI handler to key by a different concept:
+For Tier 3 DI handlers, `OverrideProjectionId` provides an escape hatch when the key cannot be derived from event data alone. Prefer [`KeyedBy`](#multi-stream-projections-keyedby) for most multi-stream scenarios.
 
 ```csharp
 public sealed class TierSummaryOnCustomerCreated
@@ -217,9 +260,9 @@ public sealed class ProjectionHandlerContext
 
 | Tier | API | DI | Async | Custom ID | AOT-Safe | Best For |
 |------|-----|-----|-------|-----------|----------|----------|
-| 1 | `When<TEvent>(lambda)` | No | No | No | Yes | Simple property mapping |
-| 2 | `IProjectionConfiguration<T>` | No | No | No | Yes | Organized lambda groups |
-| 3 | `WhenHandledBy<TEvent, THandler>()` | Yes | Yes | Yes | Yes | Complex logic, logging, cross-aggregate |
+| 1 | `When<TEvent>(lambda)` | No | No | Via `KeyedBy` | Yes | Simple property mapping |
+| 2 | `IProjectionConfiguration<T>` | No | No | Via `KeyedBy` | Yes | Organized lambda groups |
+| 3 | `WhenHandledBy<TEvent, THandler>()` | Yes | Yes | `KeyedBy` + `OverrideProjectionId` | Yes | Complex logic, logging, cross-aggregate |
 
 ### Performance
 
@@ -229,7 +272,7 @@ public sealed class ProjectionHandlerContext
 | `WhenHandledBy` singleton handler | ~20-50ns (`GetRequiredService`) | Zero |
 | `WhenHandledBy` transient handler | ~20-50ns + constructor | Handler instance |
 
-When all handlers in a projection are Tier 1 lambdas, the pipeline uses a zero-allocation fast path. Adding any Tier 3 handler activates the multi-ID code path with `Dictionary<string, TProjection>` tracking.
+When all handlers in a projection are Tier 1 lambdas and no `KeyedBy` selectors are registered, the pipeline uses a zero-allocation fast path. Adding `KeyedBy` selectors or any Tier 3 handler activates the multi-ID code path with `Dictionary<string, TProjection>` tracking.
 
 ### IProjectionBuilder&lt;T&gt; API Reference
 
@@ -240,6 +283,7 @@ When all handlers in a projection are Tier 1 lambdas, the pipeline uses a zero-a
 | `.Ephemeral()` | Build on-demand, no persistence |
 | `.When<TEvent>(Action<TProjection, TEvent>)` | Register a synchronous event handler (Tier 1) |
 | `.WhenHandledBy<TEvent, THandler>()` | Register a DI-resolved async event handler (Tier 3) |
+| `.KeyedBy<TEvent>(Func<TEvent, string>)` | Derive projection ID from event data (multi-stream) |
 | `.AddProjectionHandlersFromAssembly(Assembly)` | Discover handlers via assembly scanning |
 | `.WithCacheTtl(TimeSpan)` | Optional caching for ephemeral projection results |
 
@@ -293,7 +337,7 @@ If the first event for a projection ID uses `WhenTransforming` without a prior `
 
 ### Custom Projection IDs (Multi-ID)
 
-Lambda handlers (`WhenCreating`, `WhenTransforming`) always key the projection by aggregate ID. They do **not** support `OverrideProjectionId` because the lambda signature has no access to `ProjectionHandlerContext`.
+Lambda handlers (`WhenCreating`, `WhenTransforming`) always key the projection by aggregate ID. They do **not** support `OverrideProjectionId` or `KeyedBy` because the immutable projection builder has a different handler model.
 
 If you need to key an immutable projection by something other than aggregate ID (e.g., by customer, by region, by tier), use a DI-resolved handler via `WhenHandledBy`:
 
@@ -688,7 +732,27 @@ Both projections stay in sync automatically -- events are the synchronization me
 
 ### Cross-Aggregate Projections
 
-Build projections that span multiple aggregates by keying on a shared business concept (e.g., customer ID):
+The preferred approach for cross-aggregate projections is [`KeyedBy`](#multi-stream-projections-keyedby), which routes events to projection instances by a shared business concept automatically during `SaveAsync()`:
+
+```csharp
+builder.AddProjection<CustomerOrderHistory>(p => p
+    .Inline()
+    .KeyedBy<OrderCreated>(e => e.CustomerId)
+    .KeyedBy<OrderShipped>(e => e.CustomerId)
+    .When<OrderCreated>((proj, e) =>
+    {
+        proj.CustomerId = e.CustomerId;
+        proj.TotalOrders++;
+        proj.TotalSpent += e.TotalAmount;
+        proj.LastOrderDate = e.OccurredAt;
+    })
+    .When<OrderShipped>((proj, e) =>
+    {
+        proj.LastShippedAt = e.ShippedAt;
+    }));
+```
+
+For cases where you need full DI access or async operations in the handler, use a standalone event handler with manual store access:
 
 ```csharp
 public class CustomerOrderHistoryHandler : IEventHandler<OrderCreated>
@@ -959,7 +1023,7 @@ if (existing?.LastProcessedVersion >= @event.Version) return;
 
 | Practice | Recommendation |
 |----------|----------------|
-| **Start simple** | Use inline lambdas. Graduate to DI handlers or immutable projections only when needed |
+| **Start simple** | Use inline lambdas. Add `KeyedBy` for multi-stream. Graduate to DI handlers only when needed |
 | **Idempotency** | Make all projection handlers safe to replay |
 | **Denormalization** | Don't be afraid to duplicate data for query optimization |
 | **Mode selection** | Inline for immediate consistency, async for eventual, ephemeral for ad-hoc |

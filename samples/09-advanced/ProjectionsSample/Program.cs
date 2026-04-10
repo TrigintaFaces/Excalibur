@@ -11,7 +11,7 @@
 // - IProjection<TKey> - Read model interface
 // - IProjectionStore<T> - Storage abstraction
 // - AddProjection<T>().Inline() - Framework-managed inline projections
-// - Multi-stream projections - Aggregating across streams (handler-based)
+// - KeyedBy<TEvent>() - Multi-stream projections keyed by custom data
 // - Checkpoint tracking - For async projection support
 // - Projection rebuild - Rebuilding from scratch
 // - IEventSourcedRepository - Aggregate persistence
@@ -41,8 +41,9 @@ Console.WriteLine();
 
 var services = new ServiceCollection();
 
-// Add logging
+// Add logging and metrics (IMeterFactory required by projection observability)
 services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Information));
+services.AddMetrics();
 
 // Add event serializer (required for event sourcing)
 services.AddSingleton<IEventSerializer, JsonEventSerializer>();
@@ -55,7 +56,7 @@ services.AddExcaliburEventSourcing(builder =>
 	_ = builder.AddRepository<ProductAggregate, Guid>(id => new ProductAggregate(id));
 
 	// -----------------------------------------------------------------------
-	// Inline projection: ProductCatalogProjection
+	// Inline projection: ProductCatalogProjection (single-stream)
 	// -----------------------------------------------------------------------
 	// This projection demonstrates all three handler tiers:
 	//
@@ -90,6 +91,121 @@ services.AddExcaliburEventSourcing(builder =>
 		})
 		// Tier 3: DI-resolved handler (logs discontinuation reason)
 		.WhenHandledBy<ProductDiscontinued, ProductDiscontinuedHandler>());
+
+	// -----------------------------------------------------------------------
+	// Inline projection: CategorySummaryProjection (multi-stream via KeyedBy)
+	// -----------------------------------------------------------------------
+	// This projection aggregates data across multiple product streams into
+	// category-level summaries. KeyedBy<TEvent>() tells the framework to
+	// derive the projection ID from the event's Category field instead of
+	// the aggregate ID. This means all products in "Electronics" share one
+	// CategorySummaryProjection instance, automatically loaded and saved
+	// during SaveAsync() -- no manual handler calls needed.
+	builder.AddProjection<CategorySummaryProjection>(p => p
+		.Inline()
+		.KeyedBy<ProductCreated>(e => e.Category.ToUpperInvariant())
+		.KeyedBy<ProductPriceChanged>(e => e.Category.ToUpperInvariant())
+		.KeyedBy<ProductStockAdded>(e => e.Category.ToUpperInvariant())
+		.KeyedBy<ProductStockRemoved>(e => e.Category.ToUpperInvariant())
+		.KeyedBy<ProductDiscontinued>(e => e.Category.ToUpperInvariant())
+		.When<ProductCreated>((proj, e) =>
+		{
+			var productId = e.ProductId.ToString();
+			proj.CategoryName = e.Category;
+			proj.ProductIds.Add(productId);
+			proj.ProductPrices[productId] = e.Price;
+			proj.ProductStocks[productId] = e.InitialStock;
+			proj.TotalProducts++;
+			proj.ActiveProducts++;
+			if (e.InitialStock > 0)
+			{
+				proj.ProductsInStock++;
+				if (e.InitialStock <= 10)
+				{
+					proj.ProductsLowStock++;
+				}
+			}
+
+			RecalculatePriceStats(proj);
+			RecalculateInventoryValue(proj);
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version++;
+		})
+		.When<ProductPriceChanged>((proj, e) =>
+		{
+			proj.ProductPrices[e.ProductId.ToString()] = e.NewPrice;
+			RecalculatePriceStats(proj);
+			RecalculateInventoryValue(proj);
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version++;
+		})
+		.When<ProductStockAdded>((proj, e) =>
+		{
+			var productId = e.ProductId.ToString();
+			var oldStock = proj.ProductStocks.GetValueOrDefault(productId, 0);
+			proj.ProductStocks[productId] = e.NewStockLevel;
+			if (oldStock == 0 && e.NewStockLevel > 0)
+			{
+				proj.ProductsInStock++;
+			}
+
+			if (oldStock <= 10 && e.NewStockLevel > 10)
+			{
+				proj.ProductsLowStock--;
+			}
+			else if (oldStock > 10 && e.NewStockLevel <= 10)
+			{
+				proj.ProductsLowStock++;
+			}
+
+			RecalculateInventoryValue(proj);
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version++;
+		})
+		.When<ProductStockRemoved>((proj, e) =>
+		{
+			var productId = e.ProductId.ToString();
+			var oldStock = proj.ProductStocks.GetValueOrDefault(productId, 0);
+			proj.ProductStocks[productId] = e.NewStockLevel;
+			if (oldStock > 0 && e.NewStockLevel == 0)
+			{
+				proj.ProductsInStock--;
+			}
+
+			if (oldStock > 10 && e.NewStockLevel <= 10 && e.NewStockLevel > 0)
+			{
+				proj.ProductsLowStock++;
+			}
+			else if (oldStock <= 10 && e.NewStockLevel == 0)
+			{
+				proj.ProductsLowStock--;
+			}
+
+			RecalculateInventoryValue(proj);
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version++;
+		})
+		.When<ProductDiscontinued>((proj, e) =>
+		{
+			var productId = e.ProductId.ToString();
+			var stock = proj.ProductStocks.GetValueOrDefault(productId, 0);
+			proj.ActiveProducts--;
+			if (stock > 0)
+			{
+				proj.ProductsInStock--;
+				if (stock <= 10)
+				{
+					proj.ProductsLowStock--;
+				}
+			}
+
+			proj.ProductPrices.Remove(productId);
+			proj.ProductStocks.Remove(productId);
+			RecalculatePriceStats(proj);
+			RecalculateInventoryValue(proj);
+			proj.LastModified = DateTimeOffset.UtcNow;
+			proj.Version++;
+		}));
 });
 services.AddInMemoryEventStore();
 
@@ -105,13 +221,6 @@ services.AddSingleton<IProjectionStore<CategorySummaryProjection>>(
 // Register checkpoint store (for async projection support)
 services.AddSingleton<InMemoryCheckpointStore>();
 
-// Register the CategorySummaryProjectionHandler for multi-stream projections.
-// Multi-stream projections aggregate data across multiple aggregates (keyed by
-// category name, not aggregate ID). These cannot use AddProjection<T>().Inline()
-// because the inline system keys by aggregate ID. Instead, we use the handler-based
-// approach where the handler manages its own projection store lookups.
-services.AddSingleton<CategorySummaryProjectionHandler>();
-
 var provider = services.BuildServiceProvider();
 
 // Get services
@@ -119,7 +228,6 @@ var logger = provider.GetRequiredService<ILogger<Program>>();
 var catalogStore = provider.GetRequiredService<IProjectionStore<ProductCatalogProjection>>();
 var categoryStore = provider.GetRequiredService<IProjectionStore<CategorySummaryProjection>>();
 var checkpointStore = provider.GetRequiredService<InMemoryCheckpointStore>();
-var categoryHandler = provider.GetRequiredService<CategorySummaryProjectionHandler>();
 var repository = provider.GetRequiredService<IEventSourcedRepository<ProductAggregate, Guid>>();
 
 // ============================================================================
@@ -147,21 +255,11 @@ var chair = ProductAggregate.Create(
 var desk = ProductAggregate.Create(
 	Guid.NewGuid(), "Standing Desk", "Furniture", 599.99m, 15);
 
-// Save aggregates -- inline projections update ProductCatalogProjection automatically.
-// The CategorySummaryProjection is updated via its handler (multi-stream pattern).
+// Save aggregates -- both inline projections update automatically during SaveAsync():
+// - ProductCatalogProjection: keyed by aggregate ID (single-stream, default)
+// - CategorySummaryProjection: keyed by Category via KeyedBy<TEvent> (multi-stream)
 foreach (var aggregate in new[] { laptop, phone, headphones, chair, desk })
 {
-	// Update category summary via handler (multi-stream, keyed by category name).
-	// This must happen before SaveAsync() because SaveAsync() clears uncommitted events.
-	foreach (var evt in aggregate.GetUncommittedEvents())
-	{
-		if (evt is ProductCreated created)
-		{
-			await categoryHandler.HandleAsync(created, CancellationToken.None);
-		}
-	}
-
-	// SaveAsync persists events AND runs inline projections (ProductCatalogProjection)
 	await repository.SaveAsync(aggregate, CancellationToken.None).ConfigureAwait(false);
 }
 
@@ -176,20 +274,21 @@ foreach (var product in allProducts)
 Console.WriteLine();
 
 // ============================================================================
-// Demo 2: Multi-Stream Projections
+// Demo 2: Multi-Stream Projections (KeyedBy)
 // ============================================================================
 Console.WriteLine("╔════════════════════════════════════════════════╗");
-Console.WriteLine("║  Demo 2: Multi-Stream Projections              ║");
+Console.WriteLine("║  Demo 2: Multi-Stream Projections (KeyedBy)    ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
 Console.WriteLine("Multi-stream projections aggregate data across multiple");
 Console.WriteLine("aggregates. The CategorySummaryProjection combines data");
-Console.WriteLine("from all products in a category. Because it is keyed by");
-Console.WriteLine("category name (not aggregate ID), it uses the handler-based");
-Console.WriteLine("pattern instead of AddProjection<T>().Inline().");
+Console.WriteLine("from all products in a category. KeyedBy<TEvent>() tells");
+Console.WriteLine("the framework to derive the projection ID from the event's");
+Console.WriteLine("Category field, so all products in the same category share");
+Console.WriteLine("one projection instance -- updated automatically in SaveAsync().");
 Console.WriteLine();
 
-// Query category summaries
+// Query category summaries -- populated automatically by the inline KeyedBy projection
 var allCategories = await categoryStore.QueryAsync(null, null, CancellationToken.None);
 foreach (var category in allCategories)
 {
@@ -210,8 +309,10 @@ Console.WriteLine("╔═══════════════════�
 Console.WriteLine("║  Demo 3: Projection Updates from Events        ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("When domain events occur, inline projections update automatically");
-Console.WriteLine("during SaveAsync(). Multi-stream projections update via handlers.");
+Console.WriteLine("When domain events occur, both single-stream and multi-stream");
+Console.WriteLine("inline projections update automatically during SaveAsync().");
+Console.WriteLine("KeyedBy ensures the correct CategorySummaryProjection instance");
+Console.WriteLine("is loaded and saved without manual handler calls.");
 Console.WriteLine();
 
 // Reload aggregates from repository for mutations (correct load-mutate-save pattern)
@@ -222,16 +323,7 @@ laptop = await repository.GetByIdAsync(laptop.Id, CancellationToken.None).Config
 Console.WriteLine("1. Changing laptop price from $1,299.99 to $1,099.99 (sale!)");
 laptop.ChangePrice(1099.99m);
 
-// Update category summary via handler for multi-stream projection
-foreach (var evt in laptop.GetUncommittedEvents())
-{
-	if (evt is ProductPriceChanged priceChanged)
-	{
-		await categoryHandler.HandleAsync(priceChanged, "Electronics", CancellationToken.None);
-	}
-}
-
-// SaveAsync updates the ProductCatalogProjection inline automatically
+// SaveAsync updates both projections inline automatically
 await repository.SaveAsync(laptop, CancellationToken.None).ConfigureAwait(false);
 
 // Reload headphones for mutation
@@ -242,14 +334,6 @@ headphones = await repository.GetByIdAsync(headphones.Id, CancellationToken.None
 Console.WriteLine("2. Removing 45 headphones from stock (big sale!)");
 headphones.RemoveStock(45, "Flash sale");
 
-foreach (var evt in headphones.GetUncommittedEvents())
-{
-	if (evt is ProductStockRemoved stockRemoved)
-	{
-		await categoryHandler.HandleAsync(stockRemoved, "Electronics", CancellationToken.None);
-	}
-}
-
 await repository.SaveAsync(headphones, CancellationToken.None).ConfigureAwait(false);
 
 // Reload desk for mutation
@@ -259,14 +343,6 @@ desk = await repository.GetByIdAsync(desk.Id, CancellationToken.None).ConfigureA
 // Add more stock
 Console.WriteLine("3. Restocking desks (+10 units)");
 desk.AddStock(10);
-
-foreach (var evt in desk.GetUncommittedEvents())
-{
-	if (evt is ProductStockAdded stockAdded)
-	{
-		await categoryHandler.HandleAsync(stockAdded, "Furniture", CancellationToken.None);
-	}
-}
 
 await repository.SaveAsync(desk, CancellationToken.None).ConfigureAwait(false);
 
@@ -415,9 +491,10 @@ Console.WriteLine("╔═══════════════════�
 Console.WriteLine("║  Demo 7: Discontinue a Product                 ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("When a product is discontinued, the inline projection updates");
-Console.WriteLine("the catalog automatically. The category summary is updated");
-Console.WriteLine("via the handler-based multi-stream pattern.");
+Console.WriteLine("When a product is discontinued, both projections update");
+Console.WriteLine("automatically during SaveAsync(). The catalog projection");
+Console.WriteLine("marks the product inactive; the category summary recalculates");
+Console.WriteLine("statistics -- all driven by KeyedBy and When<T> handlers.");
 Console.WriteLine();
 
 // Reload chair for mutation
@@ -427,16 +504,7 @@ chair = await repository.GetByIdAsync(chair.Id, CancellationToken.None).Configur
 Console.WriteLine("Discontinuing the Office Chair...");
 chair.Discontinue("End of product line");
 
-// Update category summary via handler (multi-stream pattern)
-foreach (var evt in chair.GetUncommittedEvents())
-{
-	if (evt is ProductDiscontinued discontinued)
-	{
-		await categoryHandler.HandleAsync(discontinued, "Furniture", CancellationToken.None);
-	}
-}
-
-// SaveAsync updates ProductCatalogProjection inline automatically
+// SaveAsync updates both projections inline automatically
 await repository.SaveAsync(chair, CancellationToken.None).ConfigureAwait(false);
 
 Console.WriteLine();
@@ -461,9 +529,9 @@ Console.WriteLine("=================================================");
 Console.WriteLine();
 Console.WriteLine("Key takeaways:");
 Console.WriteLine("  - AddProjection<T>().Inline() for single-stream projections");
-Console.WriteLine("  - Inline projections update automatically during SaveAsync()");
-Console.WriteLine("  - No manual GetUncommittedEvents() iteration needed for inline");
-Console.WriteLine("  - Multi-stream projections use handler-based pattern");
+Console.WriteLine("  - KeyedBy<TEvent>() for multi-stream projections (custom key)");
+Console.WriteLine("  - Both projection types update automatically during SaveAsync()");
+Console.WriteLine("  - No manual GetUncommittedEvents() iteration needed");
 Console.WriteLine("  - IProjectionStore<T> provides storage abstraction for both");
 Console.WriteLine("  - Checkpoints enable async projections and rebuilds");
 Console.WriteLine("  - QueryOptions support filtering, sorting, and pagination");
@@ -478,3 +546,29 @@ Console.WriteLine();
 
 #pragma warning restore CA1506
 #pragma warning restore CA1303
+
+// ============================================================================
+// Helper methods for CategorySummaryProjection recalculations
+// ============================================================================
+
+static void RecalculatePriceStats(CategorySummaryProjection proj)
+{
+	if (proj.ProductPrices.Count == 0)
+	{
+		proj.AveragePrice = 0;
+		proj.MinPrice = 0;
+		proj.MaxPrice = 0;
+		return;
+	}
+
+	var prices = proj.ProductPrices.Values.ToList();
+	proj.AveragePrice = Math.Round(prices.Average(), 2);
+	proj.MinPrice = prices.Min();
+	proj.MaxPrice = prices.Max();
+}
+
+static void RecalculateInventoryValue(CategorySummaryProjection proj)
+{
+	proj.TotalInventoryValue = proj.ProductStocks
+		.Sum(ps => ps.Value * proj.ProductPrices.GetValueOrDefault(ps.Key, 0));
+}

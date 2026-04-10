@@ -473,9 +473,6 @@ static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtension
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddInboxHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddOutboxHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.HasExcaliburOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
-Excalibur.Outbox.Partitioning.IOutboxPartitioner
-Excalibur.Outbox.Partitioning.IOutboxPartitioner.GetPartition(string! tenantId) -> int
-Excalibur.Outbox.Partitioning.IOutboxPartitioner.PartitionCount.get -> int
 Excalibur.Outbox.Partitioning.OutboxPartitionOptions
 Excalibur.Outbox.Partitioning.OutboxPartitionOptions.OutboxPartitionOptions() -> void
 Excalibur.Outbox.Partitioning.OutboxPartitionOptions.ErrorBackoffInterval.get -> System.TimeSpan
