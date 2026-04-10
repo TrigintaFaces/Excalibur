@@ -37,5 +37,11 @@
 		<!-- Keep analyzers enabled so warnings are visible, just not blocking -->
 		<RunAnalyzers>true</RunAnalyzers>
 		<RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+		<!-- Suppress non-shipping code warnings that add noise to CI output -->
+		<!-- CS8604: Possible null reference argument (benchmark setup code) -->
+		<!-- CA1812: Internal class never instantiated (benchmark helper types) -->
+		<!-- CA1852: Type can be sealed (benchmark helper types) -->
+		<!-- CA1859: Change return type for performance (benchmark fixtures) -->
+		<NoWarn>$(NoWarn);CS8604;CA1812;CA1852;CA1859</NoWarn>
 	</PropertyGroup>
 </Project>

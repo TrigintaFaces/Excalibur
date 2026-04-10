@@ -4,6 +4,7 @@
 using Excalibur.Hosting.Configuration;
 
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 using ConfigurationValidationException = Excalibur.Hosting.Configuration.ConfigurationValidationException;
 using ConfigurationValidationResult = Excalibur.Hosting.Configuration.ConfigurationValidationResult;
@@ -30,7 +31,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -60,7 +61,8 @@ public sealed class ConfigurationValidationServiceShould
 			_configuration,
 			validators,
 			_applicationLifetime,
-			_logger);
+			_logger,
+			Options.Create(new ConfigurationValidationOptions()));
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -87,7 +89,8 @@ public sealed class ConfigurationValidationServiceShould
 			_configuration,
 			validators,
 			_applicationLifetime,
-			_logger);
+			_logger,
+			Options.Create(new ConfigurationValidationOptions()));
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -113,7 +116,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ConfigurationValidationException>(() => service.StartAsync(CancellationToken.None))
@@ -139,7 +142,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -165,7 +168,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ConfigurationValidationException>(() => service.StartAsync(CancellationToken.None))
@@ -191,7 +194,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -223,7 +226,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ConfigurationValidationException>(() => service.StartAsync(CancellationToken.None))
@@ -242,7 +245,8 @@ public sealed class ConfigurationValidationServiceShould
 			_configuration,
 			validators,
 			_applicationLifetime,
-			_logger);
+			_logger,
+			Options.Create(new ConfigurationValidationOptions()));
 
 		// Act
 		await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -259,7 +263,8 @@ public sealed class ConfigurationValidationServiceShould
 			_configuration,
 			validators,
 			_applicationLifetime,
-			_logger);
+			_logger,
+			Options.Create(new ConfigurationValidationOptions()));
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -293,7 +298,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ConfigurationValidationException>(() => service.StartAsync(CancellationToken.None))
@@ -328,7 +333,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ConfigurationValidationException>(() => service.StartAsync(CancellationToken.None))
@@ -366,7 +371,8 @@ public sealed class ConfigurationValidationServiceShould
 			configuration,
 			validators,
 			_applicationLifetime,
-			_logger);
+			_logger,
+			Options.Create(new ConfigurationValidationOptions()));
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -377,28 +383,19 @@ public sealed class ConfigurationValidationServiceShould
 	}
 
 	[Fact]
-	public async Task UseDefaultOptionsWhenNullPassed()
+	public void ThrowOnNullOptions()
 	{
-		// Arrange - options is null, should use defaults (Enabled=true, FailFast=true)
-		var validator = A.Fake<IConfigurationValidator>();
-		_ = A.CallTo(() => validator.ConfigurationName).Returns("TestValidator");
-		_ = A.CallTo(() => validator.Priority).Returns(100);
-		_ = A.CallTo(() => validator.ValidateAsync(A<IConfiguration>._, A<CancellationToken>._))
-			.Returns(ConfigurationValidationResult.Failure("Test error"));
+		// Arrange
+		var validators = new List<IConfigurationValidator>();
 
-		var validators = new List<IConfigurationValidator> { validator };
-		var service = new ConfigurationValidationService(
-			_configuration,
-			validators,
-			_applicationLifetime,
-			_logger,
-			options: null);
-
-		// Act & Assert - default FailFast=true should throw
-		_ = await Should.ThrowAsync<ConfigurationValidationException>(() => service.StartAsync(CancellationToken.None))
-			.ConfigureAwait(false);
-
-		_ = A.CallTo(() => _applicationLifetime.StopApplication()).MustHaveHappenedOnceExactly();
+		// Act & Assert - null options should throw ArgumentNullException
+		Should.Throw<ArgumentNullException>(() =>
+			new ConfigurationValidationService(
+				_configuration,
+				validators,
+				_applicationLifetime,
+				_logger,
+				null!));
 	}
 
 	[Fact]
@@ -429,7 +426,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act - should not throw since exception is ignored and other validator passes
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -450,7 +447,8 @@ public sealed class ConfigurationValidationServiceShould
 				null!,
 				new List<IConfigurationValidator>(),
 				_applicationLifetime,
-				_logger));
+				_logger,
+				Options.Create(new ConfigurationValidationOptions())));
 	}
 
 	[Fact]
@@ -461,7 +459,8 @@ public sealed class ConfigurationValidationServiceShould
 				_configuration,
 				null!,
 				_applicationLifetime,
-				_logger));
+				_logger,
+				Options.Create(new ConfigurationValidationOptions())));
 	}
 
 	[Fact]
@@ -472,7 +471,8 @@ public sealed class ConfigurationValidationServiceShould
 				_configuration,
 				new List<IConfigurationValidator>(),
 				null!,
-				_logger));
+				_logger,
+				Options.Create(new ConfigurationValidationOptions())));
 	}
 
 	[Fact]
@@ -483,7 +483,8 @@ public sealed class ConfigurationValidationServiceShould
 				_configuration,
 				new List<IConfigurationValidator>(),
 				_applicationLifetime,
-				null!));
+				null!,
+				Options.Create(new ConfigurationValidationOptions())));
 	}
 
 	[Fact]
@@ -507,7 +508,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act
 		var exception = await Should.ThrowAsync<ConfigurationValidationException>(() => service.StartAsync(CancellationToken.None))
@@ -536,7 +537,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act - should complete without throwing
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -560,7 +561,7 @@ public sealed class ConfigurationValidationServiceShould
 			validators,
 			_applicationLifetime,
 			_logger,
-			options);
+			Options.Create(options));
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(false);

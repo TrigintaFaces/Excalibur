@@ -10,8 +10,15 @@
     <IsSampleProject>true</IsSampleProject>
     <IsPackable>false</IsPackable>
     <ProjectClassification>Sample</ProjectClassification>
-    <!-- CS1591: Samples are non-shipping code; XML doc enforcement is for shipping packages only -->
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Samples are non-shipping code; suppress warnings that add noise to CI output -->
+    <!-- CS1591: Missing XML comment -->
+    <!-- CS8604: Possible null reference argument (sample demo code) -->
+    <!-- CS8625: Cannot convert null literal to non-nullable (sample demo code) -->
+    <!-- CA1812: Internal class never instantiated (sample helper types) -->
+    <!-- CA1852: Type can be sealed (sample helper types) -->
+    <!-- CA1859: Change return type for performance (sample fixtures) -->
+    <!-- IL2026: RequiresUnreferencedCode (AOT not required for samples) -->
+    <NoWarn>$(NoWarn);CS1591;CS8604;CS8625;CA1812;CA1852;CA1859;IL2026</NoWarn>
   </PropertyGroup>
 
   <!-- ============================================================================================

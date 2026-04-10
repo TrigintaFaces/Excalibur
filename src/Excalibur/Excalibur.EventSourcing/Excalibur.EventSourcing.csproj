@@ -23,6 +23,7 @@
     <InternalsVisibleTo Include="Excalibur.EventSourcing.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Postgres" />
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Sqlite" />
+    <InternalsVisibleTo Include="Excalibur.Benchmarks" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">
