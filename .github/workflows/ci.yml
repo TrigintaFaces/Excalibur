@@ -94,7 +94,7 @@ jobs:
           echo "✅ Package creation successful"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: |
@@ -116,7 +116,7 @@ jobs:
           ls -lh build-output-linux.tar.gz
 
       - name: Upload build output
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: build-output-linux
           path: build-output-linux.tar.gz
@@ -177,7 +177,7 @@ jobs:
           ls -lh ${{ matrix.artifact-name }}.tar.gz
 
       - name: Upload build output
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-name }}.tar.gz
@@ -288,7 +288,7 @@ jobs:
 
       - name: Upload build output for inspection
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: docs-build-output
           path: docs-site/build-output.txt
@@ -363,7 +363,7 @@ jobs:
 
       - name: Upload smoke test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-smoke
           path: TestResults/*.trx
@@ -388,7 +388,7 @@ jobs:
 
       - name: Upload shard coverage report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: unit-shard-coverage-report
           path: management/reports/UnitShardReport
@@ -457,14 +457,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-unit-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
@@ -533,14 +533,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-async-risk-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-unit-async-risk-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
@@ -596,7 +596,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-windows-deterministic
           path: TestResults/*.trx
@@ -652,7 +652,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-windows-async-risk
           path: TestResults/*.trx
@@ -712,7 +712,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-macos-deterministic
           path: TestResults/*.trx
@@ -775,7 +775,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-unit-macos-async-risk
           path: TestResults/*.trx
@@ -872,7 +872,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-integration-${{ matrix.os }}
           path: TestResults/*.trx
@@ -880,7 +880,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-integration-${{ matrix.os }}
           path: TestResults/**/coverage.cobertura.xml
@@ -935,7 +935,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-functional
           path: TestResults/*.trx
@@ -943,7 +943,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-functional
           path: TestResults/*/coverage.cobertura.xml
@@ -995,7 +995,7 @@ jobs:
 
       - name: Upload contract test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-contract
           path: TestResults/*.trx
@@ -1003,7 +1003,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-contract
           path: TestResults/*/coverage.cobertura.xml
@@ -1055,7 +1055,7 @@ jobs:
 
       - name: Upload architecture test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-architecture
           path: TestResults/*.trx
@@ -1063,7 +1063,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage-architecture
           path: TestResults/*/coverage.cobertura.xml
@@ -1088,7 +1088,7 @@ jobs:
 
       - name: Upload quarantine governance report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: flaky-quarantine-report
           path: management/reports/FlakyQuarantineReport
@@ -1158,7 +1158,7 @@ jobs:
 
       - name: Upload quarantined test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-flaky-quarantine
           path: TestResults/*.trx
@@ -1198,7 +1198,7 @@ jobs:
           ./eng/ci/serialization-boundary-audit.ps1 -OutDir management/reports/SerializationBoundaryReport
       - name: Upload serialization boundary report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: serialization-boundary-report
           path: management/reports/SerializationBoundaryReport
@@ -1229,7 +1229,7 @@ jobs:
           Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
       - name: Upload trim/AOT audit
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: aot-build-analysis
           path: management/reports/AotBuildAnalysis
@@ -1322,7 +1322,7 @@ jobs:
 
       - name: Upload security results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: security-analysis
           path: security-results.sarif
@@ -1469,7 +1469,7 @@ jobs:
 
       - name: Upload conformance results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: transport-conformance-results
           path: |
@@ -1599,7 +1599,7 @@ jobs:
         run: |
           ./eng/ci/pack-report.ps1 -OutDir management/reports/PackReport
       - name: Upload pack report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pack-report
           path: management/reports/PackReport
@@ -1890,7 +1890,7 @@ jobs:
 
       - name: Upload build output on failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: aot-sample-build-output
           path: aot-build-output.txt

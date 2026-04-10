@@ -115,7 +115,7 @@ jobs:
           ls -lh qg-build-output.tar.gz
 
       - name: Upload build output
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: qg-build-output
           path: qg-build-output.tar.gz
@@ -177,7 +177,7 @@ jobs:
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload shard coverage artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-shard-${{ matrix.shard.name }}
           path: ./coverage/**/coverage.cobertura.xml
@@ -243,7 +243,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: ./coverage/merged
@@ -307,7 +307,7 @@ jobs:
           fi
 
       - name: Upload test results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
@@ -358,7 +358,7 @@ jobs:
             --results-directory ./transport-conformance-results
 
       - name: Upload transport conformance results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: transport-conformance-results
@@ -531,7 +531,7 @@ jobs:
 
       - name: Upload API compatibility report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: api-compat-report-quality-gates
           path: management/reports/ApiCompatReport
