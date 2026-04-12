@@ -100,7 +100,16 @@ Excalibur.Dispatch.AuditLogging.Retention.IAuditRetentionService
 Excalibur.Dispatch.AuditLogging.Retention.IAuditRetentionService.EnforceRetentionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.AuditLogging.Retention.IAuditRetentionService.GetRetentionPolicyAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.AuditLogging.Retention.AuditRetentionPolicy!>!
 Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AnnotationAccessDenied = 93600 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AnnotationMetaAuditFailed = 93602 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AnnotationReadAccessDenied = 93601 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditActorResolutionFailed = 93707 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditAssertionRecorded = 93701 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditAssertionSkipped = 93703 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditBatchWritten = 93102 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditContextLoggingFailed = 93705 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditContextMiddlewarePopulated = 93706 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditContextScopeInitialized = 93700 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventCaptured = 93001 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventEnriched = 93002 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditEventFiltered = 93003 -> int
@@ -116,6 +125,7 @@ const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditInteg
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditLogAccessDenied = 93308 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditLoggerCreated = 93000 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditMiddlewareExecuting = 93005 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditObservationRecorded = 93702 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditQueryExecuted = 93301 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditQueryServiceCreated = 93300 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditReportGenerated = 93302 -> int
@@ -128,6 +138,7 @@ const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWrite
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWriteRetried = 93104 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.AuditWriterCreated = 93100 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.DatadogAuditAdapterCreated = 93202 -> int
+const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.MaxAssertionsExceeded = 93704 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.MetaAuditLoggingFailed = 93310 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SentinelAuditAdapterCreated = 93203 -> int
 const Excalibur.Dispatch.AuditLogging.Diagnostics.AuditLoggingEventId.SiemBatchForwarded = 93402 -> int
@@ -145,6 +156,11 @@ static Excalibur.Dispatch.AuditLogging.AuditHasher.ComputeHash(Excalibur.Dispatc
 static Excalibur.Dispatch.AuditLogging.AuditHasher.VerifyHash(Excalibur.Dispatch.Compliance.AuditEvent! auditEvent, string? previousHash) -> bool
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAlerting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAlerting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Alerting.AuditAlertOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAnnotations(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAnnotations(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.AuditAnnotationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditAnnotations<TStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditContext(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditContext(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.AuditContextOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditLogging(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditLogging(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Excalibur.Dispatch.Compliance.IAuditStore!>! storeFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditLogging<TAuditStore>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -152,6 +168,7 @@ static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExt
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditRetention(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditRetention(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Retention.AuditRetentionOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddAuditRoleProvider<TRoleProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddRbacAuditAnnotationStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.AddRbacAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.UseAuditLogEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AuditLoggingServiceCollectionExtensions.UseAuditLogEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Encryption.AuditEncryptionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -23,6 +23,9 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	private readonly MultiStreamProjection<TProjection> _projection = new();
 	private ProjectionMode _mode = ProjectionMode.Async;
 	private TimeSpan? _cacheTtl;
+	private Func<string, CancellationToken, Task>? _deleteAction;
+	private Type? _storeType;
+	private ProjectionOptions? _options;
 
 	/// <summary>
 	/// Creates a builder with a registry for direct build (used by tests).
@@ -54,6 +57,13 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	public IProjectionBuilder<TProjection> Async()
 	{
 		_mode = ProjectionMode.Async;
+		return this;
+	}
+
+	/// <inheritdoc />
+	public IProjectionBuilder<TProjection> Ephemeral()
+	{
+		_mode = ProjectionMode.Ephemeral;
 		return this;
 	}
 
@@ -177,10 +187,59 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		return this;
 	}
 
+	/// <inheritdoc />
+	public IProjectionBuilder<TProjection> WhenDeleted(Func<string, CancellationToken, Task> deleteAction)
+	{
+		ArgumentNullException.ThrowIfNull(deleteAction);
+		_deleteAction = deleteAction;
+		return this;
+	}
+
+	/// <inheritdoc />
+	public IProjectionBuilder<TProjection> IdentityFrom<TEvent>(Func<TEvent, string> resolver)
+		where TEvent : IDomainEvent
+	{
+		ArgumentNullException.ThrowIfNull(resolver);
+		_projection.AddKeySelector(resolver);
+		return this;
+	}
+
+	/// <inheritdoc />
+	public IProjectionBuilder<TProjection> WithStore<TStore>()
+		where TStore : class, IProjectionStore<TProjection>
+	{
+		_storeType = typeof(TStore);
+		return this;
+	}
+
+	/// <inheritdoc />
+	public IProjectionBuilder<TProjection> WithOptions(Action<ProjectionOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(configure);
+		_options ??= new ProjectionOptions();
+		configure(_options);
+		return this;
+	}
+
 	/// <summary>
 	/// Gets the optional cache TTL configured via <see cref="WithCacheTtl"/>.
 	/// </summary>
 	internal TimeSpan? CacheTtl => _cacheTtl;
+
+	/// <summary>
+	/// Gets the delete action configured via <see cref="WhenDeleted"/>.
+	/// </summary>
+	internal Func<string, CancellationToken, Task>? DeleteAction => _deleteAction;
+
+	/// <summary>
+	/// Gets the store type override configured via <see cref="WithStore{TStore}"/>.
+	/// </summary>
+	internal Type? StoreType => _storeType;
+
+	/// <summary>
+	/// Gets the projection options configured via <see cref="WithOptions"/>.
+	/// </summary>
+	internal ProjectionOptions? Options => _options;
 
 	/// <summary>
 	/// Builds and registers the projection using the registry provided at construction.
@@ -216,7 +275,10 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			_mode,
 			_projection,
 			inlineApply,
-			_cacheTtl);
+			_cacheTtl,
+			_deleteAction,
+			_storeType,
+			_options);
 
 		registry.Register(registration);
 	}

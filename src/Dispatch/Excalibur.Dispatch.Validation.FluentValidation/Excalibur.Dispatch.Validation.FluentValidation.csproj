@@ -5,8 +5,8 @@
     <PackageId>Excalibur.Dispatch.Validation.FluentValidation</PackageId>
     <Description>FluentValidation integration for the Excalibur framework. Provides IValidatorResolver implementation using FluentValidation validators.</Description>
     <PackageTags>dispatch;validation;fluentvalidation;cqrs;messaging</PackageTags>
-    <!-- AOT: NOT compatible. FluentValidatorResolver uses MakeGenericType for IValidator<T> resolution; AotFluentValidatorResolver requires source generator. -->
-    <IsAotCompatible>false</IsAotCompatible>
+    <!-- AOT: Compatible via dual-path pattern. FluentValidatorResolver (JIT) annotated with [RequiresDynamicCode]; AotFluentValidatorResolver (AOT) uses source-generated dispatch. -->
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="FluentValidation" />

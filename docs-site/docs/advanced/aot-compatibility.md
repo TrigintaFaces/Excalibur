@@ -8,7 +8,7 @@ description: Per-package Native AOT compatibility status for Excalibur
 
 This page documents the Native AOT compatibility status for every shipping package. Use this as a reference when planning AOT-published applications.
 
-**Summary:** 139 of 173 packages are AOT-compatible. 34 packages have documented blocking dependencies.
+**Summary:** 150 of 170 packages are AOT-compatible. 20 packages have documented blocking dependencies.
 
 For setup instructions and source generator usage, see the [Native AOT Guide](native-aot.md).
 
@@ -44,7 +44,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 |---------|-----------|-------|
 | `Excalibur.Dispatch.Caching` | AOT-safe | `CachingMiddleware` uses `RuntimeFeature.IsDynamicCodeSupported` branching |
 | `Excalibur.Dispatch.Resilience.Polly` | AOT-safe | Polly v8 is AOT-compatible |
-| `Excalibur.Dispatch.Validation.FluentValidation` | **Not compatible** | FluentValidation uses `Expression.Compile()` |
+| `Excalibur.Dispatch.Validation.FluentValidation` | AOT-safe | Dual-path: `AotFluentValidatorResolver` + source-gen `IAotValidationDispatcher` (Sprint 758) |
 
 ### Serialization
 
@@ -53,7 +53,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.Dispatch.Serialization.MemoryPack` | AOT-safe | MemoryPack uses source generation |
 | `Excalibur.Dispatch.Serialization.Avro` | **Not compatible** | Apache.Avro uses runtime code generation |
 | `Excalibur.Dispatch.Serialization.MessagePack` | **Not compatible** | MessagePack reflection-based resolvers |
-| `Excalibur.Dispatch.Serialization.Protobuf` | **Not compatible** | protobuf-net uses `Expression.Compile()` |
+| `Excalibur.Dispatch.Serialization.Protobuf` | AOT-safe | Uses Google.Protobuf (v3.32.1+), which is AOT-compatible (Sprint 757) |
 
 ### Transport
 
@@ -62,10 +62,10 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | `Excalibur.Dispatch.Transport.Abstractions` | AOT-safe | |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | AOT-safe | Builder pattern, no reflection |
 | `Excalibur.Dispatch.Transport.AwsSqs` | AOT-safe | Builder pattern, no reflection |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | **Not compatible** | Azure SDK dependency uses reflection |
+| `Excalibur.Dispatch.Transport.AzureServiceBus` | AOT-safe | `MessageDeserializerRegistry` typed pattern; `AzureLogicAppsScheduler`/`EventGridTransportSender` annotated (Sprint 759) |
 | `Excalibur.Dispatch.Transport.GooglePubSub` | **Not compatible** | Google Cloud SDK dependency uses reflection |
 | `Excalibur.Dispatch.Transport.Kafka` | **Not compatible** | Confluent.Kafka SchemaRegistry uses `Activator.CreateInstance` |
-| `Excalibur.Dispatch.Transport.Grpc` | **Not compatible** | gRPC code generation not AOT-safe |
+| `Excalibur.Dispatch.Transport.Grpc` | AOT-safe | `GrpcJsonSerializerContext` source-gen JSON for all 10 transport types (Sprint 757) |
 
 ### Hosting
 
@@ -97,7 +97,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
 | `Excalibur.Dispatch.Compliance.Abstractions` | AOT-safe | |
-| `Excalibur.Dispatch.Compliance` | **Not compatible** | Uses assembly scanning for data inventory |
+| `Excalibur.Dispatch.Compliance` | AOT-safe | Reflection paths annotated with `[DynamicallyAccessedMembers]` (Sprint 757) |
 | `Excalibur.Dispatch.Compliance.Aws` | **Not compatible** | AWS KMS SDK dependency |
 | `Excalibur.Dispatch.Compliance.Azure` | AOT-safe | |
 | `Excalibur.Dispatch.Compliance.Vault` | AOT-safe | |
@@ -223,7 +223,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
-| `Excalibur.Saga` | **Not compatible** | Uses `MakeGenericType` for saga resolution |
+| `Excalibur.Saga` | AOT-safe | Source-gen registry population via `IPostConfigureOptions` pattern (Sprint 755) |
 | `Excalibur.Saga.SqlServer` | AOT-safe | |
 | `Excalibur.Saga.Postgres` | AOT-safe | |
 | `Excalibur.Saga.MongoDB` | AOT-safe | |
@@ -289,7 +289,7 @@ For setup instructions and source generator usage, see the [Native AOT Guide](na
 | Package | AOT Status | Notes |
 |---------|-----------|-------|
 | `Excalibur.Security.Abstractions` | AOT-safe | |
-| `Excalibur.Security` | **Not compatible** | Uses assembly scanning |
+| `Excalibur.Security` | AOT-safe | `[DynamicallyAccessedMembers]` annotations for property-level encryption (Sprint 756) |
 | `Excalibur.Compliance.SqlServer` | AOT-safe | |
 | `Excalibur.Compliance.Postgres` | AOT-safe | |
 | `Excalibur.Caching` | **Not compatible** | HybridCache uses reflection |
@@ -351,7 +351,7 @@ These third-party dependencies prevent AOT compatibility in the affected package
 | FluentValidation | `Expression.Compile()` for validators | FluentValidation middleware |
 | Apache.Avro | Runtime code generation | Avro serialization |
 | MessagePack-CSharp | Reflection-based resolvers | MessagePack serialization |
-| protobuf-net | `Expression.Compile()` | Protobuf serialization |
+| protobuf-net | `Expression.Compile()` | *(none currently — `Excalibur.Dispatch.Serialization.Protobuf` uses Google.Protobuf, which is AOT-safe)* |
 | OpenSearch SDK | Reflection-based serialization | OpenSearch data |
 | Consul SDK | Reflection-based HTTP client | Consul leader election |
 | Kubernetes SDK | Reflection-based client | Kubernetes leader election |

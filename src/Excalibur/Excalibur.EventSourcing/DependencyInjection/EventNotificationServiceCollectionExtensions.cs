@@ -267,6 +267,8 @@ public static class EventNotificationServiceCollectionExtensions
 		builder.Services.TryAddSingleton<InlineProjectionProcessor>();
 		builder.Services.TryAddSingleton<IEventNotificationBroker, EventNotificationBroker>();
 		builder.Services.TryAddSingleton<ICursorMapStore, InMemoryCursorMapStore>();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<Options.IValidateOptions<EventNotificationOptions>, EventNotificationOptionsValidator>());
 		builder.UseProjectionRecovery();
 
 		// Observability: metrics, health state, health check

@@ -8,7 +8,9 @@ on:
       - 'samples/11-aot/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
+      - 'eng/ci/Invoke-AotSuppressionAudit.ps1'
       - 'eng/ci/aot-warning-baseline.json'
+      - 'eng/ci/aot-suppression-baseline.json'
   pull_request:
     branches: [main]
     paths:
@@ -16,7 +18,9 @@ on:
       - 'samples/11-aot/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
+      - 'eng/ci/Invoke-AotSuppressionAudit.ps1'
       - 'eng/ci/aot-warning-baseline.json'
+      - 'eng/ci/aot-suppression-baseline.json'
   workflow_dispatch:
     inputs:
       runtime:
@@ -31,6 +35,67 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  aot-suppression-audit:
+    name: AOT Suppression Baseline Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run suppression audit
+        shell: pwsh
+        run: |
+          ./eng/ci/Invoke-AotSuppressionAudit.ps1 `
+            -OutputPath ./suppression-audit-results
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::AOT suppression audit failed -- new unapproved suppressions detected"
+            exit $LASTEXITCODE
+          }
+
+      - name: Report suppression audit to step summary
+        if: always()
+        shell: pwsh
+        run: |
+          $jsonPath = './suppression-audit-results/aot-suppression-audit.json'
+          if (Test-Path $jsonPath) {
+            $report = Get-Content $jsonPath | ConvertFrom-Json
+            "" >> $env:GITHUB_STEP_SUMMARY
+            "## AOT Suppression Audit" >> $env:GITHUB_STEP_SUMMARY
+            "" >> $env:GITHUB_STEP_SUMMARY
+            "| Metric | Value |" >> $env:GITHUB_STEP_SUMMARY
+            "|--------|-------|" >> $env:GITHUB_STEP_SUMMARY
+            "| Source Suppressions | $($report.SourceSuppressions) |" >> $env:GITHUB_STEP_SUMMARY
+            "| Baseline Entries | $($report.BaselineEntries) |" >> $env:GITHUB_STEP_SUMMARY
+            "| New (unapproved) | $($report.NewSuppressions) |" >> $env:GITHUB_STEP_SUMMARY
+            "| Stale (removed) | $($report.StaleEntries) |" >> $env:GITHUB_STEP_SUMMARY
+            "" >> $env:GITHUB_STEP_SUMMARY
+            if ($report.NewSuppressions -gt 0) {
+              "### New Unapproved Suppressions" >> $env:GITHUB_STEP_SUMMARY
+              "" >> $env:GITHUB_STEP_SUMMARY
+              foreach ($s in $report.NewDetails | Select-Object -First 20) {
+                "- ``$($s.File):$($s.Line)`` $($s.WarningId)" >> $env:GITHUB_STEP_SUMMARY
+                Write-Host "::error file=$($s.File),line=$($s.Line)::New unapproved AOT suppression: $($s.WarningId)"
+              }
+            }
+            if ($report.StaleEntries -gt 0) {
+              "### Stale Baseline Entries" >> $env:GITHUB_STEP_SUMMARY
+              "" >> $env:GITHUB_STEP_SUMMARY
+              foreach ($s in $report.StaleDetails | Select-Object -First 20) {
+                "- ``$($s.File):$($s.Line)`` $($s.WarningId)" >> $env:GITHUB_STEP_SUMMARY
+                Write-Host "::warning file=$($s.File),line=$($s.Line)::Stale suppression baseline entry: $($s.WarningId)"
+              }
+            }
+          }
+
+      - name: Upload suppression audit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aot-suppression-audit
+          path: suppression-audit-results/
+
   aot-publish-validation:
     name: AOT Publish Validation
     runs-on: ubuntu-latest
@@ -59,7 +124,7 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Package restore metadata for downstream job
+      - name: Package restore metadata for downstream jobs
         shell: bash
         run: |
           set -euo pipefail
@@ -124,6 +189,87 @@ jobs:
             validation-results/aot-validation-report.html
             validation-results/aot-validation-report.json
             validation-results/*.log
+
+  aot-smoke-test:
+    name: AOT Binary Smoke Test
+    runs-on: ubuntu-latest
+    needs: aot-publish-validation
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Download restore metadata
+        uses: actions/download-artifact@v8
+        with:
+          name: aot-restore-output
+
+      - name: Extract restore output
+        run: tar -xzf aot-restore-output.tar.gz && rm aot-restore-output.tar.gz
+
+      - name: Restore NuGet packages
+        run: dotnet restore Excalibur.sln --verbosity quiet
+
+      - name: Publish AOT binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Publishing AOT sample binary for smoke test..."
+          dotnet publish samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
+            --configuration Release \
+            --runtime linux-x64 \
+            --verbosity minimal \
+            -p:SuppressTrimAnalysisWarnings=false \
+            -p:TrimmerSingleWarn=false
+          echo "Publish complete."
+
+      - name: Verify binary exists and check size
+        shell: bash
+        run: |
+          set -euo pipefail
+          BINARY="samples/11-aot/Excalibur.Dispatch.Aot.Sample/bin/Release/net10.0/linux-x64/publish/Excalibur.Dispatch.Aot.Sample"
+          if [ ! -f "$BINARY" ]; then
+            echo "::error::AOT binary not found at $BINARY"
+            exit 1
+          fi
+          SIZE_MB=$(du -m "$BINARY" | cut -f1)
+          echo "AOT binary size: ${SIZE_MB}MB"
+          echo "## AOT Binary Size: ${SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
+          if [ "$SIZE_MB" -gt 75 ]; then
+            echo "::warning::AOT binary exceeds 75MB threshold (${SIZE_MB}MB)"
+          fi
+
+      - name: Run AOT smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          BINARY="samples/11-aot/Excalibur.Dispatch.Aot.Sample/bin/Release/net10.0/linux-x64/publish/Excalibur.Dispatch.Aot.Sample"
+          chmod +x "$BINARY"
+          echo "Running AOT smoke test..."
+          timeout 60 "$BINARY" 2>&1 | tee aot-smoke-test.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "::error::AOT smoke test failed with exit code $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
+          echo "AOT smoke test PASSED (exit 0)"
+          echo "## AOT Smoke Test: PASS" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload smoke test log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aot-smoke-test-log
+          path: aot-smoke-test.log
 
   aot-build-analysis:
     name: AOT Build Analysis (report-only)

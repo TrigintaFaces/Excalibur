@@ -90,9 +90,9 @@ public static class GrpcTransportServiceCollectionExtensions
 	/// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.
 	/// </exception>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "AOT-safe: IConfiguration.Bind() requires reflection -- see Action<T> overload as AOT alternative")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "AOT-safe: IConfiguration.Bind() requires dynamic code -- see Action<T> overload as AOT alternative")]
 	public static IServiceCollection AddGrpcTransport(
 		this IServiceCollection services,
 		string name,

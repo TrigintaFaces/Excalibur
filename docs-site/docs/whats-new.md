@@ -56,12 +56,27 @@ Excalibur is in active pre-release development. The framework is functionally co
 - **ValidateOnStart everywhere** -- All `Add*` DI registration methods validate options at startup, catching misconfigurations before the first request
 - **Zero quality debt** -- Sprint 746 cleared every open issue (P0 through P3) for the first time in project history
 
+### Native AOT
+
+- **150 of 170 packages** are `IsAotCompatible=true` -- all remaining 20 packages are blocked solely by external SDK dependencies (Confluent.Kafka, AWS SDK, Google Cloud SDK, etc.), not by Excalibur code
+- **Phase B1 complete** -- all 7 Tier 1 packages resolved: Saga, Caching, Security, AwsLambda, Compliance, gRPC, Protobuf, FluentValidation
+- **AzureServiceBus AOT support** -- `MessageDeserializerRegistry` typed pattern replaces reflection-based deserialization; first Tier 2 conversion (Sprint 759)
+- **FluentValidation AOT support** -- `AotFluentValidatorResolver` with source-generated `IAotValidationDispatcher` for compile-time type-switch validator dispatch (Sprint 758)
+- **gRPC AOT support** -- `GrpcJsonSerializerContext` source-gen replaces reflection-based JSON serialization across all 10 transport types
+- **Caching AOT support** -- `Excalibur.Dispatch.Caching` uses `CachePolicyRegistry` with the Explicit-Generic-DI pattern (zero `MakeGenericType` at runtime)
+- **Saga AOT support** -- `Excalibur.Saga` uses source-gen registry population via `IPostConfigureOptions` pattern (zero `MakeGenericType` at runtime)
+- **AOT sample app** -- Consumer-facing sample with Core Dispatch, EventSourcing, and Transport scenarios that publish and run with `dotnet publish -p:PublishAot=true`
+- **AOT performance benchmarks** -- BenchmarkDotNet baselines: dispatch 3% faster, handler activation 3.87x faster, serialization 15-31% faster in AOT vs JIT paths (Sprint 759)
+- **CI AOT enforcement** -- Suppression baseline gate (992 entries) blocks new unapproved suppressions; AOT binary smoke test verifies published binary runs (Sprint 758)
+- **1,022+ IL suppressions audited** -- every suppression in Tier 1 packages classified as justified or removed
+- **Dual-path architecture** -- `RuntimeFeature.IsDynamicCodeSupported` branching ensures JIT and AOT paths are both first-class
+
 ### Developer Experience
 
 - **Roslyn analyzers** -- Compile-time checks for common Dispatch mistakes (DISP001-DISP004)
-- **Source generators** -- AOT-compatible handler registration and serialization
+- **Source generators** -- AOT-compatible handler registration, serialization, and saga coordination
 - **`dotnet new` templates** -- `excalibur-dispatch`, `excalibur-eventsourcing`, `excalibur-saga` project scaffolding
-- **44,000+ automated tests** -- Unit, integration, conformance, and performance test suites
+- **115,000+ automated tests** -- Unit, integration, conformance, and performance test suites across 10 CI shards
 
 ### Compliance
 

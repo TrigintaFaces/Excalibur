@@ -175,6 +175,7 @@ internal sealed partial class EventGridTransportSender : ITransportSender
 		ex.Status is (>= 500 and < 600) or 429;
 
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Azure CloudEvent construction with BinaryData is AOT-safe in practice")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Azure SDK CloudEvent constructor is annotated [RequiresDynamicCode] but BinaryData path does not use dynamic serialization")]
 	private AzureCloudEvent MapToCloudEvent(TransportMessage message)
 	{
 		var eventType = message.MessageType ?? _options.DefaultEventType;

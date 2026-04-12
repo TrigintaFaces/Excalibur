@@ -1,0 +1,46 @@
+# Kubernetes Deployment — AOT Worker (Native AOT)
+# See: docs-site/docs/advanced/container-deployment.md §2.3, §3
+#
+# AOT workers start in <100ms — aggressive startup probes are safe.
+# No JIT warmup needed. Minimal memory footprint.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aot-worker
+  labels:
+    app: aot-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aot-worker
+  template:
+    metadata:
+      labels:
+        app: aot-worker
+    spec:
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: aot-worker
+          image: aot-sample:latest
+          env:
+            # GC tuning for AOT workers (lower memory ceiling)
+            - name: DOTNET_GCConserveMemory
+              value: "9"
+            - name: DOTNET_GCHeapHardLimit
+              value: "0x8000000"
+          resources:
+            # AOT workers use significantly less memory
+            requests:
+              memory: "32Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          # Startup probe: AOT starts in <100ms, fast failure detection
+          startupProbe:
+            exec:
+              command: ["test", "-f", "/app/Excalibur.Dispatch.Aot.Sample"]
+            initialDelaySeconds: 1
+            periodSeconds: 1
+            failureThreshold: 3

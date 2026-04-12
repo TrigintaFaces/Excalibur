@@ -4358,7 +4358,6 @@ Excalibur.Dispatch.Transport.CronTimerTransportAdapter.IsRunning.get -> bool
 Excalibur.Dispatch.Transport.CronTimerTransportAdapter.Name.get -> string!
 Excalibur.Dispatch.Transport.CronTimerTransportAdapter.ReceiveAsync(object! transportMessage, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!
 Excalibur.Dispatch.Transport.CronTimerTransportAdapter.SendAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, string! destination, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.CronTimerTransportAdapter.SetDispatcher(Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher) -> void
 Excalibur.Dispatch.Transport.CronTimerTransportAdapter.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.CronTimerTransportAdapter.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.CronTimerTransportAdapter.TransportType.get -> string!
@@ -4779,6 +4778,7 @@ Excalibur.Dispatch.ZeroAlloc.ZeroAllocPipelineExtensions
 Microsoft.Extensions.DependencyInjection.AotSerializationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.CloudEventsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ContextValidationServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.CronTimerTransportServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DataAnnotationsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DispatchConfigurationServiceCollectionExtensions
@@ -5865,6 +5865,8 @@ static Microsoft.Extensions.DependencyInjection.ContextValidationServiceCollecti
 static Microsoft.Extensions.DependencyInjection.ContextValidationServiceCollectionExtensions.ConfigureContextValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.Validation.ContextValidationOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ContextValidationServiceCollectionExtensions.UseLenientContextValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ContextValidationServiceCollectionExtensions.UseStrictContextValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CronTimerTransportServiceCollectionExtensions.AddCronTimerTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, string! cronExpression, System.Action<Excalibur.Dispatch.Options.Transport.CronTimerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CronTimerTransportServiceCollectionExtensions.AddCronTimerTransport<TTimer>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! cronExpression, System.Action<Excalibur.Dispatch.Options.Transport.CronTimerOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DataAnnotationsServiceCollectionExtensions.WithDataAnnotationsValidation(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions.AddDispatchScheduler<TScheduler>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DeliveryServiceCollectionExtensions.AddDispatchScheduling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

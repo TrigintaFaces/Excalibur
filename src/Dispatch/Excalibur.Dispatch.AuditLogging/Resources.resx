@@ -84,4 +84,13 @@
   <data name="RbacAuditStore_VerifyIntegrityDenied" xml:space="preserve">
     <value>User with role {Role} attempted to verify audit integrity</value>
   </data>
+  <data name="AuditLoggingServiceCollectionExtensions_NoAnnotationStoreRegistrationFound" xml:space="preserve">
+    <value>No IAuditAnnotationStore registration found. Call AddAuditAnnotations() before AddRbacAuditAnnotationStore().</value>
+  </data>
+  <data name="RbacAuditAnnotationStore_AnnotatePermissionsRequired" xml:space="preserve">
+    <value>Insufficient permissions for audit annotation operations. SecurityAnalyst, ComplianceOfficer, or Administrator role required.</value>
+  </data>
+  <data name="RbacAuditAnnotationStore_ReadPermissionsRequired" xml:space="preserve">
+    <value>Insufficient permissions to read audit annotations. SecurityAnalyst, ComplianceOfficer, or Administrator role required.</value>
+  </data>
 </root>

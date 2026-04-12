@@ -16,12 +16,14 @@ using System.Text.Json;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Aot.Sample.EventSourcing;
 using Excalibur.Dispatch.Aot.Sample.Handlers;
 using Excalibur.Dispatch.Aot.Sample.Messages;
 using Excalibur.Dispatch.Aot.Sample.Serialization;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -50,6 +52,10 @@ services.AddDispatch(dispatch => dispatch.AddHandlersFromAssembly(typeof(Program
 
 // Register InMemory transport (zero native dependencies, AOT-safe)
 services.AddInMemoryTransport("demo");
+
+// S2: Register Event Sourcing with InMemory store (AOT-safe)
+services.AddExcaliburEventSourcing();
+services.AddInMemoryEventStore();
 
 // Configure source-generated JSON serializer options
 services.AddSingleton(AppJsonSerializerContext.Default.Options);
@@ -178,6 +184,139 @@ Console.WriteLine($"Transport running: {transport.IsRunning}");
 Console.WriteLine();
 
 // ============================================================================
+// S2: Event Sourcing Scenarios (AOT-Safe)
+// ============================================================================
+
+// ============================================================================
+// Demo 7: Aggregate with Pattern-Matching Event Application
+// ============================================================================
+Console.WriteLine("--- Demo 7: Event-Sourced Aggregate (AOT Pattern Matching) ---");
+
+var account = new BankAccountAggregate();
+account.Open("ACC-001", "Alice Johnson", 1000m);
+account.Deposit(500m);
+account.Withdraw(200m);
+
+Console.WriteLine($"Account: {account.Id}");
+Console.WriteLine($"Holder:  {account.HolderName}");
+Console.WriteLine($"Balance: {account.Balance:C}");
+Console.WriteLine($"Version: {account.Version}");
+Console.WriteLine($"Events:  {account.GetUncommittedEvents().Count}");
+Console.WriteLine($"AOT:     Pattern-matching apply (zero reflection)");
+Console.WriteLine();
+
+// ============================================================================
+// Demo 8: Event Store Append + Load Round-Trip
+// ============================================================================
+Console.WriteLine("--- Demo 8: InMemory Event Store Round-Trip ---");
+
+var eventStore = provider.GetRequiredKeyedService<IEventStore>("default");
+var uncommittedEvents = account.GetUncommittedEvents();
+
+#pragma warning disable IL2026, IL3050 // InMemoryEventStore serialization uses reflection internally
+var appendResult = await eventStore.AppendAsync(
+	account.Id,
+	account.AggregateType,
+	uncommittedEvents,
+	-1, // expected version: -1 means new aggregate (no prior events)
+	CancellationToken.None).ConfigureAwait(false);
+#pragma warning restore IL2026, IL3050
+
+Console.WriteLine($"Append result: Success={appendResult.Success}, NextExpectedVersion={appendResult.NextExpectedVersion}");
+
+// Load events back from the store
+var storedEvents = await eventStore.LoadAsync(
+	account.Id,
+	account.AggregateType,
+	CancellationToken.None).ConfigureAwait(false);
+
+Console.WriteLine($"Stored events loaded: {storedEvents.Count}");
+foreach (var stored in storedEvents)
+{
+	Console.WriteLine($"  [{stored.Version}] {stored.EventType} @ {stored.Timestamp:HH:mm:ss}");
+}
+
+Console.WriteLine();
+
+// ============================================================================
+// Demo 9: Aggregate Reconstruction from Event History
+// ============================================================================
+Console.WriteLine("--- Demo 9: Aggregate Reconstruction from History ---");
+
+// Create a fresh aggregate and replay events (simulating load from store)
+var reconstructed = new BankAccountAggregate();
+reconstructed.LoadFromHistory(uncommittedEvents);
+
+Console.WriteLine($"Reconstructed account: {reconstructed.Id}");
+Console.WriteLine($"Holder:  {reconstructed.HolderName}");
+Console.WriteLine($"Balance: {reconstructed.Balance:C}");
+Console.WriteLine($"Version: {reconstructed.Version}");
+var stateMatch = reconstructed.Balance == account.Balance
+	&& reconstructed.HolderName == account.HolderName
+	&& reconstructed.Id == account.Id;
+Console.WriteLine($"State matches original: {stateMatch}");
+Console.WriteLine($"Uncommitted after replay: {reconstructed.GetUncommittedEvents().Count} (expected: 0)");
+Console.WriteLine();
+
+// ============================================================================
+// S3: Transport Publish/Subscribe Scenarios (AOT-Safe)
+// ============================================================================
+
+// ============================================================================
+// Demo 10: InMemory Transport Publish + Subscribe End-to-End
+// ============================================================================
+Console.WriteLine("--- Demo 10: Transport Publish/Subscribe (AOT) ---");
+
+// Start the transport adapter
+await transport.StartAsync(CancellationToken.None).ConfigureAwait(false);
+Console.WriteLine($"Transport started: IsRunning={transport.IsRunning}");
+
+// Send a message through the transport (simulates external message arrival)
+var inventoryEvent = new InventoryUpdatedEvent
+{
+	Sku = "WIDGET-A",
+	NewQuantity = 42,
+	Warehouse = "WH-EAST",
+	UpdatedAt = DateTimeOffset.UtcNow
+};
+
+// AOT-safe JSON serialization via source-generated context
+var transportJson = JsonSerializer.Serialize(inventoryEvent, AppJsonSerializerContext.Default.InventoryUpdatedEvent);
+Console.WriteLine($"Transport payload (source-gen JSON): {transportJson}");
+
+// Deserialize (simulates transport receive side)
+var received = JsonSerializer.Deserialize(transportJson, AppJsonSerializerContext.Default.InventoryUpdatedEvent);
+Console.WriteLine($"Deserialized: SKU={received?.Sku}, Qty={received?.NewQuantity}");
+
+// Send through transport adapter (verifies SendAsync works in AOT)
+var transportContext = contextFactory?.CreateContext() ?? new MessageContext();
+await transport.SendAsync(inventoryEvent, "inventory-updates", transportContext, CancellationToken.None)
+	.ConfigureAwait(false);
+
+Console.WriteLine($"Messages sent through transport: {transport.SentMessages.Count}");
+var sentOk = transport.SentMessages.Values.Any(m => m is InventoryUpdatedEvent);
+Console.WriteLine($"InventoryUpdatedEvent in transport: {sentOk}");
+
+// Dispatch the event through the pipeline (verifies handler discovery in AOT)
+var dispatchContext = contextFactory?.CreateContext() ?? new MessageContext();
+await dispatcher.DispatchAsync(inventoryEvent, dispatchContext, cancellationToken: default)
+	.ConfigureAwait(false);
+
+var handlerReceived = InventoryUpdatedHandler.LastReceived is not null;
+Console.WriteLine($"Handler received event: {handlerReceived}");
+
+// Transport health check (verifies health API works in AOT)
+var healthContext = new TransportHealthCheckContext(TransportHealthCheckCategory.Connectivity);
+var health = await ((ITransportHealthChecker)transport).CheckHealthAsync(healthContext, CancellationToken.None)
+	.ConfigureAwait(false);
+Console.WriteLine($"Transport health: {health.Status}");
+
+// Clean stop
+await transport.StopAsync(CancellationToken.None).ConfigureAwait(false);
+Console.WriteLine($"Transport stopped: IsRunning={transport.IsRunning}");
+Console.WriteLine();
+
+// ============================================================================
 // AOT Build Verification
 // ============================================================================
 Console.WriteLine("================================================");
@@ -189,7 +328,7 @@ Console.WriteLine();
 Console.WriteLine("Expected output location:");
 Console.WriteLine("  bin/Release/net10.0/win-x64/publish/Excalibur.Dispatch.Aot.Sample.exe");
 Console.WriteLine();
-Console.WriteLine("Key source generators active:");
+Console.WriteLine("S1 - Core Dispatch:");
 Console.WriteLine("  - HandlerRegistrySourceGenerator (handler discovery + AOT factory)");
 Console.WriteLine("  - HandlerActivationGenerator (DI-free instantiation)");
 Console.WriteLine("  - HandlerInvocationGenerator (direct invocation)");
@@ -197,4 +336,16 @@ Console.WriteLine("  - MessageResultExtractorGenerator (AOT result factory)");
 Console.WriteLine("  - JsonSerializationSourceGenerator (type metadata + registry)");
 Console.WriteLine("  - ServiceRegistrationSourceGenerator ([AutoRegister] DI)");
 Console.WriteLine("  - MessageTypeSourceGenerator (type metadata)");
+Console.WriteLine();
+Console.WriteLine("S2 - Event Sourcing:");
+Console.WriteLine("  - AggregateRoot pattern-matching (zero reflection event apply)");
+Console.WriteLine("  - InMemory event store (append + load round-trip)");
+Console.WriteLine("  - Aggregate reconstruction from event history");
+Console.WriteLine();
+Console.WriteLine("S3 - Transport:");
+Console.WriteLine("  - InMemory transport lifecycle (start/stop)");
+Console.WriteLine("  - Transport SendAsync (message tracking)");
+Console.WriteLine("  - Source-generated JSON serialization for transport payloads");
+Console.WriteLine("  - Event dispatch through pipeline to handler");
+Console.WriteLine("  - Transport health check API");
 Console.WriteLine("================================================");

@@ -108,8 +108,10 @@ internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITranspo
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "JSON serialization of dispatch messages uses reflection by design")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "JSON serialization of dispatch messages uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.")]
 	public async Task SendAsync(
 		IDispatchMessage message,
 		string destination,

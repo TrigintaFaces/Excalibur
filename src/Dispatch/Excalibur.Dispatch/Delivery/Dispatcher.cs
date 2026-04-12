@@ -841,11 +841,10 @@ internal sealed class Dispatcher(
 			task = CancelledResultTask;
 			return true;
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
 			PopAmbientContext(previous);
-			task = Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
-			return true;
+			throw;
 		}
 	}
 
@@ -899,11 +898,10 @@ internal sealed class Dispatcher(
 			task = CancelledResultTask;
 			return true;
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
 			PopAmbientContext(previous);
-			task = Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
-			return true;
+			throw;
 		}
 	}
 
@@ -955,11 +953,10 @@ internal sealed class Dispatcher(
 			task = CancelledResultTaskCache<TResponse>.Task;
 			return true;
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
 			PopAmbientContext(previous);
-			task = Task.FromResult(CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed"));
-			return true;
+			throw;
 		}
 	}
 
@@ -1411,10 +1408,6 @@ internal sealed class Dispatcher(
 			{
 				return CancelledResultTask;
 			}
-			catch (Exception ex)
-			{
-				return Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
-			}
 		}
 		finally
 		{
@@ -1520,10 +1513,6 @@ internal sealed class Dispatcher(
 			{
 				return CancelledResultTaskCache<TResponse>.Task;
 			}
-			catch (Exception ex)
-			{
-				return Task.FromResult(CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed"));
-			}
 		}
 		finally
 		{
@@ -1612,10 +1601,6 @@ internal sealed class Dispatcher(
 			{
 				return CancelledResultTask;
 			}
-			catch (Exception ex)
-			{
-				return Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
-			}
 		}
 		finally
 		{
@@ -1662,10 +1647,6 @@ internal sealed class Dispatcher(
 			{
 				return CancelledResultTask;
 			}
-			catch (Exception ex)
-			{
-				return Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local event dispatch failed"));
-			}
 		}
 		finally
 		{
@@ -1684,10 +1665,6 @@ internal sealed class Dispatcher(
 		{
 			return MR.Cancelled();
 		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
-		}
 	}
 
 	private async Task<IMessageResult> AwaitDirectLocalSendNoResponseAsync(Task sendTask, IMessageContext context)
@@ -1700,10 +1677,6 @@ internal sealed class Dispatcher(
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
 			return MR.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
 		}
 	}
 
@@ -1720,10 +1693,6 @@ internal sealed class Dispatcher(
 		{
 			return MR.Cancelled<TResponse>();
 		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed");
-		}
 	}
 
 	private async Task<IMessageResult<TResponse>> AwaitDirectLocalTypedWithResponseAsync<TResponse>(
@@ -1739,10 +1708,6 @@ internal sealed class Dispatcher(
 		{
 			return MR.Cancelled<TResponse>();
 		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed");
-		}
 	}
 
 	private async Task<IMessageResult<TResponse>> AwaitDirectLocalSendWithResponseAsync<TResponse>(
@@ -1757,10 +1722,6 @@ internal sealed class Dispatcher(
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
 			return MR.Cancelled<TResponse>();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed");
 		}
 	}
 
@@ -1778,10 +1739,6 @@ internal sealed class Dispatcher(
 		{
 			return MR.Cancelled();
 		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
-		}
 	}
 
 	private async Task<IMessageResult> AwaitDirectLocalSendUntypedWithResponseAsync(
@@ -1797,10 +1754,6 @@ internal sealed class Dispatcher(
 		{
 			return MR.Cancelled();
 		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
-		}
 	}
 
 	private async Task<IMessageResult> AwaitDirectLocalEventAsync(Task invocation, IMessageContext context)
@@ -1813,10 +1766,6 @@ internal sealed class Dispatcher(
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
 			return MR.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local event dispatch failed");
 		}
 	}
 
@@ -1930,39 +1879,6 @@ internal sealed class Dispatcher(
 		}
 
 		return CreateDirectLocalTypedSuccessResult(ResolveResponseValue<TResponse>(context), context);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static IMessageResult CreateDirectLocalFailureResult(Exception ex, IMessageContext context, string title)
-	{
-		var problem = new MessageProblemDetails
-		{
-			Type = "dispatch.handler_error",
-			Title = title,
-			Status = 500,
-			Detail = ex.Message,
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return MR.Failed(problem);
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static IMessageResult<TResponse> CreateDirectLocalFailureResult<TResponse>(
-		Exception ex,
-		IMessageContext context,
-		string title)
-	{
-		var problem = new MessageProblemDetails
-		{
-			Type = "dispatch.handler_error",
-			Title = title,
-			Status = 500,
-			Detail = ex.Message,
-			Instance = Guid.NewGuid().ToString(),
-		};
-
-		return MR.Failed<TResponse>(problem?.Detail, problem);
 	}
 
 	private static IMessageResult<TResponse> ConvertResult<TResponse>(IMessageResult result, IMessageContext context)

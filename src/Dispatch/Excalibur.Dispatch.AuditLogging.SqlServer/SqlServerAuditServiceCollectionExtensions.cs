@@ -111,9 +111,72 @@ public static class SqlServerAuditServiceCollectionExtensions
 		});
 	}
 
+	/// <summary>
+	/// Adds SQL Server audit annotation store services to the service collection.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">An action to configure the SQL Server audit annotation store options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
+	public static IServiceCollection AddSqlServerAuditAnnotationStore(
+		this IServiceCollection services,
+		Action<SqlServerAuditAnnotationStoreOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		_ = services.Configure(configure);
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerAuditAnnotationStoreOptions>,
+				SqlServerAuditAnnotationStoreOptionsValidator>());
+
+		RegisterSqlServerAuditAnnotationStoreCore(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds SQL Server audit annotation store services using an <see cref="IConfiguration"/> section.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configuration">The configuration section to bind.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	public static IServiceCollection AddSqlServerAuditAnnotationStore(
+		this IServiceCollection services,
+		IConfiguration configuration)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configuration);
+
+		_ = services.AddOptions<SqlServerAuditAnnotationStoreOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerAuditAnnotationStoreOptions>,
+				SqlServerAuditAnnotationStoreOptionsValidator>());
+
+		RegisterSqlServerAuditAnnotationStoreCore(services);
+
+		return services;
+	}
+
 	private static void RegisterSqlServerAuditStoreCore(IServiceCollection services)
 	{
 		services.TryAddSingleton<SqlServerAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<SqlServerAuditStore>());
+	}
+
+	private static void RegisterSqlServerAuditAnnotationStoreCore(IServiceCollection services)
+	{
+		services.TryAddSingleton<SqlServerAuditAnnotationStore>();
+		services.TryAddSingleton<IAuditAnnotationStore>(sp =>
+			sp.GetRequiredService<SqlServerAuditAnnotationStore>());
 	}
 }

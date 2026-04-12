@@ -16,6 +16,7 @@ using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Caching.Diagnostics;
 
 using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -34,18 +35,19 @@ namespace Excalibur.Dispatch.Caching;
 /// <param name="tagTracker">Optional tag tracker for registering cache key-to-tag mappings on cache miss.</param>
 /// <remarks>
 /// <para>
-/// <b>AOT Compatibility:</b> This middleware uses JSON serialization and dynamic type inspection
-/// for cache key generation and entry deserialization, which may not be fully compatible with
-/// Native AOT publishing in strict trim mode.
+/// <b>AOT Compatibility:</b> This middleware supports dual-path execution for Native AOT:
 /// </para>
-/// <para>
-/// For AOT scenarios, consider:
 /// <list type="bullet">
-/// <item>Disabling caching middleware if not required</item>
-/// <item>Suppressing trim warnings after testing with your specific message types</item>
-/// <item>Using <c>TrimMode=partial</c> instead of <c>TrimMode=full</c></item>
-/// <item>Waiting for v1.5 source-generated alternatives (Q2-Q3 2026)</item>
+/// <item><b>JIT path:</b> Uses <c>MakeGenericType</c> for per-message cache policy resolution and
+/// <c>CachedMessageResult&lt;T&gt;</c> construction.</item>
+/// <item><b>AOT path:</b> Uses <see cref="CachePolicyRegistry"/> populated at DI composition time
+/// via <c>AddCachePolicy&lt;TMessage, TPolicy&gt;()</c>. Result wrapping falls back to
+/// <c>CachedObjectMessageResult</c>. Return value extraction uses <c>IMessageResult&lt;T&gt;</c>
+/// pattern matching instead of reflection.</item>
 /// </list>
+/// <para>
+/// For AOT scenarios, register per-message cache policies explicitly:
+/// <code>services.AddCachePolicy&lt;MyQuery, MyCachePolicy&gt;();</code>
 /// </para>
 /// </remarks>
 internal sealed class CachingMiddleware(
@@ -86,11 +88,11 @@ internal sealed class CachingMiddleware(
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("AOT", "IL2046:RequiresUnreferencedCode mismatch",
-		Justification = "Interface IDispatchMiddleware cannot carry AOT attributes. Caching middleware requires reflection for generic cache policies.")]
+		Justification = "AOT-safe: JIT path uses reflection; AOT path uses CachePolicyRegistry + CachedObjectMessageResult -- see GetMessagePolicy/ShouldCache/CreateCachedMessageResult")]
 	[UnconditionalSuppressMessage("AOT", "IL3051:RequiresDynamicCode mismatch",
-		Justification = "Interface IDispatchMiddleware cannot carry AOT attributes. Caching middleware requires MakeGenericType for cache policies.")]
-	[RequiresUnreferencedCode("CachingMiddleware uses MakeGenericType and Type.GetInterfaces for dynamic cache policy resolution. Use attribute-based caching for AOT scenarios.")]
-	[RequiresDynamicCode("CachingMiddleware uses MakeGenericType for CachedMessageResult<T> and IResultCachePolicy<T> resolution.")]
+		Justification = "AOT-safe: JIT path uses MakeGenericType; AOT path uses CachePolicyRegistry populated at DI composition time -- see GetMessagePolicy/ShouldCache")]
+	[RequiresUnreferencedCode("JIT path uses MakeGenericType and Type.GetInterfaces for dynamic cache policy resolution. AOT path uses CachePolicyRegistry.")]
+	[RequiresDynamicCode("JIT path uses MakeGenericType for CachedMessageResult<T> and IResultCachePolicy<T> resolution. AOT path uses registry lookups.")]
 	public async ValueTask<IMessageResult> InvokeAsync(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -202,25 +204,16 @@ internal sealed class CachingMiddleware(
 	}
 
 	/// <summary>
-	/// Extracts the return value from a message result.
+	/// Extracts the return value from a message result using interface pattern match.
 	/// </summary>
 	/// <param name="processedResult">The message result to extract from.</param>
 	/// <returns>The extracted return value, or null if not found.</returns>
-	[UnconditionalSuppressMessage("Trimming", "IL2075:Type.GetProperty may break with trimming",
-		Justification = "ReturnValue property is a well-known property in MessageResult pattern")]
+	/// <remarks>
+	/// Uses <see cref="IMessageResult{T}"/> pattern match instead of reflection,
+	/// making this AOT-safe without <c>Type.GetProperty</c>.
+	/// </remarks>
 	private static object? ExtractReturnValue(IMessageResult? processedResult)
-	{
-		if (processedResult?.GetType().IsGenericType == true)
-		{
-			var returnValueProperty = processedResult.GetType().GetProperty("ReturnValue");
-			if (returnValueProperty != null)
-			{
-				return returnValueProperty.GetValue(processedResult);
-			}
-		}
-
-		return null;
-	}
+		=> processedResult is IMessageResult<object> typed ? typed.ReturnValue : null;
 
 	/// <summary>
 	/// Gets the ICacheable interface information from a message.
@@ -703,20 +696,20 @@ internal sealed class CachingMiddleware(
 	/// and the middleware falls back to the global policy.
 	/// </remarks>
 	[SuppressMessage("Design", "MA0038:Make method static", Justification = "Method uses services field from primary constructor")]
-	[RequiresDynamicCode("Calls System.Type.MakeGenericType(params Type[])")]
+	[RequiresDynamicCode("JIT path calls System.Type.MakeGenericType(params Type[])")]
 	private object? GetMessagePolicy(IDispatchMessage message)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
+		var messageType = message.GetType();
+
 		if (!RuntimeFeature.IsDynamicCodeSupported)
 		{
-			// AOT path: MakeGenericType is unavailable. Per-message cache policies
-			// require explicit closed-generic DI registration in AOT scenarios.
-			// Fall through to global policy.
-			return null;
+			// AOT path: use pre-populated CachePolicyRegistry instead of MakeGenericType.
+			// Registry is populated at DI composition time via AddCachePolicy<TMessage, TPolicy>().
+			return services.GetService<CachePolicyRegistry>()?.GetPolicy(messageType);
 		}
 
-		var messageType = message.GetType();
 		var policyType = typeof(IResultCachePolicy<>).MakeGenericType(messageType);
 		return services.GetService(policyType);
 	}
@@ -731,13 +724,35 @@ internal sealed class CachingMiddleware(
 	/// The message-specific policy is resolved with <see cref="GetMessagePolicy" /> and invoked via reflection. When an incompatible policy
 	/// type is registered or the policy throws an exception, the invocation is caught and ignored so the global policy is evaluated instead.
 	/// </remarks>
-	[RequiresDynamicCode("Calls GetMessagePolicy which uses MakeGenericType")]
+	[RequiresDynamicCode("JIT path calls GetMessagePolicy which uses MakeGenericType")]
 	[UnconditionalSuppressMessage("Trimming", "IL2075:Type.GetMethod may break with trimming",
-		Justification = "ShouldCache method lookup is handled with null checks and try-catch for AOT compatibility")]
+		Justification = "AOT-safe: AOT path uses CachePolicyRegistry delegate; JIT path uses reflection with null checks and try-catch")]
 	private bool ShouldCache(IDispatchMessage message, object? result)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
+		if (!RuntimeFeature.IsDynamicCodeSupported)
+		{
+			// AOT path: use pre-populated registry delegate — no reflection needed.
+			var registry = services.GetService<CachePolicyRegistry>();
+			var policyDelegate = registry?.GetPolicy(message.GetType());
+			if (policyDelegate is not null)
+			{
+				try
+				{
+					return policyDelegate(services, message, result);
+				}
+				catch (Exception ex) when (ex is not OperationCanceledException)
+				{
+					// Policy threw, fall back to global policy
+					_ = ex;
+				}
+			}
+
+			return _globalPolicy?.ShouldCache(message, result) ?? true;
+		}
+
+		// JIT path: existing MakeGenericType + reflection invocation
 		var policyInstance = GetMessagePolicy(message);
 		if (policyInstance is not null)
 		{

@@ -1,11 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 using Azure.Identity;
 using Azure.Storage.Queues;
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Transport.Azure;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -137,6 +140,53 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 		Action<IAzureStorageQueueTransportBuilder> configure)
 	{
 		return services.AddAzureStorageQueueTransport(DefaultTransportName, configure);
+	}
+
+	/// <summary>
+	/// Accumulated message type registrations for the <see cref="MessageDeserializerRegistry"/>.
+	/// Read by <see cref="MessageDeserializerRegistryPopulator"/> on first options resolution.
+	/// </summary>
+	internal static readonly ConcurrentBag<Action<MessageDeserializerRegistry>> MessageDeserializerPendingRegistrations = [];
+
+	/// <summary>
+	/// Registers a message type for AOT-safe deserialization with Azure Storage Queue transport.
+	/// </summary>
+	/// <typeparam name="TMessage">The message type to register for deserialization.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// AOT consumers must call this method for each message type used with Storage Queues.
+	/// JIT consumers do not need this — the existing reflection path handles type resolution automatically.
+	/// </para>
+	/// <para>
+	/// This follows the same explicit-generic-DI pattern used by <c>AddSaga&lt;TSaga, TSagaState&gt;()</c>
+	/// and <c>AddCachePolicy&lt;TMessage, TPolicy&gt;()</c>.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// // Register message types for AOT-safe Storage Queue deserialization
+	/// services.AddStorageQueueMessage&lt;OrderCreatedEvent&gt;();
+	/// services.AddStorageQueueMessage&lt;PaymentProcessedEvent&gt;();
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddStorageQueueMessage<TMessage>(
+		this IServiceCollection services)
+		where TMessage : class, IDispatchMessage
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Accumulate for AOT registry population
+		MessageDeserializerPendingRegistrations.Add(
+			static registry => registry.Register<TMessage>());
+
+		// Ensure registry + populator are registered (idempotent)
+		services.TryAddSingleton<MessageDeserializerRegistry>();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IPostConfigureOptions<AzureStorageQueueOptions>, MessageDeserializerRegistryPopulator>());
+
+		return services;
 	}
 
 	/// <summary>
@@ -396,4 +446,33 @@ public sealed class AzureStorageQueueTransportOptions
 	/// Gets or sets the maximum dequeue count before sending to DLQ. Default is 5.
 	/// </summary>
 	public int MaxDequeueCount { get; set; } = 5;
+}
+
+/// <summary>
+/// Populates <see cref="MessageDeserializerRegistry"/> from message type actions accumulated during DI composition.
+/// Runs once on first <see cref="AzureStorageQueueOptions"/> resolution via <see cref="IPostConfigureOptions{TOptions}"/>.
+/// </summary>
+[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+	Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
+internal sealed class MessageDeserializerRegistryPopulator(
+	MessageDeserializerRegistry registry) : IPostConfigureOptions<AzureStorageQueueOptions>
+{
+	private volatile bool _populated;
+
+	public void PostConfigure(string? name, AzureStorageQueueOptions options)
+	{
+		if (_populated)
+		{
+			return;
+		}
+
+		_populated = true;
+
+		foreach (var registration in AzureStorageQueueTransportServiceCollectionExtensions.MessageDeserializerPendingRegistrations)
+		{
+			registration(registry);
+		}
+
+		registry.Freeze();
+	}
 }

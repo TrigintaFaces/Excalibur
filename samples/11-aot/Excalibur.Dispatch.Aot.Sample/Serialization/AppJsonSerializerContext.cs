@@ -3,6 +3,7 @@
 
 using System.Text.Json.Serialization;
 
+using Excalibur.Dispatch.Aot.Sample.EventSourcing;
 using Excalibur.Dispatch.Aot.Sample.Messages;
 
 namespace Excalibur.Dispatch.Aot.Sample.Serialization;
@@ -37,6 +38,12 @@ namespace Excalibur.Dispatch.Aot.Sample.Serialization;
 [JsonSerializable(typeof(OrderDto))]
 [JsonSerializable(typeof(OrderItem))]
 [JsonSerializable(typeof(IReadOnlyList<OrderItem>))]
+// S3: Transport scenario types
+[JsonSerializable(typeof(InventoryUpdatedEvent))]
+// S2: Event Sourcing types
+[JsonSerializable(typeof(AccountOpenedEvent))]
+[JsonSerializable(typeof(FundsDepositedEvent))]
+[JsonSerializable(typeof(FundsWithdrawnEvent))]
 [JsonSourceGenerationOptions(
 	PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
 	WriteIndented = false,

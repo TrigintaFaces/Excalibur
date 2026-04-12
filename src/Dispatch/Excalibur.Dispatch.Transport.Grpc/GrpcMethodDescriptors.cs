@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
 using Grpc.Core;
 
 namespace Excalibur.Dispatch.Transport.Grpc;
@@ -10,7 +9,9 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// Defines gRPC method descriptors for the dispatch transport service.
 /// Uses manual method definitions instead of Grpc.Tools code generation.
 /// </summary>
-[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "gRPC transport marshalling delegates to GrpcTransportMarshaller which uses JSON serialization")]
+/// <remarks>
+/// AOT-safe: all marshallers use source-generated <see cref="GrpcJsonSerializerContext"/> (zero reflection).
+/// </remarks>
 internal static class GrpcMethodDescriptors
 {
 	/// <summary>

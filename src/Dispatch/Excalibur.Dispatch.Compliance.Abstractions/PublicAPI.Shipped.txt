@@ -4,6 +4,77 @@ Excalibur.Dispatch.Compliance.AlertSeverity.Critical = 3 -> Excalibur.Dispatch.C
 Excalibur.Dispatch.Compliance.AlertSeverity.High = 2 -> Excalibur.Dispatch.Compliance.AlertSeverity
 Excalibur.Dispatch.Compliance.AlertSeverity.Low = 0 -> Excalibur.Dispatch.Compliance.AlertSeverity
 Excalibur.Dispatch.Compliance.AlertSeverity.Medium = 1 -> Excalibur.Dispatch.Compliance.AlertSeverity
+Excalibur.Dispatch.Compliance.AuditAnnotation
+Excalibur.Dispatch.Compliance.AuditAnnotation.ActorId.get -> string!
+Excalibur.Dispatch.Compliance.AuditAnnotation.ActorId.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotation.Content.get -> string!
+Excalibur.Dispatch.Compliance.AuditAnnotation.Content.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotation.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Compliance.AuditAnnotation.CreatedAt.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotation.EventId.get -> string!
+Excalibur.Dispatch.Compliance.AuditAnnotation.EventId.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotation.Id.get -> string!
+Excalibur.Dispatch.Compliance.AuditAnnotation.Id.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotation.Type.get -> Excalibur.Dispatch.Compliance.AuditAnnotationType
+Excalibur.Dispatch.Compliance.AuditAnnotation.Type.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotation.Visibility.get -> Excalibur.Dispatch.Compliance.AuditAnnotationVisibility
+Excalibur.Dispatch.Compliance.AuditAnnotation.Visibility.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationId
+Excalibur.Dispatch.Compliance.AuditAnnotationId.AuditAnnotationId(string! Value) -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationId.Value.get -> string!
+Excalibur.Dispatch.Compliance.AuditAnnotationId.Value.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.AuditAnnotationOptions() -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.EmitMetaAuditEvents.get -> bool
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.EmitMetaAuditEvents.set -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.MaxNoteLength.get -> int
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.MaxNoteLength.set -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.MaxNotesPerEvent.get -> int
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.MaxNotesPerEvent.set -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.MaxTagLength.get -> int
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.MaxTagLength.set -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.MaxTagsPerEvent.get -> int
+Excalibur.Dispatch.Compliance.AuditAnnotationOptions.MaxTagsPerEvent.set -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.ActorId.get -> string?
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.ActorId.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.HasNotes.get -> bool?
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.HasNotes.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.IsBookmarked.get -> bool?
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.IsBookmarked.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.MaxResults.get -> int
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.MaxResults.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.Since.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.Since.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.Skip.get -> int
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.Skip.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.Tags.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Excalibur.Dispatch.Compliance.AuditAnnotationQuery.Tags.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotationType
+Excalibur.Dispatch.Compliance.AuditAnnotationType.Bookmark = 1 -> Excalibur.Dispatch.Compliance.AuditAnnotationType
+Excalibur.Dispatch.Compliance.AuditAnnotationType.Note = 2 -> Excalibur.Dispatch.Compliance.AuditAnnotationType
+Excalibur.Dispatch.Compliance.AuditAnnotationType.Tag = 0 -> Excalibur.Dispatch.Compliance.AuditAnnotationType
+Excalibur.Dispatch.Compliance.AuditAnnotationVisibility
+Excalibur.Dispatch.Compliance.AuditAnnotationVisibility.Personal = 0 -> Excalibur.Dispatch.Compliance.AuditAnnotationVisibility
+Excalibur.Dispatch.Compliance.AuditAnnotationVisibility.Shared = 1 -> Excalibur.Dispatch.Compliance.AuditAnnotationVisibility
+Excalibur.Dispatch.Compliance.AuditAnnotations
+Excalibur.Dispatch.Compliance.AuditAnnotations.AuditAnnotations(string! EventId, System.Collections.Generic.IReadOnlyList<string!>! Tags, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditAnnotation!>! Bookmarks, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditAnnotation!>! Notes) -> void
+Excalibur.Dispatch.Compliance.AuditAnnotations.Bookmarks.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditAnnotation!>!
+Excalibur.Dispatch.Compliance.AuditAnnotations.Bookmarks.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotations.EventId.get -> string!
+Excalibur.Dispatch.Compliance.AuditAnnotations.EventId.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotations.Notes.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditAnnotation!>!
+Excalibur.Dispatch.Compliance.AuditAnnotations.Notes.init -> void
+Excalibur.Dispatch.Compliance.AuditAnnotations.Tags.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Dispatch.Compliance.AuditAnnotations.Tags.init -> void
+Excalibur.Dispatch.Compliance.AuditContextOptions
+Excalibur.Dispatch.Compliance.AuditContextOptions.AuditContextOptions() -> void
+Excalibur.Dispatch.Compliance.AuditContextOptions.DefaultEventType.get -> Excalibur.Dispatch.Compliance.AuditEventType
+Excalibur.Dispatch.Compliance.AuditContextOptions.DefaultEventType.set -> void
+Excalibur.Dispatch.Compliance.AuditContextOptions.IncludeMessageTypeName.get -> bool
+Excalibur.Dispatch.Compliance.AuditContextOptions.IncludeMessageTypeName.set -> void
+Excalibur.Dispatch.Compliance.AuditContextOptions.MaxAssertionsPerScope.get -> int
+Excalibur.Dispatch.Compliance.AuditContextOptions.MaxAssertionsPerScope.set -> void
 Excalibur.Dispatch.Compliance.AuditEvent
 Excalibur.Dispatch.Compliance.AuditEvent.Action.get -> string!
 Excalibur.Dispatch.Compliance.AuditEvent.Action.init -> void
@@ -1272,6 +1343,18 @@ Excalibur.Dispatch.Compliance.GapSeverity.Critical = 3 -> Excalibur.Dispatch.Com
 Excalibur.Dispatch.Compliance.GapSeverity.High = 2 -> Excalibur.Dispatch.Compliance.GapSeverity
 Excalibur.Dispatch.Compliance.GapSeverity.Low = 0 -> Excalibur.Dispatch.Compliance.GapSeverity
 Excalibur.Dispatch.Compliance.GapSeverity.Medium = 1 -> Excalibur.Dispatch.Compliance.GapSeverity
+Excalibur.Dispatch.Compliance.IAuditAnnotationStore
+Excalibur.Dispatch.Compliance.IAuditAnnotationStore.AnnotateAsync(string! eventId, string! note, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditAnnotationId!>!
+Excalibur.Dispatch.Compliance.IAuditAnnotationStore.BookmarkAsync(string! eventId, string? label, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Compliance.IAuditAnnotationStore.GetAnnotationsAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditAnnotations!>!
+Excalibur.Dispatch.Compliance.IAuditAnnotationStore.QueryByAnnotationAsync(Excalibur.Dispatch.Compliance.AuditAnnotationQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+Excalibur.Dispatch.Compliance.IAuditAnnotationStore.RemoveBookmarkAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Compliance.IAuditAnnotationStore.TagAsync(string! eventId, System.Collections.Generic.IReadOnlyList<string!>! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Compliance.IAuditContext
+Excalibur.Dispatch.Compliance.IAuditContext.AssertAsync(bool condition, string! message, Excalibur.Dispatch.Compliance.AuditEventType eventType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEventId?>!
+Excalibur.Dispatch.Compliance.IAuditContext.ForResource(string! resourceId, string! resourceType) -> Excalibur.Dispatch.Compliance.IAuditContext!
+Excalibur.Dispatch.Compliance.IAuditContext.ObserveAsync(string! message, Excalibur.Dispatch.Compliance.AuditEventType eventType, Excalibur.Dispatch.Compliance.AuditOutcome outcome, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEventId>!
+Excalibur.Dispatch.Compliance.IAuditContext.WithMetadata(string! key, string! value) -> Excalibur.Dispatch.Compliance.IAuditContext!
 Excalibur.Dispatch.Compliance.IAuditLogEncryptor
 Excalibur.Dispatch.Compliance.IAuditLogEncryptor.DecryptAsync(Excalibur.Dispatch.Compliance.EncryptedAuditEntry! encryptedEntry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEvent!>!
 Excalibur.Dispatch.Compliance.IAuditLogEncryptor.EncryptAsync(Excalibur.Dispatch.Compliance.AuditEvent! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.EncryptedAuditEntry!>!

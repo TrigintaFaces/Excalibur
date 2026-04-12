@@ -97,6 +97,8 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	public async Task InitializeAsync()
 	{
 		const int maxAttempts = 3;
+		Exception? lastException = null;
+
 		for (var attempt = 1; attempt <= maxAttempts; attempt++)
 		{
 			try
@@ -110,18 +112,24 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			catch (Exception ex) when (attempt < maxAttempts && IsRetriableDockerException(ex))
 			{
 				// Retry transient Docker startup issues (daemon hiccups, named pipe timeouts, etc.).
+				lastException = ex;
 				await Task.Delay(TimeSpan.FromSeconds(5 * attempt)).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
-				DockerAvailable = false;
-				InitializationError = ex.Message;
-				return;
+				lastException = ex;
+				break;
 			}
 		}
 
 		DockerAvailable = false;
-		InitializationError ??= "Container initialization failed after retries.";
+		InitializationError = lastException?.Message ?? "Container initialization failed after retries.";
+
+		// Throw so the collection/class fixture fails clearly instead of producing
+		// hundreds of cryptic "Could not find resource" errors from individual tests.
+		throw new InvalidOperationException(
+			$"Container startup failed after {maxAttempts} attempts: {InitializationError}",
+			lastException);
 	}
 
 	/// <summary>

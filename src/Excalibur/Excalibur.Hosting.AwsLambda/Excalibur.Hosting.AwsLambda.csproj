@@ -8,16 +8,8 @@
     <Description>AWS Lambda hosting integration for the Excalibur framework.</Description>
     <PackageTags>excalibur;serverless;hosting;aws;lambda;aot</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
-    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
-  </PropertyGroup>
-  <PropertyGroup>
-    <IsAotCompatible>true</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
-  </PropertyGroup>
-  <PropertyGroup>
-    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
-    <TrimmerDefaultAction>link</TrimmerDefaultAction>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>

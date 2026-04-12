@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
@@ -25,6 +26,58 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class CachingServiceCollectionExtensions
 {
+	/// <summary>
+	/// Static accumulator for cache policy registrations discovered during DI composition.
+	/// Read by <see cref="CachePolicyRegistryPopulator"/> on first options resolution.
+	/// </summary>
+	internal static readonly ConcurrentBag<Action<CachePolicyRegistry, IServiceProvider>> CachePolicyPendingRegistrations = [];
+
+	/// <summary>
+	/// Registers a message-specific cache policy for AOT-safe resolution.
+	/// </summary>
+	/// <typeparam name="TMessage">The message type the policy applies to.</typeparam>
+	/// <typeparam name="TPolicy">The cache policy implementation type.</typeparam>
+	/// <param name="services">The service collection to register with.</param>
+	/// <returns>The updated <see cref="IServiceCollection"/>.</returns>
+	/// <remarks>
+	/// <para>
+	/// This method registers the policy as a closed-generic DI service and accumulates a typed
+	/// registration for the <see cref="CachePolicyRegistry"/>. In AOT mode, the registry is used
+	/// to resolve policies without <see cref="Type.MakeGenericType"/>.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddCachePolicy<TMessage, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPolicy>(
+		this IServiceCollection services)
+		where TMessage : class, IDispatchMessage
+		where TPolicy : class, IResultCachePolicy<TMessage>
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Register closed-generic policy in DI for JIT path
+		services.TryAddSingleton<IResultCachePolicy<TMessage>, TPolicy>();
+
+		// Accumulate typed registration for AOT-safe CachePolicyRegistry.
+		// At DI composition time, TMessage and TPolicy are concrete types,
+		// so the AOT compiler preserves the concrete ShouldCache instantiation.
+		CachePolicyPendingRegistrations.Add(static (registry, sp) =>
+		{
+			registry.Register(typeof(TMessage), (serviceProvider, message, result) =>
+			{
+				var policy = serviceProvider.GetService<IResultCachePolicy<TMessage>>();
+				return policy?.ShouldCache((TMessage)message, result) ?? true;
+			});
+		});
+
+		// Ensure core services + registry + populator are registered
+		RegisterCoreCachingServices(services);
+
+		// Register populator (idempotent via TryAddEnumerable)
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IPostConfigureOptions<CacheOptions>, CachePolicyRegistryPopulator>());
+
+		return services;
+	}
+
 	/// <summary>
 	/// Registers the caching middleware and related services with default hybrid caching.
 	/// </summary>
@@ -415,6 +468,9 @@ public static class CachingServiceCollectionExtensions
 
 		// Register cache result policy with a default policy that always caches
 		services.TryAddSingleton<IResultCachePolicy>(new DefaultResultCachePolicy(static (_, _) => true));
+
+		// Register AOT-safe cache policy registry (populated via IPostConfigureOptions)
+		services.TryAddSingleton<CachePolicyRegistry>();
 	}
 
 	/// <summary>
@@ -467,5 +523,35 @@ public static class CachingServiceCollectionExtensions
 			options.Value.Enabled
 				? invalidationMiddleware.InvokeAsync(message, context, nextDelegate, cancellationToken)
 				: nextDelegate(message, context, cancellationToken);
+	}
+
+	/// <summary>
+	/// Populates <see cref="CachePolicyRegistry"/> from cache policy actions accumulated during DI composition.
+	/// Runs once on first <see cref="CacheOptions"/> resolution via <see cref="IPostConfigureOptions{TOptions}"/>.
+	/// </summary>
+	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes",
+		Justification = "Instantiated via DI through TryAddEnumerable ServiceDescriptor")]
+	internal sealed class CachePolicyRegistryPopulator(
+		CachePolicyRegistry registry,
+		IServiceProvider serviceProvider) : IPostConfigureOptions<CacheOptions>
+	{
+		private volatile bool _populated;
+
+		public void PostConfigure(string? name, CacheOptions options)
+		{
+			if (_populated)
+			{
+				return;
+			}
+
+			_populated = true;
+
+			foreach (var registration in CachePolicyPendingRegistrations)
+			{
+				registration(registry, serviceProvider);
+			}
+
+			registry.Freeze();
+		}
 	}
 }

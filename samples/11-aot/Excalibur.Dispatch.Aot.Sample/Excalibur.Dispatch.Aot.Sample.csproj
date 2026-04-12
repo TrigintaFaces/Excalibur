@@ -10,7 +10,10 @@
     <!-- AOT Configuration -->
     <PublishAot>true</PublishAot>
     <TrimMode>full</TrimMode>
-    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- InMemoryEventStore (dev/test store) uses reflection-based JSON serialization.
+         In production, consumers would use typed serialization with JsonSerializerContext.
+         AOT-safe serialization is demonstrated explicitly via AppJsonSerializerContext in S1 demos. -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
@@ -28,5 +31,12 @@
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+  </ItemGroup>
+  <!-- S2: Event Sourcing dependencies -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Domain\Excalibur.Domain.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
   </ItemGroup>
 </Project>

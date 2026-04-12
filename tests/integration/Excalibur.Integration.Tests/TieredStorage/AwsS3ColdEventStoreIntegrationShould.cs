@@ -39,16 +39,19 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 				.WithImage("localstack/localstack:latest")
 				.Build();
 
-			await _container.StartAsync().ConfigureAwait(false);
+			using var startCts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+			await _container.StartAsync(startCts.Token).ConfigureAwait(false);
 
 			var config = new AmazonS3Config
 			{
 				ServiceURL = _container.GetConnectionString(),
 				ForcePathStyle = true,
-				UseHttp = true
+				UseHttp = true,
+				Timeout = TimeSpan.FromSeconds(10),
+				MaxErrorRetry = 1
 			};
 			_s3Client = new AmazonS3Client("test", "test", config);
-			await _s3Client.PutBucketAsync(BucketName).ConfigureAwait(false);
+			await _s3Client.PutBucketAsync(BucketName, startCts.Token).ConfigureAwait(false);
 
 			_store = new AwsS3ColdEventStore(
 				_s3Client, BucketName, "events",
@@ -78,15 +81,23 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		}
 	}
 
+	/// <summary>
+	/// Creates a cancellation token with a 30-second timeout to prevent test host hangs
+	/// when LocalStack is slow or unresponsive.
+	/// </summary>
+	private static CancellationToken CreateTestTimeout() =>
+		new CancellationTokenSource(TimeSpan.FromSeconds(30)).Token;
+
 	[Fact]
 	public async Task WriteAndReadEvents()
 	{
 		if (!_available) return;
 
+		var ct = CreateTestTimeout();
 		var events = CreateEvents("s3-agg-1", 1, 2, 3);
-		await _store!.WriteAsync("s3-agg-1", events, CancellationToken.None);
+		await _store!.WriteAsync("s3-agg-1", events, ct);
 
-		var read = await _store.ReadAsync("s3-agg-1", CancellationToken.None);
+		var read = await _store.ReadAsync("s3-agg-1", ct);
 		read.Count.ShouldBe(3);
 		read[0].Version.ShouldBe(1);
 	}
@@ -96,9 +107,10 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		if (!_available) return;
 
-		await _store!.WriteAsync("s3-agg-v", CreateEvents("s3-agg-v", 1, 2, 3, 4, 5), CancellationToken.None);
+		var ct = CreateTestTimeout();
+		await _store!.WriteAsync("s3-agg-v", CreateEvents("s3-agg-v", 1, 2, 3, 4, 5), ct);
 
-		var fromV3 = await _store.ReadAsync("s3-agg-v", 3, CancellationToken.None);
+		var fromV3 = await _store.ReadAsync("s3-agg-v", 3, ct);
 		fromV3.Count.ShouldBe(2);
 		fromV3[0].Version.ShouldBe(4);
 	}
@@ -108,10 +120,11 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		if (!_available) return;
 
-		await _store!.WriteAsync("s3-agg-m", CreateEvents("s3-agg-m", 1, 2, 3), CancellationToken.None);
-		await _store.WriteAsync("s3-agg-m", CreateEvents("s3-agg-m", 3, 4, 5), CancellationToken.None);
+		var ct = CreateTestTimeout();
+		await _store!.WriteAsync("s3-agg-m", CreateEvents("s3-agg-m", 1, 2, 3), ct);
+		await _store.WriteAsync("s3-agg-m", CreateEvents("s3-agg-m", 3, 4, 5), ct);
 
-		var all = await _store.ReadAsync("s3-agg-m", CancellationToken.None);
+		var all = await _store.ReadAsync("s3-agg-m", ct);
 		all.Count.ShouldBe(5);
 	}
 
@@ -120,22 +133,23 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		if (!_available) return;
 
-		await _store!.WriteAsync("s3-agg-h", CreateEvents("s3-agg-h", 1), CancellationToken.None);
-		(await _store.HasArchivedEventsAsync("s3-agg-h", CancellationToken.None)).ShouldBeTrue();
+		var ct = CreateTestTimeout();
+		await _store!.WriteAsync("s3-agg-h", CreateEvents("s3-agg-h", 1), ct);
+		(await _store.HasArchivedEventsAsync("s3-agg-h", ct)).ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task HasArchivedReturnsFalseWhenAbsent()
 	{
 		if (!_available) return;
-		(await _store!.HasArchivedEventsAsync("s3-nonexistent", CancellationToken.None)).ShouldBeFalse();
+		(await _store!.HasArchivedEventsAsync("s3-nonexistent", CreateTestTimeout())).ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task ReadReturnsEmptyForNonexistent()
 	{
 		if (!_available) return;
-		(await _store!.ReadAsync("s3-no-such", CancellationToken.None)).Count.ShouldBe(0);
+		(await _store!.ReadAsync("s3-no-such", CreateTestTimeout())).Count.ShouldBe(0);
 	}
 
 	private static List<StoredEvent> CreateEvents(string aggregateId, params long[] versions) =>

@@ -440,6 +440,199 @@ public static class AuditLoggingServiceCollectionExtensions
 		return services;
 	}
 
+	/// <summary>
+	/// Adds audit annotation services with in-memory storage.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Registers:
+	/// <list type="bullet">
+	/// <item><see cref="IAuditAnnotationStore"/> as <see cref="InMemoryAuditAnnotationStore"/> (singleton)</item>
+	/// <item><see cref="AuditAnnotationOptions"/> with <c>ValidateOnStart</c></item>
+	/// </list>
+	/// </para>
+	/// <para>
+	/// Requires an <see cref="IAuditActorProvider"/> registration for actor identity.
+	/// For production, replace <see cref="IAuditAnnotationStore"/> with a persistent implementation.
+	/// </para>
+	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddAuditAnnotations(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		_ = services.AddOptions<AuditAnnotationOptions>()
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton(TimeProvider.System);
+		services.TryAddSingleton<InMemoryAuditAnnotationStore>();
+		services.TryAddSingleton<IAuditAnnotationStore>(sp => sp.GetRequiredService<InMemoryAuditAnnotationStore>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds audit annotation services with a custom annotation store.
+	/// </summary>
+	/// <typeparam name="TStore">The annotation store implementation type.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddAuditAnnotations<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+	TStore>(
+		this IServiceCollection services)
+		where TStore : class, IAuditAnnotationStore
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		_ = services.AddOptions<AuditAnnotationOptions>()
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton<IAuditAnnotationStore, TStore>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds audit annotation services with configuration.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">An action to configure annotation options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddAuditAnnotations(
+		this IServiceCollection services,
+		Action<AuditAnnotationOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		_ = services.AddAuditAnnotations();
+		_ = services.Configure(configure);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds the RBAC annotation store decorator for role-based access control on annotations.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Decorates the existing <see cref="IAuditAnnotationStore"/> with
+	/// <see cref="RbacAuditAnnotationStore"/> to enforce role-based access control.
+	/// </para>
+	/// <para>
+	/// Requires <see cref="IAuditRoleProvider"/> registration.
+	/// Call after <see cref="AddAuditAnnotations(IServiceCollection)"/>.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddRbacAuditAnnotationStore(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		var existingDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAuditAnnotationStore))
+								 ?? throw new InvalidOperationException(
+									 Resources.AuditLoggingServiceCollectionExtensions_NoAnnotationStoreRegistrationFound);
+
+		_ = services.Remove(existingDescriptor);
+
+		if (existingDescriptor.ImplementationType is not null)
+		{
+			services.Add(new ServiceDescriptor(
+				existingDescriptor.ImplementationType,
+				existingDescriptor.ImplementationType,
+				existingDescriptor.Lifetime));
+
+			services.Add(new ServiceDescriptor(
+				typeof(IAuditAnnotationStore),
+				sp => new RbacAuditAnnotationStore(
+					(IAuditAnnotationStore)sp.GetRequiredService(existingDescriptor.ImplementationType),
+					sp.GetRequiredService<IAuditRoleProvider>(),
+					sp.GetService<IAuditActorProvider>(),
+					sp.GetService<IAuditLogger>(),
+					sp.GetRequiredService<Logging.ILogger<RbacAuditAnnotationStore>>()),
+				existingDescriptor.Lifetime));
+		}
+		else if (existingDescriptor.ImplementationFactory is not null)
+		{
+			var factory = existingDescriptor.ImplementationFactory;
+			services.Add(new ServiceDescriptor(
+				typeof(IAuditAnnotationStore),
+				sp => new RbacAuditAnnotationStore(
+					(IAuditAnnotationStore)factory(sp),
+					sp.GetRequiredService<IAuditRoleProvider>(),
+					sp.GetService<IAuditActorProvider>(),
+					sp.GetService<IAuditLogger>(),
+					sp.GetRequiredService<Logging.ILogger<RbacAuditAnnotationStore>>()),
+				existingDescriptor.Lifetime));
+		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds scoped audit context services for conditional audit assertions in handlers.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Registers:
+	/// <list type="bullet">
+	/// <item><see cref="IAuditContext"/> as <see cref="DefaultAuditContext"/> (scoped)</item>
+	/// <item><see cref="AuditContextOptions"/> with <c>ValidateOnStart</c></item>
+	/// </list>
+	/// </para>
+	/// <para>
+	/// Requires <see cref="IAuditLogger"/> registration (from <see cref="AddAuditLogging(IServiceCollection)"/>).
+	/// The <c>AuditContextMiddleware</c> initializes the context scope with pipeline data
+	/// before handler execution.
+	/// </para>
+	/// </remarks>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	public static IServiceCollection AddAuditContext(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		_ = services.AddOptions<AuditContextOptions>()
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddSingleton(TimeProvider.System);
+		services.TryAddScoped<DefaultAuditContext>();
+		services.TryAddScoped<IAuditContext>(sp => sp.GetRequiredService<DefaultAuditContext>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds scoped audit context services with configuration.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">An action to configure audit context options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddAuditContext(
+		this IServiceCollection services,
+		Action<AuditContextOptions> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		_ = services.AddAuditContext();
+		_ = services.Configure(configure);
+
+		return services;
+	}
+
 	private static void RegisterAuditLogEncryptionDecorator(IServiceCollection services)
 	{
 		// Find and replace the existing IAuditStore registration with the encrypting decorator

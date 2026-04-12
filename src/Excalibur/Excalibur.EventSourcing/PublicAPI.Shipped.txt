@@ -133,6 +133,8 @@ Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EnableAutoS
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EnableAutoUpcast.get -> bool
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EnableAutoUpcast.set -> void
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.EventSourcedRepositoryOptions() -> void
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.OutboxStagingStrategy.get -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
+Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.OutboxStagingStrategy.set -> void
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.TargetSnapshotVersion.get -> int
 Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.TargetSnapshotVersion.set -> void
 Excalibur.EventSourcing.Migration.EventBatchMigrator
@@ -246,13 +248,20 @@ Excalibur.EventSourcing.Projections.IGlobalStreamProjection<TState>
 Excalibur.EventSourcing.Projections.IGlobalStreamProjection<TState>.ApplyAsync(Excalibur.Dispatch.Abstractions.IDomainEvent! domainEvent, TState! state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Async() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Ephemeral() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.Inline() -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WhenDeleted(System.Func<string!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! deleteAction) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithCacheTtl(System.TimeSpan ttl) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithOptions(System.Action<Excalibur.EventSourcing.Projections.ProjectionOptions!>! configure) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!
 Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>
 Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>.Configure(Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>! builder) -> void
 Excalibur.EventSourcing.Projections.IProjectionRebuildService
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.RebuildAsync<TProjection>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Projections.ProjectionOptions
+Excalibur.EventSourcing.Projections.ProjectionOptions.ProjectionOptions() -> void
+Excalibur.EventSourcing.Projections.ProjectionOptions.WarningThreshold.get -> System.TimeSpan
+Excalibur.EventSourcing.Projections.ProjectionOptions.WarningThreshold.set -> void
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.BatchDelay.get -> System.TimeSpan
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions.BatchDelay.set -> void
@@ -687,10 +696,10 @@ static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtension
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseEventStoreErasure<TMapping>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseIntervalSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, int eventInterval = 100) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseNoSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseTransactionalOutboxWriter<TOutboxWriter>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseSizeBasedSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, long maxSizeInBytes) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseSnapshotManager<TManager>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseTimeBasedSnapshots(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.TimeSpan timeInterval) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.DependencyInjection.EventSourcingBuilderExtensions.UseTransactionalOutboxWriter<TOutboxWriter>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.AddBuilder<TView>(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder, System.Func<System.IServiceProvider!, Excalibur.EventSourcing.Abstractions.IMaterializedViewBuilder<TView!>!>! builderFactory) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.EnableCatchUpOnStartup(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
 static Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions.UseRefreshService(this Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IMaterializedViewsBuilder!
@@ -756,5 +765,3 @@ virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.DeleteSnapsho
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 virtual Excalibur.EventSourcing.Decorators.DelegatingSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.DeleteAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.OutboxStagingStrategy.get -> Excalibur.Dispatch.Abstractions.OutboxStagingStrategy
-Excalibur.EventSourcing.Implementation.EventSourcedRepositoryOptions.OutboxStagingStrategy.set -> void

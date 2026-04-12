@@ -161,4 +161,45 @@ public static class AuditLoggingEventId
 
 	/// <summary>Audit store health check failed.</summary>
 	public const int AuditStoreHealthCheckFailed = 93502;
+
+	// ========================================
+	// 93600-93699: Audit Annotations
+	// ========================================
+
+	/// <summary>Annotation access denied due to insufficient role.</summary>
+	public const int AnnotationAccessDenied = 93600;
+
+	/// <summary>Annotation read access denied due to insufficient role.</summary>
+	public const int AnnotationReadAccessDenied = 93601;
+
+	/// <summary>Meta-audit logging failed for an annotation action.</summary>
+	public const int AnnotationMetaAuditFailed = 93602;
+
+	// ========================================
+	// 93700-93799: Audit Context (Conditional Assertions)
+	// ========================================
+
+	/// <summary>Audit context scope initialized.</summary>
+	public const int AuditContextScopeInitialized = 93700;
+
+	/// <summary>Audit assertion recorded.</summary>
+	public const int AuditAssertionRecorded = 93701;
+
+	/// <summary>Audit observation recorded.</summary>
+	public const int AuditObservationRecorded = 93702;
+
+	/// <summary>Audit assertion skipped (condition was false).</summary>
+	public const int AuditAssertionSkipped = 93703;
+
+	/// <summary>Maximum assertions per scope exceeded.</summary>
+	public const int MaxAssertionsExceeded = 93704;
+
+	/// <summary>Audit context logging failed.</summary>
+	public const int AuditContextLoggingFailed = 93705;
+
+	/// <summary>Audit context middleware populated pipeline data (correlation, actor, tenant).</summary>
+	public const int AuditContextMiddlewarePopulated = 93706;
+
+	/// <summary>Failed to resolve audit actor from IAuditActorProvider in middleware.</summary>
+	public const int AuditActorResolutionFailed = 93707;
 }

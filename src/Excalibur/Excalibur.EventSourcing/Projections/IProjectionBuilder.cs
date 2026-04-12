@@ -49,6 +49,14 @@ public interface IProjectionBuilder<TProjection>
 	IProjectionBuilder<TProjection> Async();
 
 	/// <summary>
+	/// Configures the projection as ephemeral — built on-demand without persistence.
+	/// Ephemeral projections are never stored; they are rebuilt from events each time
+	/// they are requested via <c>IEphemeralProjectionEngine</c>.
+	/// </summary>
+	/// <returns>This builder for fluent chaining.</returns>
+	IProjectionBuilder<TProjection> Ephemeral();
+
+	/// <summary>
 	/// Registers an event handler for the specified domain event type.
 	/// </summary>
 	/// <typeparam name="TEvent">The domain event type to handle.</typeparam>
@@ -139,5 +147,97 @@ public interface IProjectionBuilder<TProjection>
 	/// <param name="ttl">The cache time-to-live.</param>
 	/// <returns>This builder for fluent chaining.</returns>
 	IProjectionBuilder<TProjection> WithCacheTtl(TimeSpan ttl);
+
+	/// <summary>
+	/// Registers a deletion handler that is invoked when the associated aggregate
+	/// is deleted (R27.23). The handler receives the projection ID and a cancellation token,
+	/// and is responsible for removing the projection from its store.
+	/// </summary>
+	/// <param name="deleteAction">
+	/// An async function that deletes the projection by its ID.
+	/// </param>
+	/// <returns>This builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Only one deletion handler may be registered per projection. If called multiple times,
+	/// the last handler wins.
+	/// </para>
+	/// <code>
+	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
+	///     .Inline()
+	///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ })
+	///     .WhenDeleted((projectionId, ct) => store.DeleteAsync(projectionId, ct)));
+	/// </code>
+	/// </remarks>
+	IProjectionBuilder<TProjection> WhenDeleted(Func<string, CancellationToken, Task> deleteAction);
+
+	/// <summary>
+	/// Registers an identity resolver for the specified event type.
+	/// When processing an event of this type, the projection instance is loaded
+	/// and stored using the resolved identity instead of the aggregate ID.
+	/// This enables projections keyed by event data (e.g., order ID, tenant, category).
+	/// </summary>
+	/// <typeparam name="TEvent">The domain event type to extract the identity from.</typeparam>
+	/// <param name="resolver">
+	/// A function that extracts the projection identity from the event.
+	/// Must return a non-null, non-empty string.
+	/// </param>
+	/// <returns>This builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// If no identity resolver is provided, <c>IDomainEvent.AggregateId</c> is used (default).
+	/// </para>
+	/// <code>
+	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
+	///     .Inline()
+	///     .IdentityFrom&lt;OrderPlaced&gt;(e => e.OrderId.ToString())
+	///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ }));
+	/// </code>
+	/// </remarks>
+#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
+	IProjectionBuilder<TProjection> IdentityFrom<TEvent>(Func<TEvent, string> resolver)
+		where TEvent : IDomainEvent;
+#pragma warning restore RS0016
+
+	/// <summary>
+	/// Overrides the default DI-resolved <see cref="Excalibur.EventSourcing.Abstractions.IProjectionStore{TProjection}"/>
+	/// with a specific store implementation type. The store is resolved from DI by its concrete type.
+	/// </summary>
+	/// <typeparam name="TStore">
+	/// The concrete store implementation type. Must implement
+	/// <see cref="Excalibur.EventSourcing.Abstractions.IProjectionStore{TProjection}"/>.
+	/// </typeparam>
+	/// <returns>This builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// If no store is explicitly bound, the framework resolves
+	/// <c>IProjectionStore&lt;TProjection&gt;</c> from DI (default keyed registration).
+	/// </para>
+	/// <code>
+	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
+	///     .Inline()
+	///     .WithStore&lt;SqlServerProjectionStore&lt;OrderSummary&gt;&gt;()
+	///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ }));
+	/// </code>
+	/// </remarks>
+#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
+	IProjectionBuilder<TProjection> WithStore<TStore>()
+		where TStore : class, IProjectionStore<TProjection>;
+#pragma warning restore RS0016
+
+	/// <summary>
+	/// Configures per-projection options such as warning thresholds.
+	/// </summary>
+	/// <param name="configure">An action that configures <see cref="ProjectionOptions"/>.</param>
+	/// <returns>This builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <code>
+	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
+	///     .Inline()
+	///     .WithOptions(o => o.WarningThreshold = TimeSpan.FromMilliseconds(200))
+	///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ }));
+	/// </code>
+	/// </remarks>
+	IProjectionBuilder<TProjection> WithOptions(Action<ProjectionOptions> configure);
 
 }

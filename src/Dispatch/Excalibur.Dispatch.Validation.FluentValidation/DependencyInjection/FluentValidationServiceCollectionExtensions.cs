@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Validation;
 using Excalibur.Dispatch.Validation.FluentValidation;
@@ -21,7 +23,10 @@ public static class FluentValidationServiceCollectionExtensions
 	/// <remarks>
 	/// This method registers <see cref="FluentValidatorResolver"/> as the <see cref="IValidatorResolver"/>
 	/// implementation. Ensure your FluentValidation validators are registered with the service collection.
+	/// For AOT scenarios, use <see cref="WithAotFluentValidation"/> instead.
 	/// </remarks>
+	[RequiresDynamicCode("FluentValidatorResolver uses MakeGenericType for IValidator<T> resolution. Use WithAotFluentValidation() for AOT scenarios.")]
+	[RequiresUnreferencedCode("FluentValidatorResolver uses runtime type creation. Use WithAotFluentValidation() for AOT scenarios.")]
 	public static IDispatchBuilder WithFluentValidation(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);

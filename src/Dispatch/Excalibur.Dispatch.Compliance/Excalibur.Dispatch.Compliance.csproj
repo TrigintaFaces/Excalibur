@@ -5,9 +5,8 @@
     <PackageId>Excalibur.Dispatch.Compliance</PackageId>
     <Description>Compliance implementations for the Excalibur framework. Provides AES-256-GCM encryption, key management, key rotation, and FIPS 140-2 validation for SOC2/GDPR requirements.</Description>
     <PackageTags>compliance;encryption;aes-gcm;key-management;gdpr;soc2;security;fips</PackageTags>
-    <!-- Note: AOT disabled due to QuestPDF reflection requirements for PDF generation -->
-    <IsAotCompatible>false</IsAotCompatible>
-    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <!-- AOT: Compatible. Reflection-using methods (encryption, masking, retention, QuestPDF) carry [RequiresUnreferencedCode]/[RequiresDynamicCode]. -->
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">

@@ -265,5 +265,59 @@ public sealed class DispatcherShould
 		await Task.CompletedTask;
 	}
 
+	/// <summary>
+	/// Regression test for bd-543qi6: DispatchAsync was catching handler exceptions and wrapping
+	/// them in MessageResult instead of propagating to the caller. Demo 4 in the AOT sample
+	/// expected InvalidOperationException to propagate but got a MessageResult with Succeeded=false.
+	/// </summary>
+	[Fact]
+	public async Task PropagateHandlerExceptionInsteadOfWrappingInMessageResult()
+	{
+		// Arrange
+		var expectedMessage = "Order 'abc' was not found.";
+		A.CallTo(() => _invoker.InvokeAsync(
+				A<IDispatchMessage>._,
+				A<IMessageContext>._,
+				A<Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<IMessageResult>>>._,
+				A<CancellationToken>._))
+			.Throws(new InvalidOperationException(expectedMessage));
+
+		var dispatcher = new Dispatcher(_invoker, _finalHandler, _transportContextProvider, _serviceProvider);
+		var message = new TestDispatchActionWithResponse();
+		var context = new MessageContext(message, _serviceProvider);
+
+		// Act & Assert — exception must propagate, not be swallowed into MessageResult
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => dispatcher.DispatchAsync<TestDispatchActionWithResponse, string>(message, context, CancellationToken.None));
+
+		ex.Message.ShouldBe(expectedMessage);
+	}
+
+	/// <summary>
+	/// Regression test for bd-543qi6: DispatchAsync (non-generic) should also propagate handler exceptions.
+	/// </summary>
+	[Fact]
+	public async Task PropagateHandlerExceptionForNonGenericDispatch()
+	{
+		// Arrange
+		var expectedMessage = "Handler failed unexpectedly.";
+		A.CallTo(() => _invoker.InvokeAsync(
+				A<IDispatchMessage>._,
+				A<IMessageContext>._,
+				A<Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<IMessageResult>>>._,
+				A<CancellationToken>._))
+			.Throws(new InvalidOperationException(expectedMessage));
+
+		var dispatcher = new Dispatcher(_invoker, _finalHandler, _transportContextProvider, _serviceProvider);
+		var message = new FakeDispatchMessage();
+		var context = new MessageContext(message, _serviceProvider);
+
+		// Act & Assert — exception must propagate, not be swallowed into MessageResult
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => dispatcher.DispatchAsync(message, context, CancellationToken.None));
+
+		ex.Message.ShouldBe(expectedMessage);
+	}
+
 	private sealed class TestDispatchActionWithResponse : IDispatchAction<string>;
 }

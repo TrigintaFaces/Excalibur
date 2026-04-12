@@ -127,6 +127,7 @@ internal sealed class AzureLogicAppsScheduler(
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToElement and Serialize")]
+	[RequiresDynamicCode("JSON serialization of scheduled message payloads uses reflection-based System.Text.Json")]
 	private static string BuildPayload(
 		object message,
 		Type messageType,
@@ -320,6 +321,8 @@ internal sealed class AzureLogicAppsScheduler(
 
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "JSON serialization of scheduled message payloads uses reflection by design")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "JSON serialization of scheduled message payloads requires dynamic code — external Azure Logic Apps API")]
 	private async Task<string> ScheduleObjectAsync(
 		object message,
 		Type messageType,

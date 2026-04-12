@@ -506,6 +506,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'advanced/testing' },
             { type: 'doc', id: 'advanced/security' },
             { type: 'doc', id: 'advanced/deployment' },
+            { type: 'doc', id: 'advanced/container-deployment' },
             { type: 'doc', id: 'advanced/source-generators' },
             { type: 'doc', id: 'advanced/native-aot' },
             { type: 'doc', id: 'advanced/aot-compatibility' },

@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Messaging;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using MR = Excalibur.Dispatch.Abstractions.MessageResult;
@@ -165,6 +166,9 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 
 		LogStarting();
 
+		// Resolve dispatcher from DI for routing triggered messages
+		_dispatcher ??= _serviceProvider.GetRequiredService<IDispatcher>();
+
 		// Parse the cron expression
 		_cronExpression = _cronScheduler.Parse(_options.CronExpression, _options.TimeZone);
 
@@ -219,16 +223,6 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		_timerTask = null;
 		_timerCts?.Dispose();
 		_timerCts = null;
-	}
-
-	/// <summary>
-	/// Sets the dispatcher to use for routing triggered messages.
-	/// </summary>
-	/// <param name="dispatcher"> The dispatcher instance. </param>
-	/// <remarks> This must be called before messages can be processed. Typically called by the transport infrastructure during setup. </remarks>
-	public void SetDispatcher(IDispatcher dispatcher)
-	{
-		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 	}
 
 	#region ITransportHealthChecker Implementation

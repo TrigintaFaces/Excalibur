@@ -228,6 +228,12 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 		Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
 
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<Options.Core.InMemoryBusOptions>, Options.Core.InMemoryBusOptionsValidator>());
+
+		Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<Options.Core.CompressionOptions>, Options.Core.CompressionOptionsValidator>());
+
 		_ = Services.AddOptions<DispatchOptions>()
 			.Configure(opt =>
 			{

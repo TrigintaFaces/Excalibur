@@ -54,7 +54,8 @@ public static class SecurityServiceCollectionExtensions
 	/// <param name="configuration">The configuration to bind options from.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.</exception>
-	[RequiresUnreferencedCode("Binding configuration to Argon2Options may require unreferenced members.")]
+	[RequiresUnreferencedCode("Configuration binding uses reflection by design. AOT consumers should use the Action<Argon2Options> overload.")]
+	[RequiresDynamicCode("Configuration binding uses reflection by design. AOT consumers should use the Action<Argon2Options> overload.")]
 	public static IServiceCollection AddPasswordHasher(
 		this IServiceCollection services,
 		IConfiguration configuration)

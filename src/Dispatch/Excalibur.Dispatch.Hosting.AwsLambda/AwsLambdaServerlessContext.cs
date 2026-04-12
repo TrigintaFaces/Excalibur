@@ -11,9 +11,7 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// </summary>
 internal sealed class AwsLambdaServerlessContext : ServerlessContextBase
 {
-#if AWS_LAMBDA_SUPPORT
 	private readonly ILambdaContext _lambdaContext;
-#endif
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AwsLambdaServerlessContext" /> class.
@@ -23,7 +21,6 @@ internal sealed class AwsLambdaServerlessContext : ServerlessContextBase
 	public AwsLambdaServerlessContext(object lambdaContext, ILogger logger)
 		: base(lambdaContext, ServerlessPlatform.AwsLambda, logger)
 	{
-#if AWS_LAMBDA_SUPPORT
 		if (lambdaContext is ILambdaContext context)
 		{
 			_lambdaContext = context;
@@ -32,73 +29,28 @@ internal sealed class AwsLambdaServerlessContext : ServerlessContextBase
 		{
 			throw new ArgumentException(ErrorConstants.LambdaContextMustImplementILambdaContext, nameof(lambdaContext));
 		}
-#else
-		throw new NotSupportedException(ErrorConstants.AwsLambdaSupportNotAvailable);
-#endif
 	}
 
 	/// <inheritdoc />
-	public override string RequestId =>
-#if AWS_LAMBDA_SUPPORT
-		_lambdaContext.AwsRequestId;
-#else
-		"unknown";
-
-#endif
+	public override string RequestId => _lambdaContext.AwsRequestId;
 
 	/// <inheritdoc />
-	public override string FunctionName =>
-#if AWS_LAMBDA_SUPPORT
-		_lambdaContext.FunctionName;
-#else
-		"unknown";
-
-#endif
+	public override string FunctionName => _lambdaContext.FunctionName;
 
 	/// <inheritdoc />
-	public override string FunctionVersion =>
-#if AWS_LAMBDA_SUPPORT
-		_lambdaContext.FunctionVersion;
-#else
-		"$LATEST";
-
-#endif
+	public override string FunctionVersion => _lambdaContext.FunctionVersion;
 
 	/// <inheritdoc />
-	public override string InvokedFunctionArn =>
-#if AWS_LAMBDA_SUPPORT
-		_lambdaContext.InvokedFunctionArn;
-#else
-		$"arn:aws:lambda:{Region}:000000000000:function:unknown";
-
-#endif
+	public override string InvokedFunctionArn => _lambdaContext.InvokedFunctionArn;
 
 	/// <inheritdoc />
-	public override int MemoryLimitInMB =>
-#if AWS_LAMBDA_SUPPORT
-		_lambdaContext.MemoryLimitInMB;
-#else
-		128;
-
-#endif
+	public override int MemoryLimitInMB => _lambdaContext.MemoryLimitInMB;
 
 	/// <inheritdoc />
-	public override string LogGroupName =>
-#if AWS_LAMBDA_SUPPORT
-		_lambdaContext.LogGroupName;
-#else
-		$"/aws/lambda/{FunctionName}";
-
-#endif
+	public override string LogGroupName => _lambdaContext.LogGroupName;
 
 	/// <inheritdoc />
-	public override string LogStreamName =>
-#if AWS_LAMBDA_SUPPORT
-		_lambdaContext.LogStreamName;
-#else
-		$"{DateTimeOffset.UtcNow:yyyy/MM/dd}[LOCAL]";
-
-#endif
+	public override string LogStreamName => _lambdaContext.LogStreamName;
 
 	/// <inheritdoc />
 	public override string CloudProvider => "AWS";
@@ -130,17 +82,8 @@ internal sealed class AwsLambdaServerlessContext : ServerlessContextBase
 	}
 
 	/// <inheritdoc />
-	public override DateTimeOffset ExecutionDeadline
-	{
-		get
-		{
-#if AWS_LAMBDA_SUPPORT
-			return DateTimeOffset.UtcNow.Add(_lambdaContext.RemainingTime);
-#else
-			return DateTimeOffset.UtcNow.AddMinutes(15);
-#endif
-		}
-	}
+	public override DateTimeOffset ExecutionDeadline =>
+		DateTimeOffset.UtcNow.Add(_lambdaContext.RemainingTime);
 
 	/// <summary>
 	/// Gets the remaining execution time for the Lambda function.
@@ -148,20 +91,12 @@ internal sealed class AwsLambdaServerlessContext : ServerlessContextBase
 	/// <value>
 	/// The remaining execution time for the Lambda function.
 	/// </value>
-	public TimeSpan RemainingExecutionTime =>
-#if AWS_LAMBDA_SUPPORT
-		_lambdaContext.RemainingTime;
-#else
-		TimeSpan.FromMinutes(15);
+	public TimeSpan RemainingExecutionTime => _lambdaContext.RemainingTime;
 
-#endif
-
-#if AWS_LAMBDA_SUPPORT
 	/// <summary>
 	/// Gets the AWS-specific Lambda context.
 	/// </summary>
 	public ILambdaContext LambdaContext => _lambdaContext;
-#endif
 
 	/// <inheritdoc />
 	protected override void Dispose(bool disposing)
@@ -174,4 +109,3 @@ internal sealed class AwsLambdaServerlessContext : ServerlessContextBase
 		base.Dispose(disposing);
 	}
 }
-

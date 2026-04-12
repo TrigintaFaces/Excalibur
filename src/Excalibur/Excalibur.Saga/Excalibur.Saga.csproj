@@ -6,8 +6,10 @@
     <PackageId>Excalibur.Saga</PackageId>
     <Description>Saga pattern abstractions for Excalibur, providing persistence interfaces for long-running business processes and distributed workflows.</Description>
     <PackageTags>excalibur;saga;process-manager;workflow;distributed-transactions</PackageTags>
-    <!-- AOT: NOT compatible. SagaCoordinator uses MakeGenericType for typed saga state deserialization. -->
-    <IsAotCompatible>false</IsAotCompatible>
+    <!-- AOT: Compatible. SagaCoordinator uses RuntimeFeature.IsDynamicCodeSupported dual-path:
+         AOT path uses ISagaDispatchRegistry/ISagaTypeRegistry/ISagaContextFactory (source-gen safe).
+         JIT path uses MakeGenericMethod (reflection). Both paths are properly annotated. -->
+    <IsAotCompatible>true</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
