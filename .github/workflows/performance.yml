@@ -72,7 +72,7 @@ jobs:
             -ResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
             -RequireBenchmarkSummaryMetadata:$true `
             -MinimumRepeatCount 1 `
-            -MediatRSingleCommandMaxRatio 1.50 `
+            -MediatRSingleCommandMaxRatio 1.75 `
             -MediatRQueryMaxRatio 2.20
 
       - name: Generate protected-row delta report

@@ -143,13 +143,13 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Dispatch single command (lean)** | 75.32 ns | BenchmarkDotNet comparative matrix baseline (March 2, 2026) |
-| **Dispatch ultra-local single command** | 31.54 ns | Lowest-overhead local Dispatch path in the same run |
-| **Dispatch singleton-promoted single command** | 31.73 ns | Cached direct handler path in the same run |
-| **Dispatch vs Wolverine (`InvokeAsync`)** | 132.26 ns vs 368.19 ns | In-process command parity comparison |
-| **Dispatch vs MassTransit Mediator** | 178.2 ns vs 4,120.8 ns | In-process mediator parity comparison |
-| **Dispatch queued command end-to-end** | 1.147 us | Queued/bus parity benchmark |
-| **Pre-routed local command** | 78.17 ns | Routing-first parity benchmark |
+| **Standard dispatch** | 47.8 ns / 168 B | Full pipeline with context, routing, and correlation |
+| **Direct-local dispatch** | 45.0 ns / 168 B | Optimized local path with middleware bypass |
+| **Ultra-local dispatch** | 33.2 ns / 24 B | Lowest-overhead path, near-zero allocation |
+| **Handler registry lookup** | 3.5 ns / 0 B | FrozenDictionary, zero allocation |
+| **Handler invocation** | 5.7 ns / 0 B | Direct delegate, zero allocation |
+| **Handler activation** | 24.3 ns / 0 B | Pre-created context, zero allocation |
+| **100 concurrent commands** | 5,090 ns / 12.2 KB | Scales linearly with low memory pressure |
 
 ### Optimizations Included
 
@@ -157,6 +157,7 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 - **FrozenDictionary Caches** - Lock-free handler and middleware lookup
 - **Static Pipelines** - Zero-allocation execution for known message types
 - **Auto-Freeze on Startup** - Zero-configuration production optimization
+- **LightMode** - Opt-in minimal overhead (disables AsyncLocal context flow + correlation)
 
 ### Quick Configuration
 
@@ -170,8 +171,9 @@ services.Configure<PerformanceOptions>(o => o.AutoFreezeOnStart = false);
 
 For detailed benchmarks, methodology caveats, and raw reports, see:
 - [Competitor comparison](docs-site/docs/performance/competitor-comparison.md)
-- `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/` (current published baseline)
+- `benchmarks/baselines/` (published baselines)
 - `benchmarks/runs/BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
+- `benchmarks/experiments/` (auto-optimize experiment logs)
 
 ---
 

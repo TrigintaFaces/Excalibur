@@ -480,6 +480,22 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	}
 
 	/// <summary>
+	/// Fast initialization path for internal callers that guarantee non-null service provider.
+	/// Skips the null check and volatile write guard for maximum throughput on the recycled context path.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void InitializeFast(IServiceProvider requestServices)
+	{
+		// PERF: Caller guarantees non-null. Skip ArgumentNullException.ThrowIfNull.
+		// PERF: Skip re-assignment if the provider hasn't changed (common case for recycled contexts).
+		if (!ReferenceEquals(_requestServices, requestServices))
+		{
+			_requestServices = requestServices;
+			_defaultServiceProvider = requestServices;
+		}
+	}
+
+	/// <summary>
 	/// Empty message used as a placeholder when context is in the pool.
 	/// </summary>
 	internal sealed class EmptyMessage : IDispatchMessage

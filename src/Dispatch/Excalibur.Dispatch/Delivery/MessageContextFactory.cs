@@ -41,12 +41,14 @@ internal sealed class MessageContextFactory(IServiceProvider serviceProvider) : 
 		if (context is not null)
 		{
 			s_cachedContext = null;
-			context.Initialize(serviceProvider);
+			// PERF: Use fast init path -- serviceProvider is constructor-injected, guaranteed non-null.
+			context.InitializeFast(serviceProvider);
 			return context;
 		}
 
 		var fresh = new MessageContext();
-		fresh.Initialize(serviceProvider);
+		// PERF: Use fast init path -- serviceProvider is constructor-injected, guaranteed non-null.
+		fresh.InitializeFast(serviceProvider);
 		return fresh;
 	}
 

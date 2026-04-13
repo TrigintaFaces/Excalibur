@@ -13,3 +13,8 @@
 | 5cdeb5e13 | mediatr-query-20260316 | Remove redundant Message/Result assignments in Reset | -2.4% | within noise | MediatR | MessageContextPool.cs |
 | b9c367317 | mediatr-query-20260316 | Skip redundant volatile writes in Reset for unchanged fields | within noise | within noise | MediatR | MessageContext.cs |
 | ef6cce541 | mediatr-query-20260316 | Guard Reset field writes to avoid cache-line dirtying | -15.5% | within noise | MediatR | MessageContext.cs |
+| 9ec039b2c | dispatch-hotpath-20260412 | Skip correlation volatile writes in Lean direct-local init | within noise | 0B | MediatRLocalHotPath | Dispatcher.cs |
+| 9a6b4a640 | dispatch-hotpath-20260412 | Remove redundant null check in internal MessageContext overload | within noise | 0B | MediatRLocalHotPath | Dispatcher.cs |
+| e16100c66 | dispatch-hotpath-20260412 | InitializeFast for context recycling, skip null check | within noise | 0B | MediatRLocalHotPath | MessageContext.cs, MessageContextFactory.cs |
+| 3b1d3436b | dispatch-hotpath-20260412 | typeof optimization + direct CachedRoutingDecision in typed dispatch | -15% typed query | 0B | MediatRLocalHotPath | Dispatcher.cs |
+| 7a4ecbdbe | dispatch-hotpath-20260412 | Remove redundant cancellation checks from ultra-local fast-path | within noise | 0B | MediatRLocalHotPath | Dispatcher.cs |

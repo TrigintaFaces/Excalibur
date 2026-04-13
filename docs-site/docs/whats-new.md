@@ -10,11 +10,47 @@ Track what's changed across Excalibur releases. For upgrade guidance, see [Versi
 
 ## Current Version: 3.0.0-alpha
 
-Excalibur is in active pre-release development. The framework is functionally complete with 44,000+ automated tests across 119 packages.
+Excalibur is in active pre-release development. The framework is functionally complete with 112,000+ automated tests across 170 packages.
 
 ---
 
-## Recent Highlights
+## April 2026 — Performance + Container Deployment + AOT Epic Complete
+
+### Performance Optimizations (Sprint 763)
+
+- **Standard dispatch: 47.8 ns / 168 B** -- 11% faster, 30% less allocation vs March baseline (54 ns / 240 B)
+- **Ultra-local dispatch: 33.2 ns / 24 B** -- near-zero allocation hot path
+- **100 concurrent dispatches: 29% less memory** -- ThreadStatic ambient context eliminates AsyncLocal ExecutionContext copies on the synchronous fast path
+- **Zero-allocation handler components** -- registry lookup (3.5 ns), handler invocation (5.7 ns), and handler activation (24.3 ns) all allocate 0 B
+- **LightMode opt-in** -- `UseLightMode = true` disables AsyncLocal context flow and correlation marking for maximum throughput
+- **CI performance gate** -- MediatR parity threshold enforced on every PR, preventing performance regressions
+
+### Container Deployment Guide (Sprint 761)
+
+- **8-section consumer guide** -- Dockerfile recipes (JIT/ReadyToRun/AOT), Kubernetes health probes, GC tuning profiles, graceful shutdown, sidecar patterns, Azure Container Apps, and observability
+- **Sample Dockerfiles** -- Production-ready Dockerfiles for getting-started, transport, and AOT samples with multi-stage builds and non-root execution
+- **Kubernetes manifests** -- Sample deployment YAML with startup/readiness/liveness probes, resource limits, and drain timeout alignment
+- **Health check verification** -- `MultiTransportHealthCheck` confirmed correct: reports Unhealthy before transports finish starting (correct for K8s readiness probes)
+
+### AOT Epic Complete (Sprints 758-762)
+
+- **150 of 170 packages AOT-compatible** -- all remaining 20 are blocked by external SDK dependencies, not Excalibur code
+- **Phase B1 closed** (7/7 Tier 1 packages) -- FluentValidation dual-path with source-generated `IAotValidationDispatcher`
+- **Phase B2 started** -- AzureServiceBus AOT via `MessageDeserializerRegistry` typed pattern (first Tier 2 conversion)
+- **Tier 2 spikes complete** -- Kafka (Tier 3: Confluent SDK blocker), MessagePack (Tier 2b: partial), AWS ClaimCheck/Compliance (Tier 3: AWS SDK blocker)
+- **994 suppressions audited** -- zero dishonest suppressions across all `IsAotCompatible=true` packages
+- **CI suppression gate** -- 992-entry baseline blocks new unapproved suppressions; AOT binary smoke test verifies published binary runs
+- **AOT benchmarks** -- BenchmarkDotNet baselines established comparing AOT vs JIT paths
+- **Generator cleanup** -- 3 disabled generators archived, 2 active generators verified, consolidation evaluated and deferred (current architecture is optimal)
+- **Both epics closed** -- AOT Microsoft-Quality Completeness + Container Deployment Guide, zero open backlog items
+
+### Dispatcher Bug Fix (Sprint 759)
+
+- **Exception propagation fix** -- `DispatchAsync` no longer silently wraps handler exceptions in `MessageResult.Failed()`. Handler exceptions now propagate to callers as expected. 12 exception-swallowing catch blocks removed from the DirectLocal fast path.
+
+---
+
+## Previous Highlights
 
 ### Security
 
@@ -76,7 +112,7 @@ Excalibur is in active pre-release development. The framework is functionally co
 - **Roslyn analyzers** -- Compile-time checks for common Dispatch mistakes (DISP001-DISP004)
 - **Source generators** -- AOT-compatible handler registration, serialization, and saga coordination
 - **`dotnet new` templates** -- `excalibur-dispatch`, `excalibur-eventsourcing`, `excalibur-saga` project scaffolding
-- **115,000+ automated tests** -- Unit, integration, conformance, and performance test suites across 10 CI shards
+- **112,000+ automated tests** -- Unit, integration, conformance, and performance test suites across 10 CI shards
 
 ### Compliance
 
