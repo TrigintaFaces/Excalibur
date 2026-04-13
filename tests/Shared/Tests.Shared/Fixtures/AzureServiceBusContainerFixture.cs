@@ -54,6 +54,13 @@ public sealed class AzureServiceBusContainerFixture : ContainerFixtureBase
 
 	/// <inheritdoc/>
 	/// <remarks>
+	/// ASB emulator is optional — not all CI environments support it.
+	/// When unavailable, tests skip gracefully.
+	/// </remarks>
+	protected override bool AllowGracefulDegradation => true;
+
+	/// <inheritdoc/>
+	/// <remarks>
 	/// The Azure Service Bus emulator can take longer to start than typical containers
 	/// due to its initialization sequence. Use 2 minutes with CI scaling.
 	/// </remarks>

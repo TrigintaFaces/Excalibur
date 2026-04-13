@@ -58,6 +58,13 @@ public sealed class AwsSqsContainerFixture : ContainerFixtureBase
 
 	/// <inheritdoc/>
 	/// <remarks>
+	/// LocalStack is optional — not all CI environments have Docker or pull capacity for it.
+	/// When unavailable, tests using this fixture skip gracefully.
+	/// </remarks>
+	protected override bool AllowGracefulDegradation => true;
+
+	/// <inheritdoc/>
+	/// <remarks>
 	/// LocalStack with SQS typically starts within 60 seconds, but CI environments
 	/// may be slower. Use the base default timeout with CI scaling.
 	/// </remarks>

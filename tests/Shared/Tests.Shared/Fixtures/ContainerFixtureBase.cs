@@ -67,6 +67,19 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	public string? InitializationError { get; private set; }
 
 	/// <summary>
+	/// Gets a value indicating whether the fixture should degrade gracefully when the
+	/// container cannot start, instead of throwing.
+	/// </summary>
+	/// <remarks>
+	/// Override and return <c>true</c> for optional infrastructure (e.g., cloud transport
+	/// emulators like LocalStack or ASB emulator) that may not be available in all CI
+	/// environments. When <c>true</c>, initialization failure sets <see cref="DockerAvailable"/>
+	/// to <c>false</c> without throwing, allowing tests to skip gracefully.
+	/// Default is <c>false</c> — required infrastructure (SQL Server, Redis) fails loudly.
+	/// </remarks>
+	protected virtual bool AllowGracefulDegradation => false;
+
+	/// <summary>
 	/// Gets the timeout for container startup operations.
 	/// </summary>
 	/// <remarks>
@@ -125,11 +138,17 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 		DockerAvailable = false;
 		InitializationError = lastException?.Message ?? "Container initialization failed after retries.";
 
-		// Throw so the collection/class fixture fails clearly instead of producing
-		// hundreds of cryptic "Could not find resource" errors from individual tests.
-		throw new InvalidOperationException(
-			$"Container startup failed after {maxAttempts} attempts: {InitializationError}",
-			lastException);
+		if (!AllowGracefulDegradation)
+		{
+			// Throw so the collection/class fixture fails clearly instead of producing
+			// hundreds of cryptic "Could not find resource" errors from individual tests.
+			throw new InvalidOperationException(
+				$"Container startup failed after {maxAttempts} attempts: {InitializationError}",
+				lastException);
+		}
+
+		// Graceful degradation: container is optional (e.g., cloud transport emulators).
+		// Tests should check DockerAvailable and skip when false.
 	}
 
 	/// <summary>
