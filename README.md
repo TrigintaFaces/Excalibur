@@ -14,7 +14,7 @@
 [![Latest Release](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/latest/total?logo=github&style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
 <!-- badges -->
 
-**Dispatch messaging core + Excalibur CQRS/hosting wrapper for .NET**
+**High-performance .NET messaging framework with CQRS, event sourcing, and production hosting — 170 packages, Native AOT ready**
 
 **[Read the full documentation](https://docs.excalibur-dispatch.dev/)**
 
@@ -44,6 +44,9 @@ Start with Dispatch when you need a MediatR-class dispatcher. Layer Excalibur pa
 | `Excalibur.Dispatch.Transport.AwsSqs` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.AwsSqs/ |
 | `Excalibur.Dispatch.Transport.Kafka` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.Kafka/ |
 | `Excalibur.Dispatch.Transport.RabbitMQ` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.RabbitMQ/ |
+| `Excalibur.Dispatch.Transport.GooglePubSub` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.GooglePubSub/ |
+| `Excalibur.Dispatch.Transport.Grpc` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.Grpc/ |
+| `Excalibur.Dispatch.SourceGenerators` | https://www.nuget.org/packages/Excalibur.Dispatch.SourceGenerators/ |
 | `Excalibur.EventSourcing` | https://www.nuget.org/packages/Excalibur.EventSourcing/ |
 | `Excalibur.Hosting.Web` | https://www.nuget.org/packages/Excalibur.Hosting.Web/ |
 
@@ -126,7 +129,7 @@ You continue to dispatch messages through `IDispatcher`; Excalibur layers domain
 | Family | Packages | Notes |
 |--------|----------|-------|
 | **Dispatch Core** | `Excalibur.Dispatch`, `Excalibur.Dispatch.Abstractions`, `Excalibur.Dispatch.Hosting.AspNetCore`, `Excalibur.Dispatch.Middleware.*`, `Excalibur.Dispatch.Observability` | Messaging primitives, pipeline, analytics, and the thin hosting bridge. |
-| **Dispatch Transports** | `Excalibur.Dispatch.Transport.AzureServiceBus`, `Excalibur.Dispatch.Transport.AwsSqs`, `Excalibur.Dispatch.Transport.Kafka`, `Excalibur.Dispatch.Transport.RabbitMQ` | Bring only the transports you need; no domain logic included. |
+| **Dispatch Transports** | `Excalibur.Dispatch.Transport.AzureServiceBus`, `Excalibur.Dispatch.Transport.AwsSqs`, `Excalibur.Dispatch.Transport.Kafka`, `Excalibur.Dispatch.Transport.RabbitMQ`, `Excalibur.Dispatch.Transport.GooglePubSub`, `Excalibur.Dispatch.Transport.Grpc`, `Excalibur.Dispatch.Transport.InMemory` | Bring only the transports you need; no domain logic included. |
 | **Excalibur Domain/CQRS** | `Excalibur.Domain`, `Excalibur.EventSourcing`, `Excalibur.EventSourcing.*`, `Excalibur.Saga.*` | Aggregates, repositories, snapshots, sagas, and serialization helpers (`EventTypeNameHelper`). |
 | **Excalibur Hosting** | `Excalibur.Hosting.Web`, `Excalibur.Hosting.AzureFunctions`, `Excalibur.Hosting.AwsLambda`, `Excalibur.Hosting.GoogleCloudFunctions` | Opinionated hosting templates that compose Dispatch + Excalibur. |
 | **Compliance & Coordination** | `Excalibur.Dispatch.Compliance.*`, `Excalibur.Dispatch.AuditLogging.*`, `Excalibur.LeaderElection.*` | Audit logging, masking, key escrow, leader election, and cross-cutting governance. |
@@ -179,8 +182,11 @@ For detailed benchmarks, methodology caveats, and raw reports, see:
 
 ## Status & Testing
 
-- **Supported frameworks:** .NET 8.0 LTS, .NET 9.0, .NET 10.0 (shipping graph currently includes 110 packable projects; 111 in shipping filter)
-- **Test coverage:** CI-sharded suite across unit, integration, functional, conformance, architecture, and performance categories
+- **170 NuGet packages** across Dispatch, Excalibur, and hosting families (334 total projects in solution)
+- **Supported frameworks:** .NET 8.0 LTS, .NET 9.0, .NET 10.0
+- **150 of 170 packages** are Native AOT compatible (`IsAotCompatible=true`)
+- **112,000+ automated tests** across 10 CI shards (unit, integration, functional, conformance, performance)
+- **21 Roslyn source generators** for AOT-safe handler registration, serialization, and saga coordination
 
 Run the full suite locally:
 

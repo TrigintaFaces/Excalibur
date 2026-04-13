@@ -138,6 +138,10 @@ internal sealed class InMemoryEventStore : IEventStore, IEventStoreErasure
 	}
 
 	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "InMemoryEventStore is a test/dev store. SerializeEvent and SerializeMetadata use reflection-based JSON serialization by design.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "InMemoryEventStore is a test/dev store. SerializeEvent and SerializeMetadata use reflection-based JSON serialization by design.")]
 	public ValueTask<AppendResult> AppendAsync(
 		string aggregateId,
 		string aggregateType,
