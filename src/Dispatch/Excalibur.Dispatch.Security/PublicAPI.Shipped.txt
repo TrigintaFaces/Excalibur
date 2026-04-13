@@ -528,6 +528,8 @@ Excalibur.Dispatch.Security.SigningContext.Format.set -> void
 Excalibur.Dispatch.Security.SigningContext.IncludeTimestamp.get -> bool
 Excalibur.Dispatch.Security.SigningContext.IncludeTimestamp.set -> void
 Excalibur.Dispatch.Security.SigningContext.KeyId.get -> string?
+Excalibur.Dispatch.Security.SigningContext.SignedAt.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Security.SigningContext.SignedAt.set -> void
 Excalibur.Dispatch.Security.SigningContext.KeyId.set -> void
 Excalibur.Dispatch.Security.SigningContext.Metadata.get -> System.Collections.Generic.IDictionary<string!, string!>!
 Excalibur.Dispatch.Security.SigningContext.Metadata.init -> void

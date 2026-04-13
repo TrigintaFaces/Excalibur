@@ -114,7 +114,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 			var key = await GetSigningKeyAsync(context, forVerification: false, cancellationToken).ConfigureAwait(false);
 
 			var dataToSign = context.IncludeTimestamp
-				? PrepareDataWithTimestamp(content)
+				? PrepareDataWithTimestamp(content, context.SignedAt ?? DateTimeOffset.UtcNow)
 				: content;
 
 			var signature = await provider.SignAsync(dataToSign, key, context.Algorithm, cancellationToken).ConfigureAwait(false);
@@ -181,7 +181,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 			var key = await GetSigningKeyAsync(context, forVerification: IsAsymmetricAlgorithm(context.Algorithm), cancellationToken).ConfigureAwait(false);
 
 			var dataToVerify = context.IncludeTimestamp
-				? PrepareDataWithTimestamp(content)
+				? PrepareDataWithTimestamp(content, context.SignedAt ?? DateTimeOffset.UtcNow)
 				: content;
 
 			var isValid = await provider.VerifyAsync(dataToVerify, signature, key, context.Algorithm, cancellationToken).ConfigureAwait(false);
@@ -360,11 +360,11 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 		return string.Join(':', parts);
 	}
 
-	private static byte[] PrepareDataWithTimestamp(byte[] content)
+	private static byte[] PrepareDataWithTimestamp(byte[] content, DateTimeOffset timestamp)
 	{
-		var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+		var unixSeconds = timestamp.ToUnixTimeSeconds();
 		var result = new byte[content.Length + sizeof(long)];
-		BinaryPrimitives.WriteInt64BigEndian(result.AsSpan(0, sizeof(long)), timestamp);
+		BinaryPrimitives.WriteInt64BigEndian(result.AsSpan(0, sizeof(long)), unixSeconds);
 		Buffer.BlockCopy(content, 0, result, sizeof(long), content.Length);
 		return result;
 	}

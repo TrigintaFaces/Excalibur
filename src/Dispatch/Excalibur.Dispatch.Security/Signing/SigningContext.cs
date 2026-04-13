@@ -64,4 +64,17 @@ public sealed class SigningContext
 	/// The purpose of the signature, or <see langword="null"/> if not specified.
 	/// </value>
 	public string? Purpose { get; set; }
+
+	/// <summary>
+	/// Gets or sets the timestamp used during signing.
+	/// </summary>
+	/// <remarks>
+	/// When verifying a signature that included a timestamp, this must be set to the
+	/// original <see cref="SignedMessage.SignedAt"/> value so the same data is hashed.
+	/// When signing, this is set automatically to <see cref="DateTimeOffset.UtcNow"/>.
+	/// </remarks>
+	/// <value>
+	/// The signing timestamp, or <see langword="null"/> to use <see cref="DateTimeOffset.UtcNow"/>.
+	/// </value>
+	public DateTimeOffset? SignedAt { get; set; }
 }

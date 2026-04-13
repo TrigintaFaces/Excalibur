@@ -113,9 +113,9 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 			// Get signing key
 			var key = await GetSigningKeyAsync(context, cancellationToken).ConfigureAwait(false);
 
-			// Prepare data to sign (optionally include timestamp)
+			// Prepare data to sign (optionally include timestamp from context)
 			var dataToSign = context.IncludeTimestamp
-				? PrepareDataWithTimestamp(content)
+				? PrepareDataWithTimestamp(content, context.SignedAt ?? DateTimeOffset.UtcNow)
 				: content;
 
 			// Create signature based on algorithm
@@ -192,9 +192,9 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 			// Get signing key
 			var key = await GetSigningKeyAsync(context, cancellationToken).ConfigureAwait(false);
 
-			// Prepare data (with timestamp if needed)
+			// Prepare data (with timestamp if needed — use original signing timestamp for verification)
 			var dataToVerify = context.IncludeTimestamp
-				? PrepareDataWithTimestamp(content)
+				? PrepareDataWithTimestamp(content, context.SignedAt ?? DateTimeOffset.UtcNow)
 				: content;
 
 			// Compute expected signature
@@ -242,6 +242,12 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		ArgumentNullException.ThrowIfNull(content);
 		ArgumentNullException.ThrowIfNull(context);
 
+		// Capture timestamp ONCE — used both for HMAC data preparation and SignedAt.
+		// This ensures the timestamp embedded in the HMAC matches SignedAt exactly,
+		// so ValidateSignedMessageAsync can reproduce the same hash.
+		var signedAt = DateTimeOffset.UtcNow;
+		context.SignedAt = signedAt;
+
 		var signature = await SignMessageAsync(content, context, cancellationToken).ConfigureAwait(false);
 
 		return new SignedMessage
@@ -250,7 +256,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 			Signature = signature,
 			Algorithm = context.Algorithm,
 			KeyId = context.KeyId,
-			SignedAt = DateTimeOffset.UtcNow,
+			SignedAt = signedAt,
 			Metadata = new Dictionary<string, string>(context.Metadata, StringComparer.Ordinal),
 		};
 	}
@@ -276,9 +282,10 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 			}
 		}
 
-		// Set context from signed message
+		// Set context from signed message (including timestamp for verification)
 		context.Algorithm = signedMessage.Algorithm;
 		context.KeyId = signedMessage.KeyId;
+		context.SignedAt = signedMessage.SignedAt;
 
 		// Verify signature
 		var isValid = await VerifySignatureAsync(
@@ -307,11 +314,11 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 		_keyCache.Clear();
 	}
 
-	private static byte[] PrepareDataWithTimestamp(byte[] content)
+	private static byte[] PrepareDataWithTimestamp(byte[] content, DateTimeOffset timestamp)
 	{
-		var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+		var unixSeconds = timestamp.ToUnixTimeSeconds();
 		var result = new byte[content.Length + sizeof(long)];
-		BinaryPrimitives.WriteInt64BigEndian(result.AsSpan(0, sizeof(long)), timestamp);
+		BinaryPrimitives.WriteInt64BigEndian(result.AsSpan(0, sizeof(long)), unixSeconds);
 		Buffer.BlockCopy(content, 0, result, sizeof(long), content.Length);
 
 		return result;

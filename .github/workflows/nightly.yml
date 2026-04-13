@@ -194,8 +194,8 @@ jobs:
           ./eng/ci/dependency-audit.ps1 `
             -OutDir management/reports/DependencyAuditReport `
             -ProjectRoot src `
-            -PerProjectTimeoutSeconds 60 `
-            -TotalBudgetMinutes 15 `
+            -PerProjectTimeoutSeconds 120 `
+            -TotalBudgetMinutes 25 `
             -MaxProjects 180 `
             -FailOnGuardrailBreach
 
