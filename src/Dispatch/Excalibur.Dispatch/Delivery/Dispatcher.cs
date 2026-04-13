@@ -315,8 +315,7 @@ internal sealed class Dispatcher(
 	{
 		// Same logic as public DispatchAsync but with concrete MessageContext type,
 		// enabling JIT devirtualization of all context property accesses.
-		// PERF: Skip ArgumentNullException.ThrowIfNull(message) — already validated by the
-		// public DispatchAsync overload that delegates here. Saves ~5-10ns per dispatch.
+		ArgumentNullException.ThrowIfNull(message);
 
 		// PERF: Check the fast path FIRST, before null checks and cancellation.
 		// _directLocalNoRouterFastPath is a pre-computed invariant that implies middlewareInvoker
