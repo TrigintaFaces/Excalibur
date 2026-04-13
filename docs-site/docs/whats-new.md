@@ -16,14 +16,13 @@ Excalibur is in active pre-release development. The framework is functionally co
 
 ## April 2026 — Performance + Container Deployment + AOT Epic Complete
 
-### Performance Optimizations (Sprint 763)
+### Performance Optimizations
 
-- **Standard dispatch: 47.8 ns / 168 B** -- 11% faster, 30% less allocation vs March baseline (54 ns / 240 B)
-- **Ultra-local dispatch: 33.2 ns / 24 B** -- near-zero allocation hot path
-- **100 concurrent dispatches: 29% less memory** -- ThreadStatic ambient context eliminates AsyncLocal ExecutionContext copies on the synchronous fast path
-- **Zero-allocation handler components** -- registry lookup (3.5 ns), handler invocation (5.7 ns), and handler activation (24.3 ns) all allocate 0 B
-- **LightMode opt-in** -- `UseLightMode = true` disables AsyncLocal context flow and correlation marking for maximum throughput
+- **Ultra-local dispatch: 33.3 ns / 24 B** -- 1.3x faster than MediatR with 6.3x less memory
+- **Zero-allocation handler internals** -- handler invocation (6.0 ns) and handler activation (24.4 ns) allocate 0 B
+- **LightMode opt-in** -- `UseLightMode = true` disables correlation ID generation for maximum throughput
 - **CI performance gate** -- MediatR parity threshold enforced on every PR, preventing performance regressions
+- **5 auto-optimize experiment rounds** -- typeof optimization, cancellation skip, InitializeFast, hot-path reorder
 
 ### Container Deployment Guide (Sprint 761)
 

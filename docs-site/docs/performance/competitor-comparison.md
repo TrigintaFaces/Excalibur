@@ -44,14 +44,12 @@ WarmPath numbers reflect what users experience in production; ColdPath numbers c
 
 | Track | Summary |
 |------|---------|
-| In-process parity (MediatR) | **Near parity** on standard (47.8 ns vs 43.6 ns); **Dispatch ultra-local 1.3x faster, 6.3x less memory**; **Dispatch 29% less memory at 100 concurrent** |
+| In-process parity (MediatR) | MediatR ~1.4x faster on standard; **Dispatch ultra-local 1.3x faster with 6.3x less memory**; **Dispatch allocates 2.6x less on notifications** |
 | In-process parity (Wolverine InvokeAsync) | **Dispatch ~2.6x faster on command, ~61x on notifications** |
 | Pipeline parity (3 middleware each) | MediatR 2.7x faster; Wolverine 1.2x faster; **Dispatch 6.8x faster than MassTransit**; **Dispatch allocates least** |
 
 :::note April 2026 Performance Update
-Standard dispatch improved from 54 ns / 240 B to **47.8 ns / 168 B** (11% faster, 30% less allocation) via ThreadStatic ambient context, LightMode wiring, and JIT devirtualization optimizations. Concurrent dispatch improved dramatically: **100 concurrent at 5,090 ns / 12,160 B** vs MediatR 5,103 ns / 17,064 B — same speed, 29% less memory. All improvements are AOT-safe. See `benchmarks/experiments/dispatch-hotpath-20260412/` for details.
-
-Hot-path breakdown: handler activation 24.3 ns / 0 B, handler invocation 5.7 ns / 0 B, registry lookup 3.5 ns / 0 B — all zero-allocation.
+Ultra-local dispatch remains the standout path: **33 ns / 24 B** -- 1.3x faster than MediatR with 6.3x less memory. LightMode opt-in disables correlation ID generation for workloads that don't need it. Hot-path breakdown: handler activation 24.4 ns / 0 B, handler invocation 6.0 ns / 0 B — all zero-allocation internals. See `benchmarks/experiments/` for optimization experiment details.
 :::
 
 ## Track A: In-Process Parity
@@ -60,17 +58,17 @@ Hot-path breakdown: handler activation 24.3 ns / 0 B, handler invocation 5.7 ns 
 
 | Scenario | Dispatch | MediatR | Relative Result |
 |----------|----------|---------|-----------------|
-| Single command handler | 47.82 ns / 168 B | 43.63 ns / 152 B | Near parity (~10%); comparable allocation |
-| Single command direct-local | 44.96 ns / 168 B | 43.63 ns / 152 B | **Near parity** (~3%) |
-| Single command ultra-local | 33.22 ns / 24 B | 43.63 ns / 152 B | **Dispatch ~1.3x faster**; Dispatch allocates ~6.3x less |
-| Singleton-promoted command | 33.48 ns / 24 B | 43.63 ns / 152 B | **Dispatch ~1.3x faster**; Dispatch allocates ~6.3x less |
-| Notification to 3 handlers | 118.66 ns / 240 B | 98.10 ns / 616 B | MediatR ~1.2x faster; **Dispatch allocates ~2.6x less** |
-| Query with return value | 60.89 ns / 264 B | 54.60 ns / 296 B | Near parity; **Dispatch allocates ~1.1x less** |
-| Query with return (typed API) | 63.34 ns / 360 B | 54.60 ns / 296 B | MediatR ~1.2x faster |
-| Query ultra-local | 56.47 ns / 192 B | 54.60 ns / 296 B | **Near parity**; Dispatch allocates ~1.5x less |
-| Query singleton-promoted | 56.14 ns / 192 B | 54.60 ns / 296 B | **Near parity**; Dispatch allocates ~1.5x less |
-| 10 concurrent commands | 615 ns / 1,360 B | 524 ns / 1,856 B | MediatR ~1.2x faster; **Dispatch allocates ~27% less** |
-| 100 concurrent commands | 5,090 ns / 12,160 B | 5,103 ns / 17,064 B | **Same speed**; **Dispatch allocates ~29% less** |
+| Single command handler | 62.76 ns / 240 B | 43.96 ns / 152 B | MediatR ~1.4x faster |
+| Single command direct-local | 62.39 ns / 240 B | 43.96 ns / 152 B | MediatR ~1.4x faster |
+| Single command ultra-local | 33.30 ns / 24 B | 43.96 ns / 152 B | **Dispatch ~1.3x faster**; Dispatch allocates ~6.3x less |
+| Singleton-promoted command | 33.01 ns / 24 B | 43.96 ns / 152 B | **Dispatch ~1.3x faster**; Dispatch allocates ~6.3x less |
+| Notification to 3 handlers | 115.33 ns / 240 B | 95.40 ns / 616 B | MediatR ~1.2x faster; **Dispatch allocates ~2.6x less** |
+| Query with return value | 72.94 ns / 336 B | 52.18 ns / 296 B | MediatR ~1.4x faster |
+| Query with return (typed API) | 80.49 ns / 432 B | 52.18 ns / 296 B | MediatR ~1.5x faster |
+| Query ultra-local | 56.09 ns / 192 B | 52.18 ns / 296 B | Near parity; Dispatch allocates ~1.5x less |
+| Query singleton-promoted | 56.05 ns / 192 B | 52.18 ns / 296 B | Near parity; Dispatch allocates ~1.5x less |
+| 10 concurrent commands | 772 ns / 2,080 B | 531 ns / 1,856 B | MediatR ~1.5x faster |
+| 100 concurrent commands | 6,696 ns / 19,360 B | 4,994 ns / 17,064 B | MediatR ~1.3x faster |
 
 ### Dispatch vs Wolverine (InvokeAsync parity)
 
@@ -112,18 +110,17 @@ Excalibur.Dispatch offers multiple dispatch paths with different allocation char
 
 | Profile | Allocation | Latency | When to Use |
 |---------|-----------|---------|-------------|
-| Standard dispatch | **168 B** | ~48 ns | Default path for all message types (April 2026 WarmPath) |
-| Direct-local dispatch | **168 B** | ~45 ns | Optimized local path with middleware bypass |
+| Standard dispatch | **240 B** | ~63 ns | Default path for all message types (April 2026 WarmPath) |
 | Ultra-local dispatch | **24 B** | ~33 ns | Lowest-overhead local path, near-zero allocation |
 | Singleton-promoted | **24 B** | ~33 ns | Handlers registered as singletons via promotion |
-| Query with response | **264 B** | ~61 ns | Typed query responses |
+| Query with response | **336 B** | ~73 ns | Typed query responses |
 | Query ultra-local | **192 B** | ~56 ns | Ultra-local query path |
 | MessageContext pool rent+return | **0 B** | ~9 ns | Pool infrastructure cost only |
 
 :::tip Allocation Guidance
 - **"Near-zero allocation"**: Ultra-local and singleton-promoted paths (24 B per dispatch)
-- **"Low-allocation"**: Standard and direct-local paths (168 B -- context + routing metadata)
-- **"Zero-allocation internals"**: Handler activation (24.3 ns / 0 B), invocation (5.7 ns / 0 B), and registry lookup (3.5 ns / 0 B)
+- **"Low-allocation"**: Standard path (240 B -- context + routing metadata + ambient context flow)
+- **"Zero-allocation internals"**: Handler activation (24.4 ns / 0 B), invocation (6.0 ns / 0 B)
 :::
 
 ## Routing-First Local + Hybrid Parity

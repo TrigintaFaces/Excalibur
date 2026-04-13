@@ -68,13 +68,6 @@ public sealed class DispatchOptionsNestedOptionsShould
 		options.EnableMetrics.ShouldBeTrue();
 	}
 
-	[Fact]
-	public void ObservabilityOptions_DefaultEnableContextFlow_IsTrue()
-	{
-		var options = new ObservabilityOptions();
-		options.EnableContextFlow.ShouldBeTrue();
-	}
-
 	#endregion
 
 	#region ResilienceOptions Defaults (AC-3)
@@ -202,13 +195,11 @@ public sealed class DispatchOptionsNestedOptionsShould
 			Enabled = false,
 			EnableTracing = false,
 			EnableMetrics = false,
-			EnableContextFlow = false,
 		};
 
 		options.Enabled.ShouldBeFalse();
 		options.EnableTracing.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeFalse();
-		options.EnableContextFlow.ShouldBeFalse();
 	}
 
 	[Fact]

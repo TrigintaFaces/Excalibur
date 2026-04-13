@@ -199,18 +199,16 @@ public sealed class ConsumerJourneyE2EShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public async Task DispatchFailingCommand_ReturnsFailureResult()
+	public async Task DispatchFailingCommand_PropagatesHandlerException()
 	{
 		// Arrange
 		var command = new FailingCommand { Reason = "Intentional test failure" };
 		var context = _contextFactory.CreateContext();
 
-		// Act
-		var result = await _dispatcher.DispatchAsync(command, context, CancellationToken.None);
-
-		// Assert
-		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		// Act & Assert -- handler exceptions propagate to caller (Sprint 759 fix)
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => _dispatcher.DispatchAsync(command, context, CancellationToken.None));
+		ex.Message.ShouldBe("Intentional test failure");
 	}
 
 	[Fact]

@@ -283,7 +283,6 @@ public sealed class ConfigurationOptionsShould
 		options.Enabled.ShouldBeTrue();
 		options.EnableTracing.ShouldBeTrue();
 		options.EnableMetrics.ShouldBeTrue();
-		options.EnableContextFlow.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -295,14 +294,12 @@ public sealed class ConfigurationOptionsShould
 			Enabled = false,
 			EnableTracing = false,
 			EnableMetrics = false,
-			EnableContextFlow = false,
 		};
 
 		// Assert
 		options.Enabled.ShouldBeFalse();
 		options.EnableTracing.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeFalse();
-		options.EnableContextFlow.ShouldBeFalse();
 	}
 
 	// --- OutboxOptions (Configuration) ---

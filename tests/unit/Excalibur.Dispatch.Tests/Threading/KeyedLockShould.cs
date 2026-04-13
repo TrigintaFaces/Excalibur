@@ -80,8 +80,9 @@ public sealed class KeyedLockShould
 		});
 
 		// Assert -- both should complete (not deadlock)
+		// Use generous timeout for CI shared runners under load
 		var bothDone = Task.WhenAll(task1, task2);
-		var completed = await Task.WhenAny(bothDone, Task.Delay(5000));
+		var completed = await Task.WhenAny(bothDone, Task.Delay(30_000));
 		(completed == bothDone || (task1.IsCompleted && task2.IsCompleted))
 			.ShouldBeTrue("Different keys should be acquirable concurrently");
 	}

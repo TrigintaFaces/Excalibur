@@ -2507,8 +2507,6 @@ Excalibur.Dispatch.Options.Configuration.InboxRetentionOptions.MaxRetention.set 
 Excalibur.Dispatch.Options.Configuration.InboxRetentionOptions.RetentionDays.get -> int
 Excalibur.Dispatch.Options.Configuration.InboxRetentionOptions.RetentionDays.set -> void
 Excalibur.Dispatch.Options.Configuration.ObservabilityOptions
-Excalibur.Dispatch.Options.Configuration.ObservabilityOptions.EnableContextFlow.get -> bool
-Excalibur.Dispatch.Options.Configuration.ObservabilityOptions.EnableContextFlow.set -> void
 Excalibur.Dispatch.Options.Configuration.ObservabilityOptions.EnableMetrics.get -> bool
 Excalibur.Dispatch.Options.Configuration.ObservabilityOptions.EnableMetrics.set -> void
 Excalibur.Dispatch.Options.Configuration.ObservabilityOptions.EnableTracing.get -> bool

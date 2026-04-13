@@ -261,12 +261,9 @@ public sealed class DispatcherEndToEndIntegrationShould : IDisposable
 		var command = new TestCommand { Id = Guid.NewGuid(), Data = "FAIL" };
 		var context = _contextFactory.CreateContext();
 
-		// Act
-		var result = await _dispatcher.DispatchAsync(command, context, CancellationToken.None);
-
-		// Assert
-		result.Succeeded.ShouldBeFalse();
-		result.ErrorMessage.ShouldNotBeNullOrEmpty();
+		// Act & Assert - Handler exceptions now propagate directly (Sprint 759)
+		await Should.ThrowAsync<InvalidOperationException>(
+			() => _dispatcher.DispatchAsync(command, context, CancellationToken.None));
 	}
 
 	// Test Messages

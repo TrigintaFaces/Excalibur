@@ -101,13 +101,12 @@ internal sealed class Dispatcher(
 	// Combines 3 invariant checks into 1, reducing branch evaluations on every dispatch.
 	private readonly bool _directLocalNoRouterFastPath =
 		IsDirectLocalActionPathEnabled(middlewareInvoker, busOptionsMap) && localMessageBus is not null && dispatchRouter is null;
-	// PERF: When UseLightMode is true, default correlation and ambient context flow to false
-	// to eliminate 2 volatile writes (MarkForLazyCorrelation/MarkForLazyCausation) and
-	// 2 AsyncLocal<T>.Value writes (~100B ExecutionContext copy each) per dispatch.
-	// Users can still explicitly enable these features even in light mode by setting the
-	// feature flags directly in WithOptions().
+	// PERF: When UseLightMode is true, correlation is disabled to eliminate
+	// 2 volatile writes (MarkForLazyCorrelation/MarkForLazyCausation) per dispatch.
+	// Ambient context flow (AsyncLocal push/pop) is always enabled — it's required
+	// for DispatchChildAsync, correlation-aware logging, and middleware that reads
+	// MessageContextHolder.Current.
 	private readonly bool _correlationEnabled = ResolveCorrelationEnabled(dispatchOptions);
-	private readonly bool _ambientContextFlowEnabled = ResolveAmbientContextFlowEnabled(dispatchOptions);
 
 	private readonly DirectLocalContextInitializationProfile _directLocalContextInitializationProfile =
 		dispatchOptions?.Value.CrossCutting.Performance.DirectLocalContextInitialization ??
@@ -330,7 +329,7 @@ internal sealed class Dispatcher(
 			var dispatchInfo = GetMessageDispatchInfo(messageType);
 
 			if (dispatchInfo.CanBypassMiddleware &&
-			    context.CachedRoutingDecision is null)
+			    RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 			{
 				if (dispatchInfo.IsAction)
 				{
@@ -492,10 +491,9 @@ internal sealed class Dispatcher(
 		var dispatchInfo = GetMessageDispatchInfo(messageType);
 		var canBypass = dispatchInfo.CanBypassMiddleware;
 
-		// PERF: Use direct CachedRoutingDecision field for MessageContext to avoid virtual dispatch.
 		if (_directLocalNoRouterFastPath &&
 		    canBypass &&
-		    (context is MessageContext mc ? mc.CachedRoutingDecision is null : RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null))
+		    RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 		{
 			if (dispatchInfo.DirectLocalTypedEligible &&
 			    TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
@@ -994,7 +992,7 @@ internal sealed class Dispatcher(
 		// The handler can still read MessageContextHolder.Current during sync execution
 		// via the ThreadStatic fast path in the getter. If the handler goes async,
 		// we promote to AsyncLocal on the slow path.
-		var previous = PushAmbientContextSync(context);
+		var previous = PushAmbientContext(context);
 
 		try
 		{
@@ -1004,27 +1002,27 @@ internal sealed class Dispatcher(
 
 			if (invocation.IsCompletedSuccessfully)
 			{
-				PopAmbientContextSync(previous);
+				PopAmbientContext(previous);
 				task = DirectLocalSuccessResultTask;
 				return true;
 			}
 
 			// Handler went async — promote ThreadStatic context to AsyncLocal for
 			// async continuation flow, then await the invocation.
-			PromoteAmbientContextToAsync(previous);
+			PopAmbientContext(previous);
 			task = AwaitDirectLocalNoResponseAsync(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			PopAmbientContextSync(previous);
+			PopAmbientContext(previous);
 			task = CancelledResultTask;
 			return true;
 		}
 		catch (Exception)
 		{
-			PopAmbientContextSync(previous);
+			PopAmbientContext(previous);
 			throw;
 		}
 	}
@@ -1043,7 +1041,7 @@ internal sealed class Dispatcher(
 		// cancellationToken.IsCancellationRequested before calling this method.
 
 		// PERF: ThreadStatic push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
-		var previous = PushAmbientContextSync(context);
+		var previous = PushAmbientContext(context);
 
 		try
 		{
@@ -1053,27 +1051,27 @@ internal sealed class Dispatcher(
 
 			if (invocation.IsCompletedSuccessfully)
 			{
-				PopAmbientContextSync(previous);
+				PopAmbientContext(previous);
 				TrySetContextResult(context, invocation.Result);
 				task = DirectLocalSuccessResultTask;
 				return true;
 			}
 
 			// Handler went async — promote to AsyncLocal for continuation flow.
-			PromoteAmbientContextToAsync(previous);
+			PopAmbientContext(previous);
 			task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			PopAmbientContextSync(previous);
+			PopAmbientContext(previous);
 			task = CancelledResultTask;
 			return true;
 		}
 		catch (Exception)
 		{
-			PopAmbientContextSync(previous);
+			PopAmbientContext(previous);
 			throw;
 		}
 	}
@@ -1092,7 +1090,7 @@ internal sealed class Dispatcher(
 		// Saves one branch + ShouldReturnCancelledResult per dispatch.
 
 		// PERF: ThreadStatic push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
-		var previous = PushAmbientContextSync(context);
+		var previous = PushAmbientContext(context);
 
 		try
 		{
@@ -1102,26 +1100,26 @@ internal sealed class Dispatcher(
 
 			if (invocation.IsCompletedSuccessfully)
 			{
-				PopAmbientContextSync(previous);
+				PopAmbientContext(previous);
 				task = Task.FromResult(CreateDirectLocalTypedSuccessResult<TResponse>(invocation.Result, context));
 				return true;
 			}
 
 			// Handler went async — promote to AsyncLocal for continuation flow.
-			PromoteAmbientContextToAsync(previous);
+			PopAmbientContext(previous);
 			task = AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
-			PopAmbientContextSync(previous);
+			PopAmbientContext(previous);
 			task = CancelledResultTaskCache<TResponse>.Task;
 			return true;
 		}
 		catch (Exception)
 		{
-			PopAmbientContextSync(previous);
+			PopAmbientContext(previous);
 			throw;
 		}
 	}
@@ -2162,22 +2160,6 @@ internal sealed class Dispatcher(
 	/// When <c>UseLightMode</c> is true, ambient context flow is disabled to eliminate
 	/// 2 AsyncLocal&lt;T&gt;.Value writes (~100B ExecutionContext copy each) per dispatch.
 	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static bool ResolveAmbientContextFlowEnabled(IOptions<DispatchOptions>? options)
-	{
-		if (options?.Value is not { } opts)
-		{
-			return true;
-		}
-
-		if (opts.UseLightMode)
-		{
-			return false;
-		}
-
-		return opts.CrossCutting.Observability.EnableContextFlow;
-	}
-
 	/// <summary>
 	/// Gets combined dispatch info for a message type in a single cache lookup, replacing
 	/// repeated type checks and middleware applicability queries with one
@@ -2385,67 +2367,19 @@ internal sealed class Dispatcher(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private IMessageContext? PushAmbientContext(IMessageContext context)
+	private static IMessageContext? PushAmbientContext(IMessageContext context)
 	{
-		if (!_ambientContextFlowEnabled)
-		{
-			return null;
-		}
-
 		var previous = MessageContextHolder.Current;
 		MessageContextHolder.Current = context;
 		return previous;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void PopAmbientContext(IMessageContext? previous)
+	private static void PopAmbientContext(IMessageContext? previous)
 	{
-		if (_ambientContextFlowEnabled)
-		{
-			MessageContextHolder.Current = previous;
-		}
+		MessageContextHolder.Current = previous;
 	}
 
-	/// <summary>
-	/// Pushes ambient context using ThreadStatic only (zero allocation).
-	/// For ultra-local fast paths where synchronous completion is expected.
-	/// Saves ~72B per dispatch (2 x ~36B ExecutionContext copies avoided).
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private IMessageContext? PushAmbientContextSync(IMessageContext context)
-	{
-		if (!_ambientContextFlowEnabled)
-		{
-			return null;
-		}
-
-		return MessageContextHolder.PushSync(context);
-	}
-
-	/// <summary>
-	/// Pops ambient context from ThreadStatic only (zero allocation).
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void PopAmbientContextSync(IMessageContext? previous)
-	{
-		if (_ambientContextFlowEnabled)
-		{
-			MessageContextHolder.PopSync(previous);
-		}
-	}
-
-	/// <summary>
-	/// Transitions from sync (ThreadStatic) ambient context to async path.
-	/// Clears the sync layer and writes to AsyncLocal (acceptable cost on async slow path).
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void PromoteAmbientContextToAsync(IMessageContext? syncPrevious)
-	{
-		if (_ambientContextFlowEnabled)
-		{
-			MessageContextHolder.PromoteToAsyncAndPop(syncPrevious);
-		}
-	}
 
 	/// <summary>
 	/// Dispatches a document to a streaming handler and returns the output stream.

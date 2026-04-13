@@ -19,28 +19,25 @@ Results: `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Dispatch single command (standard) | 47.8 ns / 168 B | MediatRWarmPathComparisonBenchmarks (April 12, 2026) |
-| Dispatch direct-local command | 45.0 ns / 168 B | MediatRWarmPathComparisonBenchmarks |
-| Dispatch ultra-local command | 33.2 ns / 24 B | MediatRWarmPathComparisonBenchmarks |
-| Dispatch vs MediatR (ultra-local) | 33.2 ns vs 43.6 ns (**1.3x faster**) | MediatRWarmPathComparisonBenchmarks |
-| Handler activation (precreated) | 24.3 ns / 0 B | DispatchHotPathBreakdownBenchmarks |
-| Handler invocation | 5.7 ns / 0 B | DispatchHotPathBreakdownBenchmarks |
-| Handler registry lookup | 3.5 ns / 0 B | DispatchHotPathBreakdownBenchmarks |
-| 100 concurrent commands | 5,090 ns / 12,160 B | MediatRWarmPathComparisonBenchmarks (MediatR: 5,103 ns / 17,064 B) |
+| Dispatch single command (standard) | 62.8 ns / 240 B | MediatRWarmPathComparisonBenchmarks (April 13, 2026) |
+| Dispatch ultra-local command | 33.3 ns / 24 B | MediatRWarmPathComparisonBenchmarks |
+| Dispatch vs MediatR (ultra-local) | 33.3 ns vs 44.0 ns (**1.3x faster**) | MediatRWarmPathComparisonBenchmarks |
+| Handler activation (precreated) | 24.4 ns / 0 B | DispatchHotPathBreakdownBenchmarks |
+| Handler invocation | 6.0 ns / 0 B | DispatchHotPathBreakdownBenchmarks |
 | vs Wolverine InvokeAsync | 70.35 ns vs 183.56 ns (**2.6x faster**) | WolverineInProcessWarmPathComparisonBenchmarks |
 
-## Diagnostics Baseline (April 12, 2026)
+## Diagnostics Baseline (April 13, 2026)
 
 | Component | Value | Allocated |
 |-----------|-------|-----------|
-| Single command dispatch (full) | 40.7 ns | 136 B |
-| Query with response | 56.5 ns | 328 B |
-| Middleware invoker direct | 46.6 ns | 280 B |
-| FinalDispatchHandler action | 59.3 ns | 208 B |
-| LocalMessageBus send | 38.0 ns | 64 B |
-| Handler activator (precreated) | 24.3 ns | 0 B |
-| Handler invocation | 5.7 ns | 0 B |
-| Handler registry lookup | 3.5 ns | 0 B |
+| Single command dispatch (full) | 58.5 ns | 208 B |
+| Query with response | 74.8 ns | 400 B |
+| Middleware invoker direct | 44.2 ns | 280 B |
+| FinalDispatchHandler action | 58.7 ns | 208 B |
+| LocalMessageBus send | 38.9 ns | 64 B |
+| Handler activator (precreated) | 24.4 ns | 0 B |
+| Handler invocation | 6.0 ns | 0 B |
+| Handler registry lookup | 6.1 ns | 0 B |
 
 :::info Breakdown vs Comparison
 The diagnostics baseline above is from `DispatchHotPathBreakdownBenchmarks` which isolates each component. The comparison numbers (59.5 ns for standard command) are from `MediatRWarmPathComparisonBenchmarks` which measures the full end-to-end path including context factory creation and return — matching how consumers use the framework.
@@ -50,7 +47,7 @@ The diagnostics baseline above is from `DispatchHotPathBreakdownBenchmarks` whic
 
 | Track | Summary |
 |------|---------|
-| MediatR WarmPath parity | **Dispatch near parity** on standard (47.8 ns vs 43.6 ns); **Dispatch ultra-local 1.3x faster with 6.3x less memory**; **Dispatch 29% less memory at 100 concurrent** |
+| MediatR WarmPath parity | MediatR ~1.4x faster on standard; **Dispatch ultra-local 1.3x faster with 6.3x less memory** |
 | Wolverine in-process parity | **Dispatch ~2.6x faster on command, ~61x on notifications** |
 | Pipeline parity (3 middleware) | MediatR 2.7x faster; Wolverine 1.2x faster; **Dispatch 6.8x faster than MassTransit**; **Dispatch allocates least** |
 

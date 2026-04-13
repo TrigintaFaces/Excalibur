@@ -22,7 +22,6 @@ public sealed class ObservabilityOptionsShould
 		options.Enabled.ShouldBeTrue();
 		options.EnableTracing.ShouldBeTrue();
 		options.EnableMetrics.ShouldBeTrue();
-		options.EnableContextFlow.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -64,40 +63,25 @@ public sealed class ObservabilityOptionsShould
 		options.EnableMetrics.ShouldBeFalse();
 	}
 
-	[Fact]
-	public void AllowDisablingContextFlow()
-	{
-		// Arrange
-		var options = new ObservabilityOptions();
-
-		// Act
-		options.EnableContextFlow = false;
-
-		// Assert
-		options.EnableContextFlow.ShouldBeFalse();
-	}
-
 	[Theory]
-	[InlineData(true, true, true, true)]
-	[InlineData(false, false, false, false)]
-	[InlineData(true, false, true, false)]
-	[InlineData(false, true, false, true)]
-	public void SupportVariousConfigurations(bool enabled, bool tracing, bool metrics, bool contextFlow)
+	[InlineData(true, true, true)]
+	[InlineData(false, false, false)]
+	[InlineData(true, false, true)]
+	[InlineData(false, true, false)]
+	public void SupportVariousConfigurations(bool enabled, bool tracing, bool metrics)
 	{
 		// Arrange & Act
 		var options = new ObservabilityOptions
 		{
 			Enabled = enabled,
 			EnableTracing = tracing,
-			EnableMetrics = metrics,
-			EnableContextFlow = contextFlow
+			EnableMetrics = metrics
 		};
 
 		// Assert
 		options.Enabled.ShouldBe(enabled);
 		options.EnableTracing.ShouldBe(tracing);
 		options.EnableMetrics.ShouldBe(metrics);
-		options.EnableContextFlow.ShouldBe(contextFlow);
 	}
 
 	[Fact]
@@ -113,6 +97,5 @@ public sealed class ObservabilityOptionsShould
 		options.Enabled.ShouldBeTrue();
 		options.EnableTracing.ShouldBeTrue();
 		options.EnableMetrics.ShouldBeFalse();
-		options.EnableContextFlow.ShouldBeTrue();
 	}
 }

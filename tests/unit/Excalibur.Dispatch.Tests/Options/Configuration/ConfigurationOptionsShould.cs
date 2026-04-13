@@ -99,7 +99,6 @@ public sealed class ConfigurationOptionsShould
 		opts.Enabled.ShouldBeTrue();
 		opts.EnableTracing.ShouldBeTrue();
 		opts.EnableMetrics.ShouldBeTrue();
-		opts.EnableContextFlow.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -110,13 +109,11 @@ public sealed class ConfigurationOptionsShould
 			Enabled = false,
 			EnableTracing = false,
 			EnableMetrics = false,
-			EnableContextFlow = false,
 		};
 
 		opts.Enabled.ShouldBeFalse();
 		opts.EnableTracing.ShouldBeFalse();
 		opts.EnableMetrics.ShouldBeFalse();
-		opts.EnableContextFlow.ShouldBeFalse();
 	}
 
 	[Fact]

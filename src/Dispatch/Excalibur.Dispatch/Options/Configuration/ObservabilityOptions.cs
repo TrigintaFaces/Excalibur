@@ -26,9 +26,4 @@ public sealed class ObservabilityOptions
 	/// <value><see langword="true"/> by default.</value>
 	public bool EnableMetrics { get; set; } = true;
 
-	/// <summary>
-	/// Gets or sets a value indicating whether context flow tracking is enabled.
-	/// </summary>
-	/// <value><see langword="true"/> by default.</value>
-	public bool EnableContextFlow { get; set; } = true;
 }
