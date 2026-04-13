@@ -18,11 +18,11 @@ public sealed class KafkaCollection : ICollectionFixture<KafkaContainerFixture>;
 /// Serializes execution across test classes that share the emulator container.
 /// </summary>
 [CollectionDefinition(ContainerCollections.AzureServiceBus)]
-public sealed class AzureServiceBusCollection;
+public sealed class AzureServiceBusCollection : ICollectionFixture<AzureServiceBusContainerFixture>;
 
 /// <summary>
 /// Collection definition for AWS SQS integration tests.
 /// Serializes execution across test classes that share the LocalStack container.
 /// </summary>
 [CollectionDefinition(ContainerCollections.AwsSqs)]
-public sealed class AwsSqsCollection;
+public sealed class AwsSqsCollection : ICollectionFixture<AwsSqsContainerFixture>;

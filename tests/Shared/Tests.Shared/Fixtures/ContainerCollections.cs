@@ -75,3 +75,9 @@ public class RabbitMqCollection : ICollectionFixture<RabbitMqContainerFixture> {
 
 [CollectionDefinition(ContainerCollections.Elasticsearch)]
 public class ElasticsearchCollection : ICollectionFixture<ElasticsearchContainerFixture> { }
+
+[CollectionDefinition(ContainerCollections.AwsSqs)]
+public class AwsSqsCollection : ICollectionFixture<AwsSqsContainerFixture> { }
+
+[CollectionDefinition(ContainerCollections.AzureServiceBus)]
+public class AzureServiceBusCollection : ICollectionFixture<AzureServiceBusContainerFixture> { }

@@ -6,9 +6,6 @@ using Azure.Messaging.ServiceBus.Administration;
 
 using Tests.Shared.Fixtures;
 
-using ServiceBusContainerBuilder = Testcontainers.ServiceBus.ServiceBusBuilder;
-using ServiceBusEmulatorContainer = Testcontainers.ServiceBus.ServiceBusContainer;
-
 namespace Excalibur.Dispatch.Integration.Tests.Transport.AzureServiceBus;
 
 /// <summary>
@@ -17,99 +14,62 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AzureServiceBus;
 /// receive, complete, abandon, dead-letter, peek, and property preservation.
 /// </summary>
 /// <remarks>
-/// Container lifecycle: a single static emulator container is shared across all
-/// test instances in this class. This avoids per-test container creation that
-/// each times out (~20s) when the emulator is unavailable on Ubuntu CI.
+/// Container lifecycle is managed by <see cref="AzureServiceBusContainerFixture"/> via the
+/// xUnit collection fixture pattern. The fixture is shared across all test classes
+/// in the <see cref="ContainerCollections.AzureServiceBus"/> collection.
 /// </remarks>
 [Collection(ContainerCollections.AzureServiceBus)]
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "AzureServiceBus")]
 [Trait(TraitNames.Component, TestComponents.Transport)]
-public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLifetime, IDisposable
+public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLifetime
 {
 	private const string TestQueueName = "receiver-test-queue";
 
-	// Static container shared across all test instances in this class.
-	// Avoids per-test container creation that each times out (~20s) on Ubuntu CI.
-	private static readonly SemaphoreSlim s_initLock = new(1, 1);
-	private static volatile bool s_initialized;
-	private static volatile bool s_dockerAvailable;
-	private static ServiceBusEmulatorContainer? s_container;
-	private static ServiceBusClient? s_client;
+	private readonly AzureServiceBusContainerFixture _fixture;
 
-	private bool _dockerAvailable;
+	public AzureServiceBusTransportReceiverIntegrationShould(AzureServiceBusContainerFixture fixture)
+	{
+		_fixture = fixture;
+	}
 
+	/// <summary>
+	/// Creates the queue needed by receiver tests. Called once per test instance,
+	/// but queue creation is idempotent (catches conflict if already exists).
+	/// </summary>
 	public async Task InitializeAsync()
 	{
-		if (s_initialized)
+		if (!_fixture.DockerAvailable)
 		{
-			_dockerAvailable = s_dockerAvailable;
 			return;
 		}
 
-		await s_initLock.WaitAsync().ConfigureAwait(false);
+		var adminClient = new ServiceBusAdministrationClient(_fixture.ConnectionString);
+
 		try
 		{
-			// Double-check after acquiring lock
-			if (s_initialized)
+			await adminClient.CreateQueueAsync(new CreateQueueOptions(TestQueueName)
 			{
-				_dockerAvailable = s_dockerAvailable;
-				return;
-			}
-
-			try
-			{
-				s_container = new ServiceBusContainerBuilder()
-					.WithAcceptLicenseAgreement(true)
-					.Build();
-				using var startCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-				await s_container.StartAsync(startCts.Token).ConfigureAwait(false);
-
-				var connectionString = s_container.GetConnectionString();
-
-				var adminClient = new ServiceBusAdministrationClient(connectionString);
-
-				// Create test queue with dead-letter sub-queue enabled by default
-				await adminClient.CreateQueueAsync(new CreateQueueOptions(TestQueueName)
-				{
-					DefaultMessageTimeToLive = TimeSpan.FromMinutes(5),
-					MaxDeliveryCount = 10,
-				}).ConfigureAwait(false);
-
-				s_client = new ServiceBusClient(connectionString);
-				s_dockerAvailable = true;
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine($"Docker initialization failed: {ex.Message}");
-				s_dockerAvailable = false;
-			}
-
-			s_initialized = true;
+				DefaultMessageTimeToLive = TimeSpan.FromMinutes(5),
+				MaxDeliveryCount = 10,
+			}).ConfigureAwait(false);
 		}
-		finally
+		catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
 		{
-			s_initLock.Release();
+			// Queue already created by another test instance in this collection — safe to ignore.
 		}
-
-		_dockerAvailable = s_dockerAvailable;
 	}
 
 	public Task DisposeAsync() => Task.CompletedTask;
 
-	public void Dispose()
-	{
-		// Static resources are not disposed per-test; container lives for the class lifetime.
-	}
-
 	[SkippableFact]
 	public async Task ReceiveMessages_FromPopulatedQueue()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
-		await using var sender = s_client!.CreateSender(TestQueueName);
-		await using var receiver = s_client.CreateReceiver(TestQueueName);
+		await using var sender = _fixture.Client.CreateSender(TestQueueName);
+		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
 
 		var expectedBody = "Receive test message";
 		var message = new ServiceBusMessage(expectedBody)
@@ -135,10 +95,10 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 	[SkippableFact]
 	public async Task ReceiveFromEmptyQueue_ReturnsNull()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
-		await using var receiver = s_client!.CreateReceiver(TestQueueName);
+		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
 
 		// Act - short timeout on empty queue
 		var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
@@ -150,11 +110,11 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 	[SkippableFact]
 	public async Task CompleteMessage_RemovesFromQueue()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
-		await using var sender = s_client!.CreateSender(TestQueueName);
-		await using var receiver = s_client.CreateReceiver(TestQueueName);
+		await using var sender = _fixture.Client.CreateSender(TestQueueName);
+		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
 
 		var message = new ServiceBusMessage("complete test")
 		{
@@ -175,11 +135,11 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 	[SkippableFact]
 	public async Task AbandonMessage_MakesMessageReappear()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
-		await using var sender = s_client!.CreateSender(TestQueueName);
-		await using var receiver = s_client.CreateReceiver(TestQueueName);
+		await using var sender = _fixture.Client.CreateSender(TestQueueName);
+		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
 
 		var message = new ServiceBusMessage("abandon test")
 		{
@@ -205,11 +165,11 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 	[SkippableFact]
 	public async Task DeadLetterMessage_MovesToDlq()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
-		await using var sender = s_client!.CreateSender(TestQueueName);
-		await using var receiver = s_client.CreateReceiver(TestQueueName);
+		await using var sender = _fixture.Client.CreateSender(TestQueueName);
+		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
 
 		var message = new ServiceBusMessage("dead-letter test")
 		{
@@ -224,7 +184,7 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 
 		// Assert - message should be in the dead-letter sub-queue
 		var dlqPath = $"{TestQueueName}/$deadletterqueue";
-		await using var dlqReceiver = s_client.CreateReceiver(dlqPath);
+		await using var dlqReceiver = _fixture.Client.CreateReceiver(dlqPath);
 
 		var dlqMessage = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		dlqMessage.ShouldNotBeNull();
@@ -238,11 +198,11 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 	[SkippableFact]
 	public async Task PeekMessage_DoesNotRemove()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
-		await using var sender = s_client!.CreateSender(TestQueueName);
-		await using var receiver = s_client.CreateReceiver(TestQueueName);
+		await using var sender = _fixture.Client.CreateSender(TestQueueName);
+		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
 
 		var message = new ServiceBusMessage("peek test")
 		{
@@ -269,11 +229,11 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 	[SkippableFact]
 	public async Task ReceiveWithProperties_PropertiesPreserved()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
-		await using var sender = s_client!.CreateSender(TestQueueName);
-		await using var receiver = s_client.CreateReceiver(TestQueueName);
+		await using var sender = _fixture.Client.CreateSender(TestQueueName);
+		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
 
 		var message = new ServiceBusMessage("properties test")
 		{

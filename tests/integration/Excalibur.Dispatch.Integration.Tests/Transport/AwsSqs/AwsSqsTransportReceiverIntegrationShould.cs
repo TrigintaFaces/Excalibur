@@ -1,13 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Amazon.Runtime;
-using Amazon.SQS;
 using Amazon.SQS.Model;
 
 using Tests.Shared.Fixtures;
-
-using Testcontainers.LocalStack;
 
 namespace Excalibur.Dispatch.Integration.Tests.Transport.AwsSqs;
 
@@ -18,84 +14,22 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.AwsSqs;
 /// concurrent consumers.
 /// </summary>
 /// <remarks>
-/// Container lifecycle: a single static LocalStack container is shared across all
-/// test instances in this class. This avoids per-test container churn that causes
-/// resource exhaustion and disposal hangs on Ubuntu CI.
+/// Container lifecycle is managed by <see cref="AwsSqsContainerFixture"/> via the
+/// xUnit collection fixture pattern. The fixture is shared across all test classes
+/// in the <see cref="ContainerCollections.AwsSqs"/> collection.
 /// </remarks>
 [Collection(ContainerCollections.AwsSqs)]
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Database", "AwsSqs")]
 [Trait(TraitNames.Component, TestComponents.Transport)]
-public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, IDisposable
+public sealed class AwsSqsTransportReceiverIntegrationShould
 {
-	// Static container shared across all test instances in this class.
-	// Avoids per-test container creation that exhausts CI resources.
-	private static readonly SemaphoreSlim s_initLock = new(1, 1);
-	private static volatile bool s_initialized;
-	private static volatile bool s_dockerAvailable;
-	private static LocalStackContainer? s_container;
-	private static AmazonSQSClient? s_sqsClient;
+	private readonly AwsSqsContainerFixture _fixture;
 
-	private bool _dockerAvailable;
-
-	public async Task InitializeAsync()
+	public AwsSqsTransportReceiverIntegrationShould(AwsSqsContainerFixture fixture)
 	{
-		if (s_initialized)
-		{
-			_dockerAvailable = s_dockerAvailable;
-			return;
-		}
-
-		await s_initLock.WaitAsync().ConfigureAwait(false);
-		try
-		{
-			// Double-check after acquiring lock
-			if (s_initialized)
-			{
-				_dockerAvailable = s_dockerAvailable;
-				return;
-			}
-
-			try
-			{
-				s_container = new LocalStackBuilder()
-					.WithImage("localstack/localstack:latest")
-					.WithEnvironment("SERVICES", "sqs")
-					.Build();
-				using var startCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-				await s_container.StartAsync(startCts.Token).ConfigureAwait(false);
-
-				var credentials = new BasicAWSCredentials("test", "test");
-				var config = new AmazonSQSConfig
-				{
-					ServiceURL = s_container.GetConnectionString(),
-				};
-				s_sqsClient = new AmazonSQSClient(credentials, config);
-				s_dockerAvailable = true;
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine($"Docker initialization failed: {ex.Message}");
-				s_dockerAvailable = false;
-			}
-
-			s_initialized = true;
-		}
-		finally
-		{
-			s_initLock.Release();
-		}
-
-		_dockerAvailable = s_dockerAvailable;
+		_fixture = fixture;
 	}
-
-	public void Dispose()
-	{
-		// Static resources are not disposed per-test; container lives for the class lifetime.
-		// xUnit disposes the process at the end, which cleans up the container.
-	}
-
-	public Task DisposeAsync() => Task.CompletedTask;
 
 	private async Task<string> CreateStandardQueueAsync(string? queueName = null, int? visibilityTimeout = null)
 	{
@@ -113,11 +47,11 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 			};
 		}
 
-		var response = await s_sqsClient!.CreateQueueAsync(request).ConfigureAwait(false);
+		var response = await _fixture.SqsClient.CreateQueueAsync(request).ConfigureAwait(false);
 		return response.QueueUrl;
 	}
 
-	private static async Task SendMessageAsync(string queueUrl, string body, Dictionary<string, MessageAttributeValue>? attributes = null)
+	private async Task SendMessageAsync(string queueUrl, string body, Dictionary<string, MessageAttributeValue>? attributes = null)
 	{
 		var request = new SendMessageRequest
 		{
@@ -130,13 +64,13 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 			request.MessageAttributes = attributes;
 		}
 
-		await s_sqsClient!.SendMessageAsync(request).ConfigureAwait(false);
+		await _fixture.SqsClient.SendMessageAsync(request).ConfigureAwait(false);
 	}
 
 	[SkippableFact]
 	public async Task ReceiveMessages_FromPopulatedQueue()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -144,7 +78,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		await SendMessageAsync(queueUrl, expectedBody).ConfigureAwait(false);
 
 		// Act
-		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -162,13 +96,13 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 	[SkippableFact]
 	public async Task ReceiveFromEmptyQueue_ReturnsEmptyList()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
 
 		// Act — short poll (no wait) on empty queue
-		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -182,13 +116,13 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 	[SkippableFact]
 	public async Task DeleteMessage_RemovesFromQueue()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
 		await SendMessageAsync(queueUrl, "delete-me").ConfigureAwait(false);
 
-		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -199,10 +133,10 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		var receiptHandle = receiveResponse.Messages[0].ReceiptHandle;
 
 		// Act — delete the message
-		await s_sqsClient.DeleteMessageAsync(queueUrl, receiptHandle).ConfigureAwait(false);
+		await _fixture.SqsClient.DeleteMessageAsync(queueUrl, receiptHandle).ConfigureAwait(false);
 
 		// Assert — queue should be empty now
-		var afterDelete = await s_sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+		var afterDelete = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -215,14 +149,14 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 	[SkippableFact]
 	public async Task ChangeVisibility_MakesMessageReappear()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange — create a queue with a long default visibility timeout
 		var queueUrl = await CreateStandardQueueAsync(visibilityTimeout: 30).ConfigureAwait(false);
 		await SendMessageAsync(queueUrl, "visibility-test").ConfigureAwait(false);
 
 		// Receive the message (it becomes invisible for 30s)
-		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -233,7 +167,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		var receiptHandle = receiveResponse.Messages[0].ReceiptHandle;
 
 		// Act — change visibility timeout to 0 to make it immediately visible again
-		await s_sqsClient.ChangeMessageVisibilityAsync(new ChangeMessageVisibilityRequest
+		await _fixture.SqsClient.ChangeMessageVisibilityAsync(new ChangeMessageVisibilityRequest
 		{
 			QueueUrl = queueUrl,
 			ReceiptHandle = receiptHandle,
@@ -241,7 +175,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		}).ConfigureAwait(false);
 
 		// Assert — message should be receivable again
-		var reReceive = await s_sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+		var reReceive = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -255,7 +189,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 	[SkippableFact]
 	public async Task ReceiveWithAttributes_AttributesPreserved()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -276,7 +210,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		await SendMessageAsync(queueUrl, "{\"userId\": 1}", attributes).ConfigureAwait(false);
 
 		// Act
-		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -296,7 +230,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 	[SkippableFact]
 	public async Task ReceiveMaxMessages_RespectsLimit()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange — send 5 messages
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -306,7 +240,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		}
 
 		// Act — receive with max 3
-		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 3,
@@ -320,7 +254,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 	[SkippableFact]
 	public async Task MessageBody_PreservesEncoding()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange — UTF-8 body with special characters
 		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
@@ -329,7 +263,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		await SendMessageAsync(queueUrl, unicodeBody).ConfigureAwait(false);
 
 		// Act
-		var receiveResponse = await s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 1,
@@ -344,7 +278,7 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 	[SkippableFact]
 	public async Task MultipleConsumers_CanReceive()
 	{
-		Skip.IfNot(_dockerAvailable, "Docker is not available");
+		Skip.IfNot(_fixture.DockerAvailable, "Docker is not available");
 
 		// Arrange — send 4 messages, use short visibility so they don't overlap
 		var queueUrl = await CreateStandardQueueAsync(visibilityTimeout: 5).ConfigureAwait(false);
@@ -354,13 +288,13 @@ public sealed class AwsSqsTransportReceiverIntegrationShould : IAsyncLifetime, I
 		}
 
 		// Act — two concurrent receive calls
-		var task1 = s_sqsClient!.ReceiveMessageAsync(new ReceiveMessageRequest
+		var task1 = _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 2,
 			WaitTimeSeconds = 5,
 		});
-		var task2 = s_sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+		var task2 = _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
 		{
 			QueueUrl = queueUrl,
 			MaxNumberOfMessages = 2,
