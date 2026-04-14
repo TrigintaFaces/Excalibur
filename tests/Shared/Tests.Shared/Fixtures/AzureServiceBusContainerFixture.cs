@@ -69,9 +69,21 @@ public sealed class AzureServiceBusContainerFixture : ContainerFixtureBase
 	/// <inheritdoc/>
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
-		_container = new ServiceBusBuilder()
-			.WithAcceptLicenseAgreement(true)
-			.Build();
+		// Provide a Config.json that pre-creates test queues so the admin API
+		// doesn't need to be called separately (avoids port/timing issues).
+		var configPath = Path.Combine(
+			Path.GetDirectoryName(typeof(AzureServiceBusContainerFixture).Assembly.Location)!,
+			"Fixtures", "servicebus-emulator-config.json");
+
+		var builder = new ServiceBusBuilder()
+			.WithAcceptLicenseAgreement(true);
+
+		if (File.Exists(configPath))
+		{
+			builder = builder.WithConfig(configPath);
+		}
+
+		_container = builder.Build();
 
 		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 

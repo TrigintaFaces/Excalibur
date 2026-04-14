@@ -40,40 +40,9 @@ public sealed class AzureServiceBusTransportSenderIntegrationShould : IAsyncLife
 	/// Creates the queues needed by sender tests. Called once per test instance,
 	/// but queue creation is idempotent (catches conflict if already exists).
 	/// </summary>
-	public async Task InitializeAsync()
-	{
-		if (!_fixture.DockerAvailable)
-		{
-			return;
-		}
-
-		var adminClient = new ServiceBusAdministrationClient(_fixture.ConnectionString);
-
-		try
-		{
-			await adminClient.CreateQueueAsync(new CreateQueueOptions(TestQueueName)
-			{
-				DefaultMessageTimeToLive = TimeSpan.FromMinutes(5),
-			}).ConfigureAwait(false);
-		}
-		catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
-		{
-			// Queue already created by another test instance in this collection — safe to ignore.
-		}
-
-		try
-		{
-			await adminClient.CreateQueueAsync(new CreateQueueOptions(SessionQueueName)
-			{
-				RequiresSession = true,
-				DefaultMessageTimeToLive = TimeSpan.FromMinutes(5),
-			}).ConfigureAwait(false);
-		}
-		catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
-		{
-			// Queue already created by another test instance in this collection — safe to ignore.
-		}
-	}
+	public Task InitializeAsync() => Task.CompletedTask;
+	// Queues are pre-created by the emulator's Config.json (servicebus-emulator-config.json)
+	// loaded via AzureServiceBusContainerFixture.WithConfig().
 
 	public Task DisposeAsync() => Task.CompletedTask;
 

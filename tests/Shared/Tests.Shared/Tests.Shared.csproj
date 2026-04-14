@@ -10,6 +10,9 @@
     <AssemblyName>Tests.Shared</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="Fixtures\servicebus-emulator-config.json" CopyToOutputDirectory="PreserveNewest" Link="Fixtures\servicebus-emulator-config.json" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Test Frameworks -->
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />

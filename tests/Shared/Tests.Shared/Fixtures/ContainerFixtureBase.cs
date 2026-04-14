@@ -67,6 +67,17 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	public string? InitializationError { get; private set; }
 
 	/// <summary>
+	/// Marks the fixture as unavailable after the container started but a dependent
+	/// service (e.g., queue creation, admin API) failed. Tests should skip.
+	/// </summary>
+	/// <param name="reason">Description of what failed.</param>
+	public void MarkUnavailable(string reason)
+	{
+		DockerAvailable = false;
+		InitializationError = reason;
+	}
+
+	/// <summary>
 	/// Gets a value indicating whether the fixture should degrade gracefully when the
 	/// container cannot start, instead of throwing.
 	/// </summary>
