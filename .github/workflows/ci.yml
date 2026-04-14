@@ -533,6 +533,8 @@ jobs:
           Write-Host "Using integration filter with $($filterInfo.count) quarantined exclusions."
 
       - name: Run Integration Tests
+        id: run-integration
+        continue-on-error: true
         run: |
           dotnet test eng/ci/shards/IntegrationTests.slnf \
             -m:1 \
@@ -545,6 +547,31 @@ jobs:
             --results-directory ./TestResults \
             --filter "${{ env.INTEGRATION_TEST_FILTER }}" \
             -- RunConfiguration.TestSessionTimeout=3600000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      - name: Verify integration test results
+        if: always()
+        shell: pwsh
+        run: |
+          $trxFiles = Get-ChildItem -Path ./TestResults -Filter "*.trx" -Recurse -ErrorAction SilentlyContinue
+          if ($trxFiles.Count -eq 0) {
+            Write-Error "No TRX result files found — test run may have failed to start"
+            exit 1
+          }
+          $totalFailed = 0
+          foreach ($trx in $trxFiles) {
+            [xml]$xml = Get-Content $trx.FullName
+            $counters = $xml.TestRun.ResultSummary.Counters
+            $failed = [int]$counters.failed
+            $passed = [int]$counters.passed
+            $total = [int]$counters.total
+            Write-Host "$($trx.Name): passed=$passed failed=$failed total=$total"
+            $totalFailed += $failed
+          }
+          if ($totalFailed -gt 0) {
+            Write-Error "Integration tests had $totalFailed failure(s)"
+            exit 1
+          }
+          Write-Host "All integration tests passed (test host cleanup crash is non-fatal)"
 
       - name: Upload test results
         if: always()

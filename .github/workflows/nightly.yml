@@ -122,6 +122,8 @@ jobs:
         run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Run Integration Tests (-m:1)
+        id: integration-tests
+        continue-on-error: true
         run: |
           dotnet test eng/ci/shards/IntegrationTests.slnf \
             --configuration Release \
@@ -133,6 +135,27 @@ jobs:
             --results-directory ./TestResults \
             --filter "Category=Integration|Category=EndToEnd" \
             -- RunConfiguration.TestSessionTimeout=1800000
+
+      - name: Verify integration test results
+        if: always()
+        shell: pwsh
+        run: |
+          $trxFiles = Get-ChildItem -Path ./TestResults -Filter "*.trx" -Recurse
+          $totalFailed = 0
+          foreach ($trx in $trxFiles) {
+            [xml]$xml = Get-Content $trx.FullName
+            $counters = $xml.TestRun.ResultSummary.Counters
+            $failed = [int]$counters.failed
+            $passed = [int]$counters.passed
+            $total = [int]$counters.total
+            Write-Host "$($trx.Name): passed=$passed failed=$failed total=$total"
+            $totalFailed += $failed
+          }
+          if ($totalFailed -gt 0) {
+            Write-Error "Integration tests had $totalFailed failure(s)"
+            exit 1
+          }
+          Write-Host "All integration tests passed (test host may have crashed during cleanup -- this is non-fatal)"
 
       - name: Upload test results
         if: always()

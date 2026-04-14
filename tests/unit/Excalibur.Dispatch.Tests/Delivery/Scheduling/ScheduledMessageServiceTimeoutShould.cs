@@ -177,9 +177,16 @@ public sealed class ScheduledMessageServiceTimeoutShould
 		var service = CreateService(store: store);
 
 		// Act
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 		await service.StartAsync(cts.Token);
-		await Task.Delay(500);
+
+		// Poll until the service has been called more than once (recovery after exception)
+		var deadline = DateTime.UtcNow.AddSeconds(5);
+		while (Volatile.Read(ref callCount) <= 1 && DateTime.UtcNow < deadline)
+		{
+			await Task.Delay(100);
+		}
+
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
