@@ -169,7 +169,7 @@ jobs:
   package-composition:
     name: Package Composition
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v6

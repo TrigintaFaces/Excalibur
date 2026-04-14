@@ -110,16 +110,14 @@ public sealed class ServerlessColdStartE2EShould : FunctionalTestBase
 		var dispatcher = _serviceProvider.GetRequiredService<IDispatcher>();
 		var contextFactory = _serviceProvider.GetRequiredService<IMessageContextFactory>();
 
-		// Act
+		// Act & Assert: handler exceptions propagate directly (Sprint 759 fix)
 		var action = new FailingColdStartAction();
 		var context = contextFactory.CreateContext();
 		context.MessageId = Guid.NewGuid().ToString();
 
-		var result = await dispatcher.DispatchAsync(action, context, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert: handler failure should propagate as failed result
-		result.IsSuccess.ShouldBeFalse();
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => dispatcher.DispatchAsync(action, context, CancellationToken.None));
+		ex.Message.ShouldNotBeNullOrEmpty();
 	}
 
 	[Fact]

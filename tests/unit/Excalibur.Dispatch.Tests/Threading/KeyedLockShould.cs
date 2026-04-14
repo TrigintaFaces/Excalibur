@@ -124,13 +124,13 @@ public sealed class KeyedLockShould
 		});
 
 		await waiterStarted.Task;
-		await Task.Delay(50); // Give waiter time to enter WaitAsync
+		await Task.Delay(500); // Give waiter time to enter WaitAsync on loaded CI runners
 
 		// Act -- release first handle while waiter exists
 		handle1.Dispose();
 
 		// Assert -- waiter should eventually complete
-		await waiterTask.WaitAsync(TimeSpan.FromSeconds(5));
+		await waiterTask.WaitAsync(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]

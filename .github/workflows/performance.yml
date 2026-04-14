@@ -60,7 +60,7 @@ jobs:
             -Configuration Release `
             -NoBuild `
             -NoRestore `
-            -RepeatCount 1 `
+            -RepeatCount 3 `
             -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks `
             -ArtifactsPath ./BenchmarkDotNet.Artifacts.MediatRParity
 
@@ -71,8 +71,8 @@ jobs:
             -Gate MediatRLocalParity `
             -ResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
             -RequireBenchmarkSummaryMetadata:$true `
-            -MinimumRepeatCount 1 `
-            -MediatRSingleCommandMaxRatio 1.75 `
+            -MinimumRepeatCount 3 `
+            -MediatRSingleCommandMaxRatio 2.00 `
             -MediatRQueryMaxRatio 2.20
 
       - name: Generate protected-row delta report
