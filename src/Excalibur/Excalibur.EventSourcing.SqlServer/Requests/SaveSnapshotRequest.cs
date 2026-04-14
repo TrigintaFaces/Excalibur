@@ -36,7 +36,7 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
 		var sql = $"""
-			MERGE INTO {qualifiedTable} WITH (ROWLOCK, UPDLOCK) AS target
+			MERGE INTO {qualifiedTable} WITH (HOLDLOCK, ROWLOCK, UPDLOCK) AS target
 			USING (SELECT @SnapshotId, @AggregateId, @AggregateType, @Version, @Data, @CreatedAt)
 			    AS source (SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt)
 			ON target.AggregateId = source.AggregateId
