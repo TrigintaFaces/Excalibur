@@ -109,11 +109,14 @@ public sealed class InMemoryScheduleStoreShould
 	public async Task WaitForChangeAsync_UnblocksWhenStoreChanges()
 	{
 		var signal = _store.ShouldBeAssignableTo<IScheduleStoreSignal>();
-		var waitTask = signal.WaitForChangeAsync(TimeSpan.FromSeconds(2), _ct).AsTask();
+		var waitTask = signal!.WaitForChangeAsync(TimeSpan.FromSeconds(10), _ct).AsTask();
+
+		// Allow the listener to register before mutating the store
+		await Task.Delay(50, _ct);
 
 		await _store.StoreAsync(new ScheduledMessage { MessageName = "signal-test" }, _ct);
 
-		await waitTask.WaitAsync(TimeSpan.FromSeconds(2), _ct);
+		await waitTask.WaitAsync(TimeSpan.FromSeconds(5), _ct);
 		waitTask.IsCompletedSuccessfully.ShouldBeTrue();
 	}
 }

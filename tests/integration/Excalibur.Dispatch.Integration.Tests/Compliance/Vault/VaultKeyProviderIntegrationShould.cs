@@ -30,6 +30,11 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 
 	public Task InitializeAsync()
 	{
+		if (!_fixture.DockerAvailable)
+		{
+			return Task.CompletedTask;
+		}
+
 		var options = Microsoft.Extensions.Options.Options.Create(new VaultOptions
 		{
 			VaultUri = new Uri(_fixture.VaultAddress),
@@ -41,6 +46,12 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 
 		_provider = new VaultKeyProvider(options, _cache, _logger);
 		return Task.CompletedTask;
+	}
+
+	private void SkipIfUnavailable()
+	{
+		Skip.IfNot(_fixture.DockerAvailable,
+			_fixture.InitializationError ?? "Vault container not available");
 	}
 
 	public Task DisposeAsync()
@@ -110,6 +121,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task CreateNewKey_WhenKeyDoesNotExist()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"test-{Guid.NewGuid():N}";
 
@@ -130,6 +143,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task GetKey_AfterCreation()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"test-{Guid.NewGuid():N}";
 		_ = await _provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
@@ -150,6 +165,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task ReturnNull_WhenKeyDoesNotExist()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"nonexistent-{Guid.NewGuid():N}";
 
@@ -163,6 +180,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task GetKeyVersion_ReturnsCorrectVersion()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"version-{Guid.NewGuid():N}";
 		_ = await _provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None); // v1
@@ -185,6 +204,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task ListKeys_ReturnsCreatedKeys()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId1 = $"list-{Guid.NewGuid():N}";
 		var keyId2 = $"list-{Guid.NewGuid():N}";
@@ -207,6 +228,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task DeleteKey_RemovesKey()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"delete-{Guid.NewGuid():N}";
 		_ = await _provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
@@ -224,6 +247,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task DeleteKey_ReturnsFalse_WhenKeyNotFound()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"nonexistent-{Guid.NewGuid():N}";
 
@@ -237,6 +262,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task RotateKey_CreatesNewVersion()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"rotate-{Guid.NewGuid():N}";
 		var firstResult = await _provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
@@ -259,6 +286,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task SuspendKey_UpdatesKeyConfig()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"suspend-{Guid.NewGuid():N}";
 		_ = await _provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
@@ -276,6 +305,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task SuspendKey_ReturnsFalse_WhenKeyNotFound()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"nonexistent-{Guid.NewGuid():N}";
 
@@ -289,6 +320,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task GetActiveKey_ReturnsActiveKey()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"active-{Guid.NewGuid():N}";
 		_ = await _provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
@@ -309,6 +342,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task CreateKeyWithAlgorithm_Aes256Gcm()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"aes-{Guid.NewGuid():N}";
 
@@ -327,6 +362,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	[Fact]
 	public async Task CacheKeyMetadata_ReducesApiCalls()
 	{
+		SkipIfUnavailable();
+
 		// Arrange
 		var keyId = $"cache-{Guid.NewGuid():N}";
 		_ = await _provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);

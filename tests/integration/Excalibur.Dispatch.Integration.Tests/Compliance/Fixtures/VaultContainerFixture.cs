@@ -17,6 +17,14 @@ public class VaultContainerFixture : ContainerFixtureBase
 	private const string RootToken = "test-root-token";
 	private IContainer? _container;
 
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Vault container is optional infrastructure — allow graceful degradation
+	/// so a Docker exec compatibility issue doesn't crash the entire test host.
+	/// Tests should check <see cref="ContainerFixtureBase.DockerAvailable"/> and skip when false.
+	/// </remarks>
+	protected override bool AllowGracefulDegradation => true;
+
 	/// <summary>
 	/// Gets the Vault server address.
 	/// </summary>
@@ -48,7 +56,7 @@ public class VaultContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new ContainerBuilder()
-			.WithImage("hashicorp/vault:latest")
+			.WithImage("hashicorp/vault:1.15")
 			.WithName($"vault-compliance-test-{Guid.NewGuid():N}")
 			.WithPortBinding(VaultPort, true)
 			.WithEnvironment("VAULT_DEV_ROOT_TOKEN_ID", RootToken)
@@ -56,10 +64,10 @@ public class VaultContainerFixture : ContainerFixtureBase
 			.WithEnvironment("VAULT_ADDR", $"http://0.0.0.0:{VaultPort}")
 			.WithEnvironment("VAULT_TOKEN", RootToken)
 			.WithWaitStrategy(Wait.ForUnixContainer()
-				.UntilPortIsAvailable(VaultPort)
 				.UntilHttpRequestIsSucceeded(r => r
 					.ForPath("/v1/sys/health")
-					.ForPort(VaultPort)))
+					.ForPort(VaultPort)
+					.ForStatusCode(System.Net.HttpStatusCode.OK)))
 			.Build();
 
 		await _container.StartAsync(cancellationToken);

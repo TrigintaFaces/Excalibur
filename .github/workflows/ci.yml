@@ -548,6 +548,13 @@ jobs:
             --filter "${{ env.INTEGRATION_TEST_FILTER }}" \
             -- RunConfiguration.TestSessionTimeout=3600000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
+      - name: Cleanup orphaned Docker containers
+        if: always()
+        run: |
+          # Kill any TestContainers that survived a test host crash
+          docker ps -q --filter "name=vault-compliance-test" | xargs -r docker rm -f 2>/dev/null || true
+          docker ps -q --filter "name=testcontainers" | xargs -r docker rm -f 2>/dev/null || true
+
       - name: Verify integration test results
         if: always()
         shell: pwsh
