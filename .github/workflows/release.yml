@@ -89,17 +89,16 @@ jobs:
           echo "Disk usage before cleanup:"
           df -h
 
-          # Remove pre-installed tools that consume significant disk space
-          sudo rm -rf /usr/local/lib/android || true          # ~12GB
-          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.* || true
-          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.* || true
-          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/6.* || true
-          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/7.* || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true     # ~6GB
-          sudo rm -rf /usr/local/share/powershell || true     # ~1.5GB
-          sudo rm -rf /usr/share/swift || true                # ~1.5GB
-          sudo apt-get clean || true
-          docker system prune -af 2>/dev/null || true
+          # Remove pre-installed tools in parallel (saves ~3 min vs sequential)
+          sudo rm -rf /usr/local/lib/android &              # ~12GB
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &         # ~6GB
+          sudo rm -rf /usr/local/share/powershell &         # ~1.5GB
+          sudo rm -rf /usr/share/swift &                    # ~1.5GB
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.* \
+                      /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.* \
+                      /usr/share/dotnet/shared/Microsoft.NETCore.App/6.* \
+                      /usr/share/dotnet/shared/Microsoft.NETCore.App/7.* &
+          wait
 
           for d in \
             "$RUNNER_TEMP" \
@@ -226,7 +225,7 @@ jobs:
     name: Pre-Tag Soak Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: pre-release-validation
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -251,17 +250,16 @@ jobs:
           echo "Disk usage before cleanup:"
           df -h
 
-          # Remove pre-installed tools that consume significant disk space
-          sudo rm -rf /usr/local/lib/android || true          # ~12GB
-          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.* || true
-          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.* || true
-          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/6.* || true
-          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/7.* || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true     # ~6GB
-          sudo rm -rf /usr/local/share/powershell || true     # ~1.5GB
-          sudo rm -rf /usr/share/swift || true                # ~1.5GB
-          sudo apt-get clean || true
-          docker system prune -af 2>/dev/null || true
+          # Remove pre-installed tools in parallel (saves ~3 min vs sequential)
+          sudo rm -rf /usr/local/lib/android &              # ~12GB
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &         # ~6GB
+          sudo rm -rf /usr/local/share/powershell &         # ~1.5GB
+          sudo rm -rf /usr/share/swift &                    # ~1.5GB
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.* \
+                      /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.* \
+                      /usr/share/dotnet/shared/Microsoft.NETCore.App/6.* \
+                      /usr/share/dotnet/shared/Microsoft.NETCore.App/7.* &
+          wait
 
           for d in \
             "$RUNNER_TEMP" \
