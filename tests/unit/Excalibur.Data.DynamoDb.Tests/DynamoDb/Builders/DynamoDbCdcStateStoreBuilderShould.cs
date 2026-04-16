@@ -49,41 +49,6 @@ public sealed class DynamoDbCdcStateStoreBuilderShould : UnitTestBase
         builder.BindConfigurationPath.ShouldBe("Cdc:StateStore");
     }
 
-    [Fact]
-    public void ConnectionStringName_StoreName()
-    {
-        var (builder, _) = CreateBuilder();
-
-        builder.ConnectionStringName("CdcState");
-
-        builder.StateConnectionStringName.ShouldBe("CdcState");
-    }
-
-    // --- SchemaName is a no-op for DynamoDB but still validates input ---
-
-    [Fact]
-    public void SchemaName_AcceptValidValue()
-    {
-        var (builder, _) = CreateBuilder();
-
-        // Should not throw; DynamoDB ignores schema but accepts the call.
-        var result = builder.SchemaName("public");
-
-        result.ShouldBeSameAs(builder);
-    }
-
-    // --- ConnectionString accepts value (used for service URL in DynamoDB context) ---
-
-    [Fact]
-    public void ConnectionString_AcceptValidValue()
-    {
-        var (builder, _) = CreateBuilder();
-
-        var result = builder.ConnectionString("http://localhost:8000");
-
-        result.ShouldBeSameAs(builder);
-    }
-
     // --- Null/invalid argument guards ---
 
     [Theory]
@@ -106,36 +71,6 @@ public sealed class DynamoDbCdcStateStoreBuilderShould : UnitTestBase
         Should.Throw<ArgumentException>(() => builder.BindConfiguration(value!));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void ConnectionString_ThrowOnNullOrWhitespace(string? value)
-    {
-        var (builder, _) = CreateBuilder();
-        Should.Throw<ArgumentException>(() => builder.ConnectionString(value!));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void ConnectionStringName_ThrowOnNullOrWhitespace(string? value)
-    {
-        var (builder, _) = CreateBuilder();
-        Should.Throw<ArgumentException>(() => builder.ConnectionStringName(value!));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void SchemaName_ThrowOnNullOrWhitespace(string? value)
-    {
-        var (builder, _) = CreateBuilder();
-        Should.Throw<ArgumentException>(() => builder.SchemaName(value!));
-    }
-
     // --- Fluent chaining ---
 
     [Fact]
@@ -145,8 +80,7 @@ public sealed class DynamoDbCdcStateStoreBuilderShould : UnitTestBase
 
         var result = builder
             .TableName("cdc_positions")
-            .BindConfiguration("Cdc:StateStore")
-            .ConnectionStringName("CdcState");
+            .BindConfiguration("Cdc:StateStore");
 
         result.ShouldBeSameAs(builder);
     }

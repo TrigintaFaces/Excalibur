@@ -31,8 +31,6 @@ public sealed class MongoDbCdcServiceCollectionExtensionsShould : UnitTestBase
 			.DatabaseName("cdc_source")
 			.WithStateStore(state =>
 			{
-				state.ConnectionString("mongodb://localhost:27017");
-				state.SchemaName("custom_db");
 				state.TableName("overridden");
 			})));
 
@@ -40,7 +38,6 @@ public sealed class MongoDbCdcServiceCollectionExtensionsShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<MongoDbCdcStateStoreOptions>>();
-		options.Value.DatabaseName.ShouldBe("custom_db");
 		options.Value.CollectionName.ShouldBe("overridden");
 	}
 
