@@ -48,15 +48,17 @@ jobs:
           set -euo pipefail
           echo "Disk usage before cleanup:"
           df -h
-          sudo rm -rf /usr/share/swift || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          sudo rm -rf /home/linuxbrew || true
-          sudo rm -rf /usr/local/.ghcup || true
-          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android &            # ~12GB
+          sudo rm -rf /opt/hostedtoolcache/CodeQL &       # ~6GB
+          sudo rm -rf /usr/share/swift &                  # ~1.5GB
+          sudo rm -rf /opt/ghc &
+          sudo rm -rf /home/linuxbrew &
+          sudo rm -rf /usr/local/.ghcup &
+          sudo rm -rf /usr/local/share/boost &
+          sudo rm -rf /usr/local/share/powershell &
+          wait
           sudo apt-get clean || true
-          docker system prune -af || true
+          docker system prune -af 2>/dev/null || true
           echo "Disk usage after cleanup:"
           df -h
 
@@ -298,6 +300,7 @@ jobs:
           solution-filter: ${{ matrix.shard.filter }}
           collect-coverage: 'true'
           results-prefix: unit-tests-${{ matrix.shard.name }}
+          free-disk-space: 'true'
 
       - name: Upload test results
         if: always()

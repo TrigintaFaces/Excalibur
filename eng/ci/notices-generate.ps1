@@ -67,19 +67,26 @@ function Get-SolutionProjectPaths {
 }
 
 $central = Get-PackageVersionsFromDirectoryProps (Join-Path $RepoRoot 'Directory.Packages.props')
-$projectPaths = Get-SolutionProjectPaths $SolutionPath
-if ($projectPaths.Count -eq 0) {
-  $projectPaths = Get-ChildItem -Path (Join-Path $RepoRoot 'src') -Recurse -File -Filter *.csproj |
-    Where-Object { $_.FullName -notmatch '[\\/](obj|bin|templates)[\\/]' } |
-    Select-Object -ExpandProperty FullName
-}
+# Only scan src/ projects — these are the shipping packages consumers receive via NuGet.
+# Test, benchmark, and load-test dependencies are not redistributed and should not appear.
+$projectPaths = Get-ChildItem -Path (Join-Path $RepoRoot 'src') -Recurse -File -Filter *.csproj |
+  Where-Object { $_.FullName -notmatch '[\\/](obj|bin|templates)[\\/]' } |
+  Select-Object -ExpandProperty FullName
 
 $projRefs = $projectPaths | ForEach-Object { Get-PackageReferencesFromCsproj $_ }
 
-# Merge by Id, prefer explicit versions then central
+# Build a lookup of central package versions
+$centralVersions = @{}
+foreach ($p in $central) { $centralVersions[$p.Id] = $p.Version }
+
+# Only include packages actually referenced in src/ projects.
+# Resolve versions from explicit csproj Version attributes, falling back to central management.
 $all = @{}
-foreach ($p in $central) { $all[$p.Id] = $p.Version }
-foreach ($r in $projRefs) { if ($r.Version) { $all[$r.Id] = $r.Version } elseif ($all.ContainsKey($r.Id)) { } else { $all[$r.Id] = '' } }
+foreach ($r in $projRefs) {
+  if ($r.Version) { $all[$r.Id] = $r.Version }
+  elseif ($centralVersions.ContainsKey($r.Id)) { $all[$r.Id] = $centralVersions[$r.Id] }
+  elseif (-not $all.ContainsKey($r.Id)) { $all[$r.Id] = '' }
+}
 
 $lines = @()
 $lines += "# THIRD-PARTY NOTICES"
