@@ -25,14 +25,6 @@ Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOption
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreSchema.set -> void
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreTable.get -> string!
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreTable.set -> void
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions.ConnectionString.get -> string?
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions.ConnectionString.set -> void
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions.PostgresEventStoreOptions() -> void
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions.Schema.get -> string!
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions.Schema.set -> void
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions.Table.get -> string!
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions.Table.set -> void
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService.PostgresMigrationHostedService(Excalibur.EventSourcing.Abstractions.IMigrator! migrator, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService!>! logger) -> void
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -49,14 +41,6 @@ Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.Mig
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.PostgresMigratorOptions() -> void
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresProjectionRegistrar
 Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresProjectionRegistrar.Add<TProjection>(System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions!>? configureOptions = null) -> Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresProjectionRegistrar!
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions.ConnectionString.get -> string?
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions.ConnectionString.set -> void
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions.PostgresSnapshotStoreOptions() -> void
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions.Schema.get -> string!
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions.Schema.set -> void
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions.Table.get -> string!
-Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions.Table.set -> void
 Excalibur.EventSourcing.Postgres.EventSourcingBuilderPostgresExtensions
 Excalibur.EventSourcing.Postgres.PostgresCursorMapStore
 Excalibur.EventSourcing.Postgres.PostgresCursorMapStore.GetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, long>!>!
@@ -130,21 +114,22 @@ Excalibur.EventSourcing.Postgres.Requests.SaveSnapshotRequest.SaveSnapshotReques
 Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions
 Microsoft.Extensions.DependencyInjection.PostgresTenantShardingExtensions
-static Excalibur.EventSourcing.Postgres.EventSourcingBuilderPostgresExtensions.UsePostgres(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Npgsql.NpgsqlDataSource! dataSource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Npgsql.NpgsqlDataSource! dataSource, string! schema = "public", string! table = "events") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresMaterializedViewStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Npgsql.NpgsqlDataSource! dataSource, string? viewTableName = null, string? positionTableName = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresMigrator(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Npgsql.NpgsqlDataSource! dataSource, System.Reflection.Assembly! migrationAssembly, string! migrationNamespace) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresMigrator(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Npgsql.NpgsqlDataSource! dataSource, string! schema = "public", string! table = "event_store_snapshots") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory, System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions!>! configureShared, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresTenantShardingExtensions.UsePostgresTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.ConnectionString(string! connectionString) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.ConnectionStringName(string! name) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.EventStoreSchema(string! schema) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.EventStoreTable(string! tableName) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.SnapshotStoreSchema(string! schema) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder.SnapshotStoreTable(string! tableName) -> Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!
+static Excalibur.EventSourcing.Postgres.EventSourcingBuilderPostgresExtensions.UsePostgres(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Postgres.IPostgresEventSourcingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

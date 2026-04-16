@@ -20,7 +20,7 @@ Choose TransactionalWhenApplicable when:
 
 1. **SQL Server** outbox and inbox stores (other providers not supported)
 2. **Same connection string** for both outbox and inbox
-3. **SqlServerInboxOptions** provided to SqlServerOutboxStore constructor
+3. Inbox configured alongside outbox for transactional completion
 
 ## Configuration
 
@@ -28,21 +28,19 @@ Choose TransactionalWhenApplicable when:
 // Same connection string for both
 var connectionString = "Server=...;Database=SharedDb;...";
 
-services.Configure<SqlServerOutboxOptions>(opt => opt.ConnectionString = connectionString);
-services.Configure<SqlServerInboxOptions>(opt => opt.ConnectionString = connectionString);
-
-services.Configure<OutboxOptions>(options =>
+services.AddExcaliburOutbox(outbox =>
 {
-    options.DeliveryGuarantee = OutboxDeliveryGuarantee.TransactionalWhenApplicable;
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString));
 });
 
-// Register with inbox options for transactional completion
-services.AddSingleton(sp =>
+services.AddExcaliburInbox(inbox =>
 {
-    var outboxOpts = sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-    var inboxOpts = sp.GetRequiredService<IOptions<SqlServerInboxOptions>>();
-    var logger = sp.GetRequiredService<ILogger<SqlServerOutboxStore>>();
-    return new SqlServerOutboxStore(outboxOpts, inboxOpts, logger);
+    inbox.UseSqlServer(sql => sql.ConnectionString(connectionString));
+});
+
+services.Configure<OutboxDeliveryOptions>(options =>
+{
+    options.DeliveryGuarantee = OutboxDeliveryGuarantee.TransactionalWhenApplicable;
 });
 ```
 
@@ -58,7 +56,7 @@ When same-database is detected:
 
 Falls back to MinimizedWindow when:
 - Connection strings don't match (different databases)
-- SqlServerInboxOptions not provided
+- Inbox not configured
 - Transaction fails
 
 ## Running the Example

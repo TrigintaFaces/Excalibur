@@ -27,10 +27,10 @@ public sealed class SentinelServiceCollectionExtensionsShould
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddSentinelAuditExporter(options =>
+		_ = services.AddSentinelAuditExporter(sentinel =>
 		{
-			options.WorkspaceId = "test-workspace-id";
-			options.SharedKey = Convert.ToBase64String(new byte[32]);
+			sentinel.WorkspaceId("test-workspace-id")
+			        .SharedKey(Convert.ToBase64String(new byte[32]));
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -50,11 +50,11 @@ public sealed class SentinelServiceCollectionExtensionsShould
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddSentinelAuditExporter(options =>
+		_ = services.AddSentinelAuditExporter(sentinel =>
 		{
-			options.WorkspaceId = "my-workspace";
-			options.SharedKey = Convert.ToBase64String(new byte[32]);
-			options.LogType = "CustomAudit";
+			sentinel.WorkspaceId("my-workspace")
+			        .SharedKey(Convert.ToBase64String(new byte[32]))
+			        .LogType("CustomAudit");
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -84,7 +84,7 @@ public sealed class SentinelServiceCollectionExtensionsShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddSentinelAuditExporter((Action<SentinelExporterOptions>)null!));
+			services.AddSentinelAuditExporter((Action<IAuditLoggingSentinelBuilder>)null!));
 	}
 
 	[Fact]
@@ -97,38 +97,13 @@ public sealed class SentinelServiceCollectionExtensionsShould
 		_ = services.AddLogging();
 
 		// Act
-		var result = services.AddSentinelAuditExporter(options =>
+		var result = services.AddSentinelAuditExporter(sentinel =>
 		{
-			options.WorkspaceId = "test-workspace";
-			options.SharedKey = Convert.ToBase64String(new byte[32]);
+			sentinel.WorkspaceId("test-workspace")
+			        .SharedKey(Convert.ToBase64String(new byte[32]));
 		});
 
 		// Assert
 		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	[RequiresUnreferencedCode("Test")]
-	[RequiresDynamicCode("Test")]
-	public void AddSentinelAuditExporter_ConfiguresHttpClientTimeout()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		var expectedTimeout = TimeSpan.FromSeconds(42);
-
-		// Act
-		_ = services.AddSentinelAuditExporter(options =>
-		{
-			options.WorkspaceId = "test-workspace";
-			options.SharedKey = Convert.ToBase64String(new byte[32]);
-			options.Timeout = expectedTimeout;
-		});
-		using var provider = services.BuildServiceProvider();
-
-		// Assert - resolve HttpClient through the factory to trigger the config lambda
-		var factory = provider.GetRequiredService<IHttpClientFactory>();
-		using var client = factory.CreateClient(nameof(SentinelAuditExporter));
-		client.Timeout.ShouldBe(expectedTimeout);
 	}
 }

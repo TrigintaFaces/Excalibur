@@ -33,35 +33,18 @@ using Microsoft.Extensions.Logging;
 var builder = Host.CreateApplicationBuilder(args);
 
 // ---------------------------------------------------------------------------
-// 1. DI Registration -- AddDynamoDb with action-based configuration
+// 1. DI Registration -- AddExcaliburDynamoDb with fluent builder
 // ---------------------------------------------------------------------------
-// Option A: Configure via action delegate (shown here)
-builder.Services.AddDynamoDb(options =>
+// Option A: Configure via fluent builder (shown here)
+builder.Services.AddExcaliburDynamoDb(dynamo =>
 {
-    options.Name = "SampleProvider";
-    options.DefaultTableName = "ExcaliburSample";
-    options.DefaultPartitionKeyAttribute = "pk";
-    options.DefaultSortKeyAttribute = "sk";
-
-    // 3. Consistent reads -- all reads use strong consistency by default
-    options.UseConsistentReads = true;
-
-    // 4. DynamoDB Streams awareness -- configure for change data capture
-    options.EnableStreams = true;
-    options.StreamViewType = "NEW_AND_OLD_IMAGES"; // NEW_IMAGE, OLD_IMAGE, NEW_AND_OLD_IMAGES, KEYS_ONLY
-
     // 7. Connection options -- point to DynamoDB Local for development
-    options.Connection.ServiceUrl = "http://localhost:8000";
-    options.Connection.Region = "us-east-1";
-    options.Connection.MaxRetryAttempts = 3;
-    options.Connection.TimeoutInSeconds = 30;
+    dynamo.ServiceUrl("http://localhost:8000")
+          .TableName("ExcaliburSample");
 });
 
-// Option B: Configure via IConfiguration (bind from appsettings.json)
-// builder.Services.AddDynamoDb(builder.Configuration.GetSection("DynamoDb"));
-
-// Option C: Configure via named section
-// builder.Services.AddDynamoDb(builder.Configuration, "DynamoDb");
+// Option B: Configure via IConfiguration binding
+// builder.Services.AddExcaliburDynamoDb(dynamo => dynamo.BindConfiguration("DynamoDb"));
 
 // ---------------------------------------------------------------------------
 // 5. DAX Caching -- register DynamoDB Accelerator caching layer
@@ -258,10 +241,9 @@ static void DemonstrateApiSurface()
     Console.WriteLine("-----------------------------");
     Console.WriteLine();
     Console.WriteLine("DI Registration:");
-    Console.WriteLine("  services.AddDynamoDb(options => { ... })           // Action-based");
-    Console.WriteLine("  services.AddDynamoDb(configuration)                // IConfiguration-based");
-    Console.WriteLine("  services.AddDynamoDb(configuration, \"DynamoDb\")    // Named section");
-    Console.WriteLine("  services.AddDynamoDbWithClient(options => { ... }) // Existing IAmazonDynamoDB");
+    Console.WriteLine("  services.AddExcaliburDynamoDb(d => d.ServiceUrl(...).TableName(...))  // Fluent builder");
+    Console.WriteLine("  services.AddExcaliburDynamoDb(d => d.BindConfiguration(\"DynamoDb\"))   // IConfiguration");
+    Console.WriteLine("  services.AddExcaliburDynamoDb(d => d.Client(myClient))                // Existing IAmazonDynamoDB");
     Console.WriteLine();
     Console.WriteLine("DAX Caching:");
     Console.WriteLine("  services.AddDynamoDbDaxCaching(options => { ... }) // DAX Accelerator cache");

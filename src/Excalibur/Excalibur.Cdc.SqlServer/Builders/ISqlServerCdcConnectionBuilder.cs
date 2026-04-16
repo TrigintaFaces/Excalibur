@@ -59,6 +59,6 @@ public interface ISqlServerCdcConnectionBuilder
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="configure"/> is null.
 	/// </exception>
-	ISqlServerCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure);
+	ISqlServerCdcBuilder WithStateStore(Action<ICdcRelationalStateStoreBuilder> configure);
 
 }

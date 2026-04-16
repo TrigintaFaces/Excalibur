@@ -1,16 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.Abstractions.CloudNative;
 using Excalibur.Data.CosmosDb;
 
-using Microsoft.Extensions.Configuration;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -18,94 +16,141 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Extension methods for registering Cosmos DB services.
 /// </summary>
 public static class CosmosDbServiceCollectionExtensions
-
 {
 	/// <summary>
-	/// Adds Azure Cosmos DB data provider to the service collection.
+	/// Adds Azure Cosmos DB data provider to the service collection using the fluent builder.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="configure">The configuration action.</param>
+	/// <param name="configure">Configuration action for the CosmosDb data builder.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddCosmosDb(
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburCosmosDb(cosmos =&gt;
+	/// {
+	///     cosmos.ConnectionString(connectionString)
+	///           .DatabaseName("myapp")
+	///           .ContainerName("data");
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	public static IServiceCollection AddExcaliburCosmosDb(
 		this IServiceCollection services,
-		Action<CosmosDbOptions> configure)
+		Action<ICosmosDbDataBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.AddOptions<CosmosDbOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+		var options = new CosmosDbOptions();
+		var cosmosBuilder = new CosmosDbDataBuilder(options);
+		configure(cosmosBuilder);
 
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbOptions>, CosmosDbOptionsValidator>());
+		var hasBuilderConnection = cosmosBuilder.ClientInstance is not null
+			|| cosmosBuilder.ClientFactoryFunc is not null;
 
-		RegisterCoreServices(services);
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds Azure Cosmos DB data provider to the service collection using configuration.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section.</param>
-	/// <returns>The service collection for chaining.</returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddCosmosDb(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = services.AddOptions<CosmosDbOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbOptions>, CosmosDbOptionsValidator>());
-
-		RegisterCoreServices(services);
+		RegisterOptionsAndServices(services, cosmosBuilder, options, hasBuilderConnection);
 
 		return services;
 	}
 
-	/// <summary>
-	/// Adds Azure Cosmos DB data provider to the service collection using a named configuration section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration.</param>
-	/// <param name="sectionName">The configuration section name.</param>
-	/// <returns>The service collection for chaining.</returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Options validation/binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddCosmosDb(
-		this IServiceCollection services,
-		IConfiguration configuration,
-		string sectionName)
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IServiceCollection services,
+		CosmosDbDataBuilder cosmosBuilder,
+		CosmosDbOptions options,
+		bool hasBuilderConnection)
 	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-		ArgumentException.ThrowIfNullOrWhiteSpace(sectionName);
+		// Register store-specific options from builder state
+		_ = services.Configure<CosmosDbOptions>(opt =>
+		{
+			opt.DatabaseName = options.DatabaseName;
+			opt.DefaultContainerName = options.DefaultContainerName;
+		});
 
-		_ = services.AddOptions<CosmosDbOptions>()
-			.Bind(configuration.GetSection(sectionName))
-			.ValidateOnStart();
+		// Register BindConfiguration if set
+		if (cosmosBuilder.BindConfigurationPath is not null)
+		{
+			services.AddOptions<CosmosDbOptions>()
+				.BindConfiguration(cosmosBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
 
+		// Register ValidateOnStart
+		services.AddOptions<CosmosDbOptions>().ValidateOnStart();
+
+		// Register validator
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbOptions>, CosmosDbOptionsValidator>());
 
-		RegisterCoreServices(services);
+		// Register CosmosClient based on connection path
+		if (hasBuilderConnection)
+		{
+			RegisterBuilderManagedClient(services, cosmosBuilder, options);
+		}
+		else if (cosmosBuilder.EndpointValue is not null)
+		{
+			var endpoint = cosmosBuilder.EndpointValue;
+			var authKey = cosmosBuilder.AuthKeyValue!;
+			services.TryAddSingleton(_ => new CosmosClient(endpoint, authKey));
 
-		return services;
+			// Map to options so downstream code can read connection info
+			_ = services.Configure<CosmosDbOptions>(opt =>
+			{
+				opt.Client.AccountEndpoint = endpoint;
+				opt.Client.AccountKey = authKey;
+			});
+		}
+		else if (cosmosBuilder.ConnectionStringValue is not null)
+		{
+			var connStr = cosmosBuilder.ConnectionStringValue;
+			services.TryAddSingleton(_ => new CosmosClient(connStr));
+
+			// Map to options so downstream code can read connection info
+			_ = services.Configure<CosmosDbOptions>(opt =>
+			{
+				opt.Client.ConnectionString = connStr;
+			});
+		}
+
+		// Register core services
+		RegisterCoreServices(services);
+	}
+
+	private static void RegisterBuilderManagedClient(
+		IServiceCollection services,
+		CosmosDbDataBuilder cosmosBuilder,
+		CosmosDbOptions options)
+	{
+		// Set sentinel so the options validation passes
+		const string sentinel =
+			"AccountEndpoint=https://builder-managed.documents.azure.com:443/;AccountKey=YnVpbGRlci1tYW5hZ2VkLWtleQ==;";
+
+		options.Client.ConnectionString = sentinel;
+
+		_ = services.Configure<CosmosDbOptions>(opt =>
+		{
+			opt.Client.ConnectionString = sentinel;
+		});
+
+		if (cosmosBuilder.ClientInstance is not null)
+		{
+			var client = cosmosBuilder.ClientInstance;
+			services.TryAddSingleton(client);
+		}
+		else if (cosmosBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = cosmosBuilder.ClientFactoryFunc;
+			services.TryAddSingleton(factory);
+		}
 	}
 
 	private static void RegisterCoreServices(IServiceCollection services)

@@ -77,7 +77,12 @@ Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.MaxRetryAttempts.set -> vo
 Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.RetryDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.RetryDelay.set -> void
 Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.VaultRetryOptions() -> void
+Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder
+Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder.EnableDetailedTelemetry(bool enable = true) -> Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder.KeyNamePrefix(string! prefix) -> Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder.Namespace(string! ns) -> Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder.TransitMountPath(string! mountPath) -> Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder!
+Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder.VaultUri(System.Uri! vaultUri) -> Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder!
 Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Compliance.Vault.VaultOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfigurationSection! configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.Vault.VaultOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.Vault.IComplianceVaultBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

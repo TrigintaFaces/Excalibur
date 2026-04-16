@@ -153,21 +153,20 @@ outbox.UsePostgres(pg =>
 ### Redis
 
 ```csharp
-// With connection string
-outbox.UseRedis(options =>
+// With connection string (builder API)
+outbox.UseRedis(redis =>
 {
-    options.ConnectionString = "localhost:6379";
-    options.KeyPrefix = "outbox:";
-    options.DatabaseId = 0;
+    redis.ConnectionString("localhost:6379")
+         .KeyPrefix("outbox:")
+         .Database(0);
 });
 
-// With existing ConnectionMultiplexer from DI
-outbox.UseRedis(
-    sp => sp.GetRequiredService<ConnectionMultiplexer>(),
-    options =>
-    {
-        options.KeyPrefix = "outbox:";
-    });
+// With existing ConnectionMultiplexer
+outbox.UseRedis(redis =>
+{
+    redis.Multiplexer(existingMultiplexer)
+         .KeyPrefix("outbox:");
+});
 ```
 
 `RedisOutboxOptions` properties:
@@ -187,15 +186,16 @@ outbox.UseRedis(
 ### MongoDB
 
 ```csharp
-outbox.UseMongoDB(options =>
+outbox.UseMongoDB(mongo =>
 {
-    options.ConnectionString = "mongodb://localhost:27017";
-    options.DatabaseName = "myapp";
-    options.CollectionName = "outbox_messages";
+    mongo.ConnectionString("mongodb://localhost:27017")
+         .DatabaseName("myapp");
 });
 ```
 
-Key `MongoDbOutboxOptions` properties:
+The MongoDB outbox builder (`IMongoDBOutboxBuilder`) supports 4 connection overloads: `ConnectionString()`, `Client()`, `ClientFactory()`, and `BindConfiguration()`.
+
+Key `MongoDbOutboxOptions` properties (set via builder or configuration binding):
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -203,7 +203,6 @@ Key `MongoDbOutboxOptions` properties:
 | `DatabaseName` | `string` | `"excalibur"` | Database name |
 | `CollectionName` | `string` | `"outbox_messages"` | Collection name |
 | `SentMessageTtlSeconds` | `int` | `604800` (7 days) | TTL for sent messages |
-| `MaxPoolSize` | `int` | `100` | Max connection pool size |
 
 ### Elasticsearch
 
@@ -247,11 +246,11 @@ Key `FirestoreOutboxOptions` properties:
 ### Cosmos DB
 
 ```csharp
-outbox.UseCosmosDb(options =>
+outbox.UseCosmosDb(cosmos =>
 {
-    options.Connection.ConnectionString = connectionString;
-    options.DatabaseName = "myapp";
-    options.ContainerName = "outbox";
+    cosmos.ConnectionString(connectionString)
+          .DatabaseName("myapp")
+          .ContainerName("outbox");
 });
 ```
 

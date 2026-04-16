@@ -15,6 +15,7 @@
 // 2. Run the sample: dotnet run
 
 #pragma warning disable CA1303 // Sample code uses literal strings
+#pragma warning disable CA1506 // Excessive class coupling — sample wires full DI stack
 
 using Excalibur.Dispatch.LeaderElection;
 
@@ -71,7 +72,14 @@ var renewInterval = TimeSpan.FromSeconds(
 var gracePeriod = TimeSpan.FromSeconds(
 	builder.Configuration.GetValue("LeaderElection:GracePeriodSeconds", 15));
 
-builder.Services.AddRedisLeaderElection(lockKey, options =>
+builder.Services.AddExcaliburLeaderElection(le =>
+{
+	le.UseRedis(redis => redis
+		.ConnectionString(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379")
+		.LockKey(lockKey));
+});
+
+builder.Services.Configure<LeaderElectionOptions>(options =>
 {
 	options.LeaseDuration = leaseDuration;
 	options.RenewInterval = renewInterval;

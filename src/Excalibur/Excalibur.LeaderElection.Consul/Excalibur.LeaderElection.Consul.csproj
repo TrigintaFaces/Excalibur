@@ -15,6 +15,9 @@
     <PackageTags>excalibur;leader-election;consul;distributed-systems;high-availability</PackageTags>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.LeaderElection.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">

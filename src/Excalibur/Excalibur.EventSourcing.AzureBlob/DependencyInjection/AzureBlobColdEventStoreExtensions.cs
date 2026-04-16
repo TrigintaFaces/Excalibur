@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Azure.Storage.Blobs;
 
 using Excalibur.EventSourcing.Abstractions;
@@ -20,47 +22,98 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class AzureBlobColdEventStoreExtensions
 {
 	/// <summary>
-	/// Registers the Azure Blob Storage cold event store provider.
+	/// Registers the Azure Blob Storage cold event store provider using a fluent builder.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
-	/// <param name="configure">Action to configure the Azure Blob options.</param>
+	/// <param name="configure">Configuration action for the Azure Blob builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="IColdEventStore"/> backed by Azure Blob Storage.
-	/// Used in combination with <c>UseTieredStorage</c> for hot/cold event separation.
-	/// </para>
-	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.AddExcaliburEventSourcing(builder =&gt;
+	/// services.AddExcaliburEventSourcing(es =&gt;
 	/// {
-	///     builder.UseTieredStorage(policy =&gt;
+	///     es.UseTieredStorage(policy =&gt; policy.MaxAge = TimeSpan.FromDays(90));
+	///     es.UseAzureBlobColdEventStore(blob =&gt;
 	///     {
-	///         policy.MaxAge = TimeSpan.FromDays(90);
-	///     });
-	///     builder.UseAzureBlobColdEventStore(options =&gt;
-	///     {
-	///         options.ConnectionString = "UseDevelopmentStorage=true";
-	///         options.ContainerName = "cold-events";
+	///         blob.ConnectionString("UseDevelopmentStorage=true")
+	///             .ContainerName("cold-events");
 	///     });
 	/// });
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static IEventSourcingBuilder UseAzureBlobColdEventStore(
 		this IEventSourcingBuilder builder,
-		Action<AzureBlobColdEventStoreOptions> configure)
+		Action<IEventSourcingAzureBlobBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		builder.Services.Configure(configure);
+		var blobBuilder = new EventSourcingAzureBlobBuilder();
+		configure(blobBuilder);
+
+		RegisterOptionsAndServices(builder, blobBuilder);
+
+		return builder;
+	}
+
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IEventSourcingBuilder builder,
+		EventSourcingAzureBlobBuilder blobBuilder)
+	{
+		// Configure options from builder state
+		_ = builder.Services.Configure<AzureBlobColdEventStoreOptions>(opt =>
+		{
+			if (blobBuilder.ConnectionStringValue is not null)
+			{
+				opt.ConnectionString = blobBuilder.ConnectionStringValue;
+			}
+
+			if (blobBuilder.ContainerNameValue is not null)
+			{
+				opt.ContainerName = blobBuilder.ContainerNameValue;
+			}
+
+			if (blobBuilder.CreateContainerIfNotExistsValue.HasValue)
+			{
+				opt.CreateContainerIfNotExists = blobBuilder.CreateContainerIfNotExistsValue.Value;
+			}
+		});
+
+		// Register BindConfiguration if set
+		if (blobBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<AzureBlobColdEventStoreOptions>()
+				.BindConfiguration(blobBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
+
 		builder.Services.AddOptionsWithValidateOnStart<AzureBlobColdEventStoreOptions>();
 
+		// Register BlobServiceClient based on connection path
+		var hasBuilderClient = blobBuilder.ClientInstance is not null
+			|| blobBuilder.ClientFactoryFunc is not null;
+
+		if (hasBuilderClient)
+		{
+			RegisterBuilderManagedClient(builder.Services, blobBuilder);
+		}
+
+		// Register cold event store
 		builder.Services.TryAddSingleton<IColdEventStore>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<AzureBlobColdEventStoreOptions>>().Value;
-			var blobServiceClient = new BlobServiceClient(options.ConnectionString);
+
+			// Resolve or create BlobServiceClient
+			var blobServiceClient = sp.GetService<BlobServiceClient>()
+				?? new BlobServiceClient(options.ConnectionString);
+
 			var containerClient = blobServiceClient.GetBlobContainerClient(options.ContainerName);
 
 			if (options.CreateContainerIfNotExists)
@@ -72,7 +125,21 @@ public static class AzureBlobColdEventStoreExtensions
 				containerClient,
 				sp.GetRequiredService<ILogger<AzureBlobColdEventStore>>());
 		});
+	}
 
-		return builder;
+	private static void RegisterBuilderManagedClient(
+		IServiceCollection services,
+		EventSourcingAzureBlobBuilder blobBuilder)
+	{
+		if (blobBuilder.ClientInstance is not null)
+		{
+			var client = blobBuilder.ClientInstance;
+			services.TryAddSingleton(client);
+		}
+		else if (blobBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = blobBuilder.ClientFactoryFunc;
+			services.TryAddSingleton(factory);
+		}
 	}
 }

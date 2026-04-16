@@ -227,7 +227,7 @@ Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder.BindConfiguration(string!
 Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
-Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcRelationalStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcDatabaseBuilder
 Excalibur.Cdc.SqlServer.ISqlServerCdcDatabaseBuilder.CaptureInstances(params string![]! captureInstances) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
 Excalibur.Cdc.SqlServer.ISqlServerCdcDatabaseBuilder.DatabaseConnectionIdentifier(string! identifier) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!

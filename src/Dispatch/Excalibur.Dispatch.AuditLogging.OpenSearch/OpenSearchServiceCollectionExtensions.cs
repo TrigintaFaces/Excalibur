@@ -6,7 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.AuditLogging.OpenSearch;
 using Excalibur.Dispatch.Compliance;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 // Note: IAuditStore is NOT registered from this package.
@@ -24,93 +23,140 @@ public static class OpenSearchServiceCollectionExtensions
     /// Adds OpenSearch audit log exporter services to the service collection.
     /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="configure">The configuration action.</param>
+    /// <param name="configure">Configuration action for the OpenSearch audit builder.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
+    /// <example>
+    /// <code>
+    /// services.AddOpenSearchAuditExporter(os =&gt;
+    /// {
+    ///     os.NodeUri(new Uri("https://my-cluster:9200"))
+    ///       .IndexName("dispatch-audit");
+    /// });
+    /// </code>
+    /// </example>
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
     public static IServiceCollection AddOpenSearchAuditExporter(
         this IServiceCollection services,
-        Action<OpenSearchExporterOptions> configure)
+        Action<IAuditLoggingOpenSearchBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
-        _ = services.AddOptions<OpenSearchExporterOptions>()
-            .Configure(configure)
-            .ValidateOnStart();
+        var options = new OpenSearchExporterOptions
+        {
+            OpenSearchUrl = null!,
+        };
+        var builder = new AuditLoggingOpenSearchBuilder(options);
+        configure(builder);
 
-        return services.AddOpenSearchAuditExporterCore();
-    }
+        RegisterExporterOptionsAndServices(services, builder, options);
 
-    /// <summary>
-    /// Adds OpenSearch audit log exporter services using an <see cref="IConfiguration"/> section.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configuration">The configuration section to bind to <see cref="OpenSearchExporterOptions"/>.</param>
-    /// <returns>The service collection for chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-    	Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-    	Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-    public static IServiceCollection AddOpenSearchAuditExporter(
-        this IServiceCollection services,
-        IConfiguration configuration)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configuration);
-
-        _ = services.AddOptions<OpenSearchExporterOptions>()
-            .Bind(configuration)
-            .ValidateOnStart();
-
-        return services.AddOpenSearchAuditExporterCore();
+        return services;
     }
 
     /// <summary>
     /// Adds the OpenSearch audit sink for real-time audit event indexing.
     /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="configure">The configuration action.</param>
+    /// <param name="configure">Configuration action for the OpenSearch audit sink builder.</param>
     /// <returns>The service collection for chaining.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
     public static IServiceCollection AddOpenSearchAuditSink(
         this IServiceCollection services,
-        Action<OpenSearchAuditSinkOptions> configure)
+        Action<IAuditLoggingOpenSearchBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
-        _ = services.AddOptions<OpenSearchAuditSinkOptions>()
-            .Configure(configure)
-            .ValidateOnStart();
+        var options = new OpenSearchExporterOptions
+        {
+            OpenSearchUrl = null!,
+        };
+        var builder = new AuditLoggingOpenSearchBuilder(options);
+        configure(builder);
 
-        return services.AddOpenSearchAuditSinkCore();
+        RegisterSinkOptionsAndServices(services, builder, options);
+
+        return services;
     }
 
-    /// <summary>
-    /// Adds the OpenSearch audit sink using an <see cref="IConfiguration"/> section.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configuration">The configuration section to bind to <see cref="OpenSearchAuditSinkOptions"/>.</param>
-    /// <returns>The service collection for chaining.</returns>
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-    	Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+        Justification = "Options validation/binding uses reflection by design.")]
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-    	Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-    public static IServiceCollection AddOpenSearchAuditSink(
-        this IServiceCollection services,
-        IConfiguration configuration)
+        Justification = "Configuration binding uses reflection by design.")]
+    private static void RegisterExporterOptionsAndServices(
+        IServiceCollection services,
+        AuditLoggingOpenSearchBuilder builder,
+        OpenSearchExporterOptions options)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configuration);
+        _ = services.Configure<OpenSearchExporterOptions>(opt =>
+        {
+            opt.OpenSearchUrl = options.OpenSearchUrl;
+            opt.NodeUrls = options.NodeUrls;
+            opt.IndexPrefix = options.IndexPrefix;
+            opt.BulkBatchSize = options.BulkBatchSize;
+            opt.RefreshPolicy = options.RefreshPolicy;
+            opt.ApiKey = options.ApiKey;
+            opt.MaxRetryAttempts = options.MaxRetryAttempts;
+            opt.RetryBaseDelay = options.RetryBaseDelay;
+            opt.Timeout = options.Timeout;
+            opt.ApplicationName = options.ApplicationName;
+        });
 
-        _ = services.AddOptions<OpenSearchAuditSinkOptions>()
-            .Bind(configuration)
-            .ValidateOnStart();
+        if (builder.BindConfigurationPath is not null)
+        {
+            _ = services.AddOptions<OpenSearchExporterOptions>()
+                .BindConfiguration(builder.BindConfigurationPath)
+                .ValidateOnStart();
+        }
 
-        return services.AddOpenSearchAuditSinkCore();
+        _ = services.AddOptions<OpenSearchExporterOptions>().ValidateOnStart();
+
+        AddOpenSearchAuditExporterCore(services);
     }
 
-    private static IServiceCollection AddOpenSearchAuditExporterCore(this IServiceCollection services)
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
+    private static void RegisterSinkOptionsAndServices(
+        IServiceCollection services,
+        AuditLoggingOpenSearchBuilder builder,
+        OpenSearchExporterOptions options)
+    {
+        _ = services.Configure<OpenSearchAuditSinkOptions>(opt =>
+        {
+            opt.OpenSearchUrl = options.OpenSearchUrl;
+            opt.NodeUrls = options.NodeUrls;
+            opt.IndexPrefix = options.IndexPrefix;
+            opt.RefreshPolicy = options.RefreshPolicy;
+            opt.ApiKey = options.ApiKey;
+            opt.MaxRetryAttempts = options.MaxRetryAttempts;
+            opt.RetryBaseDelay = options.RetryBaseDelay;
+            opt.Timeout = options.Timeout;
+            opt.ApplicationName = options.ApplicationName;
+        });
+
+        if (builder.BindConfigurationPath is not null)
+        {
+            _ = services.AddOptions<OpenSearchAuditSinkOptions>()
+                .BindConfiguration(builder.BindConfigurationPath)
+                .ValidateOnStart();
+        }
+
+        _ = services.AddOptions<OpenSearchAuditSinkOptions>().ValidateOnStart();
+
+        AddOpenSearchAuditSinkCore(services);
+    }
+
+    private static void AddOpenSearchAuditExporterCore(IServiceCollection services)
     {
         _ = services.AddSingleton<IValidateOptions<OpenSearchExporterOptions>,
             OpenSearchExporterOptionsValidator>();
@@ -122,11 +168,9 @@ public static class OpenSearchServiceCollectionExtensions
         });
 
         _ = services.AddSingleton<IAuditLogExporter, OpenSearchAuditExporter>();
-
-        return services;
     }
 
-    private static IServiceCollection AddOpenSearchAuditSinkCore(this IServiceCollection services)
+    private static void AddOpenSearchAuditSinkCore(IServiceCollection services)
     {
         _ = services.AddSingleton<IValidateOptions<OpenSearchAuditSinkOptions>,
             OpenSearchAuditSinkOptionsValidator>();
@@ -138,7 +182,5 @@ public static class OpenSearchServiceCollectionExtensions
         });
 
         _ = services.AddSingleton<OpenSearchAuditSink>();
-
-        return services;
     }
 }

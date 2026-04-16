@@ -10,6 +10,9 @@
     <ExcaliburPackageVersion Condition="'$(ExcaliburPackageVersion)' == ''">0.1.0-local</ExcaliburPackageVersion>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="AspNetCore.HealthChecks.Npgsql" />

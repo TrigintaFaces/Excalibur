@@ -3,144 +3,87 @@
 
 using Excalibur.Dispatch.Security.Aws;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Security.Tests.Aws;
 
 /// <summary>
 /// Unit tests for AWS security DI extension methods.
-/// Verifies Sprint 390 implementation: DI extensions for AWS security services.
+/// Verifies builder-based entry point: AddDispatchSecurityAws(Action&lt;ISecurityAwsBuilder&gt;).
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Security)]
 public sealed class DispatchSecurityAwsServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
-	public void AddAwsSecretsManagerCredentialStore_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void AddDispatchSecurityAws_ThrowsArgumentNullException_WhenServicesIsNull()
 	{
 		// Arrange
 		IServiceCollection services = null!;
-		var configuration = CreateEmptyConfiguration();
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddAwsSecretsManagerCredentialStore(configuration));
+			() => services.AddDispatchSecurityAws(_ => { }));
 		exception.ParamName.ShouldBe("services");
 	}
 
 	[Fact]
-	public void AddAwsSecretsManagerCredentialStore_ThrowsArgumentNullException_WhenConfigurationIsNull()
+	public void AddDispatchSecurityAws_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddAwsSecretsManagerCredentialStore(null!));
-		exception.ParamName.ShouldBe("configuration");
+			() => services.AddDispatchSecurityAws((Action<ISecurityAwsBuilder>)null!));
+		exception.ParamName.ShouldBe("configure");
 	}
 
 	[Fact]
-	public void AddAwsSecretsManagerCredentialStore_DoesNotRegisterServices_WhenRegionNotConfigured()
+	public void AddDispatchSecurityAws_DoesNotRegisterServices_WhenRegionNotConfigured()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateEmptyConfiguration();
 
-		// Act
-		_ = services.AddAwsSecretsManagerCredentialStore(configuration);
+		// Act -- builder with no Region call
+		_ = services.AddDispatchSecurityAws(_ => { });
 
-		// Assert - No services should be registered when Region is empty
+		// Assert - No services should be registered when Region is not set
 		services.ShouldNotContain(s => s.ServiceType == typeof(ICredentialStore));
 		services.ShouldNotContain(s => s.ServiceType == typeof(IWritableCredentialStore));
 	}
 
 	[Fact]
-	public void AddAwsSecretsManagerCredentialStore_RegistersCredentialStore_WhenRegionConfigured()
+	public void AddDispatchSecurityAws_RegistersCredentialStore_WhenRegionConfigured()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateConfigurationWithRegion();
-		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddAwsSecretsManagerCredentialStore(configuration);
+		_ = services.AddDispatchSecurityAws(aws =>
+		{
+			aws.Region("us-east-1");
+		});
 
 		// Assert
 		services.ShouldContain(s => s.ServiceType == typeof(ICredentialStore));
 	}
 
 	[Fact]
-	public void AddAwsSecretsManagerCredentialStore_RegistersWritableCredentialStore_WhenRegionConfigured()
+	public void AddDispatchSecurityAws_RegistersWritableCredentialStore_WhenRegionConfigured()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateConfigurationWithRegion();
-		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddAwsSecretsManagerCredentialStore(configuration);
+		_ = services.AddDispatchSecurityAws(aws =>
+		{
+			aws.Region("us-east-1");
+		});
 
 		// Assert
-		services.ShouldContain(s => s.ServiceType == typeof(IWritableCredentialStore));
-	}
-
-	[Fact]
-	public void AddAwsSecretsManagerCredentialStore_ReturnsSameServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var configuration = CreateEmptyConfiguration();
-
-		// Act
-		var result = services.AddAwsSecretsManagerCredentialStore(configuration);
-
-		// Assert
-		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	public void AddDispatchSecurityAws_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-		var configuration = CreateEmptyConfiguration();
-
-		// Act & Assert
-		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddDispatchSecurityAws(configuration));
-		exception.ParamName.ShouldBe("services");
-	}
-
-	[Fact]
-	public void AddDispatchSecurityAws_ThrowsArgumentNullException_WhenConfigurationIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		var exception = Should.Throw<ArgumentNullException>(
-			() => services.AddDispatchSecurityAws(null!));
-		exception.ParamName.ShouldBe("configuration");
-	}
-
-	[Fact]
-	public void AddDispatchSecurityAws_RegistersAllServices_WhenRegionConfigured()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var configuration = CreateConfigurationWithRegion();
-		_ = services.AddSingleton(configuration);
-		_ = services.AddLogging();
-
-		// Act
-		_ = services.AddDispatchSecurityAws(configuration);
-
-		// Assert
-		services.ShouldContain(s => s.ServiceType == typeof(ICredentialStore));
 		services.ShouldContain(s => s.ServiceType == typeof(IWritableCredentialStore));
 	}
 
@@ -149,29 +92,11 @@ public sealed class DispatchSecurityAwsServiceCollectionExtensionsShould : UnitT
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = CreateEmptyConfiguration();
 
 		// Act
-		var result = services.AddDispatchSecurityAws(configuration);
+		var result = services.AddDispatchSecurityAws(_ => { });
 
 		// Assert
 		result.ShouldBeSameAs(services);
-	}
-
-	private static IConfiguration CreateEmptyConfiguration()
-	{
-		return new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>())
-			.Build();
-	}
-
-	private static IConfiguration CreateConfigurationWithRegion()
-	{
-		return new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["AWS:Region"] = "us-east-1"
-			})
-			.Build();
 	}
 }

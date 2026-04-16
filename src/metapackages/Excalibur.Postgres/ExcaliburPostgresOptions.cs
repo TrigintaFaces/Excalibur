@@ -15,6 +15,13 @@ namespace Excalibur.Postgres;
 /// <summary>
 /// Options for configuring the complete Excalibur PostgreSQL stack.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Subsystem callbacks use builder interfaces (<c>Action&lt;IXxxBuilder&gt;</c>) for
+/// consistent composition with the individual packages' builder APIs. The metapackage
+/// automatically flows <see cref="ConnectionString"/> into each subsystem builder.
+/// </para>
+/// </remarks>
 public sealed class ExcaliburPostgresOptions
 {
 	/// <summary>
@@ -61,11 +68,11 @@ public sealed class ExcaliburPostgresOptions
 	}
 
 	/// <summary>
-	/// Configures inbox store options (schema name, table name, concurrency).
+	/// Configures the Postgres inbox builder (schema, table names, connection overrides).
 	/// </summary>
-	/// <param name="configure">A delegate to configure inbox options.</param>
+	/// <param name="configure">A delegate to configure the Postgres inbox builder.</param>
 	/// <returns>This options instance for chaining.</returns>
-	public ExcaliburPostgresOptions ConfigureInbox(Action<PostgresInboxOptions> configure)
+	public ExcaliburPostgresOptions ConfigureInbox(Action<IPostgresInboxBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		InboxConfiguration = configure;
@@ -73,11 +80,11 @@ public sealed class ExcaliburPostgresOptions
 	}
 
 	/// <summary>
-	/// Configures saga store options (schema name, table names).
+	/// Configures the Postgres saga builder (schema, table names, connection overrides).
 	/// </summary>
-	/// <param name="configure">A delegate to configure saga options.</param>
+	/// <param name="configure">A delegate to configure the Postgres saga builder.</param>
 	/// <returns>This options instance for chaining.</returns>
-	public ExcaliburPostgresOptions ConfigureSaga(Action<PostgresSagaOptions> configure)
+	public ExcaliburPostgresOptions ConfigureSaga(Action<IPostgresSagaBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		SagaConfiguration = configure;
@@ -85,11 +92,11 @@ public sealed class ExcaliburPostgresOptions
 	}
 
 	/// <summary>
-	/// Configures leader election options (lock key, lease duration).
+	/// Configures the Postgres leader election builder (lock key, connection overrides).
 	/// </summary>
-	/// <param name="configure">A delegate to configure leader election options.</param>
+	/// <param name="configure">A delegate to configure the Postgres leader election builder.</param>
 	/// <returns>This options instance for chaining.</returns>
-	public ExcaliburPostgresOptions ConfigureLeaderElection(Action<PostgresLeaderElectionOptions> configure)
+	public ExcaliburPostgresOptions ConfigureLeaderElection(Action<IPostgresLeaderElectionBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		LeaderElectionConfiguration = configure;
@@ -122,11 +129,11 @@ public sealed class ExcaliburPostgresOptions
 
 	internal Action<IDispatchBuilder>? DispatchConfiguration { get; private set; }
 
-	internal Action<PostgresInboxOptions>? InboxConfiguration { get; private set; }
+	internal Action<IPostgresInboxBuilder>? InboxConfiguration { get; private set; }
 
-	internal Action<PostgresSagaOptions>? SagaConfiguration { get; private set; }
+	internal Action<IPostgresSagaBuilder>? SagaConfiguration { get; private set; }
 
-	internal Action<PostgresLeaderElectionOptions>? LeaderElectionConfiguration { get; private set; }
+	internal Action<IPostgresLeaderElectionBuilder>? LeaderElectionConfiguration { get; private set; }
 
 	internal Action<PostgresAuditOptions>? AuditLoggingConfiguration { get; private set; }
 

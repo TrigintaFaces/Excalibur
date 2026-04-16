@@ -1,13 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.AuditLogging.Sentinel;
 using Excalibur.Dispatch.Compliance;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -18,67 +16,91 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class SentinelServiceCollectionExtensions
 {
-	/// <summary>
-	/// Adds Azure Sentinel audit log exporter services to the service collection.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">The configuration action.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	public static IServiceCollection AddSentinelAuditExporter(
-		this IServiceCollection services,
-		Action<SentinelExporterOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
+    /// <summary>
+    /// Adds Azure Sentinel audit log exporter services to the service collection.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configuration action for the Sentinel audit builder.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
+    /// <example>
+    /// <code>
+    /// services.AddSentinelAuditExporter(sentinel =&gt;
+    /// {
+    ///     sentinel.WorkspaceId("your-workspace-id")
+    ///             .SharedKey("your-shared-key");
+    /// });
+    /// </code>
+    /// </example>
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
+    public static IServiceCollection AddSentinelAuditExporter(
+        this IServiceCollection services,
+        Action<IAuditLoggingSentinelBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.AddOptions<SentinelExporterOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+        var options = new SentinelExporterOptions
+        {
+            WorkspaceId = null!,
+            SharedKey = null!,
+        };
+        var builder = new AuditLoggingSentinelBuilder(options);
+        configure(builder);
 
-		RegisterSentinelAuditExporterCore(services);
+        RegisterOptionsAndServices(services, builder, options);
 
-		return services;
-	}
+        return services;
+    }
 
-	/// <summary>
-	/// Adds Azure Sentinel audit log exporter services using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="SentinelExporterOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddSentinelAuditExporter(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
+    private static void RegisterOptionsAndServices(
+        IServiceCollection services,
+        AuditLoggingSentinelBuilder builder,
+        SentinelExporterOptions options)
+    {
+        _ = services.Configure<SentinelExporterOptions>(opt =>
+        {
+            opt.WorkspaceId = options.WorkspaceId;
+            opt.SharedKey = options.SharedKey;
+            opt.LogType = options.LogType;
+            opt.AzureResourceId = options.AzureResourceId;
+            opt.TimeGeneratedField = options.TimeGeneratedField;
+            opt.MaxBatchSize = options.MaxBatchSize;
+            opt.MaxRetryAttempts = options.MaxRetryAttempts;
+            opt.RetryBaseDelay = options.RetryBaseDelay;
+            opt.Timeout = options.Timeout;
+        });
 
-		_ = services.AddOptions<SentinelExporterOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
+        if (builder.BindConfigurationPath is not null)
+        {
+            _ = services.AddOptions<SentinelExporterOptions>()
+                .BindConfiguration(builder.BindConfigurationPath)
+                .ValidateOnStart();
+        }
 
-		RegisterSentinelAuditExporterCore(services);
+        _ = services.AddOptions<SentinelExporterOptions>().ValidateOnStart();
 
-		return services;
-	}
+        RegisterSentinelAuditExporterCore(services);
+    }
 
-	private static void RegisterSentinelAuditExporterCore(IServiceCollection services)
-	{
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<SentinelExporterOptions>, SentinelExporterOptionsValidator>());
+    private static void RegisterSentinelAuditExporterCore(IServiceCollection services)
+    {
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<SentinelExporterOptions>, SentinelExporterOptionsValidator>());
 
-		_ = services.AddHttpClient<SentinelAuditExporter>((sp, client) =>
-		{
-			var options = sp.GetRequiredService<IOptions<SentinelExporterOptions>>().Value;
-			client.Timeout = options.Timeout;
-		});
+        _ = services.AddHttpClient<SentinelAuditExporter>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<SentinelExporterOptions>>().Value;
+            client.Timeout = options.Timeout;
+        });
 
-		_ = services.AddSingleton<IAuditLogExporter, SentinelAuditExporter>();
-	}
+        _ = services.AddSingleton<IAuditLogExporter, SentinelAuditExporter>();
+    }
 }

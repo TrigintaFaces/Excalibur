@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using MongoDB.Driver;
+
 namespace Excalibur.Cdc.MongoDB;
 
 /// <summary>
@@ -21,6 +23,20 @@ public interface IMongoDbCdcBuilder
 	/// <param name="connectionString">The MongoDB connection string.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	IMongoDbCdcBuilder ConnectionString(string connectionString);
+
+	/// <summary>
+	/// Sets a pre-configured <see cref="IMongoClient"/> instance for the CDC source.
+	/// </summary>
+	/// <param name="client">The MongoDB client.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IMongoDbCdcBuilder Client(IMongoClient client);
+
+	/// <summary>
+	/// Sets a factory that resolves an <see cref="IMongoClient"/> from DI.
+	/// </summary>
+	/// <param name="clientFactory">A factory returning an <see cref="IMongoClient"/>.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IMongoDbCdcBuilder ClientFactory(Func<IServiceProvider, IMongoClient> clientFactory);
 
 	/// <summary>
 	/// Sets the database name for CDC processing.

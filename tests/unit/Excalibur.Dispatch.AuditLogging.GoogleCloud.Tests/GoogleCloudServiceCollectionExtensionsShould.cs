@@ -1,9 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.AuditLogging.GoogleCloud;
 using Excalibur.Dispatch.Compliance;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.AuditLogging.GoogleCloud.Tests;
@@ -19,34 +17,12 @@ public sealed class GoogleCloudServiceCollectionExtensionsShould
 	{
 		var services = new ServiceCollection();
 
-		services.AddGoogleCloudAuditExporter(o =>
+		services.AddGoogleCloudAuditExporter(gcp =>
 		{
-			o.ProjectId = "test-project";
+			gcp.ProjectId("test-project");
 		});
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
-	}
-
-	[Fact]
-	[RequiresDynamicCode("Test")]
-	[RequiresUnreferencedCode("Test")]
-	public void Configure_http_client_timeout_from_options()
-	{
-		var services = new ServiceCollection();
-
-		services.AddGoogleCloudAuditExporter(o =>
-		{
-			o.ProjectId = "test-project";
-			o.Timeout = TimeSpan.FromSeconds(9);
-		});
-
-		using var provider = services.BuildServiceProvider();
-		var exporter = provider.GetRequiredService<GoogleCloudLoggingAuditExporter>();
-
-		var httpClientField = typeof(GoogleCloudLoggingAuditExporter).GetField("_httpClient", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-		var httpClient = (HttpClient)httpClientField.GetValue(exporter)!;
-
-		httpClient.Timeout.ShouldBe(TimeSpan.FromSeconds(9));
 	}
 
 	[Fact]
@@ -66,37 +42,21 @@ public sealed class GoogleCloudServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddGoogleCloudAuditExporter((Action<GoogleCloudAuditOptions>)null!));
+			services.AddGoogleCloudAuditExporter((Action<IAuditLoggingGoogleCloudBuilder>)null!));
 	}
-
-	// --- IConfiguration overload tests ---
 
 	[Fact]
 	[RequiresDynamicCode("Test")]
 	[RequiresUnreferencedCode("Test")]
-	public void Register_exporter_with_IConfiguration_overload()
+	public void Register_exporter_with_BindConfiguration()
 	{
 		var services = new ServiceCollection();
-		var config = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["ProjectId"] = "test-project"
-			})
-			.Build();
 
-		services.AddGoogleCloudAuditExporter(config);
+		services.AddGoogleCloudAuditExporter(gcp =>
+		{
+			gcp.BindConfiguration("AuditLogging:GoogleCloud");
+		});
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
-	}
-
-	[Fact]
-	[RequiresDynamicCode("Test")]
-	[RequiresUnreferencedCode("Test")]
-	public void Throw_for_null_configuration()
-	{
-		var services = new ServiceCollection();
-
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddGoogleCloudAuditExporter((IConfiguration)null!));
 	}
 }

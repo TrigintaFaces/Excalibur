@@ -18,6 +18,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />

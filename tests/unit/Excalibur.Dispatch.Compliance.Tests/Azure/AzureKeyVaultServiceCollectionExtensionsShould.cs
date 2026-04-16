@@ -4,7 +4,6 @@
 using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Compliance.Azure;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -15,16 +14,15 @@ namespace Excalibur.Dispatch.Compliance.Tests.Azure;
 public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 {
 	[Fact]
-	public void AddAzureKeyVaultKeyManagement_WithConfigure_RegistersProviderAndOptions()
+	public void AddAzureKeyVaultKeyManagement_WithBuilder_RegistersProviderAndOptions()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
-		_ = services.AddAzureKeyVaultKeyManagement(options =>
+		_ = services.AddAzureKeyVaultKeyManagement(azure =>
 		{
-			options.VaultUri = new Uri("https://unit-tests.vault.azure.net/");
-			options.KeyNamePrefix = "unit-";
-			options.UseSoftwareKeys = true;
+			azure.VaultUri(new Uri("https://unit-tests.vault.azure.net/"))
+				.KeyNamePrefix("unit-");
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -34,56 +32,58 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 		var options = provider.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
 		options.VaultUri.ShouldBe(new Uri("https://unit-tests.vault.azure.net/"));
 		options.KeyNamePrefix.ShouldBe("unit-");
-		options.UseSoftwareKeys.ShouldBeTrue();
 	}
 
 	[Fact]
-	public void AddAzureKeyVaultKeyManagement_WithOptionsInstance_CopiesValues()
+	public void AddAzureKeyVaultKeyManagement_WithBuilder_SetsRequirePremiumTier()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		var source = new AzureKeyVaultOptions
+
+		_ = services.AddAzureKeyVaultKeyManagement(azure =>
 		{
-			VaultUri = new Uri("https://instance.vault.azure.net/"),
-			KeyNamePrefix = "instance-",
-			UseSoftwareKeys = true,
-			Retry = new AzureKeyVaultRetryOptions
-			{
-				MaxRetryAttempts = 9,
-			},
-		};
-
-		_ = services.AddAzureKeyVaultKeyManagement(source);
+			azure.VaultUri(new Uri("https://premium.vault.azure.net/"))
+				.RequirePremiumTier();
+		});
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
-		options.VaultUri.ShouldBe(source.VaultUri);
-		options.KeyNamePrefix.ShouldBe(source.KeyNamePrefix);
-		options.UseSoftwareKeys.ShouldBeTrue();
-		options.Retry.MaxRetryAttempts.ShouldBe(9);
+		options.VaultUri.ShouldBe(new Uri("https://premium.vault.azure.net/"));
+		options.RequirePremiumTier.ShouldBeTrue();
 	}
 
 	[Fact]
-	public void AddAzureKeyVaultKeyManagement_WithConfigurationSection_BindsOptions()
+	public void AddAzureKeyVaultKeyManagement_WithBuilder_SetsMetadataCacheDuration()
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		var configuration = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["AzureKeyVault:VaultUri"] = "https://config.vault.azure.net/",
-				["AzureKeyVault:KeyNamePrefix"] = "cfg-",
-				["AzureKeyVault:UseSoftwareKeys"] = "true",
-			})
-			.Build();
 
-		_ = services.AddAzureKeyVaultKeyManagement(configuration.GetSection("AzureKeyVault"));
+		_ = services.AddAzureKeyVaultKeyManagement(azure =>
+		{
+			azure.VaultUri(new Uri("https://cache.vault.azure.net/"))
+				.MetadataCacheDuration(TimeSpan.FromMinutes(10));
+		});
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
-		options.VaultUri.ShouldBe(new Uri("https://config.vault.azure.net/"));
-		options.KeyNamePrefix.ShouldBe("cfg-");
-		options.UseSoftwareKeys.ShouldBeTrue();
+		options.MetadataCacheDuration.ShouldBe(TimeSpan.FromMinutes(10));
+	}
+
+	[Fact]
+	public void AddAzureKeyVaultKeyManagement_WithBuilder_SetsEnableDetailedTelemetry()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+
+		_ = services.AddAzureKeyVaultKeyManagement(azure =>
+		{
+			azure.VaultUri(new Uri("https://telemetry.vault.azure.net/"))
+				.EnableDetailedTelemetry();
+		});
+
+		using var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
+		options.EnableDetailedTelemetry.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -91,9 +91,9 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddAzureKeyVaultKeyManagement(options =>
+		_ = services.AddAzureKeyVaultKeyManagement(azure =>
 		{
-			options.VaultUri = new Uri("https://wrapping.vault.azure.net/");
+			azure.VaultUri(new Uri("https://wrapping.vault.azure.net/"));
 		});
 
 		_ = services.AddAzureKeyVaultRsaKeyWrapping(options =>
@@ -123,7 +123,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 	public void AddAzureKeyVaultKeyManagement_ThrowsWhenConfigureIsNull()
 	{
 		var services = new ServiceCollection();
-		_ = Should.Throw<ArgumentNullException>(() => services.AddAzureKeyVaultKeyManagement((Action<AzureKeyVaultOptions>)null!));
+		_ = Should.Throw<ArgumentNullException>(() => services.AddAzureKeyVaultKeyManagement((Action<IComplianceAzureBuilder>)null!));
 	}
 
 	[Fact]

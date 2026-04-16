@@ -25,6 +25,7 @@
     <!-- Extracted concern.provider packages -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.ElasticSearch\Excalibur.Inbox.ElasticSearch.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.ElasticSearch\Excalibur.Outbox.ElasticSearch.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.OpenSearch\Excalibur.Data.OpenSearch.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

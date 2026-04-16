@@ -10,6 +10,9 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.AuditLogging.Postgres.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.AuditLogging\Excalibur.Dispatch.AuditLogging.csproj" />
     <ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
     <PackageReference Include="Dapper" />

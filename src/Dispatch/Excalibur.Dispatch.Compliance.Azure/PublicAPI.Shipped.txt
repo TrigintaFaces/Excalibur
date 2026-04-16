@@ -83,7 +83,12 @@ const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyWrapFail
 const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyWrapped = 92631 -> int
 const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.RsaKeyWrapperDisposed = 92635 -> int
 const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.RsaKeyWrapperInitialized = 92630 -> int
-static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfigurationSection! configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder
+Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder!
+Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder.EnableDetailedTelemetry(bool enable = true) -> Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder!
+Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder.KeyNamePrefix(string! prefix) -> Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder!
+Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder.MetadataCacheDuration(System.TimeSpan duration) -> Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder!
+Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder.RequirePremiumTier(bool require = true) -> Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder!
+Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder.VaultUri(System.Uri! vaultUri) -> Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder!
+static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.Azure.IComplianceAzureBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultRsaKeyWrapping(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -1,5 +1,5 @@
 #nullable enable
-Excalibur.EventSourcing.Firestore.EventSourcingBuilderFirestoreExtensions
+Microsoft.Extensions.DependencyInjection.EventSourcingBuilderFirestoreExtensions
 Excalibur.EventSourcing.Firestore.FirestoreEventStore
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.AppendAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudAppendResult!>!
 Excalibur.EventSourcing.Firestore.FirestoreEventStore.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
@@ -40,11 +40,15 @@ Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.ProjectId.set -> vo
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.UseBatchedWrites.get -> bool
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.UseBatchedWrites.set -> void
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions.Validate() -> void
-Microsoft.Extensions.DependencyInjection.FirestoreEventStoreServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.FirestoreTenantShardingExtensions
-static Excalibur.EventSourcing.Firestore.EventSourcingBuilderFirestoreExtensions.UseFirestore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Excalibur.EventSourcing.Firestore.EventSourcingBuilderFirestoreExtensions.UseFirestore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-static Microsoft.Extensions.DependencyInjection.FirestoreEventStoreServiceCollectionExtensions.AddFirestoreEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.FirestoreEventStoreServiceCollectionExtensions.AddFirestoreEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.FirestoreEventStoreServiceCollectionExtensions.AddFirestoreEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.FirestoreTenantShardingExtensions.UseFirestoreTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.Client(Google.Cloud.Firestore.FirestoreDb! client) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.ClientFactory(System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! clientFactory) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.CollectionName(string! collectionName) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.CredentialsJson(string! credentialsJson) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.EmulatorHost(string! emulatorHost) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
+Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder.ProjectId(string! projectId) -> Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.EventSourcingBuilderFirestoreExtensions.UseFirestore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Firestore.IFirestoreEventSourcingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

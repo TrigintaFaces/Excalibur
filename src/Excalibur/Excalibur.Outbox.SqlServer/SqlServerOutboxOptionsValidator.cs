@@ -7,13 +7,33 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Outbox.SqlServer;
 
+/// <summary>
+/// Validates <see cref="SqlServerOutboxOptions"/> at startup via ValidateOnStart.
+/// Ensures a connection has been configured through the builder.
+/// </summary>
 internal sealed class SqlServerOutboxOptionsValidator : IValidateOptions<SqlServerOutboxOptions>
 {
+	/// <summary>
+	/// Gets or sets a value indicating whether the builder configured a connection
+	/// via <see cref="ISqlServerOutboxBuilder.ConnectionFactory"/> or
+	/// <see cref="ISqlServerOutboxBuilder.ConnectionStringName"/>.
+	/// </summary>
+	internal bool HasBuilderConnection { get; init; }
+
+	/// <inheritdoc/>
 	public ValidateOptionsResult Validate(string? name, SqlServerOutboxOptions options)
 	{
 		if (options is null)
 		{
 			return ValidateOptionsResult.Fail("SQL Server outbox options cannot be null.");
+		}
+
+		if (!HasBuilderConnection && string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			return ValidateOptionsResult.Fail(
+				"No connection configured for Outbox. " +
+				"Call ConnectionString(), ConnectionStringName(), ConnectionFactory(), " +
+				"or BindConfiguration() inside UseSqlServer().");
 		}
 
 		if (string.IsNullOrWhiteSpace(options.SchemaName))

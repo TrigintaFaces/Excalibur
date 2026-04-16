@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Postgres;
+using Excalibur.Saga.Postgres.DependencyInjection;
 
 using Microsoft.Extensions.Configuration;
 
@@ -27,7 +29,7 @@ public static class ExcaliburPostgresServiceCollectionExtensions
 	/// {
 	///     pg.ConnectionString = connectionString;
 	///     pg.UseLeaderElection = true;
-	///     pg.ConfigureSaga(saga => saga.SchemaName = "custom");
+	///     pg.ConfigureSaga(saga => saga.SchemaName("custom"));
 	///     pg.ConfigureAuditLogging(audit => audit.SchemaName = "audit");
 	/// });
 	/// </code>
@@ -76,45 +78,47 @@ public static class ExcaliburPostgresServiceCollectionExtensions
 		// Core: Dispatch + EventSourcing + Outbox + Hosting (via starter metapackage)
 		_ = services.AddDispatchWithPostgres(options.ConnectionString, options.DispatchConfiguration);
 
-		// Inbox
+		// Inbox (builder API)
 		if (options.UseInbox)
 		{
-			_ = services.AddPostgresInboxStore(inbox =>
-			{
-				inbox.ConnectionString = options.ConnectionString;
-				options.InboxConfiguration?.Invoke(inbox);
-			});
+			_ = services.AddExcaliburInbox(inbox =>
+				inbox.UsePostgres(pg =>
+				{
+					pg.ConnectionString(options.ConnectionString);
+					options.InboxConfiguration?.Invoke(pg);
+				}));
 		}
 
-		// Saga
+		// Saga (builder API)
 		if (options.UseSaga)
 		{
-			_ = services.AddPostgresSagaStore(saga =>
-			{
-				saga.ConnectionString = options.ConnectionString;
-				options.SagaConfiguration?.Invoke(saga);
-			});
+			_ = services.AddExcaliburSaga(saga =>
+				saga.UsePostgres(pg =>
+				{
+					pg.ConnectionString(options.ConnectionString);
+					options.SagaConfiguration?.Invoke(pg);
+				}));
 		}
 
-		// Leader Election
+		// Leader Election (builder API)
 		if (options.UseLeaderElection)
 		{
-			_ = services.AddPostgresLeaderElection(le =>
-			{
-				le.ConnectionString = options.ConnectionString;
-				options.LeaderElectionConfiguration?.Invoke(le);
-			});
+			_ = services.AddExcaliburLeaderElection(le =>
+				le.UsePostgres(pg =>
+				{
+					pg.ConnectionString(options.ConnectionString);
+					options.LeaderElectionConfiguration?.Invoke(pg);
+				}));
 		}
 
-		// Audit Logging (Dispatch AuditLogging provider)
+		// Audit Logging
 		if (options.UseAuditLogging)
 		{
-			_ = services.AddPostgresAuditStore(
-				audit =>
-				{
-					audit.ConnectionString = options.ConnectionString;
-					options.AuditLoggingConfiguration?.Invoke(audit);
-				});
+			_ = services.AddPostgresAuditStore(audit =>
+			{
+				audit.ConnectionString = options.ConnectionString;
+				options.AuditLoggingConfiguration?.Invoke(audit);
+			});
 		}
 
 		// Compliance (Erasure)

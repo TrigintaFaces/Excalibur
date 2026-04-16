@@ -19,7 +19,7 @@ This reference application wires the complete Excalibur.Dispatch and Excalibur f
 | 9 | Logging | Serilog structured logging | `ConfigureExcaliburLogging()` |
 | 10 | Health Checks | `/health`, `/health/ready`, `/health/live` | `AddExcaliburHealthChecks()` |
 | 11 | Event Sourcing | AggregateRoot, IEventSourcedRepository | `AddExcaliburEventSourcing()` |
-| 12 | Outbox | SQL Server transactional outbox | `AddSqlServerOutboxStore()` |
+| 12 | Outbox | SQL Server transactional outbox | `outbox.UseSqlServer()` |
 | 13 | CDC | Change Data Capture anti-corruption layer | `IDataChangeHandler` |
 | 14 | Domain | Aggregates, entities, domain events | `AggregateRoot<Guid>` |
 

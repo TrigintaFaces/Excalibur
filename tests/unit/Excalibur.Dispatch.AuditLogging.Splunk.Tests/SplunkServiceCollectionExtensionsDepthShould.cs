@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.AuditLogging.Splunk.Tests;
 
 /// <summary>
 /// Depth coverage tests for <see cref="SplunkServiceCollectionExtensions"/>
-/// covering fluent chaining, singleton registration, HttpClient, and config section overload.
+/// covering fluent chaining, singleton registration, and HttpClient.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
@@ -22,10 +22,10 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddSplunkAuditExporter(o =>
+		var result = services.AddSplunkAuditExporter(splunk =>
 		{
-			o.Connection.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
-			o.Connection.HecToken = "test-token";
+			splunk.HecEndpoint(new Uri("https://splunk.local:8088/services/collector"))
+			      .HecToken("test-token");
 		});
 
 		// Assert
@@ -39,10 +39,10 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddSplunkAuditExporter(o =>
+		services.AddSplunkAuditExporter(splunk =>
 		{
-			o.Connection.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
-			o.Connection.HecToken = "test-token";
+			splunk.HecEndpoint(new Uri("https://splunk.local:8088/services/collector"))
+			      .HecToken("test-token");
 		});
 
 		// Assert
@@ -57,10 +57,10 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddSplunkAuditExporter(o =>
+		services.AddSplunkAuditExporter(splunk =>
 		{
-			o.Connection.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
-			o.Connection.HecToken = "test-token";
+			splunk.HecEndpoint(new Uri("https://splunk.local:8088/services/collector"))
+			      .HecToken("test-token");
 		});
 
 		// Assert
@@ -68,14 +68,15 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 	}
 
 	[Fact]
-	public void RegisterExporter_ViaConfigSectionOverload()
+	public void RegisterExporter_ViaBindConfiguration()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
 #pragma warning disable IL2026, IL3050
-		var result = services.AddSplunkAuditExporter("SplunkHec");
+		var result = services.AddSplunkAuditExporter(splunk =>
+			splunk.BindConfiguration("SplunkHec"));
 #pragma warning restore IL2026, IL3050
 
 		// Assert

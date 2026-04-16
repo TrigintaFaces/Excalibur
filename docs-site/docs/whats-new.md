@@ -43,6 +43,26 @@ Excalibur is in active pre-release development. The framework is functionally co
 - **Generator cleanup** -- 3 disabled generators archived, 2 active generators verified, consolidation evaluated and deferred (current architecture is optimal)
 - **Both epics closed** -- AOT Microsoft-Quality Completeness + Container Deployment Guide, zero open backlog items
 
+### API Unification Epic Complete (Sprints 763-769)
+
+- **Canonical builder pattern** -- All 18+ SQL Server and Postgres subsystem packages unified to a single `subsystem.UseProvider(Action<IBuilder>)` entry point pattern
+- **SQL Server: 4 canonical connection overloads** -- `ConnectionString`, `ConnectionFactory`, `ConnectionStringName`, `BindConfiguration` (Sprints 763-765)
+- **Postgres: 5 canonical connection overloads** -- Same 4 plus `DataSource(NpgsqlDataSource)` for modern Npgsql pooling (Sprints 766-769)
+- **9 Postgres builder interfaces** -- EventSourcing, Saga, Inbox, LeaderElection, Outbox, Data, CDC, Compliance, AuditLogging
+- **All paths converge to NpgsqlDataSource** -- `ConnectionString` and `ConnectionStringName` create `NpgsqlDataSource` internally for proper pooling
+- **Compliance unification** -- Erasure + DataInventory + LegalHold unified under single `IPostgresComplianceBuilder`
+- **231 Postgres builder tests** across 4 sprints, 10/10 CI shards GREEN on every sprint
+- **MongoDB: 4 canonical connection overloads** -- `ConnectionString`, `Client(IMongoClient)`, `ClientFactory`, `BindConfiguration` (Sprints 773-774)
+- **7 MongoDB builder interfaces** -- EventSourcing, Saga, Inbox, LeaderElection, Outbox, Data, CDC
+- **227 MongoDB builder tests** across 2 sprints
+- **CosmosDb: 5 canonical connection overloads** -- `ConnectionString`, `Endpoint(+authKey)`, `Client(CosmosClient)`, `ClientFactory`, `BindConfiguration` (Sprint 775)
+- **6 CosmosDb builder interfaces** -- EventSourcing, Saga, Inbox, Outbox, Data, CDC — 243 tests
+- **Redis: 4 canonical connection overloads** -- `ConnectionString`, `ConnectionMultiplexer`, `MultiplexerFactory`, `BindConfiguration` (Sprint 776)
+- **5 Redis builder interfaces** -- EventSourcing, Inbox, LeaderElection, Outbox, Data — 153 tests
+- **Phase B complete** -- MongoDB + CosmosDb + Redis = 18 non-ADO.NET builders, 623 tests total
+- **Old overloads deleted** -- greenfield policy, no `[Obsolete]` stubs
+- **ValidateOnStart on every builder** -- catches missing connections at startup
+
 ### Dispatcher Bug Fix (Sprint 759)
 
 - **Exception propagation fix** -- `DispatchAsync` no longer silently wraps handler exceptions in `MessageResult.Failed()`. Handler exceptions now propagate to callers as expected. 12 exception-swallowing catch blocks removed from the DirectLocal fast path.

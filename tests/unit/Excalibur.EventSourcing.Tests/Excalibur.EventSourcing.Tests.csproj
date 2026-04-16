@@ -43,6 +43,10 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <!-- Sprint 733: OpenSearch parity -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.OpenSearch\Excalibur.Data.OpenSearch.csproj" />
+    <!-- Cloud storage cold event store providers -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.AwsS3\Excalibur.EventSourcing.AwsS3.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.AzureBlob\Excalibur.EventSourcing.AzureBlob.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Gcs\Excalibur.EventSourcing.Gcs.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Postgres driver for unit tests -->

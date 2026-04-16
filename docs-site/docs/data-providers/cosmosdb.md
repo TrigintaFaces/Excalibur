@@ -27,23 +27,37 @@ dotnet add package Excalibur.Data.CosmosDb
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddCosmosDb(options =>
+services.AddExcaliburCosmosDb(cosmos =>
 {
-    options.AccountEndpoint = "https://myaccount.documents.azure.com:443/";
-    options.AccountKey = "<your-auth-key>";
-    options.DatabaseName = "MyDatabase";
+    cosmos.ConnectionString("AccountEndpoint=https://myaccount.documents.azure.com:443/;AccountKey=<your-auth-key>")
+          .DatabaseName("MyDatabase");
 });
 ```
 
-## Registration Methods
+## Registration
 
-| Method | What It Registers | Key Options |
-|--------|-------------------|-------------|
-| `AddCosmosDb(opts)` | Core persistence provider | `AccountEndpoint`, `AccountKey`, `DatabaseName` |
-| `AddCosmosDbSnapshotStore(opts)` | `ISnapshotStore` | `ContainerName` |
-| `AddCosmosDbProjectionStore<T>(connStr, dbName, opts?)` | `IProjectionStore<T>` | `ContainerName` |
+The builder API (`ICosmosDbDataBuilder`) supports 4 canonical connection overloads:
 
-All methods also accept `IConfiguration` binding: `AddCosmosDb(configuration, sectionName: "CosmosDb")`.
+```csharp
+// Connection string
+services.AddExcaliburCosmosDb(cosmos =>
+    cosmos.ConnectionString(connectionString).DatabaseName("MyDatabase"));
+
+// Existing CosmosClient instance
+services.AddExcaliburCosmosDb(cosmos =>
+    cosmos.Client(existingClient).DatabaseName("MyDatabase"));
+
+// Client factory (for custom configuration)
+services.AddExcaliburCosmosDb(cosmos =>
+    cosmos.ClientFactory(() => new CosmosClient(connectionString, clientOptions))
+          .DatabaseName("MyDatabase"));
+
+// IConfiguration binding
+services.AddExcaliburCosmosDb(cosmos =>
+    cosmos.BindConfiguration("CosmosDb"));
+```
+
+All registrations include `ValidateOnStart` for options validation.
 
 ### Batch Projection Registration
 
@@ -62,11 +76,11 @@ services.AddCosmosDbProjections(connectionString, "MyDatabase", projections =>
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(options =>
+    cdc.UseCosmosDb(cosmos =>
     {
-        options.DatabaseName = "MyApp";
-        options.ContainerName = "orders";
-        options.LeaseContainerName = "leases";
+        cosmos.ConnectionString(connectionString)
+              .DatabaseName("MyApp")
+              .ContainerName("orders");
     })
     .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();

@@ -2,7 +2,6 @@
 // Demonstrates per-message completion to minimize the duplicate failure window.
 
 using Excalibur.Dispatch.Options.Delivery;
-
 using Excalibur.Outbox.SqlServer;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -11,12 +10,15 @@ using Microsoft.Extensions.Hosting;
 // Configure services with MinimizedWindow guarantee
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.Configure<SqlServerOutboxOptions>(options =>
+var outboxConnectionString = builder.Configuration["ConnectionStrings:Outbox"]
+	?? "Server=localhost;Database=OutboxDemo;Integrated Security=true;TrustServerCertificate=true";
+
+builder.Services.AddExcaliburOutbox(outbox =>
 {
-	options.ConnectionString = builder.Configuration["ConnectionStrings:Outbox"]
-		?? "Server=localhost;Database=OutboxDemo;Integrated Security=true;TrustServerCertificate=true";
-	options.SchemaName = "dbo";
-	options.OutboxTableName = "OutboxMessages";
+	outbox.UseSqlServer(sql =>
+		sql.ConnectionString(outboxConnectionString)
+		   .SchemaName("dbo")
+		   .TableName("OutboxMessages"));
 });
 
 builder.Services.Configure<OutboxDeliveryOptions>(options =>

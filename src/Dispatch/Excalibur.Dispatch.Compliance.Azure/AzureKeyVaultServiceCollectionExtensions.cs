@@ -6,7 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Compliance.Azure;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -20,103 +19,45 @@ public static class AzureKeyVaultServiceCollectionExtensions
 	/// <summary>
 	/// Adds Azure Key Vault key management services to the service collection.
 	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configure"> An action to configure the Azure Key Vault options. </param>
-	/// <returns> The service collection for chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services or configure is null. </exception>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Configuration action for the Azure Key Vault compliance builder.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
 	/// <example>
 	/// <code>
-	///services.AddAzureKeyVaultKeyManagement(options =&gt;
-	///{
-	///options.VaultUri = new Uri("https://my-vault.vault.azure.net/");
-	///options.RequirePremiumTier = true; // For FIPS compliance
-	///});
+	/// services.AddAzureKeyVaultKeyManagement(azure =&gt;
+	/// {
+	///     azure.VaultUri(new Uri("https://my-vault.vault.azure.net/"))
+	///          .RequirePremiumTier();
+	/// });
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static IServiceCollection AddAzureKeyVaultKeyManagement(
 		this IServiceCollection services,
-		Action<AzureKeyVaultOptions> configure)
+		Action<IComplianceAzureBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Configure options with validation
-		_ = services.AddOptions<AzureKeyVaultOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+		var options = new AzureKeyVaultOptions();
+		var builder = new ComplianceAzureBuilder(options);
+		configure(builder);
 
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<AzureKeyVaultOptions>, AzureKeyVaultOptionsValidator>());
-
-		// Add memory cache if not already registered
-		_ = services.AddMemoryCache();
-
-		// Register the provider
-		services.TryAddSingleton<AzureKeyVaultProvider>();
-		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
-		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
+		RegisterOptionsAndServices(services, builder, options);
 
 		return services;
 	}
 
 	/// <summary>
-	/// Adds Azure Key Vault key management services with a pre-configured options instance.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="options"> The pre-configured options. </param>
-	/// <returns> The service collection for chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services or options is null. </exception>
-	public static IServiceCollection AddAzureKeyVaultKeyManagement(
-		this IServiceCollection services,
-		AzureKeyVaultOptions options)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(options);
-
-		return services.AddAzureKeyVaultKeyManagement(o =>
-		{
-			o.VaultUri = options.VaultUri;
-			o.Credential = options.Credential;
-			o.KeyNamePrefix = options.KeyNamePrefix;
-			o.RequirePremiumTier = options.RequirePremiumTier;
-			o.WarnOnStandardTierInProduction = options.WarnOnStandardTierInProduction;
-			o.MetadataCacheDuration = options.MetadataCacheDuration;
-			o.Retry.EnableRetry = options.Retry.EnableRetry;
-			o.Retry.MaxRetryAttempts = options.Retry.MaxRetryAttempts;
-			o.Retry.RetryDelay = options.Retry.RetryDelay;
-			o.UseSoftwareKeys = options.UseSoftwareKeys;
-			o.DefaultKeySizeBits = options.DefaultKeySizeBits;
-			o.EnableDetailedTelemetry = options.EnableDetailedTelemetry;
-		});
-	}
-
-	/// <summary>
 	/// Adds Azure Key Vault RSA key wrapping services for envelope encryption.
 	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configure"> An action to configure the RSA key wrapping options. </param>
-	/// <returns> The service collection for chaining. </returns>
-	/// <remarks>
-	/// <para>
-	/// Registers <see cref="AzureKeyVaultRsaKeyWrapper" /> as the
-	/// <see cref="IAzureRsaKeyWrapper" /> implementation for wrapping and unwrapping
-	/// AES data encryption keys using RSA keys in Azure Key Vault.
-	/// </para>
-	/// <para>
-	/// This method also registers Azure Key Vault key management if not already configured,
-	/// since the RSA key wrapper depends on <see cref="AzureKeyVaultOptions" /> for credential resolution.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddAzureKeyVaultRsaKeyWrapping(options =&gt;
-	/// {
-	///     options.KeyVaultUrl = new Uri("https://my-vault.vault.azure.net/");
-	///     options.KeyName = "data-encryption-key";
-	///     options.Algorithm = RsaWrappingAlgorithm.RsaOaep256;
-	/// });
-	/// </code>
-	/// </example>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">An action to configure the RSA key wrapping options.</param>
+	/// <returns>The service collection for chaining.</returns>
 	public static IServiceCollection AddAzureKeyVaultRsaKeyWrapping(
 		this IServiceCollection services,
 		Action<RsaKeyWrappingOptions> configure)
@@ -136,27 +77,32 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		return services;
 	}
 
-	/// <summary>
-	/// Adds Azure Key Vault key management services using configuration from the specified section.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configurationSection"> The configuration section containing Azure Key Vault settings. </param>
-	/// <returns> The service collection for chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services or configurationSection is null. </exception>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Options validation/binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddAzureKeyVaultKeyManagement(
-		this IServiceCollection services,
-		IConfigurationSection configurationSection)
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IServiceCollection services,
+		ComplianceAzureBuilder builder,
+		AzureKeyVaultOptions options)
 	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configurationSection);
+		_ = services.Configure<AzureKeyVaultOptions>(opt =>
+		{
+			opt.VaultUri = options.VaultUri;
+			opt.KeyNamePrefix = options.KeyNamePrefix;
+			opt.RequirePremiumTier = options.RequirePremiumTier;
+			opt.MetadataCacheDuration = options.MetadataCacheDuration;
+			opt.EnableDetailedTelemetry = options.EnableDetailedTelemetry;
+		});
 
-		_ = services.AddOptions<AzureKeyVaultOptions>()
-			.Configure(options => configurationSection.Bind(options))
-			.ValidateOnStart();
+		if (builder.BindConfigurationPath is not null)
+		{
+			_ = services.AddOptions<AzureKeyVaultOptions>()
+				.BindConfiguration(builder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
+
+		_ = services.AddOptions<AzureKeyVaultOptions>().ValidateOnStart();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<AzureKeyVaultOptions>, AzureKeyVaultOptionsValidator>());
@@ -168,7 +114,5 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		services.TryAddSingleton<AzureKeyVaultProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
 		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
-
-		return services;
 	}
 }

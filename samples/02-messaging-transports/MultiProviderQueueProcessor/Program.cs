@@ -25,13 +25,11 @@ var eventStoreConnectionString = builder.Configuration.GetConnectionString("Even
 
 builder.Services.AddExcaliburEventSourcing(es =>
 {
-	es.UseSqlServer(options =>
+	es.UseSqlServer(sql =>
 	{
-		options.ConnectionString = eventStoreConnectionString;
-
-		// Optional: customize table names (these are the defaults)
-		options.EventStoreTable = "EventStoreEvents";
-		options.SnapshotStoreTable = "EventStoreSnapshots";
+		sql.ConnectionString(eventStoreConnectionString)
+		   .EventStoreTable("EventStoreEvents")
+		   .SnapshotStoreTable("EventStoreSnapshots");
 	});
 });
 

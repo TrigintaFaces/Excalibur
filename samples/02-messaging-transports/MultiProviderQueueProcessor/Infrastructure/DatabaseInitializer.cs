@@ -67,7 +67,7 @@ CREATE TABLE [dbo].[EventStoreSnapshots] (
     CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType])
 );
 
--- Outbox table (default: dbo.OutboxMessages, configurable via SqlServerOutboxOptions)
+-- Outbox table (default: dbo.OutboxMessages, configurable via ISqlServerOutboxBuilder)
 -- Note: The outbox is managed separately via AddExcaliburOutbox().
 CREATE TABLE [dbo].[OutboxMessages] (
     [Id] NVARCHAR(256) NOT NULL PRIMARY KEY,

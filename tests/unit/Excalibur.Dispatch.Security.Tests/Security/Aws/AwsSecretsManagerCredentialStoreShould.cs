@@ -279,7 +279,7 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 		var configuration = CreateConfigurationWithRegion();
 		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
-		_ = services.AddAwsSecretsManagerCredentialStore(configuration);
+		_ = services.AddDispatchSecurityAws(aws => aws.Region("us-east-1"));
 
 		var provider = services.BuildServiceProvider();
 
@@ -299,7 +299,7 @@ public sealed class AwsSecretsManagerCredentialStoreShould : UnitTestBase
 		var configuration = CreateConfigurationWithRegion();
 		_ = services.AddSingleton(configuration);
 		_ = services.AddLogging();
-		_ = services.AddAwsSecretsManagerCredentialStore(configuration);
+		_ = services.AddDispatchSecurityAws(aws => aws.Region("us-east-1"));
 
 		var provider = services.BuildServiceProvider();
 

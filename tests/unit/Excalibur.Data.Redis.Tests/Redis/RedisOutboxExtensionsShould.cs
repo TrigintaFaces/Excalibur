@@ -9,139 +9,99 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Data.Tests.Redis;
 
 /// <summary>
-/// Unit tests for <see cref="RedisOutboxExtensions"/>.
+/// Unit tests for <see cref="OutboxBuilderRedisExtensions"/>.
 /// </summary>
 /// <remarks>
-/// Sprint 515 (S515.3): Redis unit tests.
-/// Tests verify outbox extension methods.
+/// Sprint 781: Rewired from old Action&lt;RedisOutboxOptions&gt; to Action&lt;IRedisOutboxBuilder&gt;.
+/// Tests verify the new builder-based entry point.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Redis")]
 [Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class RedisOutboxExtensionsShould
 {
-	#region AddRedisOutboxStore with Action Tests
+	#region UseRedis with Builder Tests
 
 	[Fact]
-	public void AddRedisOutboxStore_WithAction_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void UseRedis_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
 		// Arrange
-		IServiceCollection? services = null;
+		Excalibur.Outbox.IOutboxBuilder? builder = null;
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddRedisOutboxStore(options => { }));
+			builder!.UseRedis(redis => redis.ConnectionString("localhost:6379")));
 	}
 
 	[Fact]
-	public void AddRedisOutboxStore_WithAction_ThrowsArgumentNullException_WhenConfigureIsNull()
+	public void UseRedis_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		Excalibur.Outbox.IOutboxBuilder builder = A.Fake<Excalibur.Outbox.IOutboxBuilder>();
+		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddRedisOutboxStore((Action<RedisOutboxOptions>)null!));
+			builder.UseRedis((Action<IRedisOutboxBuilder>)null!));
 	}
 
 	[Fact]
-	public void AddRedisOutboxStore_WithAction_ReturnsServiceCollection()
+	public void UseRedis_ReturnsBuilder_ForFluentChaining()
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		Excalibur.Outbox.IOutboxBuilder builder = A.Fake<Excalibur.Outbox.IOutboxBuilder>();
+		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		var result = services.AddRedisOutboxStore(options =>
-		{
-			options.ConnectionString = "localhost:6379";
-		});
+		var result = builder.UseRedis(redis => redis.ConnectionString("localhost:6379"));
 
 		// Assert
-		result.ShouldBe(services);
+		result.ShouldBe(builder);
 	}
 
 	[Fact]
-	public void AddRedisOutboxStore_WithAction_RegistersRedisOutboxStore()
+	public void UseRedis_RegistersRedisOutboxStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-
-		// Act
-		services.AddRedisOutboxStore(options =>
-		{
-			options.ConnectionString = "localhost:6379";
-		});
+		services.AddExcaliburOutbox(outbox =>
+			outbox.UseRedis(redis => redis.ConnectionString("localhost:6379")));
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(RedisOutboxStore));
 	}
 
 	[Fact]
-	public void AddRedisOutboxStore_WithAction_RegistersIOutboxStore()
+	public void UseRedis_RegistersKeyedIOutboxStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-
-		// Act
-		services.AddRedisOutboxStore(options =>
-		{
-			options.ConnectionString = "localhost:6379";
-		});
+		services.AddExcaliburOutbox(outbox =>
+			outbox.UseRedis(redis => redis.ConnectionString("localhost:6379")));
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IOutboxStore));
-	}
-
-	#endregion
-
-	#region AddRedisOutboxStore with ConnectionProvider Tests
-
-	[Fact]
-	public void AddRedisOutboxStore_WithConnectionProvider_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services!.AddRedisOutboxStore(_ => null!, options => { }));
+		services.ShouldContain(sd => sd.ServiceType == typeof(IOutboxStore) && sd.IsKeyedService);
 	}
 
 	[Fact]
-	public void AddRedisOutboxStore_WithConnectionProvider_ThrowsArgumentNullException_WhenConnectionProviderIsNull()
+	public void UseRedis_ConfigureIsInvoked()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddRedisOutboxStore(null!, options => { }));
-	}
-
-	[Fact]
-	public void AddRedisOutboxStore_WithConnectionProvider_ThrowsArgumentNullException_WhenConfigureIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddRedisOutboxStore(_ => null!, null!));
-	}
-
-	[Fact]
-	public void AddRedisOutboxStore_WithConnectionProvider_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
+		var configured = false;
 
 		// Act
-		var result = services.AddRedisOutboxStore(
-			_ => null!,
-			options => { options.ConnectionString = "test"; });
+		services.AddExcaliburOutbox(outbox =>
+			outbox.UseRedis(redis =>
+			{
+				redis.ConnectionString("localhost:6379");
+				configured = true;
+			}));
 
 		// Assert
-		result.ShouldBe(services);
+		configured.ShouldBeTrue();
 	}
 
 	#endregion
@@ -152,15 +112,15 @@ public sealed class RedisOutboxExtensionsShould
 	public void IsStatic()
 	{
 		// Assert
-		typeof(RedisOutboxExtensions).IsAbstract.ShouldBeTrue();
-		typeof(RedisOutboxExtensions).IsSealed.ShouldBeTrue();
+		typeof(OutboxBuilderRedisExtensions).IsAbstract.ShouldBeTrue();
+		typeof(OutboxBuilderRedisExtensions).IsSealed.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void IsPublic()
 	{
 		// Assert
-		typeof(RedisOutboxExtensions).IsPublic.ShouldBeTrue();
+		typeof(OutboxBuilderRedisExtensions).IsPublic.ShouldBeTrue();
 	}
 
 	#endregion

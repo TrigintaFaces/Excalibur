@@ -261,19 +261,21 @@ services.AddExcaliburOutbox(outbox =>
 ```csharp
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseRedis(options =>
+    outbox.UseRedis(redis =>
     {
-        options.ConnectionString = "localhost:6379";
-        options.KeyPrefix = "outbox:";
+        redis.ConnectionString("localhost:6379")
+             .KeyPrefix("outbox:");
     });
 });
 
-// Or with an existing ConnectionMultiplexer
+// Or with an existing ConnectionMultiplexer from DI
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseRedis(
-        sp => sp.GetRequiredService<ConnectionMultiplexer>(),
-        options => options.KeyPrefix = "outbox:");
+    outbox.UseRedis(redis =>
+    {
+        redis.Multiplexer(existingMultiplexer)
+             .KeyPrefix("outbox:");
+    });
 });
 ```
 
@@ -282,11 +284,10 @@ services.AddExcaliburOutbox(outbox =>
 ```csharp
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseMongoDB(options =>
+    outbox.UseMongoDB(mongo =>
     {
-        options.ConnectionString = connectionString;
-        options.DatabaseName = "myapp";
-        options.CollectionName = "outbox_messages";
+        mongo.ConnectionString(connectionString)
+             .DatabaseName("myapp");
     });
 });
 ```
@@ -322,11 +323,11 @@ services.AddExcaliburOutbox(outbox =>
 ```csharp
 services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseCosmosDb(options =>
+    outbox.UseCosmosDb(cosmos =>
     {
-        options.Connection.ConnectionString = connectionString;
-        options.DatabaseName = "myapp";
-        options.ContainerName = "outbox";
+        cosmos.ConnectionString(connectionString)
+              .DatabaseName("myapp")
+              .ContainerName("outbox");
     });
 });
 ```
@@ -709,7 +710,7 @@ When using event sourcing, integration events can be staged to the unified outbo
 ```csharp
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(options => options.ConnectionString = connectionString);
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString));
 
     // Per-aggregate staging strategy
     es.AddRepository<Order>(id => new Order(id), opts =>

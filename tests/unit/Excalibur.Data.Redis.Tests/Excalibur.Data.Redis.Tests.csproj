@@ -19,6 +19,8 @@
     <!-- Extracted concern.provider packages -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Redis\Excalibur.Inbox.Redis.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Redis\Excalibur.Outbox.Redis.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Redis\Excalibur.EventSourcing.Redis.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Redis\Excalibur.LeaderElection.Redis.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

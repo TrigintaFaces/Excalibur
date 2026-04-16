@@ -1326,11 +1326,11 @@ services.AddCdcProcessor(cdc =>
 // Cloud-native providers (same builder pattern)
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(options =>
+    cdc.UseCosmosDb(cosmos =>
     {
-        options.DatabaseName = "mydb";
-        options.ContainerName = "orders";
-        options.LeaseContainerName = "leases";
+        cosmos.ConnectionString(connectionString)
+              .DatabaseName("mydb")
+              .ContainerName("orders");
     });
 });
 ```
@@ -1436,12 +1436,12 @@ dotnet add package Excalibur.Cdc.CosmosDb
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseCosmosDb(options =>
+    cdc.UseCosmosDb(cosmos =>
     {
-        options.DatabaseName = "MyApp";
-        options.ContainerName = "orders";
-        options.LeaseContainerName = "leases";
-        options.ProcessorName = "order-processor";
+        cosmos.ConnectionString(connectionString)
+              .DatabaseName("MyApp")
+              .ContainerName("orders")
+              .ProcessorName("order-processor");
     })
     .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();

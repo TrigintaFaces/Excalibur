@@ -3,9 +3,9 @@ Excalibur.Postgres.ExcaliburPostgresOptions
 Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureAuditLogging(System.Action<Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
 Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
 Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureErasure(System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
-Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureInbox(System.Action<Excalibur.Inbox.Postgres.PostgresInboxOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
-Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureLeaderElection(System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
-Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureSaga(System.Action<Excalibur.Saga.Postgres.PostgresSagaOptions!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureInbox(System.Action<Excalibur.Inbox.Postgres.IPostgresInboxBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureLeaderElection(System.Action<Excalibur.LeaderElection.Postgres.IPostgresLeaderElectionBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
+Excalibur.Postgres.ExcaliburPostgresOptions.ConfigureSaga(System.Action<Excalibur.Saga.Postgres.IPostgresSagaBuilder!>! configure) -> Excalibur.Postgres.ExcaliburPostgresOptions!
 Excalibur.Postgres.ExcaliburPostgresOptions.ConnectionString.get -> string!
 Excalibur.Postgres.ExcaliburPostgresOptions.ConnectionString.set -> void
 Excalibur.Postgres.ExcaliburPostgresOptions.ExcaliburPostgresOptions() -> void

@@ -40,7 +40,7 @@ Load snapshot at version 9,900
 // Configure event sourcing with provider and snapshot strategy in one builder
 services.AddExcaliburEventSourcing(builder =>
 {
-    builder.UseSqlServer(options => options.ConnectionString = connectionString);
+    builder.UseSqlServer(sql => sql.ConnectionString(connectionString));
     builder.AddRepository<OrderAggregate, Guid>();
     builder.UseIntervalSnapshots(100);  // Snapshot every 100 events
 });

@@ -154,7 +154,6 @@ Dispatch generators use consistent naming:
 | HandlerInvocationGenerator | `SourceGeneratedHandlerInvoker.g.cs` | Handler invocation |
 | MessageTypeSourceGenerator | `PrecompiledHandlerMetadata.g.cs` | Handler metadata |
 | StaticPipelineGenerator | `StaticPipelines.g.cs` | Static pipelines |
-| DispatchInterceptorGenerator | `DispatchInterceptors.g.cs` | C# 12 interceptors |
 | MiddlewareDecompositionAnalyzer | `MiddlewareDecomposition.g.cs` | Middleware analysis |
 | CachePolicySourceGenerator | `CacheInfoRegistry.g.cs` | Cache policies |
 | ServiceRegistrationSourceGenerator | `GeneratedServiceCollectionExtensions.g.cs` | DI registrations |

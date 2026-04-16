@@ -109,3 +109,7 @@ static Excalibur.Outbox.Postgres.PostgresOutboxBuilderExtensions.CommandTimeout(
 static Excalibur.Outbox.Postgres.PostgresOutboxBuilderExtensions.MaxAttempts(this Excalibur.Outbox.Postgres.IPostgresOutboxBuilder! builder, int maxAttempts) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 static Excalibur.Outbox.Postgres.PostgresOutboxBuilderExtensions.ReservationTimeout(this Excalibur.Outbox.Postgres.IPostgresOutboxBuilder! builder, System.TimeSpan timeout) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.StageMessageAsync(Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.ConnectionStringName(string! name) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!
+Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Outbox.Postgres.IPostgresOutboxBuilder!

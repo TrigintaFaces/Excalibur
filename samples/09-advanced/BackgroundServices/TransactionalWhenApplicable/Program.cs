@@ -1,13 +1,11 @@
 // TransactionalWhenApplicable Example
 // Demonstrates exactly-once delivery when outbox and inbox share the same database.
 
-using Excalibur.Inbox.SqlServer;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Outbox.SqlServer;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 
 // Configure services with TransactionalWhenApplicable guarantee
 var builder = Host.CreateApplicationBuilder(args);
@@ -17,18 +15,20 @@ var builder = Host.CreateApplicationBuilder(args);
 var connectionString = builder.Configuration["ConnectionStrings:Database"]
 	?? "Server=localhost;Database=OutboxDemo;Integrated Security=true;TrustServerCertificate=true";
 
-builder.Services.Configure<SqlServerOutboxOptions>(options =>
+builder.Services.AddExcaliburOutbox(outbox =>
 {
-	options.ConnectionString = connectionString;
-	options.SchemaName = "dbo";
-	options.OutboxTableName = "OutboxMessages";
+	outbox.UseSqlServer(sql =>
+		sql.ConnectionString(connectionString)
+		   .SchemaName("dbo")
+		   .TableName("OutboxMessages"));
 });
 
-builder.Services.Configure<SqlServerInboxOptions>(options =>
+builder.Services.AddExcaliburInbox(inbox =>
 {
-	options.ConnectionString = connectionString; // MUST match outbox connection string
-	options.SchemaName = "dbo";
-	options.TableName = "InboxMessages";
+	inbox.UseSqlServer(sql =>
+		sql.ConnectionString(connectionString) // MUST match outbox connection string
+		   .SchemaName("dbo")
+		   .TableName("InboxMessages"));
 });
 
 builder.Services.Configure<OutboxDeliveryOptions>(options =>
@@ -37,15 +37,6 @@ builder.Services.Configure<OutboxDeliveryOptions>(options =>
 	// Falls back to MinimizedWindow when not applicable
 	options.DeliveryGuarantee = OutboxDeliveryGuarantee.TransactionalWhenApplicable;
 	options.ConsumerBatchSize = 50;
-});
-
-// Register SqlServerOutboxStore with inbox options for transactional completion
-builder.Services.AddSingleton(sp =>
-{
-	var outboxOptions = sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-	var inboxOptions = sp.GetRequiredService<IOptions<SqlServerInboxOptions>>();
-	var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SqlServerOutboxStore>>();
-	return new SqlServerOutboxStore(outboxOptions, inboxOptions, logger);
 });
 
 var app = builder.Build();
@@ -61,7 +52,6 @@ Console.WriteLine();
 Console.WriteLine("Requirements:");
 Console.WriteLine("  - SQL Server outbox and inbox stores");
 Console.WriteLine("  - Same connection string for both (same database)");
-Console.WriteLine("  - SqlServerInboxOptions provided to SqlServerOutboxStore constructor");
 Console.WriteLine();
 Console.WriteLine("Fallback:");
 Console.WriteLine("  - Falls back to MinimizedWindow when:");

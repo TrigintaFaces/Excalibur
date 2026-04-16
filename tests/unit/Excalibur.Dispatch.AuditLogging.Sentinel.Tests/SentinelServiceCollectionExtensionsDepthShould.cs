@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.AuditLogging.Sentinel;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -25,10 +24,10 @@ public sealed class SentinelServiceCollectionExtensionsDepthShould
 
 		// Act
 #pragma warning disable IL2026, IL3050
-		var result = services.AddSentinelAuditExporter(o =>
+		var result = services.AddSentinelAuditExporter(sentinel =>
 		{
-			o.WorkspaceId = "test-ws";
-			o.SharedKey = "dGVzdC1rZXk=";
+			sentinel.WorkspaceId("test-ws")
+			        .SharedKey("dGVzdC1rZXk=");
 		});
 #pragma warning restore IL2026, IL3050
 
@@ -44,14 +43,14 @@ public sealed class SentinelServiceCollectionExtensionsDepthShould
 
 		// Act
 #pragma warning disable IL2026, IL3050
-		services.AddSentinelAuditExporter(o =>
+		services.AddSentinelAuditExporter(sentinel =>
 		{
-			o.WorkspaceId = "test-ws";
-			o.SharedKey = "dGVzdC1rZXk=";
+			sentinel.WorkspaceId("test-ws")
+			        .SharedKey("dGVzdC1rZXk=");
 		});
 #pragma warning restore IL2026, IL3050
 
-		// Assert — options resolve with configured values (ValidateDataAnnotations removed in Sprint 750 AOT migration)
+		// Assert — options resolve with configured values
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SentinelExporterOptions>>().Value;
 		options.WorkspaceId.ShouldBe("test-ws");
@@ -66,10 +65,10 @@ public sealed class SentinelServiceCollectionExtensionsDepthShould
 
 		// Act
 #pragma warning disable IL2026, IL3050
-		services.AddSentinelAuditExporter(o =>
+		services.AddSentinelAuditExporter(sentinel =>
 		{
-			o.WorkspaceId = "test-ws";
-			o.SharedKey = "dGVzdC1rZXk=";
+			sentinel.WorkspaceId("test-ws")
+			        .SharedKey("dGVzdC1rZXk=");
 		});
 #pragma warning restore IL2026, IL3050
 
@@ -86,10 +85,10 @@ public sealed class SentinelServiceCollectionExtensionsDepthShould
 
 		// Act
 #pragma warning disable IL2026, IL3050
-		services.AddSentinelAuditExporter(o =>
+		services.AddSentinelAuditExporter(sentinel =>
 		{
-			o.WorkspaceId = "test-ws";
-			o.SharedKey = "dGVzdC1rZXk=";
+			sentinel.WorkspaceId("test-ws")
+			        .SharedKey("dGVzdC1rZXk=");
 		});
 #pragma warning restore IL2026, IL3050
 

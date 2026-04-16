@@ -8,141 +8,135 @@ using Amazon.DynamoDBv2;
 using Excalibur.Data.Abstractions.CloudNative;
 using Excalibur.Data.DynamoDb;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for registering DynamoDB services.
+/// Extension methods for registering DynamoDB data services.
 /// </summary>
 public static class DynamoDbServiceCollectionExtensions
-
 {
 	/// <summary>
-	/// Adds AWS DynamoDB data provider to the service collection.
+	/// Adds AWS DynamoDB data provider to the service collection using the fluent builder.
 	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configure"> The configuration action. </param>
-	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddDynamoDb(
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Configuration action for the DynamoDB data builder.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburDynamoDb(dynamo =&gt;
+	/// {
+	///     dynamo.ServiceUrl("http://localhost:8000")
+	///           .TableName("data");
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	public static IServiceCollection AddExcaliburDynamoDb(
 		this IServiceCollection services,
-		Action<DynamoDbOptions> configure)
+		Action<IDynamoDBDataBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.AddOptions<DynamoDbOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+		var dynamoBuilder = new DynamoDBDataBuilder();
+		configure(dynamoBuilder);
 
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
+		var hasBuilderClient = dynamoBuilder.ClientInstance is not null
+			|| dynamoBuilder.ClientFactoryFunc is not null;
 
-		RegisterCoreServices(services);
+		RegisterOptionsAndServices(services, dynamoBuilder, hasBuilderClient);
 
 		return services;
 	}
 
-	/// <summary>
-	/// Adds AWS DynamoDB data provider to the service collection using configuration.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configuration"> The configuration section. </param>
-	/// <returns> The service collection for chaining. </returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Options validation/binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddDynamoDb(
-		this IServiceCollection services,
-		IConfiguration configuration)
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IServiceCollection services,
+		DynamoDBDataBuilder dynamoBuilder,
+		bool hasBuilderClient)
 	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = services.AddOptions<DynamoDbOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
-
-		RegisterCoreServices(services);
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds AWS DynamoDB data provider to the service collection using a named configuration section.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configuration"> The configuration. </param>
-	/// <param name="sectionName"> The configuration section name. </param>
-	/// <returns> The service collection for chaining. </returns>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddDynamoDb(
-		this IServiceCollection services,
-		IConfiguration configuration,
-		string sectionName)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-		ArgumentException.ThrowIfNullOrWhiteSpace(sectionName);
-
-		_ = services.AddOptions<DynamoDbOptions>()
-			.Bind(configuration.GetSection(sectionName))
-			.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
-
-		RegisterCoreServices(services);
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds AWS DynamoDB data provider with an existing DynamoDB client.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configure"> The configuration action. </param>
-	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddDynamoDbWithClient(
-		this IServiceCollection services,
-		Action<DynamoDbOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = services.AddOptions<DynamoDbOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
-
-		// Register the provider using the IAmazonDynamoDB from DI
-		services.TryAddSingleton(sp =>
+		// Register store-specific options from builder state
+		_ = services.Configure<DynamoDbOptions>(opt =>
 		{
-			var client = sp.GetRequiredService<IAmazonDynamoDB>();
-			var options = sp.GetRequiredService<IOptions<DynamoDbOptions>>();
-			var logger = sp.GetRequiredService<Logging.ILogger<DynamoDbPersistenceProvider>>();
-			return new DynamoDbPersistenceProvider(client, options, logger);
+			if (dynamoBuilder.TableNameValue is not null)
+			{
+				opt.DefaultTableName = dynamoBuilder.TableNameValue;
+			}
+
+			if (dynamoBuilder.ServiceUrlValue is not null)
+			{
+				opt.Connection.ServiceUrl = dynamoBuilder.ServiceUrlValue;
+			}
+
+			if (dynamoBuilder.RegionValue is not null)
+			{
+				opt.Connection.Region = dynamoBuilder.RegionValue.SystemName;
+			}
 		});
 
-		services.TryAddSingleton<ICloudNativePersistenceProvider>(sp =>
-			sp.GetRequiredService<DynamoDbPersistenceProvider>());
+		// Register BindConfiguration if set
+		if (dynamoBuilder.BindConfigurationPath is not null)
+		{
+			services.AddOptions<DynamoDbOptions>()
+				.BindConfiguration(dynamoBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
 
-		services.TryAddSingleton<DynamoDbHealthCheck>();
+		// Register ValidateOnStart
+		services.AddOptions<DynamoDbOptions>().ValidateOnStart();
 
-		return services;
+		// Register validator
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbOptions>, DynamoDbOptionsValidator>());
+
+		// Register IAmazonDynamoDB based on connection path
+		if (hasBuilderClient)
+		{
+			RegisterBuilderManagedClient(services, dynamoBuilder);
+		}
+		else if (dynamoBuilder.ServiceUrlValue is not null)
+		{
+			var serviceUrl = dynamoBuilder.ServiceUrlValue;
+			services.TryAddSingleton<IAmazonDynamoDB>(_ =>
+				new AmazonDynamoDBClient(new AmazonDynamoDBConfig { ServiceURL = serviceUrl }));
+		}
+		else if (dynamoBuilder.RegionValue is not null)
+		{
+			var region = dynamoBuilder.RegionValue;
+			services.TryAddSingleton<IAmazonDynamoDB>(_ =>
+				new AmazonDynamoDBClient(region));
+		}
+
+		// Register core services
+		RegisterCoreServices(services);
+	}
+
+	private static void RegisterBuilderManagedClient(
+		IServiceCollection services,
+		DynamoDBDataBuilder dynamoBuilder)
+	{
+		if (dynamoBuilder.ClientInstance is not null)
+		{
+			var client = dynamoBuilder.ClientInstance;
+			services.TryAddSingleton(client);
+		}
+		else if (dynamoBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = dynamoBuilder.ClientFactoryFunc;
+			services.TryAddSingleton(factory);
+		}
 	}
 
 	private static void RegisterCoreServices(IServiceCollection services)

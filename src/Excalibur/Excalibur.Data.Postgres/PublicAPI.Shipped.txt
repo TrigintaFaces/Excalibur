@@ -478,3 +478,9 @@ virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Dispose(
 virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Postgres.IPostgresDataBuilder
+Excalibur.Data.Postgres.IPostgresDataBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
+Excalibur.Data.Postgres.IPostgresDataBuilder.ConnectionString(string! connectionString) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
+Excalibur.Data.Postgres.IPostgresDataBuilder.ConnectionStringName(string! name) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
+Excalibur.Data.Postgres.IPostgresDataBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Data.Postgres.IPostgresDataBuilder!
+Excalibur.Data.Postgres.IPostgresDataBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Data.Postgres.IPostgresDataBuilder!

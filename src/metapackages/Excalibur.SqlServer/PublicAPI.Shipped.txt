@@ -3,10 +3,10 @@ Excalibur.SqlServer.ExcaliburSqlServerOptions
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureAuditLogging(System.Action<Excalibur.Dispatch.AuditLogging.SqlServer.SqlServerAuditOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureErasure(System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureInbox(System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureInbox(System.Action<Excalibur.Inbox.SqlServer.ISqlServerInboxBuilder!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureKeyEscrow(System.Action<Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureLeaderElection(System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
-Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureSaga(System.Action<Excalibur.Saga.SqlServer.SqlServerSagaStoreOptions!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureLeaderElection(System.Action<Excalibur.LeaderElection.SqlServer.ISqlServerLeaderElectionBuilder!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
+Excalibur.SqlServer.ExcaliburSqlServerOptions.ConfigureSaga(System.Action<Excalibur.Saga.SqlServer.ISqlServerSagaBuilder!>! configure) -> Excalibur.SqlServer.ExcaliburSqlServerOptions!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConnectionString.get -> string!
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ConnectionString.set -> void
 Excalibur.SqlServer.ExcaliburSqlServerOptions.ExcaliburSqlServerOptions() -> void

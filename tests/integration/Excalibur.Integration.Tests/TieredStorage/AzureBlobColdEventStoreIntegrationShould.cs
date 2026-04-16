@@ -37,11 +37,11 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 			services.AddLogging();
 			services.AddExcaliburEventSourcing(builder =>
 			{
-				builder.UseAzureBlobColdEventStore(options =>
+				builder.UseAzureBlobColdEventStore(blob =>
 				{
-					options.ConnectionString = _container.GetConnectionString();
-					options.ContainerName = "cold-events-test";
-					options.CreateContainerIfNotExists = true;
+					blob.ConnectionString(_container.GetConnectionString())
+						.ContainerName("cold-events-test")
+						.CreateContainerIfNotExists();
 				});
 			});
 

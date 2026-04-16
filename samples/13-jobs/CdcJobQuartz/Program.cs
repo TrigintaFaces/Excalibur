@@ -207,10 +207,9 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 builder.Services.AddExcaliburEventSourcing(es =>
 {
 	// SQL Server event store, snapshot store, outbox store + health checks
-	es.UseSqlServer(options =>
+	es.UseSqlServer(sql =>
 	{
-		options.ConnectionString = eventStoreConnectionString;
-		options.HealthChecks.RegisterHealthChecks = true;
+		sql.ConnectionString(eventStoreConnectionString);
 	});
 
 	// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes

@@ -4,23 +4,27 @@
 namespace Excalibur.Outbox.Tests.Firestore;
 
 /// <summary>
-/// Unit tests for <see cref="FirestoreOutboxServiceCollectionExtensions" />.
+/// Unit tests for <see cref="OutboxBuilderFirestoreExtensions" />.
 /// </summary>
+/// <remarks>
+/// Phase C rewire: Updated from FirestoreOutboxServiceCollectionExtensions to
+/// OutboxBuilderFirestoreExtensions.UseFirestore(Action&lt;IFirestoreOutboxBuilder&gt;).
+/// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public sealed class FirestoreOutboxServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
-	public void AddFirestoreOutboxStore_WithAction_RegistersServices()
+	public void UseFirestore_RegistersServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act - explicitly call to avoid ambiguity with other Firestore package
-		_ = FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, options =>
+		// Act
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs =>
 		{
-			options.ProjectId = "test-project";
-		});
+			fs.ProjectId("test-project");
+		}));
 
 		// Assert - Check services are registered
 		services.Any(static sd =>
@@ -32,17 +36,17 @@ public sealed class FirestoreOutboxServiceCollectionExtensionsShould : UnitTestB
 	}
 
 	[Fact]
-	public void AddFirestoreOutboxStore_WithAction_ConfiguresOptions()
+	public void UseFirestore_ConfiguresOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		_ = FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, options =>
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs =>
 		{
-			options.ProjectId = "test-project";
-			options.CollectionName = "custom-collection";
-		});
+			fs.ProjectId("test-project")
+			  .CollectionName("custom-collection");
+		}));
 
 		// Assert - Check options configuration is registered
 		services.Any(static sd =>
@@ -50,133 +54,82 @@ public sealed class FirestoreOutboxServiceCollectionExtensionsShould : UnitTestB
 	}
 
 	[Fact]
-	public void AddFirestoreOutboxStore_WithAction_ThrowsOnNullServices()
+	public void UseFirestore_ThrowsOnNullBuilder()
 	{
-		// Arrange
-		IServiceCollection services = null!;
-
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, options => { }));
+			OutboxBuilderFirestoreExtensions.UseFirestore(null!, fs => { }));
 	}
 
 	[Fact]
-	public void AddFirestoreOutboxStore_WithAction_ThrowsOnNullConfigure()
+	public void UseFirestore_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, (Action<FirestoreOutboxOptions>)null!));
+			services.AddExcaliburOutbox(outbox =>
+				outbox.UseFirestore((Action<Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder>)null!)));
 	}
 
 	[Fact]
-	public void AddFirestoreOutboxStore_WithConfiguration_RegistersServices()
+	public void UseFirestore_ReturnsBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["ProjectId"] = "test-project",
-			})
-			.Build();
+		Excalibur.Outbox.IOutboxBuilder? capturedBuilder = null;
 
 		// Act
-		_ = FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, configuration);
-
-		// Assert - Check services are registered
-		services.Any(static sd =>
-			sd.ServiceType == typeof(FirestoreOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-		services.Any(static sd =>
-			sd.ServiceType == typeof(ICloudNativeOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddFirestoreOutboxStore_WithConfiguration_ThrowsOnNullServices()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-		var configuration = new ConfigurationBuilder().Build();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, configuration));
-	}
-
-	[Fact]
-	public void AddFirestoreOutboxStore_WithConfiguration_ThrowsOnNullConfiguration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, (IConfiguration)null!));
-	}
-
-	[Fact]
-	public void AddFirestoreOutboxStore_WithOptions_RegistersServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var options = new FirestoreOutboxOptions
+		services.AddExcaliburOutbox(outbox =>
 		{
-			ProjectId = "test-project",
-			CollectionName = "custom-collection",
-		};
-
-		// Act
-		_ = FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, options);
-
-		// Assert - Check services are registered
-		services.Any(static sd =>
-			sd.ServiceType == typeof(FirestoreOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-		services.Any(static sd =>
-			sd.ServiceType == typeof(ICloudNativeOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddFirestoreOutboxStore_WithOptions_ThrowsOnNullServices()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-		var options = new FirestoreOutboxOptions();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, options));
-	}
-
-	[Fact]
-	public void AddFirestoreOutboxStore_WithOptions_ThrowsOnNullOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, (FirestoreOutboxOptions)null!));
-	}
-
-	[Fact]
-	public void AddFirestoreOutboxStore_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(services, options =>
-		{
-			options.ProjectId = "test-project";
+			var result = outbox.UseFirestore(fs => fs.ProjectId("test-project"));
+			capturedBuilder = result;
 		});
 
 		// Assert
-		result.ShouldBeSameAs(services);
+		capturedBuilder.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void UseFirestore_RegistersSingleCloudNativeOutboxStore()
+	{
+		// Regression: Ensure UseFirestore() only registers ICloudNativeOutboxStore once
+
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs => fs.ProjectId("test-project")));
+
+		// Assert -- count ICloudNativeOutboxStore registrations
+		var registrations = services.Where(sd =>
+			sd.ServiceType == typeof(ICloudNativeOutboxStore)).ToList();
+		registrations.Count.ShouldBe(1,
+			"UseFirestore() should register ICloudNativeOutboxStore exactly once");
+	}
+
+	[Fact]
+	public void UseFirestore_OptionsNamespace_IsCanonical()
+	{
+		// Regression: Verify the options type is from Excalibur.Outbox.Firestore namespace
+
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddExcaliburOutbox(outbox => outbox.UseFirestore(fs =>
+		{
+			fs.ProjectId("test-project");
+		}));
+
+		// Assert
+		var optionsDescriptor = services.FirstOrDefault(sd =>
+			sd.ServiceType == typeof(IConfigureOptions<FirestoreOutboxOptions>));
+		optionsDescriptor.ShouldNotBeNull();
+
+		// Verify the options type is from the canonical namespace
+		typeof(FirestoreOutboxOptions).Namespace.ShouldBe("Excalibur.Outbox.Firestore",
+			"FirestoreOutboxOptions should be from the canonical Outbox.Firestore package");
 	}
 }

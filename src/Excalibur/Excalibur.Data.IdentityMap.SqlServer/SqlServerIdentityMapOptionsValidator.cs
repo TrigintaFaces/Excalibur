@@ -8,18 +8,29 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Data.IdentityMap.SqlServer;
 
 /// <summary>
-/// Validates <see cref="SqlServerIdentityMapOptions"/> at startup.
+/// Validates <see cref="SqlServerIdentityMapOptions"/> at startup via ValidateOnStart.
+/// Ensures a connection has been configured through the builder.
 /// </summary>
 internal sealed partial class SqlServerIdentityMapOptionsValidator : IValidateOptions<SqlServerIdentityMapOptions>
 {
+	/// <summary>
+	/// Gets or sets a value indicating whether the builder configured a connection
+	/// via <see cref="Builders.ISqlServerIdentityMapBuilder.ConnectionFactory"/> or
+	/// <see cref="Builders.ISqlServerIdentityMapBuilder.ConnectionStringName"/>.
+	/// </summary>
+	internal bool HasBuilderConnection { get; init; }
+
 	/// <inheritdoc/>
 	public ValidateOptionsResult Validate(string? name, SqlServerIdentityMapOptions options)
 	{
 		var failures = new List<string>();
 
-		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		if (!HasBuilderConnection && string.IsNullOrWhiteSpace(options.ConnectionString))
 		{
-			failures.Add("ConnectionString is required.");
+			failures.Add(
+				"No connection configured for IdentityMap. " +
+				"Call ConnectionString(), ConnectionStringName(), ConnectionFactory(), " +
+				"or BindConfiguration() inside UseSqlServer().");
 		}
 
 		if (string.IsNullOrWhiteSpace(options.SchemaName))

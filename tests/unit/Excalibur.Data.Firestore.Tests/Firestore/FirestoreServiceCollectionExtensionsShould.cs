@@ -3,7 +3,6 @@
 
 using Excalibur.Data.Firestore;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Data.Tests.Firestore;
@@ -14,253 +13,71 @@ namespace Excalibur.Data.Tests.Firestore;
 /// <remarks>
 /// Sprint 515 (S515.2): Firestore unit tests.
 /// Tests verify service collection extension methods.
+/// Phase C rewire: Updated from AddFirestore(Action&lt;FirestoreOptions&gt;) to AddExcaliburFirestore(Action&lt;IFirestoreDataBuilder&gt;).
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "Firestore")]
 [Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class FirestoreServiceCollectionExtensionsShould
 {
-	#region AddFirestore with Action Tests
+	#region AddExcaliburFirestore with Builder Tests
 
 	[Fact]
-	public void AddFirestore_WithAction_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void AddExcaliburFirestore_ThrowsArgumentNullException_WhenServicesIsNull()
 	{
 		// Arrange
 		IServiceCollection? services = null;
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestore(options => { }));
+			services!.AddExcaliburFirestore(fs => fs.ProjectId("test-project")));
 	}
 
 	[Fact]
-	public void AddFirestore_WithAction_ThrowsArgumentNullException_WhenConfigureIsNull()
+	public void AddExcaliburFirestore_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestore((Action<FirestoreOptions>)null!));
+			services.AddExcaliburFirestore((Action<IFirestoreDataBuilder>)null!));
 	}
 
 	[Fact]
-	public void AddFirestore_WithAction_ReturnsServiceCollection()
+	public void AddExcaliburFirestore_ReturnsServiceCollection()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddFirestore(options =>
-		{
-			options.ProjectId = "test-project";
-		});
+		var result = services.AddExcaliburFirestore(fs => fs.ProjectId("test-project"));
 
 		// Assert
 		result.ShouldBe(services);
 	}
 
 	[Fact]
-	public void AddFirestore_WithAction_RegistersFirestorePersistenceProvider()
+	public void AddExcaliburFirestore_RegistersFirestorePersistenceProvider()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddFirestore(options =>
-		{
-			options.ProjectId = "test-project";
-		});
+		services.AddExcaliburFirestore(fs => fs.ProjectId("test-project"));
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(FirestorePersistenceProvider));
 	}
 
 	[Fact]
-	public void AddFirestore_WithAction_RegistersFirestoreHealthCheck()
+	public void AddExcaliburFirestore_RegistersFirestoreHealthCheck()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddFirestore(options =>
-		{
-			options.ProjectId = "test-project";
-		});
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(FirestoreHealthCheck));
-	}
-
-	#endregion
-
-	#region AddFirestore with Configuration Tests
-
-	[Fact]
-	public void AddFirestore_WithConfiguration_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-		var configuration = new ConfigurationBuilder().Build();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestore(configuration));
-	}
-
-	[Fact]
-	public void AddFirestore_WithConfiguration_ThrowsArgumentNullException_WhenConfigurationIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestore((IConfiguration)null!));
-	}
-
-	[Fact]
-	public void AddFirestore_WithConfiguration_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var configuration = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["ProjectId"] = "test-project"
-			})
-			.Build();
-
-		// Act
-		var result = services.AddFirestore(configuration);
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	#endregion
-
-	#region AddFirestore with Configuration and Section Tests
-
-	[Fact]
-	public void AddFirestore_WithSection_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-		var configuration = new ConfigurationBuilder().Build();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestore(configuration, "Firestore"));
-	}
-
-	[Fact]
-	public void AddFirestore_WithSection_ThrowsArgumentNullException_WhenConfigurationIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestore(null!, "Firestore"));
-	}
-
-	[Fact]
-	public void AddFirestore_WithSection_ThrowsArgumentException_WhenSectionNameIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var configuration = new ConfigurationBuilder().Build();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddFirestore(configuration, null!));
-	}
-
-	[Fact]
-	public void AddFirestore_WithSection_ThrowsArgumentException_WhenSectionNameIsEmpty()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var configuration = new ConfigurationBuilder().Build();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddFirestore(configuration, string.Empty));
-	}
-
-	[Fact]
-	public void AddFirestore_WithSection_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var configuration = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["Firestore:ProjectId"] = "test-project"
-			})
-			.Build();
-
-		// Act
-		var result = services.AddFirestore(configuration, "Firestore");
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	#endregion
-
-	#region AddFirestoreWithDatabase Tests
-
-	[Fact]
-	public void AddFirestoreWithDatabase_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestoreWithDatabase(options => { }));
-	}
-
-	[Fact]
-	public void AddFirestoreWithDatabase_ThrowsArgumentNullException_WhenConfigureIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddFirestoreWithDatabase(null!));
-	}
-
-	[Fact]
-	public void AddFirestoreWithDatabase_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddFirestoreWithDatabase(options =>
-		{
-			options.ProjectId = "test-project";
-		});
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	[Fact]
-	public void AddFirestoreWithDatabase_RegistersFirestoreHealthCheck()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddFirestoreWithDatabase(options =>
-		{
-			options.ProjectId = "test-project";
-		});
+		services.AddExcaliburFirestore(fs => fs.ProjectId("test-project"));
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(FirestoreHealthCheck));

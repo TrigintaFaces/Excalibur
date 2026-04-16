@@ -3,7 +3,6 @@
 
 using Excalibur.Dispatch.Security.Azure;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -15,68 +14,42 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class DispatchSecurityAzureServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds Azure Key Vault credential store services.
+	/// Adds Azure security services (Key Vault credential store, Service Bus validation) to the service collection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration containing Azure Key Vault settings.</param>
+	/// <param name="configure">Configuration action for the Azure security builder.</param>
 	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// Requires the following configuration:
+	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
+	/// <example>
 	/// <code>
+	/// services.AddDispatchSecurityAzure(azure =&gt;
 	/// {
-	///   "AzureKeyVault": {
-	///     "VaultUri": "https://your-vault.vault.azure.net/",
-	///     "KeyPrefix": "dispatch-" // Optional, defaults to "dispatch-"
-	///   }
-	/// }
+	///     azure.VaultUri("https://my-vault.vault.azure.net/")
+	///          .EnableServiceBusValidation();
+	/// });
 	/// </code>
-	/// </remarks>
-	public static IServiceCollection AddAzureKeyVaultCredentialStore(
+	/// </example>
+	public static IServiceCollection AddDispatchSecurityAzure(
 		this IServiceCollection services,
-		IConfiguration configuration)
+		Action<ISecurityAzureBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		var vaultUri = configuration["AzureKeyVault:VaultUri"];
-		if (!string.IsNullOrEmpty(vaultUri))
+		var builder = new SecurityAzureBuilder();
+		configure(builder);
+
+		if (!string.IsNullOrEmpty(builder.VaultUri))
 		{
 			_ = services.AddSingleton<ICredentialStore, AzureKeyVaultCredentialStore>();
 			_ = services.AddSingleton<IWritableCredentialStore, AzureKeyVaultCredentialStore>();
 		}
 
-		return services;
-	}
-
-	/// <summary>
-	/// Adds Azure Service Bus options validator for security validation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddAzureServiceBusSecurityValidation(this IServiceCollection services)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AzureServiceBusOptions>, AzureServiceBusOptionsValidator>());
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds all Azure security services including Key Vault credential store and Service Bus validation.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration containing Azure settings.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddDispatchSecurityAzure(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = services.AddAzureKeyVaultCredentialStore(configuration);
-		_ = services.AddAzureServiceBusSecurityValidation();
+		if (builder.ServiceBusValidationEnabled)
+		{
+			services.TryAddEnumerable(
+				ServiceDescriptor.Singleton<IValidateOptions<AzureServiceBusOptions>, AzureServiceBusOptionsValidator>());
+		}
 
 		return services;
 	}

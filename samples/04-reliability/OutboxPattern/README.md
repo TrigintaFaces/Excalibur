@@ -62,8 +62,8 @@ builder.Services.AddOutbox<InMemoryOutboxStore>();
 builder.Services.AddInbox<InMemoryInboxStore>();
 
 // Production: Durable stores
-// builder.Services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
-// builder.Services.AddSqlServerInboxStore(opts => opts.ConnectionString = connectionString);
+// builder.Services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
+// builder.Services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 ```
 
 ### Background Services
@@ -153,8 +153,8 @@ This is essential for at-least-once delivery systems where messages may be redel
 
 ```csharp
 // Use durable SQL Server stores
-services.AddSqlServerOutboxStore(opts => opts.ConnectionString = connectionString);
-services.AddSqlServerInboxStore(opts => opts.ConnectionString = connectionString);
+services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
+services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
 ```
 
 ### Required Tables

@@ -53,6 +53,58 @@ public static class InMemoryServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds in-memory persistence services to the service collection using a fluent builder.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">An action to configure the in-memory provider using the fluent builder.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburInMemory(inmemory =>
+	/// {
+	///     inmemory.MaxItemsPerCollection(5000)
+	///             .EnableDetailedLogging(true)
+	///             .PersistToDisk("./data/test-store.json");
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddExcaliburInMemory(
+		this IServiceCollection services,
+		Action<IInMemoryDataBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var inmemoryOptions = new InMemoryProviderOptions();
+		var builder = new InMemoryDataBuilder(inmemoryOptions);
+		configure(builder);
+
+		var optionsBuilder = services.AddOptions<InMemoryProviderOptions>()
+			.Configure(opt =>
+			{
+				opt.MaxItemsPerCollection = inmemoryOptions.MaxItemsPerCollection;
+				opt.EnableDetailedLogging = inmemoryOptions.EnableDetailedLogging;
+				opt.EnableMetrics = inmemoryOptions.EnableMetrics;
+				opt.PersistToDisk = inmemoryOptions.PersistToDisk;
+				opt.PersistenceFilePath = inmemoryOptions.PersistenceFilePath;
+				opt.IsReadOnly = inmemoryOptions.IsReadOnly;
+			});
+
+		_ = optionsBuilder.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<InMemoryProviderOptions>, InMemoryProviderOptionsValidator>());
+
+		services.TryAddSingleton<InMemoryPersistenceProvider>();
+		services.AddKeyedSingleton<IPersistenceProvider>("inmemory",
+			(sp, _) => sp.GetRequiredService<InMemoryPersistenceProvider>());
+		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IPersistenceProvider>("inmemory"));
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds in-memory persistence services to the service collection using an <see cref="IConfiguration"/> section.
 	/// </summary>
 	/// <param name="services">The service collection.</param>

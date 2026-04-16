@@ -58,10 +58,9 @@ var connectionString = builder.Configuration.GetConnectionString("EventStore")
 builder.Services.AddExcaliburEventSourcing(es =>
 {
 	// SQL Server event store, snapshot store, outbox store + health checks
-	es.UseSqlServer(options =>
+	es.UseSqlServer(sql =>
 	{
-		options.ConnectionString = connectionString;
-		options.HealthChecks.RegisterHealthChecks = true;
+		sql.ConnectionString(connectionString);
 	});
 
 	// Register the BankAccountAggregate repository with factory
@@ -234,9 +233,9 @@ logger.LogInformation("");
 logger.LogInformation("Registration Methods:");
 logger.LogInformation("  | Method                          | Description                    |");
 logger.LogInformation("  |---------------------------------|--------------------------------|");
-logger.LogInformation("  | es.UseSqlServer(...)            | All stores via builder (prefer) |");
-logger.LogInformation("  | AddSqlServerEventStore          | Event store only               |");
-logger.LogInformation("  | AddSqlServerSnapshotStore       | Snapshot store only            |");
+logger.LogInformation("  | es.UseSqlServer(sql => ...)     | All stores via builder (prefer) |");
+logger.LogInformation("  | sql.ConnectionString(...)       | Connection string overload     |");
+logger.LogInformation("  | sql.ConnectionFactory(...)      | Connection factory overload    |");
 logger.LogInformation("");
 logger.LogInformation("Key Tables:");
 logger.LogInformation("  | Table                           | Purpose                        |");

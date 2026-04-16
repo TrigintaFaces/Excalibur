@@ -34,7 +34,8 @@ public sealed class ScheduledMessageServiceTimeoutShould
 			A.Fake<ICronScheduler>(),
 			Microsoft.Extensions.Options.Options.Create(new SchedulerOptions
 			{
-				PollInterval = TimeSpan.FromMilliseconds(50)
+				PollInterval = TimeSpan.FromMilliseconds(50),
+			EnableAdaptivePolling = false
 			}),
 			Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions()),
 			logger ?? NullLogger<ScheduledMessageService>.Instance,

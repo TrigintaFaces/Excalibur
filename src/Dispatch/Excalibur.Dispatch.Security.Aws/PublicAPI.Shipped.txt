@@ -1,5 +1,8 @@
 #nullable enable
 Excalibur.Dispatch.Security.Aws.AwsSecurityEventId
+Excalibur.Dispatch.Security.Aws.ISecurityAwsBuilder
+Excalibur.Dispatch.Security.Aws.ISecurityAwsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Dispatch.Security.Aws.ISecurityAwsBuilder!
+Excalibur.Dispatch.Security.Aws.ISecurityAwsBuilder.Region(string! region) -> Excalibur.Dispatch.Security.Aws.ISecurityAwsBuilder!
 Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions
 const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerCredentialStoreCreated = 70901 -> int
 const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRequestFailed = 70923 -> int
@@ -9,5 +12,4 @@ const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrie
 const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerSecretNotFound = 70921 -> int
 const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerStored = 70926 -> int
 const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerStoring = 70925 -> int
-static Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions.AddAwsSecretsManagerCredentialStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions.AddDispatchSecurityAws(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions.AddDispatchSecurityAws(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Security.Aws.ISecurityAwsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

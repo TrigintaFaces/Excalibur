@@ -5,7 +5,7 @@
 // Excalibur.Data.Firestore -- Getting Started Sample
 //
 // Demonstrates:
-//   1. DI registration with AddFirestore (action-based and IConfiguration-based)
+//   1. DI registration with AddExcaliburFirestore (builder-based)
 //   2. Emulator support for local development
 //   3. CRUD operations via ICloudNativePersistenceProvider
 //   4. Real-time listener subscriptions (change feed)
@@ -30,38 +30,27 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Logging.AddConsole();
 
 // ---------------------------------------------------------------------------
-// Option A: Register Firestore via Action<FirestoreOptions> (preferred for code-first)
+// Option A: Register Firestore via AddExcaliburFirestore builder (preferred for code-first)
 // ---------------------------------------------------------------------------
-builder.Services.AddFirestore(options =>
+builder.Services.AddExcaliburFirestore(firestore =>
 {
     // ProjectId is required for production. When EmulatorHost is set,
     // the SDK uses FIRESTORE_EMULATOR_HOST and ProjectId can be any string.
-    options.ProjectId = "excalibur-sample";
+    firestore.ProjectId("excalibur-sample");
 
     // Point to the local Firestore emulator for development.
     // The emulator avoids the need for real GCP credentials.
-    options.EmulatorHost = "localhost:8086";
+    firestore.EmulatorHost("localhost:8086");
 
     // Default collection used when the partition key does not override it.
-    options.DefaultCollection = "items";
-
-    // Operational tuning
-    options.TimeoutInSeconds = 30;
-    options.MaxRetryAttempts = 3;
+    firestore.CollectionName("items");
 });
 
 // ---------------------------------------------------------------------------
-// Option B (commented): Register from IConfiguration section
+// Option B (commented): Register from IConfiguration via builder
 // ---------------------------------------------------------------------------
-// builder.Services.AddFirestore(
-//     builder.Configuration,
-//     sectionName: "Firestore");
-
-// ---------------------------------------------------------------------------
-// Option C (commented): Register from IConfiguration directly
-// ---------------------------------------------------------------------------
-// builder.Services.AddFirestore(
-//     builder.Configuration.GetSection("Firestore"));
+// builder.Services.AddExcaliburFirestore(firestore =>
+//     firestore.BindConfiguration("Firestore"));
 
 // ---------------------------------------------------------------------------
 // 5. Credential configuration examples (for production, not emulator)

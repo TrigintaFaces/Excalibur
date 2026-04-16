@@ -24,14 +24,14 @@ public sealed class EventSourcingBuilderSqlServerExtensionsShould
 		return new ExcaliburEventSourcingBuilder(svc);
 	}
 
-	#region UseSqlServer(Action<SqlServerEventSourcingOptions>) Tests
+	#region UseSqlServer(Action<ISqlServerEventSourcingBuilder>) Tests
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForConfigureOverload()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((IEventSourcingBuilder)null!).UseSqlServer((Action<SqlServerEventSourcingOptions>)(_ => { })));
+			((IEventSourcingBuilder)null!).UseSqlServer((Action<ISqlServerEventSourcingBuilder>)(_ => { })));
 	}
 
 	[Fact]
@@ -42,7 +42,7 @@ public sealed class EventSourcingBuilderSqlServerExtensionsShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			builder.UseSqlServer((Action<SqlServerEventSourcingOptions>)null!));
+			builder.UseSqlServer((Action<ISqlServerEventSourcingBuilder>)null!));
 	}
 
 	[Fact]
@@ -52,9 +52,9 @@ public sealed class EventSourcingBuilderSqlServerExtensionsShould
 		var builder = CreateBuilder();
 
 		// Act
-		var result = builder.UseSqlServer(opts =>
+		var result = builder.UseSqlServer(sql =>
 		{
-			opts.ConnectionString = TestConnectionString;
+			sql.ConnectionString(TestConnectionString);
 		});
 
 		// Assert
@@ -62,7 +62,7 @@ public sealed class EventSourcingBuilderSqlServerExtensionsShould
 	}
 
 	[Fact]
-	public void InvokeConfigureAction_WhenCalledWithOptions()
+	public void InvokeConfigureAction_WhenCalledWithBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -70,9 +70,9 @@ public sealed class EventSourcingBuilderSqlServerExtensionsShould
 		var configureInvoked = false;
 
 		// Act
-		builder.UseSqlServer(opts =>
+		builder.UseSqlServer(sql =>
 		{
-			opts.ConnectionString = TestConnectionString;
+			sql.ConnectionString(TestConnectionString);
 			configureInvoked = true;
 		});
 
@@ -81,16 +81,16 @@ public sealed class EventSourcingBuilderSqlServerExtensionsShould
 	}
 
 	[Fact]
-	public void RegisterSqlServerEventSourcingOptions_WhenCalledWithConfigure()
+	public void RegisterSqlServerEventSourcingOptions_WhenCalledWithBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateBuilder(services);
 
 		// Act
-		builder.UseSqlServer(opts =>
+		builder.UseSqlServer(sql =>
 		{
-			opts.ConnectionString = TestConnectionString;
+			sql.ConnectionString(TestConnectionString);
 		});
 
 		// Assert
@@ -100,20 +100,20 @@ public sealed class EventSourcingBuilderSqlServerExtensionsShould
 	}
 
 	[Fact]
-	public void RegisterEventStore_WhenCalledWithConfigureAction()
+	public void RegisterEventStore_WhenCalledWithBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var builder = CreateBuilder(services);
 
 		// Act
-		builder.UseSqlServer(opts =>
+		builder.UseSqlServer(sql =>
 		{
-			opts.ConnectionString = TestConnectionString;
+			sql.ConnectionString(TestConnectionString);
 		});
 
 		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IEventStore));
+		services.ShouldContain(sd => sd.ServiceType == typeof(SqlServerEventStore));
 	}
 
 	#endregion
@@ -129,7 +129,7 @@ public sealed class EventSourcingBuilderSqlServerExtensionsShould
 
 		// Act -- verify chaining compiles and returns builder
 		var result = builder
-			.UseSqlServer(opts => opts.ConnectionString = TestConnectionString)
+			.UseSqlServer(sql => sql.ConnectionString(TestConnectionString))
 			.UseIntervalSnapshots(100);
 
 		// Assert

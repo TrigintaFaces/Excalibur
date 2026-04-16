@@ -30,3 +30,11 @@ Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.VerifyChainIntegrity
 Microsoft.Extensions.DependencyInjection.PostgresAuditServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.PostgresAuditServiceCollectionExtensions.AddPostgresAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.PostgresAuditServiceCollectionExtensions.AddPostgresAuditStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder
+Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
+Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.ConnectionString(string! connectionString) -> Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
+Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.ConnectionStringName(string! name) -> Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
+Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.DataSource(Npgsql.NpgsqlDataSource! dataSource) -> Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
+Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
+Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.SchemaName(string! schema) -> Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!
+Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder.TableName(string! tableName) -> Excalibur.Dispatch.AuditLogging.Postgres.IPostgresAuditLoggingBuilder!

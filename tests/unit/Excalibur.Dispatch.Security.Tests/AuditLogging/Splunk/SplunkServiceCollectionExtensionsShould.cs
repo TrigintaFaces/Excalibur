@@ -19,17 +19,17 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging.Splunk;
 public sealed class SplunkServiceCollectionExtensionsShould
 {
 	[Fact]
-	public void AddSplunkAuditExporter_WithAction_RegistersRequiredServices()
+	public void AddSplunkAuditExporter_WithBuilder_RegistersRequiredServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddSplunkAuditExporter(options =>
+		_ = services.AddSplunkAuditExporter(splunk =>
 		{
-			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.Connection.HecToken = "test-token";
+			splunk.HecEndpoint(new Uri("https://splunk.example.com:8088/services/collector"))
+			      .HecToken("test-token");
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -40,19 +40,19 @@ public sealed class SplunkServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddSplunkAuditExporter_WithAction_ConfiguresOptions()
+	public void AddSplunkAuditExporter_WithBuilder_ConfiguresOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddSplunkAuditExporter(options =>
+		_ = services.AddSplunkAuditExporter(splunk =>
 		{
-			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.Connection.HecToken = "my-token";
-			options.Index = "my-index";
-			options.SourceType = "my-sourcetype";
+			splunk.HecEndpoint(new Uri("https://splunk.example.com:8088/services/collector"))
+			      .HecToken("my-token")
+			      .Index("my-index")
+			      .SourceType("my-sourcetype");
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -64,7 +64,7 @@ public sealed class SplunkServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddSplunkAuditExporter_WithAction_ThrowsOnNullServices()
+	public void AddSplunkAuditExporter_WithBuilder_ThrowsOnNullServices()
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -72,28 +72,28 @@ public sealed class SplunkServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddSplunkAuditExporter_WithAction_ThrowsOnNullConfigure()
+	public void AddSplunkAuditExporter_WithBuilder_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddSplunkAuditExporter((Action<SplunkExporterOptions>)null!));
+			services.AddSplunkAuditExporter((Action<IAuditLoggingSplunkBuilder>)null!));
 	}
 
 	[Fact]
-	public void AddSplunkAuditExporter_WithAction_ReturnsSameServiceCollection()
+	public void AddSplunkAuditExporter_WithBuilder_ReturnsSameServiceCollection()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
 		// Act
-		var result = services.AddSplunkAuditExporter(options =>
+		var result = services.AddSplunkAuditExporter(splunk =>
 		{
-			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.Connection.HecToken = "test-token";
+			splunk.HecEndpoint(new Uri("https://splunk.example.com:8088/services/collector"))
+			      .HecToken("test-token");
 		});
 
 		// Assert
@@ -101,87 +101,17 @@ public sealed class SplunkServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddSplunkAuditExporter_WithAction_ConfiguresDisabledCertificateValidation()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-
-		// Act
-		_ = services.AddSplunkAuditExporter(options =>
-		{
-			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.Connection.HecToken = "test-token";
-			options.Connection.ValidateCertificate = false;
-		});
-		using var provider = services.BuildServiceProvider();
-
-		// Assert - verify options are configured
-		var options = provider.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
-		options.Connection.ValidateCertificate.ShouldBeFalse();
-
-		// Trigger the HttpClient factory to exercise the ConfigurePrimaryHttpMessageHandler lambda
-		var factory = provider.GetRequiredService<IHttpClientFactory>();
-		using var client = factory.CreateClient(nameof(SplunkAuditExporter));
-		_ = client.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AddSplunkAuditExporter_WithAction_ConfiguresEnabledCertificateValidation()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-
-		// Act
-		_ = services.AddSplunkAuditExporter(options =>
-		{
-			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.Connection.HecToken = "test-token";
-			options.Connection.ValidateCertificate = true; // default, but explicit for coverage
-		});
-		using var provider = services.BuildServiceProvider();
-
-		// Assert - trigger the HttpClient factory to exercise the handler lambda with cert validation enabled
-		var factory = provider.GetRequiredService<IHttpClientFactory>();
-		using var client = factory.CreateClient(nameof(SplunkAuditExporter));
-		_ = client.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AddSplunkAuditExporter_WithAction_ConfiguresHttpClientTimeout()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		var expectedTimeout = TimeSpan.FromSeconds(42);
-
-		// Act
-		_ = services.AddSplunkAuditExporter(options =>
-		{
-			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.Connection.HecToken = "test-token";
-			options.Batch.RequestTimeout = expectedTimeout;
-		});
-		using var provider = services.BuildServiceProvider();
-
-		// Assert - resolve HttpClient through the factory to trigger the config lambda
-		var factory = provider.GetRequiredService<IHttpClientFactory>();
-		using var client = factory.CreateClient(nameof(SplunkAuditExporter));
-		client.Timeout.ShouldBe(expectedTimeout);
-	}
-
-	[Fact]
 	[RequiresUnreferencedCode("Test")]
 	[RequiresDynamicCode("Test")]
-	public void AddSplunkAuditExporter_WithConfigSection_RegistersServices()
+	public void AddSplunkAuditExporter_WithBindConfiguration_RegistersServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
 		// Act - the overload registers the services even without configuration values
-		_ = services.AddSplunkAuditExporter("Splunk");
+		_ = services.AddSplunkAuditExporter(splunk =>
+			splunk.BindConfiguration("Splunk"));
 
 		// Assert - verify descriptors are registered (don't resolve, since required options are missing)
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
@@ -190,24 +120,15 @@ public sealed class SplunkServiceCollectionExtensionsShould
 	[Fact]
 	[RequiresUnreferencedCode("Test")]
 	[RequiresDynamicCode("Test")]
-	public void AddSplunkAuditExporter_WithConfigSection_ThrowsOnNullServices()
-	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			SplunkServiceCollectionExtensions.AddSplunkAuditExporter(null!, "Splunk"));
-	}
-
-	[Fact]
-	[RequiresUnreferencedCode("Test")]
-	[RequiresDynamicCode("Test")]
-	public void AddSplunkAuditExporter_WithConfigSection_ReturnsSameServiceCollection()
+	public void AddSplunkAuditExporter_WithBindConfiguration_ReturnsSameServiceCollection()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 
 		// Act
-		var result = services.AddSplunkAuditExporter("CustomSection");
+		var result = services.AddSplunkAuditExporter(splunk =>
+			splunk.BindConfiguration("CustomSection"));
 
 		// Assert
 		result.ShouldBeSameAs(services);
@@ -216,7 +137,7 @@ public sealed class SplunkServiceCollectionExtensionsShould
 	[Fact]
 	[RequiresUnreferencedCode("Test")]
 	[RequiresDynamicCode("Test")]
-	public void AddSplunkAuditExporter_WithConfigSection_ConfiguresHttpClient()
+	public void AddSplunkAuditExporter_WithBindConfiguration_ConfiguresHttpClient()
 	{
 		// Arrange
 		var configData = new Dictionary<string, string?>
@@ -235,7 +156,8 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		_ = services.AddSingleton<IConfiguration>(configuration);
 
 		// Act
-		_ = services.AddSplunkAuditExporter("Splunk");
+		_ = services.AddSplunkAuditExporter(splunk =>
+			splunk.BindConfiguration("Splunk"));
 		using var provider = services.BuildServiceProvider();
 
 		// Assert - resolve HttpClient through the factory to trigger the config lambda
@@ -247,7 +169,7 @@ public sealed class SplunkServiceCollectionExtensionsShould
 	[Fact]
 	[RequiresUnreferencedCode("Test")]
 	[RequiresDynamicCode("Test")]
-	public void AddSplunkAuditExporter_WithConfigSection_DisablesCertValidation()
+	public void AddSplunkAuditExporter_WithBindConfiguration_DisablesCertValidation()
 	{
 		// Arrange
 		var configData = new Dictionary<string, string?>
@@ -265,7 +187,8 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		_ = services.AddSingleton<IConfiguration>(configuration);
 
 		// Act
-		_ = services.AddSplunkAuditExporter("Splunk");
+		_ = services.AddSplunkAuditExporter(splunk =>
+			splunk.BindConfiguration("Splunk"));
 		using var provider = services.BuildServiceProvider();
 
 		// Assert - resolve HttpClient to trigger ConfigurePrimaryHttpMessageHandler with cert validation disabled

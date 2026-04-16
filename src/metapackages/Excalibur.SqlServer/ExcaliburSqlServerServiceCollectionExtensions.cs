@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Saga.SqlServer.DependencyInjection;
 using Excalibur.SqlServer;
 
 using Microsoft.Extensions.Configuration;
@@ -28,7 +29,7 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 	/// {
 	///     sql.ConnectionString = connectionString;
 	///     sql.UseLeaderElection = true;
-	///     sql.ConfigureSaga(saga => saga.SchemaName = "custom");
+	///     sql.ConfigureSaga(saga => saga.SchemaName("custom"));
 	///     sql.ConfigureAuditLogging(audit => audit.SchemaName = "audit");
 	/// });
 	/// </code>
@@ -77,34 +78,38 @@ public static class ExcaliburSqlServerServiceCollectionExtensions
 		// Core: Dispatch + EventSourcing + Outbox + Hosting (via starter metapackage)
 		_ = services.AddDispatchWithSqlServer(options.ConnectionString, options.DispatchConfiguration);
 
-		// Inbox
+		// Inbox (builder API)
 		if (options.UseInbox)
 		{
 			_ = services.AddExcaliburInbox(inbox =>
 				inbox.UseSqlServer(sql =>
 				{
-					sql.ConnectionString = options.ConnectionString;
+					sql.ConnectionString(options.ConnectionString);
 					options.InboxConfiguration?.Invoke(sql);
 				}));
 		}
 
-		// Saga
+		// Saga (builder API)
 		if (options.UseSaga)
 		{
-			_ = services.AddSqlServerSagaStore(saga =>
-			{
-				saga.ConnectionString = options.ConnectionString;
-				options.SagaConfiguration?.Invoke(saga);
-			});
+			_ = services.AddExcaliburSaga(saga =>
+				saga.UseSqlServer(sql =>
+				{
+					sql.ConnectionString(options.ConnectionString);
+					options.SagaConfiguration?.Invoke(sql);
+				}));
 		}
 
-		// Leader Election
+		// Leader Election (builder API)
 		if (options.UseLeaderElection)
 		{
-			_ = services.AddSqlServerLeaderElection(
-				options.ConnectionString,
-				"excalibur-leader",
-				le => options.LeaderElectionConfiguration?.Invoke(le));
+			_ = services.AddExcaliburLeaderElection(le =>
+				le.UseSqlServer(sql =>
+				{
+					sql.ConnectionString(options.ConnectionString)
+					   .LockResource("excalibur-leader");
+					options.LeaderElectionConfiguration?.Invoke(sql);
+				}));
 		}
 
 		// Audit Logging

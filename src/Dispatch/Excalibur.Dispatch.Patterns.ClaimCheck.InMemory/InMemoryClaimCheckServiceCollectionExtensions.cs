@@ -102,6 +102,65 @@ public static class InMemoryClaimCheckServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds the in-memory claim check provider to the service collection using a fluent builder.
+	/// </summary>
+	/// <param name="services">The service collection to add services to.</param>
+	/// <param name="configure">An action to configure the in-memory claim check provider using the fluent builder.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This overload provides a fluent builder API for configuring the in-memory claim check provider.
+	/// Cleanup behavior is controlled via <see cref="IInMemoryClaimCheckBuilder.EnableCleanup"/>.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddInMemoryClaimCheck(inmemory =>
+	/// {
+	///     inmemory.PayloadThreshold(128 * 1024)
+	///             .EnableCompression(true)
+	///             .DefaultTtl(TimeSpan.FromDays(3))
+	///             .EnableCleanup(false);
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddInMemoryClaimCheck(
+		this IServiceCollection services,
+		Action<IInMemoryClaimCheckBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var claimCheckOptions = new ClaimCheckOptions();
+		var builder = new InMemoryClaimCheckBuilder(claimCheckOptions);
+		configure(builder);
+
+		var optionsBuilder = services.AddOptions<ClaimCheckOptions>()
+			.Configure(opt =>
+			{
+				opt.PayloadThreshold = claimCheckOptions.PayloadThreshold;
+				opt.ValidateChecksum = claimCheckOptions.ValidateChecksum;
+				opt.EnableCompression = claimCheckOptions.EnableCompression;
+				opt.EnableCleanup = claimCheckOptions.EnableCleanup;
+				opt.DefaultTtl = claimCheckOptions.DefaultTtl;
+			});
+		optionsBuilder.ValidateOnStart();
+
+		// Register the provider
+		services.TryAddSingleton<InMemoryClaimCheckProvider>();
+		services.TryAddSingleton<IClaimCheckProvider>(static sp =>
+			sp.GetRequiredService<InMemoryClaimCheckProvider>());
+
+		// Register background cleanup service if enabled
+		if (builder.CleanupEnabled)
+		{
+			_ = services.AddHostedService<InMemoryClaimCheckCleanupService>();
+		}
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds the in-memory claim check provider to the service collection with configuration binding.
 	/// </summary>
 	/// <param name="services">The service collection to add services to.</param>

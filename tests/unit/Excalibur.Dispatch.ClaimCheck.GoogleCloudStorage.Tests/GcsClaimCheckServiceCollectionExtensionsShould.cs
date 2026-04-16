@@ -23,7 +23,7 @@ public sealed class GcsClaimCheckServiceCollectionExtensionsShould : UnitTestBas
 				_ => { }));
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddGcsClaimCheck((Action<GcsClaimCheckOptions>)null!));
+			services.AddGcsClaimCheck((Action<IClaimCheckGcsBuilder>)null!));
 	}
 
 	[Fact]
@@ -31,17 +31,11 @@ public sealed class GcsClaimCheckServiceCollectionExtensionsShould : UnitTestBas
 	{
 		var services = new ServiceCollection();
 
-		_ = services.AddGcsClaimCheck(
-			configure: options =>
-			{
-				options.BucketName = "dispatch-bucket";
-				options.Prefix = "tenant-b/";
-			},
-			configureClaimCheck: options =>
-			{
-				options.IdPrefix = "gcs-";
-				options.PayloadThreshold = 8192;
-			});
+		_ = services.AddGcsClaimCheck(gcs =>
+		{
+			gcs.BucketName("dispatch-bucket")
+			   .Prefix("tenant-b/");
+		});
 
 		var providerDescriptor = services.SingleOrDefault(descriptor =>
 			descriptor.ServiceType == typeof(IClaimCheckProvider));
@@ -53,20 +47,17 @@ public sealed class GcsClaimCheckServiceCollectionExtensionsShould : UnitTestBas
 		using var provider = services.BuildServiceProvider();
 
 		var gcsOptions = provider.GetRequiredService<IOptions<GcsClaimCheckOptions>>().Value;
-		var claimCheckOptions = provider.GetRequiredService<IOptions<ClaimCheckOptions>>().Value;
 
 		gcsOptions.BucketName.ShouldBe("dispatch-bucket");
 		gcsOptions.Prefix.ShouldBe("tenant-b/");
-		claimCheckOptions.IdPrefix.ShouldBe("gcs-");
-		claimCheckOptions.PayloadThreshold.ShouldBe(8192);
 	}
 
 	[Fact]
-	public void AddGcsClaimCheck_WithoutClaimCheckConfigurator_ShouldKeepClaimCheckDefaults()
+	public void AddGcsClaimCheck_WithBucketOnly_ShouldKeepClaimCheckDefaults()
 	{
 		var services = new ServiceCollection();
 
-		_ = services.AddGcsClaimCheck(options => options.BucketName = "dispatch-bucket");
+		_ = services.AddGcsClaimCheck(gcs => gcs.BucketName("dispatch-bucket"));
 
 		using var provider = services.BuildServiceProvider();
 		var claimCheckOptions = provider.GetRequiredService<IOptions<ClaimCheckOptions>>().Value;

@@ -10,6 +10,9 @@
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.CosmosDb.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />

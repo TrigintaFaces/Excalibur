@@ -50,9 +50,26 @@ var host = Host.CreateDefaultBuilder(args)
 			_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 		});
 
-		// Add Azure Key Vault credential store
+		// Add Azure Key Vault credential store via builder pattern
 		// This registers ICredentialStore and IWritableCredentialStore
-		_ = services.AddAzureKeyVaultCredentialStore(context.Configuration);
+		_ = services.AddDispatchSecurityAzure(azure =>
+		{
+			var vaultUri = context.Configuration["AzureKeyVault:VaultUri"];
+			if (!string.IsNullOrEmpty(vaultUri))
+			{
+				azure.VaultUri(vaultUri);
+				var prefix = context.Configuration["AzureKeyVault:KeyPrefix"];
+				if (!string.IsNullOrEmpty(prefix))
+				{
+					azure.KeyPrefix(prefix);
+				}
+			}
+			else
+			{
+				// Fallback: bind from configuration section
+				azure.BindConfiguration("AzureKeyVault");
+			}
+		});
 
 		// Register sample services
 		_ = services.AddSingleton<SecretDemoService>();

@@ -1,13 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Compliance.Vault;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -22,91 +20,67 @@ public static class VaultServiceCollectionExtensions
 	/// Adds HashiCorp Vault key management services to the service collection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="configure">An action to configure the Vault options.</param>
+	/// <param name="configure">Configuration action for the Vault compliance builder.</param>
 	/// <returns>The service collection for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
 	/// <example>
 	/// <code>
-	/// services.AddVaultKeyManagement(options =>
+	/// services.AddVaultKeyManagement(vault =&gt;
 	/// {
-	///     options.VaultUri = new Uri("https://vault.example.com:8200");
-	///     options.Auth.AuthMethod = VaultAuthMethod.AppRole;
-	///     options.Auth.AppRoleId = "role-id";
-	///     options.Auth.AppRoleSecretId = "secret-id";
+	///     vault.VaultUri(new Uri("https://vault.example.com:8200"))
+	///          .TransitMountPath("transit")
+	///          .KeyNamePrefix("myapp-");
 	/// });
 	/// </code>
 	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static IServiceCollection AddVaultKeyManagement(
 		this IServiceCollection services,
-		Action<VaultOptions> configure)
+		Action<IComplianceVaultBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		// Configure options with validation
-		_ = services.AddOptions<VaultOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+		var options = new VaultOptions();
+		var builder = new ComplianceVaultBuilder(options);
+		configure(builder);
 
-		RegisterVaultCore(services);
+		RegisterOptionsAndServices(services, builder, options);
 
 		return services;
 	}
 
-	/// <summary>
-	/// Adds HashiCorp Vault key management services with a pre-configured options instance.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="options">The pre-configured options.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <exception cref="ArgumentNullException">Thrown when services or options is null.</exception>
-	public static IServiceCollection AddVaultKeyManagement(
-		this IServiceCollection services,
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IServiceCollection services,
+		ComplianceVaultBuilder builder,
 		VaultOptions options)
 	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(options);
-
-		return services.AddVaultKeyManagement(o =>
+		_ = services.Configure<VaultOptions>(opt =>
 		{
-			o.VaultUri = options.VaultUri;
-			o.TransitMountPath = options.TransitMountPath;
-			o.KeyNamePrefix = options.KeyNamePrefix;
-			o.Namespace = options.Namespace;
-			o.MetadataCacheDuration = options.MetadataCacheDuration;
-			o.HttpTimeout = options.HttpTimeout;
-			o.EnableDetailedTelemetry = options.EnableDetailedTelemetry;
-			o.Auth = options.Auth;
-			o.Keys = options.Keys;
-			o.Retry = options.Retry;
+			opt.VaultUri = options.VaultUri;
+			opt.TransitMountPath = options.TransitMountPath;
+			opt.KeyNamePrefix = options.KeyNamePrefix;
+			opt.Namespace = options.Namespace;
+			opt.EnableDetailedTelemetry = options.EnableDetailedTelemetry;
 		});
-	}
 
-	/// <summary>
-	/// Adds HashiCorp Vault key management services using configuration from the specified section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configurationSection">The configuration section containing Vault settings.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <exception cref="ArgumentNullException">Thrown when services or configurationSection is null.</exception>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddVaultKeyManagement(
-		this IServiceCollection services,
-		IConfigurationSection configurationSection)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configurationSection);
+		if (builder.BindConfigurationPath is not null)
+		{
+			_ = services.AddOptions<VaultOptions>()
+				.BindConfiguration(builder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
 
-		_ = services.AddOptions<VaultOptions>()
-			.Configure(options => configurationSection.Bind(options))
-			.ValidateOnStart();
+		_ = services.AddOptions<VaultOptions>().ValidateOnStart();
 
 		RegisterVaultCore(services);
-
-		return services;
 	}
 
 	private static void RegisterVaultCore(IServiceCollection services)

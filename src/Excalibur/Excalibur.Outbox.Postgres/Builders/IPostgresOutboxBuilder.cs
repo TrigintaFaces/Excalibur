@@ -105,4 +105,34 @@ public interface IPostgresOutboxBuilder
 	/// </remarks>
 	IPostgresOutboxBuilder DeadLetterTableName(string tableName);
 
+	/// <summary>
+	/// Resolves the connection string from <c>IConfiguration.GetConnectionString(name)</c>.
+	/// </summary>
+	/// <param name="name">The connection string name.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IPostgresOutboxBuilder ConnectionStringName(string name);
+
+	/// <summary>
+	/// Binds options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.
+	/// </summary>
+	/// <param name="sectionPath">The configuration section path.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IPostgresOutboxBuilder BindConfiguration(string sectionPath);
+
+	/// <summary>
+	/// Sets a pre-configured <see cref="Npgsql.NpgsqlDataSource"/> directly.
+	/// </summary>
+	/// <param name="dataSource">The Npgsql data source.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IPostgresOutboxBuilder DataSource(Npgsql.NpgsqlDataSource dataSource);
+
+	/// <summary>
+	/// Sets a factory function that creates an <see cref="Npgsql.NpgsqlDataSource"/>.
+	/// </summary>
+	/// <param name="dataSourceFactory">
+	/// A factory receiving <see cref="IServiceProvider"/> and returning an <see cref="Npgsql.NpgsqlDataSource"/>.
+	/// </param>
+	/// <returns>The builder for fluent chaining.</returns>
+	IPostgresOutboxBuilder DataSourceFactory(Func<IServiceProvider, Npgsql.NpgsqlDataSource> dataSourceFactory);
+
 }

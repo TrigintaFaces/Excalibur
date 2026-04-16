@@ -97,10 +97,13 @@ Cloud providers (CosmosDB, DynamoDB, Firestore) primarily use SDK-managed retry 
 
 ```csharp
 // CosmosDB - SDK handles 408, 503, 504, 429 automatically
-services.AddCosmosDbEventStore(options =>
+services.AddExcaliburEventSourcing(es =>
 {
-    options.MaxRetryAttemptsOnRateLimitedRequests = 9;
-    options.MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(30);
+    es.UseCosmosDb(cosmos =>
+    {
+        cosmos.ConnectionString(connectionString)
+              .DatabaseName("events");
+    });
 });
 ```
 

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using MongoDB.Driver;
+
 namespace Excalibur.Cdc.MongoDB;
 
 /// <summary>
@@ -21,11 +23,39 @@ internal sealed class MongoDbCdcBuilder : IMongoDbCdcBuilder
 	/// <summary>Gets the source BindConfiguration section path.</summary>
 	internal string? SourceBindConfigurationPath { get; private set; }
 
+	/// <summary>Gets the pre-configured client instance.</summary>
+	internal IMongoClient? ClientInstance { get; private set; }
+
+	/// <summary>Gets the client factory.</summary>
+	internal Func<IServiceProvider, IMongoClient>? ClientFactoryFunc { get; private set; }
+
 	/// <inheritdoc/>
 	public IMongoDbCdcBuilder ConnectionString(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		_options.Connection.ConnectionString = connectionString;
+		ClientInstance = null;
+		ClientFactoryFunc = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IMongoDbCdcBuilder Client(IMongoClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		ClientInstance = client;
+		_options.Connection.ConnectionString = null!;
+		ClientFactoryFunc = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IMongoDbCdcBuilder ClientFactory(Func<IServiceProvider, IMongoClient> clientFactory)
+	{
+		ArgumentNullException.ThrowIfNull(clientFactory);
+		ClientFactoryFunc = clientFactory;
+		_options.Connection.ConnectionString = null!;
+		ClientInstance = null;
 		return this;
 	}
 

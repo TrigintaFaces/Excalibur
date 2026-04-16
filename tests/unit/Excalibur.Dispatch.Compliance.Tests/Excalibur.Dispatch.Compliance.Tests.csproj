@@ -18,6 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Aws\Excalibur.Dispatch.Compliance.Aws.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Azure\Excalibur.Dispatch.Compliance.Azure.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Vault\Excalibur.Dispatch.Compliance.Vault.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

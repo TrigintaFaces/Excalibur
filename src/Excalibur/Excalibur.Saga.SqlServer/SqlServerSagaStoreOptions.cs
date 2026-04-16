@@ -15,8 +15,10 @@ public sealed class SqlServerSagaStoreOptions
 	/// <summary>
 	/// Gets or sets the SQL Server connection string.
 	/// </summary>
-	/// <value>The connection string. Required.</value>
-	[Required]
+	/// <value>The connection string, or <see langword="null"/> when using
+	/// <see cref="ISqlServerSagaBuilder.ConnectionFactory"/>,
+	/// <see cref="ISqlServerSagaBuilder.ConnectionStringName"/>, or
+	/// <see cref="ISqlServerSagaBuilder.BindConfiguration"/>.</value>
 	public string? ConnectionString { get; set; }
 
 	/// <summary>

@@ -1,9 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.AuditLogging.Elasticsearch;
 using Excalibur.Dispatch.Compliance;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -20,35 +18,12 @@ public sealed class ElasticsearchServiceCollectionExtensionsShould
 	{
 		var services = new ServiceCollection();
 
-		services.AddElasticsearchAuditExporter(o =>
+		services.AddElasticsearchAuditExporter(es =>
 		{
-			o.ElasticsearchUrl = "https://es.local:9200";
+			es.NodeUri(new Uri("https://es.local:9200"));
 		});
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
-	}
-
-	[Fact]
-	[RequiresDynamicCode("Test")]
-	[RequiresUnreferencedCode("Test")]
-	public void Configure_http_client_timeout_from_options()
-	{
-		var services = new ServiceCollection();
-
-		services.AddElasticsearchAuditExporter(o =>
-		{
-			o.ElasticsearchUrl = "https://es.local:9200";
-			o.Timeout = TimeSpan.FromSeconds(8);
-		});
-
-		using var provider = services.BuildServiceProvider();
-		var exporter = provider.GetRequiredService<ElasticsearchAuditExporter>();
-
-		var httpClientField = typeof(ElasticsearchAuditExporter)
-			.GetField("_httpClient", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-		var httpClient = (HttpClient)httpClientField.GetValue(exporter)!;
-
-		httpClient.Timeout.ShouldBe(TimeSpan.FromSeconds(8));
 	}
 
 	[Fact]
@@ -68,63 +43,35 @@ public sealed class ElasticsearchServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddElasticsearchAuditExporter((Action<ElasticsearchExporterOptions>)null!));
+			services.AddElasticsearchAuditExporter((Action<IAuditLoggingElasticsearchBuilder>)null!));
 	}
-
-	// --- IConfiguration overload tests ---
 
 	[Fact]
 	[RequiresDynamicCode("Test")]
 	[RequiresUnreferencedCode("Test")]
-	public void Register_exporter_services_with_IConfiguration_overload()
+	public void Register_exporter_services_with_BindConfiguration()
 	{
 		var services = new ServiceCollection();
-		var config = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["ElasticsearchUrl"] = "https://es.local:9200"
-			})
-			.Build();
 
-		services.AddElasticsearchAuditExporter(config);
+		services.AddElasticsearchAuditExporter(es =>
+		{
+			es.BindConfiguration("AuditLogging:Elasticsearch");
+		});
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
 	}
 
 	[Fact]
-	[RequiresDynamicCode("Test")]
-	[RequiresUnreferencedCode("Test")]
-	public void Throw_for_null_configuration_on_exporter()
+	public void Register_sink_services_with_builder()
 	{
 		var services = new ServiceCollection();
 
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddElasticsearchAuditExporter((IConfiguration)null!));
-	}
-
-	[Fact]
-	public void Register_sink_services_with_IConfiguration_overload()
-	{
-		var services = new ServiceCollection();
-		var config = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["ElasticsearchUrl"] = "https://es.local:9200"
-			})
-			.Build();
-
-		services.AddElasticsearchAuditSink(config);
+		services.AddElasticsearchAuditSink(es =>
+		{
+			es.NodeUri(new Uri("https://es.local:9200"));
+		});
 
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IValidateOptions<ElasticsearchAuditSinkOptions>));
-	}
-
-	[Fact]
-	public void Throw_for_null_configuration_on_sink()
-	{
-		var services = new ServiceCollection();
-
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddElasticsearchAuditSink((IConfiguration)null!));
 	}
 }

@@ -14,6 +14,9 @@
     <TrimmerDefaultAction>link</TrimmerDefaultAction>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Npgsql" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />

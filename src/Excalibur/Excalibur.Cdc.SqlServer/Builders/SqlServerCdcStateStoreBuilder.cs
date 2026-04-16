@@ -4,10 +4,10 @@
 namespace Excalibur.Cdc.SqlServer;
 
 /// <summary>
-/// Internal implementation of <see cref="ICdcStateStoreBuilder"/> for SQL Server CDC.
+/// Internal implementation of <see cref="ICdcRelationalStateStoreBuilder"/> for SQL Server CDC.
 /// Configures <see cref="SqlServerCdcStateStoreOptions"/>.
 /// </summary>
-internal sealed class SqlServerCdcStateStoreBuilder : ICdcStateStoreBuilder
+internal sealed class SqlServerCdcStateStoreBuilder : ICdcRelationalStateStoreBuilder
 {
 	private readonly SqlServerCdcStateStoreOptions _options;
 
@@ -32,7 +32,7 @@ internal sealed class SqlServerCdcStateStoreBuilder : ICdcStateStoreBuilder
 	internal string? StateConnectionStringName { get; private set; }
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder ConnectionString(string connectionString)
+	public ICdcRelationalStateStoreBuilder ConnectionString(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
@@ -41,7 +41,7 @@ internal sealed class SqlServerCdcStateStoreBuilder : ICdcStateStoreBuilder
 	}
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder ConnectionStringName(string name)
+	public ICdcRelationalStateStoreBuilder ConnectionStringName(string name)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -50,7 +50,7 @@ internal sealed class SqlServerCdcStateStoreBuilder : ICdcStateStoreBuilder
 	}
 
 	/// <inheritdoc/>
-	public ICdcStateStoreBuilder SchemaName(string schema)
+	public ICdcRelationalStateStoreBuilder SchemaName(string schema)
 	{
 		if (string.IsNullOrWhiteSpace(schema))
 		{

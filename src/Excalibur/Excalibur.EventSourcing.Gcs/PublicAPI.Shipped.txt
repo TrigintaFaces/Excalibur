@@ -5,5 +5,14 @@ Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.BucketN
 Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.GcsColdEventStoreOptions() -> void
 Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.ObjectPrefix.get -> string!
 Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions.ObjectPrefix.set -> void
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder.BucketName(string! bucketName) -> Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder.Client(Google.Cloud.Storage.V1.StorageClient! client) -> Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder.ClientFactory(System.Func<System.IServiceProvider!, Google.Cloud.Storage.V1.StorageClient!>! clientFactory) -> Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder.CredentialsJson(string! credentialsJson) -> Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder.ObjectPrefix(string! objectPrefix) -> Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!
+Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder.ProjectId(string! projectId) -> Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!
 Microsoft.Extensions.DependencyInjection.GcsColdEventStoreExtensions
-static Microsoft.Extensions.DependencyInjection.GcsColdEventStoreExtensions.UseGcsColdEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Gcs.DependencyInjection.GcsColdEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.GcsColdEventStoreExtensions.UseGcsColdEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Gcs.IEventSourcingGcsBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

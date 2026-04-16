@@ -9,6 +9,9 @@
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">

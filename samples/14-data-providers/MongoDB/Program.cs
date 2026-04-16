@@ -34,28 +34,14 @@ using MongoDB.Driver;
 var builder = Host.CreateApplicationBuilder(args);
 
 // ── 1. DI Registration ─────────────────────────────────────────────────────
-// Register MongoDB services with options configured inline.
-// Connection pooling is configured via the Pooling sub-options.
-builder.Services.AddExcaliburMongoDb(options =>
+// Register MongoDB services via the builder API.
+// ConnectionString and DatabaseName are configured through fluent methods.
+builder.Services.AddExcaliburMongoDb(mongo =>
 {
-    options.ConnectionString = builder.Configuration["MongoDB:ConnectionString"]
-                               ?? "mongodb://localhost:27017";
-    options.DatabaseName = builder.Configuration["MongoDB:DatabaseName"]
-                           ?? "ExcaliburSample";
-    options.UseSsl = false;
-    options.RetryCount = 3;
-    options.ServerSelectionTimeout = 10;
-    options.ConnectTimeout = 10;
-
-    // 5. Connection pooling configuration
-    options.Pooling = new MongoDbPoolingOptions
-    {
-        MaxPoolSize = 50,
-        MinPoolSize = 5,
-    };
-
-    // Enable transactions (requires a replica set)
-    options.UseTransactions = false;
+    mongo.ConnectionString(builder.Configuration["MongoDB:ConnectionString"]
+                           ?? "mongodb://localhost:27017");
+    mongo.DatabaseName(builder.Configuration["MongoDB:DatabaseName"]
+                       ?? "ExcaliburSample");
 });
 
 var app = builder.Build();

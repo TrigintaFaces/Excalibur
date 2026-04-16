@@ -15,7 +15,7 @@ using Microsoft.Extensions.Hosting;
 // ============================================================================
 //
 // Demonstrates ALL Excalibur CosmosDB capabilities:
-//   1. DI registration with AddCosmosDb()
+//   1. DI registration with AddExcaliburCosmosDb(Action<ICosmosDbDataBuilder>)
 //   2. Connection testing via TestConnectionAsync()
 //   3. CRUD operations: Create, GetById, Query, Delete
 //   4. Transactional batch execution
@@ -34,17 +34,22 @@ using Microsoft.Extensions.Hosting;
 var builder = Host.CreateApplicationBuilder(args);
 
 // ---------------------------------------------------------------------------
-// 1. DI Registration -- AddCosmosDb with options delegate
+// 1. DI Registration -- AddExcaliburCosmosDb with fluent builder
 // ---------------------------------------------------------------------------
-builder.Services.AddCosmosDb(options =>
+builder.Services.AddExcaliburCosmosDb(cosmos =>
 {
     // Connection: use emulator defaults (from appsettings.json or inline)
-    options.Client.AccountEndpoint = "https://localhost:8081";
-    options.Client.AccountKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+    cosmos.Endpoint(
+        "https://localhost:8081",
+        "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==")
+        .DatabaseName("ExcaliburSample")
+        .ContainerName("Items");
+});
 
+// Advanced options via Configure<CosmosDbOptions> post-configure
+builder.Services.Configure<CosmosDbOptions>(options =>
+{
     options.Name = "SampleProvider";
-    options.DatabaseName = "ExcaliburSample";
-    options.DefaultContainerName = "Items";
     options.DefaultPartitionKeyPath = "/category";
 
     // 7. Multi-region awareness -- configure preferred regions for geo-redundancy

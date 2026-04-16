@@ -346,9 +346,9 @@ public sealed class LeaderElectionBuilderShould
 		var extensionType = typeof(RedisLeaderElectionBuilderExtensions);
 		var method = extensionType.GetMethod("UseRedis",
 			BindingFlags.Public | BindingFlags.Static,
-			[typeof(ILeaderElectionBuilder), typeof(string)]);
+			[typeof(ILeaderElectionBuilder), typeof(Action<IRedisLeaderElectionBuilder>)]);
 
-		method.ShouldNotBeNull("UseRedis(builder, lockKey) must exist");
+		method.ShouldNotBeNull("UseRedis(builder, Action<IRedisLeaderElectionBuilder>) must exist");
 	}
 
 	[Fact]

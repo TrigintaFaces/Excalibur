@@ -3,6 +3,8 @@
 
 using Excalibur.Data.Abstractions;
 
+using Npgsql;
+
 namespace Excalibur.Outbox.Postgres;
 
 /// <summary>
@@ -31,12 +33,21 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	/// </summary>
 	internal Func<IServiceProvider, IDb>? ConfiguredDbFactory { get; private set; }
 
+	internal string? ConnectionStringNameValue { get; private set; }
+	internal string? BindConfigurationPath { get; private set; }
+	internal NpgsqlDataSource? DataSourceInstance { get; private set; }
+	internal Func<IServiceProvider, NpgsqlDataSource>? DataSourceFactoryFunc { get; private set; }
+
 	/// <inheritdoc/>
 	public IPostgresOutboxBuilder ConnectionString(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ConfiguredConnectionString = connectionString;
-		ConfiguredDbFactory = null; // Last one wins
+		ConfiguredDbFactory = null;
+		ConnectionStringNameValue = null;
+		BindConfigurationPath = null;
+		DataSourceInstance = null;
+		DataSourceFactoryFunc = null;
 		return this;
 	}
 
@@ -45,7 +56,11 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	{
 		ArgumentNullException.ThrowIfNull(dbFactory);
 		ConfiguredDbFactory = dbFactory;
-		ConfiguredConnectionString = null; // Last one wins
+		ConfiguredConnectionString = null;
+		ConnectionStringNameValue = null;
+		BindConfigurationPath = null;
+		DataSourceInstance = null;
+		DataSourceFactoryFunc = null;
 		return this;
 	}
 
@@ -103,6 +118,58 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maxAttempts, 0);
 		_options.MaxAttempts = maxAttempts;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IPostgresOutboxBuilder ConnectionStringName(string name)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		ConnectionStringNameValue = name;
+		ConfiguredConnectionString = null;
+		ConfiguredDbFactory = null;
+		DataSourceInstance = null;
+		DataSourceFactoryFunc = null;
+		BindConfigurationPath = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IPostgresOutboxBuilder BindConfiguration(string sectionPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+		BindConfigurationPath = sectionPath;
+		ConfiguredConnectionString = null;
+		ConfiguredDbFactory = null;
+		DataSourceInstance = null;
+		DataSourceFactoryFunc = null;
+		ConnectionStringNameValue = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IPostgresOutboxBuilder DataSource(NpgsqlDataSource dataSource)
+	{
+		ArgumentNullException.ThrowIfNull(dataSource);
+		DataSourceInstance = dataSource;
+		ConfiguredConnectionString = null;
+		ConfiguredDbFactory = null;
+		DataSourceFactoryFunc = null;
+		ConnectionStringNameValue = null;
+		BindConfigurationPath = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IPostgresOutboxBuilder DataSourceFactory(Func<IServiceProvider, NpgsqlDataSource> dataSourceFactory)
+	{
+		ArgumentNullException.ThrowIfNull(dataSourceFactory);
+		DataSourceFactoryFunc = dataSourceFactory;
+		ConfiguredConnectionString = null;
+		ConfiguredDbFactory = null;
+		DataSourceInstance = null;
+		ConnectionStringNameValue = null;
+		BindConfigurationPath = null;
 		return this;
 	}
 }

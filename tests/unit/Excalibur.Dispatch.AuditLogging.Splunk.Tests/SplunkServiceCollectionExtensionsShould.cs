@@ -9,14 +9,14 @@ namespace Excalibur.Dispatch.AuditLogging.Splunk.Tests;
 public sealed class SplunkServiceCollectionExtensionsShould
 {
 	[Fact]
-	public void Register_exporter_services_with_action()
+	public void Register_exporter_services_with_builder()
 	{
 		var services = new ServiceCollection();
 
-		services.AddSplunkAuditExporter(o =>
+		services.AddSplunkAuditExporter(splunk =>
 		{
-			o.Connection.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
-			o.Connection.HecToken = "test-token";
+			splunk.HecEndpoint(new Uri("https://splunk.local:8088/services/collector"))
+			      .HecToken("test-token");
 		});
 
 		services.ShouldContain(sd => sd.ServiceType == typeof(IAuditLogExporter));
@@ -37,6 +37,6 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddSplunkAuditExporter((Action<SplunkExporterOptions>)null!));
+			services.AddSplunkAuditExporter((Action<IAuditLoggingSplunkBuilder>)null!));
 	}
 }

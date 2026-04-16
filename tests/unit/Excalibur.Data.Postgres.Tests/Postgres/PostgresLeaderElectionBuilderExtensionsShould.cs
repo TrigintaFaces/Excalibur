@@ -2,98 +2,76 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.LeaderElection.Postgres;
-using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 
 namespace Excalibur.Data.Tests.Postgres;
 
+/// <summary>
+/// Unit tests for <see cref="PostgresLeaderElectionBuilderExtensions"/>.
+/// Updated for the canonical 5-overload builder pattern (Sprint 767).
+/// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
+[Trait("Database", "Postgres")]
 public sealed class PostgresLeaderElectionBuilderExtensionsShould
 {
-	[Fact]
-	public void UsePostgres_ThrowWhenBuilderIsNull()
-	{
-		ILeaderElectionBuilder builder = null!;
-		Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgres(o => o.ConnectionString = "Host=localhost;"));
-	}
+    private const string TestConnectionString =
+        "Host=localhost;Database=test;Username=test;Password=test";
 
-	[Fact]
-	public void UsePostgres_ThrowWhenConfigureOptionsIsNull()
-	{
-		var services = new ServiceCollection();
-		var builder = A.Fake<ILeaderElectionBuilder>();
-		A.CallTo(() => builder.Services).Returns(services);
+    [Fact]
+    public void UsePostgres_ThrowWhenBuilderIsNull()
+    {
+        ILeaderElectionBuilder builder = null!;
+        Should.Throw<ArgumentNullException>(() =>
+            builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString)));
+    }
 
-		Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgres((Action<PostgresLeaderElectionOptions>)null!));
-	}
+    [Fact]
+    public void UsePostgres_ThrowWhenConfigureIsNull()
+    {
+        var services = new ServiceCollection();
+        var builder = A.Fake<ILeaderElectionBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
 
-	[Fact]
-	public void UsePostgres_ReturnSameBuilderForChaining()
-	{
-		var services = new ServiceCollection();
-		var builder = A.Fake<ILeaderElectionBuilder>();
-		A.CallTo(() => builder.Services).Returns(services);
+        Should.Throw<ArgumentNullException>(() =>
+            builder.UsePostgres((Action<IPostgresLeaderElectionBuilder>)null!));
+    }
 
-		var result = builder.UsePostgres(o => o.ConnectionString = "Host=localhost;");
-		result.ShouldBeSameAs(builder);
-	}
+    [Fact]
+    public void UsePostgres_ReturnSameBuilderForChaining()
+    {
+        var services = new ServiceCollection();
+        var builder = A.Fake<ILeaderElectionBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
 
-	[Fact]
-	public void UsePostgres_RegisterPostgresLeaderElectionOptions()
-	{
-		var services = new ServiceCollection();
-		var builder = A.Fake<ILeaderElectionBuilder>();
-		A.CallTo(() => builder.Services).Returns(services);
+        var result = builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
+        result.ShouldBeSameAs(builder);
+    }
 
-		builder.UsePostgres(o => o.ConnectionString = "Host=localhost;Database=test;");
+    [Fact]
+    public void UsePostgres_RegisterPostgresLeaderElectionOptions()
+    {
+        var services = new ServiceCollection();
+        var builder = A.Fake<ILeaderElectionBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
 
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IConfigureOptions<PostgresLeaderElectionOptions>));
-	}
+        builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString));
 
-	[Fact]
-	public void UsePostgresFactory_ThrowWhenBuilderIsNull()
-	{
-		ILeaderElectionBuilder builder = null!;
-		Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgresFactory(o => o.ConnectionString = "Host=localhost;"));
-	}
+        services.ShouldContain(sd =>
+            sd.ServiceType == typeof(IConfigureOptions<PostgresLeaderElectionOptions>));
+    }
 
-	[Fact]
-	public void UsePostgresFactory_ThrowWhenConfigureOptionsIsNull()
-	{
-		var services = new ServiceCollection();
-		var builder = A.Fake<ILeaderElectionBuilder>();
-		A.CallTo(() => builder.Services).Returns(services);
+    [Fact]
+    public void UsePostgres_ConfiguresLockKeyViaBuilder()
+    {
+        var services = new ServiceCollection();
+        var builder = A.Fake<ILeaderElectionBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
 
-		Should.Throw<ArgumentNullException>(() =>
-			builder.UsePostgresFactory((Action<PostgresLeaderElectionOptions>)null!));
-	}
+        builder.UsePostgres(pg => pg.ConnectionString(TestConnectionString).LockKey(99));
 
-	[Fact]
-	public void UsePostgresFactory_ReturnSameBuilderForChaining()
-	{
-		var services = new ServiceCollection();
-		var builder = A.Fake<ILeaderElectionBuilder>();
-		A.CallTo(() => builder.Services).Returns(services);
-
-		var result = builder.UsePostgresFactory(o => o.ConnectionString = "Host=localhost;");
-		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void UsePostgresFactory_RegisterILeaderElectionFactory()
-	{
-		var services = new ServiceCollection();
-		var builder = A.Fake<ILeaderElectionBuilder>();
-		A.CallTo(() => builder.Services).Returns(services);
-
-		builder.UsePostgresFactory(o => o.ConnectionString = "Host=localhost;Database=test;");
-
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ILeaderElectionFactory));
-	}
+        var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
+        options.Value.LockKey.ShouldBe(99);
+    }
 }

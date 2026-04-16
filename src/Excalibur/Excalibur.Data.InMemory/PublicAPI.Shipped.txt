@@ -159,3 +159,10 @@ static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensi
 static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.InMemoryProviderOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.AddInMemorySnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.UseInMemorySnapshotStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder
+Excalibur.Data.InMemory.IInMemoryDataBuilder.EnableDetailedLogging(bool enable = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder.EnableMetrics(bool enable = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder.MaxItemsPerCollection(int count) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder.PersistToDisk(string! filePath) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+Excalibur.Data.InMemory.IInMemoryDataBuilder.ReadOnly(bool readOnly = true) -> Excalibur.Data.InMemory.IInMemoryDataBuilder!
+static Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions.AddExcaliburInMemory(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.IInMemoryDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

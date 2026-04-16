@@ -8,6 +8,9 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.SqlServer.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
     <ProjectReference Include="..\Excalibur.Inbox\Excalibur.Inbox.csproj" />
   </ItemGroup>

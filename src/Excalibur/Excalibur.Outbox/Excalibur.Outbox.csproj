@@ -53,6 +53,7 @@
   <!-- Enable testing of internal types -->
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Outbox.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Outbox.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
   </ItemGroup>
 </Project>

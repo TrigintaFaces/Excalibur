@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Google.Cloud.Firestore;
+
 namespace Excalibur.Cdc.Firestore;
 
 /// <summary>
@@ -15,6 +17,24 @@ namespace Excalibur.Cdc.Firestore;
 /// </remarks>
 public interface IFirestoreCdcBuilder
 {
+	/// <summary>Sets the Google Cloud project ID.</summary>
+	IFirestoreCdcBuilder ProjectId(string projectId);
+
+	/// <summary>Sets the path to the service account JSON credentials file.</summary>
+	IFirestoreCdcBuilder CredentialsPath(string credentialsPath);
+
+	/// <summary>Sets the JSON content of the service account credentials.</summary>
+	IFirestoreCdcBuilder CredentialsJson(string credentialsJson);
+
+	/// <summary>Sets the Firestore emulator host for local development (e.g., "localhost:8080").</summary>
+	IFirestoreCdcBuilder EmulatorHost(string emulatorHost);
+
+	/// <summary>Sets a pre-configured <see cref="FirestoreDb"/> client.</summary>
+	IFirestoreCdcBuilder Client(FirestoreDb client);
+
+	/// <summary>Sets a factory that resolves a <see cref="FirestoreDb"/> from DI.</summary>
+	IFirestoreCdcBuilder ClientFactory(Func<IServiceProvider, FirestoreDb> clientFactory);
+
 	/// <summary>
 	/// Sets the Firestore collection path to watch for changes.
 	/// </summary>

@@ -53,6 +53,10 @@ const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFa
 const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedTimeout = 93409 -> int
 const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardRetried = 93406 -> int
 const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.HealthCheckFailed = 93407 -> int
-static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configurationSection = "Splunk") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder
+Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder!
+Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder.HecEndpoint(System.Uri! hecEndpoint) -> Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder!
+Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder.HecToken(string! hecToken) -> Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder!
+Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder.Index(string! index) -> Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder!
+Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder.SourceType(string! sourceType) -> Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder!
+static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.Splunk.IAuditLoggingSplunkBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

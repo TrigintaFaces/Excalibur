@@ -20,9 +20,14 @@ Excalibur.Saga.Firestore.FirestoreSagaStore.FirestoreSagaStore(Google.Cloud.Fire
 Excalibur.Saga.Firestore.FirestoreSagaStore.FirestoreSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Firestore.FirestoreSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Firestore.FirestoreSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer) -> void
 Excalibur.Saga.Firestore.FirestoreSagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
 Excalibur.Saga.Firestore.FirestoreSagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Microsoft.Extensions.DependencyInjection.FirestoreSagaExtensions
 Microsoft.Extensions.DependencyInjection.SagaBuilderFirestoreExtensions
-static Microsoft.Extensions.DependencyInjection.FirestoreSagaExtensions.AddFirestoreSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Firestore.FirestoreSagaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.FirestoreSagaExtensions.AddFirestoreSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! dbProvider, System.Action<Excalibur.Saga.Firestore.FirestoreSagaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.FirestoreSagaExtensions.AddFirestoreSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! projectId) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.SagaBuilderFirestoreExtensions.UseFirestore(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Firestore.FirestoreSagaOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder.Client(Google.Cloud.Firestore.FirestoreDb! client) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder.ClientFactory(System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! clientFactory) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder.CollectionName(string! collectionName) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder.CredentialsJson(string! credentialsJson) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder.EmulatorHost(string! emulatorHost) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+Excalibur.Saga.Firestore.IFirestoreSagaBuilder.ProjectId(string! projectId) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderFirestoreExtensions.UseFirestore(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Firestore.IFirestoreSagaBuilder!>! configure) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!

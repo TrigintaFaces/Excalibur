@@ -12,7 +12,6 @@ using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.LeaderElection.Consul;
 using Excalibur.LeaderElection.Diagnostics;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -24,53 +23,90 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class ConsulLeaderElectionBuilderExtensions
 {
 	/// <summary>
-	/// Configures the leader election builder to use the Consul provider.
+	/// Configures the leader election builder to use the Consul provider via a fluent builder.
 	/// </summary>
 	/// <param name="builder">The leader election builder.</param>
-	/// <param name="configureOptions">Optional action to configure Consul-specific options.</param>
+	/// <param name="configure">Configuration action for the Consul builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// {
+	///     le.UseConsul(consul =&gt;
+	///     {
+	///         consul.Address("http://consul:8500")
+	///               .Token("my-acl-token")
+	///               .LockKey("my-app/leader");
+	///     });
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static ILeaderElectionBuilder UseConsul(
 		this ILeaderElectionBuilder builder,
-		Action<ConsulLeaderElectionOptions>? configureOptions = null)
+		Action<ILeaderElectionConsulBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		// Configure options with validation
-		var optionsBuilder = builder.Services.AddOptions<ConsulLeaderElectionOptions>();
-		if (configureOptions != null)
+		var consulBuilder = new LeaderElectionConsulBuilder();
+		configure(consulBuilder);
+
+		RegisterOptionsAndServices(builder, consulBuilder);
+
+		return builder;
+	}
+
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		ILeaderElectionBuilder builder,
+		LeaderElectionConsulBuilder consulBuilder)
+	{
+		// Configure options from builder state
+		_ = builder.Services.Configure<ConsulLeaderElectionOptions>(opt =>
 		{
-			optionsBuilder.Configure(configureOptions);
+			if (consulBuilder.AddressValue is not null)
+			{
+				opt.ConsulAddress = consulBuilder.AddressValue;
+			}
+
+			if (consulBuilder.TokenValue is not null)
+			{
+				opt.Token = consulBuilder.TokenValue;
+			}
+
+			if (consulBuilder.DatacenterValue is not null)
+			{
+				opt.Datacenter = consulBuilder.DatacenterValue;
+			}
+
+			if (consulBuilder.SessionTtlValue.HasValue)
+			{
+				opt.SessionTTL = consulBuilder.SessionTtlValue.Value;
+			}
+
+			if (consulBuilder.LockKeyValue is not null)
+			{
+				opt.KeyPrefix = consulBuilder.LockKeyValue;
+			}
+		});
+
+		// Register BindConfiguration if set
+		if (consulBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<ConsulLeaderElectionOptions>()
+				.BindConfiguration(consulBuilder.BindConfigurationPath)
+				.ValidateOnStart();
 		}
 
-		optionsBuilder.ValidateOnStart();
+		builder.Services.AddOptions<ConsulLeaderElectionOptions>().ValidateOnStart();
 
-		return builder.UseConsulCore();
-	}
-
-	/// <summary>
-	/// Configures the leader election builder to use the Consul provider with an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="builder">The leader election builder.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="ConsulLeaderElectionOptions"/>.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding for leader election options is expected to use reflection in this convenience overload")]
-	public static ILeaderElectionBuilder UseConsul(
-		this ILeaderElectionBuilder builder,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = builder.Services.AddOptions<ConsulLeaderElectionOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-
-		return builder.UseConsulCore();
-	}
-
-	private static ILeaderElectionBuilder UseConsulCore(this ILeaderElectionBuilder builder)
-	{
 		// Register cross-property validators
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ConsulLeaderElectionOptions>, ConsulLeaderElectionOptionsValidator>());
@@ -107,7 +143,5 @@ public static class ConsulLeaderElectionBuilderExtensions
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Consul");
 		});
-
-		return builder;
 	}
 }

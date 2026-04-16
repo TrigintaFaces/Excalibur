@@ -4,23 +4,27 @@
 namespace Excalibur.Outbox.Tests.DynamoDb;
 
 /// <summary>
-/// Unit tests for <see cref="DynamoDbOutboxServiceCollectionExtensions" />.
+/// Unit tests for <see cref="OutboxBuilderDynamoDbExtensions" />.
 /// </summary>
+/// <remarks>
+/// Phase C rewire: Updated from DynamoDbOutboxServiceCollectionExtensions to
+/// OutboxBuilderDynamoDbExtensions.UseDynamoDb(Action&lt;IDynamoDBOutboxBuilder&gt;).
+/// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public sealed class DynamoDbOutboxServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
-	public void AddDynamoDbOutboxStore_WithAction_RegistersServices()
+	public void UseDynamoDb_RegistersServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddDynamoDbOutboxStore(options =>
+		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(db =>
 		{
-			options.Connection.ServiceUrl = "http://localhost:8000";
-		});
+			db.ServiceUrl("http://localhost:8000");
+		}));
 
 		// Assert - Check services are registered
 		services.Any(static sd =>
@@ -32,17 +36,17 @@ public sealed class DynamoDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 	}
 
 	[Fact]
-	public void AddDynamoDbOutboxStore_WithAction_ConfiguresOptions()
+	public void UseDynamoDb_ConfiguresOptions()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddDynamoDbOutboxStore(options =>
+		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(db =>
 		{
-			options.Connection.ServiceUrl = "http://localhost:8000";
-			options.TableName = "custom-table";
-		});
+			db.ServiceUrl("http://localhost:8000")
+			  .TableName("custom-table");
+		}));
 
 		// Assert - Check options configuration is registered
 		services.Any(static sd =>
@@ -50,133 +54,59 @@ public sealed class DynamoDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 	}
 
 	[Fact]
-	public void AddDynamoDbOutboxStore_WithAction_ThrowsOnNullServices()
+	public void UseDynamoDb_ThrowsOnNullBuilder()
 	{
-		// Arrange
-		IServiceCollection services = null!;
-
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutboxStore(options => { }));
+			OutboxBuilderDynamoDbExtensions.UseDynamoDb(null!, db => { }));
 	}
 
 	[Fact]
-	public void AddDynamoDbOutboxStore_WithAction_ThrowsOnNullConfigure()
+	public void UseDynamoDb_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutboxStore((Action<DynamoDbOutboxOptions>)null!));
+			services.AddExcaliburOutbox(outbox =>
+				outbox.UseDynamoDb((Action<Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder>)null!)));
 	}
 
 	[Fact]
-	public void AddDynamoDbOutboxStore_WithConfiguration_RegistersServices()
+	public void UseDynamoDb_ReturnsBuilder()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configuration = new ConfigurationBuilder()
-			.AddInMemoryCollection(new Dictionary<string, string?>
-			{
-				["Connection:ServiceUrl"] = "http://localhost:8000",
-			})
-			.Build();
+		Excalibur.Outbox.IOutboxBuilder? capturedBuilder = null;
 
 		// Act
-		_ = services.AddDynamoDbOutboxStore(configuration);
-
-		// Assert - Check services are registered
-		services.Any(static sd =>
-			sd.ServiceType == typeof(DynamoDbOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-		services.Any(static sd =>
-			sd.ServiceType == typeof(ICloudNativeOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddDynamoDbOutboxStore_WithConfiguration_ThrowsOnNullServices()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-		var configuration = new ConfigurationBuilder().Build();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutboxStore(configuration));
-	}
-
-	[Fact]
-	public void AddDynamoDbOutboxStore_WithConfiguration_ThrowsOnNullConfiguration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutboxStore((IConfiguration)null!));
-	}
-
-	[Fact]
-	public void AddDynamoDbOutboxStore_WithOptions_RegistersServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var options = new DynamoDbOutboxOptions
+		services.AddExcaliburOutbox(outbox =>
 		{
-			Connection = { ServiceUrl = "http://localhost:8000" },
-			TableName = "custom-table",
-		};
-
-		// Act
-		_ = services.AddDynamoDbOutboxStore(options);
-
-		// Assert - Check services are registered
-		services.Any(static sd =>
-			sd.ServiceType == typeof(DynamoDbOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-		services.Any(static sd =>
-			sd.ServiceType == typeof(ICloudNativeOutboxStore) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddDynamoDbOutboxStore_WithOptions_ThrowsOnNullServices()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-		var options = new DynamoDbOutboxOptions();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutboxStore(options));
-	}
-
-	[Fact]
-	public void AddDynamoDbOutboxStore_WithOptions_ThrowsOnNullOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutboxStore((DynamoDbOutboxOptions)null!));
-	}
-
-	[Fact]
-	public void AddDynamoDbOutboxStore_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddDynamoDbOutboxStore(options =>
-		{
-			options.Connection.ServiceUrl = "http://localhost:8000";
+			var result = outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"));
+			capturedBuilder = result;
 		});
 
 		// Assert
-		result.ShouldBeSameAs(services);
+		capturedBuilder.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void UseDynamoDb_InvokeConfigureDelegate()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act
+		services.AddExcaliburOutbox(outbox => outbox.UseDynamoDb(db =>
+		{
+			db.ServiceUrl("http://localhost:8000")
+			  .TableName("test-outbox");
+		}));
+
+		// Assert -- resolve options to verify configure delegate was stored
+		var provider = services.BuildServiceProvider();
+		var options = provider.GetRequiredService<IOptions<DynamoDbOutboxOptions>>().Value;
+		options.TableName.ShouldBe("test-outbox");
 	}
 }

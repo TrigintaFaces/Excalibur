@@ -1,7 +1,6 @@
 // AtLeastOnceWithInbox Example
 // Demonstrates outbox with inbox deduplication for at-least-once delivery.
 
-using Excalibur.Inbox.SqlServer;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Outbox.SqlServer;
 
@@ -12,20 +11,25 @@ using Microsoft.Extensions.Options;
 // Configure services with AtLeastOnce guarantee (default)
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.Configure<SqlServerOutboxOptions>(options =>
+var outboxConnectionString = builder.Configuration["ConnectionStrings:Outbox"]
+	?? "Server=localhost;Database=OutboxDemo;Integrated Security=true;TrustServerCertificate=true";
+var inboxConnectionString = builder.Configuration["ConnectionStrings:Inbox"]
+	?? "Server=localhost;Database=OutboxDemo;Integrated Security=true;TrustServerCertificate=true";
+
+builder.Services.AddExcaliburOutbox(outbox =>
 {
-	options.ConnectionString = builder.Configuration["ConnectionStrings:Outbox"]
-		?? "Server=localhost;Database=OutboxDemo;Integrated Security=true;TrustServerCertificate=true";
-	options.SchemaName = "dbo";
-	options.OutboxTableName = "OutboxMessages";
+	outbox.UseSqlServer(sql =>
+		sql.ConnectionString(outboxConnectionString)
+		   .SchemaName("dbo")
+		   .TableName("OutboxMessages"));
 });
 
-builder.Services.Configure<SqlServerInboxOptions>(options =>
+builder.Services.AddExcaliburInbox(inbox =>
 {
-	options.ConnectionString = builder.Configuration["ConnectionStrings:Inbox"]
-		?? "Server=localhost;Database=OutboxDemo;Integrated Security=true;TrustServerCertificate=true";
-	options.SchemaName = "dbo";
-	options.TableName = "InboxMessages";
+	inbox.UseSqlServer(sql =>
+		sql.ConnectionString(inboxConnectionString)
+		   .SchemaName("dbo")
+		   .TableName("InboxMessages"));
 });
 
 builder.Services.Configure<OutboxDeliveryOptions>(options =>
@@ -34,14 +38,6 @@ builder.Services.Configure<OutboxDeliveryOptions>(options =>
 	// Messages are marked sent after the entire batch is published
 	options.DeliveryGuarantee = OutboxDeliveryGuarantee.AtLeastOnce;
 	options.ConsumerBatchSize = 100;
-});
-
-// Register inbox store for deduplication
-builder.Services.AddSingleton(sp =>
-{
-	var options = sp.GetRequiredService<IOptions<SqlServerInboxOptions>>();
-	var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SqlServerInboxStore>>();
-	return new SqlServerInboxStore(options, logger);
 });
 
 var app = builder.Build();

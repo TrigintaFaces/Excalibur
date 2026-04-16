@@ -17,6 +17,9 @@
     <TrimmerDefaultAction>link</TrimmerDefaultAction>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Google.Cloud.Storage.V1" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.EventSourcing.Postgres;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -27,7 +28,8 @@ public static class DispatchPostgresServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
 		_ = services.AddDispatch(configureDispatch);
-		_ = services.AddPostgresEventSourcing(options => options.ConnectionString = connectionString);
+		_ = services.AddExcaliburEventSourcing(es =>
+			es.UsePostgres(pg => pg.ConnectionString(connectionString)));
 
 		return services;
 	}

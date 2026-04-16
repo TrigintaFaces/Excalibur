@@ -231,7 +231,7 @@ The sample demonstrates 6 scenarios:
 // Replace InMemoryOrderStore with:
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString));
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 });
 ```
@@ -240,9 +240,9 @@ services.AddExcaliburEventSourcing(es =>
 
 ```csharp
 // Saga state persisted to database
-services.AddSqlServerSagaStore(opts => opts.ConnectionString = connectionString);
 services.AddExcaliburSagas(sagas =>
 {
+    sagas.UseSqlServer(sql => sql.ConnectionString(connectionString));
     sagas.AddSaga<OrderProcessingSaga>();
 });
 ```

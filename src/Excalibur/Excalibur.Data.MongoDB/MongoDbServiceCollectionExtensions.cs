@@ -5,9 +5,10 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.MongoDB;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+
+using MongoDB.Driver;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -16,65 +17,99 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class MongoDbServiceCollectionExtensions
 {
+	private const string BuilderManagedConnectionSentinel = "mongodb://builder-managed-client";
+
 	/// <summary>
 	/// Adds MongoDB persistence services to the service collection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="configure">A delegate to configure the MongoDB provider options.</param>
+	/// <param name="configure">Action to configure MongoDB data settings via the fluent builder.</param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburMongoDb(mongo =&gt;
+	/// {
+	///     mongo.ConnectionString("mongodb://localhost:27017")
+	///          .DatabaseName("myapp");
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static IServiceCollection AddExcaliburMongoDb(
 		this IServiceCollection services,
-		Action<MongoDbProviderOptions> configure)
+		Action<IMongoDBDataBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.AddOptions<MongoDbProviderOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+		var options = new MongoDbProviderOptions();
+		var mongoBuilder = new MongoDBDataBuilder(options);
+		configure(mongoBuilder);
 
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<MongoDbProviderOptions>, MongoDbProviderOptionsValidator>());
+		var hasBuilderConnection = mongoBuilder.ClientInstance is not null
+			|| mongoBuilder.ClientFactoryFunc is not null;
 
-		services.TryAddSingleton<MongoDbPersistenceProvider>();
-		services.AddKeyedSingleton<IPersistenceProvider>("mongodb",
-			(sp, _) => sp.GetRequiredService<MongoDbPersistenceProvider>());
-		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
-			sp.GetRequiredKeyedService<IPersistenceProvider>("mongodb"));
+		if (hasBuilderConnection)
+		{
+			options.ConnectionString = BuilderManagedConnectionSentinel;
+		}
+
+		RegisterOptionsAndServices(services, mongoBuilder, options, hasBuilderConnection);
 
 		return services;
 	}
 
-	/// <summary>
-	/// Adds MongoDB persistence services to the service collection using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind options from.</param>
-	/// <returns>The service collection for chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Options validation/binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddExcaliburMongoDb(
-		this IServiceCollection services,
-		IConfiguration configuration)
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IServiceCollection services,
+		MongoDBDataBuilder mongoBuilder,
+		MongoDbProviderOptions options,
+		bool hasBuilderConnection)
 	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
+		_ = services.Configure<MongoDbProviderOptions>(opt =>
+		{
+			opt.ConnectionString = options.ConnectionString;
+			opt.DatabaseName = options.DatabaseName;
+		});
 
-		_ = services.AddOptions<MongoDbProviderOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
+		if (mongoBuilder.BindConfigurationPath is not null)
+		{
+			services.AddOptions<MongoDbProviderOptions>()
+				.BindConfiguration(mongoBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbProviderOptions>, MongoDbProviderOptionsValidator>());
+		services.AddOptions<MongoDbProviderOptions>().ValidateOnStart();
+
+		if (hasBuilderConnection)
+		{
+			if (mongoBuilder.ClientInstance is not null)
+			{
+				var client = mongoBuilder.ClientInstance;
+				services.TryAddSingleton<IMongoClient>(client);
+			}
+			else if (mongoBuilder.ClientFactoryFunc is not null)
+			{
+				var factory = mongoBuilder.ClientFactoryFunc;
+				services.TryAddSingleton<IMongoClient>(factory);
+			}
+		}
 
 		services.TryAddSingleton<MongoDbPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("mongodb",
 			(sp, _) => sp.GetRequiredService<MongoDbPersistenceProvider>());
 		services.TryAddKeyedSingleton<IPersistenceProvider>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IPersistenceProvider>("mongodb"));
-
-		return services;
 	}
 }

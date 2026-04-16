@@ -242,10 +242,11 @@ BEGIN
     );
 
     -- Index for the polling query (WHERE Attempts < MaxAttempts ORDER BY CreatedAt)
+    -- Note: filtered indexes cannot reference other columns, so we use a
+    -- covering index with CreatedAt for ORDER BY efficiency instead.
     CREATE NONCLUSTERED INDEX [IX_DataTaskRequests_Pending]
-        ON [DataProcessor].[DataTaskRequests] ([Attempts], [MaxAttempts])
-        INCLUDE ([DataTaskId], [CreatedAt], [RecordType], [CompletedCount])
-        WHERE [Attempts] < [MaxAttempts];
+        ON [DataProcessor].[DataTaskRequests] ([CreatedAt])
+        INCLUDE ([DataTaskId], [RecordType], [Attempts], [MaxAttempts], [CompletedCount]);
 END
 GO
 ```

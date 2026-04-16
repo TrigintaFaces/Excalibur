@@ -4,7 +4,7 @@
 namespace Excalibur.LeaderElection.Tests.SqlServer;
 
 /// <summary>
-/// Unit tests for <see cref="SqlServerLeaderElectionExtensions" />.
+/// Unit tests for <see cref="SqlServerLeaderElectionBuilderExtensions" />.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -14,13 +14,16 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 	private const string TestLockResource = "TestApp.Leader";
 
 	[Fact]
-	public void AddSqlServerLeaderElection_RegistersServices()
+	public void UseSqlServer_RegistersServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource);
+		_ = services.AddExcaliburLeaderElection(le =>
+			le.UseSqlServer(sql => sql
+				.ConnectionString(TestConnectionString)
+				.LockResource(TestLockResource)));
 
 		// Assert - Check service is registered
 		services.Any(static sd =>
@@ -33,16 +36,20 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElection_WithConfigure_RegistersServices()
+	public void UseSqlServer_WithOptions_RegistersServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource, options =>
-		{
-			options.LeaseDuration = TimeSpan.FromSeconds(30);
-		});
+		_ = services.AddExcaliburLeaderElection(le =>
+			le.UseSqlServer(sql => sql
+				.ConnectionString(TestConnectionString)
+				.LockResource(TestLockResource))
+			.WithOptions(options =>
+			{
+				options.LeaseDuration = TimeSpan.FromSeconds(30);
+			}));
 
 		// Assert - Check service is registered
 		services.Any(static sd =>
@@ -51,119 +58,96 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElection_WithConfigure_ConfiguresOptions()
+	public void UseSqlServer_ThrowsOnNullBuilder()
+	{
+		// Arrange
+		ILeaderElectionBuilder builder = null!;
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() =>
+			builder.UseSqlServer(sql => sql
+				.ConnectionString(TestConnectionString)
+				.LockResource(TestLockResource)));
+	}
+
+	[Fact]
+	public void UseSqlServer_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		var builder = new LeaderElectionBuilder(services);
 
-		// Act
-		_ = services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource, options =>
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() =>
+			builder.UseSqlServer(null!));
+	}
+
+	[Fact]
+	public void UseSqlServer_ConnectionString_ThrowsOnEmpty()
+	{
+		// Arrange & Act & Assert
+		_ = Should.Throw<ArgumentException>(() =>
 		{
-			options.LeaseDuration = TimeSpan.FromSeconds(30);
+			var services = new ServiceCollection();
+			_ = services.AddExcaliburLeaderElection(le =>
+				le.UseSqlServer(sql => sql
+					.ConnectionString("")
+					.LockResource(TestLockResource)));
 		});
-
-		// Assert - Check options configuration is registered
-		services.Any(static sd =>
-			sd.ServiceType == typeof(IConfigureOptions<LeaderElectionOptions>)).ShouldBeTrue();
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElection_ThrowsOnNullServices()
+	public void UseSqlServer_ConnectionString_ThrowsOnWhitespace()
 	{
-		// Arrange
-		IServiceCollection services = null!;
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource, _ => { }));
-	}
-
-	[Fact]
-	public void AddSqlServerLeaderElection_ThrowsOnNullConnectionString()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
+		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerLeaderElection(null!, TestLockResource, _ => { }));
+		{
+			var services = new ServiceCollection();
+			_ = services.AddExcaliburLeaderElection(le =>
+				le.UseSqlServer(sql => sql
+					.ConnectionString("   ")
+					.LockResource(TestLockResource)));
+		});
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElection_ThrowsOnEmptyConnectionString()
+	public void UseSqlServer_LockResource_ThrowsOnNull()
 	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
+		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerLeaderElection("", TestLockResource, _ => { }));
+		{
+			var services = new ServiceCollection();
+			_ = services.AddExcaliburLeaderElection(le =>
+				le.UseSqlServer(sql => sql
+					.ConnectionString(TestConnectionString)
+					.LockResource(null!)));
+		});
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElection_ThrowsOnWhitespaceConnectionString()
+	public void UseSqlServer_LockResource_ThrowsOnEmpty()
 	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
+		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerLeaderElection("   ", TestLockResource, _ => { }));
+		{
+			var services = new ServiceCollection();
+			_ = services.AddExcaliburLeaderElection(le =>
+				le.UseSqlServer(sql => sql
+					.ConnectionString(TestConnectionString)
+					.LockResource("")));
+		});
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElection_ThrowsOnNullLockResource()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerLeaderElection(TestConnectionString, null!, _ => { }));
-	}
-
-	[Fact]
-	public void AddSqlServerLeaderElection_ThrowsOnEmptyLockResource()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerLeaderElection(TestConnectionString, "", _ => { }));
-	}
-
-	[Fact]
-	public void AddSqlServerLeaderElection_ThrowsOnNullConfigure()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource, null!));
-	}
-
-	[Fact]
-	public void AddSqlServerLeaderElection_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource);
-
-		// Assert
-		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	public void AddSqlServerLeaderElection_ResolvesAsTelemetryWrapper()
+	public void UseSqlServer_ResolvesAsTelemetryWrapper()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
-		_ = services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource);
+		_ = services.AddExcaliburLeaderElection(le =>
+			le.UseSqlServer(sql => sql
+				.ConnectionString(TestConnectionString)
+				.LockResource(TestLockResource)));
 
 		// Assert — Verify keyed ILeaderElection("sqlserver") descriptor is registered with factory
 		// that produces TelemetryLeaderElection. Cannot resolve without real SQL Server,
@@ -185,12 +169,15 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task AddSqlServerLeaderElection_InnerIsSqlServerImplementation()
+	public async Task UseSqlServer_InnerIsSqlServerImplementation()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
-		_ = services.AddSqlServerLeaderElection(TestConnectionString, TestLockResource);
+		_ = services.AddExcaliburLeaderElection(le =>
+			le.UseSqlServer(sql => sql
+				.ConnectionString(TestConnectionString)
+				.LockResource(TestLockResource)));
 
 		// Act
 		await using var sp = services.BuildServiceProvider();
@@ -202,13 +189,15 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElectionFactory_RegistersFactory()
+	public void UseSqlServerFactory_RegistersFactory()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		_ = services.AddSqlServerLeaderElectionFactory(TestConnectionString);
+		_ = services.AddExcaliburLeaderElection(le =>
+			le.UseSqlServerFactory(sql => sql
+				.ConnectionString(TestConnectionString)));
 
 		// Assert - Check factory is registered as keyed service
 		services.Any(static sd =>
@@ -218,37 +207,26 @@ public sealed class SqlServerLeaderElectionExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElectionFactory_ThrowsOnNullServices()
+	public void UseSqlServerFactory_ThrowsOnNullBuilder()
 	{
 		// Arrange
-		IServiceCollection services = null!;
+		ILeaderElectionBuilder builder = null!;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddSqlServerLeaderElectionFactory(TestConnectionString));
+			builder.UseSqlServerFactory(sql => sql
+				.ConnectionString(TestConnectionString)));
 	}
 
 	[Fact]
-	public void AddSqlServerLeaderElectionFactory_ThrowsOnNullConnectionString()
+	public void UseSqlServerFactory_ThrowsOnNullConfigure()
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		var builder = new LeaderElectionBuilder(services);
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() =>
-			services.AddSqlServerLeaderElectionFactory(null!));
-	}
-
-	[Fact]
-	public void AddSqlServerLeaderElectionFactory_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddSqlServerLeaderElectionFactory(TestConnectionString);
-
-		// Assert
-		result.ShouldBeSameAs(services);
+		_ = Should.Throw<ArgumentNullException>(() =>
+			builder.UseSqlServerFactory(null!));
 	}
 }

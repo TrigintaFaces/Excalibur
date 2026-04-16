@@ -24,7 +24,7 @@ This guide covers configuring event stores and registering aggregate repositorie
 // Configure event sourcing with provider and repositories in one builder
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(options => options.ConnectionString = connectionString)
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString))
       .AddRepository<OrderAggregate, Guid>(id => new OrderAggregate())
       .UseIntervalSnapshots(100);
 });
@@ -42,10 +42,11 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 // Recommended: Builder-integrated registration
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(options =>
+    es.UseSqlServer(sql =>
     {
-        options.ConnectionString = connectionString;
-        options.HealthChecks.RegisterHealthChecks = true;
+        sql.ConnectionString(connectionString)
+           .EventStoreSchema("dbo")
+           .SnapshotStoreSchema("dbo");
     })
     .AddRepository<OrderAggregate, Guid>();
 });
@@ -53,42 +54,73 @@ services.AddExcaliburEventSourcing(es =>
 // This registers:
 // - IEventStore (SqlServerEventStore)
 // - ISnapshotStore (SqlServerSnapshotStore)
+// - ValidateOnStart (catches missing connection at startup)
 // Outbox is registered separately via AddExcaliburOutbox()
 ```
 
-:::tip Alternative: Direct registration
-You can also register providers directly on `IServiceCollection` if you prefer separating provider setup from builder configuration:
+:::tip Connection overloads
+The SQL Server builder supports 4 connection methods (last-wins if multiple are called):
 
 ```csharp
-// All-in-one: registers event store, snapshot store, and outbox
-services.AddSqlServerEventSourcing(opts => opts.ConnectionString = connectionString);
+// 1. Direct connection string
+sql.ConnectionString(connectionString);
 
-// Or register individual stores with per-store options
-services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString);
-services.AddSqlServerSnapshotStore(opts => opts.ConnectionString = connectionString);
+// 2. Named connection string (resolved from IConfiguration)
+sql.ConnectionStringName("EventStore");
 
-// Or with connection factory (advanced)
-services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
+// 3. Connection factory (Azure Managed Identity, Key Vault)
+sql.ConnectionFactory(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var connStr = config.GetConnectionString("EventStore")!;
+    return () => new SqlConnection(connStr);
+});
+
+// 4. Bind from appsettings.json section
+sql.BindConfiguration("EventSourcing:SqlServer");
 ```
 :::
 
 ### Postgres
 
 ```bash
-dotnet add package Excalibur.Data.Postgres
+dotnet add package Excalibur.EventSourcing.Postgres
 ```
 
 ```csharp
-// Builder-integrated registration
+// Fluent builder registration
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UsePostgres(options =>
+    es.UsePostgres(pg =>
     {
-        options.ConnectionString = connectionString;
-        options.HealthChecks.RegisterHealthChecks = true;
+        pg.ConnectionString(connectionString)
+          .EventStoreSchema("public")
+          .EventStoreTable("events");
     })
-      .AddRepository<OrderAggregate, Guid>();
+    .AddRepository<OrderAggregate, Guid>();
 });
+```
+
+:::tip Postgres connection overloads
+The Postgres builder supports 5 connection methods (last-wins if multiple are called):
+
+```csharp
+// 1. Direct connection string
+pg.ConnectionString(connectionString);
+
+// 2. Named connection string (resolved from IConfiguration)
+pg.ConnectionStringName("EventStore");
+
+// 3. Bind from appsettings.json section
+pg.BindConfiguration("EventSourcing:Postgres");
+
+// 4. Pre-configured NpgsqlDataSource (Azure, JSONB, custom pooling)
+pg.DataSource(preBuiltDataSource);
+
+// 5. DataSource factory (DI-aware creation)
+pg.DataSourceFactory(sp => NpgsqlDataSource.Create(connStr));
+```
+:::
 ```
 
 ### In-Memory (Testing)
@@ -289,8 +321,7 @@ When registering individual stores, use their lightweight options classes:
 |---------------|-------------|---------|
 | `SqlServerEventStoreOptions` | `ConnectionString` | `AddSqlServerEventStore(Action<>)` |
 | `SqlServerSnapshotStoreOptions` | `ConnectionString` | `AddSqlServerSnapshotStore(Action<>)` |
-| `PostgresEventStoreOptions` | `ConnectionString` | `AddPostgresEventStore(Action<>)` |
-| `PostgresSnapshotStoreOptions` | `ConnectionString` | `AddPostgresSnapshotStore(Action<>)` |
+| `PostgresEventSourcingOptions` | `ConnectionString` | `es.UsePostgres(pg => pg.ConnectionString(...))` |
 
 ### Custom Schema and Table Names
 

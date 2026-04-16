@@ -13,4 +13,9 @@ Microsoft.Extensions.DependencyInjection.InMemoryInboxExtensions
 Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions
 static Microsoft.Extensions.DependencyInjection.InMemoryInboxExtensions.AddInMemoryInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InMemoryInboxExtensions.UseInMemoryInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions.UseInMemory(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.InMemory.InMemoryInboxOptions!>? configure = null) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
+static Microsoft.Extensions.DependencyInjection.InboxBuilderInMemoryExtensions.UseInMemory(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.InMemory.IInMemoryInboxBuilder!>? configure = null) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
+Excalibur.Inbox.InMemory.IInMemoryInboxBuilder
+Excalibur.Inbox.InMemory.IInMemoryInboxBuilder.CleanupInterval(System.TimeSpan interval) -> Excalibur.Inbox.InMemory.IInMemoryInboxBuilder!
+Excalibur.Inbox.InMemory.IInMemoryInboxBuilder.EnableAutomaticCleanup(bool enable = true) -> Excalibur.Inbox.InMemory.IInMemoryInboxBuilder!
+Excalibur.Inbox.InMemory.IInMemoryInboxBuilder.MaxEntries(int count) -> Excalibur.Inbox.InMemory.IInMemoryInboxBuilder!
+Excalibur.Inbox.InMemory.IInMemoryInboxBuilder.RetentionPeriod(System.TimeSpan period) -> Excalibur.Inbox.InMemory.IInMemoryInboxBuilder!

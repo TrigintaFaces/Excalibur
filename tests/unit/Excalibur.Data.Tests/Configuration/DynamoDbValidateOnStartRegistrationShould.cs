@@ -6,6 +6,8 @@ using Excalibur.Inbox.DynamoDb;
 using Excalibur.Outbox.DynamoDb;
 using Excalibur.Saga.DynamoDb;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Excalibur.Data.Tests.Configuration;
 
 /// <summary>
@@ -23,25 +25,20 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 	public void DynamoDb_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDb(opts => { });
+		_ = services.AddExcaliburDynamoDb(db => db.ServiceUrl("http://localhost:8000"));
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<DynamoDbOptions>>();
-		validators.ShouldNotBeEmpty("AddDynamoDb should register IValidateOptions<DynamoDbOptions>");
+		validators.ShouldNotBeEmpty("AddExcaliburDynamoDb should register IValidateOptions<DynamoDbOptions>");
 	}
 
 	[Fact]
-	public void DynamoDb_InvalidOptions_ThrowsOnResolve()
+	public void DynamoDb_InvalidOptions_ThrowsAtBuilderTime()
 	{
+		// The builder validates connection values eagerly via ArgumentException.ThrowIfNullOrWhiteSpace
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDb(opts =>
-		{
-			opts.Name = null!; // Violates [Required] on DynamoDbOptions root
-		});
-
-		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DynamoDbOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		Should.Throw<ArgumentException>(() =>
+			services.AddExcaliburDynamoDb(db => db.ServiceUrl("")));
 	}
 
 	#endregion
@@ -81,25 +78,22 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 	public void DynamoDbOutbox_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDbOutboxStore(opts => { });
+		_ = services.AddExcaliburOutbox(outbox =>
+			outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<DynamoDbOutboxOptions>>();
-		validators.ShouldNotBeEmpty("AddDynamoDbOutbox should register IValidateOptions<DynamoDbOutboxOptions>");
+		validators.ShouldNotBeEmpty("UseDynamoDb should register IValidateOptions<DynamoDbOutboxOptions>");
 	}
 
 	[Fact]
-	public void DynamoDbOutbox_InvalidOptions_ThrowsOnResolve()
+	public void DynamoDbOutbox_InvalidOptions_ThrowsAtBuilderTime()
 	{
+		// The builder validates connection values eagerly via ArgumentException.ThrowIfNullOrWhiteSpace
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDbOutboxStore(opts =>
-		{
-			opts.TableName = null!; // Violates [Required]
-		});
-
-		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DynamoDbOutboxOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		Should.Throw<ArgumentException>(() =>
+			services.AddExcaliburOutbox(outbox =>
+				outbox.UseDynamoDb(db => db.ServiceUrl(""))));
 	}
 
 	#endregion
@@ -110,18 +104,23 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 	public void DynamoDbInbox_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDbInboxStore(opts => { });
+		_ = services.AddExcaliburInbox(inbox =>
+			inbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<DynamoDbInboxOptions>>();
-		validators.ShouldNotBeEmpty("AddDynamoDbInboxStore should register IValidateOptions<DynamoDbInboxOptions>");
+		validators.ShouldNotBeEmpty("UseDynamoDb should register IValidateOptions<DynamoDbInboxOptions>");
 	}
 
 	[Fact]
 	public void DynamoDbInbox_InvalidOptions_ThrowsOnResolve()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDbInboxStore(opts =>
+		_ = services.AddExcaliburInbox(inbox =>
+			inbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
+
+		// Override with invalid options after builder registration
+		_ = services.Configure<DynamoDbInboxOptions>(opts =>
 		{
 			opts.TableName = string.Empty; // Violates [Required]
 		});
@@ -139,25 +138,22 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 	public void DynamoDbSaga_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDbSagaStore(opts => { });
+		_ = services.AddExcaliburSaga(saga =>
+			saga.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<DynamoDbSagaOptions>>();
-		validators.ShouldNotBeEmpty("AddDynamoDbSagaStore should register IValidateOptions<DynamoDbSagaOptions>");
+		validators.ShouldNotBeEmpty("UseDynamoDb should register IValidateOptions<DynamoDbSagaOptions>");
 	}
 
 	[Fact]
-	public void DynamoDbSaga_InvalidOptions_ThrowsOnResolve()
+	public void DynamoDbSaga_InvalidOptions_ThrowsAtBuilderTime()
 	{
+		// The builder validates connection values eagerly via ArgumentException.ThrowIfNullOrWhiteSpace
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDbSagaStore(opts =>
-		{
-			opts.MaxRetryAttempts = 0; // Violates [Range(1, int.MaxValue)]
-		});
-
-		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DynamoDbSagaOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		Should.Throw<ArgumentException>(() =>
+			services.AddExcaliburSaga(saga =>
+				saga.UseDynamoDb(db => db.ServiceUrl(""))));
 	}
 
 	#endregion

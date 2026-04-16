@@ -15,11 +15,13 @@
     <ProjectReference Include="..\Excalibur.Data.IdentityMap\Excalibur.Data.IdentityMap.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.SqlServer" />
     <PackageReference Include="Dapper" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
   </ItemGroup>
   <ItemGroup>

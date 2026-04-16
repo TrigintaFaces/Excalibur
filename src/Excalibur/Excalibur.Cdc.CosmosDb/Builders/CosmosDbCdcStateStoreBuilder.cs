@@ -5,7 +5,8 @@ namespace Excalibur.Cdc.CosmosDb;
 
 /// <summary>
 /// Internal implementation of <see cref="ICdcStateStoreBuilder"/> for CosmosDB CDC.
-/// Maps SchemaName → DatabaseId, TableName → ContainerId.
+/// CosmosDB uses endpoint/key auth and does not have a relational schema concept.
+/// TableName maps to ContainerId.
 /// </summary>
 internal sealed class CosmosDbCdcStateStoreBuilder : ICdcStateStoreBuilder
 {
@@ -18,34 +19,6 @@ internal sealed class CosmosDbCdcStateStoreBuilder : ICdcStateStoreBuilder
 
 	/// <summary>Gets the BindConfiguration section path, if set.</summary>
 	internal string? BindConfigurationPath { get; private set; }
-
-	/// <summary>Gets the connection string name to resolve from configuration, if set.</summary>
-	internal string? StateConnectionStringName { get; private set; }
-
-	/// <inheritdoc/>
-	public ICdcStateStoreBuilder ConnectionString(string connectionString)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		_options.ConnectionString = connectionString;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public ICdcStateStoreBuilder ConnectionStringName(string name)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(name);
-		StateConnectionStringName = name;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	/// <remarks>Maps to <see cref="CosmosDbCdcStateStoreOptions.DatabaseId"/>.</remarks>
-	public ICdcStateStoreBuilder SchemaName(string schema)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(schema);
-		_options.DatabaseId = schema;
-		return this;
-	}
 
 	/// <inheritdoc/>
 	/// <remarks>Maps to <see cref="CosmosDbCdcStateStoreOptions.ContainerId"/>.</remarks>

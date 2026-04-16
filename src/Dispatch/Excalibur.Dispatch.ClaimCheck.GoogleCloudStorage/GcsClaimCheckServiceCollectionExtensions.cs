@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
-using Microsoft.Extensions.Configuration;
+using Google.Apis.Auth.OAuth2;
+using Google.Cloud.Storage.V1;
+
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -17,76 +20,124 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class GcsClaimCheckServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds the Google Cloud Storage Claim Check provider to the service collection.
+	/// Adds the Google Cloud Storage Claim Check provider using a fluent builder.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="configure">The configuration action for GCS options.</param>
-	/// <param name="configureClaimCheck">Optional configuration for core claim check options.</param>
+	/// <param name="configure">The configuration action for the GCS claim check builder.</param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddGcsClaimCheck(gcs =&gt;
+	/// {
+	///     gcs.ProjectId("my-project")
+	///        .BucketName("claim-check-payloads");
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static IServiceCollection AddGcsClaimCheck(
 		this IServiceCollection services,
-		Action<GcsClaimCheckOptions> configure,
-		Action<ClaimCheckOptions>? configureClaimCheck = null)
+		Action<IClaimCheckGcsBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.AddOptions<GcsClaimCheckOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+		var gcsBuilder = new ClaimCheckGcsBuilder();
+		configure(gcsBuilder);
 
-		var claimCheckBuilder = services.AddOptions<ClaimCheckOptions>();
-		if (configureClaimCheck is not null)
-		{
-			claimCheckBuilder.Configure(configureClaimCheck);
-		}
-
-		claimCheckBuilder.ValidateOnStart();
-
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<GcsClaimCheckOptions>, GcsClaimCheckOptionsValidator>());
-
-		services.TryAddSingleton<IClaimCheckProvider, GcsClaimCheckStore>();
+		RegisterOptionsAndServices(services, gcsBuilder);
 
 		return services;
 	}
 
-	/// <summary>
-	/// Adds the Google Cloud Storage Claim Check provider using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="GcsClaimCheckOptions"/>.</param>
-	/// <param name="claimCheckConfiguration">Optional configuration section for core <see cref="ClaimCheckOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+		Justification = "Options binding uses reflection by design.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddGcsClaimCheck(
-		this IServiceCollection services,
-		IConfiguration configuration,
-		IConfiguration? claimCheckConfiguration = null)
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		IServiceCollection services,
+		ClaimCheckGcsBuilder gcsBuilder)
 	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
+		// Configure options from builder state
 		_ = services.AddOptions<GcsClaimCheckOptions>()
-			.Bind(configuration)
+			.Configure(opt =>
+			{
+				if (gcsBuilder.BucketNameValue is not null)
+				{
+					opt.BucketName = gcsBuilder.BucketNameValue;
+				}
+
+				if (gcsBuilder.ProjectIdValue is not null)
+				{
+					opt.ProjectId = gcsBuilder.ProjectIdValue;
+				}
+
+				if (gcsBuilder.PrefixValue is not null)
+				{
+					opt.Prefix = gcsBuilder.PrefixValue;
+				}
+			})
 			.ValidateOnStart();
 
-		var claimCheckBuilder = services.AddOptions<ClaimCheckOptions>();
-		if (claimCheckConfiguration is not null)
+		// Register BindConfiguration if set
+		if (gcsBuilder.BindConfigurationPath is not null)
 		{
-			claimCheckBuilder.Bind(claimCheckConfiguration);
+			services.AddOptions<GcsClaimCheckOptions>()
+				.BindConfiguration(gcsBuilder.BindConfigurationPath)
+				.ValidateOnStart();
 		}
 
-		claimCheckBuilder.ValidateOnStart();
+		services.AddOptions<ClaimCheckOptions>().ValidateOnStart();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<GcsClaimCheckOptions>, GcsClaimCheckOptionsValidator>());
 
-		services.TryAddSingleton<IClaimCheckProvider, GcsClaimCheckStore>();
+		// Register StorageClient based on connection path
+		var hasBuilderClient = gcsBuilder.ClientInstance is not null
+			|| gcsBuilder.ClientFactoryFunc is not null;
 
-		return services;
+		if (hasBuilderClient)
+		{
+			RegisterBuilderManagedClient(services, gcsBuilder);
+		}
+		else if (gcsBuilder.CredentialsPathValue is not null)
+		{
+			var credPath = gcsBuilder.CredentialsPathValue;
+			services.TryAddSingleton(_ =>
+			{
+				var credential = GoogleCredential.FromFile(credPath);
+				return StorageClient.Create(credential);
+			});
+		}
+		else if (gcsBuilder.CredentialsJsonValue is not null)
+		{
+			var credJson = gcsBuilder.CredentialsJsonValue;
+			services.TryAddSingleton(_ =>
+			{
+				var credential = GoogleCredential.FromJson(credJson);
+				return StorageClient.Create(credential);
+			});
+		}
+
+		services.TryAddSingleton<IClaimCheckProvider, GcsClaimCheckStore>();
+	}
+
+	private static void RegisterBuilderManagedClient(
+		IServiceCollection services,
+		ClaimCheckGcsBuilder gcsBuilder)
+	{
+		if (gcsBuilder.ClientInstance is not null)
+		{
+			var client = gcsBuilder.ClientInstance;
+			services.TryAddSingleton(client);
+		}
+		else if (gcsBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = gcsBuilder.ClientFactoryFunc;
+			services.TryAddSingleton(factory);
+		}
 	}
 }

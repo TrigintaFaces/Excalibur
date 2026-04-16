@@ -1,12 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
-
-using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.DependencyInjection;
 using Excalibur.Hosting.Builders;
-
-using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -16,51 +12,35 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class LeaderElectionExcaliburBuilderExtensions
 {
 	/// <summary>
-	/// Configures leader election for the Excalibur host.
+	/// Configures leader election for the Excalibur host using the builder pattern.
 	/// </summary>
 	/// <param name="builder">The Excalibur builder.</param>
 	/// <param name="configure">
-	/// Optional action to configure leader election options. Pass <see langword="null"/> to use defaults.
+	/// Action to configure leader election via the builder, including provider selection
+	/// (e.g., <c>UseSqlServer</c>) and optional features (e.g., <c>WithHealthChecks</c>).
 	/// </param>
 	/// <returns>The same builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddExcalibur(exc =&gt; exc
+	///     .AddLeaderElection(le =&gt; le
+	///         .UseSqlServer(sql =&gt; sql
+	///             .ConnectionString("Server=...;Database=...")
+	///             .LockResource("MyApp.Leader"))
+	///         .WithHealthChecks()));
+	/// </code>
+	/// </example>
 	public static IExcaliburBuilder AddLeaderElection(
 		this IExcaliburBuilder builder,
-		Action<LeaderElectionOptions>? configure = null)
+		Action<ILeaderElectionBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		if (configure is not null)
-		{
-			_ = builder.Services.AddExcaliburLeaderElection(configure);
-		}
-		else
-		{
-			_ = builder.Services.AddExcaliburLeaderElection();
-		}
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures leader election for the Excalibur host using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="builder">The Excalibur builder.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="LeaderElectionOptions"/>.</param>
-	/// <returns>The same builder for fluent chaining.</returns>
-	[RequiresUnreferencedCode("Configuration binding for LeaderElectionOptions may require types not preserved during trimming.")]
-	[RequiresDynamicCode("Configuration binding for LeaderElectionOptions requires dynamic code generation.")]
-	public static IExcaliburBuilder AddLeaderElection(
-		this IExcaliburBuilder builder,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = builder.Services.AddOptions<LeaderElectionOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-
-		_ = builder.Services.AddExcaliburLeaderElection();
+		_ = builder.Services.AddExcaliburLeaderElection(configure);
 
 		return builder;
 	}

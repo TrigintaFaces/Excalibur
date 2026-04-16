@@ -9,6 +9,9 @@
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.MongoDB.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
     <ProjectReference Include="..\Excalibur.Outbox\Excalibur.Outbox.csproj" />
   </ItemGroup>

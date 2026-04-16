@@ -91,8 +91,11 @@ services.AddDispatch(dispatch =>
 services.AddValidatorsFromAssemblyContaining<CreateOrderValidator>();
 
 // ---- 6. Outbox (SQL Server) for transactional event publishing ----
-services.AddSqlServerOutboxStore(options =>
-	options.ConnectionString = "Server=localhost;Database=EventStore;Trusted_Connection=true;TrustServerCertificate=true");
+services.AddExcaliburOutbox(outbox =>
+{
+	outbox.UseSqlServer(sql =>
+		sql.ConnectionString("Server=localhost;Database=EventStore;Trusted_Connection=true;TrustServerCertificate=true"));
+});
 
 // ---- CDC (Change Data Capture) handler registration ----
 services.AddSingleton<IDataChangeHandler, LegacyOrderChangeHandler>();

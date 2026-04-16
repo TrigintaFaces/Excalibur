@@ -21,5 +21,6 @@
   <!-- Enable testing of internal types -->
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Inbox.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.SqlServer.Tests" />
   </ItemGroup>
 </Project>

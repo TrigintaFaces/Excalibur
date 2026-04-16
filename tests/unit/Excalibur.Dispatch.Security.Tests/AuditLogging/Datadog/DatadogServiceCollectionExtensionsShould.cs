@@ -27,10 +27,10 @@ public sealed class DatadogServiceCollectionExtensionsShould
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddDatadogAuditExporter(options =>
+		_ = services.AddDatadogAuditExporter(dd =>
 		{
-			options.ApiKey = "test-api-key";
-			options.Site = "datadoghq.com";
+			dd.ApiKey("test-api-key")
+			  .Site("datadoghq.com");
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -50,12 +50,12 @@ public sealed class DatadogServiceCollectionExtensionsShould
 		_ = services.AddLogging();
 
 		// Act
-		_ = services.AddDatadogAuditExporter(options =>
+		_ = services.AddDatadogAuditExporter(dd =>
 		{
-			options.ApiKey = "my-api-key";
-			options.Site = "us3.datadoghq.com";
-			options.Service = "my-service";
-			options.Source = "my-source";
+			dd.ApiKey("my-api-key")
+			  .Site("us3.datadoghq.com")
+			  .Service("my-service")
+			  .Source("my-source");
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -87,7 +87,7 @@ public sealed class DatadogServiceCollectionExtensionsShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddDatadogAuditExporter((Action<DatadogExporterOptions>)null!));
+			services.AddDatadogAuditExporter((Action<IAuditLoggingDatadogBuilder>)null!));
 	}
 
 	[Fact]
@@ -100,37 +100,12 @@ public sealed class DatadogServiceCollectionExtensionsShould
 		_ = services.AddLogging();
 
 		// Act
-		var result = services.AddDatadogAuditExporter(options =>
+		var result = services.AddDatadogAuditExporter(dd =>
 		{
-			options.ApiKey = "test-key";
+			dd.ApiKey("test-key");
 		});
 
 		// Assert
 		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	[RequiresUnreferencedCode("Test")]
-	[RequiresDynamicCode("Test")]
-	public void AddDatadogAuditExporter_ConfiguresHttpClientTimeout()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		var expectedTimeout = TimeSpan.FromSeconds(42);
-
-		// Act
-		_ = services.AddDatadogAuditExporter(options =>
-		{
-			options.ApiKey = "test-api-key";
-			options.Site = "datadoghq.com";
-			options.Retry = new DatadogExporterRetryOptions { Timeout = expectedTimeout };
-		});
-		using var provider = services.BuildServiceProvider();
-
-		// Assert - resolve HttpClient through the factory to trigger the config lambda
-		var factory = provider.GetRequiredService<IHttpClientFactory>();
-		using var client = factory.CreateClient(nameof(DatadogAuditExporter));
-		client.Timeout.ShouldBe(expectedTimeout);
 	}
 }

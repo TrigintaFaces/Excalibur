@@ -33,5 +33,10 @@ const Excalibur.Dispatch.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId
 const Excalibur.Dispatch.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.ForwardFailedTimeout = 93519 -> int
 const Excalibur.Dispatch.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.ForwardRetried = 93516 -> int
 const Excalibur.Dispatch.AuditLogging.GoogleCloud.GoogleCloudAuditLoggingEventId.HealthCheckFailed = 93517 -> int
-static Microsoft.Extensions.DependencyInjection.GoogleCloudServiceCollectionExtensions.AddGoogleCloudAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.GoogleCloudServiceCollectionExtensions.AddGoogleCloudAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.GoogleCloud.GoogleCloudAuditOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder
+Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.CredentialsJson(string! credentialsJson) -> Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.LogName(string! logName) -> Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder.ProjectId(string! projectId) -> Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!
+static Microsoft.Extensions.DependencyInjection.GoogleCloudServiceCollectionExtensions.AddGoogleCloudAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.AuditLogging.GoogleCloud.IAuditLoggingGoogleCloudBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -65,18 +65,24 @@ services.AddSqlServerEventStore(opts => opts.ConnectionString = connectionString
 ### PostgreSQL
 
 ```csharp
-// With connection string
-services.AddPostgresEventStore(opts => opts.ConnectionString = connectionString);
-
-// Or with options
-services.AddPostgresEventStore(options =>
+// Fluent builder registration (5 canonical connection overloads)
+services.AddExcaliburEventSourcing(es =>
 {
-    options.ConnectionString = connectionString;
-    options.SchemaName = "events";
+    es.UsePostgres(pg =>
+    {
+        pg.ConnectionString(connectionString)
+          .EventStoreSchema("events");
+    });
+});
+
+// With pre-configured NpgsqlDataSource
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UsePostgres(pg => pg.DataSource(npgsqlDataSource));
 });
 ```
 
-See [Event Store Providers](providers.md) for full PostgreSQL setup details including connection factories.
+See [Event Store Providers](providers.md) for full PostgreSQL setup details including all 5 connection overloads.
 
 ### In-Memory (Testing)
 
@@ -294,10 +300,9 @@ See [GDPR Erasure](../compliance/gdpr-erasure.md) for complete implementation in
 // SQL Server event sourcing automatically registers health checks
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(options =>
+    es.UseSqlServer(sql =>
     {
-        options.ConnectionString = connectionString;
-        options.HealthChecks.RegisterHealthChecks = true;
+        sql.ConnectionString(connectionString);
     });
 });
 ```

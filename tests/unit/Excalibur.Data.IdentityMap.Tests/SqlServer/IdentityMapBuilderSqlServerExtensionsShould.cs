@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.IdentityMap.Builders;
+using Excalibur.Data.IdentityMap.Diagnostics;
 using Excalibur.Data.IdentityMap.SqlServer;
 using Excalibur.Data.IdentityMap.SqlServer.Builders;
 
@@ -33,7 +34,7 @@ public sealed class IdentityMapBuilderSqlServerExtensionsShould
 		using var provider = services.BuildServiceProvider();
 		var store = provider.GetService<IIdentityMapStore>();
 		_ = store.ShouldNotBeNull();
-		_ = store.ShouldBeOfType<SqlServerIdentityMapStore>();
+		_ = store.ShouldBeOfType<TelemetryIdentityMapStoreDecorator>();
 	}
 
 	[Fact]

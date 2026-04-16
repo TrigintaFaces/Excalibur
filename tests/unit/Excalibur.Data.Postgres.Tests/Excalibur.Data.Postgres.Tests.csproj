@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Postgres\Excalibur.Inbox.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Postgres\Excalibur.LeaderElection.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Postgres\Excalibur.Saga.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Postgres\Excalibur.Compliance.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

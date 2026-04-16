@@ -10,6 +10,9 @@
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.CosmosDb.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />
       <ProjectReference Include="..\Excalibur.Inbox\Excalibur.Inbox.csproj" />
   </ItemGroup>

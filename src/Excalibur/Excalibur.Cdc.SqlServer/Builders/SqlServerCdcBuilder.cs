@@ -30,7 +30,7 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	/// <summary>
 	/// Gets the state store configure callback, if provided.
 	/// </summary>
-	internal Action<ICdcStateStoreBuilder>? StateStoreConfigure { get; private set; }
+	internal Action<ICdcRelationalStateStoreBuilder>? StateStoreConfigure { get; private set; }
 
 	/// <summary>
 	/// Gets the source BindConfiguration section path, if set.
@@ -133,7 +133,7 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	}
 
 	/// <inheritdoc/>
-	public ISqlServerCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure)
+	public ISqlServerCdcBuilder WithStateStore(Action<ICdcRelationalStateStoreBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 

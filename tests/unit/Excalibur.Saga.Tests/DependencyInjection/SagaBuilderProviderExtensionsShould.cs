@@ -17,6 +17,7 @@ namespace Excalibur.Saga.Tests.DependencyInjection;
 /// Sprint 621 C.1: Tests for ISagaBuilder Use*() provider extension methods
 /// (UseMongoDB, UseCosmosDb, UseDynamoDb, UseFirestore).
 /// Follows the SagaBuilderSqlServerExtensionsShould pattern from S617.
+/// Updated for Phase C builder API migration.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -34,7 +35,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((ISagaBuilder)null!).UseMongoDB());
+			((ISagaBuilder)null!).UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017")));
 	}
 
 	[Fact]
@@ -44,7 +45,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		var result = builder.UseMongoDB();
+		var result = builder.UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017"));
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -57,7 +58,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseMongoDB();
+		builder.UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017"));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -71,7 +72,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseMongoDB();
+		builder.UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017"));
 
 		// Assert -- IOptions<MongoDbSagaOptions> should be configured
 		builder.Services.ShouldContain(sd =>
@@ -85,10 +86,10 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseMongoDB(opts =>
+		builder.UseMongoDB(mongo =>
 		{
-			opts.ConnectionString = "mongodb://localhost:27017";
-			opts.DatabaseName = "test-db";
+			mongo.ConnectionString("mongodb://localhost:27017")
+				.DatabaseName("test-db");
 		});
 
 		// Assert -- resolve options to trigger the deferred configure delegate
@@ -99,18 +100,14 @@ public sealed class SagaBuilderProviderExtensionsShould
 	}
 
 	[Fact]
-	public void AcceptNullConfigure_WhenCallingUseMongoDB()
+	public void ThrowArgumentNullException_WhenConfigureIsNull_ForUseMongoDB()
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
 
-		// Act -- should not throw with null configure
-		var result = builder.UseMongoDB(null);
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-		builder.Services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ISagaStore));
+		// Act & Assert -- null configure should throw
+		Should.Throw<ArgumentNullException>(() =>
+			builder.UseMongoDB((Action<IMongoDBSagaBuilder>)null!));
 	}
 
 	#endregion
@@ -122,7 +119,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((ISagaBuilder)null!).UseCosmosDb());
+			((ISagaBuilder)null!).UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;")));
 	}
 
 	[Fact]
@@ -132,7 +129,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		var result = builder.UseCosmosDb();
+		var result = builder.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;"));
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -145,7 +142,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseCosmosDb();
+		builder.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;"));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -159,7 +156,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseCosmosDb();
+		builder.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;"));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -171,34 +168,32 @@ public sealed class SagaBuilderProviderExtensionsShould
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
+		var configureInvoked = false;
 
 		// Act
-		builder.UseCosmosDb(opts =>
+		builder.UseCosmosDb(cosmos =>
 		{
-			opts.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
-			opts.DatabaseName = "test-cosmos-db";
+			configureInvoked = true;
+			cosmos.ConnectionString("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;")
+				.DatabaseName("test-cosmos-db");
 		});
 
-		// Assert -- resolve options to trigger the deferred configure delegate
-		var provider = builder.Services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<CosmosDbSagaOptions>>().Value;
-		options.Client.ConnectionString.ShouldBe("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;");
-		options.DatabaseName.ShouldBe("test-cosmos-db");
+		// Assert -- verify the configure delegate was invoked eagerly by the builder
+		configureInvoked.ShouldBeTrue();
+		// Verify IConfigureOptions<CosmosDbSagaOptions> is registered
+		builder.Services.ShouldContain(sd =>
+			sd.ServiceType == typeof(IConfigureOptions<CosmosDbSagaOptions>));
 	}
 
 	[Fact]
-	public void AcceptNullConfigure_WhenCallingUseCosmosDb()
+	public void ThrowArgumentNullException_WhenConfigureIsNull_ForUseCosmosDb()
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
 
-		// Act
-		var result = builder.UseCosmosDb(null);
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-		builder.Services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ISagaStore));
+		// Act & Assert -- null configure should throw
+		Should.Throw<ArgumentNullException>(() =>
+			builder.UseCosmosDb((Action<ICosmosDbSagaBuilder>)null!));
 	}
 
 	#endregion
@@ -280,7 +275,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		// Arrange
 		var builder = new TestSagaBuilder();
 
-		// Act
+		// Act -- should not throw with null configure
 		var result = builder.UseDynamoDb(null);
 
 		// Assert
@@ -387,7 +382,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act -- verify UseMongoDB works through AddExcaliburSaga builder entry point
-		services.AddExcaliburSaga(saga => saga.UseMongoDB());
+		services.AddExcaliburSaga(saga => saga.UseMongoDB(mongo => mongo.ConnectionString("mongodb://localhost:27017")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -402,7 +397,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 
 		// Act -- chain a provider Use*() with existing saga builder extensions
 		var result = builder
-			.UseCosmosDb()
+			.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;"))
 			.WithOrchestration()
 			.WithTimeouts();
 

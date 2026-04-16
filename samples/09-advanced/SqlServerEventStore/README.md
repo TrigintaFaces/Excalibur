@@ -118,18 +118,20 @@ The unified outbox table (`dbo.OutboxMessages`) is managed by `Excalibur.Outbox.
 // Option 1: Builder pattern (preferred)
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(options =>
+    es.UseSqlServer(sql =>
     {
-        options.ConnectionString = connectionString;
-        options.HealthChecks.RegisterHealthChecks = true;
-        options.HealthChecks.EventStoreHealthCheckName = "eventstore-sqlserver";
-        options.HealthChecks.SnapshotStoreHealthCheckName = "snapshotstore-sqlserver";
-        options.HealthChecks.OutboxStoreHealthCheckName = "outbox-sqlserver";
+        sql.ConnectionString(connectionString)
+           .EventStoreSchema("dbo")
+           .SnapshotStoreSchema("dbo");
     });
 });
 
 // Option 2: Connection factory (advanced)
-services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseSqlServer(sql =>
+        sql.ConnectionFactory(sp => () => new SqlConnection(connectionString)));
+});
 ```
 
 ### Repository Registration

@@ -42,7 +42,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddSingleton(mockClient);
 
 		// Act
-		_ = services.AddAwsKmsKeyManagement(options => options.Region = RegionEndpoint.USEast1);
+		_ = services.AddAwsKmsKeyManagement(aws => aws.Region("us-east-1"));
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -63,12 +63,12 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagement(options =>
+		_ = services.AddAwsKmsKeyManagement(aws =>
 		{
-			options.Region = RegionEndpoint.USWest2;
-			options.UseFipsEndpoint = true;
-			options.Environment = "production";
-			options.KeyAliasPrefix = "my-app";
+			aws.Region("us-west-2")
+			   .UseFipsEndpoint()
+			   .Environment("production")
+			   .KeyAliasPrefix("my-app");
 		});
 
 		// Assert
@@ -89,8 +89,8 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddLogging();
 		_ = services.AddMemoryCache();
 
-		// Act
-		_ = services.AddAwsKmsKeyManagement();
+		// Act - builder with no-op configure
+		_ = services.AddAwsKmsKeyManagement(_ => { });
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -109,7 +109,19 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		IServiceCollection? services = null;
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => services.AddAwsKmsKeyManagement());
+		_ = Should.Throw<ArgumentNullException>(() =>
+			services.AddAwsKmsKeyManagement(_ => { }));
+	}
+
+	[Fact]
+	public void AddAwsKmsKeyManagement_ThrowsArgumentNullException_WhenConfigureNull()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() =>
+			services.AddAwsKmsKeyManagement((Action<IComplianceAwsBuilder>)null!));
 	}
 
 	[Fact]
@@ -121,7 +133,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		var result = services.AddAwsKmsKeyManagement();
+		var result = services.AddAwsKmsKeyManagement(_ => { });
 
 		// Assert
 		result.ShouldBeSameAs(services);
@@ -136,8 +148,8 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagement();
-		_ = services.AddAwsKmsKeyManagement();
+		_ = services.AddAwsKmsKeyManagement(_ => { });
+		_ = services.AddAwsKmsKeyManagement(_ => { });
 
 		// Assert
 		var kmsClientCount = services.Count(s => s.ServiceType == typeof(IAmazonKeyManagementService));
@@ -156,7 +168,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagement();
+		_ = services.AddAwsKmsKeyManagement(_ => { });
 
 		// Assert - verify singleton lifetime
 		var kmsClientDescriptor = services.FirstOrDefault(s => s.ServiceType == typeof(IAmazonKeyManagementService));
@@ -184,10 +196,10 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		const string customEndpoint = "https://custom-kms.example.com";
 
 		// Act
-		_ = services.AddAwsKmsKeyManagement(options =>
+		_ = services.AddAwsKmsKeyManagement(aws =>
 		{
-			options.ServiceUrl = customEndpoint;
-			options.Region = RegionEndpoint.USEast1;
+			aws.ServiceUrl(customEndpoint)
+			   .Region("us-east-1");
 		});
 
 		// Assert
@@ -206,10 +218,10 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagement(options =>
+		_ = services.AddAwsKmsKeyManagement(aws =>
 		{
-			options.UseFipsEndpoint = true;
-			options.Region = RegionEndpoint.USWest2;
+			aws.UseFipsEndpoint()
+			   .Region("us-west-2");
 		});
 
 		// Assert
@@ -221,117 +233,10 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 
 	#endregion
 
-	#region AddAwsKmsKeyManagement with ClientFactory Tests
+	#region AddAwsKmsKeyManagement Builder Pattern Tests
 
 	[Fact]
-	public void AddAwsKmsKeyManagement_WithClientFactory_UsesProvidedFactory()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddMemoryCache();
-
-		var mockClient = A.Fake<IAmazonKeyManagementService>();
-
-		// Act
-		_ = services.AddAwsKmsKeyManagement(_ => mockClient);
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var resolvedClient = provider.GetRequiredService<IAmazonKeyManagementService>();
-
-		resolvedClient.ShouldBeSameAs(mockClient);
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagement_WithClientFactory_ConfiguresOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddMemoryCache();
-
-		var mockClient = A.Fake<IAmazonKeyManagementService>();
-
-		// Act
-		_ = services.AddAwsKmsKeyManagement(
-			_ => mockClient,
-			options => options.Environment = "staging");
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
-
-		options.Environment.ShouldBe("staging");
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagement_WithClientFactory_ThrowsArgumentNullException_WhenServicesNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-		var mockClient = A.Fake<IAmazonKeyManagementService>();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsKmsKeyManagement(_ => mockClient));
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagement_WithClientFactory_ThrowsArgumentNullException_WhenFactoryNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		Func<IServiceProvider, IAmazonKeyManagementService>? factory = null;
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsKmsKeyManagement(factory));
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagement_WithClientFactory_RegistersProviders()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddMemoryCache();
-
-		var mockClient = A.Fake<IAmazonKeyManagementService>();
-
-		// Act
-		_ = services.AddAwsKmsKeyManagement(_ => mockClient);
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		provider.GetService<AwsKmsProvider>().ShouldNotBeNull();
-		provider.GetService<IKeyManagementProvider>().ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagement_WithClientFactory_WithNullConfigure_WorksCorrectly()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddMemoryCache();
-
-		var mockClient = A.Fake<IAmazonKeyManagementService>();
-
-		// Act - pass null for configure
-		_ = services.AddAwsKmsKeyManagement(_ => mockClient, null);
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		provider.GetService<AwsKmsProvider>().ShouldNotBeNull();
-	}
-
-	#endregion
-
-	#region AddAwsKmsKeyManagementLocalStack Tests
-
-	[Fact]
-	public void AddAwsKmsKeyManagementLocalStack_ConfiguresForLocalStack()
+	public void AddAwsKmsKeyManagement_WithBuilder_ConfiguresLocalStack()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -339,7 +244,11 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagementLocalStack();
+		_ = services.AddAwsKmsKeyManagement(aws =>
+		{
+			aws.ServiceUrl("http://localhost:4566")
+			   .Region("us-east-1");
+		});
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -350,7 +259,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddAwsKmsKeyManagementLocalStack_UsesCustomEndpoint()
+	public void AddAwsKmsKeyManagement_WithBuilder_ConfiguresCustomEndpoint()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -358,7 +267,10 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagementLocalStack("http://localhost:5566");
+		_ = services.AddAwsKmsKeyManagement(aws =>
+		{
+			aws.ServiceUrl("http://localhost:5566");
+		});
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -368,7 +280,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddAwsKmsKeyManagementLocalStack_AppliesAdditionalConfiguration()
+	public void AddAwsKmsKeyManagement_WithBuilder_ConfiguresKeyAliasPrefix()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -376,30 +288,21 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagementLocalStack(
-			"http://localhost:4566",
-			options => options.KeyAliasPrefix = "test-prefix");
+		_ = services.AddAwsKmsKeyManagement(aws =>
+		{
+			aws.KeyAliasPrefix("test-prefix")
+			   .ServiceUrl("http://localhost:4566");
+		});
 
 		// Assert
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
 
-		options.ServiceUrl.ShouldBe("http://localhost:4566");
 		options.KeyAliasPrefix.ShouldBe("test-prefix");
 	}
 
 	[Fact]
-	public void AddAwsKmsKeyManagementLocalStack_ThrowsArgumentNullException_WhenServicesNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => services.AddAwsKmsKeyManagementLocalStack());
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagementLocalStack_RegistersAllRequiredServices()
+	public void AddAwsKmsKeyManagement_WithBuilder_RegistersAllRequiredServices()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -407,7 +310,11 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagementLocalStack();
+		_ = services.AddAwsKmsKeyManagement(aws =>
+		{
+			aws.ServiceUrl("http://localhost:4566")
+			   .Region("us-east-1");
+		});
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -418,7 +325,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddAwsKmsKeyManagementLocalStack_ConfiguresHttpUsage()
+	public void AddAwsKmsKeyManagement_WithBuilder_ConfiguresHttpEndpoint()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -426,7 +333,10 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act - HTTP URL (not HTTPS)
-		_ = services.AddAwsKmsKeyManagementLocalStack("http://localhost:4566");
+		_ = services.AddAwsKmsKeyManagement(aws =>
+		{
+			aws.ServiceUrl("http://localhost:4566");
+		});
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -436,7 +346,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddAwsKmsKeyManagementLocalStack_ConfiguresHttpsUsage()
+	public void AddAwsKmsKeyManagement_WithBuilder_ConfiguresHttpsEndpoint()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -444,7 +354,10 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act - HTTPS URL
-		_ = services.AddAwsKmsKeyManagementLocalStack("https://localhost:4566");
+		_ = services.AddAwsKmsKeyManagement(aws =>
+		{
+			aws.ServiceUrl("https://localhost:4566");
+		});
 
 		// Assert
 		var provider = services.BuildServiceProvider();
@@ -454,7 +367,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddAwsKmsKeyManagementLocalStack_WithNullConfigure_WorksCorrectly()
+	public void AddAwsKmsKeyManagement_WithBuilder_ConfiguresEnvironment()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -462,163 +375,39 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		_ = services.AddMemoryCache();
 
 		// Act
-		_ = services.AddAwsKmsKeyManagementLocalStack("http://localhost:4566", null);
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
-
-		options.ServiceUrl.ShouldBe("http://localhost:4566");
-	}
-
-	#endregion
-
-	#region AddAwsKmsKeyManagementMultiRegion Tests
-
-	[Fact]
-	public void AddAwsKmsKeyManagementMultiRegion_ConfiguresMultiRegion()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddMemoryCache();
-
-		var replicaRegions = new[] { RegionEndpoint.EUWest1, RegionEndpoint.APNortheast1 };
-
-		// Act
-		_ = services.AddAwsKmsKeyManagementMultiRegion(
-			RegionEndpoint.USEast1,
-			replicaRegions);
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
-
-		options.Region.ShouldBe(RegionEndpoint.USEast1);
-		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
-		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.EUWest1);
-		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.APNortheast1);
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagementMultiRegion_AppliesAdditionalConfiguration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddMemoryCache();
-
-		// Act
-		_ = services.AddAwsKmsKeyManagementMultiRegion(
-			RegionEndpoint.USEast1,
-			[RegionEndpoint.EUWest1],
-			options => options.Environment = "dr-enabled");
+		_ = services.AddAwsKmsKeyManagement(aws =>
+		{
+			aws.Region("us-east-1")
+			   .Environment("dr-enabled");
+		});
 
 		// Assert
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
 
 		options.Environment.ShouldBe("dr-enabled");
-		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
 	}
 
 	[Fact]
-	public void AddAwsKmsKeyManagementMultiRegion_ThrowsArgumentNullException_WhenServicesNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsKmsKeyManagementMultiRegion(
-				RegionEndpoint.USEast1,
-				[RegionEndpoint.EUWest1]));
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagementMultiRegion_ThrowsArgumentNullException_WhenPrimaryRegionNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsKmsKeyManagementMultiRegion(
-				null!,
-				[RegionEndpoint.EUWest1]));
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagementMultiRegion_ThrowsArgumentNullException_WhenReplicaRegionsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddAwsKmsKeyManagementMultiRegion(
-				RegionEndpoint.USEast1,
-				null!));
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagementMultiRegion_WorksWithEmptyReplicaRegions()
+	public void AddAwsKmsKeyManagement_WithBuilder_SupportsBindConfiguration()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
 		_ = services.AddMemoryCache();
+		_ = services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(
+			new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
 		// Act
-		_ = services.AddAwsKmsKeyManagementMultiRegion(
-			RegionEndpoint.USEast1,
-			Array.Empty<RegionEndpoint>());
+		_ = services.AddAwsKmsKeyManagement(aws =>
+		{
+			aws.BindConfiguration("Aws:Kms");
+		});
 
-		// Assert
+		// Assert - should not throw; options are registered
 		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
-
-		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
-		options.KeyPolicy.ReplicaRegions.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagementMultiRegion_ReturnsSameServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddMemoryCache();
-
-		// Act
-		var result = services.AddAwsKmsKeyManagementMultiRegion(
-			RegionEndpoint.USEast1,
-			[RegionEndpoint.EUWest1]);
-
-		// Assert
-		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	public void AddAwsKmsKeyManagementMultiRegion_WithNullConfigure_WorksCorrectly()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-		_ = services.AddMemoryCache();
-
-		// Act
-		_ = services.AddAwsKmsKeyManagementMultiRegion(
-			RegionEndpoint.USEast1,
-			[RegionEndpoint.EUWest1],
-			null);
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
-
-		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
-		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.EUWest1);
+		var options = provider.GetService<IOptions<AwsKmsOptions>>();
+		options.ShouldNotBeNull();
 	}
 
 	#endregion

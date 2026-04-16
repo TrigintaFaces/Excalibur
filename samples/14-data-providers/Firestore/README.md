@@ -6,7 +6,7 @@ Demonstrates the full capabilities of `Excalibur.Data.Firestore`, the Google Clo
 
 | Capability | Description |
 |---|---|
-| **DI Registration** | `AddFirestore(Action<FirestoreOptions>)` and `IConfiguration`-based overloads |
+| **DI Registration** | `AddExcaliburFirestore(Action<IFirestoreDataBuilder>)` builder pattern |
 | **Emulator Support** | Local development via `EmulatorHost` without GCP credentials |
 | **CRUD Operations** | Create, Read, Update, Delete through `ICloudNativePersistenceProvider` |
 | **Query** | Collection-level queries via `QueryAsync` |
@@ -77,17 +77,17 @@ Edit `appsettings.json` to change the project ID, default collection, or emulato
 For production use, remove `EmulatorHost` and configure credentials:
 
 ```csharp
-builder.Services.AddFirestore(options =>
+builder.Services.AddExcaliburFirestore(firestore =>
 {
-    options.ProjectId = "my-gcp-project";
+    firestore.ProjectId("my-gcp-project");
     // Option 1: Application Default Credentials (recommended)
     // No extra config -- uses GOOGLE_APPLICATION_CREDENTIALS or metadata server.
 
     // Option 2: Service account key file
-    options.CredentialsPath = "/secrets/service-account.json";
+    firestore.CredentialsPath("/secrets/service-account.json");
 
     // Option 3: Inline JSON (container/secret manager scenarios)
-    options.CredentialsJson = Environment.GetEnvironmentVariable("GCP_CREDENTIALS_JSON");
+    firestore.CredentialsJson(Environment.GetEnvironmentVariable("GCP_CREDENTIALS_JSON")!);
 });
 ```
 

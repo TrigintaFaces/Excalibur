@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.ComponentModel.DataAnnotations;
-
 namespace Excalibur.EventSourcing.SqlServer.DependencyInjection;
 
 /// <summary>
@@ -35,9 +33,11 @@ public sealed class SqlServerEventSourcingOptions
 	/// Gets or sets the SQL Server connection string.
 	/// </summary>
 	/// <remarks>
-	/// Required unless using a custom connection factory.
+	/// Not required when using <see cref="ISqlServerEventSourcingBuilder.ConnectionFactory"/>,
+	/// <see cref="ISqlServerEventSourcingBuilder.ConnectionStringName"/>, or
+	/// <see cref="ISqlServerEventSourcingBuilder.BindConfiguration"/>.
+	/// Connection validation is handled by <c>SqlServerEventSourcingOptionsValidator</c>.
 	/// </remarks>
-	[Required]
 	public string? ConnectionString { get; set; }
 
 	/// <summary>

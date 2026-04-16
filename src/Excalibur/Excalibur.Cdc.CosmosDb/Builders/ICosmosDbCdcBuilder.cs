@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Azure.Cosmos;
+
 namespace Excalibur.Cdc.CosmosDb;
 
 /// <summary>
@@ -21,6 +23,15 @@ public interface ICosmosDbCdcBuilder
 	/// <param name="connectionString">The CosmosDB connection string.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	ICosmosDbCdcBuilder ConnectionString(string connectionString);
+
+	/// <summary>Sets the CosmosDB endpoint and auth key.</summary>
+	ICosmosDbCdcBuilder Endpoint(string endpoint, string authKey);
+
+	/// <summary>Sets a pre-configured <see cref="CosmosClient"/> instance.</summary>
+	ICosmosDbCdcBuilder Client(CosmosClient client);
+
+	/// <summary>Sets a factory that resolves a <see cref="CosmosClient"/> from DI.</summary>
+	ICosmosDbCdcBuilder ClientFactory(Func<IServiceProvider, CosmosClient> clientFactory);
 
 	/// <summary>
 	/// Sets the database ID for CDC processing.

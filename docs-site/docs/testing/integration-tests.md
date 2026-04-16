@@ -135,7 +135,14 @@ public class MongoDbIntegrationTests : IAsyncLifetime
         {
             builder.AddRepository<Order, OrderId>();
         });
-        services.AddMongoDbEventStore(_container.GetConnectionString(), "test-db");
+        services.AddExcaliburEventSourcing(es =>
+        {
+            es.UseMongoDB(mongo =>
+            {
+                mongo.ConnectionString(_container.GetConnectionString())
+                     .DatabaseName("test-db");
+            });
+        });
 
         // ... setup
     }

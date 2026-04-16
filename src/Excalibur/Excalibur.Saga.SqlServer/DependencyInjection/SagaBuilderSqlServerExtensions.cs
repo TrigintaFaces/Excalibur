@@ -1,12 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Idempotency;
 using Excalibur.Saga.Queries;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -17,12 +21,6 @@ namespace Excalibur.Saga.SqlServer.DependencyInjection;
 /// <summary>
 /// Extension methods for configuring SQL Server saga stores on <see cref="ISagaBuilder"/>.
 /// </summary>
-/// <remarks>
-/// <para>
-/// These extensions provide fluent provider selection following the established
-/// unified builder pattern where the connection string is configured via options.
-/// </para>
-/// </remarks>
 public static class SagaBuilderSqlServerExtensions
 {
 	/// <summary>
@@ -30,7 +28,7 @@ public static class SagaBuilderSqlServerExtensions
 	/// and monitoring service.
 	/// </summary>
 	/// <param name="builder">The saga builder.</param>
-	/// <param name="configure">Action to configure SQL Server saga options (connection string, schema, table names).</param>
+	/// <param name="configure">Action to configure the SQL Server saga builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
@@ -40,49 +38,32 @@ public static class SagaBuilderSqlServerExtensions
 	/// services.AddExcaliburSaga(saga =&gt;
 	/// {
 	///     saga.UseSqlServer(sql =&gt;
-	///         {
-	///             sql.ConnectionString = connectionString;
-	///         })
-	///         .WithOrchestration()
-	///         .WithTimeouts();
+	///     {
+	///         sql.ConnectionString(connectionString)
+	///            .SchemaName("dispatch")
+	///            .TableName("sagas");
+	///     })
+	///     .WithOrchestration()
+	///     .WithTimeouts();
 	/// });
 	/// </code>
 	/// </example>
 	public static ISagaBuilder UseSqlServer(
 		this ISagaBuilder builder,
-		Action<SqlServerSagaStoreOptions> configure)
+		Action<ISqlServerSagaBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddSqlServerSagaStore(configure);
+		var options = new SqlServerSagaStoreOptions();
+		var sqlBuilder = new SqlServerSagaBuilder(options);
+		configure(sqlBuilder);
 
-		// Propagate ConnectionString from saga store options to timeout store options
-		_ = builder.Services.AddSqlServerSagaTimeoutStore(timeout =>
-		{
-			// Resolve the connection string from the saga store options
-			var sagaOpts = new SqlServerSagaStoreOptions();
-			configure(sagaOpts);
-			timeout.ConnectionString = sagaOpts.ConnectionString;
-		});
+		var connectionFactory = ResolveConnectionFactory(sqlBuilder);
+		var hasBuilderConnection = sqlBuilder.ConnectionFactoryFunc is not null
+			|| sqlBuilder.ConnectionStringNameValue is not null;
 
-		_ = builder.Services.AddSqlServerSagaMonitoringService(configure);
-
-		// Register correlation query options + implementation
-		_ = builder.Services.AddOptions<SagaCorrelationQueryOptions>()
-			.ValidateOnStart();
-
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<SagaCorrelationQueryOptions>, SagaCorrelationQueryOptionsValidator>());
-
-		builder.Services.TryAddSingleton<ISagaCorrelationQuery>(sp =>
-		{
-			var storeOpts = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
-			Func<SqlConnection> factory = () => new SqlConnection(storeOpts.Value.ConnectionString);
-			var queryOpts = sp.GetRequiredService<IOptions<SagaCorrelationQueryOptions>>();
-			var logger = sp.GetRequiredService<ILogger<SqlServerSagaCorrelationQuery>>();
-			return new SqlServerSagaCorrelationQuery(factory, storeOpts, queryOpts, logger);
-		});
+		RegisterOptionsAndServices(builder, sqlBuilder, options, connectionFactory, hasBuilderConnection);
 
 		return builder;
 	}
@@ -91,20 +72,11 @@ public static class SagaBuilderSqlServerExtensions
 	/// Configures the saga builder to use SQL Server for idempotency tracking.
 	/// </summary>
 	/// <param name="builder">The saga builder.</param>
-	/// <param name="configure">Action to configure SQL Server idempotency options (connection string, schema, table names).</param>
+	/// <param name="configure">Action to configure SQL Server idempotency options.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
 	/// </exception>
-	/// <example>
-	/// <code>
-	/// services.AddExcaliburSaga(saga =&gt;
-	/// {
-	///     saga.UseSqlServer(sql =&gt; { sql.ConnectionString = connectionString; })
-	///         .WithSqlServerIdempotency(sql =&gt; { sql.ConnectionString = connectionString; });
-	/// });
-	/// </code>
-	/// </example>
 	public static ISagaBuilder WithSqlServerIdempotency(
 		this ISagaBuilder builder,
 		Action<SqlServerSagaIdempotencyOptions> configure)
@@ -122,11 +94,135 @@ public static class SagaBuilderSqlServerExtensions
 
 		builder.Services.TryAddSingleton<ISagaIdempotencyProvider>(sp =>
 		{
-			var options = sp.GetRequiredService<IOptions<SqlServerSagaIdempotencyOptions>>();
+			var idempotencyOptions = sp.GetRequiredService<IOptions<SqlServerSagaIdempotencyOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaIdempotencyProvider>>();
-			return new SqlServerSagaIdempotencyProvider(options.Value.ConnectionString!, options, logger);
+			return new SqlServerSagaIdempotencyProvider(idempotencyOptions.Value.ConnectionString!, idempotencyOptions, logger);
 		});
 
 		return builder;
+	}
+
+	private static Func<IServiceProvider, Func<SqlConnection>> ResolveConnectionFactory(
+		SqlServerSagaBuilder sqlBuilder)
+	{
+		if (sqlBuilder.ConnectionFactoryFunc is not null)
+		{
+			return sqlBuilder.ConnectionFactoryFunc;
+		}
+
+		if (sqlBuilder.ConnectionStringNameValue is not null)
+		{
+			var connStrName = sqlBuilder.ConnectionStringNameValue;
+			return sp =>
+			{
+				var config = sp.GetRequiredService<IConfiguration>();
+				var resolved = config.GetConnectionString(connStrName)
+					?? throw new InvalidOperationException(
+						$"Connection string '{connStrName}' not found in IConfiguration. " +
+						$"Ensure it exists in the ConnectionStrings section of your configuration.");
+				return () => new SqlConnection(resolved);
+			};
+		}
+
+		return sp =>
+		{
+			var opts = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
+			return () => new SqlConnection(opts.Value.ConnectionString);
+		};
+	}
+
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		ISagaBuilder builder,
+		SqlServerSagaBuilder sqlBuilder,
+		SqlServerSagaStoreOptions options,
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
+		bool hasBuilderConnection)
+	{
+		// Register saga store options
+		_ = builder.Services.Configure<SqlServerSagaStoreOptions>(opt =>
+		{
+			opt.ConnectionString = options.ConnectionString;
+			opt.SchemaName = options.SchemaName;
+			opt.TableName = options.TableName;
+		});
+
+		if (sqlBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<SqlServerSagaStoreOptions>()
+				.BindConfiguration(sqlBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+
+			if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+			{
+				var explicitConnectionString = options.ConnectionString;
+				_ = builder.Services.PostConfigure<SqlServerSagaStoreOptions>(opt =>
+				{
+					opt.ConnectionString = explicitConnectionString;
+				});
+			}
+		}
+
+		// Register ValidateOnStart
+		builder.Services.AddSingleton<IValidateOptions<SqlServerSagaStoreOptions>>(
+			new SqlServerSagaBuilderOptionsValidator { HasBuilderConnection = hasBuilderConnection });
+		builder.Services.AddOptions<SqlServerSagaStoreOptions>().ValidateOnStart();
+
+		// Register saga store with connection factory
+		builder.Services.TryAddSingleton(sp =>
+		{
+			var factory = connectionFactory(sp);
+			var storeOptions = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
+			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
+			var serializer = sp.GetRequiredService<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
+			return new SqlServerSagaStore(factory, storeOptions, logger, serializer);
+		});
+		builder.Services.AddKeyedSingleton<ISagaStore>(
+			"sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
+		builder.Services.TryAddKeyedSingleton<ISagaStore>(
+			"default", (sp, _) => sp.GetRequiredKeyedService<ISagaStore>("sqlserver"));
+
+		// Register timeout store sharing the same connection
+		_ = builder.Services.Configure<SqlServerSagaTimeoutStoreOptions>(opt =>
+		{
+			opt.ConnectionString = options.ConnectionString;
+		});
+		builder.Services.TryAddSingleton(sp =>
+		{
+			var factory = connectionFactory(sp);
+			var timeoutOptions = sp.GetRequiredService<IOptions<SqlServerSagaTimeoutStoreOptions>>();
+			var logger = sp.GetRequiredService<ILogger<SqlServerSagaTimeoutStore>>();
+			return new SqlServerSagaTimeoutStore(factory, timeoutOptions, logger);
+		});
+		builder.Services.TryAddSingleton<ISagaTimeoutStore>(
+			sp => sp.GetRequiredService<SqlServerSagaTimeoutStore>());
+
+		// Register monitoring service sharing the same connection
+		builder.Services.TryAddSingleton(sp =>
+		{
+			var factory = connectionFactory(sp);
+			var storeOptions = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
+			var logger = sp.GetRequiredService<ILogger<SqlServerSagaMonitoringService>>();
+			return new SqlServerSagaMonitoringService(factory, storeOptions, logger);
+		});
+		builder.Services.TryAddSingleton<ISagaMonitoringService>(
+			sp => sp.GetRequiredService<SqlServerSagaMonitoringService>());
+
+		// Register correlation query
+		_ = builder.Services.AddOptions<SagaCorrelationQueryOptions>()
+			.ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SagaCorrelationQueryOptions>, SagaCorrelationQueryOptionsValidator>());
+		builder.Services.TryAddSingleton<ISagaCorrelationQuery>(sp =>
+		{
+			var factory = connectionFactory(sp);
+			var storeOptions = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
+			var queryOpts = sp.GetRequiredService<IOptions<SagaCorrelationQueryOptions>>();
+			var logger = sp.GetRequiredService<ILogger<SqlServerSagaCorrelationQuery>>();
+			return new SqlServerSagaCorrelationQuery(factory, storeOptions, queryOpts, logger);
+		});
 	}
 }

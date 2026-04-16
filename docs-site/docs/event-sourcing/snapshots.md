@@ -44,10 +44,9 @@ flowchart LR
 // Recommended: Builder-integrated registration
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(options =>
+    es.UseSqlServer(sql =>
     {
-        options.ConnectionString = connectionString;
-        options.HealthChecks.RegisterHealthChecks = true;
+        sql.ConnectionString(connectionString);
     });
     es.UseIntervalSnapshots(100); // Every 100 events
 });

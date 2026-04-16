@@ -109,26 +109,27 @@ services.AddSingleton(_ =>
 });
 ```
 
-### 2. Add Cosmos DB Event Store
-
-```csharp
-services.AddCosmosDbEventStore(options =>
-{
-    options.EventsContainerName = "events";
-    options.PartitionKeyPath = "/streamId";
-    options.CreateContainerIfNotExists = true;
-    options.ContainerThroughput = 400;
-    options.UseTransactionalBatch = true;
-});
-```
-
-### 3. Register Aggregates
+### 2. Add Event Sourcing with Cosmos DB Event Store
 
 ```csharp
 services.AddExcaliburEventSourcing(builder =>
 {
+    builder.UseCosmosDb(cosmos =>
+    {
+        cosmos.ContainerName("events");
+    });
+
     builder.AddRepository<BankAccountAggregate, Guid>(
         id => new BankAccountAggregate(id));
+});
+
+// Advanced event store options via post-configure
+services.Configure<CosmosDbEventStoreOptions>(options =>
+{
+    options.PartitionKeyPath = "/streamId";
+    options.CreateContainerIfNotExists = true;
+    options.ContainerThroughput = 400;
+    options.UseTransactionalBatch = true;
 });
 ```
 

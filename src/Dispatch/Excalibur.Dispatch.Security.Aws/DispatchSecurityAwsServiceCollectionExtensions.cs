@@ -3,8 +3,6 @@
 
 using Excalibur.Dispatch.Security.Aws;
 
-using Microsoft.Extensions.Configuration;
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -13,57 +11,35 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class DispatchSecurityAwsServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds AWS Secrets Manager credential store services.
+	/// Adds AWS security services (Secrets Manager credential store) to the service collection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration containing AWS settings.</param>
+	/// <param name="configure">Configuration action for the AWS security builder.</param>
 	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// Requires the following configuration:
+	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
+	/// <example>
 	/// <code>
+	/// services.AddDispatchSecurityAws(aws =&gt;
 	/// {
-	///   "AWS": {
-	///     "Region": "us-east-1",
-	///     "SecretsManager": {
-	///       "Secrets": {
-	///         "my-secret-key": "secret-value"
-	///       }
-	///     }
-	///   }
-	/// }
+	///     aws.Region("us-east-1");
+	/// });
 	/// </code>
-	/// </remarks>
-	public static IServiceCollection AddAwsSecretsManagerCredentialStore(
+	/// </example>
+	public static IServiceCollection AddDispatchSecurityAws(
 		this IServiceCollection services,
-		IConfiguration configuration)
+		Action<ISecurityAwsBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		var awsRegion = configuration["AWS:Region"];
-		if (!string.IsNullOrEmpty(awsRegion))
+		var builder = new SecurityAwsBuilder();
+		configure(builder);
+
+		if (builder.Region is not null)
 		{
 			_ = services.AddSingleton<ICredentialStore, AwsSecretsManagerCredentialStore>();
 			_ = services.AddSingleton<IWritableCredentialStore, AwsSecretsManagerCredentialStore>();
 		}
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds all AWS security services including Secrets Manager credential store.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration containing AWS settings.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddDispatchSecurityAws(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = services.AddAwsSecretsManagerCredentialStore(configuration);
 
 		return services;
 	}

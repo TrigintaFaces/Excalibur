@@ -7,3 +7,7 @@ Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.Schem
 Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.TableName(string! tableName) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
 Microsoft.Extensions.DependencyInjection.IdentityMapBuilderSqlServerExtensions
 static Microsoft.Extensions.DependencyInjection.IdentityMapBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Data.IdentityMap.Builders.IIdentityMapBuilder! builder, System.Action<Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!>! configure) -> Excalibur.Data.IdentityMap.Builders.IIdentityMapBuilder!
+Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
+Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactory) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
+Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.ConnectionStringName(string! name) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!
+Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder.EnableHealthChecks(string? name = null) -> Excalibur.Data.IdentityMap.SqlServer.Builders.ISqlServerIdentityMapBuilder!

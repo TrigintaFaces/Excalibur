@@ -258,6 +258,104 @@ public static class DataProcessingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds data processing services using the fluent builder pattern.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Action to configure the data processing builder.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddDataProcessing(dp =&gt;
+	/// {
+	///     dp.ConnectionFactory(() =&gt; new SqlConnection(connectionString))
+	///       .BindConfiguration("DataProcessing")
+	///       .AddProcessor&lt;OrderProcessor&gt;()
+	///       .AddRecordHandler&lt;OrderHandler, OrderRecord&gt;()
+	///       .EnableBackgroundProcessing();
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	public static IServiceCollection AddDataProcessing(
+		this IServiceCollection services,
+		Action<IDataProcessingBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var builder = new DataProcessingBuilder(services);
+		configure(builder);
+
+		// Resolve connection factory
+		Func<IServiceProvider, Func<IDbConnection>> connectionFactory;
+		if (builder.DependencyAwareConnectionFactory is not null)
+		{
+			connectionFactory = builder.DependencyAwareConnectionFactory;
+		}
+		else if (builder.SimpleConnectionFactory is not null)
+		{
+			var simpleFactory = builder.SimpleConnectionFactory;
+			connectionFactory = _ => simpleFactory;
+		}
+		else
+		{
+			// No connection factory — services will fail at resolution time if needed
+			connectionFactory = _ => throw new InvalidOperationException(
+				"No connection configured for DataProcessing. " +
+				"Call ConnectionFactory() inside AddDataProcessing().");
+		}
+
+		// Register orchestration connection as keyed singleton
+		services.TryAddKeyedSingleton(DataProcessingKeys.OrchestrationConnection,
+			(sp, _) => connectionFactory(sp));
+
+		// Register BindConfiguration if set
+		if (builder.BindConfigurationPath is not null)
+		{
+			services.AddOptions<DataProcessingOptions>()
+				.BindConfiguration(builder.BindConfigurationPath)
+				.ValidateOnStart();
+			services.TryAddEnumerable(
+				ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
+		}
+
+		// Register core services
+		services.TryAddScoped<IDataProcessorRegistry>(static sp =>
+		{
+			var processors = sp.GetServices<IDataProcessor>() ?? [];
+			return new DataProcessorRegistry(processors);
+		});
+		services.TryAddScoped<IDataOrchestrationManager, DataOrchestrationManager>();
+
+		// Register background processing if enabled
+		if (builder.BackgroundProcessingEnabled)
+		{
+			var bgConfigure = builder.BackgroundProcessingConfigure;
+			var bgOptionsBuilder = services.AddOptions<DataProcessingHostedServiceOptions>()
+				.ValidateOnStart();
+
+			if (bgConfigure is not null)
+			{
+				_ = bgOptionsBuilder.Configure(bgConfigure);
+			}
+
+			services.TryAddEnumerable(
+				ServiceDescriptor.Singleton<IValidateOptions<DataProcessingHostedServiceOptions>,
+					DataProcessingHostedServiceOptionsValidator>());
+			services.TryAddEnumerable(
+				ServiceDescriptor.Singleton<IHostedService, DataProcessingHostedService>());
+		}
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds the required services and configurations for data processing to the dependency injection container.
 	/// </summary>
 	/// <param name="services"> The <see cref="IServiceCollection" /> to add the services to. </param>
@@ -342,7 +440,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// </para>
 	/// <para>
 	/// This method works with both the assembly-scanning registration path
-	/// (<see cref="AddDataProcessing"/>) and the AOT-safe explicit registration
+	/// (<see cref="AddDataProcessing(IServiceCollection, Action{IDataProcessingBuilder})"/>) and the AOT-safe explicit registration
 	/// path (<see cref="AddDataProcessor{TProcessor}(IServiceCollection)"/>).
 	/// </para>
 	/// </remarks>

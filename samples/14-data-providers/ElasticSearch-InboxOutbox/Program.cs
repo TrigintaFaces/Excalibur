@@ -36,23 +36,20 @@ builder.Services.AddElasticsearchServices(builder.Configuration, registry: null)
 // ── Register Inbox with Elasticsearch provider ──────────────────────────────
 builder.Services.AddExcaliburInbox(inbox =>
 {
-    inbox.UseElasticSearch(options =>
+    inbox.UseElasticSearch(es =>
     {
-        options.IndexName = "sample-inbox";
-        options.RefreshPolicy = "wait_for";
-        options.RetentionDays = 7;
+        es.NodeUri(new Uri("http://localhost:9200"))
+          .IndexName("sample-inbox");
     });
 });
 
 // ── Register Outbox with Elasticsearch provider ─────────────────────────────
 builder.Services.AddExcaliburOutbox(outbox =>
 {
-    outbox.UseElasticSearch(options =>
+    outbox.UseElasticSearch(es =>
     {
-        options.IndexName = "sample-outbox";
-        options.DefaultBatchSize = 100;
-        options.RefreshPolicy = "wait_for";
-        options.SentMessageRetentionDays = 7;
+        es.NodeUri(new Uri("http://localhost:9200"))
+          .IndexName("sample-outbox");
     });
 });
 

@@ -66,7 +66,7 @@
 //   └─────────────────────────────────────────────────────────────────────┘
 //
 // Key Features:
-// - CDC processing via Background Service
+// - CDC processing via framework's EnableBackgroundProcessing()
 // - Multiple tables: LegacyCustomers, LegacyOrders, LegacyOrderItems
 // - Production-grade stale position recovery
 // - Real SQL Server event store with snapshots
@@ -82,7 +82,6 @@
 
 using CdcEventStoreElasticsearch.AntiCorruption;
 using CdcEventStoreElasticsearch.Domain;
-using CdcEventStoreElasticsearch.Infrastructure;
 using CdcEventStoreElasticsearch.Projections;
 using CdcEventStoreElasticsearch.Repositories;
 
@@ -147,8 +146,8 @@ builder.Services
 // ============================================================================
 
 builder.Services
-	.AddDispatch(typeof(Program).Assembly)
-	.AddSingleton<IEventSerializer, JsonEventSerializer>();
+	.AddDispatch(typeof(Program).Assembly);
+// IEventSerializer (JsonEventSerializer) is auto-registered by AddDispatch()
 
 // ============================================================================
 // CDC Processing (Fluent Builder Pattern)
@@ -164,8 +163,6 @@ builder.Services.AddCdcProcessor(cdc =>
 		{
 			sql.ConnectionString(cdcSourceConnectionString)
 				.DatabaseName("LegacyDb")
-				.DatabaseConnectionIdentifier("cdc-LegacyDb")
-				.StateConnectionIdentifier("state-LegacyDb")
 				.CaptureInstances("dbo_LegacyCustomers", "dbo_LegacyOrders", "dbo_LegacyOrderItems")
 				.StopOnMissingTableHandler(false)
 				.PollingInterval(TimeSpan.FromSeconds(5))
@@ -191,20 +188,13 @@ builder.Services.AddCdcProcessor(cdc =>
 				})
 				.EnableStructuredLogging();
 		});
-	// Note: Don't call EnableBackgroundProcessing() - we use CdcPollingBackgroundService below
+	cdc.EnableBackgroundProcessing();
 });
 
 // Register SQL services (CDC processor already registered above via AddCdcProcessor builder)
 builder.Services
 	.AddExcaliburSqlServices();
 
-// CDC polling options (bound from configuration with defaults)
-builder.Services.Configure<CdcPollingOptions>(builder.Configuration.GetSection(CdcPollingOptions.SectionName));
-builder.Services.PostConfigure<CdcPollingOptions>(options =>
-{
-	options.CdcSourceConnectionString ??= cdcSourceConnectionString;
-	options.StateStoreConnectionString ??= eventStoreConnectionString;
-});
 
 // ============================================================================
 // Anti-Corruption Layer
@@ -221,13 +211,6 @@ builder.Services
 	.AddSingleton<LegacyOrderItemAdapter>()
 	.AddSingleton<IOrderLookupService, InMemoryOrderLookupService>()
 	.AddSingleton<IOrderItemLookupService, InMemoryOrderItemLookupService>();
-
-// ============================================================================
-// CDC Background Processing
-// ============================================================================
-// For Quartz-based scheduling, see the CdcJobQuartz sample in samples/13-jobs.
-
-builder.Services.AddHostedService<CdcPollingBackgroundService>();
 
 // ============================================================================
 // Elasticsearch Projections
@@ -340,10 +323,9 @@ builder.Services.AddScoped<OrderFullTextSearchRepository>();
 builder.Services.AddExcaliburEventSourcing(es =>
 {
 	// SQL Server event store with health checks
-	es.UseSqlServer(options =>
+	es.UseSqlServer(sql =>
 	{
-		options.ConnectionString = eventStoreConnectionString;
-		options.HealthChecks.RegisterHealthChecks = true;
+		sql.ConnectionString(eventStoreConnectionString);
 	});
 
 	// Register event-sourced repositories used by CDC change handlers
@@ -372,9 +354,6 @@ builder.Services.AddExcaliburEventSourcing(es =>
 		.WhenHandledBy<OrderDelivered, OrderDeliveredProjectionHandler>()
 		.WhenHandledBy<OrderCancelled, OrderCancelledProjectionHandler>());
 });
-
-// Projection processing options (for tier summary background service)
-builder.Services.Configure<ProjectionOptions>(builder.Configuration.GetSection("Projections"));
 
 // ============================================================================
 // Build and Configure Application

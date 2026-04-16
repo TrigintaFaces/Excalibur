@@ -596,7 +596,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		return services;
 	}
 
-	private static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
+	internal static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
 		services.AddKeyedSingleton<IEventStore>("sqlserver", (sp, _) =>
 		{
@@ -612,7 +612,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 			sp.GetRequiredKeyedService<IEventStore>("sqlserver"));
 	}
 
-	private static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)
+	internal static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)
 	{
 		services.AddKeyedSingleton<ISnapshotStore>("sqlserver", (sp, _) =>
 		{

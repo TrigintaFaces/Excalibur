@@ -6,7 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.AuditLogging.Elasticsearch;
 using Excalibur.Dispatch.Compliance;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 // Note: IAuditStore is NOT registered from this package.
@@ -20,126 +19,168 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ElasticsearchServiceCollectionExtensions
 {
-	/// <summary>
-	/// Adds Elasticsearch audit log exporter services to the service collection.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">The configuration action.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
-	public static IServiceCollection AddElasticsearchAuditExporter(
-		this IServiceCollection services,
-		Action<ElasticsearchExporterOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
+    /// <summary>
+    /// Adds Elasticsearch audit log exporter services to the service collection.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configuration action for the Elasticsearch audit builder.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services or configure is null.</exception>
+    /// <example>
+    /// <code>
+    /// services.AddElasticsearchAuditExporter(es =&gt;
+    /// {
+    ///     es.NodeUri(new Uri("https://my-cluster:9200"))
+    ///       .IndexName("dispatch-audit");
+    /// });
+    /// </code>
+    /// </example>
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
+    public static IServiceCollection AddElasticsearchAuditExporter(
+        this IServiceCollection services,
+        Action<IAuditLoggingElasticsearchBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.AddOptions<ElasticsearchExporterOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+        var options = new ElasticsearchExporterOptions
+        {
+            ElasticsearchUrl = null!,
+        };
+        var builder = new AuditLoggingElasticsearchBuilder(options);
+        configure(builder);
 
-		return services.AddElasticsearchAuditExporterCore();
-	}
+        RegisterExporterOptionsAndServices(services, builder, options);
 
-	/// <summary>
-	/// Adds Elasticsearch audit log exporter services using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="ElasticsearchExporterOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <exception cref="ArgumentNullException">Thrown when services or configuration is null.</exception>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddElasticsearchAuditExporter(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
+        return services;
+    }
 
-		_ = services.AddOptions<ElasticsearchExporterOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
+    /// <summary>
+    /// Adds the Elasticsearch audit sink for real-time audit event indexing.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configuration action for the Elasticsearch audit sink builder.</param>
+    /// <returns>The service collection for chaining.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
+    public static IServiceCollection AddElasticsearchAuditSink(
+        this IServiceCollection services,
+        Action<IAuditLoggingElasticsearchBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
 
-		return services.AddElasticsearchAuditExporterCore();
-	}
+        var options = new ElasticsearchExporterOptions
+        {
+            ElasticsearchUrl = null!,
+        };
+        var builder = new AuditLoggingElasticsearchBuilder(options);
+        configure(builder);
 
-	/// <summary>
-	/// Adds the Elasticsearch audit sink for real-time audit event indexing.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">The configuration action.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddElasticsearchAuditSink(
-		this IServiceCollection services,
-		Action<ElasticsearchAuditSinkOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configure);
+        RegisterSinkOptionsAndServices(services, builder, options);
 
-		_ = services.AddOptions<ElasticsearchAuditSinkOptions>()
-			.Configure(configure)
-			.ValidateOnStart();
+        return services;
+    }
 
-		return services.AddElasticsearchAuditSinkCore();
-	}
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
+    private static void RegisterExporterOptionsAndServices(
+        IServiceCollection services,
+        AuditLoggingElasticsearchBuilder builder,
+        ElasticsearchExporterOptions options)
+    {
+        _ = services.Configure<ElasticsearchExporterOptions>(opt =>
+        {
+            opt.ElasticsearchUrl = options.ElasticsearchUrl;
+            opt.NodeUrls = options.NodeUrls;
+            opt.IndexPrefix = options.IndexPrefix;
+            opt.BulkBatchSize = options.BulkBatchSize;
+            opt.RefreshPolicy = options.RefreshPolicy;
+            opt.ApiKey = options.ApiKey;
+            opt.MaxRetryAttempts = options.MaxRetryAttempts;
+            opt.RetryBaseDelay = options.RetryBaseDelay;
+            opt.Timeout = options.Timeout;
+            opt.ApplicationName = options.ApplicationName;
+        });
 
-	/// <summary>
-	/// Adds the Elasticsearch audit sink using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="ElasticsearchAuditSinkOptions"/>.</param>
-	/// <returns>The service collection for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddElasticsearchAuditSink(
-		this IServiceCollection services,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(configuration);
+        if (builder.BindConfigurationPath is not null)
+        {
+            _ = services.AddOptions<ElasticsearchExporterOptions>()
+                .BindConfiguration(builder.BindConfigurationPath)
+                .ValidateOnStart();
+        }
 
-		_ = services.AddOptions<ElasticsearchAuditSinkOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
+        _ = services.AddOptions<ElasticsearchExporterOptions>().ValidateOnStart();
 
-		return services.AddElasticsearchAuditSinkCore();
-	}
+        AddElasticsearchAuditExporterCore(services);
+    }
 
-	private static IServiceCollection AddElasticsearchAuditExporterCore(this IServiceCollection services)
-	{
-		_ = services.AddSingleton<IValidateOptions<ElasticsearchExporterOptions>,
-			ElasticsearchExporterOptionsValidator>();
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+        Justification = "Options validation/binding uses reflection by design.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Configuration binding uses reflection by design.")]
+    private static void RegisterSinkOptionsAndServices(
+        IServiceCollection services,
+        AuditLoggingElasticsearchBuilder builder,
+        ElasticsearchExporterOptions options)
+    {
+        _ = services.Configure<ElasticsearchAuditSinkOptions>(opt =>
+        {
+            opt.ElasticsearchUrl = options.ElasticsearchUrl;
+            opt.NodeUrls = options.NodeUrls;
+            opt.IndexPrefix = options.IndexPrefix;
+            opt.RefreshPolicy = options.RefreshPolicy;
+            opt.ApiKey = options.ApiKey;
+            opt.MaxRetryAttempts = options.MaxRetryAttempts;
+            opt.RetryBaseDelay = options.RetryBaseDelay;
+            opt.Timeout = options.Timeout;
+            opt.ApplicationName = options.ApplicationName;
+        });
 
-		_ = services.AddHttpClient<ElasticsearchAuditExporter>((sp, client) =>
-		{
-			var options = sp.GetRequiredService<IOptions<ElasticsearchExporterOptions>>().Value;
-			client.Timeout = options.Timeout;
-		});
+        if (builder.BindConfigurationPath is not null)
+        {
+            _ = services.AddOptions<ElasticsearchAuditSinkOptions>()
+                .BindConfiguration(builder.BindConfigurationPath)
+                .ValidateOnStart();
+        }
 
-		_ = services.AddSingleton<IAuditLogExporter, ElasticsearchAuditExporter>();
+        _ = services.AddOptions<ElasticsearchAuditSinkOptions>().ValidateOnStart();
 
-		return services;
-	}
+        AddElasticsearchAuditSinkCore(services);
+    }
 
-	private static IServiceCollection AddElasticsearchAuditSinkCore(this IServiceCollection services)
-	{
-		_ = services.AddSingleton<IValidateOptions<ElasticsearchAuditSinkOptions>,
-			ElasticsearchAuditSinkOptionsValidator>();
+    private static void AddElasticsearchAuditExporterCore(IServiceCollection services)
+    {
+        _ = services.AddSingleton<IValidateOptions<ElasticsearchExporterOptions>,
+            ElasticsearchExporterOptionsValidator>();
 
-		_ = services.AddHttpClient<ElasticsearchAuditSink>((sp, client) =>
-		{
-			var options = sp.GetRequiredService<IOptions<ElasticsearchAuditSinkOptions>>().Value;
-			client.Timeout = options.Timeout;
-		});
+        _ = services.AddHttpClient<ElasticsearchAuditExporter>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<ElasticsearchExporterOptions>>().Value;
+            client.Timeout = options.Timeout;
+        });
 
-		_ = services.AddSingleton<ElasticsearchAuditSink>();
+        _ = services.AddSingleton<IAuditLogExporter, ElasticsearchAuditExporter>();
+    }
 
-		return services;
-	}
+    private static void AddElasticsearchAuditSinkCore(IServiceCollection services)
+    {
+        _ = services.AddSingleton<IValidateOptions<ElasticsearchAuditSinkOptions>,
+            ElasticsearchAuditSinkOptionsValidator>();
 
+        _ = services.AddHttpClient<ElasticsearchAuditSink>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<ElasticsearchAuditSinkOptions>>().Value;
+            client.Timeout = options.Timeout;
+        });
+
+        _ = services.AddSingleton<ElasticsearchAuditSink>();
+    }
 }

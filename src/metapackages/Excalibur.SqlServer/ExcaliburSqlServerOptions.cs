@@ -7,8 +7,8 @@ using Excalibur.Compliance.SqlServer;
 using Excalibur.Compliance.SqlServer.Erasure;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.AuditLogging.SqlServer;
-using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Inbox.SqlServer;
+using Excalibur.LeaderElection.SqlServer;
 using Excalibur.Saga.SqlServer;
 
 namespace Excalibur.SqlServer;
@@ -16,6 +16,13 @@ namespace Excalibur.SqlServer;
 /// <summary>
 /// Options for configuring the complete Excalibur SQL Server stack.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Subsystem callbacks use builder interfaces (<c>Action&lt;IXxxBuilder&gt;</c>) for
+/// consistent composition with the individual packages' builder APIs. The metapackage
+/// automatically flows <see cref="ConnectionString"/> into each subsystem builder.
+/// </para>
+/// </remarks>
 public sealed class ExcaliburSqlServerOptions
 {
 	/// <summary>
@@ -62,11 +69,11 @@ public sealed class ExcaliburSqlServerOptions
 	}
 
 	/// <summary>
-	/// Configures inbox store options (schema name, table name, concurrency).
+	/// Configures the SQL Server inbox builder (schema, table names, connection overrides).
 	/// </summary>
-	/// <param name="configure">A delegate to configure inbox options.</param>
+	/// <param name="configure">A delegate to configure the SQL Server inbox builder.</param>
 	/// <returns>This options instance for chaining.</returns>
-	public ExcaliburSqlServerOptions ConfigureInbox(Action<SqlServerInboxOptions> configure)
+	public ExcaliburSqlServerOptions ConfigureInbox(Action<ISqlServerInboxBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		InboxConfiguration = configure;
@@ -74,11 +81,11 @@ public sealed class ExcaliburSqlServerOptions
 	}
 
 	/// <summary>
-	/// Configures saga store options (schema name, table names).
+	/// Configures the SQL Server saga builder (schema, table names, connection overrides).
 	/// </summary>
-	/// <param name="configure">A delegate to configure saga options.</param>
+	/// <param name="configure">A delegate to configure the SQL Server saga builder.</param>
 	/// <returns>This options instance for chaining.</returns>
-	public ExcaliburSqlServerOptions ConfigureSaga(Action<SqlServerSagaStoreOptions> configure)
+	public ExcaliburSqlServerOptions ConfigureSaga(Action<ISqlServerSagaBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		SagaConfiguration = configure;
@@ -86,11 +93,11 @@ public sealed class ExcaliburSqlServerOptions
 	}
 
 	/// <summary>
-	/// Configures leader election options (lease duration, renew interval).
+	/// Configures the SQL Server leader election builder (lock resource, connection overrides).
 	/// </summary>
-	/// <param name="configure">A delegate to configure leader election options.</param>
+	/// <param name="configure">A delegate to configure the SQL Server leader election builder.</param>
 	/// <returns>This options instance for chaining.</returns>
-	public ExcaliburSqlServerOptions ConfigureLeaderElection(Action<LeaderElectionOptions> configure)
+	public ExcaliburSqlServerOptions ConfigureLeaderElection(Action<ISqlServerLeaderElectionBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		LeaderElectionConfiguration = configure;
@@ -135,11 +142,11 @@ public sealed class ExcaliburSqlServerOptions
 
 	internal Action<IDispatchBuilder>? DispatchConfiguration { get; private set; }
 
-	internal Action<SqlServerInboxOptions>? InboxConfiguration { get; private set; }
+	internal Action<ISqlServerInboxBuilder>? InboxConfiguration { get; private set; }
 
-	internal Action<SqlServerSagaStoreOptions>? SagaConfiguration { get; private set; }
+	internal Action<ISqlServerSagaBuilder>? SagaConfiguration { get; private set; }
 
-	internal Action<LeaderElectionOptions>? LeaderElectionConfiguration { get; private set; }
+	internal Action<ISqlServerLeaderElectionBuilder>? LeaderElectionConfiguration { get; private set; }
 
 	internal Action<SqlServerAuditOptions>? AuditLoggingConfiguration { get; private set; }
 

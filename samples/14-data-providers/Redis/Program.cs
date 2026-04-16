@@ -18,7 +18,7 @@ using StackExchange.Redis;
 // ============================================================================
 //
 // Demonstrates ALL Excalibur.Data.Redis capabilities:
-//   1. DI registration with AddRedisProvider and options configuration
+//   1. DI registration with AddExcaliburRedis and builder configuration
 //   2. Connection pool configuration (timeouts, retries, abort behavior)
 //   3. Database selection via DatabaseId option
 //   4. Direct CRUD operations via StackExchange.Redis IDatabase
@@ -38,44 +38,25 @@ using StackExchange.Redis;
 var builder = Host.CreateApplicationBuilder(args);
 
 // ---------------------------------------------------------------------------
-// 1. DI Registration -- AddRedisProvider with inline options
+// 1. DI Registration -- AddExcaliburRedis with builder pattern
 // ---------------------------------------------------------------------------
-// The AddRedisProvider extension registers RedisProviderOptions with
-// ValidateOnStart and the RedisProviderOptionsValidator.
-builder.Services.AddRedisProvider(options =>
+// The AddExcaliburRedis extension registers RedisProviderOptions with
+// ValidateOnStart, the RedisProviderOptionsValidator, and core services.
+builder.Services.AddExcaliburRedis(redis =>
 {
-    options.ConnectionString = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
-    options.DatabaseId = int.TryParse(builder.Configuration["Redis:DatabaseId"], out var dbId) ? dbId : 0;
-    options.Name = "sample-redis";
+    redis.ConnectionString(builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379")
+         .KeyPrefix("sample-redis")
+         .Database(int.TryParse(builder.Configuration["Redis:DatabaseId"], out var dbId) ? dbId : 0);
 
-    // 2. Connection Pool Configuration
-    //    RedisConnectionPoolOptions controls timeouts, retries, and abort behavior.
-    options.Pool = new RedisConnectionPoolOptions
-    {
-        ConnectTimeout = 10,       // seconds -- time to establish initial connection
-        SyncTimeout = 5,           // seconds -- synchronous operation timeout
-        AsyncTimeout = 5,          // seconds -- asynchronous operation timeout
-        ConnectRetry = 3,          // number of reconnect attempts on connection loss
-        AbortOnConnectFail = false, // false = resilient; silently reconnects in background
-        RetryCount = 3,            // operation-level retries with exponential backoff
-    };
+    // Alternative: bind from IConfiguration section
+    // redis.BindConfiguration("Redis");
 
-    // SSL/TLS configuration (uncomment for secured Redis)
-    // options.UseSsl = true;
-    // options.Password = "your-redis-password";
+    // Alternative: provide pre-configured ConnectionMultiplexer
+    // redis.ConnectionMultiplexer(existingMultiplexer);
 
-    // Admin operations (INFO, FLUSHDB, etc.) -- disabled by default
-    // options.AllowAdmin = true;
-
-    // Read-only mode -- marks provider as read-only for monitoring scenarios
-    // options.IsReadOnly = true;
+    // Alternative: provide factory for lazy ConnectionMultiplexer creation
+    // redis.ConnectionMultiplexerFactory(sp => sp.GetRequiredService<IConnectionMultiplexer>());
 });
-
-// Alternative: bind directly from IConfiguration section
-// builder.Services.AddRedisProvider(builder.Configuration.GetSection("Redis"));
-
-// Register the provider itself as a singleton so we can resolve it
-builder.Services.AddSingleton<RedisPersistenceProvider>();
 
 builder.Services.AddLogging(logging => logging.AddConsole().SetMinimumLevel(LogLevel.Information));
 

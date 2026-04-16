@@ -9,6 +9,9 @@
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />
+  </ItemGroup>
   <PropertyGroup>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerDefaultAction>link</TrimmerDefaultAction>

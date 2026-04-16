@@ -27,10 +27,10 @@ public sealed class AwsAuditServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddAwsAuditExporter(o =>
+		var result = services.AddAwsAuditExporter(aws =>
 		{
-			o.LogGroupName = "test-group";
-			o.Region = "us-east-1";
+			aws.LogGroupName("test-group")
+			   .Region("us-east-1");
 		});
 
 		// Assert
@@ -46,13 +46,13 @@ public sealed class AwsAuditServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddAwsAuditExporter(o =>
+		services.AddAwsAuditExporter(aws =>
 		{
-			o.LogGroupName = "test-group";
-			o.Region = "us-east-1";
+			aws.LogGroupName("test-group")
+			   .Region("us-east-1");
 		});
 
-		// Assert — options resolve with configured values (ValidateDataAnnotations removed in Sprint 750 AOT migration)
+		// Assert — options resolve with configured values
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AwsAuditOptions>>().Value;
 		options.LogGroupName.ShouldBe("test-group");
@@ -68,10 +68,10 @@ public sealed class AwsAuditServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddAwsAuditExporter(o =>
+		services.AddAwsAuditExporter(aws =>
 		{
-			o.LogGroupName = "test-group";
-			o.Region = "us-east-1";
+			aws.LogGroupName("test-group")
+			   .Region("us-east-1");
 		});
 
 		// Assert
@@ -88,10 +88,10 @@ public sealed class AwsAuditServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddAwsAuditExporter(o =>
+		services.AddAwsAuditExporter(aws =>
 		{
-			o.LogGroupName = "test-group";
-			o.Region = "us-east-1";
+			aws.LogGroupName("test-group")
+			   .Region("us-east-1");
 		});
 
 		// Assert — AddHttpClient registers IHttpClientFactory

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Outbox;
 using Excalibur.Outbox.DynamoDb;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -9,70 +10,48 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Data.Tests.DynamoDb;
 
 /// <summary>
-/// Unit tests for <see cref="DynamoDbOutboxServiceCollectionExtensions"/>.
+/// Unit tests for <see cref="OutboxBuilderDynamoDbExtensions"/>.
 /// </summary>
 /// <remarks>
 /// Sprint 514 (S514.4): DynamoDB unit tests.
-/// Sprint 633: Updated for extraction -- AddDynamoDbOutboxStore, ICloudNativeOutboxStore.
+/// Phase C rewire: Updated from AddDynamoDbOutboxStore to AddExcaliburOutbox(outbox =&gt; outbox.UseDynamoDb(...)).
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
 [Trait(TraitNames.Feature, TestFeatures.DependencyInjection)]
 public sealed class DynamoDbOutboxExtensionsShould
 {
-	#region AddDynamoDbOutboxStore Tests
+	#region UseDynamoDb Builder Tests
 
 	[Fact]
-	public void AddDynamoDbOutboxStore_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void UseDynamoDb_ThrowsArgumentNullException_WhenBuilderIsNull()
 	{
-		// Arrange
-		IServiceCollection? services = null;
-
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services!.AddDynamoDbOutboxStore(options => { }));
+			((IOutboxBuilder)null!).UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 	}
 
 	[Fact]
-	public void AddDynamoDbOutboxStore_ThrowsArgumentNullException_WhenConfigureIsNull()
+	public void UseDynamoDb_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutboxStore((Action<DynamoDbOutboxOptions>)null!));
+			services.AddExcaliburOutbox(outbox =>
+				outbox.UseDynamoDb((Action<IDynamoDBOutboxBuilder>)null!)));
 	}
 
 	[Fact]
-	public void AddDynamoDbOutboxStore_ReturnsServiceCollection()
+	public void UseDynamoDb_RegistersICloudNativeOutboxStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDynamoDbOutboxStore(options =>
-		{
-			options.Connection.Region = "us-east-1";
-			options.TableName = "outbox";
-		});
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	[Fact]
-	public void AddDynamoDbOutboxStore_RegistersICloudNativeOutboxStore()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddDynamoDbOutboxStore(options =>
-		{
-			options.Connection.Region = "us-east-1";
-			options.TableName = "outbox";
-		});
+		services.AddExcaliburOutbox(outbox =>
+			outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -80,21 +59,36 @@ public sealed class DynamoDbOutboxExtensionsShould
 	}
 
 	[Fact]
-	public void AddDynamoDbOutboxStore_RegistersDynamoDbOutboxStore()
+	public void UseDynamoDb_RegistersDynamoDbOutboxStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDynamoDbOutboxStore(options =>
-		{
-			options.Connection.Region = "us-east-1";
-			options.TableName = "outbox";
-		});
+		services.AddExcaliburOutbox(outbox =>
+			outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000")));
 
 		// Assert
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(DynamoDbOutboxStore));
+	}
+
+	[Fact]
+	public void UseDynamoDb_ReturnsBuilderForFluentChaining()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		IOutboxBuilder? capturedBuilder = null;
+
+		// Act
+		services.AddExcaliburOutbox(outbox =>
+		{
+			var result = outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"));
+			capturedBuilder = result;
+		});
+
+		// Assert
+		capturedBuilder.ShouldNotBeNull();
 	}
 
 	#endregion
@@ -105,15 +99,15 @@ public sealed class DynamoDbOutboxExtensionsShould
 	public void IsStatic()
 	{
 		// Assert
-		typeof(DynamoDbOutboxServiceCollectionExtensions).IsAbstract.ShouldBeTrue();
-		typeof(DynamoDbOutboxServiceCollectionExtensions).IsSealed.ShouldBeTrue();
+		typeof(OutboxBuilderDynamoDbExtensions).IsAbstract.ShouldBeTrue();
+		typeof(OutboxBuilderDynamoDbExtensions).IsSealed.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void IsPublic()
 	{
 		// Assert
-		typeof(DynamoDbOutboxServiceCollectionExtensions).IsPublic.ShouldBeTrue();
+		typeof(OutboxBuilderDynamoDbExtensions).IsPublic.ShouldBeTrue();
 	}
 
 	#endregion

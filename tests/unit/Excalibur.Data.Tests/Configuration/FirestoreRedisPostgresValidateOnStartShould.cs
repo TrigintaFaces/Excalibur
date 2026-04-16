@@ -6,6 +6,7 @@ using Excalibur.Cdc.Firestore;
 using Excalibur.Cdc.Postgres;
 using Excalibur.Inbox.Postgres;
 using Excalibur.Data.Postgres.Persistence;
+using Excalibur.Inbox.DependencyInjection;
 using Excalibur.Inbox.Redis;
 using Excalibur.Outbox.Redis;
 
@@ -30,25 +31,20 @@ public sealed class FirestoreRedisPostgresValidateOnStartShould
 	public void Firestore_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddFirestore(opts => { });
+		_ = services.AddExcaliburFirestore(fs => fs.ProjectId("test-project"));
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<FirestoreOptions>>();
-		validators.ShouldNotBeEmpty("AddFirestore should register IValidateOptions<FirestoreOptions>");
+		validators.ShouldNotBeEmpty("AddExcaliburFirestore should register IValidateOptions<FirestoreOptions>");
 	}
 
 	[Fact]
-	public void Firestore_InvalidOptions_ThrowsOnResolve()
+	public void Firestore_InvalidOptions_ThrowsAtBuilderTime()
 	{
+		// The builder validates connection values eagerly via ArgumentException.ThrowIfNullOrWhiteSpace
 		var services = new ServiceCollection();
-		_ = services.AddFirestore(opts =>
-		{
-			opts.TimeoutInSeconds = 0; // Violates range check in validator
-		});
-
-		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<FirestoreOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		Should.Throw<ArgumentException>(() =>
+			services.AddExcaliburFirestore(fs => fs.ProjectId("")));
 	}
 
 	[Fact]
@@ -93,50 +89,44 @@ public sealed class FirestoreRedisPostgresValidateOnStartShould
 	public void RedisOutbox_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddRedisOutboxStore(opts => { });
+		_ = services.AddExcaliburOutbox(outbox =>
+			outbox.UseRedis(redis => redis.ConnectionString("localhost:6379")));
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<RedisOutboxOptions>>();
-		validators.ShouldNotBeEmpty("AddRedisOutboxStore should register IValidateOptions<RedisOutboxOptions>");
+		validators.ShouldNotBeEmpty("UseRedis should register IValidateOptions<RedisOutboxOptions>");
 	}
 
 	[Fact]
-	public void RedisOutbox_InvalidOptions_ThrowsOnResolve()
+	public void RedisOutbox_NoConnection_ThrowsAtBuilderTime()
 	{
+		// The builder now validates connection strings eagerly via ArgumentException.ThrowIfNullOrWhiteSpace
 		var services = new ServiceCollection();
-		_ = services.AddRedisOutboxStore(opts =>
-		{
-			opts.ConnectionString = ""; // Violates required string check in Validate()
-		});
-
-		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<RedisOutboxOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		Should.Throw<ArgumentException>(() =>
+			services.AddExcaliburOutbox(outbox =>
+				outbox.UseRedis(redis => redis.ConnectionString(""))));
 	}
 
 	[Fact]
 	public void RedisInbox_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddRedisInboxStore(opts => { });
+		_ = services.AddExcaliburInbox(inbox =>
+			inbox.UseRedis(redis => redis.ConnectionString("localhost:6379")));
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<RedisInboxOptions>>();
-		validators.ShouldNotBeEmpty("AddRedisInboxStore should register IValidateOptions<RedisInboxOptions>");
+		validators.ShouldNotBeEmpty("UseRedis should register IValidateOptions<RedisInboxOptions>");
 	}
 
 	[Fact]
-	public void RedisInbox_InvalidOptions_ThrowsOnResolve()
+	public void RedisInbox_InvalidOptions_ThrowsAtBuilderTime()
 	{
+		// The builder now validates connection strings eagerly via ArgumentException.ThrowIfNullOrWhiteSpace
 		var services = new ServiceCollection();
-		_ = services.AddRedisInboxStore(opts =>
-		{
-			opts.ConnectionString = ""; // Violates required string check in Validate()
-		});
-
-		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<RedisInboxOptions>>();
-		_ = Should.Throw<OptionsValidationException>(() => _ = options.Value);
+		Should.Throw<ArgumentException>(() =>
+			services.AddExcaliburInbox(inbox =>
+				inbox.UseRedis(redis => redis.ConnectionString(""))));
 	}
 
 	#endregion
@@ -172,21 +162,20 @@ public sealed class FirestoreRedisPostgresValidateOnStartShould
 	public void PostgresInbox_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddPostgresInboxStore(opts => { });
+		_ = services.AddExcaliburInbox(inbox =>
+			inbox.UsePostgres(pg => pg.ConnectionString("Host=localhost;Database=test;")));
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<PostgresInboxOptions>>();
-		validators.ShouldNotBeEmpty("AddPostgresInboxStore should register IValidateOptions<PostgresInboxOptions>");
+		validators.ShouldNotBeEmpty("UsePostgres should register IValidateOptions<PostgresInboxOptions>");
 	}
 
 	[Fact]
-	public void PostgresInbox_InvalidOptions_ThrowsOnResolve()
+	public void PostgresInbox_NoConnection_ThrowsOnResolve()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddPostgresInboxStore(opts =>
-		{
-			opts.CommandTimeoutSeconds = 0; // Violates range check in validator
-		});
+		_ = services.AddExcaliburInbox(inbox =>
+			inbox.UsePostgres(_ => { })); // No connection configured
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<PostgresInboxOptions>>();

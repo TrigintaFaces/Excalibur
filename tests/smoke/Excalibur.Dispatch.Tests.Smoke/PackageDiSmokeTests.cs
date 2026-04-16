@@ -8,6 +8,10 @@ using System.Reflection;
 
 using Excalibur.Dispatch.Serialization.MessagePack;
 using Excalibur.Dispatch.Serialization.Protobuf;
+using Excalibur.EventSourcing.CosmosDb;
+using Excalibur.EventSourcing.Postgres;
+using Excalibur.EventSourcing.Redis;
+using Excalibur.Outbox.CosmosDb;
 using Excalibur.Outbox.SqlServer;
 using Excalibur.Saga.Orchestration;
 
@@ -154,7 +158,8 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Dispatch.Security", s =>
 			s.AddDispatchSecurityMiddleware(
 				(Excalibur.Dispatch.Security.SecurityOptions opt) => { }));
-		yield return Reg("Excalibur.Dispatch.Security.Azure", s => s.AddAzureServiceBusSecurityValidation());
+		yield return Reg("Excalibur.Dispatch.Security.Azure", s =>
+			s.AddDispatchSecurityAzure(azure => azure.VaultUri("https://test.vault.azure.net")));
 
 		// ══════════════════════════════════════════════════════════
 		// DISPATCH CACHING
@@ -278,7 +283,7 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Dispatch.ClaimCheck.AwsS3", s =>
 			s.AddAwsS3ClaimCheck(_ => { }));
 		yield return Reg("Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage", s =>
-			s.AddGcsClaimCheck(_ => { }));
+			s.AddGcsClaimCheck(gcs => gcs.BucketName("test")));
 
 		// ══════════════════════════════════════════════════════════
 		// DISPATCH TESTING
@@ -337,15 +342,20 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.EventSourcing.SqlServer", s =>
 			s.AddSqlServerEventStore(() => new Microsoft.Data.SqlClient.SqlConnection(MockConnectionString)));
 		yield return Reg("Excalibur.EventSourcing.Postgres", s =>
-			s.AddPostgresEventStore(Npgsql.NpgsqlDataSource.Create(MockPostgresConnectionString)));
+			s.AddExcaliburEventSourcing(es =>
+				es.UsePostgres(pg => pg.ConnectionString(MockPostgresConnectionString))));
 		yield return Reg("Excalibur.EventSourcing.CosmosDb", s =>
-			s.AddCosmosDbEventStore(_ => { }));
+			s.AddExcaliburEventSourcing(es =>
+				es.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081;AccountKey=smoke=="))));
 		yield return Reg("Excalibur.EventSourcing.DynamoDb", s =>
-			s.AddDynamoDbEventStore(_ => { }));
+			s.AddExcaliburEventSourcing(es =>
+				es.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"))));
 		yield return Reg("Excalibur.EventSourcing.Firestore", s =>
-			s.AddFirestoreEventStore(_ => { }));
+			s.AddExcaliburEventSourcing(es =>
+				es.UseFirestore(fs => fs.ProjectId("smoke-project"))));
 		yield return Reg("Excalibur.EventSourcing.Redis", s =>
-			s.AddRedisEventStore(opts => opts.ConnectionString = "localhost:6379"));
+			s.AddExcaliburEventSourcing(es =>
+				es.UseRedis(redis => redis.ConnectionString("localhost:6379"))));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR OUTBOX
@@ -357,11 +367,14 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Outbox.SqlServer", s =>
 			s.AddSqlServerOutboxStore(opts => opts.ConnectionString = MockConnectionString));
 		yield return Reg("Excalibur.Outbox.CosmosDb", s =>
-			s.AddCosmosDbOutboxStore(_ => { }));
+			s.AddExcaliburOutbox(outbox =>
+				outbox.UseCosmosDb(cosmos => cosmos.ConnectionString("AccountEndpoint=https://localhost:8081;AccountKey=smoke=="))));
 		yield return Reg("Excalibur.Outbox.DynamoDb", s =>
-			s.AddDynamoDbOutboxStore(_ => { }));
+			s.AddExcaliburOutbox(outbox =>
+				outbox.UseDynamoDb(db => db.ServiceUrl("http://localhost:8000"))));
 		yield return Reg("Excalibur.Outbox.Firestore", s =>
-			s.AddFirestoreOutboxStore(_ => { }));
+			s.AddExcaliburOutbox(outbox =>
+				outbox.UseFirestore(fs => fs.ProjectId("smoke-project"))));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR LEADER ELECTION
@@ -373,9 +386,15 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.LeaderElection [Watcher]", s => s.AddLeaderElectionWatcher());
 		yield return Reg("Excalibur.LeaderElection.InMemory", s => s.AddInMemoryLeaderElection());
 		yield return Reg("Excalibur.LeaderElection.Redis", s =>
-			s.AddRedisLeaderElection("smoke-lock"));
+			s.AddExcaliburLeaderElection(le =>
+				le.UseRedis(redis => redis
+					.ConnectionString("localhost:6379")
+					.LockKey("smoke-lock"))));
 		yield return Reg("Excalibur.LeaderElection.SqlServer", s =>
-			s.AddSqlServerLeaderElection(MockConnectionString, "smoke-lock"));
+			s.AddExcaliburLeaderElection(le =>
+				le.UseSqlServer(sql => sql
+					.ConnectionString(MockConnectionString)
+					.LockResource("smoke-lock"))));
 
 		// ══════════════════════════════════════════════════════════
 		// EXCALIBUR SAGA

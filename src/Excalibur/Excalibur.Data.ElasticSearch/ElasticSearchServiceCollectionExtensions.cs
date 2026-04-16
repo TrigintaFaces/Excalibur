@@ -26,6 +26,47 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class ElasticSearchServiceCollectionExtensions
 {
 	/// <summary>
+	/// Adds Elasticsearch data provider to the service collection using the fluent builder.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Configuration action for the Elasticsearch data builder.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="services"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburElasticSearch(es =&gt;
+	/// {
+	///     es.NodeUri(new Uri("http://localhost:9200"))
+	///       .IndexPrefix("myapp");
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	public static IServiceCollection AddExcaliburElasticSearch(
+		this IServiceCollection services,
+		Action<IElasticSearchDataBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var esBuilder = new ElasticSearchDataBuilder();
+		configure(esBuilder);
+
+		RegisterClientFromBuilder(services, esBuilder);
+
+		// Register core services
+		services.TryAddSingleton<IIndexInitializer, IndexInitializer>();
+		services.TryAddSingleton<IElasticsearchHealthClient, ElasticsearchHealthClient>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Registers Elasticsearch services using a preconfigured <see cref="ElasticsearchClient" />.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -362,6 +403,58 @@ public static class ElasticSearchServiceCollectionExtensions
 		// Register schema evolution handler
 		services.TryAddSingleton<ISchemaEvolutionHandler, SchemaEvolutionHandler>();
 		return services;
+	}
+
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterClientFromBuilder(
+		IServiceCollection services,
+		ElasticSearchDataBuilder esBuilder)
+	{
+		if (esBuilder.BindConfigurationPath is not null)
+		{
+			services.AddOptions<ElasticsearchConfigurationOptions>()
+				.BindConfiguration(esBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+
+			services.TryAddSingleton(sp =>
+			{
+				var config = sp.GetRequiredService<IOptions<ElasticsearchConfigurationOptions>>().Value;
+				var settings = CreateElasticsearchClientSettings(config);
+				return new ElasticsearchClient(settings);
+			});
+		}
+		else if (esBuilder.ClientInstance is not null)
+		{
+			var client = esBuilder.ClientInstance;
+			services.TryAddSingleton(client);
+		}
+		else if (esBuilder.ClientFactoryFunc is not null)
+		{
+			var factory = esBuilder.ClientFactoryFunc;
+			services.TryAddSingleton(factory);
+		}
+		else if (esBuilder.CloudIdValue is not null)
+		{
+			var cloudId = esBuilder.CloudIdValue;
+			services.TryAddSingleton(_ => new ElasticsearchClient(new ElasticsearchClientSettings(new Uri(cloudId))));
+		}
+		else if (esBuilder.NodeUrisValue is not null)
+		{
+			var uris = esBuilder.NodeUrisValue;
+			services.TryAddSingleton(_ =>
+			{
+				var pool = new StaticNodePool(uris);
+				return new ElasticsearchClient(new ElasticsearchClientSettings(pool));
+			});
+		}
+		else if (esBuilder.NodeUriValue is not null)
+		{
+			var uri = esBuilder.NodeUriValue;
+			services.TryAddSingleton(_ => new ElasticsearchClient(new ElasticsearchClientSettings(uri)));
+		}
 	}
 
 	/// <summary>

@@ -34,12 +34,16 @@ services.AddPostgresDataExecutors(() => new NpgsqlConnection(connectionString));
 
 | Method | What It Registers | Key Options |
 |--------|-------------------|-------------|
-| `AddPostgresDataExecutors(factory)` | Core data executors | Connection factory |
-| `AddPostgresEventStore(opts)` | `IEventStore` | `ConnectionString`, `SchemaName` |
-| `AddPostgresSnapshotStore(opts)` | `ISnapshotStore` | `ConnectionString` |
-| `AddPostgresInboxStore(opts)` | `IInboxStore` | `ConnectionString` |
+| `data.UsePostgres(Action<IPostgresDataBuilder>)` | Core data executors | Builder with 5 connection overloads |
+| `es.UsePostgres(Action<IPostgresEventSourcingBuilder>)` | `IEventStore` + `ISnapshotStore` | Builder with 5 connection overloads |
+| `saga.UsePostgres(Action<IPostgresSagaBuilder>)` | `ISagaStore` | Builder with 5 connection + SchemaName, TableName |
+| `inbox.UsePostgres(Action<IPostgresInboxBuilder>)` | `IInboxStore` | Builder with 5 connection + SchemaName, TableName, MaxRetryCount |
+| `outbox.UsePostgres(Action<IPostgresOutboxBuilder>)` | `IOutboxStore` | Builder with 5+ connection + SchemaName, TableName, DeadLetterTableName |
+| `le.UsePostgres(Action<IPostgresLeaderElectionBuilder>)` | `ILeaderElection` | Builder with 5 connection + LockKey |
+| `cdc.UsePostgres(Action<IPostgresCdcBuilder>)` | CDC processor | Builder with 5 connection + PublicationName, ReplicationSlotName |
+| `compliance.UsePostgres(Action<IPostgresComplianceBuilder>)` | Erasure + DataInventory + LegalHold | Builder with 5 connection overloads |
+| `audit.UsePostgres(Action<IPostgresAuditLoggingBuilder>)` | `IAuditStore` | Builder with 5 connection + SchemaName, TableName |
 | `AddPostgresProjectionStore<T>(opts)` | `IProjectionStore<T>` | `ConnectionString`, `TableName` |
-| `AddPostgresCdc(opts)` | CDC processor | `ConnectionString`, `PublicationName`, `ReplicationSlotName` |
 
 ### Batch Projection Registration
 
@@ -56,11 +60,10 @@ services.AddPostgresProjections(connectionString, projections =>
 ### Change Data Capture
 
 ```csharp
-services.AddPostgresCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.ConnectionString = connectionString;
-    options.PublicationName = "my_publication";
-    options.ReplicationSlotName = "my_slot";
+    cdc.UsePostgres(pg => pg.ConnectionString(connectionString))
+       .TrackTable("public.orders", t => t.MapAll<OrderChangedEvent>());
 });
 ```
 

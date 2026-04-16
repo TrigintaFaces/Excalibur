@@ -26,104 +26,119 @@ public static class PostgresLeaderElectionBuilderExtensions
 	/// Configures the leader election builder to use the Postgres advisory lock provider.
 	/// </summary>
 	/// <param name="builder">The leader election builder.</param>
-	/// <param name="configureOptions">Action to configure Postgres leader election options.</param>
+	/// <param name="configure">Configuration action for the Postgres leader election builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddExcalibur(excalibur =&gt;
+	/// {
+	///     excalibur.AddLeaderElection(le =&gt;
+	///     {
+	///         le.UsePostgres(pg =&gt;
+	///         {
+	///             pg.ConnectionString("Host=localhost;Database=MyApp;")
+	///               .LockKey(42);
+	///         });
+	///     });
+	/// });
+	/// </code>
+	/// </example>
 	public static ILeaderElectionBuilder UsePostgres(
 		this ILeaderElectionBuilder builder,
-		Action<PostgresLeaderElectionOptions> configureOptions)
+		Action<IPostgresLeaderElectionBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configureOptions);
+		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
-			.Configure(configureOptions)
-			.ValidateOnStart();
+		var options = new PostgresLeaderElectionOptions();
+		var pgBuilder = new PostgresLeaderElectionBuilder(options);
+		configure(pgBuilder);
 
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
+		var hasBuilderConnection = pgBuilder.DataSourceFactoryFunc is not null
+			|| pgBuilder.DataSourceInstance is not null
+			|| pgBuilder.ConnectionStringNameValue is not null;
+
+		RegisterOptionsAndServices(builder, pgBuilder, options, hasBuilderConnection);
 
 		return builder.UsePostgresCore();
 	}
 
-	/// <summary>
-	/// Configures the leader election builder to use the Postgres advisory lock provider
-	/// with an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="builder">The leader election builder.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="PostgresLeaderElectionOptions"/>.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	[RequiresUnreferencedCode("Configuration binding uses reflection. AOT consumers should use source-generated alternatives.")]
-	[RequiresDynamicCode("Configuration binding uses reflection. AOT consumers should use source-generated alternatives.")]
-	public static ILeaderElectionBuilder UsePostgres(
-		this ILeaderElectionBuilder builder,
-		IConfiguration configuration)
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		ILeaderElectionBuilder builder,
+		PostgresLeaderElectionBuilder pgBuilder,
+		PostgresLeaderElectionOptions options,
+		bool hasBuilderConnection)
 	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configuration);
+		_ = builder.Services.Configure<PostgresLeaderElectionOptions>(opt =>
+		{
+			opt.ConnectionString = options.ConnectionString;
+			opt.LockKey = options.LockKey;
+			opt.CommandTimeoutSeconds = options.CommandTimeoutSeconds;
+		});
 
-		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
+		if (pgBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<PostgresLeaderElectionOptions>()
+				.BindConfiguration(pgBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
 
 		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>>(
+				new PostgresLeaderElectionOptionsValidator { HasBuilderConnection = hasBuilderConnection }));
+		builder.Services.AddOptions<PostgresLeaderElectionOptions>().ValidateOnStart();
 
-		return builder.UsePostgresCore();
+		// For DataSource/DataSourceFactory/ConnectionStringName, resolve the connection string
+		// and set it on the options so that PostgresLeaderElection can use it
+		if (pgBuilder.DataSourceInstance is not null)
+		{
+			var ds = pgBuilder.DataSourceInstance;
+			_ = builder.Services.PostConfigure<PostgresLeaderElectionOptions>(opt =>
+				opt.ConnectionString = ds.ConnectionString);
+		}
+		else if (pgBuilder.DataSourceFactoryFunc is not null)
+		{
+			var factory = pgBuilder.DataSourceFactoryFunc;
+			builder.Services.AddSingleton<IPostConfigureOptions<PostgresLeaderElectionOptions>>(sp =>
+			{
+				var ds = factory(sp);
+				return new ConnectionStringNamePostConfigure(ds.ConnectionString);
+			});
+		}
+		else if (pgBuilder.ConnectionStringNameValue is not null)
+		{
+			var connStrName = pgBuilder.ConnectionStringNameValue;
+			builder.Services.AddSingleton<IPostConfigureOptions<PostgresLeaderElectionOptions>>(sp =>
+			{
+				var config = sp.GetRequiredService<IConfiguration>();
+				var resolved = config.GetConnectionString(connStrName)
+					?? throw new InvalidOperationException(
+						$"Connection string '{connStrName}' not found in IConfiguration.");
+				return new ConnectionStringNamePostConfigure(resolved);
+			});
+		}
 	}
 
-	/// <summary>
-	/// Configures the leader election builder to use the Postgres factory provider.
-	/// </summary>
-	/// <param name="builder">The leader election builder.</param>
-	/// <param name="configureOptions">Action to configure Postgres leader election options.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// Use the factory when you need multiple leader elections with different lock keys.
-	/// </remarks>
-	public static ILeaderElectionBuilder UsePostgresFactory(
-		this ILeaderElectionBuilder builder,
-		Action<PostgresLeaderElectionOptions> configureOptions)
+	private sealed class ConnectionStringNamePostConfigure : IPostConfigureOptions<PostgresLeaderElectionOptions>
 	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configureOptions);
+		private readonly string _connectionString;
 
-		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
-			.Configure(configureOptions)
-			.ValidateOnStart();
+		internal ConnectionStringNamePostConfigure(string connectionString)
+		{
+			_connectionString = connectionString;
+		}
 
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
-
-		return builder.UsePostgresFactoryCore();
-	}
-
-	/// <summary>
-	/// Configures the leader election builder to use the Postgres factory provider
-	/// with an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="builder">The leader election builder.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="PostgresLeaderElectionOptions"/>.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// Use the factory when you need multiple leader elections with different lock keys.
-	/// </remarks>
-	[RequiresUnreferencedCode("Configuration binding uses reflection. AOT consumers should use source-generated alternatives.")]
-	[RequiresDynamicCode("Configuration binding uses reflection. AOT consumers should use source-generated alternatives.")]
-	public static ILeaderElectionBuilder UsePostgresFactory(
-		this ILeaderElectionBuilder builder,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = builder.Services.AddOptions<PostgresLeaderElectionOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<PostgresLeaderElectionOptions>, PostgresLeaderElectionOptionsValidator>());
-
-		return builder.UsePostgresFactoryCore();
+		public void PostConfigure(string? name, PostgresLeaderElectionOptions options)
+		{
+			if (string.IsNullOrWhiteSpace(options.ConnectionString))
+			{
+				options.ConnectionString = _connectionString;
+			}
+		}
 	}
 
 	private static ILeaderElectionBuilder UsePostgresCore(this ILeaderElectionBuilder builder)
@@ -145,24 +160,6 @@ public static class PostgresLeaderElectionBuilderExtensions
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
-
-		return builder;
-	}
-
-	private static ILeaderElectionBuilder UsePostgresFactoryCore(this ILeaderElectionBuilder builder)
-	{
-		builder.Services.AddKeyedSingleton<ILeaderElectionFactory>("postgres", (sp, _) =>
-		{
-			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
-			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-			var inner = new PostgresLeaderElectionFactory(pgOptions, loggerFactory);
-			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
-			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
-			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Postgres");
-		});
-		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
-			sp.GetRequiredKeyedService<ILeaderElectionFactory>("postgres"));
 
 		return builder;
 	}

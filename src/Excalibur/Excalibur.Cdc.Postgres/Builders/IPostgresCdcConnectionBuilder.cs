@@ -52,6 +52,29 @@ public interface IPostgresCdcConnectionBuilder
 	IPostgresCdcBuilder BindConfiguration(string sectionPath);
 
 	/// <summary>
+	/// Sets a pre-configured <see cref="NpgsqlDataSource"/> for the CDC source database.
+	/// Connections are created via <c>dataSource.CreateConnection()</c>.
+	/// </summary>
+	/// <param name="dataSource">The Npgsql data source.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="dataSource"/> is null.
+	/// </exception>
+	IPostgresCdcBuilder DataSource(NpgsqlDataSource dataSource);
+
+	/// <summary>
+	/// Sets a factory function that creates an <see cref="NpgsqlDataSource"/> for the CDC source database.
+	/// </summary>
+	/// <param name="dataSourceFactory">
+	/// A factory receiving <see cref="IServiceProvider"/> and returning an <see cref="NpgsqlDataSource"/>.
+	/// </param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="dataSourceFactory"/> is null.
+	/// </exception>
+	IPostgresCdcBuilder DataSourceFactory(Func<IServiceProvider, NpgsqlDataSource> dataSourceFactory);
+
+	/// <summary>
 	/// Configures a separate connection for CDC state persistence.
 	/// </summary>
 	/// <param name="configure">An action to configure state store connection, schema, and table settings.</param>
@@ -59,6 +82,6 @@ public interface IPostgresCdcConnectionBuilder
 	/// <exception cref="ArgumentNullException">
 	/// Thrown when <paramref name="configure"/> is null.
 	/// </exception>
-	IPostgresCdcBuilder WithStateStore(Action<ICdcStateStoreBuilder> configure);
+	IPostgresCdcBuilder WithStateStore(Action<ICdcRelationalStateStoreBuilder> configure);
 
 }

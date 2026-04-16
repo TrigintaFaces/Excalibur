@@ -26,5 +26,9 @@
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.ElasticSearch.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
   <!-- AdditionalFiles for PublicAPI.Shipped/Unshipped.txt are registered by Directory.Build.props -->
 </Project>

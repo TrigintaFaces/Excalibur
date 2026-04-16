@@ -25,6 +25,7 @@ using CosmosDbEventStoreSample.Domain.Aggregates;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing.CosmosDb;
 
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
@@ -94,22 +95,31 @@ services.AddSingleton(_ =>
 	return new CosmosClient(connectionString, cosmosClientOptions);
 });
 
-// Add Cosmos DB event store
-services.AddCosmosDbEventStore(options =>
+// Add Excalibur event sourcing with Cosmos DB event store
+services.AddExcaliburEventSourcing(builder =>
 {
-	options.EventsContainerName = "events";
+	// Configure Cosmos DB via the fluent builder.
+	// The CosmosClient is already registered above; the builder uses Client() for that path
+	// or we can configure store-specific options via post-configure.
+	_ = builder.UseCosmosDb(cosmos =>
+	{
+		// The CosmosClient is already registered in DI above, so no connection config needed.
+		// The store resolves CosmosClient from DI automatically.
+		cosmos.ContainerName("events");
+	});
+
+	_ = builder.AddRepository<BankAccountAggregate, Guid>(id => new BankAccountAggregate(id));
+});
+
+// Advanced event store options
+services.Configure<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions>(options =>
+{
 	options.PartitionKeyPath = "/streamId";
 	options.CreateContainerIfNotExists = true;
 	options.ContainerThroughput = 400; // Minimum for development
 	options.UseTransactionalBatch = true;
 	options.MaxBatchSize = 100;
 	options.ChangeFeedPollIntervalMs = 1000;
-});
-
-// Add Excalibur event sourcing
-services.AddExcaliburEventSourcing(builder =>
-{
-	_ = builder.AddRepository<BankAccountAggregate, Guid>(id => new BankAccountAggregate(id));
 });
 
 var provider = services.BuildServiceProvider();

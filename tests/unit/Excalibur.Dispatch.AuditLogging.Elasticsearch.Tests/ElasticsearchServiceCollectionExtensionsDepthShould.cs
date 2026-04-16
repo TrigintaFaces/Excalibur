@@ -27,8 +27,8 @@ public sealed class ElasticsearchServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddElasticsearchAuditExporter(o =>
-			o.ElasticsearchUrl = "https://es.local:9200");
+		var result = services.AddElasticsearchAuditExporter(es =>
+			es.NodeUri(new Uri("https://es.local:9200")));
 
 		// Assert
 		result.ShouldBeSameAs(services);
@@ -43,8 +43,8 @@ public sealed class ElasticsearchServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddElasticsearchAuditExporter(o =>
-			o.ElasticsearchUrl = "https://es.local:9200");
+		services.AddElasticsearchAuditExporter(es =>
+			es.NodeUri(new Uri("https://es.local:9200")));
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(IValidateOptions<ElasticsearchExporterOptions>));
@@ -59,8 +59,8 @@ public sealed class ElasticsearchServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddElasticsearchAuditExporter(o =>
-			o.ElasticsearchUrl = "https://es.local:9200");
+		services.AddElasticsearchAuditExporter(es =>
+			es.NodeUri(new Uri("https://es.local:9200")));
 
 		// Assert
 		var descriptor = services.Single(sd => sd.ServiceType == typeof(IAuditLogExporter));
@@ -76,8 +76,8 @@ public sealed class ElasticsearchServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddElasticsearchAuditExporter(o =>
-			o.ElasticsearchUrl = "https://es.local:9200");
+		services.AddElasticsearchAuditExporter(es =>
+			es.NodeUri(new Uri("https://es.local:9200")));
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(IHttpClientFactory));

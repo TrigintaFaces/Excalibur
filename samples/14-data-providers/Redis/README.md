@@ -6,7 +6,7 @@ Demonstrates all capabilities of the `Excalibur.Data.Redis` package.
 
 | # | Capability | Description |
 |---|-----------|-------------|
-| 1 | **DI Registration** | `AddRedisProvider(configure)` with inline options and `ValidateOnStart` |
+| 1 | **DI Registration** | `AddExcaliburRedis(configure)` with builder pattern and `ValidateOnStart` |
 | 2 | **Connection Pool** | `RedisConnectionPoolOptions` -- timeouts, retries, abort behavior |
 | 3 | **Database Selection** | `DatabaseId` option for multi-database Redis setups |
 | 4 | **CRUD Operations** | Strings, hashes, lists, sets, counters, TTL via `IDatabase` |

@@ -189,15 +189,15 @@ using Microsoft.Extensions.DependencyInjection;
 // Registration with SQL Server persistence
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseSqlServer(sql => { sql.ConnectionString = connectionString; })
+    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
         .WithOrchestration()
         .WithTimeouts();
 });
 
-// Or with Postgres persistence
+// Or with Postgres persistence (5 canonical connection overloads)
 services.AddExcaliburSaga(saga =>
 {
-    saga.UsePostgres(opts => opts.ConnectionString = connectionString)
+    saga.UsePostgres(pg => pg.ConnectionString(connectionString))
         .WithOrchestration()
         .WithTimeouts();
 });
@@ -205,11 +205,11 @@ services.AddExcaliburSaga(saga =>
 // Cloud providers
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseCosmosDb(options =>
+    saga.UseCosmosDb(cosmos =>
     {
-        options.Client.ConnectionString = "AccountEndpoint=...;AccountKey=...";
-        options.DatabaseName = "myapp";
-        options.ContainerName = "sagas";
+        cosmos.ConnectionString("AccountEndpoint=...;AccountKey=...")
+              .DatabaseName("myapp")
+              .ContainerName("sagas");
     });
 });
 
@@ -224,11 +224,11 @@ services.AddExcaliburSaga(saga =>
 
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseMongoDB(options =>
+    saga.UseMongoDB(mongo =>
     {
-        options.ConnectionString = "mongodb://localhost:27017";
-        options.DatabaseName = "myapp";
-        options.CollectionName = "sagas";
+        mongo.ConnectionString("mongodb://localhost:27017")
+             .DatabaseName("myapp")
+             .CollectionName("sagas");
     });
 });
 
@@ -384,7 +384,7 @@ Persist saga state to SQL Server for durability:
 ```csharp
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseSqlServer(sql => { sql.ConnectionString = connectionString; })
+    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
         .WithOrchestration()
         .WithTimeouts();
 });
@@ -413,7 +413,7 @@ Register the SQL Server correlation query via the builder:
 ```csharp
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseSqlServer(sql => { sql.ConnectionString = connectionString; })
+    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
         .WithCorrelationQuery();
 });
 ```
@@ -442,8 +442,8 @@ For SQL Server persistence, register the idempotency provider:
 ```csharp
 services.AddExcaliburSaga(saga =>
 {
-    saga.UseSqlServer(sql => { sql.ConnectionString = connectionString; })
-        .WithSqlServerIdempotency(sql => { sql.ConnectionString = connectionString; });
+    saga.UseSqlServer(sql => sql.ConnectionString(connectionString))
+        .WithSqlServerIdempotency(sql => sql.ConnectionString(connectionString));
 });
 ```
 

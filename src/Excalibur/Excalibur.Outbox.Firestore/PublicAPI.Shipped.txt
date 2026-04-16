@@ -42,9 +42,14 @@ Excalibur.Outbox.Firestore.FirestoreOutboxStore.MarkAsPublishedAsync(string! mes
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.MarkBatchAsPublishedAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudBatchResult!>!
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.ProviderType.get -> Excalibur.Data.Abstractions.CloudNative.CloudPersistenceProviderType
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.SubscribeToNewMessagesAsync(Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage!>!>!
-Microsoft.Extensions.DependencyInjection.FirestoreOutboxServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.OutboxBuilderFirestoreExtensions
-static Microsoft.Extensions.DependencyInjection.FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Outbox.Firestore.FirestoreOutboxOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.FirestoreOutboxServiceCollectionExtensions.AddFirestoreOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.Firestore.FirestoreOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.OutboxBuilderFirestoreExtensions.UseFirestore(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Firestore.FirestoreOutboxOptions!>? configure = null) -> Excalibur.Outbox.IOutboxBuilder!
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.Client(Google.Cloud.Firestore.FirestoreDb! client) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.ClientFactory(System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! clientFactory) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.CollectionName(string! collectionName) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.CredentialsJson(string! credentialsJson) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.EmulatorHost(string! emulatorHost) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.ProjectId(string! projectId) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderFirestoreExtensions.UseFirestore(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

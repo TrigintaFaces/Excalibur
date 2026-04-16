@@ -17,35 +17,6 @@ namespace Excalibur.Cdc.CosmosDb;
 /// </remarks>
 public static class CdcBuilderCosmosDbExtensions
 {
-	/// <inheritdoc cref="UseCosmosDb(ICdcBuilder, Action{CosmosDbCdcOptions})"/>
-	public static ICdcBuilder UseCosmosDb(
-		this ICdcBuilder builder,
-		Action<CosmosDbCdcOptions> configure)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configure);
-
-		_ = builder.Services.AddCosmosDbCdc(configure);
-
-		return builder;
-	}
-
-	/// <inheritdoc cref="UseCosmosDb(ICdcBuilder, Action{CosmosDbCdcOptions}, Action{CosmosDbCdcStateStoreOptions})"/>
-	public static ICdcBuilder UseCosmosDb(
-		this ICdcBuilder builder,
-		Action<CosmosDbCdcOptions> configureCdc,
-		Action<CosmosDbCdcStateStoreOptions> configureStateStore)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configureCdc);
-		ArgumentNullException.ThrowIfNull(configureStateStore);
-
-		_ = builder.Services.AddCosmosDbCdc(configureCdc);
-		_ = builder.Services.AddCosmosDbCdcStateStore(configureStateStore);
-
-		return builder;
-	}
-
 	/// <summary>
 	/// Configures the CDC processor to use Azure Cosmos DB with fluent builder configuration.
 	/// </summary>
@@ -111,12 +82,6 @@ public static class CdcBuilderCosmosDbExtensions
 
 			_ = builder.Services.AddCosmosDbCdcStateStore(opt =>
 			{
-				if (!string.IsNullOrWhiteSpace(stateStoreOptions.ConnectionString))
-				{
-					opt.ConnectionString = stateStoreOptions.ConnectionString;
-				}
-
-				opt.DatabaseId = stateStoreOptions.DatabaseId;
 				opt.ContainerId = stateStoreOptions.ContainerId;
 			});
 

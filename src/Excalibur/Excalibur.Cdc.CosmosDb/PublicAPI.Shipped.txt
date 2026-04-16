@@ -189,8 +189,6 @@ override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.IsValid.get -> bool
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Timestamp.get -> System.DateTimeOffset?
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.ToString() -> string!
 override Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.ToToken() -> string!
-static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
-static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
 static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.Beginning() -> Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!
 static Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition.FromBase64(string! base64) -> Excalibur.Cdc.CosmosDb.CosmosDbCdcPosition!
@@ -218,3 +216,6 @@ static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExte
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddInMemoryCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ClientFactory(System.Func<System.IServiceProvider!, Microsoft.Azure.Cosmos.CosmosClient!>! clientFactory) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.Endpoint(string! endpoint, string! authKey) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!

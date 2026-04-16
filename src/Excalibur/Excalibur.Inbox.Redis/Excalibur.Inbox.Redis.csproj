@@ -8,6 +8,9 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.Redis\Excalibur.Data.Redis.csproj" />
       <ProjectReference Include="..\Excalibur.Inbox\Excalibur.Inbox.csproj" />
   </ItemGroup>

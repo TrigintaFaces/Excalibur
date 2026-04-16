@@ -161,3 +161,11 @@ static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionE
 virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.Dispose(bool disposing) -> void
 virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.RunAsync(long completedCount, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.Data.DataProcessing.IDataProcessingBuilder
+Excalibur.Data.DataProcessing.IDataProcessingBuilder.AddProcessor<TProcessor>() -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
+Excalibur.Data.DataProcessing.IDataProcessingBuilder.AddRecordHandler<THandler, TRecord>() -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
+Excalibur.Data.DataProcessing.IDataProcessingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
+Excalibur.Data.DataProcessing.IDataProcessingBuilder.ConnectionFactory(System.Func<System.Data.IDbConnection!>! connectionFactory) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
+Excalibur.Data.DataProcessing.IDataProcessingBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<System.Data.IDbConnection!>!>! connectionFactory) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
+Excalibur.Data.DataProcessing.IDataProcessingBuilder.EnableBackgroundProcessing(System.Action<Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions!>? configure = null) -> Excalibur.Data.DataProcessing.IDataProcessingBuilder!
+static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.AddDataProcessing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DataProcessing.IDataProcessingBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

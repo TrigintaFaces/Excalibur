@@ -7,5 +7,13 @@ Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.Key
 Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.KeyPrefix.set -> void
 Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.Region.get -> string?
 Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions.Region.set -> void
+Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder
+Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder!
+Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder.BucketName(string! bucketName) -> Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder!
+Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder.Client(Amazon.S3.IAmazonS3! client) -> Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder!
+Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder.ClientFactory(System.Func<System.IServiceProvider!, Amazon.S3.IAmazonS3!>! clientFactory) -> Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder!
+Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder.KeyPrefix(string! keyPrefix) -> Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder!
+Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder.Region(string! region) -> Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder!
+Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder.ServiceUrl(string! serviceUrl) -> Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder!
 Microsoft.Extensions.DependencyInjection.AwsS3ColdEventStoreExtensions
-static Microsoft.Extensions.DependencyInjection.AwsS3ColdEventStoreExtensions.UseAwsS3ColdEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.AwsS3.DependencyInjection.AwsS3ColdEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.AwsS3ColdEventStoreExtensions.UseAwsS3ColdEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.AwsS3.IEventSourcingAwsS3Builder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

@@ -27,8 +27,8 @@ public sealed class GoogleCloudServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddGoogleCloudAuditExporter(o =>
-			o.ProjectId = "test-project");
+		var result = services.AddGoogleCloudAuditExporter(gcp =>
+			gcp.ProjectId("test-project"));
 
 		// Assert
 		result.ShouldBeSameAs(services);
@@ -43,8 +43,8 @@ public sealed class GoogleCloudServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddGoogleCloudAuditExporter(o =>
-			o.ProjectId = "test-project");
+		services.AddGoogleCloudAuditExporter(gcp =>
+			gcp.ProjectId("test-project"));
 
 		// Assert -- Sprint 750: explicit GoogleCloudAuditOptionsValidator registered
 		services.ShouldContain(sd => sd.ServiceType == typeof(IValidateOptions<GoogleCloudAuditOptions>));
@@ -59,8 +59,8 @@ public sealed class GoogleCloudServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddGoogleCloudAuditExporter(o =>
-			o.ProjectId = "test-project");
+		services.AddGoogleCloudAuditExporter(gcp =>
+			gcp.ProjectId("test-project"));
 
 		// Assert
 		var descriptor = services.Single(sd => sd.ServiceType == typeof(IAuditLogExporter));
@@ -76,8 +76,8 @@ public sealed class GoogleCloudServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddGoogleCloudAuditExporter(o =>
-			o.ProjectId = "test-project");
+		services.AddGoogleCloudAuditExporter(gcp =>
+			gcp.ProjectId("test-project"));
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(IHttpClientFactory));

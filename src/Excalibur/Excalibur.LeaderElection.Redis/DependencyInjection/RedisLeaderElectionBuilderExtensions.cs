@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.LeaderElection;
@@ -26,18 +27,81 @@ public static class RedisLeaderElectionBuilderExtensions
 	/// Configures the leader election builder to use the Redis provider.
 	/// </summary>
 	/// <param name="builder">The leader election builder.</param>
-	/// <param name="lockKey">The Redis key for the leader lock (e.g., "myapp:leader").</param>
+	/// <param name="configure">Configuration action for the Redis leader election builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// Requires an <see cref="IConnectionMultiplexer"/> to be registered in the service collection.
-	/// </remarks>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <example>
+	/// <code>
+	/// services.AddExcaliburLeaderElection(le =&gt;
+	/// {
+	///     le.UseRedis(redis =&gt;
+	///     {
+	///         redis.ConnectionString("localhost:6379")
+	///              .LockKey("myapp:leader")
+	///              .Database(0);
+	///     });
+	/// });
+	/// </code>
+	/// </example>
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
 	public static ILeaderElectionBuilder UseRedis(
 		this ILeaderElectionBuilder builder,
-		string lockKey)
+		Action<IRedisLeaderElectionBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentException.ThrowIfNullOrWhiteSpace(lockKey);
+		ArgumentNullException.ThrowIfNull(configure);
 
+		var redisBuilder = new RedisLeaderElectionBuilder();
+		configure(redisBuilder);
+
+		var hasBuilderConnection = redisBuilder.MultiplexerInstance is not null
+			|| redisBuilder.MultiplexerFactoryFunc is not null;
+
+		RegisterOptionsAndServices(builder, redisBuilder, hasBuilderConnection);
+
+		return builder;
+	}
+
+	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+		Justification = "Options validation/binding uses reflection by design.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "Configuration binding uses reflection by design.")]
+	private static void RegisterOptionsAndServices(
+		ILeaderElectionBuilder builder,
+		RedisLeaderElectionBuilder redisBuilder,
+		bool hasBuilderConnection)
+	{
+		// Register LeaderElectionOptions with ValidateOnStart
+		if (redisBuilder.BindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<LeaderElectionOptions>()
+				.BindConfiguration(redisBuilder.BindConfigurationPath)
+				.ValidateOnStart();
+		}
+
+		builder.Services.AddOptions<LeaderElectionOptions>().ValidateOnStart();
+
+		// Register ConnectionMultiplexer based on connection path
+		if (hasBuilderConnection)
+		{
+			RegisterBuilderManagedMultiplexer(builder.Services, redisBuilder);
+		}
+		else if (redisBuilder.ConnectionStringValue is not null)
+		{
+			var connStr = redisBuilder.ConnectionStringValue;
+			builder.Services.TryAddSingleton<IConnectionMultiplexer>(
+				_ => ConnectionMultiplexer.Connect(connStr));
+		}
+
+		// Determine effective lock key (from builder or default)
+		var lockKey = redisBuilder.LockKeyValue ?? "excalibur:leader";
+
+		// Register RedisLeaderElection
 		builder.Services.TryAddSingleton(sp =>
 		{
 			var redis = sp.GetRequiredService<IConnectionMultiplexer>();
@@ -45,47 +109,49 @@ public static class RedisLeaderElectionBuilderExtensions
 			var logger = sp.GetRequiredService<ILogger<RedisLeaderElection>>();
 			return new RedisLeaderElection(redis, lockKey, options, logger);
 		});
+
+		// Register keyed with telemetry decorator
 		builder.Services.AddKeyedSingleton<ILeaderElection>("redis", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<RedisLeaderElection>();
 			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
+			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName)
+				?? new Meter(LeaderElectionTelemetryConstants.MeterName);
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElection(inner, meter, activitySource, "Redis");
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("redis"));
 
-		return builder;
-	}
-
-	/// <summary>
-	/// Configures the leader election builder to use the Redis factory provider.
-	/// </summary>
-	/// <param name="builder">The leader election builder.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// Requires an <see cref="IConnectionMultiplexer"/> to be registered in the service collection.
-	/// Use the factory when you need multiple leader elections with different lock keys.
-	/// </remarks>
-	public static ILeaderElectionBuilder UseRedisFactory(
-		this ILeaderElectionBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
+		// Register factory
 		builder.Services.AddKeyedSingleton<ILeaderElectionFactory>("redis", (sp, _) =>
 		{
 			var redis = sp.GetRequiredService<IConnectionMultiplexer>();
 			var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 			var inner = new RedisLeaderElectionFactory(redis, loggerFactory);
 			var meterFactory = sp.GetService<IMeterFactory>();
-			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName) ?? new Meter(LeaderElectionTelemetryConstants.MeterName);
+			var meter = meterFactory?.Create(LeaderElectionTelemetryConstants.MeterName)
+				?? new Meter(LeaderElectionTelemetryConstants.MeterName);
 			var activitySource = new ActivitySource(LeaderElectionTelemetryConstants.ActivitySourceName);
 			return new TelemetryLeaderElectionFactory(inner, meter, activitySource, "Redis");
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("redis"));
+	}
 
-		return builder;
+	private static void RegisterBuilderManagedMultiplexer(
+		IServiceCollection services,
+		RedisLeaderElectionBuilder redisBuilder)
+	{
+		if (redisBuilder.MultiplexerInstance is not null)
+		{
+			var multiplexer = redisBuilder.MultiplexerInstance;
+			services.TryAddSingleton(multiplexer);
+		}
+		else if (redisBuilder.MultiplexerFactoryFunc is not null)
+		{
+			var factory = redisBuilder.MultiplexerFactoryFunc;
+			services.TryAddSingleton(factory);
+		}
 	}
 }

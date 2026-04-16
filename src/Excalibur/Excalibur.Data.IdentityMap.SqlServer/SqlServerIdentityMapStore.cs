@@ -17,6 +17,7 @@ namespace Excalibur.Data.IdentityMap.SqlServer;
 internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 {
 	private readonly SqlServerIdentityMapOptions _options;
+	private readonly Func<SqlConnection>? _connectionFactory;
 	private readonly ILogger<SqlServerIdentityMapStore> _logger;
 
 	/// <summary>
@@ -33,6 +34,25 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="SqlServerIdentityMapStore"/> class
+	/// with an explicit connection factory.
+	/// </summary>
+	/// <param name="connectionFactory">A factory that creates <see cref="SqlConnection"/> instances.</param>
+	/// <param name="options">The SQL Server identity map options.</param>
+	/// <param name="logger">The logger.</param>
+	internal SqlServerIdentityMapStore(
+		Func<SqlConnection> connectionFactory,
+		IOptions<SqlServerIdentityMapOptions> options,
+		ILogger<SqlServerIdentityMapStore> logger)
+		: this(options, logger)
+	{
+		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+	}
+
+	private SqlConnection CreateConnection() =>
+		_connectionFactory?.Invoke() ?? CreateConnection();
+
 	/// <inheritdoc/>
 	public async ValueTask<string?> ResolveAsync(
 		string externalSystem,
@@ -48,7 +68,7 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 			  AND AggregateType = @AggregateType;
 			""";
 
-		await using var connection = new SqlConnection(_options.ConnectionString);
+		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var result = await connection.QuerySingleOrDefaultAsync<string?>(
@@ -83,7 +103,7 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 				VALUES (@ExternalSystem, @ExternalId, @AggregateType, @AggregateId);
 			""";
 
-		await using var connection = new SqlConnection(_options.ConnectionString);
+		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		await connection.ExecuteAsync(
@@ -121,7 +141,7 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 			OUTPUT $action AS MergeAction, inserted.AggregateId;
 			""";
 
-		await using var connection = new SqlConnection(_options.ConnectionString);
+		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var result = await connection.QuerySingleAsync<(string MergeAction, string AggregateId)>(
@@ -156,7 +176,7 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 			  AND AggregateType = @AggregateType;
 			""";
 
-		await using var connection = new SqlConnection(_options.ConnectionString);
+		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rowsAffected = await connection.ExecuteAsync(
@@ -194,7 +214,7 @@ internal sealed partial class SqlServerIdentityMapStore : IIdentityMapStore
 
 		var result = new Dictionary<string, string>(externalIds.Count);
 
-		await using var connection = new SqlConnection(_options.ConnectionString);
+		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		foreach (var chunk in externalIds.Chunk(_options.MaxBatchSize))

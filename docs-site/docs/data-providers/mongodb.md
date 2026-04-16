@@ -27,22 +27,52 @@ dotnet add package Excalibur.Data.MongoDB
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-services.AddMongoDbSnapshotStore(options =>
+// Data persistence provider (fluent builder)
+services.AddExcaliburMongoDb(mongo =>
 {
-    options.ConnectionString = "mongodb://localhost:27017";
-    options.DatabaseName = "MyApp";
-    options.CollectionName = "snapshots";
+    mongo.ConnectionString("mongodb://localhost:27017")
+         .DatabaseName("MyApp");
 });
 ```
 
-## Registration Methods
+## Builder Registration (Recommended)
+
+All MongoDB subsystems use the fluent builder pattern with 4 canonical connection overloads:
+
+```csharp
+// 1. Connection string (creates IMongoClient singleton internally)
+mongo.ConnectionString("mongodb://localhost:27017");
+
+// 2. Pre-configured IMongoClient instance
+mongo.Client(existingMongoClient);
+
+// 3. DI-aware client factory
+mongo.ClientFactory(sp => sp.GetRequiredService<IMongoClient>());
+
+// 4. Bind from appsettings.json section
+mongo.BindConfiguration("MongoDB:Data");
+```
+
+### Subsystem Entry Points
+
+| Subsystem | Entry Point | Builder Interface |
+|-----------|-------------|-------------------|
+| Data | `services.AddExcaliburMongoDb(mongo => ...)` | `IMongoDBDataBuilder` |
+| Event Sourcing | `es.UseMongoDB(mongo => ...)` | `IMongoDBEventSourcingBuilder` |
+| Saga | `saga.UseMongoDB(mongo => ...)` | `IMongoDBSagaBuilder` |
+| Inbox | `inbox.UseMongoDB(mongo => ...)` | `IMongoDBInboxBuilder` |
+| Outbox | `outbox.UseMongoDB(mongo => ...)` | `IMongoDBOutboxBuilder` |
+| CDC | `cdc.UseMongoDB(mongo => ...)` | `IMongoDbCdcBuilder` |
+| Leader Election | `le.UseMongoDB(resourceName, mongo => ...)` | `IMongoDBLeaderElectionBuilder` |
+
+### Legacy Registration Methods
+
+The following standalone methods are still available for snapshots and projections:
 
 | Method | What It Registers | Key Options |
 |--------|-------------------|-------------|
 | `AddMongoDbSnapshotStore(opts)` | `ISnapshotStore` | `CollectionName` |
 | `AddMongoDbProjectionStore<T>(connStr, dbName, opts?)` | `IProjectionStore<T>` | `CollectionName` |
-| `AddMongoDbOutboxStore(opts)` | `IOutboxStore` | `CollectionName` |
-| `AddMongoDbSagaStore(opts)` | `ISagaStore` | `CollectionName` |
 
 ### Batch Projection Registration
 

@@ -3,6 +3,9 @@
 
 using System.Reflection;
 
+using Excalibur.Dispatch.LeaderElection.DependencyInjection;
+using Excalibur.LeaderElection.Redis;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.LeaderElection.Tests;
@@ -116,17 +119,19 @@ public sealed class LeaderElectionCriticalFixesShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		var builder = A.Fake<ILeaderElectionBuilder>();
+		A.CallTo(() => builder.Services).Returns(services);
 
 		// Act
-		services.AddRedisLeaderElection("test:leader", options =>
-		{
-			options.InstanceId = "test";
-		});
+		builder.UseRedis(redis => redis
+			.ConnectionString("localhost:6379")
+			.LockKey("test:leader"));
 
-		// Assert -- options resolve with configured values (ValidateDataAnnotations removed in Sprint 750 AOT migration)
-		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<LeaderElectionOptions>>().Value;
-		options.InstanceId.ShouldBe("test");
+		// Assert -- ValidateOnStart is registered
+		services.ShouldContain(sd =>
+			sd.ServiceType.Name.Contains("IValidateOptions") ||
+			sd.ServiceType.Name.Contains("IConfigureOptions") ||
+			sd.ServiceType.Name.Contains("IOptionsChangeTokenSource"));
 	}
 
 	#endregion

@@ -43,7 +43,7 @@ public sealed class OutboxBuilderElasticSearchRedisExtensionsShould
 
 		capturedBuilder.ShouldNotBeNull();
 		Should.Throw<ArgumentNullException>(() =>
-			capturedBuilder!.UseElasticSearch(null!));
+			capturedBuilder!.UseElasticSearch((Action<IElasticSearchOutboxBuilder>)null!));
 	}
 
 	[Fact]
@@ -54,9 +54,10 @@ public sealed class OutboxBuilderElasticSearchRedisExtensionsShould
 
 		services.AddExcaliburOutbox(outbox =>
 		{
-			capturedResult = outbox.UseElasticSearch(opts =>
+			capturedResult = outbox.UseElasticSearch(es =>
 			{
-				opts.IndexName = "test-outbox";
+				es.NodeUri(new Uri("http://localhost:9200"))
+				  .IndexName("test-outbox");
 			});
 		});
 
@@ -68,9 +69,10 @@ public sealed class OutboxBuilderElasticSearchRedisExtensionsShould
 	{
 		var services = new ServiceCollection();
 
-		services.AddExcaliburOutbox(outbox => outbox.UseElasticSearch(opts =>
+		services.AddExcaliburOutbox(outbox => outbox.UseElasticSearch(es =>
 		{
-			opts.IndexName = "test-outbox";
+			es.NodeUri(new Uri("http://localhost:9200"))
+			  .IndexName("test-outbox");
 		}));
 
 		services.ShouldContain(sd =>
@@ -79,13 +81,13 @@ public sealed class OutboxBuilderElasticSearchRedisExtensionsShould
 
 	#endregion
 
-	#region UseRedis (Action<RedisOutboxOptions>)
+	#region UseRedis (Action<IRedisOutboxBuilder>)
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseRedis()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((IOutboxBuilder)null!).UseRedis(_ => { }));
+			((IOutboxBuilder)null!).UseRedis(redis => redis.ConnectionString("localhost:6379")));
 	}
 
 	[Fact]
@@ -101,7 +103,7 @@ public sealed class OutboxBuilderElasticSearchRedisExtensionsShould
 
 		capturedBuilder.ShouldNotBeNull();
 		Should.Throw<ArgumentNullException>(() =>
-			capturedBuilder!.UseRedis((Action<RedisOutboxOptions>)null!));
+			capturedBuilder!.UseRedis((Action<IRedisOutboxBuilder>)null!));
 	}
 
 	[Fact]
@@ -112,10 +114,8 @@ public sealed class OutboxBuilderElasticSearchRedisExtensionsShould
 
 		services.AddExcaliburOutbox(outbox =>
 		{
-			capturedResult = outbox.UseRedis(opts =>
-			{
-				opts.ConnectionString = "localhost:6379";
-			});
+			capturedResult = outbox.UseRedis(redis =>
+				redis.ConnectionString("localhost:6379"));
 		});
 
 		capturedResult.ShouldNotBeNull();
@@ -126,10 +126,8 @@ public sealed class OutboxBuilderElasticSearchRedisExtensionsShould
 	{
 		var services = new ServiceCollection();
 
-		services.AddExcaliburOutbox(outbox => outbox.UseRedis(opts =>
-		{
-			opts.ConnectionString = "localhost:6379";
-		}));
+		services.AddExcaliburOutbox(outbox => outbox.UseRedis(redis =>
+			redis.ConnectionString("localhost:6379")));
 
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(IOutboxStore));

@@ -48,9 +48,21 @@ var host = Host.CreateDefaultBuilder(args)
 			_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 		});
 
-		// Add AWS Secrets Manager credential store
+		// Add AWS Secrets Manager credential store via builder pattern
 		// This registers ICredentialStore and IWritableCredentialStore
-		_ = services.AddAwsSecretsManagerCredentialStore(context.Configuration);
+		_ = services.AddDispatchSecurityAws(aws =>
+		{
+			var region = context.Configuration["AWS:Region"];
+			if (!string.IsNullOrEmpty(region))
+			{
+				aws.Region(region);
+			}
+			else
+			{
+				// Fallback: bind from configuration section
+				aws.BindConfiguration("AWS");
+			}
+		});
 
 		// Register sample services
 		_ = services.AddSingleton<AwsSecretDemoService>();

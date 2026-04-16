@@ -119,7 +119,7 @@ These samples follow:
 // Replace InMemoryOrderStore with:
 services.AddExcaliburEventSourcing(es =>
 {
-    es.UseSqlServer(opts => opts.ConnectionString = connectionString);
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString));
     es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 });
 

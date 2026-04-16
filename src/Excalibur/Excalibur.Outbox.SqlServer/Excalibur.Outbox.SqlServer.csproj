@@ -7,6 +7,9 @@
     <PackageTags>excalibur;outbox;transactional-outbox;messaging;reliable-delivery;sqlserver;dapper</PackageTags>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Outbox.Tests" />
+  </ItemGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
@@ -24,6 +27,7 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Outbox\Excalibur.Outbox.csproj" />

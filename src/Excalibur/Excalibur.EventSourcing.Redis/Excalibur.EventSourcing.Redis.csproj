@@ -9,6 +9,9 @@
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
