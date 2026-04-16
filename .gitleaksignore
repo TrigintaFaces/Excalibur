@@ -24,4 +24,14 @@ tests/unit/Excalibur.Dispatch.Security.Tests/Diagnostics/SecurityHealthCheckShou
 samples/14-data-providers/CosmosDb/appsettings.json:generic-api-key:5
 samples/14-data-providers/CosmosDb/Program.cs:generic-api-key:43
 
+# False positive: CosmosDB sentinel connection strings (AccountKey decodes to "builder-managed-key")
+# These are builder-pattern placeholders for options validation, not real secrets
+src/Excalibur/Excalibur.Data.CosmosDb/CosmosDbServiceCollectionExtensions.cs:generic-api-key:135
+src/Excalibur/Excalibur.Inbox.CosmosDb/InboxBuilderCosmosDbExtensions.cs:generic-api-key:129
+src/Excalibur/Excalibur.Outbox.CosmosDb/DependencyInjection/OutboxBuilderCosmosDbExtensions.cs:generic-api-key:141
+src/Excalibur/Excalibur.Saga.CosmosDb/SagaBuilderCosmosDbExtensions.cs:generic-api-key:129
+
+# False positive: test dummy base64 value "dGVzdC1zaGFyZWQta2V5" (decodes to "test-shared-key") in Sentinel builder test
+tests/unit/Excalibur.Dispatch.AuditLogging.Sentinel.Tests/Builders/AuditLoggingSentinelBuilderShould.cs:generic-api-key:24
+
 # End of file
