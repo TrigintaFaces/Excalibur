@@ -343,7 +343,9 @@ projects:
   - path: tests/unit/Excalibur.Jobs.Tests/Excalibur.Jobs.Tests.csproj
   - path: tests/unit/Excalibur.LeaderElection.Tests/Excalibur.LeaderElection.Tests.csproj
   - path: tests/unit/Excalibur.Outbox.Tests/Excalibur.Outbox.Tests.csproj
+  - path: tests/unit/Excalibur.Postgres.Tests/Excalibur.Postgres.Tests.csproj
   - path: tests/unit/Excalibur.Saga.Tests/Excalibur.Saga.Tests.csproj
   - path: tests/unit/Excalibur.Security.Tests/Excalibur.Security.Tests.csproj
+  - path: tests/unit/Excalibur.SqlServer.Tests/Excalibur.SqlServer.Tests.csproj
   - path: tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj
   - path: tests/unit/Excalibur.Tests/Excalibur.Tests.csproj

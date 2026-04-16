@@ -125,7 +125,7 @@ It is generated from project files; licenses remain with their respective owners
 | Microsoft.ApplicationInsights.AspNetCore | 2.23.0 |
 | Microsoft.ApplicationInsights.WorkerService | 2.23.0 |
 | Microsoft.AspNetCore.Authorization | 9.0.9 |
-| Microsoft.AspNetCore.DataProtection | 9.0.0 |
+| Microsoft.AspNetCore.DataProtection | 9.0.15 |
 | Microsoft.AspNetCore.Http.Abstractions | 2.2.0 |
 | Microsoft.AspNetCore.Http.Features | 5.0.17 |
 | Microsoft.AspNetCore.Mvc.Testing | 9.0.6 |

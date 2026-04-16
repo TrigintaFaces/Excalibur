@@ -183,7 +183,7 @@ public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 		// Act
 		_ = services.AddExcalibur(excalibur =>
 		{
-			_ = excalibur.AddLeaderElection();
+			_ = excalibur.AddLeaderElection(_ => { });
 		});
 
 		// Assert
@@ -210,7 +210,7 @@ public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 				.AddOutbox(_ => { })
 				.AddCdc(_ => { })
 				.AddSagas()
-				.AddLeaderElection();
+				.AddLeaderElection(_ => { });
 		});
 
 		// Assert — should not throw; verify services were added
@@ -266,7 +266,7 @@ public sealed class ExcaliburBuilderIntegrationShould : IDisposable
 		// Act
 		_ = services.AddExcalibur(excalibur =>
 		{
-			_ = excalibur.AddLeaderElection(opts => opts.LeaseDuration = TimeSpan.FromSeconds(30));
+			_ = excalibur.AddLeaderElection(_ => { });
 		});
 
 		// Assert

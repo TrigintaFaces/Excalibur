@@ -996,6 +996,10 @@
       "name": "Excalibur full-stack provider metapackages",
       "packagePattern": "^Excalibur\\.(SqlServer|Postgres)$",
       "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Postgres.Tests/Excalibur.Postgres.Tests.csproj",
+          "tests/unit/Excalibur.SqlServer.Tests/Excalibur.SqlServer.Tests.csproj"
+        ],
         "smoke": [
           "tests/smoke/Excalibur.Dispatch.Tests.Smoke/Excalibur.Dispatch.Tests.Smoke.csproj"
         ]

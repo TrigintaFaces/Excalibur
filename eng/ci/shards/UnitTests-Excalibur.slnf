@@ -34,7 +34,9 @@
       "tests\\unit\\Excalibur.Outbox.Tests\\Excalibur.Outbox.Tests.csproj",
       "tests\\unit\\Excalibur.Hosting.Tests\\Excalibur.Hosting.Tests.csproj",
       "tests\\unit\\Excalibur.Jobs.Tests\\Excalibur.Jobs.Tests.csproj",
+      "tests\\unit\\Excalibur.Postgres.Tests\\Excalibur.Postgres.Tests.csproj",
       "tests\\unit\\Excalibur.Saga.Tests\\Excalibur.Saga.Tests.csproj",
+      "tests\\unit\\Excalibur.SqlServer.Tests\\Excalibur.SqlServer.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Testing.Tests\\Excalibur.Dispatch.Testing.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Testing.Shouldly.Tests\\Excalibur.Dispatch.Testing.Shouldly.Tests.csproj"
     ]

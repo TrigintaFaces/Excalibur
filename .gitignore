@@ -39,6 +39,9 @@ UnitShardReport/
 management/reports/
 BannedApisReport/
 
+# CI-generated notices diff artifact (never commit — regenerated each CI run)
+THIRD-PARTY-NOTICES.gen.md
+
 # Beads CLI scratch files (base/left merge artifacts are ephemeral)
 .beads/beads.base.*
 .beads/beads.left.*
@@ -268,14 +271,8 @@ PublishScripts/
 **/[Pp]ackages/*
 !**/[Pp]ackages/build/
 
-# ✅ Include custom NuGet cache
-!/.nuget/
-!/.nuget/packages/
-!.nuget/packages/**
-
-# Optional: avoid diff noise on DLLs/nupkg in cache (not needed if using .gitattributes)
-# .nuget/packages/**/*.dll -text
-# .nuget/packages/**/*.nupkg -text
+# NuGet local package cache (restored by dotnet restore, not tracked)
+.nuget/
 
 # Microsoft Azure Build Output
 csx/

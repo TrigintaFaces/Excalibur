@@ -205,7 +205,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((ISagaBuilder)null!).UseDynamoDb());
+			((ISagaBuilder)null!).UseDynamoDb(dynamo => dynamo.TableName("test")));
 	}
 
 	[Fact]
@@ -215,7 +215,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		var result = builder.UseDynamoDb();
+		var result = builder.UseDynamoDb(dynamo => dynamo.TableName("test-sagas"));
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -228,7 +228,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseDynamoDb();
+		builder.UseDynamoDb(dynamo => dynamo.TableName("test-sagas"));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -242,7 +242,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseDynamoDb();
+		builder.UseDynamoDb(dynamo => dynamo.TableName("test-sagas"));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -254,34 +254,30 @@ public sealed class SagaBuilderProviderExtensionsShould
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
+		var configureInvoked = false;
 
 		// Act
-		builder.UseDynamoDb(opts =>
+		builder.UseDynamoDb(dynamo =>
 		{
-			opts.TableName = "test-sagas";
-			opts.Connection.Region = "us-east-1";
+			configureInvoked = true;
+			dynamo.TableName("test-sagas");
 		});
 
-		// Assert -- resolve options to trigger the deferred configure delegate
-		var provider = builder.Services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DynamoDbSagaOptions>>().Value;
-		options.TableName.ShouldBe("test-sagas");
-		options.Connection.Region.ShouldBe("us-east-1");
+		// Assert -- verify the configure delegate was invoked eagerly by the builder
+		configureInvoked.ShouldBeTrue();
+		builder.Services.ShouldContain(sd =>
+			sd.ServiceType == typeof(IConfigureOptions<DynamoDbSagaOptions>));
 	}
 
 	[Fact]
-	public void AcceptNullConfigure_WhenCallingUseDynamoDb()
+	public void ThrowArgumentNullException_WhenConfigureIsNull_ForUseDynamoDb()
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
 
-		// Act -- should not throw with null configure
-		var result = builder.UseDynamoDb(null);
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-		builder.Services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ISagaStore));
+		// Act & Assert -- null configure should throw
+		Should.Throw<ArgumentNullException>(() =>
+			builder.UseDynamoDb((Action<IDynamoDBSagaBuilder>)null!));
 	}
 
 	#endregion
@@ -293,7 +289,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			((ISagaBuilder)null!).UseFirestore());
+			((ISagaBuilder)null!).UseFirestore(fs => fs.ProjectId("test-project")));
 	}
 
 	[Fact]
@@ -303,7 +299,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		var result = builder.UseFirestore();
+		var result = builder.UseFirestore(fs => fs.ProjectId("test-project"));
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -316,7 +312,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseFirestore();
+		builder.UseFirestore(fs => fs.ProjectId("test-project"));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -330,7 +326,7 @@ public sealed class SagaBuilderProviderExtensionsShould
 		var builder = new TestSagaBuilder();
 
 		// Act
-		builder.UseFirestore();
+		builder.UseFirestore(fs => fs.ProjectId("test-project"));
 
 		// Assert
 		builder.Services.ShouldContain(sd =>
@@ -342,33 +338,31 @@ public sealed class SagaBuilderProviderExtensionsShould
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
+		var configureInvoked = false;
 
 		// Act
-		builder.UseFirestore(opts =>
+		builder.UseFirestore(fs =>
 		{
-			opts.CollectionName = "test-sagas";
-			opts.ProjectId = "test-project"; // Required by IValidateOptions
+			configureInvoked = true;
+			fs.ProjectId("test-project")
+				.CollectionName("test-sagas");
 		});
 
-		// Assert -- resolve options to trigger the deferred configure delegate
-		var provider = builder.Services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<FirestoreSagaOptions>>().Value;
-		options.CollectionName.ShouldBe("test-sagas");
+		// Assert -- verify the configure delegate was invoked eagerly by the builder
+		configureInvoked.ShouldBeTrue();
+		builder.Services.ShouldContain(sd =>
+			sd.ServiceType == typeof(IConfigureOptions<FirestoreSagaOptions>));
 	}
 
 	[Fact]
-	public void AcceptNullConfigure_WhenCallingUseFirestore()
+	public void ThrowArgumentNullException_WhenConfigureIsNull_ForUseFirestore()
 	{
 		// Arrange
 		var builder = new TestSagaBuilder();
 
-		// Act
-		var result = builder.UseFirestore(null);
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-		builder.Services.ShouldContain(sd =>
-			sd.ServiceType == typeof(ISagaStore));
+		// Act & Assert -- null configure should throw
+		Should.Throw<ArgumentNullException>(() =>
+			builder.UseFirestore((Action<IFirestoreSagaBuilder>)null!));
 	}
 
 	#endregion
