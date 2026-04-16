@@ -89,6 +89,18 @@ jobs:
           echo "Disk usage before cleanup:"
           df -h
 
+          # Remove pre-installed tools that consume significant disk space
+          sudo rm -rf /usr/local/lib/android || true          # ~12GB
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/6.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/7.* || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true     # ~6GB
+          sudo rm -rf /usr/local/share/powershell || true     # ~1.5GB
+          sudo rm -rf /usr/share/swift || true                # ~1.5GB
+          sudo apt-get clean || true
+          docker system prune -af 2>/dev/null || true
+
           for d in \
             "$RUNNER_TEMP" \
             "$RUNNER_WORKSPACE/_temp" \
@@ -238,6 +250,18 @@ jobs:
           set -euo pipefail
           echo "Disk usage before cleanup:"
           df -h
+
+          # Remove pre-installed tools that consume significant disk space
+          sudo rm -rf /usr/local/lib/android || true          # ~12GB
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/6.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.AspNetCore.App/7.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/6.* || true
+          sudo rm -rf /usr/share/dotnet/shared/Microsoft.NETCore.App/7.* || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true     # ~6GB
+          sudo rm -rf /usr/local/share/powershell || true     # ~1.5GB
+          sudo rm -rf /usr/share/swift || true                # ~1.5GB
+          sudo apt-get clean || true
+          docker system prune -af 2>/dev/null || true
 
           for d in \
             "$RUNNER_TEMP" \
