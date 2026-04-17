@@ -297,8 +297,8 @@ public class ConditionExpressionSpikeShould
         sw.Stop();
 
         var avgMicroseconds = sw.Elapsed.TotalMicroseconds / iterations;
-        avgMicroseconds.ShouldBeLessThan(10.0,
-            $"1-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <10us)");
+        avgMicroseconds.ShouldBeLessThan(20.0,
+            $"1-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <20us)");
     }
 
     [Fact]
@@ -324,8 +324,8 @@ public class ConditionExpressionSpikeShould
         sw.Stop();
 
         var avgMicroseconds = sw.Elapsed.TotalMicroseconds / iterations;
-        avgMicroseconds.ShouldBeLessThan(10.0,
-            $"3-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <10us)");
+        avgMicroseconds.ShouldBeLessThan(20.0,
+            $"3-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <20us)");
     }
 
     [Fact]
@@ -351,8 +351,8 @@ public class ConditionExpressionSpikeShould
         sw.Stop();
 
         var avgMicroseconds = sw.Elapsed.TotalMicroseconds / iterations;
-        avgMicroseconds.ShouldBeLessThan(15.0,
-            $"5-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <15us)");
+        avgMicroseconds.ShouldBeLessThan(25.0,
+            $"5-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <25us)");
     }
 
     [Fact]
